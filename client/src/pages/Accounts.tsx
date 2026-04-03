@@ -62,7 +62,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
         <label className="block text-sm font-medium text-gray-700 mb-1.5">Account Name *</label>
         <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. My Aliyun Account" className={inputClass} />
       </div>
-      {provider?.fields.map((field: ProviderField) => (
+      {(provider?.configFields ?? []).map((field: ProviderField) => (
         <div key={field.key}>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             {field.label}{field.required !== false && ' *'}

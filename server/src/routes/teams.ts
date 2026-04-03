@@ -198,6 +198,40 @@ router.delete('/:id', authMiddleware, (req: Request, res: Response) => {
 /**
  * @swagger
  * /api/teams/{id}/members:
+ *   get:
+ *     summary: List members of a team
+ *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of team members
+ */
+router.get('/:id/members', authMiddleware, (req: Request, res: Response) => {
+  const teamId = parseInt(req.params.id);
+  const db = getDb();
+  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(teamId) as Team | undefined;
+  if (!team) {
+    res.json({ code: -1, msg: 'Team not found' });
+    return;
+  }
+  const members = db.prepare(
+    `SELECT tm.*, u.username, u.email FROM team_members tm
+     INNER JOIN users u ON u.id = tm.user_id
+     WHERE tm.team_id = ?`
+  ).all(teamId);
+  res.json({ code: 0, data: members, msg: 'success' });
+});
+
+/**
+ * @swagger
+ * /api/teams/{id}/members:
  *   post:
  *     summary: Add member to team
  *     tags: [Teams]

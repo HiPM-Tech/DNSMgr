@@ -45,7 +45,7 @@ export interface User {
 export interface Provider {
   type: string;
   name: string;
-  fields: ProviderField[];
+  configFields: ProviderField[];
   features?: string[];
 }
 
@@ -203,7 +203,7 @@ export const teamsApi = {
   delete: (id: number) => api.delete<ApiResponse<null>>(`/teams/${id}`),
   members: (id: number) => api.get<ApiResponse<TeamMember[]>>(`/teams/${id}/members`),
   addMember: (id: number, userId: number, role?: string) =>
-    api.post<ApiResponse<null>>(`/teams/${id}/members`, { user_id: userId, role }),
+    api.post<ApiResponse<null>>(`/teams/${id}/members`, { userId, role }),
   removeMember: (id: number, userId: number) =>
     api.delete<ApiResponse<null>>(`/teams/${id}/members/${userId}`),
 };
