@@ -1,0 +1,132 @@
+{extend name="common/layout" /}
+{block name="title"}域名别名 - {$domainName}{/block}
+{block name="main"}
+<style>
+.table-bordered>tbody>tr>td{overflow: hidden;text-overflow: ellipsis;white-space: nowrap;max-width:200px;vertical-align:middle;}
+</style>
+<div class="row">
+	<div class="col-xs-12 center-block" style="float: none;">
+	<div class="panel panel-default">
+	<div class="panel-heading"><h3 class="panel-title"><a href="/record/{$domainId}" class="btn btn-sm btn-default pull-right" style="margin-top:-6px"><i class="fa fa-reply fa-fw"></i> 返回</a>域名别名 - {$domainName}</h3></div>
+	<div class="panel-body">
+
+<div class="alert alert-info">
+	<i class="fa fa-info-circle"></i> 域名别名使用完全相同的解析记录，免除重复操作，仅支持专业版及以上套餐
+</div>
+
+<form id="form-add" class="form-inline" onsubmit="return addAlias()">
+	<div class="form-group">
+		<input type="text" class="form-control" name="alias" id="aliasInput" placeholder="请输入想要绑定的别名" required style="min-width:280px;">
+	</div>
+	<button type="submit" class="btn btn-primary"><i class="fa fa-plus"></i> 添加别名</button>
+</form>
+
+<hr/>
+
+<table id="listTable" class="table table-striped table-hover table-bordered">
+	<thead>
+		<tr>
+			<th>域名别名</th>
+			<th>域名状态</th>
+			<th>操作</th>
+		</tr>
+	</thead>
+	<tbody>
+		{volist name="domainAliasList" id="item"}
+		<tr data-id="{$item.Id}">
+			<td>{$item.DomainAlias}</td>
+			<td>
+				{if isset($item.Status)}
+					{if $item.Status == '2'}
+					<font color="green"><i class="fa fa-check-circle"></i> 正常</font>
+					{elseif $item.Status == '3'}
+					<font color="red"><i class="fa fa-ban"></i> 封禁</font>
+					{else/}
+					<font color="#b5bbc8"><i class="fa fa-pause-circle"></i> DNS不正确</font>
+					{/if}
+				{else/}
+				-
+				{/if}
+			</td>
+			<td>
+				<a href="javascript:delAlias({$item.Id})" class="btn btn-danger btn-xs"><i class="fa fa-trash"></i> 删除</a>
+			</td>
+		</tr>
+		{/volist}
+		{empty name="domainAliasList"}
+		<tr><td colspan="3" class="text-center text-muted">暂无域名别名</td></tr>
+		{/empty}
+	</tbody>
+</table>
+	</div>
+	</div>
+	</div>
+</div>
+{/block}
+{block name="script"}
+<script src="/static/js/layer/layer.js"></script>
+<script src="/static/js/custom.js"></script>
+<script>
+var domainId = {$domainId};
+
+function addAlias() {
+	var alias = $("#aliasInput").val().trim();
+	if (!alias) {
+		layer.msg('请输入想要绑定的别名');
+		return false;
+	}
+	var ii = layer.load(2);
+	$.ajax({
+		type: 'POST',
+		url: '/record/alias/' + domainId + '?act=add',
+		data: { alias: alias },
+		dataType: 'json',
+		success: function(data) {
+			layer.close(ii);
+			if (data.code == 0) {
+				layer.alert(data.msg, { icon: 1 }, function() {
+					layer.closeAll();
+					location.reload();
+				});
+			} else {
+				layer.alert(data.msg || '添加失败', { icon: 2 });
+			}
+		},
+		error: function() {
+			layer.close(ii);
+			layer.alert('网络请求失败', { icon: 2 });
+		}
+	});
+	return false;
+}
+
+function delAlias(id) {
+	layer.confirm('确定要删除该域名别名吗？', { icon: 3, title: '提示' }, function(idx) {
+		var ii = layer.load(2);
+		$.ajax({
+			type: 'POST',
+			url: '/record/alias/' + domainId + '?act=delete',
+			data: { alias_id: id },
+			dataType: 'json',
+			success: function(data) {
+				layer.close(ii);
+				layer.close(idx);
+				if (data.code == 0) {
+					layer.alert(data.msg, { icon: 1 }, function() {
+						layer.closeAll();
+						location.reload();
+					});
+				} else {
+					layer.alert(data.msg || '删除失败', { icon: 2 });
+				}
+			},
+			error: function() {
+				layer.close(ii);
+				layer.close(idx);
+				layer.alert('网络请求失败', { icon: 2 });
+			}
+		});
+	});
+}
+</script>
+{/block}
