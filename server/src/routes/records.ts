@@ -3,7 +3,23 @@ import { getDb } from '../db/database';
 import { authMiddleware } from '../middleware/auth';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { DnsAccount, Domain } from '../types';
+import { type DnsRecord as AdapterRecord } from '../lib/dns/DnsInterface';
 import { canAccessDomain } from './domains';
+
+function toApiRecord(r: AdapterRecord) {
+  return {
+    id: r.RecordId,
+    name: r.Name,
+    type: r.Type,
+    value: r.Value,
+    line: r.Line,
+    ttl: r.TTL,
+    mx: r.MX,
+    status: r.Status,
+    remark: r.Remark ?? null,
+    updated_at: r.UpdateTime ?? null,
+  };
+}
 
 const router = Router({ mergeParams: true });
 
@@ -85,7 +101,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
       parseInt(page), parseInt(pageSize), keyword, subdomain, value, type, line,
       status !== undefined ? parseInt(status) : undefined
     );
-    res.json({ code: 0, data: result, msg: 'success' });
+    res.json({ code: 0, data: { total: result.total, list: result.list.map(toApiRecord) }, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
   }
@@ -199,7 +215,7 @@ router.get('/:recordId', authMiddleware, async (req: Request, res: Response) => 
       res.json({ code: -1, msg: 'Record not found' });
       return;
     }
-    res.json({ code: 0, data: record, msg: 'success' });
+    res.json({ code: 0, data: toApiRecord(record), msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
   }

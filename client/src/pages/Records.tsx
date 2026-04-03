@@ -136,7 +136,7 @@ export function Records() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ recordId, data }: { recordId: number; data: Partial<DnsRecord> }) =>
+    mutationFn: ({ recordId, data }: { recordId: string; data: Partial<DnsRecord> }) =>
       recordsApi.update(domainId, recordId, data),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
@@ -148,7 +148,7 @@ export function Records() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (recordId: number) => recordsApi.delete(domainId, recordId),
+    mutationFn: (recordId: string) => recordsApi.delete(domainId, recordId),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
@@ -159,7 +159,7 @@ export function Records() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ recordId, status }: { recordId: number; status: number }) =>
+    mutationFn: ({ recordId, status }: { recordId: string; status: number }) =>
       recordsApi.setStatus(domainId, recordId, status),
     onSuccess: (res, { recordId }) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }

@@ -78,9 +78,7 @@ export interface Domain {
 }
 
 export interface DnsRecord {
-  id: number;
-  domain_id: number;
-  third_id?: string;
+  id: string;
   name: string;
   type: string;
   value: string;
@@ -88,8 +86,8 @@ export interface DnsRecord {
   ttl?: number;
   mx?: number;
   status: number;
-  remark?: string;
-  updated_at?: string;
+  remark?: string | null;
+  updated_at?: string | null;
 }
 
 export interface DnsLine {
@@ -172,11 +170,11 @@ export const recordsApi = {
     api.get<ApiResponse<{ total: number; list: DnsRecord[] }>>(`/domains/${domainId}/records`, { params }),
   create: (domainId: number, data: Partial<DnsRecord>) =>
     api.post<ApiResponse<{ id: number }>>(`/domains/${domainId}/records`, data),
-  update: (domainId: number, recordId: number, data: Partial<DnsRecord>) =>
+  update: (domainId: number, recordId: string, data: Partial<DnsRecord>) =>
     api.put<ApiResponse<null>>(`/domains/${domainId}/records/${recordId}`, data),
-  delete: (domainId: number, recordId: number) =>
+  delete: (domainId: number, recordId: string) =>
     api.delete<ApiResponse<null>>(`/domains/${domainId}/records/${recordId}`),
-  setStatus: (domainId: number, recordId: number, status: number) =>
+  setStatus: (domainId: number, recordId: string, status: number) =>
     api.put<ApiResponse<null>>(`/domains/${domainId}/records/${recordId}/status`, { status }),
 };
 
