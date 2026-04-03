@@ -1,0 +1,28 @@
+# Editor
+.idea
+.vscode
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+server/dist/
+client/dist/
+
+# Environment files
+.env
+*.env.local
+
+# Database files
+server/*.db
+server/*.db-shm
+server/*.db-wal
+
+# Logs
+*.log
+nohup.out
+
+# OS
+.DS_Store
+Thumbs.db

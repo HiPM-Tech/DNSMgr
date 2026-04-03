@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { accountsApi } from '../api';
 import type { DnsAccount, Provider, ProviderField } from '../api';
 import { Table } from '../components/Table';
@@ -218,7 +218,3 @@ export function Accounts() {
     </div>
   );
 }
-
-// Suppress unused import warning
-const _RefreshCw = RefreshCw;
-void _RefreshCw;

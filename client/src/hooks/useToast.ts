@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 interface Toast {
   id: number;
@@ -36,10 +36,10 @@ export function useToasts() {
     };
   }, []);
 
-  useState(() => {
+  useEffect(() => {
     const unsub = subscribe();
     return unsub;
-  });
+  }, [subscribe]);
 
   return state;
 }
