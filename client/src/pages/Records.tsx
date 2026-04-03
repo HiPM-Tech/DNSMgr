@@ -116,7 +116,7 @@ export function Records() {
     queryFn: () => recordsApi.list(domainId, {
       type: typeFilter || undefined,
       keyword: keyword || undefined,
-    }).then((r) => r.data.data ?? []),
+    }).then((r) => r.data.data?.list ?? []),
   });
 
   const { data: lines = [] } = useQuery({
