@@ -179,7 +179,9 @@ export class CloudflareAdapter implements DnsAdapter {
   }
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
-    // Cloudflare doesn't have a native enable/disable; use name suffix _paused as convention
+    // Cloudflare has no native enable/disable for DNS records.
+    // As a workaround, we append '_paused' to the record name when disabling
+    // and remove it when re-enabling. This is a convention used by this platform only.
     const info = await this.getDomainRecordInfo(recordId);
     if (!info) return false;
     let name = info.Name.replace(/_paused$/, '');

@@ -68,13 +68,14 @@ router.get('/', authMiddleware, (req: Request, res: Response) => {
 
   if (role !== 'admin') {
     const teamIds = (db.prepare('SELECT team_id FROM team_members WHERE user_id = ?').all(userId) as { team_id: number }[]).map(r => r.team_id);
-    const teamPlaceholders = teamIds.length > 0 ? teamIds.map(() => '?').join(',') : 'NULL';
+    const teamFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
+    const teamPermFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
     query += ` WHERE (d.account_id IN (
         SELECT id FROM dns_accounts WHERE created_by = ?
-        ${teamIds.length > 0 ? `OR team_id IN (${teamPlaceholders})` : ''}
+        ${teamFilter}
       ) OR d.id IN (
         SELECT domain_id FROM domain_permissions WHERE user_id = ?
-        ${teamIds.length > 0 ? `OR team_id IN (${teamPlaceholders})` : ''}
+        ${teamPermFilter}
       ))`;
     params.push(userId, ...teamIds, userId, ...teamIds);
   } else {

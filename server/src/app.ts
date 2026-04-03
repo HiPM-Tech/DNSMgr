@@ -90,12 +90,13 @@ app.get('/api/logs', authMiddleware, adminOnly, (req: Request, res: Response) =>
   const size = parseInt(pageSize);
   const offset = (pageNum - 1) * size;
   const db = getDb();
-  let query = 'SELECT l.*, u.username FROM operation_logs l LEFT JOIN users u ON u.id = l.user_id WHERE 1=1';
+  const conditions: string[] = ['1=1'];
   const params: unknown[] = [];
-  if (domain) { query += ' AND l.domain LIKE ?'; params.push(`%${domain}%`); }
-  if (userId) { query += ' AND l.user_id = ?'; params.push(parseInt(userId)); }
-  const total = (db.prepare(`SELECT COUNT(*) as cnt FROM operation_logs l WHERE 1=1${domain ? ' AND l.domain LIKE ?' : ''}${userId ? ' AND l.user_id = ?' : ''}`).get(...params) as { cnt: number }).cnt;
-  const list = db.prepare(`${query} ORDER BY l.id DESC LIMIT ? OFFSET ?`).all(...params, size, offset);
+  if (domain) { conditions.push('l.domain LIKE ?'); params.push(`%${domain}%`); }
+  if (userId) { conditions.push('l.user_id = ?'); params.push(parseInt(userId)); }
+  const where = conditions.join(' AND ');
+  const total = (db.prepare(`SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`).get(...params) as { cnt: number }).cnt;
+  const list = db.prepare(`SELECT l.*, u.username FROM operation_logs l LEFT JOIN users u ON u.id = l.user_id WHERE ${where} ORDER BY l.id DESC LIMIT ? OFFSET ?`).all(...params, size, offset);
   res.json({ code: 0, data: { total, list }, msg: 'success' });
 });
 

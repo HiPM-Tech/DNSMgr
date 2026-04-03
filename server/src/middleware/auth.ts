@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JwtPayload } from '../types';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dnsmgr-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('[WARN] JWT_SECRET environment variable is not set. Using insecure default. Set JWT_SECRET in production!');
+  }
+  return 'dnsmgr-secret-key';
+})();
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers.authorization;
