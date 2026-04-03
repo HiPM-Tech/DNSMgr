@@ -39,7 +39,7 @@ export function Dashboard() {
 
   const { data: logs, isLoading: logsLoading } = useQuery({
     queryKey: ['logs'],
-    queryFn: () => logsApi.list({ limit: 10 }).then((r) => r.data.data ?? []),
+    queryFn: () => logsApi.list({ pageSize: 10 }).then((r) => r.data.data?.list ?? []),
   });
 
   const totalRecords = domains?.reduce((s, d) => s + (d.record_count ?? 0), 0) ?? 0;

@@ -211,6 +211,6 @@ export const teamsApi = {
 // ─── Logs ─────────────────────────────────────────────────────────────────────
 
 export const logsApi = {
-  list: (params?: { limit?: number }) =>
-    api.get<ApiResponse<LogEntry[]>>('/logs', { params }),
+  list: (params?: { pageSize?: number; page?: number; domain?: string; userId?: number }) =>
+    api.get<ApiResponse<{ total: number; list: LogEntry[] }>>('/logs', { params }),
 };
