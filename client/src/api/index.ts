@@ -169,7 +169,7 @@ export const domainsApi = {
 
 export const recordsApi = {
   list: (domainId: number, params?: { type?: string; keyword?: string }) =>
-    api.get<ApiResponse<DnsRecord[]>>(`/domains/${domainId}/records`, { params }),
+    api.get<ApiResponse<{ total: number; list: DnsRecord[] }>>(`/domains/${domainId}/records`, { params }),
   create: (domainId: number, data: Partial<DnsRecord>) =>
     api.post<ApiResponse<{ id: number }>>(`/domains/${domainId}/records`, data),
   update: (domainId: number, recordId: number, data: Partial<DnsRecord>) =>

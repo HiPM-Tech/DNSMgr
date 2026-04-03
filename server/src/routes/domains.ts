@@ -198,6 +198,42 @@ router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
 
 /**
  * @swagger
+ * /api/domains/provider-list/{accountId}:
+ *   get:
+ *     summary: List domains available from a DNS provider account
+ *     tags: [Domains]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: accountId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of domains from provider
+ */
+router.get('/provider-list/:accountId', authMiddleware, async (req: Request, res: Response) => {
+  const accountId = parseInt(req.params.accountId);
+  const account = getAccountForUser(accountId, req.user!.userId, req.user!.role);
+  if (!account) {
+    res.json({ code: -1, msg: 'Account not found or access denied' });
+    return;
+  }
+  try {
+    const cfg = JSON.parse(account.config) as Record<string, string>;
+    const adapter = createAdapter(account.type, cfg);
+    const result = await adapter.getDomainList();
+    const domains = result.list.map((d) => ({ name: d.Domain, third_id: d.ThirdId }));
+    res.json({ code: 0, data: domains, msg: 'success' });
+  } catch (e) {
+    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/**
+ * @swagger
  * /api/domains/{id}:
  *   get:
  *     summary: Get domain info
