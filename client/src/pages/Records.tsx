@@ -11,8 +11,9 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 
-const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR', 'HTTPS'];
+const RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
 const DOMAIN_VALUE_TYPES = new Set(['CNAME', 'MX', 'NS', 'PTR', 'HTTPS']);
+const PROXIABLE_RECORD_TYPES = new Set(['A', 'AAAA', 'CNAME', 'HTTPS']);
 
 interface RecordFormProps {
   domainId: number;
@@ -99,7 +100,9 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
     ttl: initial?.ttl ?? 600,
     mx: initial?.mx ?? 10,
     weight: initial?.weight ?? 10,
-    line: initial?.line ?? (lines[0]?.id ?? ''),
+    line: initial?.cloudflare?.proxied !== undefined
+      ? (initial.cloudflare.proxied ? '1' : '0')
+      : (initial?.line ?? (lines[0]?.id ?? '')),
     remark: initial?.remark ?? '',
   });
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
@@ -112,6 +115,13 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
 
   const currentType = form.type ?? 'A';
   const isSrv = currentType === 'SRV';
+  const canSelectProxy = lines.length > 0 && (
+    initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
+      ? Boolean(initial.cloudflare.proxiable)
+      : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
+        ? Boolean(initial.proxiable)
+      : PROXIABLE_RECORD_TYPES.has(currentType)
+  );
 
   const normalizedSrvValue = useMemo(() => {
     const port = srv.port.trim();
@@ -170,6 +180,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
       ttl: Number(form.ttl ?? 600),
       mx: currentType === 'MX' || currentType === 'SRV' ? Number(form.mx ?? 0) : undefined,
       weight: currentType === 'SRV' ? Number(form.weight ?? 0) : undefined,
+      cloudflare: canSelectProxy && form.line !== undefined ? { proxied: form.line === '1' } : undefined,
       remark: form.remark?.toString() ?? '',
     };
 
@@ -292,7 +303,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
         </div>
       )}
 
-      <div className={`grid gap-4 ${currentType === 'MX' || currentType === 'SRV' || (lines.length > 0 && !isSrv) ? 'grid-cols-2' : 'grid-cols-1'}`}>
+      <div className={`grid gap-4 ${currentType === 'MX' || currentType === 'SRV' || canSelectProxy ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">TTL</label>
           <input
@@ -317,7 +328,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
             {errors.mx && <p className="mt-1 text-xs text-red-600">{errors.mx}</p>}
           </div>
         )}
-        {lines.length > 0 && !isSrv && (
+        {canSelectProxy && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.lineLabel')}</label>
             <select value={form.line ?? ''} onChange={(e) => set('line', e.target.value)} className={inputClass}>
@@ -445,7 +456,12 @@ export function Records() {
     },
     {
       key: 'line', label: t('common.line'),
-      render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.line ? (lineMap[r.line] ?? r.line) : '-'}</span>,
+      render: (r: DnsRecord) => {
+        const proxiable = r.cloudflare?.proxiable ?? r.proxiable;
+        const proxied = r.cloudflare?.proxied;
+        const effectiveLine = proxied === undefined ? r.line : (proxied ? '1' : '0');
+        return <span className="text-gray-500 text-xs">{proxiable === false ? '-' : (effectiveLine ? (lineMap[effectiveLine] ?? effectiveLine) : '-')}</span>;
+      },
     },
     { key: 'ttl', label: t('common.ttl'), render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.ttl ?? '-'}</span> },
     {

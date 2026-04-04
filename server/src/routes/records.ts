@@ -7,6 +7,10 @@ import { type DnsRecord as AdapterRecord } from '../lib/dns/DnsInterface';
 import { canAccessDomain } from './domains';
 
 function toApiRecord(r: AdapterRecord) {
+  const cloudflare = r.Cloudflare ?? (r.Proxiable !== undefined
+    ? { proxied: r.Line === '1', proxiable: r.Proxiable }
+    : null);
+
   return {
     id: r.RecordId,
     name: r.Name,
@@ -17,6 +21,8 @@ function toApiRecord(r: AdapterRecord) {
     mx: r.MX,
     weight: r.Weight,
     status: r.Status,
+    proxiable: r.Proxiable ?? null,
+    cloudflare,
     remark: r.Remark ?? null,
     updated_at: r.UpdateTime ?? null,
   };
@@ -136,6 +142,7 @@ async function refreshDomainRecordCount(domain: Domain, adapter = getAdapterForD
  *         name: line
  *         schema:
  *           type: string
+ *         description: Legacy compatibility field. For Cloudflare prefer `cloudflare.proxied` in write payloads.
  *       - in: query
  *         name: status
  *         schema:
@@ -195,6 +202,13 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  *                 type: string
  *               line:
  *                 type: string
+ *                 description: Legacy compatibility field (`0`=DNS only, `1`=proxied). For Cloudflare prefer `cloudflare.proxied`.
+ *               cloudflare:
+ *                 type: object
+ *                 properties:
+ *                   proxied:
+ *                     type: boolean
+ *                     description: Cloudflare-only proxy switch. When present, it takes precedence over `line`.
  *               ttl:
  *                 type: integer
  *               mx:
@@ -214,9 +228,10 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     res.json({ code: -1, msg: 'Domain not found' });
     return;
   }
-  const { name, type, value, line, ttl, mx, weight, remark } = req.body as {
+  const { name, type, value, line, ttl, mx, weight, remark, cloudflare } = req.body as {
     name: string; type: string; value: string; line?: string;
     ttl?: number; mx?: number; weight?: number; remark?: string;
+    cloudflare?: { proxied?: boolean };
   };
   if (!name || !type || !value) {
     res.json({ code: -1, msg: 'name, type, and value are required' });
@@ -229,7 +244,8 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   }
   try {
     const adapter = getAdapterForDomain(domain);
-    const recordId = await adapter.addDomainRecord(name, type, value, line, ttl, mx, weight, remark);
+    const resolvedLine = cloudflare?.proxied === undefined ? line : (cloudflare.proxied ? '1' : '0');
+    const recordId = await adapter.addDomainRecord(name, type, value, resolvedLine, ttl, mx, weight, remark);
     if (!recordId) {
       res.json({ code: -1, msg: 'Failed to add record' });
       return;
@@ -320,6 +336,13 @@ router.get('/:recordId', authMiddleware, async (req: Request, res: Response) => 
  *                 type: string
  *               line:
  *                 type: string
+ *                 description: Legacy compatibility field (`0`=DNS only, `1`=proxied). For Cloudflare prefer `cloudflare.proxied`.
+ *               cloudflare:
+ *                 type: object
+ *                 properties:
+ *                   proxied:
+ *                     type: boolean
+ *                     description: Cloudflare-only proxy switch. When present, it takes precedence over `line`.
  *               ttl:
  *                 type: integer
  *               mx:
@@ -339,9 +362,10 @@ router.put('/:recordId', authMiddleware, async (req: Request, res: Response) => 
     res.json({ code: -1, msg: 'Domain not found' });
     return;
   }
-  const { name, type, value, line, ttl, mx, weight, remark } = req.body as {
+  const { name, type, value, line, ttl, mx, weight, remark, cloudflare } = req.body as {
     name: string; type: string; value: string; line?: string;
     ttl?: number; mx?: number; weight?: number; remark?: string;
+    cloudflare?: { proxied?: boolean };
   };
   if (!name || !type || !value) {
     res.json({ code: -1, msg: 'name, type, and value are required' });
@@ -354,7 +378,8 @@ router.put('/:recordId', authMiddleware, async (req: Request, res: Response) => 
   }
   try {
     const adapter = getAdapterForDomain(domain);
-    const ok = await adapter.updateDomainRecord(req.params.recordId, name, type, value, line, ttl, mx, weight, remark);
+    const resolvedLine = cloudflare?.proxied === undefined ? line : (cloudflare.proxied ? '1' : '0');
+    const ok = await adapter.updateDomainRecord(req.params.recordId, name, type, value, resolvedLine, ttl, mx, weight, remark);
     if (!ok) {
       res.json({ code: -1, msg: 'Failed to update record' });
       return;

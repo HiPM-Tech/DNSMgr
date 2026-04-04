@@ -89,10 +89,15 @@ export interface DnsRecord {
   type: string;
   value: string;
   line?: string;
+  cloudflare?: {
+    proxied?: boolean;
+    proxiable?: boolean;
+  } | null;
   ttl?: number;
   mx?: number;
   weight?: number;
   status: number;
+  proxiable?: boolean | null;
   remark?: string | null;
   updated_at?: string | null;
 }

@@ -95,6 +95,20 @@ On first run, a default admin account is created:
 
 After starting the server, visit: `http://localhost:3001/api/docs`
 
+Provider API alignment notes:
+- [provider-api-alignment.md](docs/provider-api-alignment.md)
+- Includes Tencent DNSPod, Tencent EO, and Aliyun DNS official API mapping and current implementation status.
+
+## Record Model Notes
+
+- DNS records still expose the generic `line` field for backward compatibility.
+- For Cloudflare, use provider-specific fields in request/response payloads:
+  - `cloudflare.proxied`: proxy switch (`true` = proxied, `false` = DNS only)
+  - `cloudflare.proxiable`: whether the current record type can be proxied
+- Write precedence for Cloudflare create/update:
+  - If `cloudflare.proxied` is provided, it is used.
+  - Otherwise, fallback to `line` (`'1'` = proxied, `'0'` = DNS only).
+
 ## Adding a New DNS Provider
 
 1. Create a new adapter in `server/src/lib/dns/providers/myprovider.ts` implementing `DnsAdapter`

@@ -235,6 +235,10 @@ export class CloudflareAdapter implements DnsAdapter {
       MX: r.data?.priority ?? r.priority ?? 0,
       Status: isPaused ? 0 : 1,
       Proxiable: r.proxiable ?? false,
+      Cloudflare: {
+        proxied: Boolean(r.proxied),
+        proxiable: r.proxiable ?? false,
+      },
       Weight: r.data?.weight ?? r.weight,
       Remark: r.comment,
       UpdateTime: r.modified_on,

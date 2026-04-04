@@ -9,6 +9,10 @@ export interface DnsRecord {
   MX: number;
   Status: number;
   Proxiable?: boolean;
+  Cloudflare?: {
+    proxied?: boolean;
+    proxiable?: boolean;
+  };
   Weight?: number;
   Remark?: string;
   UpdateTime?: string;
