@@ -16,6 +16,7 @@ import {
   PowerdnsAdapter,
   AliyunesaAdapter,
   TencenteoAdapter,
+  DnsheAdapter,
 } from './providers';
 
 export interface ProviderCapabilities {
@@ -186,6 +187,15 @@ const providers: ProviderInfo[] = [
       { key: 'SecretKey', label: 'SecretKey', type: 'password', required: true },
     ],
   },
+  {
+    type: 'dnshe',
+    name: 'DNSHE',
+    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false },
+    configFields: [
+      { key: 'apiKey', label: 'API Key', type: 'text', required: true },
+      { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
+    ],
+  },
 ];
 
 const providerMap = new Map(providers.map((p) => [p.type, p]));
@@ -217,6 +227,7 @@ export function createAdapter(type: string, config: Record<string, string>, doma
     case 'bt': return new BtAdapter(cfg);
     case 'spaceship': return new SpaceshipAdapter(cfg);
     case 'powerdns': return new PowerdnsAdapter(cfg);
+    case 'dnshe': return new DnsheAdapter(cfg);
     default: throw new Error(`Unknown provider type: ${type}`);
   }
 }
