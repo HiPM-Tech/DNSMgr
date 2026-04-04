@@ -8,6 +8,7 @@ export function initSchema(): void {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
+      nickname TEXT NOT NULL DEFAULT '',
       email TEXT NOT NULL DEFAULT '',
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin', 'member')),
@@ -83,6 +84,13 @@ export function initSchema(): void {
     );
   `);
 
+  const userColumns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  const hasNickname = userColumns.some((col) => col.name === 'nickname');
+  if (!hasNickname) {
+    db.exec("ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''");
+    db.exec("UPDATE users SET nickname = username WHERE nickname = '' OR nickname IS NULL");
+  }
+
   // Normalize historical duplicate domains before creating a unique index.
   db.exec(`
     DELETE FROM domains
@@ -106,8 +114,8 @@ export function initSchema(): void {
   if (count === 0) {
     const hash = bcrypt.hashSync('admin123', 10);
     db.prepare(
-      `INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)`
-    ).run('admin', 'admin@localhost', hash, 'admin');
+      `INSERT INTO users (username, nickname, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`
+    ).run('admin', 'admin', 'admin@localhost', hash, 'admin');
     console.log('[DB] Default admin user created (admin / admin123)');
   }
 }

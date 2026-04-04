@@ -41,7 +41,22 @@ export interface ProviderInfo {
   name: string;
   capabilities: ProviderCapabilities;
   configFields: ProviderConfigField[];
+  isStub?: boolean;
 }
+
+const STUB_TYPES = new Set([
+  'huawei',
+  'baidu',
+  'huoshan',
+  'jdcloud',
+  'dnsla',
+  'qingcloud',
+  'namesilo',
+  'bt',
+  'spaceship',
+  'powerdns',
+  'aliyunesa',
+]);
 
 const providers: ProviderInfo[] = [
   {
@@ -55,7 +70,7 @@ const providers: ProviderInfo[] = [
   },
   {
     type: 'dnspod',
-    name: '腾讯云',
+    name: '腾讯云-DNSPod',
     capabilities: { remark: false, status: true, redirect: false, log: true, weight: false },
     configFields: [
       { key: 'SecretId', label: 'SecretId', type: 'text', required: true },
@@ -209,12 +224,18 @@ const providers: ProviderInfo[] = [
 
 const providerMap = new Map(providers.map((p) => [p.type, p]));
 
-export function getProviders(): ProviderInfo[] {
-  return providers;
+export function getProviders(includeStub = false): ProviderInfo[] {
+  const enriched = providers.map((p) => ({ ...p, isStub: STUB_TYPES.has(p.type) }));
+  if (includeStub) return enriched;
+  return enriched.filter((p) => !p.isStub);
 }
 
 export function getProvider(type: string): ProviderInfo | undefined {
   return providerMap.get(type);
+}
+
+export function isStubProvider(type: string): boolean {
+  return STUB_TYPES.has(type);
 }
 
 export function createAdapter(type: string, config: Record<string, string>, domain?: string, zoneId?: string): DnsAdapter {

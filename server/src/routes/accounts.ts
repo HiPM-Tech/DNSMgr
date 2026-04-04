@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/database';
 import { authMiddleware } from '../middleware/auth';
-import { createAdapter, getProviders } from '../lib/dns/DnsHelper';
+import { createAdapter, getProviders, isStubProvider } from '../lib/dns/DnsHelper';
 import { DnsAccount } from '../types';
 
 const router = Router();
@@ -108,6 +108,10 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   };
   if (!type || !name || !config) {
     res.json({ code: -1, msg: 'type, name, and config are required' });
+    return;
+  }
+  if (isStubProvider(type)) {
+    res.json({ code: -1, msg: 'Provider is a stub and cannot be added' });
     return;
   }
   try {

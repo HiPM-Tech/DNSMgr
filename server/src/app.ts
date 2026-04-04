@@ -96,7 +96,14 @@ app.get('/api/logs', authMiddleware, adminOnly, (req: Request, res: Response) =>
   if (userId) { conditions.push('l.user_id = ?'); params.push(parseInt(userId)); }
   const where = conditions.join(' AND ');
   const total = (db.prepare(`SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`).get(...params) as { cnt: number }).cnt;
-  const list = db.prepare(`SELECT l.*, u.username FROM operation_logs l LEFT JOIN users u ON u.id = l.user_id WHERE ${where} ORDER BY l.id DESC LIMIT ? OFFSET ?`).all(...params, size, offset);
+  const list = db.prepare(
+    `SELECT l.*, u.username, u.nickname
+     FROM operation_logs l
+     LEFT JOIN users u ON u.id = l.user_id
+     WHERE ${where}
+     ORDER BY l.id DESC
+     LIMIT ? OFFSET ?`
+  ).all(...params, size, offset);
   res.json({ code: 0, data: { total, list }, msg: 'success' });
 });
 

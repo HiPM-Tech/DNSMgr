@@ -35,6 +35,7 @@ export interface ApiResponse<T = unknown> {
 export interface User {
   id: number;
   username: string;
+  nickname: string;
   email: string;
   role: 'admin' | 'member';
   status: number;
@@ -47,6 +48,7 @@ export interface Provider {
   name: string;
   configFields: ProviderField[];
   features?: string[];
+  isStub?: boolean;
 }
 
 export interface ProviderField {
@@ -123,6 +125,7 @@ export interface TeamMember {
   user_id: number;
   role: string;
   username: string;
+  nickname: string;
   email: string;
 }
 
@@ -130,6 +133,7 @@ export interface LogEntry {
   id: number;
   user_id?: number;
   username?: string;
+  nickname?: string;
   action: string;
   domain?: string;
   data?: string;
@@ -198,9 +202,9 @@ export const recordsApi = {
 
 export const usersApi = {
   list: () => api.get<ApiResponse<User[]>>('/users'),
-  create: (data: { username: string; email?: string; password: string; role?: string }) =>
+  create: (data: { username: string; nickname?: string; email?: string; password: string; role?: string }) =>
     api.post<ApiResponse<{ id: number }>>('/users', data),
-  update: (id: number, data: { email?: string; role?: string; status?: number; password?: string }) =>
+  update: (id: number, data: { nickname?: string; email?: string; role?: string; status?: number; password?: string }) =>
     api.put<ApiResponse<null>>(`/users/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/users/${id}`),
 };

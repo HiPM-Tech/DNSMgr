@@ -20,7 +20,7 @@ const router = Router();
  */
 router.get('/', authMiddleware, adminOnly, (_req: Request, res: Response) => {
   const db = getDb();
-  const users = db.prepare('SELECT id, username, email, role, status, created_at, updated_at FROM users ORDER BY id').all();
+  const users = db.prepare('SELECT id, username, nickname, email, role, status, created_at, updated_at FROM users ORDER BY id').all();
   res.json({ code: 0, data: users, msg: 'success' });
 });
 
@@ -42,6 +42,8 @@ router.get('/', authMiddleware, adminOnly, (_req: Request, res: Response) => {
  *             properties:
  *               username:
  *                 type: string
+ *               nickname:
+ *                 type: string
  *               email:
  *                 type: string
  *               password:
@@ -54,19 +56,20 @@ router.get('/', authMiddleware, adminOnly, (_req: Request, res: Response) => {
  *         description: User created
  */
 router.post('/', authMiddleware, adminOnly, (req: Request, res: Response) => {
-  const { username, email = '', password, role = 'member' } = req.body as {
-    username: string; email?: string; password: string; role?: string;
+  const { username, nickname, email = '', password, role = 'member' } = req.body as {
+    username: string; nickname?: string; email?: string; password: string; role?: string;
   };
   if (!username || !password) {
     res.json({ code: -1, msg: 'Username and password are required' });
     return;
   }
   const db = getDb();
+  const resolvedNickname = (nickname ?? '').trim() || username;
   const hash = bcrypt.hashSync(password, 10);
   try {
     const result = db.prepare(
-      'INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)'
-    ).run(username, email, hash, role);
+      'INSERT INTO users (username, nickname, email, password_hash, role) VALUES (?, ?, ?, ?, ?)'
+    ).run(username, resolvedNickname, email, hash, role);
     res.json({ code: 0, data: { id: result.lastInsertRowid }, msg: 'success' });
   } catch {
     res.json({ code: -1, msg: 'Username already exists' });
@@ -94,6 +97,8 @@ router.post('/', authMiddleware, adminOnly, (req: Request, res: Response) => {
  *           schema:
  *             type: object
  *             properties:
+ *               nickname:
+ *                 type: string
  *               email:
  *                 type: string
  *               role:
@@ -114,11 +119,16 @@ router.put('/:id', authMiddleware, adminOnly, (req: Request, res: Response) => {
     res.json({ code: -1, msg: 'User not found' });
     return;
   }
-  const { email, role, status, password } = req.body as {
-    email?: string; role?: string; status?: number; password?: string;
+  const { nickname, email, role, status, password } = req.body as {
+    nickname?: string; email?: string; role?: string; status?: number; password?: string;
   };
   const updates: string[] = ["updated_at = datetime('now')"];
   const params: unknown[] = [];
+  if (nickname !== undefined) {
+    const resolvedNickname = nickname.trim() || user.username;
+    updates.push('nickname = ?');
+    params.push(resolvedNickname);
+  }
   if (email !== undefined) { updates.push('email = ?'); params.push(email); }
   if (role !== undefined) { updates.push('role = ?'); params.push(role); }
   if (status !== undefined) { updates.push('status = ?'); params.push(status); }

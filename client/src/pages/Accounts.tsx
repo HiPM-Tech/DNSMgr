@@ -111,6 +111,7 @@ export function Accounts() {
     queryKey: ['providers'],
     queryFn: () => accountsApi.providers().then((r) => r.data.data ?? []),
   });
+  const visibleProviders = providers.filter((p) => !p.isStub);
 
   const createMutation = useMutation({
     mutationFn: (data: Parameters<typeof accountsApi.create>[0]) => accountsApi.create(data),
@@ -189,20 +190,20 @@ export function Accounts() {
         />
       </div>
 
-      {showAdd && providers.length > 0 && (
+      {showAdd && visibleProviders.length > 0 && (
         <Modal title={t('accounts.addDnsAccount')} onClose={() => setShowAdd(false)}>
           <AccountForm
-            providers={providers}
+            providers={visibleProviders}
             onSubmit={(data) => createMutation.mutate(data)}
             isLoading={createMutation.isPending}
           />
         </Modal>
       )}
 
-      {editing && providers.length > 0 && (
+      {editing && visibleProviders.length > 0 && (
         <Modal title={t('accounts.editDnsAccount')} onClose={() => setEditing(null)}>
           <AccountForm
-            providers={providers}
+            providers={visibleProviders}
             initial={editing}
             onSubmit={(data) => updateMutation.mutate({ id: editing.id, data })}
             isLoading={updateMutation.isPending}

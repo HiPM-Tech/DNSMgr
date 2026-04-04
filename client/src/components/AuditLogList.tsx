@@ -16,6 +16,7 @@ export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
   return (
     <div className="divide-y divide-gray-100">
       {logs.map((log) => {
+        const displayName = log.nickname || log.username;
         const fields = getAuditFields(log);
 
         if (compact) {
@@ -24,7 +25,7 @@ export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0 flex flex-wrap items-center gap-2">
                   <Badge variant={getAuditActionVariant(log)}>{getAuditActionLabel(log)}</Badge>
-                  {log.username && <span className="text-sm text-gray-700">{log.username}</span>}
+                  {displayName && <span className="text-sm text-gray-700">{displayName}</span>}
                   {log.domain && <span className="truncate text-sm text-gray-500">{log.domain}</span>}
                 </div>
                 <span className="flex-shrink-0 text-xs text-gray-400">{new Date(log.created_at).toLocaleString()}</span>
@@ -39,7 +40,7 @@ export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
               <div className="min-w-0 flex-1 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={getAuditActionVariant(log)}>{getAuditActionLabel(log)}</Badge>
-                  {log.username && <Badge variant="blue">{log.username}</Badge>}
+                  {displayName && <Badge variant="blue">{displayName}</Badge>}
                   {log.domain && <Badge variant="gray">{log.domain}</Badge>}
                 </div>
 

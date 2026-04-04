@@ -3,6 +3,7 @@
 export interface User {
   id: number;
   username: string;
+  nickname: string;
   email: string;
   password_hash: string;
   role: 'admin' | 'member';
@@ -75,6 +76,7 @@ export interface ApiResponse<T = unknown> {
 export interface JwtPayload {
   userId: number;
   username: string;
+  nickname?: string;
   role: 'admin' | 'member';
 }
 
