@@ -10,6 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (user: User) => void;
   isAdmin: boolean;
 }
 
@@ -49,8 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const updateUser = (nextUser: User) => {
+    setUser(nextUser);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAdmin: isAdmin(user?.role) }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, updateUser, isAdmin: isAdmin(user?.role) }}>
       {children}
     </AuthContext.Provider>
   );

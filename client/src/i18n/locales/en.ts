@@ -179,6 +179,13 @@ export const en: LocaleDefinition = {
     },
     settings: {
       profile: 'Profile',
+      nickname: 'Nickname',
+      nicknamePlaceholder: 'Enter nickname',
+      email: 'Email',
+      emailPlaceholder: 'Enter email',
+      updateProfile: 'Update Profile',
+      profileUpdated: 'Profile updated successfully',
+      profileUpdateFailed: 'Failed to update profile',
       language: 'Language',
       languageHint: 'Built-in locales: English and zh-CN. More languages can be added later by community contributions.',
       changePassword: 'Change Password',

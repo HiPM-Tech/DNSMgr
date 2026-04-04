@@ -179,6 +179,13 @@ export const zhCN: LocaleDefinition = {
     },
     settings: {
       profile: '个人资料',
+      nickname: '昵称',
+      nicknamePlaceholder: '请输入昵称',
+      email: '邮箱',
+      emailPlaceholder: '请输入邮箱',
+      updateProfile: '更新资料',
+      profileUpdated: '资料更新成功',
+      profileUpdateFailed: '更新资料失败',
       language: '语言',
       languageHint: '当前内置语言为 English 和 zh-CN，其他语言后续可通过社区贡献扩展。',
       changePassword: '修改密码',
