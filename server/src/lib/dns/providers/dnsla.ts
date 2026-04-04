@@ -327,7 +327,7 @@ export class DnslaAdapter extends BaseAdapter {
       Value: safeString(row.data),
       Line: safeString(row.lineId) || '',
       TTL: toNumber(row.ttl, 600),
-      MX: row.preference ? toNumber(row.preference, 0) : undefined,
+      MX: row.preference ? toNumber(row.preference, 0) : 0,
       Status: row.disable ? 0 : 1,
       Weight: row.weight ? toNumber(row.weight, 0) : undefined,
       Remark: undefined,

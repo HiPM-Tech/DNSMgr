@@ -169,8 +169,8 @@ export class QingcloudAdapter extends BaseAdapter {
         let name = safeString(record.domain_name).replace(`.${zoneName}`, '');
         if (name === '') name = '@';
 
-        for (const recordGroup of record.record || []) {
-          for (const row of recordGroup.data || []) {
+        for (const recordGroup of (record.record as Dict[]) || []) {
+          for (const row of ((recordGroup as Dict).data as Dict[]) || []) {
             let value = safeString(row.value);
             let mx: number | undefined;
 
@@ -194,7 +194,7 @@ export class QingcloudAdapter extends BaseAdapter {
               TTL: toNumber(record.ttl, 600),
               MX: mx,
               Status: row.status === 1 ? 1 : 0,
-              Weight: recordGroup.weight > 0 ? toNumber(recordGroup.weight, 0) : undefined,
+              Weight: (recordGroup.weight as number) > 0 ? toNumber(recordGroup.weight as number, 0) : undefined,
               Remark: undefined,
               UpdateTime: safeString(record.create_time) || undefined,
             } as DnsRecord);

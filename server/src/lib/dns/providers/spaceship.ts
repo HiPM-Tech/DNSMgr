@@ -188,7 +188,7 @@ export class SpaceshipAdapter extends BaseAdapter {
       const mx = parts[3] || '0';
 
       const item = this.convertRecordItem(name, type, address, toNumber(mx, 0));
-      await this.request('DELETE', `/dns/records/${this.config.domain}`, [item]);
+      await this.request('DELETE', `/dns/records/${this.config.domain}`, item as unknown as Dict);
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);

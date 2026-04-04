@@ -117,16 +117,16 @@ class VolcengineClient {
     const data = (await res.json()) as Dict;
 
     if (res.status !== 200) {
-      const errorMsg = safeString(data.ResponseMetadata?.Error?.MessageCN) ||
-        safeString(data.ResponseMetadata?.Error?.Message) ||
+      const errorMsg = safeString(((data.ResponseMetadata as Dict)?.Error as Dict)?.MessageCN) ||
+        safeString(((data.ResponseMetadata as Dict)?.Error as Dict)?.Message) ||
         safeString(data.Message) ||
         safeString(data.message) ||
         `Volcengine request failed: ${res.status}`;
       throw new Error(errorMsg);
     }
 
-    if (data.ResponseMetadata?.Error) {
-      throw new Error(safeString(data.ResponseMetadata.Error.MessageCN) || safeString(data.ResponseMetadata.Error.Message));
+    if ((data.ResponseMetadata as Dict)?.Error) {
+      throw new Error(safeString(((data.ResponseMetadata as Dict).Error as Dict)?.MessageCN) || safeString(((data.ResponseMetadata as Dict).Error as Dict)?.Message));
     }
 
     return (data.Result || true) as T;
@@ -430,7 +430,7 @@ export class HuoshanAdapter extends BaseAdapter {
       Value: value,
       Line: safeString(row.Line) || '0',
       TTL: toNumber(row.TTL, 600),
-      MX: mx,
+      MX: mx || 0,
       Status: row.Enable ? 1 : 0,
       Weight: row.Weight ? toNumber(row.Weight, 0) : undefined,
       Remark: safeString(row.Remark) || undefined,

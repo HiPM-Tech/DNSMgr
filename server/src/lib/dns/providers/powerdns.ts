@@ -149,7 +149,7 @@ export class PowerdnsAdapter extends BaseAdapter {
             Value: recordValue,
             Line: 'default',
             TTL: rrset.ttl,
-            MX: mx,
+            MX: mx || 0,
             Status: record.disabled ? 0 : 1,
             Weight: undefined,
             Remark: remark,

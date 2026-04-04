@@ -172,7 +172,7 @@ export class AliyunesaAdapter extends BaseAdapter {
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
       const data = await this.client.call<Dict>('GetRecord', { RecordId: recordId });
-      return this.mapRecord(data.RecordModel);
+      return this.mapRecord(data.RecordModel as Dict);
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return null;

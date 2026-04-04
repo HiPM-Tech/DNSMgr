@@ -113,8 +113,8 @@ class HuaweiCloudClient {
     });
 
     const data = (await res.json()) as Dict;
-    if (!res.ok || data.error_msg || data.message || data.error?.error_msg) {
-      const err = safeString(data.error_msg) || safeString(data.message) || safeString(data.error?.error_msg) || `HuaweiCloud request failed: ${res.status}`;
+    if (!res.ok || data.error_msg || data.message || (data.error as Dict)?.error_msg) {
+      const err = safeString(data.error_msg) || safeString(data.message) || safeString((data.error as Dict)?.error_msg) || `HuaweiCloud request failed: ${res.status}`;
       throw new Error(err);
     }
 
@@ -413,7 +413,7 @@ export class HuaweiAdapter extends BaseAdapter {
       Value: Array.isArray(row.records) ? row.records.join(',') : safeString(row.records),
       Line: safeString(row.line) || '0',
       TTL: toNumber(row.ttl, 600),
-      MX: row.mx ? toNumber(row.mx, 0) : undefined,
+      MX: row.mx ? toNumber(row.mx, 0) : 0,
       Status: row.status === 'ACTIVE' ? 1 : 0,
       Weight: row.weight ? toNumber(row.weight, 0) : undefined,
       Remark: safeString(row.description) || undefined,

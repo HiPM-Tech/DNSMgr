@@ -23,8 +23,8 @@ export class NamesiloAdapter extends BaseAdapter {
     const url = `${this.baseUrl}/${operation}?${query.toString()}`;
     const res = await fetch(url);
     const data = (await res.json()) as Dict;
-    if (!res.ok || data.reply?.code !== '300') {
-      throw new Error(safeString(data.reply?.detail) || `Namesilo request failed: ${res.status}`);
+    if (!res.ok || (data.reply as Dict)?.code !== '300') {
+      throw new Error(safeString((data.reply as Dict)?.detail) || `Namesilo request failed: ${res.status}`);
     }
     return data as T;
   }

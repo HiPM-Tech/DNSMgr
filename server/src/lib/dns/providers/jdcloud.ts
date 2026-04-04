@@ -122,7 +122,7 @@ class JdcloudClient {
     const data = (await res.json()) as Dict;
 
     if (res.status !== 200) {
-      const errorMsg = safeString(data.error?.message) || `Jdcloud request failed: ${res.status}`;
+      const errorMsg = safeString((data.error as Dict)?.message) || `Jdcloud request failed: ${res.status}`;
       throw new Error(errorMsg);
     }
 
@@ -231,29 +231,29 @@ export class JdcloudAdapter extends BaseAdapter {
         return null;
       }
 
-      const params: Dict = {
-        req: {
-          hostRecord: name,
-          type: this.convertType(type),
-          hostValue: value,
-          viewValue: toNumber(line, 0),
-          ttl: toNumber(ttl, 600),
-        },
+      const reqParams: Dict = {
+        hostRecord: name,
+        type: this.convertType(type),
+        hostValue: value,
+        viewValue: toNumber(line, 0),
+        ttl: toNumber(ttl, 600),
       };
 
       if (type === 'MX') {
-        params.req.mxPriority = toNumber(mx, 1);
+        reqParams.mxPriority = toNumber(mx, 1);
       }
       if (weight && weight > 0) {
-        params.req.weight = toNumber(weight, 0);
+        reqParams.weight = toNumber(weight, 0);
       }
       if (type === 'SRV') {
         const values = value.split(' ');
-        params.req.mxPriority = toNumber(values[0], 0);
-        params.req.weight = toNumber(values[1], 0);
-        params.req.port = toNumber(values[2], 0);
-        params.req.hostValue = values[3] || '';
+        reqParams.mxPriority = toNumber(values[0], 0);
+        reqParams.weight = toNumber(values[1], 0);
+        reqParams.port = toNumber(values[2], 0);
+        reqParams.hostValue = values[3] || '';
       }
+
+      const params: Dict = { req: reqParams };
 
       const data = await this.client.request<{ dataList: { id: string } }>('POST', `/domain/${this.config.domainId}/ResourceRecord`, params);
       return data.dataList?.id || null;
@@ -279,30 +279,29 @@ export class JdcloudAdapter extends BaseAdapter {
         return false;
       }
 
-      const params: Dict = {
-        req: {
-          domainName: this.config.domain,
-          hostRecord: name,
-          type: this.convertType(type),
-          hostValue: value,
-          viewValue: toNumber(line, 0),
-          ttl: toNumber(ttl, 600),
-        },
+      const reqParams: Dict = {
+        domainName: this.config.domain,
+        hostRecord: name,
+        type: this.convertType(type),
+        hostValue: value,
+        viewValue: toNumber(line, 0),
+        ttl: toNumber(ttl, 600),
       };
 
       if (type === 'MX') {
-        params.req.mxPriority = toNumber(mx, 1);
+        reqParams.mxPriority = toNumber(mx, 1);
       }
       if (weight && weight > 0) {
-        params.req.weight = toNumber(weight, 0);
+        reqParams.weight = toNumber(weight, 0);
       }
       if (type === 'SRV') {
         const values = value.split(' ');
-        params.req.mxPriority = toNumber(values[0], 0);
-        params.req.weight = toNumber(values[1], 0);
-        params.req.port = toNumber(values[2], 0);
-        params.req.hostValue = values[3] || '';
+        reqParams.mxPriority = toNumber(values[0], 0);
+        reqParams.weight = toNumber(values[1], 0);
+        reqParams.port = toNumber(values[2], 0);
+        reqParams.hostValue = values[3] || '';
       }
+      const params: Dict = { req: reqParams };
 
       await this.client.request('PUT', `/domain/${this.config.domainId}/ResourceRecord/${recordId}`, params);
       return true;
@@ -437,10 +436,10 @@ export class JdcloudAdapter extends BaseAdapter {
       Value: value,
       Line: String(viewValue[viewValue.length - 1] || '0'),
       TTL: toNumber(row.ttl, 600),
-      MX: row.mxPriority ? toNumber(row.mxPriority, 0) : undefined,
+      MX: row.mxPriority ? toNumber(row.mxPriority, 0) : 0,
       Status: row.resolvingStatus === '2' ? 1 : 0,
       Weight: row.weight ? toNumber(row.weight, 0) : undefined,
-      Remark: null,
+      Remark: undefined,
       UpdateTime: row.updateTime ? new Date(row.updateTime as number).toISOString() : undefined,
     };
   }
