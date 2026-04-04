@@ -46,7 +46,6 @@ export interface ProviderInfo {
 
 const STUB_TYPES = new Set([
   'huawei',
-  'baidu',
   'huoshan',
   'jdcloud',
   'dnsla',
@@ -55,7 +54,6 @@ const STUB_TYPES = new Set([
   'bt',
   'spaceship',
   'powerdns',
-  'aliyunesa',
 ]);
 
 const providers: ProviderInfo[] = [

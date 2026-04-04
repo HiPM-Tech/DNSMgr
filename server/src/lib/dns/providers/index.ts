@@ -5,16 +5,14 @@ export { TencenteoAdapter } from './tencenteo';
 export { DnsheAdapter } from './dnshe';
 export { RainyunAdapter } from './rainyun';
 export { WestAdapter } from './west';
-export {
-  HuaweiAdapter,
-  BaiduAdapter,
-  HuoshanAdapter,
-  JdcloudAdapter,
-  DnslaAdapter,
-  QingcloudAdapter,
-  NamesiloAdapter,
-  BtAdapter,
-  SpaceshipAdapter,
-  PowerdnsAdapter,
-  AliyunesaAdapter,
-} from './stubs';
+export { AliyunesaAdapter } from './aliyunesa';
+export { BaiduAdapter } from './baidu';
+export { HuaweiAdapter } from './stubs';
+export { HuoshanAdapter } from './stubs';
+export { JdcloudAdapter } from './stubs';
+export { DnslaAdapter } from './stubs';
+export { QingcloudAdapter } from './stubs';
+export { NamesiloAdapter } from './stubs';
+export { BtAdapter } from './stubs';
+export { SpaceshipAdapter } from './stubs';
+export { PowerdnsAdapter } from './stubs';

@@ -4,10 +4,6 @@ export class HuaweiAdapter extends StubAdapter {
   constructor(_config: Record<string, string>) { super('huawei'); }
 }
 
-export class BaiduAdapter extends StubAdapter {
-  constructor(_config: Record<string, string>) { super('baidu'); }
-}
-
 export class HuoshanAdapter extends StubAdapter {
   constructor(_config: Record<string, string>) { super('huoshan'); }
 }
@@ -38,8 +34,4 @@ export class SpaceshipAdapter extends StubAdapter {
 
 export class PowerdnsAdapter extends StubAdapter {
   constructor(_config: Record<string, string>) { super('powerdns'); }
-}
-
-export class AliyunesaAdapter extends StubAdapter {
-  constructor(_config: Record<string, string>) { super('aliyunesa'); }
 }
