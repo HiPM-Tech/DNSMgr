@@ -19,6 +19,17 @@ A modern DNS aggregation management platform built with React + TailwindCSS (fro
 - **API Documentation**: Swagger UI at `/api/docs`
 - **Extensible Architecture**: Abstract DNS interface makes adding new providers easy
 
+## Provider Type & Alias Mapping
+
+When creating/updating DNS accounts, the API normalizes lego-style provider names to internal provider types.
+
+| Internal Type | Supported Aliases |
+|---|---|
+| `aliyun` | `aliyun`, `alidns` |
+| `powerdns` | `powerdns`, `pdns` |
+| `dnspod` | `dnspod`, `tencentcloud` |
+| `tencenteo` | `tencenteo`, `edgeone` |
+
 ## Architecture
 
 ```

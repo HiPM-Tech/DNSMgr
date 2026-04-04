@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { getProviderAliases, normalizeProviderType, providerAliasMap } from './providerAlias';
+
+test('normalizes common lego aliases to internal provider types', () => {
+  assert.equal(normalizeProviderType('alidns'), 'aliyun');
+  assert.equal(normalizeProviderType('pdns'), 'powerdns');
+  assert.equal(normalizeProviderType('edgeone'), 'tencenteo');
+  assert.equal(normalizeProviderType('tencentcloud'), 'dnspod');
+});
+
+test('normalization is case-insensitive and trims spaces', () => {
+  assert.equal(normalizeProviderType('  ALIDNS  '), 'aliyun');
+  assert.equal(normalizeProviderType('  TeNcEnTcLoUd  '), 'dnspod');
+});
+
+test('returns normalized original type when alias is unknown', () => {
+  assert.equal(normalizeProviderType('Cloudflare'), 'cloudflare');
+  assert.equal(normalizeProviderType('custom-provider'), 'custom-provider');
+});
+
+test('exposes reverse aliases for import compatibility', () => {
+  assert.deepEqual(getProviderAliases('aliyun').sort(), ['alidns', 'aliyun']);
+  assert.deepEqual(getProviderAliases('powerdns').sort(), ['pdns', 'powerdns']);
+  assert.deepEqual(getProviderAliases('tencenteo').sort(), ['edgeone', 'tencenteo']);
+  assert.deepEqual(getProviderAliases('dnspod').sort(), ['dnspod', 'tencentcloud']);
+});
+
+test('alias map keeps two-way data', () => {
+  assert.equal(providerAliasMap.legoToInternal.alidns, 'aliyun');
+  assert.ok(providerAliasMap.internalToAliases.aliyun.includes('alidns'));
+});
