@@ -10,6 +10,12 @@ function normalizeDomainName(name: string): string {
   return name.trim().toLowerCase();
 }
 
+function logOperation(userId: number, action: string, domainName: string, data: unknown): void {
+  getDb().prepare('INSERT INTO operation_logs (user_id, action, domain, data) VALUES (?, ?, ?, ?)').run(
+    userId, action, domainName, JSON.stringify(data)
+  );
+}
+
 function getAccountForUser(accountId: number, userId: number, role: string): DnsAccount | null {
   const db = getDb();
   const account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(accountId) as DnsAccount | undefined;
@@ -199,6 +205,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
 
   let added = 0;
   let firstId: number | null = null;
+  const addedDomains: string[] = [];
   const duplicates: string[] = [];
 
   const tx = db.transaction(() => {
@@ -212,6 +219,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
       const result = insertStmt.run(account_id, item.name, item.third_id || '', remark, item.record_count ?? 0);
       if (firstId === null) firstId = Number(result.lastInsertRowid);
       added++;
+      addedDomains.push(item.name);
     }
   });
 
@@ -234,6 +242,9 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   }
 
   const duplicateMsg = duplicates.length > 0 ? `, skipped ${duplicates.length} duplicate(s)` : '';
+  for (const domainName of addedDomains) {
+    logOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id });
+  }
   res.json({
     code: 0,
     data: { id: firstId, added, skipped: duplicates.length, duplicates },
@@ -288,12 +299,14 @@ router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
           account_id, normalizedName, d.ThirdId, d.RecordCount ?? 0
         );
         added++;
+        logOperation(req.user!.userId, 'sync_add_domain', normalizedName, { accountId: account_id });
       } else {
         db.prepare('UPDATE domains SET third_id = ?, record_count = ? WHERE account_id = ? AND name = ?').run(
           d.ThirdId, d.RecordCount ?? 0, account_id, normalizedName
         );
       }
     }
+    logOperation(req.user!.userId, 'sync_domains', '', { accountId: account_id, total: result.total, added });
     res.json({ code: 0, data: { total: result.total, added }, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
@@ -415,6 +428,7 @@ router.put('/:id', authMiddleware, (req: Request, res: Response) => {
   }
   params.push(id);
   getDb().prepare(`UPDATE domains SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  logOperation(req.user!.userId, 'update_domain', domain.name, { remark, is_hidden });
   res.json({ code: 0, msg: 'success' });
 });
 
@@ -444,6 +458,7 @@ router.delete('/:id', authMiddleware, (req: Request, res: Response) => {
     return;
   }
   getDb().prepare('DELETE FROM domains WHERE id = ?').run(id);
+  logOperation(req.user!.userId, 'delete_domain', domain.name, { domainId: id, accountId: domain.account_id });
   res.json({ code: 0, msg: 'success' });
 });
 

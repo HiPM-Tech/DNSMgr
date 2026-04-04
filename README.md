@@ -7,8 +7,8 @@ A modern DNS aggregation management platform built with React + TailwindCSS (fro
 - **Multi-provider Support**: Manage DNS records across 16 providers:
   - Aliyun (阿里云), DNSPod (腾讯云), Huawei Cloud (华为云), Baidu Cloud (百度云)
   - Volcengine (火山引擎), JD Cloud (京东云), Cloudflare, DNS.LA
-  - Xidian Digital (西部数码), Qingcloud (青云), NameSilo, BT Panel (宝塔)
-  - Spaceship, PowerDNS, Aliyun ESA (阿里云ESA), Tencent EdgeOne (腾讯EdgeOne)
+  - West Digital (西部数码), Qingcloud (青云), NameSilo, BT Panel (宝塔)
+  - Spaceship, PowerDNS, Aliyun ESA (阿里云 ESA), Tencent EdgeOne (腾讯 EdgeOne)
 
 - **Multi-user & Team Management**: Role-based access (admin/member), team-based domain sharing
 - **Full DNS Record Management**: CRUD for all record types (A, AAAA, CNAME, MX, TXT, SRV, CAA, etc.)
@@ -98,6 +98,9 @@ After starting the server, visit: `http://localhost:3001/api/docs`
 Provider API alignment notes:
 - [provider-api-alignment.md](docs/provider-api-alignment.md)
 - Includes Tencent DNSPod, Tencent EO, and Aliyun DNS official API mapping and current implementation status.
+
+Provider docs:
+- [西部数码 DNS](docs/providers/west.md)
 
 ## Record Model Notes
 

@@ -24,6 +24,7 @@ export function Teams() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
   const [removingMember, setRemovingMember] = useState<TeamMember | null>(null);
+  const getDisplayName = (u: { nickname?: string; username: string }) => u.nickname || u.username;
 
   const { data: teams = [], isLoading } = useQuery({
     queryKey: ['teams'],
@@ -102,10 +103,14 @@ export function Teams() {
 
   const memberUserIds = new Set(members.map((m) => m.user_id));
   const availableUsers = allUsers.filter((u: User) => !memberUserIds.has(u.id) && u.id !== me?.id);
-  const filteredUsers = availableUsers.filter((u: User) =>
-    u.username.toLowerCase().includes(memberSearch.toLowerCase()) ||
-    u.email?.toLowerCase().includes(memberSearch.toLowerCase())
-  );
+  const filteredUsers = availableUsers.filter((u: User) => {
+    const query = memberSearch.toLowerCase();
+    return (
+      u.username.toLowerCase().includes(query) ||
+      u.nickname?.toLowerCase().includes(query) ||
+      u.email?.toLowerCase().includes(query)
+    );
+  });
 
   const teamColumns = [
     {
@@ -233,9 +238,10 @@ export function Teams() {
                 {members.map((member) => (
                   <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-2.5">
-                      <Avatar username={member.username} email={member.email} size={32} textClassName="text-xs" />
+                      <Avatar username={getDisplayName(member)} email={member.email} size={32} textClassName="text-xs" />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{member.username}</p>
+                        <p className="text-sm font-medium text-gray-900">{getDisplayName(member)}</p>
+                        <p className="text-xs text-gray-400">{member.username}</p>
                         <p className="text-xs text-gray-500">{member.email || t('teams.noEmail')}</p>
                       </div>
                     </div>
@@ -270,9 +276,10 @@ export function Teams() {
                 <button key={user.id} onClick={() => addMemberMutation.mutate({ userId: user.id })}
                   disabled={addMemberMutation.isPending}
                   className="w-full flex items-center gap-2.5 p-2.5 hover:bg-blue-50 rounded-lg transition-colors text-left">
-                  <Avatar username={user.username} email={user.email} size={28} className="bg-gray-200 text-gray-600" textClassName="text-xs" />
+                  <Avatar username={getDisplayName(user)} email={user.email} size={28} className="bg-gray-200 text-gray-600" textClassName="text-xs" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{user.username}</p>
+                    <p className="text-sm font-medium text-gray-900">{getDisplayName(user)}</p>
+                    <p className="text-xs text-gray-400">{user.username}</p>
                     <p className="text-xs text-gray-500">{user.email || t('teams.noEmail')}</p>
                   </div>
                 </button>
@@ -284,7 +291,7 @@ export function Teams() {
 
       {removingMember && (
         <ConfirmDialog
-          message={t('teams.removeMemberConfirm', { name: removingMember.username })}
+          message={t('teams.removeMemberConfirm', { name: getDisplayName(removingMember) })}
           onConfirm={() => removeMemberMutation.mutate(removingMember.user_id)}
           onCancel={() => setRemovingMember(null)}
           isLoading={removeMemberMutation.isPending}

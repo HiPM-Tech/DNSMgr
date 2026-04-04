@@ -97,7 +97,7 @@ router.get('/:id', authMiddleware, (req: Request, res: Response) => {
     return;
   }
   const members = db.prepare(
-    `SELECT tm.*, u.username, u.email FROM team_members tm
+    `SELECT tm.*, u.username, u.nickname, u.email FROM team_members tm
      INNER JOIN users u ON u.id = tm.user_id
      WHERE tm.team_id = ?`
   ).all(id);
@@ -222,7 +222,7 @@ router.get('/:id/members', authMiddleware, (req: Request, res: Response) => {
     return;
   }
   const members = db.prepare(
-    `SELECT tm.*, u.username, u.email FROM team_members tm
+    `SELECT tm.*, u.username, u.nickname, u.email FROM team_members tm
      INNER JOIN users u ON u.id = tm.user_id
      WHERE tm.team_id = ?`
   ).all(teamId);

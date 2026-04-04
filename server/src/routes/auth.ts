@@ -44,8 +44,12 @@ router.post('/login', (req: Request, res: Response) => {
     res.json({ code: -1, msg: 'Account is disabled' });
     return;
   }
-  const token = signToken({ userId: user.id, username: user.username, role: user.role });
-  res.json({ code: 0, data: { token, user: { id: user.id, username: user.username, email: user.email, role: user.role } }, msg: 'success' });
+  const token = signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
+  res.json({
+    code: 0,
+    data: { token, user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },
+    msg: 'success',
+  });
 });
 
 /**
@@ -64,6 +68,8 @@ router.post('/login', (req: Request, res: Response) => {
  *             properties:
  *               username:
  *                 type: string
+ *               nickname:
+ *                 type: string
  *               email:
  *                 type: string
  *               password:
@@ -73,7 +79,7 @@ router.post('/login', (req: Request, res: Response) => {
  *         description: User created
  */
 router.post('/register', (req: Request, res: Response) => {
-  const { username, email = '', password } = req.body as { username: string; email?: string; password: string };
+  const { username, nickname, email = '', password } = req.body as { username: string; nickname?: string; email?: string; password: string };
   if (!username || !password) {
     res.json({ code: -1, msg: 'Username and password are required' });
     return;
@@ -82,11 +88,12 @@ router.post('/register', (req: Request, res: Response) => {
   const count = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
   const role = count === 0 ? 'admin' : 'member';
   const hash = bcrypt.hashSync(password, 10);
+  const resolvedNickname = (nickname ?? '').trim() || username;
   try {
     const result = db.prepare(
-      'INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)'
-    ).run(username, email, hash, role);
-    res.json({ code: 0, data: { id: result.lastInsertRowid, username, role }, msg: 'success' });
+      'INSERT INTO users (username, nickname, email, password_hash, role) VALUES (?, ?, ?, ?, ?)'
+    ).run(username, resolvedNickname, email, hash, role);
+    res.json({ code: 0, data: { id: result.lastInsertRowid, username, nickname: resolvedNickname, role }, msg: 'success' });
   } catch {
     res.json({ code: -1, msg: 'Username already exists' });
   }
@@ -106,7 +113,7 @@ router.post('/register', (req: Request, res: Response) => {
  */
 router.get('/me', authMiddleware, (req: Request, res: Response) => {
   const db = getDb();
-  const user = db.prepare('SELECT id, username, email, role, status, created_at FROM users WHERE id = ?').get(req.user!.userId) as User | undefined;
+  const user = db.prepare('SELECT id, username, nickname, email, role, status, created_at FROM users WHERE id = ?').get(req.user!.userId) as User | undefined;
   if (!user) {
     res.json({ code: -1, msg: 'User not found' });
     return;

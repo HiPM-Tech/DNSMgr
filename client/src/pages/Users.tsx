@@ -63,15 +63,19 @@ export function Users() {
 
   const columns = [
     {
-      key: 'username', label: t('users.username'),
+      key: 'nickname', label: t('users.nickname'),
       render: (user: User) => (
         <div className="flex items-center gap-2">
-          <Avatar username={user.username} email={user.email} size={28} textClassName="text-xs" />
-          <span className="font-medium text-gray-900">{user.username}</span>
+          <Avatar username={user.nickname || user.username} email={user.email} size={28} textClassName="text-xs" />
+          <div className="min-w-0">
+            <span className="font-medium text-gray-900">{user.nickname || user.username}</span>
+            <p className="text-xs text-gray-500 truncate">{user.username}</p>
+          </div>
           {user.id === me?.id && <Badge variant="blue">{t('users.you')}</Badge>}
         </div>
       ),
     },
+    { key: 'username', label: t('users.username'), render: (user: User) => <span className="text-gray-600">{user.username}</span> },
     { key: 'email', label: t('users.email'), render: (user: User) => <span className="text-gray-600">{user.email || '-'}</span> },
     {
       key: 'role', label: t('users.role'),
@@ -126,12 +130,17 @@ export function Users() {
             e.preventDefault();
             const fd = new FormData(e.target as HTMLFormElement);
             createMutation.mutate({
+              nickname: fd.get('nickname') as string,
               username: fd.get('username') as string,
               email: fd.get('email') as string,
               password: fd.get('password') as string,
               role: fd.get('role') as string,
             });
           }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.nicknameRequired')}</label>
+              <input name="nickname" required className={inputClass} placeholder={t('users.nicknamePlaceholder')} />
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.usernameRequired')}</label>
               <input name="username" required className={inputClass} placeholder={t('users.usernamePlaceholder')} />
@@ -168,6 +177,7 @@ export function Users() {
             e.preventDefault();
             const fd = new FormData(e.target as HTMLFormElement);
             const data: Parameters<typeof usersApi.update>[1] = {
+              nickname: fd.get('nickname') as string,
               email: fd.get('email') as string,
               role: fd.get('role') as string,
               status: Number(fd.get('status')),
@@ -176,6 +186,10 @@ export function Users() {
             if (pwd) data.password = pwd;
             updateMutation.mutate({ id: editing.id, data });
           }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.nickname')}</label>
+              <input name="nickname" required defaultValue={editing.nickname || editing.username} className={inputClass} />
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.username')}</label>
               <p className="text-sm font-semibold text-gray-900">{editing.username}</p>
@@ -215,7 +229,7 @@ export function Users() {
 
       {deleting && (
         <ConfirmDialog
-          message={t('users.deleteConfirm', { name: deleting.username })}
+          message={t('users.deleteConfirm', { name: deleting.nickname || deleting.username })}
           onConfirm={() => deleteMutation.mutate(deleting.id)}
           onCancel={() => setDeleting(null)}
           isLoading={deleteMutation.isPending}

@@ -13,6 +13,7 @@ export function Settings() {
   const { user } = useAuth();
   const toast = useToast();
   const { locale, setLocale, t } = useI18n();
+  const displayName = user?.nickname || user?.username;
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -48,9 +49,9 @@ export function Settings() {
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="text-base font-semibold text-gray-900 mb-4">{t('settings.profile')}</h3>
         <div className="flex items-center gap-4">
-          <Avatar username={user?.username} email={user?.email} size={56} textClassName="text-xl" />
+          <Avatar username={displayName} email={user?.email} size={56} textClassName="text-xl" />
           <div>
-            <p className="font-semibold text-gray-900">{user?.username}</p>
+            <p className="font-semibold text-gray-900">{displayName}</p>
             <p className="text-sm text-gray-500">{user?.email || t('common.noEmailSet')}</p>
             <p className="text-xs text-gray-400 capitalize mt-0.5">{user?.role}</p>
           </div>

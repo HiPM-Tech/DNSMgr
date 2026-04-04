@@ -22,6 +22,7 @@ export function Sidebar() {
   const { user, logout, isAdmin } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
+  const displayName = user?.nickname || user?.username;
 
   const handleLogout = () => {
     logout();
@@ -107,9 +108,9 @@ export function Sidebar() {
       {/* User Footer */}
       <div className="px-3 py-3 border-t border-gray-100">
         <div className="flex items-center gap-2 px-2 py-2">
-          <Avatar username={user?.username} email={user?.email} size={28} textClassName="text-xs" />
+          <Avatar username={displayName} email={user?.email} size={28} textClassName="text-xs" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-gray-900 truncate">{user?.username}</p>
+            <p className="text-xs font-semibold text-gray-900 truncate">{displayName}</p>
             <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
           </div>
           <button onClick={handleLogout} title={t('common.logout')}

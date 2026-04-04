@@ -20,10 +20,6 @@ export class DnslaAdapter extends StubAdapter {
   constructor(_config: Record<string, string>) { super('dnsla'); }
 }
 
-export class WestAdapter extends StubAdapter {
-  constructor(_config: Record<string, string>) { super('west'); }
-}
-
 export class QingcloudAdapter extends StubAdapter {
   constructor(_config: Record<string, string>) { super('qingcloud'); }
 }
