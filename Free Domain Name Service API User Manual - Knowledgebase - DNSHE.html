@@ -1,0 +1,2332 @@
+<!DOCTYPE html>
+<!-- saved from url=(0014)about:internet -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Free Domain Name Service API User Manual - Knowledgebase - DNSHE</title>
+
+    <!-- Styling -->
+<link href="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/css" rel="stylesheet">
+<link href="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/all.min.css" rel="stylesheet">
+<link href="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/fontawesome-all.min.css" rel="stylesheet">
+<link href="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/custom.css" rel="stylesheet">
+<link href="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/overwrite.css" rel="stylesheet">
+
+
+<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+<!--[if lt IE 9]>
+  <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+  <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+
+<![endif]-->
+
+<script type="text/javascript">
+    var csrfToken = '36ba60338b95a7bb91442e691f04d32627208277',
+        markdownGuide = 'Markdown Guide',
+        locale = 'en',
+        saved = 'saved',
+        saving = 'autosaving',
+        whmcsBaseUrl = "",
+            requiredText = 'Required',
+            recaptchaSiteKey = "";
+</script>
+<script src="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/scripts.min.js.下载"></script>
+
+
+
+    <script>(function(){
+    try {
+        var tz = (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions) ? Intl.DateTimeFormat().resolvedOptions().timeZone : '';
+        var lang = (navigator && (navigator.language || (navigator.languages && navigator.languages[0]))) || '';
+        var screenInfo = (window && window.screen) ? (screen.width + 'x' + screen.height + 'x' + screen.colorDepth) : '';
+        var platform = (navigator && navigator.platform) || '';
+        var ua = (navigator && navigator.userAgent) || '';
+        var data = [tz, lang, screenInfo, platform, ua].join('|');
+        function simpleHash(s){
+            var h = 0, i, chr;
+            if (s.length === 0) return '0';
+            for (i = 0; i < s.length; i++) { chr = s.charCodeAt(i); h = ((h << 5) - h) + chr; h |= 0; }
+            return String(h);
+        }
+        var fp = simpleHash(data);
+        var exp = new Date(); exp.setTime(exp.getTime() + 30*24*60*60*1000);
+        document.cookie = 'fc_fp=' + encodeURIComponent(fp) + '; path=/; expires=' + exp.toUTCString();
+        if (tz) document.cookie = 'fc_tz=' + encodeURIComponent(tz) + '; path=/; expires=' + exp.toUTCString();
+        if (lang) document.cookie = 'fc_lang=' + encodeURIComponent(lang) + '; path=/; expires=' + exp.toUTCString();
+    } catch(e) { /* noop */ }
+})();</script>
+<link rel="stylesheet" href="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/all(1).min.css"><link rel="stylesheet" href="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/v4-shims.min.css"><style id="cmm-styles">
+:root{--cmm-icon-gap: 6px;}
+#Primary_Navbar{padding-left: 16px !important; margin-left: 16px !important;}
+#Primary_Navbar .navbar-nav{padding-left: 16px !important; margin-left: 16px !important;}
+.nav-primary{padding-left: 16px !important; margin-left: 16px !important;}
+.sidebar .nav, .sidebar .navbar-nav{padding-left: 16px !important; margin-left: 16px !important;}
+.sidebar #Primary_Navbar, .sidebar #Primary_Navbar .navbar-nav{padding-left: 16px !important; margin-left: 16px !important;}
+#Primary_Navbar > li > a, .sidebar .nav > li > a, .sidebar .navbar-nav > li > a{padding-left: calc(16px) !important;}
+#sidebar-wrapper .collapse &amp;amp;amp;amp;amp;amp;amp;gt; ul{padding-left: 16px !important; margin-left: 16px !important;}
+#sidebar-wrapper .collapse &amp;amp;amp;amp;amp;amp;amp;gt; ul &amp;amp;amp;amp;amp;amp;amp;gt; li &amp;amp;amp;amp;amp;amp;amp;gt; a{padding-left: 16px !important;}
+#Primary_Navbar .dropdown-menu a i, #Primary_Navbar .dropdown-menu a .fa, #Primary_Navbar .dropdown-menu a .fas, #Primary_Navbar .dropdown-menu a .far, #Primary_Navbar .dropdown-menu a .fal, #Primary_Navbar .dropdown-menu a .fab{margin-right: var(--cmm-icon-gap) !important;}
+@keyframes cmmPulse{0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
+@keyframes cmmBounce{0%,20%,50%,80%,100%{transform:translateY(0)}40%{transform:translateY(-2px)}60%{transform:translateY(-1px)}}
+.cmm-hl-pulse{animation:cmmPulse 1.6s ease-in-out infinite;}
+.cmm-hl-bounce{display:inline-block;animation:cmmBounce 1.4s ease-in-out infinite;}
+#Primary_Navbar > li.cmm-item > a, #Primary_Navbar li.cmm-item > a{position:relative;}
+#Primary_Navbar li.cmm-item > a .cmm-badge{position:absolute;top:2px;right:2px;transform:translate(50%,-50%);background:#dc3545;color:#fff;border-radius:9999px;padding:0 3px;font-size:8px;line-height:1.2;z-index:1;}
+#sidebar-wrapper .collapse > ul > li.cmm-item > a{position:relative;}
+#sidebar-wrapper .collapse > ul > li.cmm-item > a .cmm-badge{position:absolute;top:2px;right:2px;transform:translate(50%,-50%);background:#dc3545;color:#fff;border-radius:9999px;padding:0 3px;font-size:8px;line-height:1.2;z-index:1;}
+#sidebar-wrapper .collapse > ul > li.cmm-item > a .sidenav-icons, #sidebar-wrapper .collapse > ul > li[menuItemName^=cmm-] > a .sidenav-icons{width:50px;display:inline-block;text-align:center;}
+#sidebar-wrapper .collapse > ul > li.cmm-item > a .sidenav-icons i, #sidebar-wrapper .collapse > ul > li[menuItemName^=cmm-] > a .sidenav-icons i{margin:0;}
+#sidebar-wrapper .collapse > ul > li.cmm-item > a .nav-text, #sidebar-wrapper .collapse > ul > li[menuItemName^=cmm-] > a .nav-text{display:inline-block;vertical-align:middle;}
+#sidebar-wrapper .collapse > ul > li.cmm-item > a .nav-text, #sidebar-wrapper .collapse > ul > li[menuItemName^=cmm-] > a .nav-text{margin-left: 2px !important;}
+#sidebar-wrapper .collapse > ul > li.cmm-item > a span:not(.sidenav-icons), #sidebar-wrapper .collapse > ul > li[menuItemName^=cmm-] > a span:not(.sidenav-icons){position:relative;left: 2px !important;}
+.fa{font-family:'Font Awesome 5 Free';font-weight:900;}
+/* 备用CSS for menu ID 26 */
+li[data-menu-id="26"] > a .nav-text, li[data-menu-id="26"] > a span.nav-text, .cmm-item[data-menu-id="26"] > a .nav-text, .cmm-item[data-menu-id="26"] > a span.nav-text{color: #f81212 !important; animation: cmmBounce 1.4s ease-in-out infinite; display: inline-block;}
+</style>
+<style id="cmm-pad-override">
+ul#Primary_Navbar, #Primary_Navbar, #Primary_Navbar .navbar-nav, .nav-primary, .sidebar .nav, .sidebar .navbar-nav{padding-left: 16px !important; margin-left: 16px !important;}
+#Primary_Navbar > li > a, .sidebar .nav > li > a, .sidebar .navbar-nav > li > a{padding-left: 16px !important;}
+#sidebar-wrapper .collapse > ul > li.cmm-item > a .nav-text, #sidebar-wrapper .collapse > ul > li[menuItemName^=cmm-] > a .nav-text{margin-left: 2px !important; position: relative; left: 2px !important;}
+</style>
+
+
+</head>
+<body data-phone-cc-input="1">
+
+<script>window.USERNAME_PLUGIN={"fieldId":1,"minLength":3,"maxLength":30,"pattern":"^(?:[A-Za-z0-9_\\u4e00-\\u9fa5]+)$","forbidEmail":1,"templatefile":"knowledgebasearticle","allowEdit":0,"username":"","canSet":0,"isLoggedIn":0,"ajaxToken":"285e90eacabd50d6a2ce483b347243d3","language":"en","texts":{"loginPlaceholder":"Username or Email","loginError":"No account found for that username","registrationPlaceholder":"Choose a username","profileLabel":"Username","profilePlaceholder":"Username","profileHelp":"The username cannot be changed once saved","validationMin":"At least :min characters","validationMax":"Up to :max characters","validationPattern":"Only letters, numbers, and underscores are allowed","validationEmail":"Username cannot be an email address","statusTaken":"Username is already taken","statusAvailable":"Username is available"}};</script><script src="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/front_hostiko.js.下载"></script>
+<script>
+(function(){
+  var hasInfo = (function(){ try { return false === true || "false" === "true"; } catch(e){ return false; }})();
+  // 使用服务端拼好的备注字符串
+  var noteString = "收款方式：银行转账 | 收款人： | 银行： | 账号：".trim();
+  // 前端交互文案（中英文）
+  var i18n = {
+    edit: "Edit",
+    save: "Save",
+    needSet: "Please set payout information on the Affiliates page before requesting a withdrawal."
+  };
+
+  function isAffiliatesPage() {
+    var uri = (window.location.pathname || '') + (window.location.search || '');
+    return uri.indexOf('affiliates.php') !== -1 || uri.indexOf('/affiliates') !== -1;
+  }
+
+  // 判断是否提现提交
+  function isWithdrawalSubmit(form) {
+    if (!form) return false;
+    // 常见标识字段
+    if (form.querySelector('input[name="requestWithdrawal"]')) return true;
+    if (form.querySelector('input[name="withdraw"]')) return true;
+    if (form.querySelector('input[name="withdrawamount"]')) return true;
+    // 兜底：按钮文本包含“提现/withdraw”
+    var btns = form.querySelectorAll('button, input[type="submit"]');
+    for (var i = 0; i < btns.length; i++) {
+      var t = (btns[i].innerText || btns[i].value || '').toLowerCase();
+      if (t.indexOf('提现') !== -1 || t.indexOf('withdraw') !== -1) return true;
+    }
+    return false;
+  }
+
+  function injectNotes(form) {
+    if (!noteString) return;
+    var notes = form.querySelector('textarea[name="notes"], input[name="notes"]');
+    if (notes) {
+      notes.value = (notes.value ? (notes.value + ' | ' + noteString) : noteString);
+    } else {
+      var hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = 'notes';
+      hidden.value = noteString;
+      form.appendChild(hidden);
+    }
+    // 兼容备用字段
+    var wnotes = form.querySelector('textarea[name="withdrawalnotes"], input[name="withdrawalnotes"]');
+    if (wnotes) {
+      wnotes.value = (wnotes.value ? (wnotes.value + ' | ' + noteString) : noteString);
+    }
+  }
+
+  function bindPayoutForms() {
+    if (!isAffiliatesPage()) return;
+    var forms = document.querySelectorAll('form#payoutinfo-form, form#payoutinfo-sidebar-form, form[action*="affiliates.php"]');
+    forms.forEach(function(form){
+      if (!form || form.dataset.payoutBalanceBound === '1') return;
+      var methodSelect = form.querySelector('select[name="payout_method"]');
+      var accountInput = form.querySelector('input[name="payee_account"]');
+      var nameInput = form.querySelector('input[name="payee_name"]');
+      var bankNameGroup = form.querySelector('#bank-name-group');
+      var bankNameInput = form.querySelector('input[name="bank_name"]');
+      var nameTypeGroup = form.querySelector('#payee-name-type-group');
+      var nameTypeSelect = form.querySelector('select[name="payee_name_type"]');
+      var nameTextGroup = form.querySelector('#payee-name-text-group');
+      var submitBtn = form.querySelector('button[type="submit"][name="save_payoutinfo"]');
+      var editing = false;
+
+      function setFieldDisabled(field, shouldDisable) {
+        if (!field) return;
+        if (shouldDisable) {
+          field.setAttribute('disabled', 'disabled');
+          field.classList.add('input-disabled');
+        } else {
+          field.removeAttribute('disabled');
+          field.classList.remove('input-disabled');
+        }
+      }
+
+      function setSubmitText() {
+        if (!submitBtn) return;
+        submitBtn.textContent = editing ? i18n.save : i18n.edit;
+      }
+
+      function syncFields() {
+        var val = methodSelect ? methodSelect.value : '';
+        var showType = (val === 'binance');
+        if (nameTypeGroup && nameTextGroup) {
+          nameTypeGroup.style.display = showType ? 'block' : 'none';
+          nameTextGroup.style.display = showType ? 'none' : 'block';
+        }
+        if (bankNameGroup) {
+          bankNameGroup.style.display = (val === 'bank') ? 'block' : 'none';
+        }
+        var disableAccount = (val === 'balance');
+        var disableNameInput = (val === 'balance' || val === 'usdt' || (showType && !editing)); // 当显示类型选择且未进入编辑模式时也禁用输入
+        var disableNameType = (val !== 'binance' || !editing);
+        var disableBankName = (val !== 'bank' || !editing);
+        setFieldDisabled(accountInput, disableAccount || !editing);
+        setFieldDisabled(nameInput, disableNameInput || !editing);
+        setFieldDisabled(nameTypeSelect, disableNameType);
+        setFieldDisabled(bankNameInput, disableBankName);
+        setFieldDisabled(methodSelect, !editing);
+        setSubmitText();
+      }
+
+      // 初始：若已有信息，则进入“非编辑模式”（禁用所有输入，按钮为修改）
+      editing = !hasInfo ? true : false;
+      syncFields();
+
+      if (methodSelect) {
+        methodSelect.addEventListener('change', function(){
+          var v = methodSelect ? methodSelect.value : '';
+          if (v === 'balance') {
+            if (accountInput) accountInput.value = '';
+            if (nameInput) nameInput.value = '';
+            if (nameTypeSelect) { try { nameTypeSelect.selectedIndex = 0; } catch(e){} }
+          } else if (v === 'usdt') {
+            if (nameInput) nameInput.value = '';
+          }
+          if (v !== 'bank') {
+            if (bankNameInput) bankNameInput.value = '';
+          }
+          syncFields();
+        });
+      }
+      if (accountInput) {
+        accountInput.addEventListener('input', function(){ if (editing) setSubmitText(); });
+      }
+      if (nameInput) {
+        nameInput.addEventListener('input', function(){ if (editing) setSubmitText(); });
+      }
+      if (nameTypeSelect) {
+        nameTypeSelect.addEventListener('change', function(){ if (editing) setSubmitText(); });
+      }
+      if (bankNameInput) {
+        bankNameInput.addEventListener('input', function(){ if (editing) setSubmitText(); });
+      }
+
+      // 拦截提交：非编辑模式点击“修改”仅切换到编辑，不提交；编辑模式点击“保存”才提交
+      if (form) {
+        form.addEventListener('submit', function(e){
+          if (!editing) {
+            e.preventDefault();
+            editing = true;
+            syncFields();
+            return;
+          }
+          // 编辑模式下，根据方法进行兜底禁用（balance/usdt），并清理无效值
+          var val = methodSelect ? methodSelect.value : '';
+          if (val === 'balance') {
+            if (accountInput) accountInput.value = '';
+            if (nameInput) nameInput.value = '';
+            setFieldDisabled(accountInput, true);
+            setFieldDisabled(nameInput, true);
+          } else if (val === 'usdt') {
+            if (nameInput) nameInput.value = '';
+            setFieldDisabled(nameInput, true);
+          } else if (val !== 'bank') {
+            if (bankNameInput) bankNameInput.value = '';
+            setFieldDisabled(bankNameInput, true);
+          }
+        });
+      }
+
+      form.dataset.payoutBalanceBound = '1';
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindPayoutForms);
+  } else {
+    bindPayoutForms();
+  }
+
+  // 备注注入由服务端统一处理，前端不再注入以避免重复
+  if (isAffiliatesPage()) {
+    // no-op
+  }
+})();
+</script>
+<script>
+(function(){
+  function isAffiliatesPage(){
+    var uri = (window.location.pathname || '') + (window.location.search || '');
+    return uri.indexOf('affiliates.php') !== -1 || uri.indexOf('/affiliates') !== -1;
+  }
+  if (!isAffiliatesPage()) return;
+
+  // 禁用“提现收款信息/ Payout Information”侧边栏面板的折叠行为，强制常显
+  function disablePayoutPanelCollapse(){
+    try {
+      var titleTexts = ['提现收款信息','Payout Information','PayoutInformation'];
+      var headingSelectors = ['.panel-heading', '.card-header', '.panel-title', '.sidebar .panel-heading'];
+      var headings = document.querySelectorAll(headingSelectors.join(','));
+      headings.forEach(function(hd){
+        var txt = (hd.textContent || '').replace(/\s+/g, '');
+        var matched = titleTexts.some(function(t){ return txt.indexOf(t) !== -1; });
+        if (!matched) return;
+
+        // 找到面板容器与主体
+        var container = hd.closest('.panel, .card') || hd.parentNode;
+        var body = null;
+        if (container) {
+          body = container.querySelector('.panel-body, .card-body, .list-group, .collapse');
+        }
+        // 展开主体并添加显示类（兼容 Bootstrap3/4）
+        if (body) {
+          body.style.display = 'block';
+          body.style.height = 'auto';
+          body.classList.remove('collapse');
+          body.classList.add('in');
+          body.classList.add('show');
+        }
+        // 处理所有可能的折叠触发器
+        var togglers = hd.querySelectorAll('a, [data-toggle], [data-target]');
+        togglers.forEach(function(el){
+          el.removeAttribute('data-toggle');
+          el.removeAttribute('data-target');
+          el.removeAttribute('aria-expanded');
+          // 若是锚点，移除 href 以避免跳转/折叠
+          if (el.tagName === 'A') { el.removeAttribute('href'); }
+          el.style.pointerEvents = 'none';
+        });
+        // 标题自身去除 collapsed 且禁用点击
+        hd.classList.remove('collapsed');
+        hd.style.cursor = 'default';
+        hd.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); }, true);
+
+        // 容器内所有 collapse 元素强制展开
+        if (container) {
+          var collapses = container.querySelectorAll('.collapse');
+          collapses.forEach(function(c){
+            c.classList.add('in');
+            c.classList.add('show');
+            c.style.display = 'block';
+            c.style.height = 'auto';
+          });
+        }
+      });
+    } catch(e) {}
+  }
+
+  // 立即执行一次（避免首屏被折叠）
+  disablePayoutPanelCollapse();
+
+  // 选取可能存在的表单（主体/页脚/侧边栏）
+  var forms = document.querySelectorAll('form#payoutinfo-form, form#payoutinfo-sidebar-form, form[action*="affiliates.php"]');
+  // 即使没有表单也要保持面板不可折叠，因此不提前 return
+
+  forms.forEach(function(form){
+    // 仅升级我们的保存表单
+    if (!form || !form.querySelector('[name="save_payoutinfo"]')) return;
+    if (form.dataset.apUiUpgraded === '1') return;
+
+    var nameInput = form.querySelector('input[name="payee_name"]');
+    var accInput  = form.querySelector('input[name="payee_account"]');
+    var methodSel = form.querySelector('select[name="payout_method"]');
+    var nameVal   = (nameInput && nameInput.value || '').trim();
+    var accVal    = (accInput && accInput.value || '').trim();
+    var hasInfo   = !!(nameVal && accVal);
+
+    // 在标题 h3 旁添加状态标记
+    var h3 = null;
+    try { h3 = form.closest('.card-body') ? form.closest('.card-body').querySelector('h3') : null; } catch(e){}
+    if (!h3) {
+      var statusTop = document.createElement('div');
+      statusTop.style.marginBottom = '8px';
+      statusTop.innerHTML = '<small class="text-' + (hasInfo ? 'success' : 'warning') + '">' + (hasInfo ? '已设置' : '未设置') + '</small>';
+      if (form.parentNode) {
+        form.parentNode.insertBefore(statusTop, form);
+      }
+    } else {
+      var status = document.createElement('small');
+      status.className = 'text-' + (hasInfo ? 'success' : 'warning');
+      status.style.marginLeft = '8px';
+      status.textContent = hasInfo ? '已设置' : '未设置';
+      h3.appendChild(status);
+    }
+
+    // 表单始终显示，不再生成摘要/折叠逻辑
+    form.style.display = 'block';
+    var existingSummary = form.parentNode ? form.parentNode.querySelector('#payoutinfo-enh-summary') : null;
+    if (existingSummary && existingSummary.parentNode) {
+      existingSummary.parentNode.removeChild(existingSummary);
+    }
+    var existingCancel = form.querySelector('button[type="button"].btn-link');
+    if (existingCancel && existingCancel.parentNode) {
+      existingCancel.parentNode.removeChild(existingCancel);
+    }
+
+    form.dataset.apUiUpgraded = '1';
+  });
+
+  // DOM 完成后再执行一次，确保动态模板也被修正
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', disablePayoutPanelCollapse);
+  } else {
+    disablePayoutPanelCollapse();
+  }
+})();
+</script>
+
+<nav class="navbar navbar-default no-margin">
+    <!-- Brand and toggle get grouped for better mobile display -->
+    <div class="navbar-header fixed-brand">
+        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" id="menu-toggle">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+        </button>
+                    <a href="https://my.dnshe.com/index.php" class="logo"><img src="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/logo.png" alt="DNSHE"></a>
+            </div>
+
+    <!-- navbar-header-->
+    <div class="header_content_right " id="bs-example-navbar-collapse-1">
+
+        <ul class="nav navbar-nav">
+            <li class="active">
+                <button class="navbar-toggle collapse in" data-toggle="collapse" id="menu-toggle-2">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+            </li>
+        </ul>
+        <ul class="top-nav pull-left"> 
+                            <li>
+                    <a href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html#" class="choose-language" data-toggle="popover" id="languageChooser" data-original-title="" title="">
+                        <i class="fas fa-language"></i>
+                                                <b class="caret"></b>
+                    </a>
+                    <div id="languageChooserContent" class="hidden">
+                        <ul>
+                                                            <li>
+                                    <a href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html?language=chinese">中文</a>
+                                </li>
+                                                            <li>
+                                    <a href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html?language=english">English</a>
+                                </li>
+                                                    </ul>
+                    </div>
+                </li>
+            
+            
+                        <li>
+                <a href="https://my.dnshe.com/cart.php?a=view">
+                    <i class="fas fa-shopping-cart"></i>
+                                    </a>
+            </li>
+            </ul>
+            <ul class="top-nav pull-right">
+                <li menuitemname="Account" class="dropdown" id="Secondary_Navbar-Account">
+
+        <a class="dropdown-toggle" data-toggle="dropdown" href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html#">
+            
+
+
+
+
+                        Account
+                        &nbsp;<b class="caret"></b>
+        </a>
+                    <ul class="dropdown-menu">
+                                    <li menuitemname="Login" id="Secondary_Navbar-Account-Login">
+                        <a href="https://my.dnshe.com/clientarea.php">
+                                                        Login
+                                                    </a>
+                    </li>
+                                    <li menuitemname="Register" id="Secondary_Navbar-Account-Register">
+                        <a href="https://my.dnshe.com/register.php">
+                                                        Register
+                                                    </a>
+                    </li>
+                                    <li menuitemname="Divider" class="nav-divider" id="Secondary_Navbar-Account-Divider">
+                        <a href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html">
+                                                        -----
+                                                    </a>
+                    </li>
+                                    <li menuitemname="Forgot Password?" id="Secondary_Navbar-Account-Forgot_Password?">
+                        <a href="https://my.dnshe.com/password/reset/begin">
+                                                        Forgot Password?
+                                                    </a>
+                    </li>
+                            </ul>
+            </li>
+
+
+        </ul>
+
+
+    </div>
+
+
+    <!-- bs-example-navbar-collapse-1 -->
+</nav>
+<div id="wrapper">
+    <!-- Sidebar -->
+    <div id="sidebar-wrapper">
+        <div class="collapse navbar-collapse" id="primary-nav">
+            <ul class="nav navbar-nav">
+                <li menuitemname="cmm-1" class=" nav-link" id="Primary_Navbar-cmm-1">
+
+        <a href="https://my.dnshe.com/clientarea.php">
+            
+
+
+
+
+                        <span class="sidenav-icons"><i class="fa fa-home fa-fw"></i></span><span class="nav-text">Home</span>
+                        
+        </a>
+            </li>
+    <li menuitemname="cmm-2" class=" nav-link" id="Primary_Navbar-cmm-2">
+
+        <a href="https://my.dnshe.com/cart.php">
+            
+
+
+
+
+                        <span class="sidenav-icons"><i class="fa fa-shopping-cart fa-fw"></i></span><span class="nav-text">Product/Service</span>
+                        
+        </a>
+            </li>
+    <li menuitemname="cmm-26" class=" nav-link" id="Primary_Navbar-cmm-26">
+
+        <a href="https://my.dnshe.com/index.php?m=domain_hub">
+            
+
+
+
+
+                        <span class="sidenav-icons"><i class="fas fa-globe fa-fw"></i></span><span class="nav-text cmm-hl-bounce" style="color: #f81212 !important; font-weight: bold;">Free Domains✨</span>
+                        
+        </a>
+            </li>
+    <li menuitemname="cmm-13" class="dropdown nav-link dropdown-toggle" id="Primary_Navbar-cmm-13">
+
+        <a class="dropdown-toggle" data-toggle="dropdown" href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html#">
+            
+
+
+
+
+                        <span class="sidenav-icons"><i class="fas fa-headset fa-fw"></i></span><span class="nav-text">Support Center</span>
+                        &nbsp;<b class="caret"></b>
+        </a>
+                    <ul class="dropdown-menu">
+                                    <li menuitemname="cmm-15" class="nav-link" id="Primary_Navbar-cmm-13-cmm-15">
+                        <a href="https://my.dnshe.com/contact.php">
+                                                        <span class="nav-text">Contact Us</span>
+                                                    </a>
+                    </li>
+                            </ul>
+            </li>
+    <li menuitemname="cmm-17" class=" nav-link" id="Primary_Navbar-cmm-17">
+
+        <a href="https://my.dnshe.com/knowledgebase">
+            
+
+
+
+
+                        <span class="sidenav-icons"><i class="fas fa-book fa-fw"></i></span><span class="nav-text">Help Center</span>
+                        
+        </a>
+            </li>
+    <li menuitemname="cmm-28" class=" nav-link" id="Primary_Navbar-cmm-28">
+
+        <a href="https://my.dnshe.com/announcements">
+            
+
+
+
+
+                        <span class="sidenav-icons"><i class="fas fa-bullhorn fa-fw"></i></span><span class="nav-text">Announcement</span>
+                        
+        </a>
+            </li>
+    <li menuitemname="cmm-25" class=" nav-link" id="Primary_Navbar-cmm-25">
+
+        <a href="https://my.dnshe.com/affiliates.php">
+            
+
+
+
+
+                        <span class="sidenav-icons"><i class="fas fa-handshake fa-fw"></i></span><span class="nav-text">Referral rebate</span>
+                        
+        </a>
+            </li>
+            </ul>
+        </div>
+    </div>
+    <!-- /#sidebar-wrapper -->
+    <!-- Page Content -->
+    <div id="page-content-wrapper">
+        <div class="container-fluid xyz">
+
+                    
+                                        <section id="main-body">
+                        <div class="container">
+                            <div class="row">
+
+                                                                                                            <div class="col-md-12 pull-md-left">
+                                            <div class="header-lined">
+    <h1>Knowledgebase</h1>
+    <ol class="breadcrumb">
+            <li>
+            <a href="https://my.dnshe.com/">            Portal Home
+            </a>        </li>
+            <li>
+            <a href="https://my.dnshe.com/knowledgebase">            Knowledgebase
+            </a>        </li>
+            <li>
+            <a href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual">            Free Domain Name Service API User Manual
+            </a>        </li>
+            <li class="active">
+                        Free Domain Name Service API User Manual
+                    </li>
+    </ol>
+</div>
+                                        </div>
+                                                                        <div class="col-md-3 pull-md-right sidebar">
+                                            <div menuitemname="Support Knowledgebase Categories" class="panel panel-sidebar panel-sidebar hidden-sm hidden-xs">
+        <div class="panel-heading">
+            <h3 class="panel-title">
+                <i class="fas fa-info"></i>&nbsp;                Categories
+                                <i class="fas fa-chevron-up panel-minimise pull-right"></i>
+            </h3>
+        </div>
+                            <div class="list-group">
+                                                            <a menuitemname="Support Knowledgebase Category 1" href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual" class="list-group-item" id="Primary_Sidebar-Support_Knowledgebase_Categories-Support_Knowledgebase_Category_1">
+                            <span class="badge">2</span>                                                        <div class="truncate" title="Free Domain Name Service API User Manual" data-toggle="tooltip" data-placement="bottom">Free Domain Name Service API User Manual</div>
+                        </a>
+                                                </div>
+                    </div>
+                    <div class="panel hidden-lg hidden-md panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <i class="fas fa-info"></i>&nbsp;                    Categories
+                                    </h3>
+            </div>
+            <div class="panel-body">
+                <form role="form">
+                    <select class="form-control" onchange="selectChangeNavigate(this)">
+                                                    <option menuitemname="Support Knowledgebase Category 1" value="/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual" class="list-group-item">
+                                <div class="truncate">Free Domain Name Service API User Manual</div>
+                                (2)                            </option>
+                                            </select>
+                </form>
+            </div>
+                    </div>
+                                        </div>
+                                                                <!-- Container for main page display content -->
+                                <div class="col-md-9 pull-md-right main-content">
+                                    
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="kb-article-title">
+    <a href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html#" class="btn btn-link btn-print" onclick="window.print();return false"><i class="fas fa-print"></i></a>
+    <h2>Free Domain Name Service API User Manual</h2>
+</div>
+
+
+<div class="kb-article-content">
+    <p data-start="77" data-end="116">Welcome to the Free Domain API Service.</p>
+<p data-start="118" data-end="415">This API is designed to provide developers with an efficient and convenient domain management solution. It supports subdomain registration, DNS record configuration, API key management, quota queries, and other core features—all without requiring in-depth knowledge of underlying DNS technologies.</p>
+<p data-start="417" data-end="722">The documentation outlines the API request specifications, endpoint details, request/response examples, and multi-language SDK implementations. It is suitable for a wide range of application scenarios that require domain service integration, such as developer tools, SaaS platforms, and personal projects.</p>
+<p data-start="724" data-end="1007">Before using the API, please ensure you have obtained a valid API Key and API Secret, and follow all authentication and rate-limit requirements. It is recommended to use HTTP Headers to transmit authentication information and apply best practices for key security and access control.</p>
+<p data-start="1009" data-end="1290">If you encounter issues during integration, refer to the <strong data-start="1066" data-end="1073">FAQ</strong> section in the documentation or contact customer support for technical assistance. We will continue improving both the API and the documentation to provide you with a more stable and efficient development experience.</p>
+<hr data-start="1292" data-end="1295">
+<h3 data-start="1297" data-end="1321">1. Basic Information</h3>
+<p data-start="1323" data-end="1386">API Endpoint:<br data-start="1336" data-end="1339"><a class="decorated-link" href="https://api005.dnshe.com/index.php?m=domain_hub" target="_new" rel="noopener" data-start="1339" data-end="1386">https://api005.dnshe.com/index.php?m=domain_hub</a></p>
+<p data-start="1388" data-end="1433">Authentication Method:<br data-start="1410" data-end="1413">API Key + API Secret</p>
+<p data-start="1435" data-end="1459">Supported Format:<br data-start="1452" data-end="1455">JSON</p>
+<p data-start="1461" data-end="1505">Default Rate Limit:<br data-start="1480" data-end="1483">60 requests per minute</p>
+<hr data-start="1507" data-end="1510">
+<h3 data-start="1512" data-end="1543">2. Authentication Mechanism</h3>
+<h4 data-start="1545" data-end="1570">1. Obtain API Keys</h4>
+<p data-start="1571" data-end="1728">• Log in to the DNSHE Client Area<br data-start="1604" data-end="1607">• Navigate to the <strong data-start="1625" data-end="1640">Free Domain</strong> page<br data-start="1645" data-end="1648">• Find the <strong data-start="1659" data-end="1677">API Management</strong> section at the bottom<br data-start="1699" data-end="1702">• Click <strong data-start="1710" data-end="1728">Create API Key</strong></p>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">Method 1: HTTP Header (Recommended)</h4>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="y7ooepm" data-popupid="y7ooepm">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="8cpdza3" data-popupid="8cpdza3">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="j10flxy" data-popupid="j10flxy">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="tcw2jju" data-popupid="tcw2jju">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="p7ajzu2" data-popupid="p7ajzu2">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X GET "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=subdomains&amp;action=list" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy"
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">Method 2: URL Parameters</h4>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="9c8lfec" data-popupid="9c8lfec">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="z8ev6x4" data-popupid="z8ev6x4">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="ufv8prd" data-popupid="ufv8prd">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="x49xqgp" data-popupid="x49xqgp">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="0htxt6h" data-popupid="0htxt6h">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X GET "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=subdomains&amp;action=list&amp;api_key=cfsd_xxxxxxxxxx&amp;api_secret=yyyyyyyyyyyy"
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h2 class="header-iWP5WJ auto-hide-last-sibling-br">3. Core API Endpoints &amp; Examples</h2>
+<h3 class="header-iWP5WJ auto-hide-last-sibling-br">1. Subdomain Management</h3>
+<div class="auto-hide-last-sibling-br mdbox-table-root table-container-cYf_5N" data-scroll-inline-overflow="false" data-scroll-inline-at-start="true" data-scroll-inline-start-overflow="false" data-scroll-inline-at-end="true" data-scroll-inline-end-overflow="false">
+<div class="table-scroll-container-Gyf4hQ mdbox-table-scroll-container">
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list</code></td>
+<td>GET</td>
+<td>List all subdomains</td>
+</tr>
+<tr>
+<td><code>register</code></td>
+<td>POST</td>
+<td>Register a new subdomain</td>
+</tr>
+<tr>
+<td><code>get</code></td>
+<td>GET</td>
+<td>Get subdomain details</td>
+</tr>
+<tr>
+<td><code>delete</code></td>
+<td>POST/DELETE</td>
+<td>Delete a subdomain</td>
+</tr>
+<tr>
+<td><code>renew</code></td>
+<td>POST/PUT</td>
+<td>Renew a subdomain</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">1.1 List Subdomains</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="th19jx2" data-popupid="th19jx2">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="mk8uafy" data-popupid="mk8uafy">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="mz38qsz" data-popupid="mz38qsz">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="447pmzo" data-popupid="447pmzo">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="hjmx89x" data-popupid="hjmx89x">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X GET "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=subdomains&amp;action=list" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy"
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="kpbhnly" data-popupid="kpbhnly">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="lrhirm9" data-popupid="lrhirm9">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="g6lfzj8" data-popupid="g6lfzj8">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="mcbe6c7" data-popupid="mcbe6c7">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="y9a5xti" data-popupid="y9a5xti">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "count": 2,
+  "subdomains": [
+    {
+      "id": 1,
+      "subdomain": "test",
+      "rootdomain": "example.com",
+      "full_domain": "test.example.com",
+      "status": "active",
+      "created_at": "2025-10-19 10:00:00",
+      "updated_at": "2025-10-19 10:00:00"
+    },
+    {
+      "id": 2,
+      "subdomain": "api",
+      "rootdomain": "example.com",
+      "full_domain": "api.example.com",
+      "status": "active",
+      "created_at": "2025-10-19 11:00:00",
+      "updated_at": "2025-10-19 11:00:00"
+    }
+  ]
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">1.2 Register Subdomain</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameters</strong>:
+<ul class="auto-hide-last-sibling-br">
+<li><code>subdomain</code>: Subdomain prefix (string, required)</li>
+<li><code>rootdomain</code>: Root domain (string, required)</li>
+</ul>
+</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="fuphyxc" data-popupid="fuphyxc">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="ivybonx" data-popupid="ivybonx">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="76fpdtd" data-popupid="76fpdtd">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="n3dr1nz" data-popupid="n3dr1nz">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="2a8ey7x" data-popupid="2a8ey7x">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-bash"><code>curl -X POST "https://your-domain.com/index.php?m=domain_hub&amp;endpoint=subdomains&amp;action=register" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subdomain": "myapp",
+    "rootdomain": "example.com"
+  }'
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="et4sxn6" data-popupid="et4sxn6">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="cqy9590" data-popupid="cqy9590">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="39wf010" data-popupid="39wf010">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="76mvj90" data-popupid="76mvj90">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="tvhzn0d" data-popupid="tvhzn0d">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "message": "Subdomain registered successfully",
+  "subdomain_id": 3,
+  "full_domain": "myapp.example.com"
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">1.3 Get Subdomain Details</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameter</strong>:&nbsp;<code>subdomain_id</code>&nbsp;(integer, required)</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="xy2g2z1" data-popupid="xy2g2z1">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="jqhadx7" data-popupid="jqhadx7">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="8v6ueir" data-popupid="8v6ueir">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="wo4x0r8" data-popupid="wo4x0r8">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="knmc0uh" data-popupid="knmc0uh">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X GET "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=subdomains&amp;action=get&amp;subdomain_id=1" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy"
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="9wvngwt" data-popupid="9wvngwt">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="4cwxtbt" data-popupid="4cwxtbt">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="jetrvs4" data-popupid="jetrvs4">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="01b6u7u" data-popupid="01b6u7u">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="mihkuep" data-popupid="mihkuep">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "subdomain": {
+    "id": 1,
+    "subdomain": "test",
+    "rootdomain": "example.com",
+    "full_domain": "test.example.com",
+    "status": "active",
+    "created_at": "2025-10-19 10:00:00",
+    "updated_at": "2025-10-19 10:00:00"
+  },
+  "dns_records": [
+    {
+      "id": 1,
+      "name": "test.example.com",
+      "type": "A",
+      "content": "192.168.1.1",
+      "ttl": 120,
+      "priority": null,
+      "status": "active",
+      "created_at": "2025-10-19 10:05:00"
+    }
+  ],
+  "dns_count": 1
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">1.4 Delete Subdomain</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameter</strong>:&nbsp;<code>subdomain_id</code>&nbsp;(integer, required)</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="2f7etog" data-popupid="2f7etog">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="k9pmlz6" data-popupid="k9pmlz6">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="dqltuhs" data-popupid="dqltuhs">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="o0fgm6y" data-popupid="o0fgm6y">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="cjkpufk" data-popupid="cjkpufk">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X POST "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=subdomains&amp;action=delete" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subdomain_id": 1
+  }'
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="v9dpl7i" data-popupid="v9dpl7i">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="qgu2fww" data-popupid="qgu2fww">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="jd1ndxr" data-popupid="jd1ndxr">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="7to6w2w" data-popupid="7to6w2w">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="rbwhmgu" data-popupid="rbwhmgu">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "message": "Subdomain deleted successfully"
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">1.5 Renew Subdomain</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameter</strong>:&nbsp;<code>subdomain_id</code>&nbsp;(integer, required)</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="gjasqx8" data-popupid="gjasqx8">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="9375xhx" data-popupid="9375xhx">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="s9g7c3e" data-popupid="s9g7c3e">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="3ut38wu" data-popupid="3ut38wu">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="bwfrrit" data-popupid="bwfrrit">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X POST "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=subdomains&amp;action=renew" \
+-H "X-API-Key: cfsd_xxxxxxxxxx" \
+-H "X-API-Secret: yyyyyyyyyyyy" \
+-H "Content-Type: application/json" \
+-d '{
+  "subdomain_id": 3
+}'
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="eo8hp8o" data-popupid="eo8hp8o">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="eousyvo" data-popupid="eousyvo">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="gj1npwn" data-popupid="gj1npwn">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="vqjk2ys" data-popupid="vqjk2ys">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="jqtm4rn" data-popupid="jqtm4rn">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "message": "Subdomain renewed successfully",
+  "subdomain_id": 3,
+  "subdomain": "myapp",
+  "previous_expires_at": "2025-05-01 00:00:00",
+  "new_expires_at": "2026-05-01 00:00:00",
+  "renewed_at": "2025-04-10 12:34:56",
+  "never_expires": 0,
+  "status": "active",
+  "remaining_days": 366
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h3 class="header-iWP5WJ auto-hide-last-sibling-br">2. DNS Record Management</h3>
+<div class="auto-hide-last-sibling-br mdbox-table-root table-container-cYf_5N" data-scroll-inline-overflow="false" data-scroll-inline-at-start="true" data-scroll-inline-start-overflow="false" data-scroll-inline-at-end="true" data-scroll-inline-end-overflow="false">
+<div class="table-scroll-container-Gyf4hQ mdbox-table-scroll-container">
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list</code></td>
+<td>GET</td>
+<td>List DNS records for a subdomain</td>
+</tr>
+<tr>
+<td><code>create</code></td>
+<td>POST</td>
+<td>Create a DNS record</td>
+</tr>
+<tr>
+<td><code>update</code></td>
+<td>POST/PUT</td>
+<td>Update a DNS record</td>
+</tr>
+<tr>
+<td><code>delete</code></td>
+<td>POST/DELETE</td>
+<td>Delete a DNS record</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">2.1 List DNS Records</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameter</strong>:&nbsp;<code>subdomain_id</code>&nbsp;(integer, required)</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="wdh2dyh" data-popupid="wdh2dyh">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="fu7oxzx" data-popupid="fu7oxzx">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="tc9nsi9" data-popupid="tc9nsi9">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="ohkgzc3" data-popupid="ohkgzc3">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="9d5ykfq" data-popupid="9d5ykfq">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X GET "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=dns_records&amp;action=list&amp;subdomain_id=1" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy"
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="38hi2i5" data-popupid="38hi2i5">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="nec7etf" data-popupid="nec7etf">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="iznycne" data-popupid="iznycne">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="auw6k78" data-popupid="auw6k78">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="cq99ioe" data-popupid="cq99ioe">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "count": 2,
+  "records": [
+    {
+      "id": 1,
+      "name": "test.example.com",
+      "type": "A",
+      "content": "192.168.1.1",
+      "ttl": 120,
+      "priority": null,
+      "proxied": false,
+      "status": "active",
+      "created_at": "2025-10-19 10:05:00"
+    },
+    {
+      "id": 2,
+      "name": "www.test.example.com",
+      "type": "CNAME",
+      "content": "test.example.com",
+      "ttl": 120,
+      "priority": null,
+      "proxied": false,
+      "status": "active",
+      "created_at": "2025-10-19 10:10:00"
+    }
+  ]
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">2.2 Create DNS Record</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameters</strong>:
+<ul class="auto-hide-last-sibling-br">
+<li><code>subdomain_id</code>: Associated subdomain ID (integer, required)</li>
+<li><code>type</code>: Record type (A/AAAA/CNAME/MX/TXT, required)</li>
+<li><code>content</code>: Record value (string, required)</li>
+<li><code>name</code>: Record name (string, optional)</li>
+<li><code>ttl</code>: TTL value (integer, optional, default 120)</li>
+<li><code>priority</code>: Priority (integer, optional, required for MX records)</li>
+</ul>
+</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="oqz19p8" data-popupid="oqz19p8">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="78ozpgq" data-popupid="78ozpgq">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="5lci8n5" data-popupid="5lci8n5">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="1jx2h71" data-popupid="1jx2h71">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="kxb8vay" data-popupid="kxb8vay">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X POST "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=dns_records&amp;action=create" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subdomain_id": 1,
+    "type": "A",
+    "content": "192.168.1.100",
+    "ttl": 600
+  }'
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="v40sn09" data-popupid="v40sn09">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="g6l38hy" data-popupid="g6l38hy">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="rgq06p8" data-popupid="rgq06p8">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="lauhc79" data-popupid="lauhc79">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="7zl1j5s" data-popupid="7zl1j5s">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "message": "DNS record created successfully",
+  "record_id": 3
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">2.3 Update DNS Record</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameters</strong>:
+<ul class="auto-hide-last-sibling-br">
+<li><code>record_id</code>: DNS record ID (integer, required)</li>
+<li><code>content</code>: New record value (string, optional)</li>
+<li><code>ttl</code>: New TTL value (integer, optional)</li>
+<li><code>priority</code>: New priority (integer, optional)</li>
+</ul>
+</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="bbhk107" data-popupid="bbhk107">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="fq04zfn" data-popupid="fq04zfn">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="xslvyyp" data-popupid="xslvyyp">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="33odh3q" data-popupid="33odh3q">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="dllyh5l" data-popupid="dllyh5l">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X POST "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=dns_records&amp;action=update" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "record_id": 1,
+    "content": "192.168.1.200",
+    "ttl": 600
+  }'
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="antp48j" data-popupid="antp48j">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="c1av4ms" data-popupid="c1av4ms">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="j5719au" data-popupid="j5719au">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="840g1uk" data-popupid="840g1uk">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="vroi0fs" data-popupid="vroi0fs">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "message": "DNS record updated successfully"
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">2.4 Delete DNS Record</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameter</strong>:&nbsp;<code>record_id</code>&nbsp;(integer, required)</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="7pnm2l1" data-popupid="7pnm2l1">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="8qh2q5o" data-popupid="8qh2q5o">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="h7u6ayf" data-popupid="h7u6ayf">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="kz05f28" data-popupid="kz05f28">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="4ssja4e" data-popupid="4ssja4e">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X POST "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=dns_records&amp;action=delete" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "record_id": 1
+  }'
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="jhio44h" data-popupid="jhio44h">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="szeyjma" data-popupid="szeyjma">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="ftt1bps" data-popupid="ftt1bps">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="lzsubkp" data-popupid="lzsubkp">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="b289jcm" data-popupid="b289jcm">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "message": "DNS record deleted successfully"
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h3 class="header-iWP5WJ auto-hide-last-sibling-br">3. API Key Management</h3>
+<div class="auto-hide-last-sibling-br mdbox-table-root table-container-cYf_5N" data-scroll-inline-overflow="false" data-scroll-inline-at-start="true" data-scroll-inline-start-overflow="false" data-scroll-inline-at-end="true" data-scroll-inline-end-overflow="false">
+<div class="table-scroll-container-Gyf4hQ mdbox-table-scroll-container">
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list</code></td>
+<td>GET</td>
+<td>List all API keys</td>
+</tr>
+<tr>
+<td><code>create</code></td>
+<td>POST</td>
+<td>Create a new API key</td>
+</tr>
+<tr>
+<td><code>delete</code></td>
+<td>POST/DELETE</td>
+<td>Delete an API key</td>
+</tr>
+<tr>
+<td><code>regenerate</code></td>
+<td>POST</td>
+<td>Regenerate an API key</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">3.1 List API Keys</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="eoq4s9g" data-popupid="eoq4s9g">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="e4kt7q2" data-popupid="e4kt7q2">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="x9sxziv" data-popupid="x9sxziv">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="vu0br6d" data-popupid="vu0br6d">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="a9w4g34" data-popupid="a9w4g34">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X GET "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=keys&amp;action=list" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy"
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="bhjlh4e" data-popupid="bhjlh4e">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="0e9cz6l" data-popupid="0e9cz6l">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="pkf4md0" data-popupid="pkf4md0">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="d3ydufw" data-popupid="d3ydufw">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="5dljesv" data-popupid="5dljesv">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "count": 2,
+  "keys": [
+    {
+      "id": 1,
+      "key_name": "Production Key",
+      "api_key": "cfsd_xxxxxxxxxx",
+      "status": "active",
+      "request_count": 1523,
+      "last_used_at": "2025-10-19 15:30:00",
+      "created_at": "2025-10-19 10:00:00"
+    },
+    {
+      "id": 2,
+      "key_name": "Testing Key",
+      "api_key": "cfsd_yyyyyyyyyy",
+      "status": "active",
+      "request_count": 45,
+      "last_used_at": "2025-10-19 14:00:00",
+      "created_at": "2025-10-19 11:00:00"
+    }
+  ]
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">3.2 Create API Key</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameters</strong>:
+<ul class="auto-hide-last-sibling-br">
+<li><code>key_name</code>: Key name (string, required)</li>
+<li><code>ip_whitelist</code>: IP whitelist (string, optional, comma-separated)</li>
+</ul>
+</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="ciaavr5" data-popupid="ciaavr5">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="nfa0zoi" data-popupid="nfa0zoi">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="69md7ip" data-popupid="69md7ip">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="cy6udre" data-popupid="cy6udre">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="e2j8qbk" data-popupid="e2j8qbk">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X POST "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=keys&amp;action=create" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key_name": "New API Key",
+    "ip_whitelist": "192.168.1.1,192.168.1.2"
+  }'
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="ridxin9" data-popupid="ridxin9">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="m1cj7z8" data-popupid="m1cj7z8">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="t1kzlsk" data-popupid="t1kzlsk">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="ut5cozt" data-popupid="ut5cozt">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="q37d1kv" data-popupid="q37d1kv">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "message": "API key created successfully",
+  "api_key": "cfsd_zzzzzzzzzz",
+  "api_secret": "aaaaaaaaaaaaaaaa",
+  "warning": "Please save the api_secret, it will not be shown again"
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">3.3 Delete API Key</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameter</strong>:&nbsp;<code>key_id</code>&nbsp;(integer, required)</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="6az1jxf" data-popupid="6az1jxf">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="qv92p3a" data-popupid="qv92p3a">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="4wieu5w" data-popupid="4wieu5w">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="lezn711" data-popupid="lezn711">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="6a14ne1" data-popupid="6a14ne1">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X POST "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=keys&amp;action=delete" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key_id": 2
+  }'
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="mn12lgk" data-popupid="mn12lgk">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="m6bdgsp" data-popupid="m6bdgsp">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="luu2bu6" data-popupid="luu2bu6">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="hv3uk19" data-popupid="hv3uk19">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="dgldg59" data-popupid="dgldg59">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "message": "API key deleted successfully"
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h4 class="header-iWP5WJ auto-hide-last-sibling-br">3.4 Regenerate API Key</h4>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Request Parameter</strong>:&nbsp;<code>key_id</code>&nbsp;(integer, required)</li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="xvakupm" data-popupid="xvakupm">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="mvnlm3h" data-popupid="mvnlm3h">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="ielc7kh" data-popupid="ielc7kh">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="dltz3tq" data-popupid="dltz3tq">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="d4tkxke" data-popupid="d4tkxke">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X POST "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=keys&amp;action=regenerate" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key_id": 1
+  }'
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="xonj8yg" data-popupid="xonj8yg">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="p5msmiz" data-popupid="p5msmiz">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="un7qvzq" data-popupid="un7qvzq">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="jzaurgi" data-popupid="jzaurgi">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="j0uibsw" data-popupid="j0uibsw">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "message": "API secret regenerated successfully",
+  "api_key": "cfsd_xxxxxxxxxx",
+  "api_secret": "new_secret_here",
+  "warning": "Please save the new api_secret, it will not be shown again"
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h3 class="header-iWP5WJ auto-hide-last-sibling-br">4. Quota Inquiry</h3>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Endpoint</strong>:&nbsp;<code>quota</code></li>
+<li><strong>Method</strong>:&nbsp;<code>GET</code></li>
+<li><strong>Request Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--bash hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="r5cbhu7" data-popupid="r5cbhu7">
+<div class="text-OkYU_0">bash</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="kcxcpwj" data-popupid="kcxcpwj">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="3a2pes9" data-popupid="3a2pes9">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="3zhqd2k" data-popupid="3zhqd2k">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="8w749ei" data-popupid="8w749ei">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-markup"><code>curl -X GET "https://api005.dnshe.com/index.php?m=domain_hub&amp;endpoint=quota" \
+  -H "X-API-Key: cfsd_xxxxxxxxxx" \
+  -H "X-API-Secret: yyyyyyyyyyyy"
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<ul class="auto-hide-last-sibling-br">
+<li><strong>Response Example</strong>:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="g0pdi08" data-popupid="g0pdi08">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="xoqkzh6" data-popupid="xoqkzh6">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="vulvyxr" data-popupid="vulvyxr">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="2osvhfn" data-popupid="2osvhfn">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="8xjshj9" data-popupid="8xjshj9">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "success": true,
+  "quota": {
+    "used": 3,
+    "base": 5,
+    "invite_bonus": 2,
+    "total": 7,
+    "available": 4
+  }
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h2 class="header-iWP5WJ auto-hide-last-sibling-br">4. Error Handling</h2>
+<h3 class="header-iWP5WJ auto-hide-last-sibling-br">Common HTTP Status Codes</h3>
+<div class="auto-hide-last-sibling-br mdbox-table-root table-container-cYf_5N" data-scroll-inline-overflow="false" data-scroll-inline-at-start="true" data-scroll-inline-start-overflow="false" data-scroll-inline-at-end="true" data-scroll-inline-end-overflow="false">
+<div class="table-scroll-container-Gyf4hQ mdbox-table-scroll-container">
+<table>
+<thead>
+<tr>
+<th>Status Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>Request successful</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Invalid request parameters</td>
+</tr>
+<tr>
+<td>401</td>
+<td>Authentication failed</td>
+</tr>
+<tr>
+<td>403</td>
+<td>Insufficient permissions or function disabled</td>
+</tr>
+<tr>
+<td>404</td>
+<td>Resource not found</td>
+</tr>
+<tr>
+<td>429</td>
+<td>Rate limit exceeded</td>
+</tr>
+<tr>
+<td>500</td>
+<td>Server internal error</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<h3 class="header-iWP5WJ auto-hide-last-sibling-br">Error Response Example</h3>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="z2b79ia" data-popupid="z2b79ia">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="75m9san" data-popupid="75m9san">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="9a8r4fe" data-popupid="9a8r4fe">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="thnllga" data-popupid="thnllga">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="ftyzkny" data-popupid="ftyzkny">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "error": "Invalid API key"
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h2 class="header-iWP5WJ auto-hide-last-sibling-br">5. Rate Limiting</h2>
+<ul class="auto-hide-last-sibling-br">
+<li>Default limit: 60 requests/minute</li>
+<li>Rate limit exceeded response example:</li>
+</ul>
+<div class="container-Uxvbjy md-box-line-break wrapper-GYqxgQ undefined">&nbsp;</div>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--json hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="c11vngz" data-popupid="c11vngz">
+<div class="text-OkYU_0">json</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="r232d9t" data-popupid="r232d9t">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="7nwghw5" data-popupid="7nwghw5">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="36cg0cz" data-popupid="36cg0cz">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="ir3jcvu" data-popupid="ir3jcvu">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="container-S2LAkl  language-json"><code>{
+  "error": "Rate limit exceeded",
+  "limit": 60,
+  "remaining": 0,
+  "reset_at": "2025-10-19 15:31:00"
+}
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h2 class="header-iWP5WJ auto-hide-last-sibling-br">6. SDK Examples</h2>
+<h3 class="header-iWP5WJ auto-hide-last-sibling-br">PHP Example</h3>
+<div class="code-block-element-R6c8c0 light custom-code-block-container--php hide-indicator disable-theme-style custom-code-block-container">
+<div class="code-area-yxsM36 code-area" dir="ltr">
+<div class="header-wrapper-Mbk8s6">
+<div class="header-IAeXdE">
+<div class="title-TXcgFG clickable-cKrA4B" tabindex="0" aria-describedby="2emlq13" data-popupid="2emlq13">
+<div class="text-OkYU_0">php</div>
+<div class="icon-UKNQeW">&nbsp;</div>
+</div>
+<div class="action-ysQCxz">
+<div class="hoverable-kRHiX2" tabindex="0" data-testid="code-block-copy" aria-describedby="la26h0c" data-popupid="la26h0c">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="qdkltnw" data-popupid="qdkltnw">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="c0dekt4" data-popupid="c0dekt4">&nbsp;</div>
+<div class="hoverable-kRHiX2" tabindex="0" aria-describedby="fo4nlql" data-popupid="fo4nlql">&nbsp;</div>
+</div>
+</div>
+</div>
+<div class="content-y8qlFa code-content light-scrollbar-FFk5j5">
+<pre class="language-php"><code>&lt;?php
+class CloudflareSubdomainAPI {
+    private $baseUrl;
+    private $apiKey;
+    private $apiSecret;
+    
+    public function __construct($baseUrl, $apiKey, $apiSecret) {
+        $this-&gt;baseUrl = rtrim($baseUrl, '/');
+        $this-&gt;apiKey = $apiKey;
+        $this-&gt;apiSecret = $apiSecret;
+    }
+    
+    private function request($endpoint, $action, $method = 'GET', $data = []) {
+        $url = $this-&gt;baseUrl . '?m=domain_hub&amp;endpoint=' . $endpoint . '&amp;action=' . $action;
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'X-API-Key: ' . $this-&gt;apiKey,
+            'X-API-Secret: ' . $this-&gt;apiSecret,
+            'Content-Type: application/json'
+        ]);
+        
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        }
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        return json_decode($response, true);
+    }
+    
+    // List subdomains
+    public function listSubdomains() {
+        return $this-&gt;request('subdomains', 'list', 'GET');
+    }
+    
+    // Register subdomain
+    public function registerSubdomain($subdomain, $rootdomain) {
+        return $this-&gt;request('subdomains', 'register', 'POST', [
+            'subdomain' =&gt; $subdomain,
+            'rootdomain' =&gt; $rootdomain
+        ]);
+    }
+    
+    // Create DNS record
+    public function createDnsRecord($subdomainId, $type, $content, $ttl = 120) {
+        return $this-&gt;request('dns_records', 'create', 'POST', [
+            'subdomain_id' =&gt; $subdomainId,
+            'type' =&gt; $type,
+            'content' =&gt; $content,
+            'ttl' =&gt; $ttl
+        ]);
+    }
+}
+
+// Usage example
+$api = new CloudflareSubdomainAPI(
+    'https://api005.dnshe.com/index.php',
+    'cfsd_xxxxxxxxxx',
+    'yyyyyyyyyyyy'
+);
+
+// List subdomains
+$result = $api-&gt;listSubdomains();
+print_r($result);
+
+// Register new subdomain
+$result = $api-&gt;registerSubdomain('myapp', 'example.com');
+print_r($result);
+</code></pre>
+</div>
+<div class="mask-wrapper-ujeSdZ">
+<div class="mask-lrkkzM">&nbsp;</div>
+</div>
+</div>
+</div>
+<h3 class="header-iWP5WJ auto-hide-last-sibling-br">Python Example</h3>
+<p>&lt;div class="code-block-element
+</p></div>
+
+
+<ul class="kb-article-details">
+            <li><i class="fas fa-tag"></i> 免费域名, api, freedomain, 免费域名api</li>
+        <li><i class="fas fa-star"></i> 10 Users Found This Useful</li>
+</ul>
+<div class="clearfix"></div>
+
+<div class="kb-rate-article hidden-print">
+    <form action="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html" method="post">
+<input type="hidden" name="token" value="36ba60338b95a7bb91442e691f04d32627208277">
+        <input type="hidden" name="useful" value="vote">
+        Was this answer helpful?                    <button type="submit" name="vote" value="yes" class="btn btn-lg btn-link"><i class="far fa-thumbs-up"></i> Yes</button>
+            <button type="submit" name="vote" value="no" class="btn btn-lg btn-link"><i class="far fa-thumbs-down"></i> No</button>
+            </form>
+</div>
+
+    <div class="kb-also-read">
+        <h3>Related Articles</h3>
+        <div class="kbarticles">
+                            <div>
+                    <a href="https://my.dnshe.com/knowledgebase/5/DNSHE-Free-Domain-Renewal-and-API-Command-Renewal-Methods.html">
+                        <i class="glyphicon glyphicon-file"></i> DNSHE Free Domain Renewal and API Command Renewal Methods
+                    </a>
+                                        <p>
+
+This manual is intended to guide users on how to manually or automatically renew free domains...</p>
+                </div>
+                    </div>
+    </div>
+
+
+
+                </div><!-- /.main-content -->
+
+
+
+
+
+
+                </div></div></section>
+
+                </div>
+
+
+</div>
+
+
+                <section id="footer">
+                    <a href="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html#" class="back-to-top"><i class="fas fa-chevron-up"></i></a>
+                    <p>Copyright © 2026 DNSHE. All Rights Reserved.</p>
+                </section>
+
+                </div>
+
+
+                <div id="fullpage-overlay" class="hidden">
+                    <div class="outer-wrapper">
+                        <div class="inner-wrapper">
+                            <img src="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/overlay-spinner.svg">
+                            <br>
+                            <span class="msg"></span>
+                        </div>
+                    </div>
+                </div>
+
+<div class="modal system-modal fade" id="modalAjax" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content  panel-primary">
+            <div class="modal-header panel-heading">
+                <button type="button" class="close" data-dismiss="modal">
+                    <span aria-hidden="true">×</span>
+                    <span class="sr-only">Close</span>
+                </button>
+                <h4 class="modal-title"></h4>
+            </div>
+            <div class="modal-body panel-body">
+                Loading...
+            </div>
+            <div class="modal-footer panel-footer">
+                <div class="pull-left loader">
+                    <i class="fas fa-circle-notch fa-spin"></i> Loading...
+                </div>
+                <button type="button" class="btn btn-default" data-dismiss="modal">
+                    Close
+                </button>
+                <button type="button" class="btn btn-primary modal-submit">
+                    Submit
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+                <form action="https://my.dnshe.com/knowledgebase/1/Free-Domain-Name-Service-API-User-Manual.html#" id="frmGeneratePassword" class="form-horizontal">
+    <div class="modal fade" id="modalGeneratePassword">
+        <div class="modal-dialog">
+            <div class="modal-content panel-primary">
+                <div class="modal-header panel-heading">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+                    <h4 class="modal-title">
+                        Generate Password
+                    </h4>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger hidden" id="generatePwLengthError">
+                        Please enter a number between 8 and 64 for the password length
+                    </div>
+                    <div class="form-group">
+                        <label for="generatePwLength" class="col-sm-4 control-label">Password Length</label>
+                        <div class="col-sm-8">
+                            <input type="number" min="8" max="64" value="12" step="1" class="form-control input-inline input-inline-100" id="inputGeneratePasswordLength">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="generatePwOutput" class="col-sm-4 control-label">Generated Password</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="inputGeneratePasswordOutput">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-8 col-sm-offset-4">
+                            <button type="submit" class="btn btn-default btn-sm">
+                                <i class="fas fa-plus fa-fw"></i>
+                                Generate new password
+                            </button>
+                            <button type="button" class="btn btn-default btn-sm copy-to-clipboard" data-clipboard-target="#inputGeneratePasswordOutput">
+                                <img src="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/clippy.svg" alt="Copy to clipboard" width="15">
+                                
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">
+                        Close
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btnGeneratePasswordInsert" data-clipboard-target="#inputGeneratePasswordOutput">
+                        Copy to clipboard &amp; Insert
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+                <script src="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/custom.js.下载"></script>
+
+
+
+<style>.cancel-renewal{font-weight:700;color:#c0392b !important;}.restore-renewal{font-weight:700;color:#27ae60 !important;}.cancel-renewal[data-loading="1"],.restore-renewal[data-loading="1"],.disable-renewal-disabled{opacity:.6;pointer-events:none;}.dr-toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:320px;}.dr-toast{background:#333;color:#fff;padding:12px 16px;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.18);opacity:0;transform:translateY(-10px);transition:opacity .2s ease,transform .2s ease;font-weight:600;}.dr-toast--show{opacity:1;transform:translateY(0);}.dr-toast--success{background:#2ecc71;}.dr-toast--error{background:#e74c3c;}.dr-modal-backdrop{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;}.dr-modal{background:#fff;border-radius:8px;max-width:440px;width:100%;padding:22px;box-shadow:0 10px 25px rgba(0,0,0,.22);}.dr-modal h4{margin:0;font-size:18px;font-weight:700;}.dr-modal p{margin:16px 0;font-size:14px;line-height:1.6;color:#333;}.dr-modal .dr-modal-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:10px;}.dr-modal .dr-btn{min-width:96px;border:none;border-radius:4px;padding:8px 14px;font-weight:600;cursor:pointer;}.dr-modal .dr-btn--cancel{background:#ecf0f1;color:#34495e;}.dr-modal .dr-btn--confirm{background:#27ae60;color:#fff;}</style><script>document.cookie='disable_renewal_token=36ba60338b95a7bb91442e691f04d32627208277; path=/; SameSite=Lax';window.DisableRenewalLang={"canceling":"Disabling…","restoring":"Enabling…","requestFailed":"Request failed","cancelFailedPrefix":"Disable failed: ","opFailedPrefix":"Operation failed: ","cancelSuccess":"Auto-renewal disabled successfully","restoreSuccess":"Auto-renewal enabled successfully","missingServiceId":"Unable to determine service ID","missingToken":"Missing security token. Please refresh and try again.","confirmRestoreTitle":"Enable Auto-Renewal","confirmRestoreMessage":"Next invoice date: {date}. Enable auto-renewal?","confirmRestoreMessageFallback":"Enable auto-renewal?","confirmRestoreButton":"Enable","cancelButton":"Cancel","unknownError":"An error occurred. Please try again later.","statusBlocked":"This operation is not available for the current service status.","cancelConfirmTitle":"Confirm Disable Auto-Renewal","cancelConfirmMessage":"Are you sure you want to disable auto-renewal for this service? No renewal invoices will be generated after disabling.","cancelConfirmButton":"Confirm Disable"};window.DisableRenewalContext={"serviceId":0,"nextDueDate":"","statusHidden":false};</script><script src="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/client.js.下载"></script><script>(function(){})();</script>
+<link rel="stylesheet" href="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/verify.css">
+<script>window.RegistrationVerificationTurnstileQueue = window.RegistrationVerificationTurnstileQueue || [];function RegistrationVerificationTurnstileOnLoad(){var queue = window.RegistrationVerificationTurnstileQueue || [];while(queue.length){var fn = queue.shift();if(typeof fn === "function"){try{fn();}catch(e){}}}}</script>
+<script src="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/api.js.下载" async="" defer=""></script>
+<script src="./Free Domain Name Service API User Manual - Knowledgebase - DNSHE_files/verify.js.下载"></script>
+<script>window.RegistrationVerificationConfig = {"ajaxUrl":"modules\/addons\/registrationverification\/ajax.php","cooldown":60,"expiry":5,"maxAttempts":10,"language":"english","strings":{"sendButton":"Send Verification Code","sending":"Sending...","verifying":"","sentCooldown":"Sent ({seconds}s until resend)","placeholderCode":"Enter verification code","messageSendSuccess":"A verification code has been sent to your email. It is valid for {minutes} minutes.","messageCooldown":"Please try again in {seconds} seconds.","messageInvalidEmail":"Please enter a valid email address.","messageEmailLimit":"This email address has reached the daily sending limit.","messageIpLimit":"This IP has reached the daily sending limit.","messageEmailRegistered":"The email address is already registered. Please log in directly.","messageSendFailed":"Failed to send verification code: {error}","messageAttemptExceeded":"Too many failed attempts. Please try again later.","messageEmailRequired":"Please enter your email address first.","messageCodeRequired":"Please enter the verification code.","messageCodeInvalid":"The verification code format is invalid.","messageCodeMismatch":"Incorrect verification code. You can try {remaining} more time(s).","messageCodeExpired":"The verification code has expired. Please request a new one.","messageCodeNotFound":"Please request a verification code first.","messageVerificationRequired":"Email verification is required before registration can continue.","messageAlreadyVerified":"The email address is already verified. You may continue.","messageVerified":"","messageTokenMismatch":"Security token validation failed. Please refresh the page and try again.","messageCaptchaRequired":"Please complete the verification before requesting a code.","messageCaptchaFailed":"Verification failed. Please try again.","messageCaptchaNetwork":"Unable to contact the verification service. Please try again later.","messageEmailAliasBlocked":"Please use the base email address (remove Gmail dots\/plus aliases or Outlook\/Hotmail\/Live plus tags) before retrying."},"snippet":"<div class=\"rv-verification-wrapper\">\n    <div class=\"rv-code-row\">\n        <input type=\"text\" name=\"email_code\" class=\"form-control rv-code-input\" maxlength=\"6\" minlength=\"6\" inputmode=\"numeric\" required autocomplete=\"one-time-code\" placeholder=\"请输入邮箱验证码\">\n    <\/div>\n    <div class=\"rv-message\" aria-live=\"polite\"><\/div>\n<\/div>\n","forms":["form#frmRegister","form[action*=\"register.php\"]","form[action*=\"\/register\"]","form[action*=\"clientarea.php?action=register\"]"],"turnstile":{"enabled":true,"siteKey":"0x4AAAAAACEqUetzorNQQ_pi","theme":"auto"}};</script>
+
+
+
+
+
+</body></html>

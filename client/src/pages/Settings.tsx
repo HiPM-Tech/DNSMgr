@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { Lock, CheckCircle } from 'lucide-react';
-import { authApi } from '../api';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Lock, CheckCircle, Database, Globe, Clock, Package, Server } from 'lucide-react';
+import { authApi, systemApi } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import { roleLabelKey } from '../utils/roles';
@@ -22,6 +22,23 @@ export function Settings() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Fetch system info
+  const { data: systemInfo } = useQuery({
+    queryKey: ['system-info'],
+    queryFn: async () => {
+      const res = await systemApi.info();
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
+    },
+  });
+
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     setNickname(user?.nickname ?? '');
@@ -191,6 +208,95 @@ export function Settings() {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* About Section */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Server className="w-4 h-4 text-gray-400" />
+          <h3 className="text-base font-semibold text-gray-900">{t('settings.about')}</h3>
+        </div>
+
+        <div className="space-y-4">
+          {/* Version */}
+          <div className="flex items-center justify-between py-2 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <Package className="w-4 h-4 text-blue-500" />
+              <span className="text-sm text-gray-600">{t('settings.version')}</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">{systemInfo?.version || '0.1-beta'}</span>
+          </div>
+
+          {/* Database Type */}
+          <div className="flex items-center justify-between py-2 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <Database className="w-4 h-4 text-green-500" />
+              <span className="text-sm text-gray-600">{t('settings.databaseType')}</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {systemInfo?.database?.type ? t(`settings.db.${systemInfo.database.type}`) : t('common.loading')}
+            </span>
+          </div>
+
+          {/* Database Version */}
+          <div className="flex items-center justify-between py-2 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 rounded-full bg-purple-100 flex items-center justify-center">
+                <span className="text-[10px] text-purple-600 font-bold">V</span>
+              </div>
+              <span className="text-sm text-gray-600">{t('settings.databaseVersion')}</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {systemInfo?.database?.version || t('common.loading')}
+            </span>
+          </div>
+
+          {/* Driver Version */}
+          <div className="flex items-center justify-between py-2 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 rounded-full bg-orange-100 flex items-center justify-center">
+                <span className="text-[10px] text-orange-600 font-bold">D</span>
+              </div>
+              <span className="text-sm text-gray-600">{t('settings.driverVersion')}</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {systemInfo?.database?.driverVersion || t('common.loading')}
+            </span>
+          </div>
+
+          {/* Timezone */}
+          <div className="flex items-center justify-between py-2 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <Clock className="w-4 h-4 text-yellow-500" />
+              <span className="text-sm text-gray-600">{t('settings.timezone')}</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {systemInfo?.timezone || t('common.loading')}
+            </span>
+          </div>
+
+          {/* Current Time */}
+          <div className="flex items-center justify-between py-2 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <Clock className="w-4 h-4 text-indigo-500" />
+              <span className="text-sm text-gray-600">{t('settings.currentTime')}</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {currentTime.toLocaleString(locale)}
+            </span>
+          </div>
+
+          {/* Language */}
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center gap-3">
+              <Globe className="w-4 h-4 text-cyan-500" />
+              <span className="text-sm text-gray-600">{t('settings.language')}</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {localeOptions.find(opt => opt.code === locale)?.label || locale}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

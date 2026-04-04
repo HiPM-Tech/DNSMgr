@@ -268,3 +268,21 @@ export const initApi = {
   createAdmin: (data: { username: string; email: string; password: string }) =>
     api.post<ApiResponse<{ success: boolean }>>('/init/admin', data),
 };
+
+// ─── System ───────────────────────────────────────────────────────────────────
+
+export interface SystemInfo {
+  version: string;
+  serverVersion: string;
+  database: {
+    type: string;
+    version: string;
+    driverVersion: string;
+  };
+  timezone: string;
+  language: string;
+}
+
+export const systemApi = {
+  info: () => api.get<ApiResponse<SystemInfo>>('/system/info'),
+};
