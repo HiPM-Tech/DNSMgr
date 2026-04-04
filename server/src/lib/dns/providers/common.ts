@@ -1,7 +1,13 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
+import {
+  Dict,
+  buildCanonicalQuery,
+  hmacSignSha1,
+  requestJson,
+} from './http';
 
-export type Dict = Record<string, unknown>;
+export type { Dict };
 
 export function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -109,6 +115,74 @@ export abstract class BaseAdapter implements DnsAdapter {
   abstract addDomain(domain: string): Promise<boolean>;
 }
 
+export abstract class TokenAuthAdapter extends BaseAdapter {
+  protected readonly token: string;
+
+  constructor(config: Record<string, string>, tokenField = 'token') {
+    super();
+    this.token = safeString(config[tokenField]);
+  }
+
+  protected bearerAuth(headers: Record<string, string> = {}): Record<string, string> {
+    return {
+      ...headers,
+      Authorization: `Bearer ${this.token}`,
+    };
+  }
+}
+
+export abstract class AliyunRpcAdapter extends BaseAdapter {
+  protected readonly accessKeyId: string;
+  protected readonly accessKeySecret: string;
+
+  constructor(config: Record<string, string>) {
+    super();
+    this.accessKeyId = safeString(config.AccessKeyId);
+    this.accessKeySecret = safeString(config.AccessKeySecret);
+  }
+
+  protected abstract endpoint(): string;
+  protected version(): string {
+    return '2015-01-09';
+  }
+
+  protected async rpcCall<T = Dict>(action: string, params: Record<string, unknown> = {}): Promise<T> {
+    const publicParams: Record<string, unknown> = {
+      Action: action,
+      Format: 'JSON',
+      Version: this.version(),
+      AccessKeyId: this.accessKeyId,
+      SignatureMethod: 'HMAC-SHA1',
+      Timestamp: new Date().toISOString(),
+      SignatureVersion: '1.0',
+      SignatureNonce: uuid(),
+      ...params,
+    };
+
+    const canonicalized = buildCanonicalQuery(publicParams);
+    const stringToSign = `GET&%2F&${encodeURIComponent(canonicalized)}`;
+    const signature = hmacSignSha1(`${this.accessKeySecret}&`, stringToSign, 'base64');
+
+    const query = new URLSearchParams();
+    for (const [k, v] of Object.entries(publicParams)) {
+      if (v === undefined || v === null || v === '') continue;
+      query.set(k, String(v));
+    }
+    query.set('Signature', signature);
+
+    return requestJson<T>(`${this.endpoint()}?${query.toString()}`, {
+      method: 'GET',
+      parseError: (payload) => {
+        const data = (payload ?? {}) as Dict;
+        if (data.Code || data.Message) {
+          return safeString(data.Message) || safeString(data.Code) || `Aliyun action ${action} failed`;
+        }
+        return undefined;
+      },
+    });
+  }
+}
+
 export abstract class TencentCloudAdapter extends BaseAdapter {
   protected readonly secretId: string;
   protected readonly secretKey: string;
@@ -163,7 +237,7 @@ export abstract class TencentCloudAdapter extends BaseAdapter {
       `TC3-HMAC-SHA256 Credential=${this.secretId}/${credentialScope}, ` +
       `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await fetch(`https://${host}`, {
+    const data = await requestJson<Dict>(`https://${host}`, {
       method: 'POST',
       headers: {
         Authorization: authorization,
@@ -176,10 +250,9 @@ export abstract class TencentCloudAdapter extends BaseAdapter {
       body,
     });
 
-    const data = (await res.json()) as Dict;
     const response = (data.Response ?? data) as Dict;
     const error = response.Error as Dict | undefined;
-    if (!res.ok || error) {
+    if (error) {
       const code = safeString(error?.Code);
       const msg = safeString(error?.Message) || `TencentCloud action ${action} failed`;
       throw new Error(code ? `${code}: ${msg}` : msg);
