@@ -1,73 +1,16 @@
-import crypto from 'node:crypto';
 import { DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid } from './common';
+import { AliyunRpcAdapter, asArray, Dict, normalizeRrName, safeString, toNumber, toRecordStatus } from './common';
 
-class AliyunRpcClient {
-  constructor(private readonly endpoint: string, private readonly accessKeyId: string, private readonly accessKeySecret: string) {}
-
-  private percentEncode(value: string): string {
-    return encodeURIComponent(value)
-      .replace(/\+/g, '%20')
-      .replace(/\*/g, '%2A')
-      .replace(/%7E/g, '~');
-  }
-
-  private buildSignedQuery(action: string, params: Record<string, unknown>): URLSearchParams {
-    const publicParams: Record<string, string> = {
-      Action: action,
-      Format: 'JSON',
-      Version: '2015-01-09',
-      AccessKeyId: this.accessKeyId,
-      SignatureMethod: 'HMAC-SHA1',
-      Timestamp: new Date().toISOString(),
-      SignatureVersion: '1.0',
-      SignatureNonce: uuid(),
-    };
-
-    for (const [key, value] of Object.entries(params)) {
-      if (value === undefined || value === null || value === '') continue;
-      publicParams[key] = String(value);
-    }
-
-    const sortedKeys = Object.keys(publicParams).sort();
-    const canonicalized = sortedKeys
-      .map((key) => `${this.percentEncode(key)}=${this.percentEncode(publicParams[key])}`)
-      .join('&');
-
-    const stringToSign = `GET&%2F&${this.percentEncode(canonicalized)}`;
-    const signature = crypto
-      .createHmac('sha1', `${this.accessKeySecret}&`)
-      .update(stringToSign)
-      .digest('base64');
-
-    const search = new URLSearchParams(publicParams);
-    search.set('Signature', signature);
-    return search;
-  }
-
-  async call<T = Dict>(action: string, params: Record<string, unknown> = {}): Promise<T> {
-    const query = this.buildSignedQuery(action, params);
-    const url = `${this.endpoint}?${query.toString()}`;
-    const res = await fetch(url, { method: 'GET' });
-    const data = (await res.json()) as Dict;
-    if (!res.ok || data.Code) {
-      const err = safeString(data.Message) || safeString(data.Code) || `Aliyun action ${action} failed`;
-      throw new Error(err);
-    }
-    return data as T;
-  }
-}
-
-export class AliyunAdapter extends BaseAdapter {
+export class AliyunAdapter extends AliyunRpcAdapter {
   private readonly domain: string;
-  private readonly client: AliyunRpcClient;
 
   constructor(config: Record<string, string>) {
-    super();
+    super(config);
     this.domain = safeString(config.domain);
-    const id = safeString(config.AccessKeyId);
-    const secret = safeString(config.AccessKeySecret);
-    this.client = new AliyunRpcClient('https://alidns.aliyuncs.com/', id, secret);
+  }
+
+  protected endpoint(): string {
+    return 'https://alidns.aliyuncs.com/';
   }
 
   private mapRecord(item: Dict): DnsRecord {
@@ -87,7 +30,7 @@ export class AliyunAdapter extends BaseAdapter {
     };
   }
 
-  private convertLineCode(line?: string): string | undefined {
+  private normalizeLine(line?: string): string | undefined {
     const convertDict: Record<string, string> = {
       '0': 'default',
       '10=1': 'unicom',
@@ -105,7 +48,7 @@ export class AliyunAdapter extends BaseAdapter {
 
   async check(): Promise<boolean> {
     try {
-      await this.client.call('DescribeDomains', { PageSize: 1, PageNumber: 1 });
+      await this.rpcCall('DescribeDomains', { PageSize: 1, PageNumber: 1 });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -115,7 +58,7 @@ export class AliyunAdapter extends BaseAdapter {
 
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
     try {
-      const data = await this.client.call<Dict>('DescribeDomains', {
+      const data = await this.rpcCall<Dict>('DescribeDomains', {
         PageNumber: page,
         PageSize: pageSize,
         KeyWord: keyword,
@@ -144,7 +87,6 @@ export class AliyunAdapter extends BaseAdapter {
   ): Promise<PageResult<DnsRecord>> {
     try {
       const params: Record<string, unknown> = {
-        Action: 'DescribeDomainRecords',
         DomainName: this.domain,
         PageNumber: page,
         PageSize: pageSize,
@@ -154,14 +96,14 @@ export class AliyunAdapter extends BaseAdapter {
         params.RRKeyWord = subdomain;
         params.ValueKeyWord = value;
         params.Type = type;
-        params.Line = this.convertLineCode(line);
+        params.Line = this.normalizeLine(line);
       } else if (keyword) {
         params.KeyWord = keyword;
       }
       if (status !== undefined) {
         params.Status = status === 1 ? 'Enable' : 'Disable';
       }
-      const data = await this.client.call<Dict>('DescribeDomainRecords', params);
+      const data = await this.rpcCall<Dict>('DescribeDomainRecords', params);
       const list = asArray<Dict>((data.DomainRecords as Dict | undefined)?.Record).map((item) => this.mapRecord(item));
       return { total: toNumber(data.TotalCount, list.length), list };
     } catch (e) {
@@ -172,7 +114,7 @@ export class AliyunAdapter extends BaseAdapter {
 
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
-      const data = await this.client.call<Dict>('DescribeDomainRecordInfo', { RecordId: recordId });
+      const data = await this.rpcCall<Dict>('DescribeDomainRecordInfo', { RecordId: recordId });
       return this.mapRecord(data);
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -182,18 +124,18 @@ export class AliyunAdapter extends BaseAdapter {
 
   async addDomainRecord(name: string, type: string, value: string, line?: string, ttl = 600, mx = 0, weight?: number, remark?: string): Promise<string | null> {
     try {
-      const data = await this.client.call<Dict>('AddDomainRecord', {
+      const data = await this.rpcCall<Dict>('AddDomainRecord', {
         DomainName: this.domain,
         RR: normalizeRrName(name),
         Type: type,
         Value: value,
-        Line: this.convertLineCode(line) ?? 'default',
+        Line: this.normalizeLine(line) ?? 'default',
         TTL: ttl,
         Priority: type === 'MX' ? mx : undefined,
         Weight: weight,
       });
       if (remark) {
-        await this.client.call('UpdateDomainRecordRemark', { RecordId: safeString(data.RecordId), Remark: remark });
+        await this.rpcCall('UpdateDomainRecordRemark', { RecordId: safeString(data.RecordId), Remark: remark });
       }
       return safeString(data.RecordId) || null;
     } catch (e) {
@@ -214,18 +156,18 @@ export class AliyunAdapter extends BaseAdapter {
     remark?: string
   ): Promise<boolean> {
     try {
-      await this.client.call('UpdateDomainRecord', {
+      await this.rpcCall('UpdateDomainRecord', {
         RecordId: recordId,
         RR: normalizeRrName(name),
         Type: type,
         Value: value,
-        Line: this.convertLineCode(line) ?? 'default',
+        Line: this.normalizeLine(line) ?? 'default',
         TTL: ttl,
         Priority: type === 'MX' ? mx : undefined,
         Weight: weight,
       });
       if (remark !== undefined) {
-        await this.client.call('UpdateDomainRecordRemark', { RecordId: recordId, Remark: remark });
+        await this.rpcCall('UpdateDomainRecordRemark', { RecordId: recordId, Remark: remark });
       }
       return true;
     } catch (e) {
@@ -236,7 +178,7 @@ export class AliyunAdapter extends BaseAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      await this.client.call('DeleteDomainRecord', { RecordId: recordId });
+      await this.rpcCall('DeleteDomainRecord', { RecordId: recordId });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -246,7 +188,7 @@ export class AliyunAdapter extends BaseAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
-      await this.client.call('SetDomainRecordStatus', {
+      await this.rpcCall('SetDomainRecordStatus', {
         RecordId: recordId,
         Status: status === 1 ? 'Enable' : 'Disable',
       });
@@ -259,7 +201,7 @@ export class AliyunAdapter extends BaseAdapter {
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
     try {
-      const data = await this.client.call<Dict>('DescribeDomainInfo', {
+      const data = await this.rpcCall<Dict>('DescribeDomainInfo', {
         DomainName: this.domain,
         NeedDetailAttributes: true,
       });
@@ -275,7 +217,7 @@ export class AliyunAdapter extends BaseAdapter {
 
   async getMinTTL(): Promise<number> {
     try {
-      const data = await this.client.call<Dict>('DescribeDomainInfo', {
+      const data = await this.rpcCall<Dict>('DescribeDomainInfo', {
         DomainName: this.domain,
         NeedDetailAttributes: true,
       });
@@ -287,7 +229,7 @@ export class AliyunAdapter extends BaseAdapter {
 
   async addDomain(domain: string): Promise<boolean> {
     try {
-      await this.client.call('AddDomain', { DomainName: domain });
+      await this.rpcCall('AddDomain', { DomainName: domain });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);

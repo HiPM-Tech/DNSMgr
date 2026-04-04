@@ -1,10 +1,13 @@
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
+import { asArray, BaseAdapter, normalizeRrName, safeString, toNumber } from './common';
+import { requestXml } from './http';
 
 interface NamesiloConfig {
   apikey: string;
   domain?: string;
 }
+
+type XmlDict = Record<string, unknown>;
 
 export class NamesiloAdapter extends BaseAdapter {
   private config: NamesiloConfig;
@@ -18,15 +21,36 @@ export class NamesiloAdapter extends BaseAdapter {
     };
   }
 
-  private async request<T>(operation: string, params: Record<string, string> = {}): Promise<T> {
-    const query = new URLSearchParams({ version: '1', type: 'json', key: this.config.apikey, ...params });
-    const url = `${this.baseUrl}/${operation}?${query.toString()}`;
-    const res = await fetch(url);
-    const data = (await res.json()) as Dict;
-    if (!res.ok || (data.reply as Dict)?.code !== '300') {
-      throw new Error(safeString((data.reply as Dict)?.detail) || `Namesilo request failed: ${res.status}`);
-    }
-    return data as T;
+  private normalizeLine(line?: string): string {
+    return safeString(line) || 'default';
+  }
+
+  private toList<T>(value: unknown): T[] {
+    return Array.isArray(value) ? (value as T[]) : value ? [value as T] : [];
+  }
+
+  private resolveReply(payload: XmlDict): XmlDict {
+    const root = (payload.namesilo as XmlDict | undefined) ?? payload;
+    return (root.reply as XmlDict | undefined) ?? {};
+  }
+
+  private mapError(reply: XmlDict, operation: string): string | undefined {
+    const code = safeString(reply.code);
+    if (code === '300') return undefined;
+    return safeString(reply.detail) || `Namesilo ${operation} failed`;
+  }
+
+  private async request(operation: string, params: Record<string, string> = {}): Promise<XmlDict> {
+    const query = { version: '1', type: 'xml', key: this.config.apikey, ...params };
+    const url = `${this.baseUrl}/${operation}`;
+    const data = await requestXml<XmlDict>(url, {
+      query,
+      parseError: (payload) => {
+        const reply = this.resolveReply((payload ?? {}) as XmlDict);
+        return this.mapError(reply, operation);
+      },
+    });
+    return this.resolveReply(data);
   }
 
   async check(): Promise<boolean> {
@@ -39,12 +63,13 @@ export class NamesiloAdapter extends BaseAdapter {
     }
   }
 
-  async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
+  async getDomainList(keyword?: string, _page = 1, _pageSize = 50): Promise<PageResult<DomainInfo>> {
     try {
-      const data = await this.request<{ reply: { domains: { domain: Array<{ domain: string }> } } }>('listDomains');
-      let list = (data.reply?.domains?.domain || []).map((item) => ({
-        Domain: item.domain,
-        ThirdId: item.domain,
+      const reply = await this.request('listDomains');
+      const domainsNode = (reply.domains as XmlDict | undefined)?.domain;
+      let list = this.toList<string>(domainsNode).map((domain) => ({
+        Domain: safeString(domain),
+        ThirdId: safeString(domain),
         RecordCount: undefined as number | undefined,
       }));
       if (keyword) {
@@ -64,13 +89,14 @@ export class NamesiloAdapter extends BaseAdapter {
     subdomain?: string,
     value?: string,
     type?: string,
-    _line?: string,
+    line?: string,
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
       if (!this.config.domain) return { total: 0, list: [] };
-      const data = await this.request<{ reply: { resource_record: Array<{ record_id: string; host: string; type: string; value: string; ttl: number }> } }>('dnsListRecords', { domain: this.config.domain });
-      let list = (data.reply?.resource_record || []).map((r) => this.mapRecord(r));
+      const reply = await this.request('dnsListRecords', { domain: this.config.domain });
+      const listNode = reply.resource_record;
+      let list = this.toList<XmlDict>(listNode).map((r) => this.mapRecord(r, this.normalizeLine(line)));
       if (subdomain) list = list.filter((r) => r.Name.toLowerCase() === subdomain.toLowerCase());
       else if (keyword) {
         const lower = keyword.toLowerCase();
@@ -78,7 +104,10 @@ export class NamesiloAdapter extends BaseAdapter {
       }
       if (value) list = list.filter((r) => r.Value === value);
       if (type) list = list.filter((r) => r.Type === type);
-      return { total: list.length, list };
+
+      const start = Math.max(0, (page - 1) * pageSize);
+      const end = start + pageSize;
+      return { total: list.length, list: list.slice(start, end) };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return { total: 0, list: [] };
@@ -87,7 +116,7 @@ export class NamesiloAdapter extends BaseAdapter {
 
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
-      const records = await this.getDomainRecords(1, 100);
+      const records = await this.getDomainRecords(1, 500);
       return records.list.find((r) => r.RecordId === recordId) || null;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -98,8 +127,14 @@ export class NamesiloAdapter extends BaseAdapter {
   async addDomainRecord(name: string, type: string, value: string, _line?: string, ttl = 7207, _mx?: number, _weight?: number, _remark?: string): Promise<string | null> {
     try {
       if (!this.config.domain) return null;
-      await this.request('dnsAddRecord', { domain: this.config.domain, rrtype: type, rrhost: name, rrvalue: value, rrttl: String(ttl) });
-      return 'success';
+      const reply = await this.request('dnsAddRecord', {
+        domain: this.config.domain,
+        rrtype: type,
+        rrhost: normalizeRrName(name),
+        rrvalue: value,
+        rrttl: String(ttl),
+      });
+      return safeString(reply.record_id) || 'success';
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return null;
@@ -109,7 +144,14 @@ export class NamesiloAdapter extends BaseAdapter {
   async updateDomainRecord(recordId: string, name: string, type: string, value: string, _line?: string, ttl = 7207, _mx?: number, _weight?: number, _remark?: string): Promise<boolean> {
     try {
       if (!this.config.domain) return false;
-      await this.request('dnsUpdateRecord', { domain: this.config.domain, rrid: recordId, rrhost: name, rrvalue: value, rrttl: String(ttl) });
+      await this.request('dnsUpdateRecord', {
+        domain: this.config.domain,
+        rrid: recordId,
+        rrtype: type,
+        rrhost: normalizeRrName(name),
+        rrvalue: value,
+        rrttl: String(ttl),
+      });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -146,16 +188,17 @@ export class NamesiloAdapter extends BaseAdapter {
     return false;
   }
 
-  private mapRecord(r: { record_id: string; host: string; type: string; value: string; ttl: number }): DnsRecord {
+  private mapRecord(r: XmlDict, line = 'default'): DnsRecord {
     const domain = this.config.domain || '';
+    const host = safeString(r.host);
     return {
-      RecordId: r.record_id,
+      RecordId: safeString(r.record_id),
       Domain: domain,
-      Name: r.host === '' ? '@' : r.host,
-      Type: r.type,
-      Value: r.value,
-      Line: 'default',
-      TTL: r.ttl || 7207,
+      Name: host === '' ? '@' : host,
+      Type: safeString(r.type),
+      Value: safeString(r.value),
+      Line: line,
+      TTL: toNumber(r.ttl, 7207),
       MX: 0,
       Status: 1,
     };
