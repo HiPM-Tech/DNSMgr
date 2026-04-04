@@ -3,6 +3,7 @@ import {
   LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap, FileText,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { roleLabelKey } from '../utils/roles';
 import { Avatar } from './Avatar';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -111,7 +112,7 @@ export function Sidebar() {
           <Avatar username={displayName} email={user?.email} size={28} textClassName="text-xs" />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-gray-900 truncate">{displayName}</p>
-            <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+            <p className="text-xs text-gray-500">{t(roleLabelKey(user?.role))}</p>
           </div>
           <button onClick={handleLogout} title={t('common.logout')}
             className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded">

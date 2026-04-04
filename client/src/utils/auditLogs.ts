@@ -30,6 +30,18 @@ const actionLabels: Record<string, string> = {
   sync_add_domain: '同步添加域名',
 };
 
+export const AUDIT_ACTION_OPTIONS = [
+  { value: 'add_record', label: actionLabels.add_record },
+  { value: 'update_record', label: actionLabels.update_record },
+  { value: 'delete_record', label: actionLabels.delete_record },
+  { value: 'set_record_status', label: actionLabels.set_record_status },
+  { value: 'add_domain', label: actionLabels.add_domain },
+  { value: 'update_domain', label: actionLabels.update_domain },
+  { value: 'delete_domain', label: actionLabels.delete_domain },
+  { value: 'sync_domains', label: actionLabels.sync_domains },
+  { value: 'sync_add_domain', label: actionLabels.sync_add_domain },
+];
+
 export function parseAuditData(log: LogEntry): ParsedLogData | null {
   if (!log.data) return null;
 

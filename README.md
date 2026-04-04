@@ -2,6 +2,8 @@
 
 A modern DNS aggregation management platform built with React + TailwindCSS (frontend) and Node.js + TypeScript (backend).
 
+对于中国用户请看: [简体中文文档](README_zh.md)
+
 ## Features
 
 - **Multi-provider Support**: Manage DNS records across 18 providers:

@@ -5,6 +5,7 @@ import { Lock, CheckCircle } from 'lucide-react';
 import { authApi } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
+import { roleLabelKey } from '../utils/roles';
 import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { localeOptions } from '../i18n';
@@ -53,7 +54,7 @@ export function Settings() {
           <div>
             <p className="font-semibold text-gray-900">{displayName}</p>
             <p className="text-sm text-gray-500">{user?.email || t('common.noEmailSet')}</p>
-            <p className="text-xs text-gray-400 capitalize mt-0.5">{user?.role}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{t(roleLabelKey(user?.role))}</p>
           </div>
         </div>
       </div>

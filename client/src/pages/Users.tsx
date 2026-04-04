@@ -11,15 +11,18 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
+import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, roleLabelKey } from '../utils/roles';
 
 export function Users() {
   const { user: me } = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
   const { t } = useI18n();
+  const usernamePattern = /^[A-Za-z0-9_-]+$/;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
+  const [usernameInput, setUsernameInput] = useState('');
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
@@ -60,6 +63,11 @@ export function Users() {
   });
 
   const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const roleOptions = (me?.role ?? ROLE_USER) >= ROLE_SUPER ? [ROLE_USER, ROLE_ADMIN] : [ROLE_USER];
+  const canEditTarget = (target: User) => {
+    if ((me?.role ?? ROLE_USER) >= ROLE_SUPER) return target.role !== ROLE_SUPER;
+    return target.role < ROLE_ADMIN;
+  };
 
   const columns = [
     {
@@ -81,8 +89,8 @@ export function Users() {
       key: 'role', label: t('users.role'),
       render: (user: User) => (
         <div className="flex items-center gap-1.5">
-          {user.role === 'admin' && <Shield className="w-3.5 h-3.5 text-blue-600" />}
-          <Badge variant={user.role === 'admin' ? 'blue' : 'gray'}>{user.role === 'admin' ? t('users.admin') : t('users.member')}</Badge>
+          {user.role >= ROLE_ADMIN && <Shield className="w-3.5 h-3.5 text-blue-600" />}
+          <Badge variant={user.role >= ROLE_ADMIN ? 'blue' : 'gray'}>{t(roleLabelKey(user.role))}</Badge>
         </div>
       ),
     },
@@ -95,10 +103,11 @@ export function Users() {
       key: 'actions', label: t('common.actions'),
       render: (user: User) => (
         <div className="flex items-center gap-2">
-          <button onClick={() => setEditing(user)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+          <button onClick={() => setEditing(user)} disabled={!canEditTarget(user)}
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
             <Edit2 className="w-4 h-4" />
           </button>
-          <button onClick={() => setDeleting(user)} disabled={user.id === me?.id}
+          <button onClick={() => setDeleting(user)} disabled={user.id === me?.id || !canEditTarget(user)}
             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
             <Trash2 className="w-4 h-4" />
           </button>
@@ -129,12 +138,17 @@ export function Users() {
           <form onSubmit={(e) => {
             e.preventDefault();
             const fd = new FormData(e.target as HTMLFormElement);
+            const username = (fd.get('username') as string).trim();
+            if (!usernamePattern.test(username)) {
+              toast.error(t('users.usernameInvalid'));
+              return;
+            }
             createMutation.mutate({
               nickname: fd.get('nickname') as string,
-              username: fd.get('username') as string,
+              username,
               email: fd.get('email') as string,
               password: fd.get('password') as string,
-              role: fd.get('role') as string,
+              role: Number(fd.get('role')),
             });
           }} className="space-y-4">
             <div>
@@ -143,7 +157,17 @@ export function Users() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.usernameRequired')}</label>
-              <input name="username" required className={inputClass} placeholder={t('users.usernamePlaceholder')} />
+              <input
+                name="username"
+                required
+                className={inputClass}
+                placeholder={t('users.usernamePlaceholder')}
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+              />
+              <p className={`text-xs mt-1 ${usernameInput && !usernamePattern.test(usernameInput.trim()) ? 'text-red-500' : 'text-gray-400'}`}>
+                {usernameInput && !usernamePattern.test(usernameInput.trim()) ? t('users.usernameInvalid') : t('users.usernameHelp')}
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.email')}</label>
@@ -156,12 +180,15 @@ export function Users() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.role')}</label>
               <select name="role" className={inputClass}>
-                <option value="member">{t('users.member')}</option>
-                <option value="admin">{t('users.admin')}</option>
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>{t(roleLabelKey(role))}</option>
+                ))}
               </select>
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <button type="submit" disabled={createMutation.isPending}
+              <button
+                type="submit"
+                disabled={createMutation.isPending || (usernameInput.trim().length > 0 && !usernamePattern.test(usernameInput.trim()))}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
                 {createMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                 {t('users.createUser')}
@@ -171,7 +198,7 @@ export function Users() {
         </Modal>
       )}
 
-      {editing && (
+      {editing && canEditTarget(editing) && (
         <Modal title={t('users.editUser')} onClose={() => setEditing(null)} size="sm">
           <form onSubmit={(e) => {
             e.preventDefault();
@@ -179,7 +206,7 @@ export function Users() {
             const data: Parameters<typeof usersApi.update>[1] = {
               nickname: fd.get('nickname') as string,
               email: fd.get('email') as string,
-              role: fd.get('role') as string,
+              role: Number(fd.get('role')),
               status: Number(fd.get('status')),
             };
             const pwd = fd.get('password') as string;
@@ -205,8 +232,9 @@ export function Users() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.role')}</label>
               <select name="role" defaultValue={editing.role} className={inputClass}>
-                <option value="member">{t('users.member')}</option>
-                <option value="admin">{t('users.admin')}</option>
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>{t(roleLabelKey(role))}</option>
+                ))}
               </select>
             </div>
             <div>

@@ -6,7 +6,7 @@ export interface User {
   nickname: string;
   email: string;
   password_hash: string;
-  role: 'admin' | 'member';
+  role: 1 | 2 | 3;
   status: number;
   created_at: string;
   updated_at: string;
@@ -56,6 +56,7 @@ export interface DomainPermission {
   team_id: number | null;
   domain_id: number;
   sub: string;
+  permission: 'read' | 'write';
 }
 
 export interface OperationLog {
@@ -77,7 +78,7 @@ export interface JwtPayload {
   userId: number;
   username: string;
   nickname?: string;
-  role: 'admin' | 'member';
+  role: 1 | 2 | 3;
 }
 
 declare global {

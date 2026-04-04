@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, Users as UsersIcon, UserPlus, UserMinus, ChevronRight } from 'lucide-react';
-import { teamsApi, usersApi } from '../api';
-import type { Team, TeamMember, User } from '../api';
+import { Plus, Edit2, Trash2, Users as UsersIcon, UserPlus, UserMinus, ChevronRight, Shield } from 'lucide-react';
+import { teamsApi, usersApi, domainsApi } from '../api';
+import type { Team, TeamMember, User, Domain, DomainPermission } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
 import { Badge } from '../components/Badge';
@@ -11,6 +11,7 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
+import { isAdmin } from '../utils/roles';
 
 export function Teams() {
   const { user: me } = useAuth();
@@ -24,6 +25,13 @@ export function Teams() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
   const [removingMember, setRemovingMember] = useState<TeamMember | null>(null);
+  const [memberPermissionsFor, setMemberPermissionsFor] = useState<TeamMember | null>(null);
+  const [teamPermDomainId, setTeamPermDomainId] = useState<number | ''>('');
+  const [teamPermPermission, setTeamPermPermission] = useState<'read' | 'write'>('write');
+  const [teamPermSub, setTeamPermSub] = useState('');
+  const [memberPermDomainId, setMemberPermDomainId] = useState<number | ''>('');
+  const [memberPermPermission, setMemberPermPermission] = useState<'read' | 'write'>('write');
+  const [memberPermSub, setMemberPermSub] = useState('');
   const getDisplayName = (u: { nickname?: string; username: string }) => u.nickname || u.username;
 
   const { data: teams = [], isLoading } = useQuery({
@@ -37,10 +45,28 @@ export function Teams() {
     enabled: !!viewTeam,
   });
 
+  const { data: domains = [] } = useQuery({
+    queryKey: ['domains'],
+    queryFn: () => domainsApi.list().then((r) => r.data.data ?? []),
+    enabled: !!viewTeam,
+  });
+
+  const { data: teamDomainPermissions = [], isLoading: teamDomainPermissionsLoading } = useQuery({
+    queryKey: ['team-domain-permissions', viewTeam?.id],
+    queryFn: () => teamsApi.domainPermissions(viewTeam!.id).then((r) => r.data.data ?? []),
+    enabled: !!viewTeam,
+  });
+
+  const { data: memberDomainPermissions = [], isLoading: memberDomainPermissionsLoading } = useQuery({
+    queryKey: ['member-domain-permissions', viewTeam?.id, memberPermissionsFor?.user_id],
+    queryFn: () => teamsApi.memberDomainPermissions(viewTeam!.id, memberPermissionsFor!.user_id).then((r) => r.data.data ?? []),
+    enabled: !!viewTeam && !!memberPermissionsFor,
+  });
+
   const { data: allUsers = [] } = useQuery({
     queryKey: ['users'],
     queryFn: () => usersApi.list().then((r) => r.data.data ?? []),
-    enabled: showAddMember,
+    enabled: showAddMember && isAdmin(me?.role),
   });
 
   const createMutation = useMutation({
@@ -99,6 +125,54 @@ export function Teams() {
     onError: () => toast.error(t('teams.removeMemberFailed')),
   });
 
+  const addTeamDomainPermissionMutation = useMutation({
+    mutationFn: (data: { domain_id: number; permission?: 'read' | 'write'; sub?: string }) =>
+      teamsApi.addDomainPermission(viewTeam!.id, data),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      qc.invalidateQueries({ queryKey: ['team-domain-permissions', viewTeam?.id] });
+      setTeamPermDomainId('');
+      setTeamPermPermission('write');
+      setTeamPermSub('');
+      toast.success(t('teams.permissionSaved'));
+    },
+    onError: () => toast.error(t('teams.permissionSaveFailed')),
+  });
+
+  const removeTeamDomainPermissionMutation = useMutation({
+    mutationFn: (permId: number) => teamsApi.removeDomainPermission(viewTeam!.id, permId),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      qc.invalidateQueries({ queryKey: ['team-domain-permissions', viewTeam?.id] });
+      toast.success(t('teams.permissionRemoved'));
+    },
+    onError: () => toast.error(t('teams.permissionRemoveFailed')),
+  });
+
+  const addMemberDomainPermissionMutation = useMutation({
+    mutationFn: (data: { domain_id: number; permission?: 'read' | 'write'; sub?: string }) =>
+      teamsApi.addMemberDomainPermission(viewTeam!.id, memberPermissionsFor!.user_id, data),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      qc.invalidateQueries({ queryKey: ['member-domain-permissions', viewTeam?.id, memberPermissionsFor?.user_id] });
+      setMemberPermDomainId('');
+      setMemberPermPermission('write');
+      setMemberPermSub('');
+      toast.success(t('teams.permissionSaved'));
+    },
+    onError: () => toast.error(t('teams.permissionSaveFailed')),
+  });
+
+  const removeMemberDomainPermissionMutation = useMutation({
+    mutationFn: (permId: number) => teamsApi.removeMemberDomainPermission(viewTeam!.id, memberPermissionsFor!.user_id, permId),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      qc.invalidateQueries({ queryKey: ['member-domain-permissions', viewTeam?.id, memberPermissionsFor?.user_id] });
+      toast.success(t('teams.permissionRemoved'));
+    },
+    onError: () => toast.error(t('teams.permissionRemoveFailed')),
+  });
+
   const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
 
   const memberUserIds = new Set(members.map((m) => m.user_id));
@@ -111,6 +185,8 @@ export function Teams() {
       u.email?.toLowerCase().includes(query)
     );
   });
+  const myMember = members.find((m) => m.user_id === me?.id);
+  const canManageTeam = isAdmin(me?.role) || myMember?.role === 'owner';
 
   const teamColumns = [
     {
@@ -247,6 +323,12 @@ export function Teams() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="gray">{member.role}</Badge>
+                      {canManageTeam && (
+                        <button onClick={() => setMemberPermissionsFor(member)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                          <Shield className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button onClick={() => setRemovingMember(member)}
                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                         <UserMinus className="w-3.5 h-3.5" />
@@ -256,6 +338,84 @@ export function Teams() {
                 ))}
               </div>
             )}
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-900">{t('teams.domainPermissions')}</p>
+              </div>
+              {canManageTeam && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                  <select
+                    className={inputClass}
+                    value={teamPermDomainId}
+                    onChange={(e) => setTeamPermDomainId(e.target.value ? Number(e.target.value) : '')}
+                  >
+                    <option value="">{t('teams.selectDomain')}</option>
+                    {domains.map((domain: Domain) => (
+                      <option key={domain.id} value={domain.id}>{domain.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    className={inputClass}
+                    value={teamPermPermission}
+                    onChange={(e) => setTeamPermPermission(e.target.value as 'read' | 'write')}
+                  >
+                    <option value="read">{t('teams.permissionRead')}</option>
+                    <option value="write">{t('teams.permissionWrite')}</option>
+                  </select>
+                  <input
+                    className={inputClass}
+                    value={teamPermSub}
+                    onChange={(e) => setTeamPermSub(e.target.value)}
+                    placeholder={t('teams.subdomainPlaceholder')}
+                  />
+                  <button
+                    onClick={() => {
+                      if (!teamPermDomainId) { toast.error(t('teams.selectDomainTip')); return; }
+                      addTeamDomainPermissionMutation.mutate({
+                        domain_id: Number(teamPermDomainId),
+                        permission: teamPermPermission,
+                        sub: teamPermSub,
+                      });
+                    }}
+                    disabled={addTeamDomainPermissionMutation.isPending}
+                    className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-60"
+                  >
+                    {t('teams.addPermission')}
+                  </button>
+                </div>
+              )}
+              {teamDomainPermissionsLoading ? (
+                <div className="flex justify-center py-4"><div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
+              ) : teamDomainPermissions.length === 0 ? (
+                <p className="text-sm text-gray-400">{t('teams.noDomainPermissions')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {teamDomainPermissions.map((perm: DomainPermission) => (
+                    <div key={perm.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{perm.domain_name ?? `#${perm.domain_id}`}</p>
+                        <p className="text-xs text-gray-500">
+                          {perm.sub ? `${t('teams.subdomain')}: ${perm.sub}` : t('teams.allSubdomains')}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={perm.permission === 'write' ? 'blue' : 'gray'}>
+                          {perm.permission === 'write' ? t('teams.permissionWrite') : t('teams.permissionRead')}
+                        </Badge>
+                        {canManageTeam && (
+                          <button
+                            onClick={() => removeTeamDomainPermissionMutation.mutate(perm.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </Modal>
       )}
@@ -285,6 +445,90 @@ export function Teams() {
                 </button>
               ))}
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {memberPermissionsFor && viewTeam && (
+        <Modal
+          title={t('teams.memberDomainPermissions', { name: getDisplayName(memberPermissionsFor) })}
+          onClose={() => setMemberPermissionsFor(null)}
+          size="md"
+        >
+          <div className="space-y-4">
+            {canManageTeam && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <select
+                  className={inputClass}
+                  value={memberPermDomainId}
+                  onChange={(e) => setMemberPermDomainId(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">{t('teams.selectDomain')}</option>
+                  {domains.map((domain: Domain) => (
+                    <option key={domain.id} value={domain.id}>{domain.name}</option>
+                  ))}
+                </select>
+                <select
+                  className={inputClass}
+                  value={memberPermPermission}
+                  onChange={(e) => setMemberPermPermission(e.target.value as 'read' | 'write')}
+                >
+                  <option value="read">{t('teams.permissionRead')}</option>
+                  <option value="write">{t('teams.permissionWrite')}</option>
+                </select>
+                <input
+                  className={inputClass}
+                  value={memberPermSub}
+                  onChange={(e) => setMemberPermSub(e.target.value)}
+                  placeholder={t('teams.subdomainPlaceholder')}
+                />
+                <button
+                  onClick={() => {
+                    if (!memberPermDomainId) { toast.error(t('teams.selectDomainTip')); return; }
+                    addMemberDomainPermissionMutation.mutate({
+                      domain_id: Number(memberPermDomainId),
+                      permission: memberPermPermission,
+                      sub: memberPermSub,
+                    });
+                  }}
+                  disabled={addMemberDomainPermissionMutation.isPending}
+                  className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-60"
+                >
+                  {t('teams.addPermission')}
+                </button>
+              </div>
+            )}
+            {memberDomainPermissionsLoading ? (
+              <div className="flex justify-center py-4"><div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
+            ) : memberDomainPermissions.length === 0 ? (
+              <p className="text-sm text-gray-400">{t('teams.noDomainPermissions')}</p>
+            ) : (
+              <div className="space-y-2">
+                {memberDomainPermissions.map((perm: DomainPermission) => (
+                  <div key={perm.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{perm.domain_name ?? `#${perm.domain_id}`}</p>
+                      <p className="text-xs text-gray-500">
+                        {perm.sub ? `${t('teams.subdomain')}: ${perm.sub}` : t('teams.allSubdomains')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={perm.permission === 'write' ? 'blue' : 'gray'}>
+                        {perm.permission === 'write' ? t('teams.permissionWrite') : t('teams.permissionRead')}
+                      </Badge>
+                      {canManageTeam && (
+                        <button
+                          onClick={() => removeMemberDomainPermissionMutation.mutate(perm.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Modal>
       )}
