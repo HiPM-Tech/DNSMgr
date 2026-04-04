@@ -3,6 +3,7 @@ import { getDb } from '../db/database';
 import { authMiddleware } from '../middleware/auth';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { DnsAccount, Domain } from '../types';
+import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 
 const router = Router();
 
@@ -16,11 +17,11 @@ function logOperation(userId: number, action: string, domainName: string, data: 
   );
 }
 
-function getAccountForUser(accountId: number, userId: number, role: string): DnsAccount | null {
+function getAccountForUser(accountId: number, userId: number, role: number): DnsAccount | null {
   const db = getDb();
   const account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(accountId) as DnsAccount | undefined;
   if (!account) return null;
-  if (role === 'admin' || account.created_by === userId) return account;
+  if (isSuper(role) || account.created_by === userId) return account;
   if (account.team_id) {
     const membership = db.prepare('SELECT id FROM team_members WHERE team_id = ? AND user_id = ?').get(account.team_id, userId);
     if (membership) return account;
@@ -28,22 +29,100 @@ function getAccountForUser(accountId: number, userId: number, role: string): Dns
   return null;
 }
 
-function canAccessDomain(domainId: number, userId: number, role: string): Domain | null {
+function getAccountForManage(accountId: number, userId: number, role: number): DnsAccount | null {
+  const account = getAccountForUser(accountId, userId, role);
+  if (!account) return null;
+  if (isSuper(role)) return account;
+  if (role >= ROLE_ADMIN && account.created_by === userId) return account;
+  return null;
+}
+
+type DomainAccess = {
+  domain: Domain | null;
+  canRead: boolean;
+  canWrite: boolean;
+  writeSubs: string[] | null;
+  hasRules: boolean;
+};
+
+function normalizeSubInput(sub?: string): string {
+  const trimmed = (sub ?? '').trim().toLowerCase();
+  if (trimmed === '@') return '@';
+  return trimmed;
+}
+
+function getPermissionRows(domainId: number, userId: number): Array<{ permission: 'read' | 'write'; sub: string }> {
+  const db = getDb();
+  const userPerms = db.prepare(
+    'SELECT permission, sub FROM domain_permissions WHERE domain_id = ? AND user_id = ?'
+  ).all(domainId, userId) as Array<{ permission: 'read' | 'write'; sub: string }>;
+  const teamPerms = db.prepare(
+    `SELECT dp.permission, dp.sub
+     FROM domain_permissions dp
+     INNER JOIN team_members tm ON tm.team_id = dp.team_id
+     WHERE dp.domain_id = ? AND tm.user_id = ?`
+  ).all(domainId, userId) as Array<{ permission: 'read' | 'write'; sub: string }>;
+  return [...userPerms, ...teamPerms].map((row) => ({
+    permission: row.permission,
+    sub: normalizeSubInput(row.sub),
+  }));
+}
+
+function getUserPermissionRows(domainId: number, userId: number): Array<{ permission: 'read' | 'write'; sub: string }> {
+  const db = getDb();
+  const userPerms = db.prepare(
+    'SELECT permission, sub FROM domain_permissions WHERE domain_id = ? AND user_id = ?'
+  ).all(domainId, userId) as Array<{ permission: 'read' | 'write'; sub: string }>;
+  return userPerms.map((row) => ({
+    permission: row.permission,
+    sub: normalizeSubInput(row.sub),
+  }));
+}
+
+function resolveDomainAccess(domain: Domain, userId: number, role: number): DomainAccess {
+  const db = getDb();
+  const hasRules = !!db.prepare('SELECT 1 FROM domain_permissions WHERE domain_id = ? LIMIT 1').get(domain.id);
+  if (isSuper(role)) {
+    return { domain, canRead: true, canWrite: true, writeSubs: null, hasRules };
+  }
+  const owner = db.prepare('SELECT created_by FROM dns_accounts WHERE id = ?').get(domain.account_id) as { created_by: number } | undefined;
+  if (owner?.created_by === userId && role >= ROLE_ADMIN) {
+    return { domain, canRead: true, canWrite: true, writeSubs: null, hasRules };
+  }
+  if (hasRules) {
+    const userPerms = getUserPermissionRows(domain.id, userId);
+    const perms = userPerms.length > 0 ? userPerms : getPermissionRows(domain.id, userId);
+    if (perms.length === 0) {
+      return { domain, canRead: false, canWrite: false, writeSubs: [], hasRules };
+    }
+    const canWrite = perms.some((p) => p.permission === 'write');
+    const canRead = perms.some((p) => p.permission === 'read' || p.permission === 'write');
+    let writeSubs: string[] | null = [];
+    if (canWrite) {
+      const writePerms = perms.filter((p) => p.permission === 'write');
+      const hasAll = writePerms.some((p) => !p.sub);
+      writeSubs = hasAll ? null : Array.from(new Set(writePerms.map((p) => p.sub)));
+    }
+    return { domain, canRead, canWrite, writeSubs, hasRules };
+  }
+  return { domain, canRead: false, canWrite: false, writeSubs: [], hasRules };
+}
+
+function canAccessDomain(domainId: number, userId: number, role: number): Domain | null {
   const db = getDb();
   const domain = db.prepare('SELECT * FROM domains WHERE id = ?').get(domainId) as Domain | undefined;
   if (!domain) return null;
-  if (role === 'admin') return domain;
-  const account = getAccountForUser(domain.account_id, userId, role);
-  if (account) return domain;
-  const perm = db.prepare('SELECT id FROM domain_permissions WHERE domain_id = ? AND user_id = ?').get(domainId, userId);
-  if (perm) return domain;
-  const teamIds = (db.prepare('SELECT team_id FROM team_members WHERE user_id = ?').all(userId) as { team_id: number }[]).map(r => r.team_id);
-  if (teamIds.length > 0) {
-    const placeholders = teamIds.map(() => '?').join(',');
-    const teamPerm = db.prepare(`SELECT id FROM domain_permissions WHERE domain_id = ? AND team_id IN (${placeholders})`).get(domainId, ...teamIds);
-    if (teamPerm) return domain;
+  const access = resolveDomainAccess(domain, userId, role);
+  return access.canRead ? domain : null;
+}
+
+export function getDomainAccess(domainId: number, userId: number, role: number): DomainAccess {
+  const db = getDb();
+  const domain = db.prepare('SELECT * FROM domains WHERE id = ?').get(domainId) as Domain | undefined;
+  if (!domain) {
+    return { domain: null, canRead: false, canWrite: false, writeSubs: [], hasRules: false };
   }
-  return null;
+  return resolveDomainAccess(domain, userId, role);
 }
 
 /**
@@ -71,12 +150,12 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
   const db = getDb();
   const { account_id, keyword } = req.query as { account_id?: string; keyword?: string };
   const userId = req.user!.userId;
-  const role = req.user!.role;
+  const role = normalizeRole(req.user!.role);
 
   let query = 'SELECT d.* FROM domains d';
   const params: unknown[] = [];
 
-  if (role !== 'admin') {
+  if (!isSuper(role)) {
     const teamIds = (db.prepare('SELECT team_id FROM team_members WHERE user_id = ?').all(userId) as { team_id: number }[]).map(r => r.team_id);
     const teamFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
     const teamPermFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
@@ -96,7 +175,10 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
   if (keyword) { query += ' AND d.name LIKE ?'; params.push(`%${keyword}%`); }
   query += ' ORDER BY d.id';
 
-  const domains = db.prepare(query).all(...params) as Domain[];
+  let domains = db.prepare(query).all(...params) as Domain[];
+  if (!isSuper(role)) {
+    domains = domains.filter((domain) => resolveDomainAccess(domain, userId, role).canRead);
+  }
 
   const accountCache = new Map<number, DnsAccount>();
   await Promise.allSettled(
@@ -171,7 +253,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     res.json({ code: -1, msg: 'account_id and domain name are required' });
     return;
   }
-  const account = getAccountForUser(account_id, req.user!.userId, req.user!.role);
+  const account = getAccountForManage(account_id, req.user!.userId, normalizeRole(req.user!.role));
   if (!account) {
     res.json({ code: -1, msg: 'Account not found or access denied' });
     return;
@@ -280,7 +362,7 @@ router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
     res.json({ code: -1, msg: 'account_id is required' });
     return;
   }
-  const account = getAccountForUser(account_id, req.user!.userId, req.user!.role);
+  const account = getAccountForManage(account_id, req.user!.userId, normalizeRole(req.user!.role));
   if (!account) {
     res.json({ code: -1, msg: 'Account not found or access denied' });
     return;
@@ -333,7 +415,7 @@ router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
  */
 router.get('/provider-list/:accountId', authMiddleware, async (req: Request, res: Response) => {
   const accountId = parseInt(req.params.accountId);
-  const account = getAccountForUser(accountId, req.user!.userId, req.user!.role);
+  const account = getAccountForManage(accountId, req.user!.userId, normalizeRole(req.user!.role));
   if (!account) {
     res.json({ code: -1, msg: 'Account not found or access denied' });
     return;
@@ -373,12 +455,12 @@ router.get('/provider-list/:accountId', authMiddleware, async (req: Request, res
  */
 router.get('/:id', authMiddleware, (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
-  const domain = canAccessDomain(id, req.user!.userId, req.user!.role);
-  if (!domain) {
+  const access = getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
     res.json({ code: -1, msg: 'Domain not found' });
     return;
   }
-  res.json({ code: 0, data: domain, msg: 'success' });
+  res.json({ code: 0, data: access.domain, msg: 'success' });
 });
 
 /**
@@ -412,9 +494,13 @@ router.get('/:id', authMiddleware, (req: Request, res: Response) => {
  */
 router.put('/:id', authMiddleware, (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
-  const domain = canAccessDomain(id, req.user!.userId, req.user!.role);
-  if (!domain) {
+  const access = getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
     res.json({ code: -1, msg: 'Domain not found' });
+    return;
+  }
+  if (!access.canWrite) {
+    res.json({ code: -1, msg: 'Permission denied' });
     return;
   }
   const { remark, is_hidden } = req.body as { remark?: string; is_hidden?: number };
@@ -428,7 +514,7 @@ router.put('/:id', authMiddleware, (req: Request, res: Response) => {
   }
   params.push(id);
   getDb().prepare(`UPDATE domains SET ${updates.join(', ')} WHERE id = ?`).run(...params);
-  logOperation(req.user!.userId, 'update_domain', domain.name, { remark, is_hidden });
+  logOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden });
   res.json({ code: 0, msg: 'success' });
 });
 
@@ -452,13 +538,17 @@ router.put('/:id', authMiddleware, (req: Request, res: Response) => {
  */
 router.delete('/:id', authMiddleware, (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
-  const domain = canAccessDomain(id, req.user!.userId, req.user!.role);
-  if (!domain) {
+  const access = getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
     res.json({ code: -1, msg: 'Domain not found' });
     return;
   }
+  if (!access.canWrite) {
+    res.json({ code: -1, msg: 'Permission denied' });
+    return;
+  }
   getDb().prepare('DELETE FROM domains WHERE id = ?').run(id);
-  logOperation(req.user!.userId, 'delete_domain', domain.name, { domainId: id, accountId: domain.account_id });
+  logOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id });
   res.json({ code: 0, msg: 'success' });
 });
 
@@ -482,20 +572,20 @@ router.delete('/:id', authMiddleware, (req: Request, res: Response) => {
  */
 router.get('/:id/lines', authMiddleware, async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
-  const domain = canAccessDomain(id, req.user!.userId, req.user!.role);
-  if (!domain) {
+  const access = getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
     res.json({ code: -1, msg: 'Domain not found' });
     return;
   }
   const db = getDb();
-  const account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(domain.account_id) as DnsAccount | undefined;
+  const account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(access.domain.account_id) as DnsAccount | undefined;
   if (!account) {
     res.json({ code: -1, msg: 'Account not found' });
     return;
   }
   try {
     const cfg = JSON.parse(account.config) as Record<string, string>;
-    const adapter = createAdapter(account.type, cfg, domain.name, domain.third_id);
+    const adapter = createAdapter(account.type, cfg, access.domain.name, access.domain.third_id);
     const lines = await adapter.getRecordLines();
     res.json({ code: 0, data: lines, msg: 'success' });
   } catch (e) {

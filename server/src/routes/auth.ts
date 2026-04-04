@@ -3,8 +3,10 @@ import bcrypt from 'bcryptjs';
 import { getDb } from '../db/database';
 import { authMiddleware, signToken } from '../middleware/auth';
 import { User } from '../types';
+import { ROLE_SUPER, ROLE_USER } from '../utils/roles';
 
 const router = Router();
+const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 /**
  * @swagger
@@ -35,7 +37,8 @@ router.post('/login', (req: Request, res: Response) => {
     return;
   }
   const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as User | undefined;
+  const user = db.prepare('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?')
+    .get(username) as User | undefined;
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     res.json({ code: -1, msg: 'Invalid username or password' });
     return;
@@ -80,20 +83,26 @@ router.post('/login', (req: Request, res: Response) => {
  */
 router.post('/register', (req: Request, res: Response) => {
   const { username, nickname, email = '', password } = req.body as { username: string; nickname?: string; email?: string; password: string };
-  if (!username || !password) {
+  const normalizedUsername = (username ?? '').trim();
+  if (!normalizedUsername || !password) {
     res.json({ code: -1, msg: 'Username and password are required' });
+    return;
+  }
+  if (!USERNAME_PATTERN.test(normalizedUsername)) {
+    res.json({ code: -1, msg: 'Username must use letters, numbers, "_" or "-"' });
     return;
   }
   const db = getDb();
   const count = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
-  const role = count === 0 ? 'admin' : 'member';
+  const role = count === 0 ? ROLE_SUPER : ROLE_USER;
   const hash = bcrypt.hashSync(password, 10);
-  const resolvedNickname = (nickname ?? '').trim() || username;
+  const resolvedNickname = (nickname ?? '').trim() || normalizedUsername;
   try {
+    const roleText = role >= 2 ? 'admin' : 'member';
     const result = db.prepare(
-      'INSERT INTO users (username, nickname, email, password_hash, role) VALUES (?, ?, ?, ?, ?)'
-    ).run(username, resolvedNickname, email, hash, role);
-    res.json({ code: 0, data: { id: result.lastInsertRowid, username, nickname: resolvedNickname, role }, msg: 'success' });
+      'INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(normalizedUsername, resolvedNickname, email, hash, roleText, role);
+    res.json({ code: 0, data: { id: result.lastInsertRowid, username: normalizedUsername, nickname: resolvedNickname, role }, msg: 'success' });
   } catch {
     res.json({ code: -1, msg: 'Username already exists' });
   }
@@ -113,7 +122,7 @@ router.post('/register', (req: Request, res: Response) => {
  */
 router.get('/me', authMiddleware, (req: Request, res: Response) => {
   const db = getDb();
-  const user = db.prepare('SELECT id, username, nickname, email, role, status, created_at FROM users WHERE id = ?').get(req.user!.userId) as User | undefined;
+  const user = db.prepare('SELECT id, username, nickname, email, role_level as role, status, created_at FROM users WHERE id = ?').get(req.user!.userId) as User | undefined;
   if (!user) {
     res.json({ code: -1, msg: 'User not found' });
     return;
@@ -152,7 +161,8 @@ router.put('/password', authMiddleware, (req: Request, res: Response) => {
     return;
   }
   const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user!.userId) as User | undefined;
+  const user = db.prepare('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?')
+    .get(req.user!.userId) as User | undefined;
   if (!user || !bcrypt.compareSync(oldPassword, user.password_hash)) {
     res.json({ code: -1, msg: 'Old password is incorrect' });
     return;

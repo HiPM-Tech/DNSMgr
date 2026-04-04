@@ -1,5 +1,6 @@
 import { getDb } from './database';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export function initSchema(): void {
   const db = getDb();
@@ -12,6 +13,7 @@ export function initSchema(): void {
       email TEXT NOT NULL DEFAULT '',
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin', 'member')),
+      role_level INTEGER NOT NULL DEFAULT 1,
       status INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -68,6 +70,7 @@ export function initSchema(): void {
       team_id INTEGER,
       domain_id INTEGER NOT NULL,
       sub TEXT NOT NULL DEFAULT '',
+      permission TEXT NOT NULL DEFAULT 'write' CHECK(permission IN ('read', 'write')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
       FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE
@@ -82,6 +85,12 @@ export function initSchema(): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS runtime_secrets (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   const userColumns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
@@ -89,6 +98,17 @@ export function initSchema(): void {
   if (!hasNickname) {
     db.exec("ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''");
     db.exec("UPDATE users SET nickname = username WHERE nickname = '' OR nickname IS NULL");
+  }
+  const hasRoleLevel = userColumns.some((col) => col.name === 'role_level');
+  if (!hasRoleLevel) {
+    db.exec('ALTER TABLE users ADD COLUMN role_level INTEGER NOT NULL DEFAULT 1');
+    db.exec("UPDATE users SET role_level = CASE role WHEN 'admin' THEN 2 ELSE 1 END");
+  }
+
+  const permColumns = db.prepare("PRAGMA table_info(domain_permissions)").all() as { name: string }[];
+  const hasPermission = permColumns.some((col) => col.name === 'permission');
+  if (!hasPermission) {
+    db.exec("ALTER TABLE domain_permissions ADD COLUMN permission TEXT NOT NULL DEFAULT 'write'");
   }
 
   // Normalize historical duplicate domains before creating a unique index.
@@ -109,13 +129,33 @@ export function initSchema(): void {
     ON domains(account_id, name);
   `);
 
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_domain_permissions_unique
+    ON domain_permissions(domain_id, user_id, team_id, sub);
+  `);
+
   // Create default admin user if no users exist
   const count = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
   if (count === 0) {
     const hash = bcrypt.hashSync('admin123', 10);
     db.prepare(
-      `INSERT INTO users (username, nickname, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`
-    ).run('admin', 'admin', 'admin@localhost', hash, 'admin');
-    console.log('[DB] Default admin user created (admin / admin123)');
+      `INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run('admin', 'admin', 'admin@localhost', hash, 'admin', 3);
+    console.log('[DB] Default super admin user created (admin / admin123)');
   }
+
+  const superCount = (db.prepare('SELECT COUNT(*) as cnt FROM users WHERE role_level = 3').get() as { cnt: number }).cnt;
+  if (superCount === 0) {
+    const adminCandidate = db.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1").get() as { id: number } | undefined;
+    const fallback = adminCandidate ?? (db.prepare('SELECT id FROM users ORDER BY id LIMIT 1').get() as { id: number } | undefined);
+    if (fallback?.id) {
+      db.prepare('UPDATE users SET role_level = 3 WHERE id = ?').run(fallback.id);
+    }
+  }
+
+  // Rotate runtime secrets on each startup to invalidate prior temporary keys.
+  const jwtRuntimeSecret = crypto.randomBytes(32).toString('hex');
+  db.exec('DELETE FROM runtime_secrets');
+  db.prepare('INSERT INTO runtime_secrets (key, value) VALUES (?, ?)').run('jwt_runtime', jwtRuntimeSecret);
+  console.log('[DB] Runtime secrets rotated');
 }

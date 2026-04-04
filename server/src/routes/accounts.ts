@@ -3,11 +3,12 @@ import { getDb } from '../db/database';
 import { authMiddleware } from '../middleware/auth';
 import { createAdapter, getProviders, isStubProvider } from '../lib/dns/DnsHelper';
 import { DnsAccount } from '../types';
+import { isAdmin, isSuper, normalizeRole, ROLE_ADMIN } from '../utils/roles';
 
 const router = Router();
 
-function canAccessAccount(account: DnsAccount, userId: number, role: string): boolean {
-  if (role === 'admin') return true;
+function canReadAccount(account: DnsAccount, userId: number, role: number): boolean {
+  if (isSuper(role)) return true;
   if (account.created_by === userId) return true;
   if (account.team_id) {
     const db = getDb();
@@ -15,6 +16,11 @@ function canAccessAccount(account: DnsAccount, userId: number, role: string): bo
     if (membership) return true;
   }
   return false;
+}
+
+function canManageAccount(account: DnsAccount, userId: number, role: number): boolean {
+  if (isSuper(role)) return true;
+  return role >= ROLE_ADMIN && account.created_by === userId;
 }
 
 /**
@@ -48,7 +54,7 @@ router.get('/providers', authMiddleware, (_req: Request, res: Response) => {
 router.get('/', authMiddleware, (req: Request, res: Response) => {
   const db = getDb();
   let accounts: DnsAccount[];
-  if (req.user!.role === 'admin') {
+  if (isSuper(req.user!.role)) {
     accounts = db.prepare('SELECT * FROM dns_accounts ORDER BY id').all() as DnsAccount[];
   } else {
     const userId = req.user!.userId;
@@ -103,6 +109,10 @@ router.get('/', authMiddleware, (req: Request, res: Response) => {
  *         description: Account created
  */
 router.post('/', authMiddleware, async (req: Request, res: Response) => {
+  if (!isAdmin(req.user?.role)) {
+    res.json({ code: -1, msg: 'Permission denied' });
+    return;
+  }
   const { type, name, config, remark = '', team_id } = req.body as {
     type: string; name: string; config: Record<string, string>; remark?: string; team_id?: number;
   };
@@ -154,7 +164,7 @@ router.get('/:id', authMiddleware, (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const db = getDb();
   const account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(id) as DnsAccount | undefined;
-  if (!account || !canAccessAccount(account, req.user!.userId, req.user!.role)) {
+  if (!account || !canReadAccount(account, req.user!.userId, normalizeRole(req.user?.role))) {
     res.json({ code: -1, msg: 'Account not found' });
     return;
   }
@@ -201,7 +211,7 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const db = getDb();
   const account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(id) as DnsAccount | undefined;
-  if (!account || !canAccessAccount(account, req.user!.userId, req.user!.role)) {
+  if (!account || !canManageAccount(account, req.user!.userId, normalizeRole(req.user?.role))) {
     res.json({ code: -1, msg: 'Account not found' });
     return;
   }
@@ -258,7 +268,7 @@ router.delete('/:id', authMiddleware, (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const db = getDb();
   const account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(id) as DnsAccount | undefined;
-  if (!account || !canAccessAccount(account, req.user!.userId, req.user!.role)) {
+  if (!account || !canManageAccount(account, req.user!.userId, normalizeRole(req.user?.role))) {
     res.json({ code: -1, msg: 'Account not found' });
     return;
   }

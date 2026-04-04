@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft, Info } from 'lucide-react';
+import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft, Info, RefreshCw } from 'lucide-react';
 import { recordsApi, domainsApi, accountsApi } from '../api';
 import type { DnsRecord, DnsLine } from '../api';
 import { Table } from '../components/Table';
@@ -370,6 +370,12 @@ export function Records() {
   const qc = useQueryClient();
   const toast = useToast();
   const { t } = useI18n();
+  const formatApiError = (msg?: string) => {
+    if (!msg) return t('common.error');
+    if (msg === 'Permission denied') return t('common.permissionDenied');
+    if (msg === 'Permission denied for subdomain') return t('common.permissionDeniedSubdomain');
+    return msg;
+  };
 
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<DnsRecord | null>(null);
@@ -416,7 +422,7 @@ export function Records() {
   const createMutation = useMutation({
     mutationFn: (data: Partial<DnsRecord>) => recordsApi.create(domainId, data),
     onSuccess: (res) => {
-      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      if (res.data.code !== 0) { toast.error(formatApiError(res.data.msg)); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
       setShowAdd(false);
       toast.success(t('records.addSuccess'));
@@ -428,7 +434,7 @@ export function Records() {
     mutationFn: ({ recordId, data }: { recordId: string; data: Partial<DnsRecord> }) =>
       recordsApi.update(domainId, recordId, data),
     onSuccess: (res) => {
-      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      if (res.data.code !== 0) { toast.error(formatApiError(res.data.msg)); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
       setEditing(null);
       toast.success(t('records.updateSuccess'));
@@ -439,7 +445,7 @@ export function Records() {
   const deleteMutation = useMutation({
     mutationFn: (recordId: string) => recordsApi.delete(domainId, recordId),
     onSuccess: (res) => {
-      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      if (res.data.code !== 0) { toast.error(formatApiError(res.data.msg)); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
       setDeleting(null);
       toast.success(t('records.deleteSuccess'));
@@ -451,7 +457,7 @@ export function Records() {
     mutationFn: ({ recordId, status }: { recordId: string; status: number }) =>
       recordsApi.setStatus(domainId, recordId, status),
     onSuccess: (res, { recordId }) => {
-      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      if (res.data.code !== 0) { toast.error(formatApiError(res.data.msg)); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
       toast.success(t('records.toggled', { status: records.find((r) => r.id === recordId)?.status === 1 ? t('common.disabled') : t('common.enabled') }));
     },
@@ -521,10 +527,18 @@ export function Records() {
             <p className="text-sm text-gray-500">{t('records.subtitle')}</p>
           </div>
         </div>
-        <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-          <Plus className="w-4 h-4" /> {t('records.addRecord')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => qc.invalidateQueries({ queryKey: ['records', domainId] })}
+            className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" /> {t('records.refresh')}
+          </button>
+          <button onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+            <Plus className="w-4 h-4" /> {t('records.addRecord')}
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

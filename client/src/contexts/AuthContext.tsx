@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { authApi } from '../api';
 import type { User } from '../api';
+import { isAdmin } from '../utils/roles';
 
 interface AuthContextType {
   user: User | null;
@@ -49,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAdmin: isAdmin(user?.role) }}>
       {children}
     </AuthContext.Provider>
   );

@@ -9,6 +9,8 @@ import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
+import { isAdmin } from '../utils/roles';
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -164,6 +166,8 @@ export function Domains() {
   const toast = useToast();
   const { t } = useI18n();
   const navigate = useNavigate();
+  const { user: me } = useAuth();
+  const canManage = isAdmin(me?.role);
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
   const [deleting, setDeleting] = useState<Domain | null>(null);
@@ -235,10 +239,12 @@ export function Domains() {
       key: 'actions', label: t('domains.actions'),
       render: (row: Domain) => (
         <div className="flex items-center gap-2">
-          <button onClick={() => setEditing(row)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+          <button onClick={() => setEditing(row)} disabled={!canManage}
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
             <Edit2 className="w-4 h-4" />
           </button>
-          <button onClick={() => setDeleting(row)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+          <button onClick={() => setDeleting(row)} disabled={!canManage}
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
@@ -253,8 +259,8 @@ export function Domains() {
           <h2 className="text-lg font-semibold text-gray-900">{t('domains.title')}</h2>
           <p className="text-sm text-gray-500">{t('domains.subtitle')}</p>
         </div>
-        <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+        <button onClick={() => setShowAdd(true)} disabled={!canManage}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
           <Plus className="w-4 h-4" /> {t('domains.addDomain')}
         </button>
       </div>
@@ -276,13 +282,13 @@ export function Domains() {
         <Table columns={columns} data={domains} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.noDomainsFound')} />
       </div>
 
-      {showAdd && (
+      {showAdd && canManage && (
         <Modal title={t('domains.addDomain')} onClose={() => setShowAdd(false)}>
           <AddDomainForm accounts={accounts} onClose={() => setShowAdd(false)} />
         </Modal>
       )}
 
-      {editing && (
+      {editing && canManage && (
         <Modal title={t('domains.editDomain')} onClose={() => setEditing(null)} size="sm">
           <form onSubmit={(e) => { e.preventDefault(); updateMutation.mutate({ id: editing.id, remark: (e.target as HTMLFormElement).remark.value }); }} className="space-y-4">
             <div>
@@ -304,7 +310,7 @@ export function Domains() {
         </Modal>
       )}
 
-      {deleting && (
+      {deleting && canManage && (
         <ConfirmDialog
           message={t('domains.deleteConfirm', { name: deleting.name })}
           onConfirm={() => deleteMutation.mutate(deleting.id)}

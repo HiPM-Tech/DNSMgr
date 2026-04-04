@@ -3,8 +3,10 @@ import bcrypt from 'bcryptjs';
 import { getDb } from '../db/database';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { User } from '../types';
+import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, normalizeRole } from '../utils/roles';
 
 const router = Router();
+const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 /**
  * @swagger
@@ -20,7 +22,7 @@ const router = Router();
  */
 router.get('/', authMiddleware, adminOnly, (_req: Request, res: Response) => {
   const db = getDb();
-  const users = db.prepare('SELECT id, username, nickname, email, role, status, created_at, updated_at FROM users ORDER BY id').all();
+  const users = db.prepare('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users ORDER BY id').all();
   res.json({ code: 0, data: users, msg: 'success' });
 });
 
@@ -50,26 +52,41 @@ router.get('/', authMiddleware, adminOnly, (_req: Request, res: Response) => {
  *                 type: string
  *               role:
  *                 type: string
- *                 enum: [admin, member]
+ *                 enum: [1, 2]
  *     responses:
  *       200:
  *         description: User created
  */
 router.post('/', authMiddleware, adminOnly, (req: Request, res: Response) => {
-  const { username, nickname, email = '', password, role = 'member' } = req.body as {
-    username: string; nickname?: string; email?: string; password: string; role?: string;
+  const { username, nickname, email = '', password, role = ROLE_USER } = req.body as {
+    username: string; nickname?: string; email?: string; password: string; role?: number;
   };
-  if (!username || !password) {
+  const normalizedUsername = (username ?? '').trim();
+  if (!normalizedUsername || !password) {
     res.json({ code: -1, msg: 'Username and password are required' });
+    return;
+  }
+  if (!USERNAME_PATTERN.test(normalizedUsername)) {
+    res.json({ code: -1, msg: 'Username must use letters, numbers, "_" or "-"' });
     return;
   }
   const db = getDb();
   const resolvedNickname = (nickname ?? '').trim() || username;
   const hash = bcrypt.hashSync(password, 10);
+  const callerRole = normalizeRole(req.user?.role);
+  let roleLevel = normalizeRole(role);
+  if (callerRole === ROLE_ADMIN) {
+    roleLevel = ROLE_USER;
+  }
+  if (roleLevel === ROLE_SUPER) {
+    res.json({ code: -1, msg: 'Super admin cannot be created' });
+    return;
+  }
+  const roleText = roleLevel >= ROLE_ADMIN ? 'admin' : 'member';
   try {
     const result = db.prepare(
-      'INSERT INTO users (username, nickname, email, password_hash, role) VALUES (?, ?, ?, ?, ?)'
-    ).run(username, resolvedNickname, email, hash, role);
+      'INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(normalizedUsername, resolvedNickname, email, hash, roleText, roleLevel);
     res.json({ code: 0, data: { id: result.lastInsertRowid }, msg: 'success' });
   } catch {
     res.json({ code: -1, msg: 'Username already exists' });
@@ -114,14 +131,24 @@ router.post('/', authMiddleware, adminOnly, (req: Request, res: Response) => {
 router.put('/:id', authMiddleware, adminOnly, (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as User | undefined;
+  const user = db.prepare('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?')
+    .get(id) as User | undefined;
   if (!user) {
     res.json({ code: -1, msg: 'User not found' });
     return;
   }
   const { nickname, email, role, status, password } = req.body as {
-    nickname?: string; email?: string; role?: string; status?: number; password?: string;
+    nickname?: string; email?: string; role?: number; status?: number; password?: string;
   };
+  const callerRole = normalizeRole(req.user?.role);
+  if (user.role === ROLE_SUPER) {
+    res.json({ code: -1, msg: 'Super admin cannot be modified' });
+    return;
+  }
+  if (callerRole === ROLE_ADMIN && user.role >= ROLE_ADMIN) {
+    res.json({ code: -1, msg: 'Permission denied' });
+    return;
+  }
   const updates: string[] = ["updated_at = datetime('now')"];
   const params: unknown[] = [];
   if (nickname !== undefined) {
@@ -130,7 +157,20 @@ router.put('/:id', authMiddleware, adminOnly, (req: Request, res: Response) => {
     params.push(resolvedNickname);
   }
   if (email !== undefined) { updates.push('email = ?'); params.push(email); }
-  if (role !== undefined) { updates.push('role = ?'); params.push(role); }
+  if (role !== undefined) {
+    let roleLevel = normalizeRole(role);
+    if (callerRole === ROLE_ADMIN) {
+      roleLevel = ROLE_USER;
+    }
+    if (roleLevel === ROLE_SUPER) {
+      res.json({ code: -1, msg: 'Super admin cannot be created' });
+      return;
+    }
+    updates.push('role_level = ?');
+    params.push(roleLevel);
+    updates.push('role = ?');
+    params.push(roleLevel >= ROLE_ADMIN ? 'admin' : 'member');
+  }
   if (status !== undefined) { updates.push('status = ?'); params.push(status); }
   if (password) { updates.push('password_hash = ?'); params.push(bcrypt.hashSync(password, 10)); }
   params.push(id);
@@ -163,6 +203,20 @@ router.delete('/:id', authMiddleware, adminOnly, (req: Request, res: Response) =
     return;
   }
   const db = getDb();
+  const target = db.prepare('SELECT id, role_level as role FROM users WHERE id = ?').get(id) as { id: number; role: number } | undefined;
+  if (!target) {
+    res.json({ code: -1, msg: 'User not found' });
+    return;
+  }
+  const callerRole = normalizeRole(req.user?.role);
+  if (target.role === ROLE_SUPER) {
+    res.json({ code: -1, msg: 'Super admin cannot be deleted' });
+    return;
+  }
+  if (callerRole === ROLE_ADMIN && target.role >= ROLE_ADMIN) {
+    res.json({ code: -1, msg: 'Permission denied' });
+    return;
+  }
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
   res.json({ code: 0, msg: 'success' });
 });

@@ -37,7 +37,7 @@ export interface User {
   username: string;
   nickname: string;
   email: string;
-  role: 'admin' | 'member';
+  role: 1 | 2 | 3;
   status: number;
   created_at: string;
   updated_at?: string;
@@ -77,6 +77,16 @@ export interface Domain {
   remark: string;
   record_count?: number;
   created_at: string;
+}
+
+export interface DomainPermission {
+  id: number;
+  user_id?: number | null;
+  team_id?: number | null;
+  domain_id: number;
+  sub: string;
+  permission: 'read' | 'write';
+  domain_name?: string;
 }
 
 export interface ProviderDomainOption {
@@ -202,9 +212,9 @@ export const recordsApi = {
 
 export const usersApi = {
   list: () => api.get<ApiResponse<User[]>>('/users'),
-  create: (data: { username: string; nickname?: string; email?: string; password: string; role?: string }) =>
+  create: (data: { username: string; nickname?: string; email?: string; password: string; role?: number }) =>
     api.post<ApiResponse<{ id: number }>>('/users', data),
-  update: (id: number, data: { nickname?: string; email?: string; role?: string; status?: number; password?: string }) =>
+  update: (id: number, data: { nickname?: string; email?: string; role?: number; status?: number; password?: string }) =>
     api.put<ApiResponse<null>>(`/users/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/users/${id}`),
 };
@@ -224,6 +234,18 @@ export const teamsApi = {
     api.post<ApiResponse<null>>(`/teams/${id}/members`, { userId, role }),
   removeMember: (id: number, userId: number) =>
     api.delete<ApiResponse<null>>(`/teams/${id}/members/${userId}`),
+  domainPermissions: (id: number) =>
+    api.get<ApiResponse<DomainPermission[]>>(`/teams/${id}/domain-permissions`),
+  addDomainPermission: (id: number, data: { domain_id: number; permission?: 'read' | 'write'; sub?: string }) =>
+    api.post<ApiResponse<{ id: number }>>(`/teams/${id}/domain-permissions`, data),
+  removeDomainPermission: (id: number, permId: number) =>
+    api.delete<ApiResponse<null>>(`/teams/${id}/domain-permissions/${permId}`),
+  memberDomainPermissions: (id: number, userId: number) =>
+    api.get<ApiResponse<DomainPermission[]>>(`/teams/${id}/members/${userId}/domain-permissions`),
+  addMemberDomainPermission: (id: number, userId: number, data: { domain_id: number; permission?: 'read' | 'write'; sub?: string }) =>
+    api.post<ApiResponse<{ id: number }>>(`/teams/${id}/members/${userId}/domain-permissions`, data),
+  removeMemberDomainPermission: (id: number, userId: number, permId: number) =>
+    api.delete<ApiResponse<null>>(`/teams/${id}/members/${userId}/domain-permissions/${permId}`),
 };
 
 // ─── Logs ─────────────────────────────────────────────────────────────────────
