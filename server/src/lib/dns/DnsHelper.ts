@@ -44,17 +44,8 @@ export interface ProviderInfo {
   isStub?: boolean;
 }
 
-const STUB_TYPES = new Set([
-  'huawei',
-  'huoshan',
-  'jdcloud',
-  'dnsla',
-  'qingcloud',
-  'namesilo',
-  'bt',
-  'spaceship',
-  'powerdns',
-]);
+// All providers now have implementations
+const STUB_TYPES = new Set<string>([]);
 
 const providers: ProviderInfo[] = [
   {
