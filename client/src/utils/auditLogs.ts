@@ -18,29 +18,26 @@ interface ParsedLogData {
   is_hidden?: number;
 }
 
-const actionLabels: Record<string, string> = {
-  add_record: '新增解析记录',
-  update_record: '修改解析记录',
-  delete_record: '删除解析记录',
-  set_record_status: '切换记录状态',
-  add_domain: '添加域名',
-  delete_domain: '删除域名',
-  update_domain: '修改域名',
-  sync_domains: '同步域名',
-  sync_add_domain: '同步添加域名',
+export type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
+
+const actionKeys: Record<string, string> = {
+  add_record: 'audit.actions.add_record',
+  update_record: 'audit.actions.update_record',
+  delete_record: 'audit.actions.delete_record',
+  set_record_status: 'audit.actions.set_record_status',
+  add_domain: 'audit.actions.add_domain',
+  delete_domain: 'audit.actions.delete_domain',
+  update_domain: 'audit.actions.update_domain',
+  sync_domains: 'audit.actions.sync_domains',
+  sync_add_domain: 'audit.actions.sync_add_domain',
 };
 
-export const AUDIT_ACTION_OPTIONS = [
-  { value: 'add_record', label: actionLabels.add_record },
-  { value: 'update_record', label: actionLabels.update_record },
-  { value: 'delete_record', label: actionLabels.delete_record },
-  { value: 'set_record_status', label: actionLabels.set_record_status },
-  { value: 'add_domain', label: actionLabels.add_domain },
-  { value: 'update_domain', label: actionLabels.update_domain },
-  { value: 'delete_domain', label: actionLabels.delete_domain },
-  { value: 'sync_domains', label: actionLabels.sync_domains },
-  { value: 'sync_add_domain', label: actionLabels.sync_add_domain },
-];
+export function getAuditActionOptions(t: TranslateFn) {
+  return Object.entries(actionKeys).map(([value, key]) => ({
+    value,
+    label: t(key),
+  }));
+}
 
 export function parseAuditData(log: LogEntry): ParsedLogData | null {
   if (!log.data) return null;
@@ -53,12 +50,14 @@ export function parseAuditData(log: LogEntry): ParsedLogData | null {
   }
 }
 
-export function getAuditActionLabel(log: LogEntry): string {
+export function getAuditActionLabel(log: LogEntry, t: TranslateFn): string {
   const parsed = parseAuditData(log);
   if (log.action === 'set_record_status') {
-    return parsed?.status === 1 ? '启用解析记录' : '停用解析记录';
+    return parsed?.status === 1
+      ? t('audit.actions.enable_record')
+      : t('audit.actions.disable_record');
   }
-  return actionLabels[log.action] ?? log.action;
+  return actionKeys[log.action] ? t(actionKeys[log.action]) : log.action;
 }
 
 export function getAuditActionVariant(log: LogEntry): 'green' | 'red' | 'yellow' | 'blue' | 'gray' {
@@ -73,51 +72,59 @@ export function getAuditActionVariant(log: LogEntry): 'green' | 'red' | 'yellow'
   return 'gray';
 }
 
-export function getAuditSummary(log: LogEntry): string {
+export function getAuditSummary(log: LogEntry, t: TranslateFn): string {
   const parsed = parseAuditData(log);
   const host = parsed?.name ? (parsed.name === '@' ? log.domain || '@' : `${parsed.name}.${log.domain || ''}`.replace(/\.$/, '')) : undefined;
+  const hostPart = host ? t('audit.parts.host', { host }) : '';
+  const valuePart = parsed?.value ? t('audit.parts.value', { value: parsed.value }) : '';
+  const recordIdPart = parsed?.recordId ? t('audit.parts.recordId', { id: String(parsed.recordId) }) : '';
+  const domainPart = log.domain ? t('audit.parts.domain', { name: log.domain }) : '';
+  const addedPart = parsed?.added !== undefined ? t('audit.parts.added', { count: parsed.added }) : '';
 
   switch (log.action) {
     case 'add_record':
-      return `新增 ${parsed?.type ?? 'DNS'} 记录${host ? `，主机 ${host}` : ''}${parsed?.value ? `，值 ${parsed.value}` : ''}`;
+      return t('audit.summary.addRecord', { type: parsed?.type ?? 'DNS', hostPart, valuePart });
     case 'update_record':
-      return `修改 ${parsed?.type ?? 'DNS'} 记录${host ? `，主机 ${host}` : ''}${parsed?.value ? `，值 ${parsed.value}` : ''}`;
+      return t('audit.summary.updateRecord', { type: parsed?.type ?? 'DNS', hostPart, valuePart });
     case 'delete_record':
-      return `删除解析记录${parsed?.recordId ? `，记录 ID ${parsed.recordId}` : ''}`;
+      return t('audit.summary.deleteRecord', { recordIdPart });
     case 'set_record_status':
-      return `${parsed?.status === 1 ? '启用' : '停用'}解析记录${parsed?.recordId ? `，记录 ID ${parsed.recordId}` : ''}`;
+      return t('audit.summary.setRecordStatus', {
+        status: parsed?.status === 1 ? t('audit.status.enabled') : t('audit.status.disabled'),
+        recordIdPart,
+      });
     case 'add_domain':
-      return `添加域名${log.domain ? `，${log.domain}` : ''}`;
+      return t('audit.summary.addDomain', { domainPart });
     case 'delete_domain':
-      return `删除域名${log.domain ? `，${log.domain}` : ''}`;
+      return t('audit.summary.deleteDomain', { domainPart });
     case 'update_domain':
-      return `修改域名${log.domain ? `，${log.domain}` : ''}`;
+      return t('audit.summary.updateDomain', { domainPart });
     case 'sync_domains':
-      return `同步域名${parsed?.added !== undefined ? `，新增 ${parsed.added}` : ''}`;
+      return t('audit.summary.syncDomains', { addedPart });
     case 'sync_add_domain':
-      return `同步添加域名${log.domain ? `，${log.domain}` : ''}`;
+      return t('audit.summary.syncAddDomain', { domainPart });
     default:
       return log.detail || log.target || log.domain || log.action;
   }
 }
 
-export function getAuditFields(log: LogEntry): AuditField[] {
+export function getAuditFields(log: LogEntry, t: TranslateFn): AuditField[] {
   const parsed = parseAuditData(log);
   const fields: AuditField[] = [];
   const displayName = log.nickname || log.username;
 
-  if (displayName) fields.push({ label: '操作人', value: displayName });
-  if (log.domain) fields.push({ label: '域名', value: log.domain });
-  if (parsed?.name) fields.push({ label: '主机记录', value: parsed.name });
-  if (parsed?.type) fields.push({ label: '类型', value: parsed.type });
-  if (parsed?.value) fields.push({ label: '记录值', value: parsed.value });
-  if (parsed?.recordId !== undefined) fields.push({ label: '记录 ID', value: String(parsed.recordId) });
-  if (parsed?.status !== undefined) fields.push({ label: '状态', value: parsed.status === 1 ? '启用' : '停用' });
-  if (parsed?.accountId !== undefined) fields.push({ label: '账号 ID', value: String(parsed.accountId) });
-  if (parsed?.domainId !== undefined) fields.push({ label: '域名 ID', value: String(parsed.domainId) });
-  if (parsed?.added !== undefined) fields.push({ label: '新增数量', value: String(parsed.added) });
-  if (parsed?.total !== undefined) fields.push({ label: '总数', value: String(parsed.total) });
-  if (parsed?.is_hidden !== undefined) fields.push({ label: '隐藏', value: parsed.is_hidden ? '是' : '否' });
+  if (displayName) fields.push({ label: t('audit.fields.operator'), value: displayName });
+  if (log.domain) fields.push({ label: t('audit.fields.domain'), value: log.domain });
+  if (parsed?.name) fields.push({ label: t('audit.fields.host'), value: parsed.name });
+  if (parsed?.type) fields.push({ label: t('audit.fields.type'), value: parsed.type });
+  if (parsed?.value) fields.push({ label: t('audit.fields.value'), value: parsed.value });
+  if (parsed?.recordId !== undefined) fields.push({ label: t('audit.fields.recordId'), value: String(parsed.recordId) });
+  if (parsed?.status !== undefined) fields.push({ label: t('audit.fields.status'), value: parsed.status === 1 ? t('audit.status.enabled') : t('audit.status.disabled') });
+  if (parsed?.accountId !== undefined) fields.push({ label: t('audit.fields.accountId'), value: String(parsed.accountId) });
+  if (parsed?.domainId !== undefined) fields.push({ label: t('audit.fields.domainId'), value: String(parsed.domainId) });
+  if (parsed?.added !== undefined) fields.push({ label: t('audit.fields.added'), value: String(parsed.added) });
+  if (parsed?.total !== undefined) fields.push({ label: t('audit.fields.total'), value: String(parsed.total) });
+  if (parsed?.is_hidden !== undefined) fields.push({ label: t('audit.fields.hidden'), value: parsed.is_hidden ? t('audit.status.yes') : t('audit.status.no') });
 
   return fields;
 }

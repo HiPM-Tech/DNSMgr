@@ -34,9 +34,19 @@ function getInitialLocale() {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored && stored in locales) return stored;
 
-  const browserLocale = navigator.language;
-  if (browserLocale in locales) return browserLocale;
-  if (browserLocale.toLowerCase().startsWith('zh')) return 'zh-CN';
+  const browserLocale = navigator.language.toLowerCase();
+  const localeKeys = Object.keys(locales);
+  const exactMatch = localeKeys.find((key) => key.toLowerCase() === browserLocale);
+  if (exactMatch) return exactMatch;
+
+  const baseLanguage = browserLocale.split('-')[0];
+  const baseMatch = localeKeys.find((key) => key.toLowerCase() === baseLanguage);
+  if (baseMatch) return baseMatch;
+
+  const prefixMatch = localeKeys.find((key) => key.toLowerCase().startsWith(`${baseLanguage}-`));
+  if (prefixMatch) return prefixMatch;
+
+  if (browserLocale.startsWith('zh')) return 'zh-CN';
   return defaultLocale;
 }
 

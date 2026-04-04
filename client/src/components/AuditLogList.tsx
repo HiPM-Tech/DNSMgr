@@ -1,5 +1,6 @@
 import type { LogEntry } from '../api';
 import { Badge } from './Badge';
+import { useI18n } from '../contexts/I18nContext';
 import {
   getAuditActionLabel,
   getAuditActionVariant,
@@ -13,18 +14,20 @@ interface AuditLogListProps {
 }
 
 export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
+  const { t } = useI18n();
+
   return (
     <div className="divide-y divide-gray-100">
       {logs.map((log) => {
         const displayName = log.nickname || log.username;
-        const fields = getAuditFields(log);
+        const fields = getAuditFields(log, t);
 
         if (compact) {
           return (
             <div key={log.id} className="px-6 py-3">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0 flex flex-wrap items-center gap-2">
-                  <Badge variant={getAuditActionVariant(log)}>{getAuditActionLabel(log)}</Badge>
+                  <Badge variant={getAuditActionVariant(log)}>{getAuditActionLabel(log, t)}</Badge>
                   {displayName && <span className="text-sm text-gray-700">{displayName}</span>}
                   {log.domain && <span className="truncate text-sm text-gray-500">{log.domain}</span>}
                 </div>
@@ -39,13 +42,13 @@ export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={getAuditActionVariant(log)}>{getAuditActionLabel(log)}</Badge>
+                  <Badge variant={getAuditActionVariant(log)}>{getAuditActionLabel(log, t)}</Badge>
                   {displayName && <Badge variant="blue">{displayName}</Badge>}
                   {log.domain && <Badge variant="gray">{log.domain}</Badge>}
                 </div>
 
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{getAuditSummary(log)}</p>
+                  <p className="text-sm font-medium text-gray-900">{getAuditSummary(log, t)}</p>
                   <p className="mt-1 text-xs text-gray-500">{new Date(log.created_at).toLocaleString()}</p>
                 </div>
 

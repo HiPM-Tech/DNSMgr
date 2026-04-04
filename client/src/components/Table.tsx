@@ -16,8 +16,9 @@ interface TableProps<T> {
   rowKey: (row: T) => string | number;
 }
 
-export function Table<T>({ columns, data, loading, emptyText = 'No data', rowKey }: TableProps<T>) {
+export function Table<T>({ columns, data, loading, emptyText, rowKey }: TableProps<T>) {
   const { t } = useI18n();
+  const resolvedEmptyText = emptyText ?? t('common.noData');
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -41,7 +42,7 @@ export function Table<T>({ columns, data, loading, emptyText = 'No data', rowKey
             </tr>
           ) : data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="py-12 text-center text-gray-400">{emptyText === 'No data' ? t('common.noData') : emptyText}</td>
+              <td colSpan={columns.length} className="py-12 text-center text-gray-400">{resolvedEmptyText}</td>
             </tr>
           ) : (
             data.map((row) => (
