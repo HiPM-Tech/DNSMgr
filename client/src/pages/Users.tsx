@@ -9,6 +9,7 @@ import { Badge } from '../components/Badge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
+import { Avatar } from '../components/Avatar';
 
 export function Users() {
   const { user: me } = useAuth();
@@ -63,9 +64,7 @@ export function Users() {
       key: 'username', label: 'Username',
       render: (u: User) => (
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-            {u.username[0].toUpperCase()}
-          </div>
+          <Avatar username={u.username} email={u.email} size={28} textClassName="text-xs" />
           <span className="font-medium text-gray-900">{u.username}</span>
           {u.id === me?.id && <Badge variant="blue">You</Badge>}
         </div>

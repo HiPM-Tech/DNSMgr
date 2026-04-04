@@ -85,6 +85,7 @@ export interface DnsRecord {
   line?: string;
   ttl?: number;
   mx?: number;
+  weight?: number;
   status: number;
   remark?: string | null;
   updated_at?: string | null;
@@ -155,8 +156,10 @@ export const domainsApi = {
   get: (id: number) => api.get<ApiResponse<Domain>>(`/domains/${id}`),
   listFromProvider: (accountId: number) =>
     api.get<ApiResponse<{ name: string; third_id: string }[]>>(`/domains/provider-list/${accountId}`),
-  create: (data: { name: string; account_id: number; third_id?: string; remark?: string }) =>
-    api.post<ApiResponse<{ id: number }>>('/domains', data),
+  create: (data:
+    { name: string; account_id: number; third_id?: string; remark?: string } |
+    { account_id: number; remark?: string; domains: { name: string; third_id?: string }[] }) =>
+    api.post<ApiResponse<{ id?: number; added?: number; skipped?: number; duplicates?: string[] }>>('/domains', data),
   update: (id: number, data: { remark?: string }) =>
     api.put<ApiResponse<null>>(`/domains/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/domains/${id}`),

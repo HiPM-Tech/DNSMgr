@@ -83,6 +83,24 @@ export function initSchema(): void {
     );
   `);
 
+  // Normalize historical duplicate domains before creating a unique index.
+  db.exec(`
+    DELETE FROM domains
+    WHERE id IN (
+      SELECT d1.id
+      FROM domains d1
+      JOIN domains d2
+        ON d1.account_id = d2.account_id
+       AND lower(trim(d1.name)) = lower(trim(d2.name))
+       AND d1.id > d2.id
+    );
+  `);
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_domains_account_name_unique
+    ON domains(account_id, name);
+  `);
+
   // Create default admin user if no users exist
   const count = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
   if (count === 0) {

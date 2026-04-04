@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft } from 'lucide-react';
+import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft, Info } from 'lucide-react';
 import { recordsApi, domainsApi } from '../api';
 import type { DnsRecord, DnsLine } from '../api';
 import { Table } from '../components/Table';
@@ -11,6 +11,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR', 'HTTPS'];
+const DOMAIN_VALUE_TYPES = new Set(['CNAME', 'MX', 'NS', 'PTR', 'HTTPS']);
 
 interface RecordFormProps {
   domainId: number;
@@ -20,53 +21,298 @@ interface RecordFormProps {
   isLoading: boolean;
 }
 
+interface SrvFields {
+  priority: number;
+  weight: number;
+  port: string;
+  target: string;
+}
+
+function isIPv4(value: string): boolean {
+  const parts = value.trim().split('.');
+  if (parts.length !== 4) return false;
+  return parts.every((part) => /^(0|[1-9]\d{0,2})$/.test(part) && Number(part) >= 0 && Number(part) <= 255);
+}
+
+function isIPv6(value: string): boolean {
+  const normalized = value.trim();
+  if (!normalized || !normalized.includes(':')) return false;
+  try {
+    return new URL(`http://[${normalized}]`).hostname === `[${normalized}]`;
+  } catch {
+    return false;
+  }
+}
+
+function isHostname(value: string): boolean {
+  const normalized = value.trim().replace(/\.$/, '');
+  if (!normalized || normalized.length > 253) return false;
+  const labels = normalized.split('.');
+  return labels.every((label) =>
+    label.length > 0 &&
+    label.length <= 63 &&
+    /^[a-zA-Z0-9-]+$/.test(label) &&
+    !label.startsWith('-') &&
+    !label.endsWith('-')
+  );
+}
+
+function isRecordHost(value: string): boolean {
+  const normalized = value.trim();
+  if (normalized === '@') return true;
+  return normalized.split('.').every((label) =>
+    label.length > 0 &&
+    /^[a-zA-Z0-9_-]+$/.test(label) &&
+    !label.startsWith('-') &&
+    !label.endsWith('-')
+  );
+}
+
+function parseSrvValue(initial?: DnsRecord): SrvFields {
+  const raw = (initial?.value ?? '').trim();
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2 && /^\d+$/.test(parts[0])) {
+    return {
+      priority: initial?.mx ?? 10,
+      weight: initial?.weight ?? 10,
+      port: parts[0],
+      target: parts.slice(1).join(' '),
+    };
+  }
+
+  return {
+    priority: initial?.mx ?? 10,
+    weight: initial?.weight ?? 10,
+    port: '',
+    target: raw,
+  };
+}
+
 function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
+  const toast = useToast();
   const [form, setForm] = useState<Partial<DnsRecord>>({
     name: initial?.name ?? '@',
     type: initial?.type ?? 'A',
     value: initial?.value ?? '',
     ttl: initial?.ttl ?? 600,
     mx: initial?.mx ?? 10,
+    weight: initial?.weight ?? 10,
     line: initial?.line ?? (lines[0]?.id ?? ''),
     remark: initial?.remark ?? '',
   });
+  const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
+  const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
 
-  const set = (k: keyof DnsRecord, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: keyof DnsRecord, v: unknown) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    setErrors((current) => ({ ...current, [k as keyof typeof current]: undefined }));
+  };
+
+  const currentType = form.type ?? 'A';
+  const isSrv = currentType === 'SRV';
+
+  const normalizedSrvValue = useMemo(() => {
+    const port = srv.port.trim();
+    const target = srv.target.trim();
+    if (!port || !target) return '';
+    return `${port} ${target}`;
+  }, [srv.port, srv.target]);
+
+  const validate = () => {
+    const nextErrors: typeof errors = {};
+    const name = (form.name ?? '').toString().trim();
+    const value = isSrv ? normalizedSrvValue : (form.value ?? '').toString().trim();
+    const ttl = Number(form.ttl ?? 0);
+
+    if (!name) nextErrors.name = 'Host name is required';
+    else if (!isRecordHost(name)) nextErrors.name = 'Only @, letters, numbers, _, -, and dots are allowed';
+
+    if (!value) nextErrors.value = 'Value is required';
+    else if (currentType === 'A' && !isIPv4(value)) nextErrors.value = 'A record must be a valid IPv4 address';
+    else if (currentType === 'AAAA' && !isIPv6(value)) nextErrors.value = 'AAAA record must be a valid IPv6 address';
+    else if (DOMAIN_VALUE_TYPES.has(currentType) && !isHostname(value)) nextErrors.value = `${currentType} record must be a valid hostname`;
+
+    if (!Number.isFinite(ttl) || ttl < 1) nextErrors.ttl = 'TTL must be at least 1';
+
+    if (currentType === 'MX' || currentType === 'SRV') {
+      const priority = Number(form.mx ?? 0);
+      if (!Number.isFinite(priority) || priority < 0) nextErrors.mx = 'Priority must be 0 or greater';
+    }
+
+    if (currentType === 'SRV') {
+      const weight = Number(form.weight ?? 0);
+      if (!Number.isFinite(weight) || weight < 0) nextErrors.weight = 'Weight must be 0 or greater';
+      if (!srv.port.trim()) nextErrors.srvPort = 'Port is required';
+      else if (!/^\d+$/.test(srv.port.trim()) || Number(srv.port.trim()) < 1 || Number(srv.port.trim()) > 65535) {
+        nextErrors.srvPort = 'Port must be between 1 and 65535';
+      }
+      if (!srv.target.trim()) nextErrors.srvTarget = 'Target is required';
+      else if (!isHostname(srv.target.trim())) nextErrors.srvTarget = 'Target must be a valid hostname';
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(form);
+    if (!validate()) {
+      toast.error('Please fix the highlighted fields before saving');
+      return;
+    }
+
+    const payload: Partial<DnsRecord> = {
+      ...form,
+      name: form.name?.toString().trim(),
+      value: isSrv ? normalizedSrvValue : form.value?.toString().trim(),
+      ttl: Number(form.ttl ?? 600),
+      mx: currentType === 'MX' || currentType === 'SRV' ? Number(form.mx ?? 0) : undefined,
+      weight: currentType === 'SRV' ? Number(form.weight ?? 0) : undefined,
+      remark: form.remark?.toString() ?? '',
+    };
+
+    onSubmit(payload);
   };
 
   const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const errorClass = 'border-red-300 focus:ring-red-500';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Host Name *</label>
-          <input required value={form.name ?? ''} onChange={(e) => set('name', e.target.value)} placeholder="@ or subdomain" className={inputClass} />
+          <input
+            required
+            value={form.name ?? ''}
+            onChange={(e) => set('name', e.target.value)}
+            placeholder="@ or subdomain"
+            className={`${inputClass} ${errors.name ? errorClass : ''}`}
+          />
+          {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Type *</label>
-          <select value={form.type ?? 'A'} onChange={(e) => set('type', e.target.value)} className={inputClass}>
+          <select
+            value={form.type ?? 'A'}
+            onChange={(e) => {
+              const nextType = e.target.value;
+              set('type', nextType);
+              if (nextType !== 'SRV') setErrors((current) => ({ ...current, srvPort: undefined, srvTarget: undefined, weight: undefined }));
+            }}
+            className={inputClass}
+          >
             {RECORD_TYPES.map((t) => <option key={t}>{t}</option>)}
           </select>
         </div>
       </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Value *</label>
-        <input required value={form.value ?? ''} onChange={(e) => set('value', e.target.value)} placeholder="Record value" className={inputClass} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
+
+      {isSrv ? (
+        <div className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+          <div className="flex items-start gap-2 text-xs text-blue-700">
+            <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <p>SRV records are split into priority, weight, port, and target for easier editing. The value sent to the API will be composed automatically.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Priority</label>
+              <input
+                type="number"
+                min={0}
+                value={form.mx ?? 10}
+                onChange={(e) => set('mx', Number(e.target.value))}
+                className={`${inputClass} ${errors.mx ? errorClass : ''}`}
+              />
+              {errors.mx && <p className="mt-1 text-xs text-red-600">{errors.mx}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Weight</label>
+              <input
+                type="number"
+                min={0}
+                value={form.weight ?? 10}
+                onChange={(e) => set('weight', Number(e.target.value))}
+                className={`${inputClass} ${errors.weight ? errorClass : ''}`}
+              />
+              {errors.weight && <p className="mt-1 text-xs text-red-600">{errors.weight}</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Port *</label>
+              <input
+                type="number"
+                min={1}
+                max={65535}
+                value={srv.port}
+                onChange={(e) => {
+                  setSrv((current) => ({ ...current, port: e.target.value }));
+                  setErrors((current) => ({ ...current, srvPort: undefined, value: undefined }));
+                }}
+                placeholder="443"
+                className={`${inputClass} ${errors.srvPort ? errorClass : ''}`}
+              />
+              {errors.srvPort && <p className="mt-1 text-xs text-red-600">{errors.srvPort}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Target *</label>
+              <input
+                value={srv.target}
+                onChange={(e) => {
+                  setSrv((current) => ({ ...current, target: e.target.value }));
+                  setErrors((current) => ({ ...current, srvTarget: undefined, value: undefined }));
+                }}
+                placeholder="service.example.com"
+                className={`${inputClass} ${errors.srvTarget ? errorClass : ''}`}
+              />
+              {errors.srvTarget && <p className="mt-1 text-xs text-red-600">{errors.srvTarget}</p>}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Preview</label>
+            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-xs text-gray-700">
+              {normalizedSrvValue || 'port target'}
+            </div>
+            {errors.value && <p className="mt-1 text-xs text-red-600">{errors.value}</p>}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Value *</label>
+          <input
+            required
+            value={form.value ?? ''}
+            onChange={(e) => set('value', e.target.value)}
+            placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : 'Record value'}
+            className={`${inputClass} ${errors.value ? errorClass : ''}`}
+          />
+          {errors.value && <p className="mt-1 text-xs text-red-600">{errors.value}</p>}
+        </div>
+      )}
+
+      <div className={`grid gap-4 ${currentType === 'MX' || currentType === 'SRV' || lines.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">TTL</label>
-          <input type="number" min={1} value={form.ttl ?? 600} onChange={(e) => set('ttl', Number(e.target.value))} className={inputClass} />
+          <input
+            type="number"
+            min={1}
+            value={form.ttl ?? 600}
+            onChange={(e) => set('ttl', Number(e.target.value))}
+            className={`${inputClass} ${errors.ttl ? errorClass : ''}`}
+          />
+          {errors.ttl && <p className="mt-1 text-xs text-red-600">{errors.ttl}</p>}
         </div>
-        {form.type === 'MX' && (
+        {currentType === 'MX' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">MX Priority</label>
-            <input type="number" min={0} value={form.mx ?? 10} onChange={(e) => set('mx', Number(e.target.value))} className={inputClass} />
+            <input
+              type="number"
+              min={0}
+              value={form.mx ?? 10}
+              onChange={(e) => set('mx', Number(e.target.value))}
+              className={`${inputClass} ${errors.mx ? errorClass : ''}`}
+            />
+            {errors.mx && <p className="mt-1 text-xs text-red-600">{errors.mx}</p>}
           </div>
         )}
         {lines.length > 0 && (
@@ -78,10 +324,19 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
           </div>
         )}
       </div>
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">Remark</label>
         <input value={form.remark ?? ''} onChange={(e) => set('remark', e.target.value)} placeholder="Optional remark" className={inputClass} />
       </div>
+
+      <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+        {currentType === 'A' && 'A records only accept IPv4 addresses.'}
+        {currentType === 'AAAA' && 'AAAA records only accept IPv6 addresses.'}
+        {DOMAIN_VALUE_TYPES.has(currentType) && `${currentType} records should point to a hostname instead of an IP.`}
+        {currentType === 'TXT' && 'TXT records accept plain text values.'}
+      </div>
+
       <div className="flex justify-end gap-3 pt-2">
         <button type="submit" disabled={isLoading}
           className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
@@ -187,9 +442,9 @@ export function Records() {
     },
     {
       key: 'line', label: 'Line',
-      render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.line ? (lineMap[r.line] ?? r.line) : '—'}</span>,
+      render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.line ? (lineMap[r.line] ?? r.line) : '-'}</span>,
     },
-    { key: 'ttl', label: 'TTL', render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.ttl ?? '—'}</span> },
+    { key: 'ttl', label: 'TTL', render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.ttl ?? '-'}</span> },
     {
       key: 'status', label: 'Status',
       render: (r: DnsRecord) => <Badge variant={r.status === 1 ? 'green' : 'red'}>{r.status === 1 ? 'Enabled' : 'Disabled'}</Badge>,
@@ -251,7 +506,7 @@ export function Records() {
       </div>
 
       {showAdd && (
-        <Modal title={`Add Record — ${domain?.name}`} onClose={() => setShowAdd(false)} size="lg">
+        <Modal title={`Add Record - ${domain?.name ?? ''}`} onClose={() => setShowAdd(false)} size="lg">
           <RecordForm domainId={domainId} lines={lines} onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
         </Modal>
       )}

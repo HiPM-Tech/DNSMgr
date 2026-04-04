@@ -1,0 +1,71 @@
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { defaultLocale, locales } from '../i18n';
+import type { TranslationTree } from '../i18n/types';
+
+const STORAGE_KEY = 'locale';
+
+interface I18nContextValue {
+  locale: string;
+  setLocale: (locale: string) => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}
+
+const I18nContext = createContext<I18nContextValue | null>(null);
+
+function resolveMessage(key: string, locale: string): string | undefined {
+  const segments = key.split('.');
+  let current: string | TranslationTree | undefined = locales[locale as keyof typeof locales]?.messages;
+
+  for (const segment of segments) {
+    if (!current || typeof current === 'string') return undefined;
+    current = current[segment];
+  }
+
+  return typeof current === 'string' ? current : undefined;
+}
+
+function interpolate(template: string, params?: Record<string, string | number>) {
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/g, (_, token) => String(params[token] ?? `{${token}}`));
+}
+
+function getInitialLocale() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored && stored in locales) return stored;
+
+  const browserLocale = navigator.language;
+  if (browserLocale in locales) return browserLocale;
+  if (browserLocale.toLowerCase().startsWith('zh')) return 'zh-CN';
+  return defaultLocale;
+}
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [locale, setLocaleState] = useState<string>(getInitialLocale);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, locale);
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  const value = useMemo<I18nContextValue>(() => ({
+    locale,
+    setLocale: (nextLocale: string) => {
+      if (nextLocale in locales) setLocaleState(nextLocale);
+    },
+    t: (key: string, params?: Record<string, string | number>) => {
+      const text = resolveMessage(key, locale)
+        ?? resolveMessage(key, 'en')
+        ?? key;
+      return interpolate(text, params);
+    },
+  }), [locale]);
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+}
+
+export function useI18n() {
+  const context = useContext(I18nContext);
+  if (!context) throw new Error('useI18n must be used within I18nProvider');
+  return context;
+}

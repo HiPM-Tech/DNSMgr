@@ -9,6 +9,7 @@ import { Badge } from '../components/Badge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
+import { Avatar } from '../components/Avatar';
 
 export function Teams() {
   const { user: me } = useAuth();
@@ -233,9 +234,7 @@ export function Teams() {
                 {members.map((m) => (
                   <div key={m.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        {m.username[0].toUpperCase()}
-                      </div>
+                      <Avatar username={m.username} email={m.email} size={32} textClassName="text-xs" />
                       <div>
                         <p className="text-sm font-medium text-gray-900">{m.username}</p>
                         <p className="text-xs text-gray-500">{m.email || 'No email'}</p>
@@ -273,9 +272,7 @@ export function Teams() {
                 <button key={u.id} onClick={() => addMemberMutation.mutate({ userId: u.id })}
                   disabled={addMemberMutation.isPending}
                   className="w-full flex items-center gap-2.5 p-2.5 hover:bg-blue-50 rounded-lg transition-colors text-left">
-                  <div className="w-7 h-7 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 text-xs font-bold">
-                    {u.username[0].toUpperCase()}
-                  </div>
+                  <Avatar username={u.username} email={u.email} size={28} className="bg-gray-200 text-gray-600" textClassName="text-xs" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">{u.username}</p>
                     <p className="text-xs text-gray-500">{u.email || 'No email'}</p>

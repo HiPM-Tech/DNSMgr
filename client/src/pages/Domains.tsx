@@ -8,6 +8,7 @@ import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
+import { useI18n } from '../contexts/I18nContext';
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -17,12 +18,13 @@ interface AddDomainFormProps {
 function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
   const qc = useQueryClient();
   const toast = useToast();
+  const { t } = useI18n();
   const [accountId, setAccountId] = useState<number>(accounts[0]?.id ?? 0);
   const [mode, setMode] = useState<'manual' | 'sync'>('manual');
   const [name, setName] = useState('');
   const [thirdId, setThirdId] = useState('');
   const [remark, setRemark] = useState('');
-  const [selectedProvider, setSelectedProvider] = useState<{ name: string; third_id: string } | null>(null);
+  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
 
   const { data: providerDomains = [], isFetching: loadingDomains } = useQuery({
     queryKey: ['provider-domains', accountId],
@@ -36,19 +38,40 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['domains'] });
       onClose();
-      toast.success('Domain added successfully');
+      toast.success(res.data.msg || t('domains.addDomainSuccess'));
     },
-    onError: () => toast.error('Failed to add domain'),
+    onError: () => toast.error(t('domains.addDomainFailed')),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mode === 'sync' && selectedProvider) {
-      createMutation.mutate({ name: selectedProvider.name, account_id: accountId, third_id: selectedProvider.third_id, remark });
+    if (mode === 'sync') {
+      const domains = providerDomains.filter((d) => selectedProviders.includes(d.third_id));
+      if (domains.length === 0) return;
+      createMutation.mutate({ account_id: accountId, domains, remark });
     } else {
-      if (!name) return;
-      createMutation.mutate({ name, account_id: accountId, third_id: thirdId || undefined, remark });
+      const normalizedName = name.trim().toLowerCase();
+      if (!normalizedName) return;
+      createMutation.mutate({ name: normalizedName, account_id: accountId, third_id: thirdId || undefined, remark });
     }
+  };
+
+  const toggleProvider = (thirdIdValue: string) => {
+    setSelectedProviders((current) => (
+      current.includes(thirdIdValue)
+        ? current.filter((id) => id !== thirdIdValue)
+        : [...current, thirdIdValue]
+    ));
+  };
+
+  const handleSelectAll = () => {
+    setSelectedProviders(providerDomains.map((d) => d.third_id));
+  };
+
+  const handleInvertSelection = () => {
+    setSelectedProviders(providerDomains
+      .filter((d) => !selectedProviders.includes(d.third_id))
+      .map((d) => d.third_id));
   };
 
   const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
@@ -56,21 +79,21 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">DNS Account *</label>
-        <select value={accountId} onChange={(e) => { setAccountId(Number(e.target.value)); setSelectedProvider(null); }} className={inputClass}>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.dnsAccount')}</label>
+        <select value={accountId} onChange={(e) => { setAccountId(Number(e.target.value)); setSelectedProviders([]); }} className={inputClass}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Add Method</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.addMethod')}</label>
         <div className="flex rounded-lg border border-gray-300 overflow-hidden">
           <button type="button" onClick={() => setMode('manual')}
             className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-            Manual
+            {t('domains.manual')}
           </button>
           <button type="button" onClick={() => setMode('sync')}
             className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'sync' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-            Sync from Provider
+            {t('domains.syncFromProvider')}
           </button>
         </div>
       </div>
@@ -78,27 +101,41 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
       {mode === 'manual' ? (
         <>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Domain Name *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.domainName')}</label>
             <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="example.com" className={inputClass} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Provider Domain ID</label>
-            <input value={thirdId} onChange={(e) => setThirdId(e.target.value)} placeholder="Optional third-party ID" className={inputClass} />
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.providerDomainId')}</label>
+            <input value={thirdId} onChange={(e) => setThirdId(e.target.value)} placeholder={t('domains.providerDomainIdPlaceholder')} className={inputClass} />
           </div>
         </>
       ) : (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Select Domain</label>
+          <div className="flex items-center justify-between gap-3 mb-1.5">
+            <label className="block text-sm font-medium text-gray-700">{t('domains.selectDomains')}</label>
+            {providerDomains.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleSelectAll}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700">
+                  {t('common.selectAll')}
+                </button>
+                <button type="button" onClick={handleInvertSelection}
+                  className="text-xs font-medium text-gray-600 hover:text-gray-800">
+                  {t('common.invert')}
+                </button>
+              </div>
+            )}
+          </div>
           {loadingDomains ? (
             <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
           ) : providerDomains.length === 0 ? (
-            <p className="text-sm text-gray-400 py-2">No domains found from provider</p>
+            <p className="text-sm text-gray-400 py-2">{t('domains.noProviderDomains')}</p>
           ) : (
             <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
               {providerDomains.map((d) => (
                 <label key={d.third_id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
-                  <input type="radio" name="provider-domain" checked={selectedProvider?.third_id === d.third_id}
-                    onChange={() => setSelectedProvider(d)} className="text-blue-600" />
+                  <input type="checkbox" checked={selectedProviders.includes(d.third_id)}
+                    onChange={() => toggleProvider(d.third_id)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                   <span className="text-sm">{d.name}</span>
                   <span className="text-xs text-gray-400 ml-auto">{d.third_id}</span>
                 </label>
@@ -108,14 +145,14 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
         </div>
       )}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Remark</label>
-        <input value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="Optional remark" className={inputClass} />
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.remark')}</label>
+        <input value={remark} onChange={(e) => setRemark(e.target.value)} placeholder={t('common.optionalRemark')} className={inputClass} />
       </div>
       <div className="flex justify-end gap-3 pt-2">
-        <button type="submit" disabled={createMutation.isPending || (mode === 'sync' && !selectedProvider)}
+        <button type="submit" disabled={createMutation.isPending || (mode === 'sync' && selectedProviders.length === 0)}
           className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
           {createMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-          Add Domain
+          {mode === 'sync' && selectedProviders.length > 1 ? t('domains.addDomains', { count: selectedProviders.length }) : t('domains.addDomain')}
         </button>
       </div>
     </form>
@@ -125,6 +162,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
 export function Domains() {
   const qc = useQueryClient();
   const toast = useToast();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
@@ -151,9 +189,9 @@ export function Domains() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['domains'] });
       setEditing(null);
-      toast.success('Domain updated');
+      toast.success(t('domains.updateSuccess'));
     },
-    onError: () => toast.error('Failed to update domain'),
+    onError: () => toast.error(t('domains.updateFailed')),
   });
 
   const deleteMutation = useMutation({
@@ -162,16 +200,16 @@ export function Domains() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['domains'] });
       setDeleting(null);
-      toast.success('Domain deleted');
+      toast.success(t('domains.deleteSuccess'));
     },
-    onError: () => toast.error('Failed to delete domain'),
+    onError: () => toast.error(t('domains.deleteFailed')),
   });
 
   const accountMap = Object.fromEntries(accounts.map((a) => [a.id, a]));
 
   const columns = [
     {
-      key: 'name', label: 'Domain Name',
+      key: 'name', label: t('domains.domainName'),
       render: (row: Domain) => (
         <button onClick={() => navigate(`/domains/${row.id}/records`)}
           className="flex items-center gap-1.5 font-medium text-blue-600 hover:text-blue-800 transition-colors">
@@ -181,20 +219,20 @@ export function Domains() {
       ),
     },
     {
-      key: 'account_id', label: 'Account',
+      key: 'account_id', label: t('domains.account'),
       render: (row: Domain) => <span className="text-gray-700">{accountMap[row.account_id]?.name ?? `#${row.account_id}`}</span>,
     },
     {
-      key: 'record_count', label: 'Records',
+      key: 'record_count', label: t('domains.records'),
       render: (row: Domain) => (
         <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
           {row.record_count ?? 0}
         </span>
       ),
     },
-    { key: 'remark', label: 'Remark', render: (row: Domain) => <span className="text-gray-500">{row.remark || '—'}</span> },
+    { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="text-gray-500">{row.remark || t('domains.emptyRemark')}</span> },
     {
-      key: 'actions', label: 'Actions',
+      key: 'actions', label: t('domains.actions'),
       render: (row: Domain) => (
         <div className="flex items-center gap-2">
           <button onClick={() => setEditing(row)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
@@ -212,12 +250,12 @@ export function Domains() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Domains</h2>
-          <p className="text-sm text-gray-500">Manage DNS zones across all providers</p>
+          <h2 className="text-lg font-semibold text-gray-900">{t('domains.title')}</h2>
+          <p className="text-sm text-gray-500">{t('domains.subtitle')}</p>
         </div>
         <button onClick={() => setShowAdd(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-          <Plus className="w-4 h-4" /> Add Domain
+          <Plus className="w-4 h-4" /> {t('domains.addDomain')}
         </button>
       </div>
 
@@ -225,41 +263,41 @@ export function Domains() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)}
-            placeholder="Search domains..." className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56" />
+            placeholder={t('domains.searchPlaceholder')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56" />
         </div>
         <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          <option value="">All Accounts</option>
+          <option value="">{t('domains.allAccounts')}</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">
-        <Table columns={columns} data={domains} loading={isLoading} rowKey={(r) => r.id} emptyText="No domains found." />
+        <Table columns={columns} data={domains} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.noDomainsFound')} />
       </div>
 
       {showAdd && (
-        <Modal title="Add Domain" onClose={() => setShowAdd(false)}>
+        <Modal title={t('domains.addDomain')} onClose={() => setShowAdd(false)}>
           <AddDomainForm accounts={accounts} onClose={() => setShowAdd(false)} />
         </Modal>
       )}
 
       {editing && (
-        <Modal title="Edit Domain" onClose={() => setEditing(null)} size="sm">
+        <Modal title={t('domains.editDomain')} onClose={() => setEditing(null)} size="sm">
           <form onSubmit={(e) => { e.preventDefault(); updateMutation.mutate({ id: editing.id, remark: (e.target as HTMLFormElement).remark.value }); }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Domain</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.domain')}</label>
               <p className="text-sm font-semibold text-gray-900">{editing.name}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Remark</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.remark')}</label>
               <input name="remark" defaultValue={editing.remark}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button type="submit" disabled={updateMutation.isPending}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
-                Save
+                {t('common.save')}
               </button>
             </div>
           </form>
@@ -268,7 +306,7 @@ export function Domains() {
 
       {deleting && (
         <ConfirmDialog
-          message={`Delete domain "${deleting.name}"? All associated records will be removed.`}
+          message={t('domains.deleteConfirm', { name: deleting.name })}
           onConfirm={() => deleteMutation.mutate(deleting.id)}
           onCancel={() => setDeleting(null)}
           isLoading={deleteMutation.isPending}

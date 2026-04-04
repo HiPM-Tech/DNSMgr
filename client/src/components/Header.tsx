@@ -1,29 +1,30 @@
 import { useLocation, Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
-
-const breadcrumbMap: Record<string, string> = {
-  '': 'Dashboard',
-  accounts: 'DNS Accounts',
-  domains: 'Domains',
-  records: 'Records',
-  users: 'Users',
-  teams: 'Teams',
-  settings: 'Settings',
-};
+import { useI18n } from '../contexts/I18nContext';
 
 export function Header() {
+  const { t } = useI18n();
   const location = useLocation();
   const segments = location.pathname.split('/').filter(Boolean);
+  const breadcrumbMap: Record<string, string> = {
+    '': t('common.dashboard'),
+    accounts: t('common.dnsAccounts'),
+    domains: t('common.domains'),
+    records: t('common.records'),
+    users: t('common.users'),
+    teams: t('common.teams'),
+    settings: t('common.settings'),
+  };
 
   const crumbs = [
-    { label: 'Dashboard', to: '/' },
+    { label: t('common.dashboard'), to: '/' },
     ...segments.map((seg, idx) => ({
       label: breadcrumbMap[seg] ?? seg,
       to: '/' + segments.slice(0, idx + 1).join('/'),
     })),
   ];
 
-  const pageTitle = crumbs[crumbs.length - 1]?.label ?? 'Dashboard';
+  const pageTitle = crumbs[crumbs.length - 1]?.label ?? t('common.dashboard');
 
   return (
     <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 gap-4">

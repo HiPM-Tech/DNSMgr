@@ -3,20 +3,23 @@ import {
   LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { Avatar } from './Avatar';
+import { useI18n } from '../contexts/I18nContext';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/accounts', icon: Server, label: 'DNS Accounts' },
-  { to: '/domains', icon: Globe, label: 'Domains' },
-  { to: '/teams', icon: Users, label: 'Teams' },
+  { to: '/', icon: LayoutDashboard, key: 'common.dashboard' },
+  { to: '/accounts', icon: Server, key: 'common.dnsAccounts' },
+  { to: '/domains', icon: Globe, key: 'common.domains' },
+  { to: '/teams', icon: Users, key: 'common.teams' },
 ];
 
 const adminItems = [
-  { to: '/users', icon: UserCog, label: 'User Management' },
+  { to: '/users', icon: UserCog, key: 'common.users' },
 ];
 
 export function Sidebar() {
   const { user, logout, isAdmin } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -39,7 +42,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         <div className="space-y-0.5">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {navItems.map(({ to, icon: Icon, key }) => (
             <NavLink
               key={to}
               to={to}
@@ -53,16 +56,16 @@ export function Sidebar() {
               }
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
-              {label}
+              {t(key)}
             </NavLink>
           ))}
 
           {isAdmin && (
             <>
               <div className="pt-3 pb-1 px-3">
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Admin</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">{t('common.admin')}</span>
               </div>
-              {adminItems.map(({ to, icon: Icon, label }) => (
+              {adminItems.map(({ to, icon: Icon, key }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -75,14 +78,14 @@ export function Sidebar() {
                   }
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
-                  {label}
+                  {t(key)}
                 </NavLink>
               ))}
             </>
           )}
 
           <div className="pt-3 pb-1 px-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Account</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">{t('common.account')}</span>
           </div>
           <NavLink
             to="/settings"
@@ -95,7 +98,7 @@ export function Sidebar() {
             }
           >
             <Settings className="w-4 h-4 flex-shrink-0" />
-            Settings
+            {t('common.settings')}
           </NavLink>
         </div>
       </nav>
@@ -103,14 +106,12 @@ export function Sidebar() {
       {/* User Footer */}
       <div className="px-3 py-3 border-t border-gray-100">
         <div className="flex items-center gap-2 px-2 py-2">
-          <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-            {user?.username?.[0]?.toUpperCase()}
-          </div>
+          <Avatar username={user?.username} email={user?.email} size={28} textClassName="text-xs" />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-gray-900 truncate">{user?.username}</p>
             <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
           </div>
-          <button onClick={handleLogout} title="Logout"
+          <button onClick={handleLogout} title={t('common.logout')}
             className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded">
             <LogOut className="w-4 h-4" />
           </button>

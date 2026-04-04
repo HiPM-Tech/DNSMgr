@@ -3,6 +3,7 @@ import { Globe, Server, Users, Activity, Clock } from 'lucide-react';
 import { accountsApi, domainsApi, usersApi, logsApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { Badge } from '../components/Badge';
+import { useI18n } from '../contexts/I18nContext';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: number | string; color: string }) {
   return (
@@ -20,6 +21,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 
 export function Dashboard() {
   const { isAdmin } = useAuth();
+  const { t } = useI18n();
 
   const { data: accounts } = useQuery({
     queryKey: ['accounts'],
@@ -47,23 +49,23 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard icon={Globe} label="Total Domains" value={domains?.length ?? 0} color="bg-blue-600" />
-        <StatCard icon={Activity} label="Total Records" value={totalRecords} color="bg-indigo-600" />
-        <StatCard icon={Server} label="DNS Accounts" value={accounts?.length ?? 0} color="bg-violet-600" />
-        {isAdmin && <StatCard icon={Users} label="Active Users" value={users?.filter((u) => u.status !== 0).length ?? 0} color="bg-emerald-600" />}
+        <StatCard icon={Globe} label={t('dashboard.totalDomains')} value={domains?.length ?? 0} color="bg-blue-600" />
+        <StatCard icon={Activity} label={t('dashboard.totalRecords')} value={totalRecords} color="bg-indigo-600" />
+        <StatCard icon={Server} label={t('dashboard.dnsAccounts')} value={accounts?.length ?? 0} color="bg-violet-600" />
+        {isAdmin && <StatCard icon={Users} label={t('dashboard.activeUsers')} value={users?.filter((u) => u.status !== 0).length ?? 0} color="bg-emerald-600" />}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-100">
           <Clock className="w-4 h-4 text-gray-400" />
-          <h2 className="font-semibold text-gray-900">Recent Operations</h2>
+          <h2 className="font-semibold text-gray-900">{t('dashboard.recentOperations')}</h2>
         </div>
         {logsLoading ? (
           <div className="flex justify-center py-10">
             <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : !logs || logs.length === 0 ? (
-          <p className="text-center text-gray-400 py-10 text-sm">No recent activity</p>
+          <p className="text-center text-gray-400 py-10 text-sm">{t('dashboard.noRecentActivity')}</p>
         ) : (
           <div className="divide-y divide-gray-50">
             {logs.map((log) => (

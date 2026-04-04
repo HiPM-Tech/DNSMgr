@@ -6,6 +6,10 @@ import { DnsAccount, Domain } from '../types';
 
 const router = Router();
 
+function normalizeDomainName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
 function getAccountForUser(accountId: number, userId: number, role: string): DnsAccount | null {
   const db = getDb();
   const account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(accountId) as DnsAccount | undefined;
@@ -119,11 +123,21 @@ router.get('/', authMiddleware, (req: Request, res: Response) => {
  *         description: Domain added
  */
 router.post('/', authMiddleware, async (req: Request, res: Response) => {
-  const { account_id, name, third_id = '', remark = '' } = req.body as {
-    account_id: number; name: string; third_id?: string; remark?: string;
+  const {
+    account_id,
+    name,
+    third_id = '',
+    remark = '',
+    domains,
+  } = req.body as {
+    account_id: number;
+    name?: string;
+    third_id?: string;
+    remark?: string;
+    domains?: Array<{ name: string; third_id?: string }>;
   };
-  if (!account_id || !name) {
-    res.json({ code: -1, msg: 'account_id and name are required' });
+  if (!account_id || (!name && (!domains || domains.length === 0))) {
+    res.json({ code: -1, msg: 'account_id and domain name are required' });
     return;
   }
   const account = getAccountForUser(account_id, req.user!.userId, req.user!.role);
@@ -132,10 +146,68 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     return;
   }
   const db = getDb();
-  const result = db.prepare(
+  const items = (domains && domains.length > 0)
+    ? domains
+    : [{ name: name!, third_id }];
+
+  const normalizedMap = new Map<string, { name: string; third_id?: string }>();
+  for (const item of items) {
+    const normalizedName = normalizeDomainName(item.name);
+    if (!normalizedName) continue;
+    normalizedMap.set(normalizedName, { name: normalizedName, third_id: item.third_id?.trim() || '' });
+  }
+
+  if (normalizedMap.size === 0) {
+    res.json({ code: -1, msg: 'No valid domain names provided' });
+    return;
+  }
+
+  const insertStmt = db.prepare(
     'INSERT INTO domains (account_id, name, third_id, remark) VALUES (?, ?, ?, ?)'
-  ).run(account_id, name, third_id, remark);
-  res.json({ code: 0, data: { id: result.lastInsertRowid }, msg: 'success' });
+  );
+  const existingStmt = db.prepare('SELECT id FROM domains WHERE account_id = ? AND name = ?');
+
+  let added = 0;
+  let firstId: number | null = null;
+  const duplicates: string[] = [];
+
+  const tx = db.transaction(() => {
+    for (const item of normalizedMap.values()) {
+      const existing = existingStmt.get(account_id, item.name);
+      if (existing) {
+        duplicates.push(item.name);
+        continue;
+      }
+      const result = insertStmt.run(account_id, item.name, item.third_id || '', remark);
+      if (firstId === null) firstId = Number(result.lastInsertRowid);
+      added++;
+    }
+  });
+
+  try {
+    tx();
+  } catch (error) {
+    if (error instanceof Error && error.message.toLowerCase().includes('unique')) {
+      res.json({ code: -1, msg: 'Domain already exists in this account' });
+      return;
+    }
+    throw error;
+  }
+
+  if (added === 0) {
+    res.json({
+      code: -1,
+      msg: duplicates.length > 0 ? `Domain already exists: ${duplicates.join(', ')}` : 'No domain added',
+    });
+    return;
+  }
+
+  const duplicateMsg = duplicates.length > 0 ? `, skipped ${duplicates.length} duplicate(s)` : '';
+  res.json({
+    code: 0,
+    data: { id: firstId, added, skipped: duplicates.length, duplicates },
+    msg: added > 1 ? `Added ${added} domains${duplicateMsg}` : `Domain added successfully${duplicateMsg}`,
+  });
 });
 
 /**
@@ -178,15 +250,16 @@ router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
     const db = getDb();
     let added = 0;
     for (const d of result.list) {
-      const existing = db.prepare('SELECT id FROM domains WHERE account_id = ? AND name = ?').get(account_id, d.Domain);
+      const normalizedName = normalizeDomainName(d.Domain);
+      const existing = db.prepare('SELECT id FROM domains WHERE account_id = ? AND name = ?').get(account_id, normalizedName);
       if (!existing) {
         db.prepare('INSERT INTO domains (account_id, name, third_id, record_count) VALUES (?, ?, ?, ?)').run(
-          account_id, d.Domain, d.ThirdId, d.RecordCount ?? 0
+          account_id, normalizedName, d.ThirdId, d.RecordCount ?? 0
         );
         added++;
       } else {
         db.prepare('UPDATE domains SET third_id = ?, record_count = ? WHERE account_id = ? AND name = ?').run(
-          d.ThirdId, d.RecordCount ?? 0, account_id, d.Domain
+          d.ThirdId, d.RecordCount ?? 0, account_id, normalizedName
         );
       }
     }
