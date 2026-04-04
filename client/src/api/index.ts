@@ -256,3 +256,15 @@ export const logsApi = {
   list: (params?: { pageSize?: number; page?: number; domain?: string; userId?: number; action?: string; startDate?: string; endDate?: string }) =>
     api.get<ApiResponse<{ total: number; list: LogEntry[] }>>('/logs', { params }),
 };
+
+// ─── Initialization ───────────────────────────────────────────────────────────
+
+export const initApi = {
+  status: () => api.get<ApiResponse<{ initialized: boolean; dbInitialized: boolean; hasUsers: boolean }>>('/init/status'),
+  testDb: (data: { type: 'sqlite' | 'mysql' | 'postgresql'; sqlite?: { path: string }; mysql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean }; postgresql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean } }) =>
+    api.post<ApiResponse<{ success: boolean; message: string }>>('/init/test-db', data),
+  initDatabase: (data: { type: 'sqlite' | 'mysql' | 'postgresql'; sqlite?: { path: string }; mysql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean }; postgresql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean } }) =>
+    api.post<ApiResponse<{ success: boolean }>>('/init/database', data),
+  createAdmin: (data: { username: string; email: string; password: string }) =>
+    api.post<ApiResponse<{ success: boolean }>>('/init/admin', data),
+};

@@ -134,24 +134,8 @@ export function initSchema(): void {
     ON domain_permissions(domain_id, user_id, team_id, sub);
   `);
 
-  // Create default admin user if no users exist
-  const count = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
-  if (count === 0) {
-    const hash = bcrypt.hashSync('admin123', 10);
-    db.prepare(
-      `INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)`
-    ).run('admin', 'admin', 'admin@localhost', hash, 'admin', 3);
-    console.log('[DB] Default super admin user created (admin / admin123)');
-  }
-
-  const superCount = (db.prepare('SELECT COUNT(*) as cnt FROM users WHERE role_level = 3').get() as { cnt: number }).cnt;
-  if (superCount === 0) {
-    const adminCandidate = db.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1").get() as { id: number } | undefined;
-    const fallback = adminCandidate ?? (db.prepare('SELECT id FROM users ORDER BY id LIMIT 1').get() as { id: number } | undefined);
-    if (fallback?.id) {
-      db.prepare('UPDATE users SET role_level = 3 WHERE id = ?').run(fallback.id);
-    }
-  }
+  // Note: Default admin user creation is now handled via initialization wizard
+  // The init API routes in /routes/init.ts handle admin user creation
 
   // Rotate runtime secrets on each startup to invalidate prior temporary keys.
   const jwtRuntimeSecret = crypto.randomBytes(32).toString('hex');

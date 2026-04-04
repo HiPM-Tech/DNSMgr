@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
+import { initApi } from '../api';
 
 export function Login() {
   const { login } = useAuth();
@@ -13,6 +14,23 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    // Check if system needs initialization
+    initApi.status()
+      .then((res) => {
+        if (!res.data.data.initialized) {
+          navigate('/setup');
+        }
+      })
+      .catch(() => {
+        // If we can't check status, continue to login
+      })
+      .finally(() => {
+        setChecking(false);
+      });
+  }, [navigate]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -28,6 +46,17 @@ export function Login() {
       setLoading(false);
     }
   };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-gray-600">{t('common.loading')}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex items-center justify-center p-4">

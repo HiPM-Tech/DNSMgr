@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute, AdminRoute } from './ProtectedRoute';
 import { Login } from './pages/Login';
+import { Setup } from './pages/Setup';
 import { Dashboard } from './pages/Dashboard';
 import { Audit } from './pages/Audit';
 import { Accounts } from './pages/Accounts';
@@ -25,6 +26,7 @@ function App() {
         <AuthProvider>
           <BrowserRouter>
             <Routes>
+              <Route path="/setup" element={<Setup />} />
               <Route path="/login" element={<Login />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
