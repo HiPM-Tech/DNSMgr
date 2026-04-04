@@ -80,12 +80,26 @@ app.use('/api/domains/:domainId/records', recordsRouter);
  *         name: userId
  *         schema:
  *           type: integer
+ *       - in: query
+ *         name: action
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           example: 2026-04-01
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           example: 2026-04-04
  *     responses:
  *       200:
  *         description: Operation logs
  */
 app.get('/api/logs', authMiddleware, adminOnly, (req: Request, res: Response) => {
-  const { page = '1', pageSize = '50', domain, userId } = req.query as Record<string, string>;
+  const { page = '1', pageSize = '50', domain, userId, action, startDate, endDate } = req.query as Record<string, string>;
   const pageNum = parseInt(page);
   const size = parseInt(pageSize);
   const offset = (pageNum - 1) * size;
@@ -94,6 +108,9 @@ app.get('/api/logs', authMiddleware, adminOnly, (req: Request, res: Response) =>
   const params: unknown[] = [];
   if (domain) { conditions.push('l.domain LIKE ?'); params.push(`%${domain}%`); }
   if (userId) { conditions.push('l.user_id = ?'); params.push(parseInt(userId)); }
+  if (action) { conditions.push('l.action = ?'); params.push(action); }
+  if (startDate) { conditions.push("date(l.created_at) >= date(?)"); params.push(startDate); }
+  if (endDate) { conditions.push("date(l.created_at) <= date(?)"); params.push(endDate); }
   const where = conditions.join(' AND ');
   const total = (db.prepare(`SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`).get(...params) as { cnt: number }).cnt;
   const list = db.prepare(
