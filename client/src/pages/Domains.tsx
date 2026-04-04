@@ -22,7 +22,8 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
   const [name, setName] = useState('');
   const [thirdId, setThirdId] = useState('');
   const [remark, setRemark] = useState('');
-  const [selectedProvider, setSelectedProvider] = useState<{ name: string; third_id: string } | null>(null);
+  const [selectedProviders, setSelectedProviders] = useState<Array<{ name: string; third_id: string }>>([]);
+  const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
 
   const { data: providerDomains = [], isFetching: loadingDomains } = useQuery({
     queryKey: ['provider-domains', accountId],
@@ -41,11 +42,71 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
     onError: () => toast.error('Failed to add domain'),
   });
 
+  const toggleProvider = (provider: { name: string; third_id: string }) => {
+    setSelectedProviders((prev) => {
+      const exists = prev.some((p) => p.name === provider.name && p.third_id === provider.third_id);
+      if (exists) {
+        return prev.filter((p) => !(p.name === provider.name && p.third_id === provider.third_id));
+      }
+      return [...prev, provider];
+    });
+  };
+
+  const selectAllProviders = () => {
+    if (providerDomains.length === 0) return;
+    setSelectedProviders(providerDomains.map((d) => ({ name: d.name, third_id: d.third_id })));
+  };
+
+  const invertProviderSelection = () => {
+    if (providerDomains.length === 0) return;
+    setSelectedProviders(
+      providerDomains.filter(
+        (d) => !selectedProviders.some((p) => p.name === d.name && p.third_id === d.third_id)
+      )
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mode === 'sync' && selectedProvider) {
-      createMutation.mutate({ name: selectedProvider.name, account_id: accountId, third_id: selectedProvider.third_id, remark });
-    } else {
+    if (mode === 'sync') {
+      if (selectedProviders.length === 0 || isBatchSubmitting) return;
+      setIsBatchSubmitting(true);
+      Promise.allSettled(
+        selectedProviders.map((d) =>
+          domainsApi.create({ name: d.name, account_id: accountId, third_id: d.third_id, remark })
+        )
+      )
+        .then((results) => {
+          let success = 0;
+          let duplicate = 0;
+          let failed = 0;
+          for (const result of results) {
+            if (result.status === 'fulfilled') {
+              if (result.value.data.code === 0) {
+                success++;
+              } else if ((result.value.data.msg ?? '').toLowerCase().includes('already exists')) {
+                duplicate++;
+              } else {
+                failed++;
+              }
+            } else {
+              failed++;
+            }
+          }
+          qc.invalidateQueries({ queryKey: ['domains'] });
+          if (failed === 0 && duplicate === 0) {
+            toast.success(`Added ${success} domain(s)`);
+            onClose();
+            return;
+          }
+          toast.error(`Added ${success}, duplicate ${duplicate}, failed ${failed}`);
+          if (success > 0) onClose();
+        })
+        .finally(() => setIsBatchSubmitting(false));
+      return;
+    }
+
+    {
       if (!name) return;
       createMutation.mutate({ name, account_id: accountId, third_id: thirdId || undefined, remark });
     }
@@ -57,7 +118,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">DNS Account *</label>
-        <select value={accountId} onChange={(e) => { setAccountId(Number(e.target.value)); setSelectedProvider(null); }} className={inputClass}>
+        <select value={accountId} onChange={(e) => { setAccountId(Number(e.target.value)); setSelectedProviders([]); }} className={inputClass}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}
         </select>
       </div>
@@ -88,7 +149,27 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
         </>
       ) : (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Select Domain</label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-sm font-medium text-gray-700">Select Domain</label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={selectAllProviders}
+                disabled={loadingDomains || providerDomains.length === 0}
+                className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                onClick={invertProviderSelection}
+                disabled={loadingDomains || providerDomains.length === 0}
+                className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                Invert
+              </button>
+            </div>
+          </div>
           {loadingDomains ? (
             <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
           ) : providerDomains.length === 0 ? (
@@ -96,9 +177,13 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
           ) : (
             <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
               {providerDomains.map((d) => (
-                <label key={d.third_id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
-                  <input type="radio" name="provider-domain" checked={selectedProvider?.third_id === d.third_id}
-                    onChange={() => setSelectedProvider(d)} className="text-blue-600" />
+                <label key={`${d.name}-${d.third_id}`} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedProviders.some((p) => p.name === d.name && p.third_id === d.third_id)}
+                    onChange={() => toggleProvider(d)}
+                    className="text-blue-600"
+                  />
                   <span className="text-sm">{d.name}</span>
                   <span className="text-xs text-gray-400 ml-auto">{d.third_id}</span>
                 </label>
@@ -112,10 +197,10 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
         <input value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="Optional remark" className={inputClass} />
       </div>
       <div className="flex justify-end gap-3 pt-2">
-        <button type="submit" disabled={createMutation.isPending || (mode === 'sync' && !selectedProvider)}
+        <button type="submit" disabled={createMutation.isPending || isBatchSubmitting || (mode === 'sync' && selectedProviders.length === 0)}
           className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
-          {createMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-          Add Domain
+          {(createMutation.isPending || isBatchSubmitting) && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+          {mode === 'sync' ? `Add Selected (${selectedProviders.length})` : 'Add Domain'}
         </button>
       </div>
     </form>

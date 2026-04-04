@@ -122,7 +122,9 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   const { account_id, name, third_id = '', remark = '' } = req.body as {
     account_id: number; name: string; third_id?: string; remark?: string;
   };
-  if (!account_id || !name) {
+  const normalizedName = name?.trim() ?? '';
+  const normalizedThirdId = third_id?.trim() ?? '';
+  if (!account_id || !normalizedName) {
     res.json({ code: -1, msg: 'account_id and name are required' });
     return;
   }
@@ -132,9 +134,29 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     return;
   }
   const db = getDb();
+  // Use a single atomic statement to prevent duplicate insertion under concurrent requests.
   const result = db.prepare(
-    'INSERT INTO domains (account_id, name, third_id, remark) VALUES (?, ?, ?, ?)'
-  ).run(account_id, name, third_id, remark);
+    `INSERT INTO domains (account_id, name, third_id, remark)
+     SELECT ?, ?, ?, ?
+     WHERE NOT EXISTS (
+       SELECT 1 FROM domains
+       WHERE account_id = ?
+         AND (LOWER(name) = LOWER(?) OR (? <> '' AND third_id = ?))
+     )`
+  ).run(
+    account_id,
+    normalizedName,
+    normalizedThirdId,
+    remark,
+    account_id,
+    normalizedName,
+    normalizedThirdId,
+    normalizedThirdId,
+  );
+  if (result.changes === 0) {
+    res.json({ code: -1, msg: 'Domain already exists in this account' });
+    return;
+  }
   res.json({ code: 0, data: { id: result.lastInsertRowid }, msg: 'success' });
 });
 
@@ -178,15 +200,22 @@ router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
     const db = getDb();
     let added = 0;
     for (const d of result.list) {
-      const existing = db.prepare('SELECT id FROM domains WHERE account_id = ? AND name = ?').get(account_id, d.Domain);
+      const domainName = d.Domain?.trim() ?? '';
+      const providerThirdId = d.ThirdId?.trim() ?? '';
+      if (!domainName) continue;
+      const existing = db.prepare(
+        `SELECT id FROM domains
+         WHERE account_id = ?
+           AND (LOWER(name) = LOWER(?) OR (? <> '' AND third_id = ?))`
+      ).get(account_id, domainName, providerThirdId, providerThirdId) as { id: number } | undefined;
       if (!existing) {
         db.prepare('INSERT INTO domains (account_id, name, third_id, record_count) VALUES (?, ?, ?, ?)').run(
-          account_id, d.Domain, d.ThirdId, d.RecordCount ?? 0
+          account_id, domainName, providerThirdId, d.RecordCount ?? 0
         );
         added++;
       } else {
-        db.prepare('UPDATE domains SET third_id = ?, record_count = ? WHERE account_id = ? AND name = ?').run(
-          d.ThirdId, d.RecordCount ?? 0, account_id, d.Domain
+        db.prepare('UPDATE domains SET name = ?, third_id = ?, record_count = ? WHERE id = ?').run(
+          domainName, providerThirdId, d.RecordCount ?? 0, existing.id
         );
       }
     }
