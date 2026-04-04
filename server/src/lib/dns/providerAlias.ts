@@ -1,12 +1,22 @@
 const LEGO_TO_INTERNAL = {
   alidns: 'aliyun',
+  aliesa: 'aliyunesa',
   aliyun: 'aliyun',
+  baiducloud: 'baidu',
+  cloudflare: 'cloudflare',
+  dnspod: 'dnspod',
+  edgeone: 'tencenteo',
+  huaweicloud: 'huawei',
+  huoshan: 'huoshan',
+  jdcloud: 'jdcloud',
+  namesilo: 'namesilo',
   pdns: 'powerdns',
   powerdns: 'powerdns',
-  edgeone: 'tencenteo',
+  rainyun: 'rainyun',
   tencenteo: 'tencenteo',
   tencentcloud: 'dnspod',
-  dnspod: 'dnspod',
+  volcengine: 'huoshan',
+  westcn: 'west',
 } as const;
 
 type LegoName = keyof typeof LEGO_TO_INTERNAL;
