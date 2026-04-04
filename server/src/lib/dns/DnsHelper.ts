@@ -55,6 +55,7 @@ const providers: ProviderInfo[] = [
     configFields: [
       { key: 'AccessKeyId', label: 'AccessKeyId', type: 'text', required: true },
       { key: 'AccessKeySecret', label: 'AccessKeySecret', type: 'password', required: true },
+      { key: 'region', label: 'Region', type: 'text', required: false },
     ],
   },
   {
@@ -64,6 +65,7 @@ const providers: ProviderInfo[] = [
     configFields: [
       { key: 'SecretId', label: 'SecretId', type: 'text', required: true },
       { key: 'SecretKey', label: 'SecretKey', type: 'password', required: true },
+      { key: 'site_type', label: 'Site Type (intl)', type: 'text', required: false },
     ],
   },
   {
@@ -154,6 +156,7 @@ const providers: ProviderInfo[] = [
     configFields: [
       { key: 'AccountID', label: 'Account ID', type: 'text', required: true },
       { key: 'AccessKey', label: 'Access Key', type: 'password', required: true },
+      { key: 'SecretKey', label: 'Secret Key', type: 'password', required: true },
     ],
   },
   {
@@ -172,6 +175,7 @@ const providers: ProviderInfo[] = [
     configFields: [
       { key: 'serverUrl', label: 'Server URL', type: 'text', required: true },
       { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+      { key: 'serverId', label: 'Server ID', type: 'text', required: false },
     ],
   },
   {
