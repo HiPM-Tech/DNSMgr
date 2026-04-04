@@ -131,6 +131,8 @@ export interface LogEntry {
   user_id?: number;
   username?: string;
   action: string;
+  domain?: string;
+  data?: string;
   target?: string;
   detail?: string;
   created_at: string;

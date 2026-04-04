@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -11,7 +12,7 @@ interface ConfirmDialogProps {
 
 export function ConfirmDialog({ message, onConfirm, onCancel, isLoading, confirmLabel = 'Delete' }: ConfirmDialogProps) {
   const { t } = useI18n();
-  return (
+  const dialog = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
         <div className="flex items-center gap-3 mb-4">
@@ -35,4 +36,6 @@ export function ConfirmDialog({ message, onConfirm, onCancel, isLoading, confirm
       </div>
     </div>
   );
+
+  return createPortal(dialog, document.body);
 }

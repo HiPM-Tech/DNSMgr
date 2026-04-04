@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Globe, Server, Users, Activity, Clock } from 'lucide-react';
 import { accountsApi, domainsApi, usersApi, logsApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import { Badge } from '../components/Badge';
 import { useI18n } from '../contexts/I18nContext';
+import { AuditLogList } from '../components/AuditLogList';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: number | string; color: string }) {
   return (
@@ -56,9 +56,12 @@ export function Dashboard() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">
-        <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-100">
-          <Clock className="w-4 h-4 text-gray-400" />
-          <h2 className="font-semibold text-gray-900">{t('dashboard.recentOperations')}</h2>
+        <div className="flex items-center justify-between gap-2 px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-gray-400" />
+            <h2 className="font-semibold text-gray-900">{t('dashboard.recentOperations')}</h2>
+          </div>
+          <span className="text-sm text-gray-500">最近 10 条</span>
         </div>
         {logsLoading ? (
           <div className="flex justify-center py-10">
@@ -67,23 +70,7 @@ export function Dashboard() {
         ) : !logs || logs.length === 0 ? (
           <p className="text-center text-gray-400 py-10 text-sm">{t('dashboard.noRecentActivity')}</p>
         ) : (
-          <div className="divide-y divide-gray-50">
-            {logs.map((log) => (
-              <div key={log.id} className="flex items-start gap-4 px-6 py-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {log.username && <Badge variant="blue">{log.username}</Badge>}
-                    <span className="text-sm font-medium text-gray-800">{log.action}</span>
-                    {log.target && <span className="text-sm text-gray-500 truncate">{log.target}</span>}
-                  </div>
-                  {log.detail && <p className="text-xs text-gray-400 mt-0.5 truncate">{log.detail}</p>}
-                </div>
-                <span className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
-                  {new Date(log.created_at).toLocaleString()}
-                </span>
-              </div>
-            ))}
-          </div>
+          <AuditLogList logs={logs} compact />
         )}
       </div>
     </div>

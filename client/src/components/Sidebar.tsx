@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap,
+  LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap, FileText,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Avatar } from './Avatar';
@@ -15,6 +15,7 @@ const navItems = [
 
 const adminItems = [
   { to: '/users', icon: UserCog, key: 'common.users' },
+  { to: '/audit', icon: FileText, label: '审计' },
 ];
 
 export function Sidebar() {
@@ -65,7 +66,7 @@ export function Sidebar() {
               <div className="pt-3 pb-1 px-3">
                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">{t('common.admin')}</span>
               </div>
-              {adminItems.map(({ to, icon: Icon, key }) => (
+              {adminItems.map(({ to, icon: Icon, key, label }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -78,7 +79,7 @@ export function Sidebar() {
                   }
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
-                  {t(key)}
+                  {key ? t(key) : label}
                 </NavLink>
               ))}
             </>

@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { ProtectedRoute, AdminRoute } from './ProtectedRoute';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { Audit } from './pages/Audit';
 import { Accounts } from './pages/Accounts';
 import { Domains } from './pages/Domains';
 import { Records } from './pages/Records';
@@ -35,6 +36,7 @@ function App() {
                   <Route path="settings" element={<Settings />} />
                   <Route element={<AdminRoute />}>
                     <Route path="users" element={<Users />} />
+                    <Route path="audit" element={<Audit />} />
                   </Route>
                 </Route>
               </Route>
