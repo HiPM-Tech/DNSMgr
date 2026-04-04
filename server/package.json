@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ts-node src/app.ts",
     "build": "tsc",
-    "start": "node dist/app.js"
+    "start": "node dist/app.js",
+    "test": "node --require ts-node/register --test src/**/*.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

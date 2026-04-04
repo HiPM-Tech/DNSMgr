@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/database';
 import { authMiddleware } from '../middleware/auth';
-import { createAdapter, getProviders, isStubProvider } from '../lib/dns/DnsHelper';
+import { createAdapter, getProvider, getProviders, isStubProvider } from '../lib/dns/DnsHelper';
 import { DnsAccount } from '../types';
+import { normalizeProviderType } from '../lib/dns/providerAlias';
 import { isAdmin, isSuper, normalizeRole, ROLE_ADMIN } from '../utils/roles';
 
 const router = Router();
@@ -73,7 +74,7 @@ router.get('/', authMiddleware, (req: Request, res: Response) => {
     const cfg = JSON.parse(a.config) as Record<string, string>;
     const masked: Record<string, string> = {};
     for (const k of Object.keys(cfg)) masked[k] = '***';
-    return { ...a, config: masked };
+    return { ...a, type: normalizeProviderType(a.type), config: masked };
   });
   res.json({ code: 0, data: safe, msg: 'success' });
 });
@@ -116,16 +117,21 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   const { type, name, config, remark = '', team_id } = req.body as {
     type: string; name: string; config: Record<string, string>; remark?: string; team_id?: number;
   };
-  if (!type || !name || !config) {
+  const normalizedType = normalizeProviderType(type ?? '');
+  if (!normalizedType || !name || !config) {
     res.json({ code: -1, msg: 'type, name, and config are required' });
     return;
   }
-  if (isStubProvider(type)) {
+  if (!getProvider(normalizedType)) {
+    res.json({ code: -1, msg: `Unknown provider type: ${type}` });
+    return;
+  }
+  if (isStubProvider(normalizedType)) {
     res.json({ code: -1, msg: 'Provider is a stub and cannot be added' });
     return;
   }
   try {
-    const adapter = createAdapter(type, config);
+    const adapter = createAdapter(normalizedType, config);
     const ok = await adapter.check();
     if (!ok) {
       res.json({ code: -1, msg: `Credential check failed: ${adapter.getError()}` });
@@ -138,7 +144,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   const db = getDb();
   const result = db.prepare(
     'INSERT INTO dns_accounts (type, name, config, remark, created_by, team_id) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(type, name, JSON.stringify(config), remark, req.user!.userId, team_id ?? null);
+  ).run(normalizedType, name, JSON.stringify(config), remark, req.user!.userId, team_id ?? null);
   res.json({ code: 0, data: { id: result.lastInsertRowid }, msg: 'success' });
 });
 
@@ -171,7 +177,7 @@ router.get('/:id', authMiddleware, (req: Request, res: Response) => {
   const cfg = JSON.parse(account.config) as Record<string, string>;
   const masked: Record<string, string> = {};
   for (const k of Object.keys(cfg)) masked[k] = '***';
-  res.json({ code: 0, data: { ...account, config: masked }, msg: 'success' });
+  res.json({ code: 0, data: { ...account, type: normalizeProviderType(account.type), config: masked }, msg: 'success' });
 });
 
 /**
@@ -215,12 +221,23 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
     res.json({ code: -1, msg: 'Account not found' });
     return;
   }
-  const { name, config, remark, team_id } = req.body as {
-    name?: string; config?: Record<string, string>; remark?: string; team_id?: number | null;
+  const { type, name, config, remark, team_id } = req.body as {
+    type?: string; name?: string; config?: Record<string, string>; remark?: string; team_id?: number | null;
   };
+  const normalizedType = type !== undefined ? normalizeProviderType(type) : undefined;
+  if (normalizedType !== undefined) {
+    if (!getProvider(normalizedType)) {
+      res.json({ code: -1, msg: `Unknown provider type: ${type}` });
+      return;
+    }
+    if (isStubProvider(normalizedType)) {
+      res.json({ code: -1, msg: 'Provider is a stub and cannot be used' });
+      return;
+    }
+  }
   if (config) {
     try {
-      const adapter = createAdapter(account.type, config);
+      const adapter = createAdapter(normalizedType ?? normalizeProviderType(account.type), config);
       const ok = await adapter.check();
       if (!ok) {
         res.json({ code: -1, msg: `Credential check failed: ${adapter.getError()}` });
@@ -233,6 +250,7 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
   }
   const updates: string[] = [];
   const params: unknown[] = [];
+  if (normalizedType !== undefined) { updates.push('type = ?'); params.push(normalizedType); }
   if (name !== undefined) { updates.push('name = ?'); params.push(name); }
   if (config !== undefined) { updates.push('config = ?'); params.push(JSON.stringify(config)); }
   if (remark !== undefined) { updates.push('remark = ?'); params.push(remark); }
