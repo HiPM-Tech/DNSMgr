@@ -9,6 +9,7 @@ import { Modal } from '../components/Modal';
 import { Badge } from '../components/Badge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
+import { useI18n } from '../contexts/I18nContext';
 
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR', 'HTTPS'];
 const DOMAIN_VALUE_TYPES = new Set(['CNAME', 'MX', 'NS', 'PTR', 'HTTPS']);
@@ -90,6 +91,7 @@ function parseSrvValue(initial?: DnsRecord): SrvFields {
 
 function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
   const toast = useToast();
+  const { t } = useI18n();
   const [form, setForm] = useState<Partial<DnsRecord>>({
     name: initial?.name ?? '@',
     type: initial?.type ?? 'A',
@@ -124,30 +126,30 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
     const value = isSrv ? normalizedSrvValue : (form.value ?? '').toString().trim();
     const ttl = Number(form.ttl ?? 0);
 
-    if (!name) nextErrors.name = 'Host name is required';
-    else if (!isRecordHost(name)) nextErrors.name = 'Only @, letters, numbers, _, -, and dots are allowed';
+    if (!name) nextErrors.name = t('records.hostRequired');
+    else if (!isRecordHost(name)) nextErrors.name = t('records.hostInvalid');
 
-    if (!value) nextErrors.value = 'Value is required';
-    else if (currentType === 'A' && !isIPv4(value)) nextErrors.value = 'A record must be a valid IPv4 address';
-    else if (currentType === 'AAAA' && !isIPv6(value)) nextErrors.value = 'AAAA record must be a valid IPv6 address';
-    else if (DOMAIN_VALUE_TYPES.has(currentType) && !isHostname(value)) nextErrors.value = `${currentType} record must be a valid hostname`;
+    if (!value) nextErrors.value = t('records.valueRequired');
+    else if (currentType === 'A' && !isIPv4(value)) nextErrors.value = t('records.invalidA');
+    else if (currentType === 'AAAA' && !isIPv6(value)) nextErrors.value = t('records.invalidAAAA');
+    else if (DOMAIN_VALUE_TYPES.has(currentType) && !isHostname(value)) nextErrors.value = t('records.invalidHostname', { type: currentType });
 
-    if (!Number.isFinite(ttl) || ttl < 1) nextErrors.ttl = 'TTL must be at least 1';
+    if (!Number.isFinite(ttl) || ttl < 1) nextErrors.ttl = t('records.invalidTtl');
 
     if (currentType === 'MX' || currentType === 'SRV') {
       const priority = Number(form.mx ?? 0);
-      if (!Number.isFinite(priority) || priority < 0) nextErrors.mx = 'Priority must be 0 or greater';
+      if (!Number.isFinite(priority) || priority < 0) nextErrors.mx = t('records.invalidPriority');
     }
 
     if (currentType === 'SRV') {
       const weight = Number(form.weight ?? 0);
-      if (!Number.isFinite(weight) || weight < 0) nextErrors.weight = 'Weight must be 0 or greater';
-      if (!srv.port.trim()) nextErrors.srvPort = 'Port is required';
+      if (!Number.isFinite(weight) || weight < 0) nextErrors.weight = t('records.invalidWeight');
+      if (!srv.port.trim()) nextErrors.srvPort = t('records.invalidSrvPortRequired');
       else if (!/^\d+$/.test(srv.port.trim()) || Number(srv.port.trim()) < 1 || Number(srv.port.trim()) > 65535) {
-        nextErrors.srvPort = 'Port must be between 1 and 65535';
+        nextErrors.srvPort = t('records.invalidSrvPort');
       }
-      if (!srv.target.trim()) nextErrors.srvTarget = 'Target is required';
-      else if (!isHostname(srv.target.trim())) nextErrors.srvTarget = 'Target must be a valid hostname';
+      if (!srv.target.trim()) nextErrors.srvTarget = t('records.invalidSrvTargetRequired');
+      else if (!isHostname(srv.target.trim())) nextErrors.srvTarget = t('records.invalidSrvTarget');
     }
 
     setErrors(nextErrors);
@@ -157,7 +159,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) {
-      toast.error('Please fix the highlighted fields before saving');
+      toast.error(t('records.fixErrors'));
       return;
     }
 
@@ -181,18 +183,18 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Host Name *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.hostName')}</label>
           <input
             required
             value={form.name ?? ''}
             onChange={(e) => set('name', e.target.value)}
-            placeholder="@ or subdomain"
+            placeholder={t('records.hostPlaceholder')}
             className={`${inputClass} ${errors.name ? errorClass : ''}`}
           />
           {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Type *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('common.type')} *</label>
           <select
             value={form.type ?? 'A'}
             onChange={(e) => {
@@ -211,11 +213,11 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
         <div className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
           <div className="flex items-start gap-2 text-xs text-blue-700">
             <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <p>SRV records are split into priority, weight, port, and target for easier editing. The value sent to the API will be composed automatically.</p>
+            <p>{t('records.srvHelp')}</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Priority</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.priority')}</label>
               <input
                 type="number"
                 min={0}
@@ -226,7 +228,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
               {errors.mx && <p className="mt-1 text-xs text-red-600">{errors.mx}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Weight</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.weight')}</label>
               <input
                 type="number"
                 min={0}
@@ -239,7 +241,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Port *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.port')}</label>
               <input
                 type="number"
                 min={1}
@@ -255,7 +257,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
               {errors.srvPort && <p className="mt-1 text-xs text-red-600">{errors.srvPort}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Target *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.target')}</label>
               <input
                 value={srv.target}
                 onChange={(e) => {
@@ -269,7 +271,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Preview</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.preview')}</label>
             <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-xs text-gray-700">
               {normalizedSrvValue || 'port target'}
             </div>
@@ -278,19 +280,19 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
         </div>
       ) : (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Value *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.valueLabel')}</label>
           <input
             required
             value={form.value ?? ''}
             onChange={(e) => set('value', e.target.value)}
-            placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : 'Record value'}
+            placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}
             className={`${inputClass} ${errors.value ? errorClass : ''}`}
           />
           {errors.value && <p className="mt-1 text-xs text-red-600">{errors.value}</p>}
         </div>
       )}
 
-      <div className={`grid gap-4 ${currentType === 'MX' || currentType === 'SRV' || lines.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+      <div className={`grid gap-4 ${currentType === 'MX' || currentType === 'SRV' || (lines.length > 0 && !isSrv) ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">TTL</label>
           <input
@@ -304,7 +306,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
         </div>
         {currentType === 'MX' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">MX Priority</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.mxPriority')}</label>
             <input
               type="number"
               min={0}
@@ -315,9 +317,9 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
             {errors.mx && <p className="mt-1 text-xs text-red-600">{errors.mx}</p>}
           </div>
         )}
-        {lines.length > 0 && (
+        {lines.length > 0 && !isSrv && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Line</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.lineLabel')}</label>
             <select value={form.line ?? ''} onChange={(e) => set('line', e.target.value)} className={inputClass}>
               {lines.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
@@ -326,22 +328,22 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Remark</label>
-        <input value={form.remark ?? ''} onChange={(e) => set('remark', e.target.value)} placeholder="Optional remark" className={inputClass} />
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('common.remark')}</label>
+        <input value={form.remark ?? ''} onChange={(e) => set('remark', e.target.value)} placeholder={t('common.optionalRemark')} className={inputClass} />
       </div>
 
       <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-500">
-        {currentType === 'A' && 'A records only accept IPv4 addresses.'}
-        {currentType === 'AAAA' && 'AAAA records only accept IPv6 addresses.'}
-        {DOMAIN_VALUE_TYPES.has(currentType) && `${currentType} records should point to a hostname instead of an IP.`}
-        {currentType === 'TXT' && 'TXT records accept plain text values.'}
+        {currentType === 'A' && t('records.aHelp')}
+        {currentType === 'AAAA' && t('records.aaaaHelp')}
+        {DOMAIN_VALUE_TYPES.has(currentType) && t('records.hostnameHelp', { type: currentType })}
+        {currentType === 'TXT' && t('records.txtHelp')}
       </div>
 
       <div className="flex justify-end gap-3 pt-2">
         <button type="submit" disabled={isLoading}
           className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
           {isLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-          {initial ? 'Save Changes' : 'Add Record'}
+          {initial ? t('common.saveChanges') : t('records.addRecord')}
         </button>
       </div>
     </form>
@@ -354,6 +356,7 @@ export function Records() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
+  const { t } = useI18n();
 
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<DnsRecord | null>(null);
@@ -385,9 +388,9 @@ export function Records() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
       setShowAdd(false);
-      toast.success('Record added');
+      toast.success(t('records.addSuccess'));
     },
-    onError: () => toast.error('Failed to add record'),
+    onError: () => toast.error(t('records.addFailed')),
   });
 
   const updateMutation = useMutation({
@@ -397,9 +400,9 @@ export function Records() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
       setEditing(null);
-      toast.success('Record updated');
+      toast.success(t('records.updateSuccess'));
     },
-    onError: () => toast.error('Failed to update record'),
+    onError: () => toast.error(t('records.updateFailed')),
   });
 
   const deleteMutation = useMutation({
@@ -408,9 +411,9 @@ export function Records() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
       setDeleting(null);
-      toast.success('Record deleted');
+      toast.success(t('records.deleteSuccess'));
     },
-    onError: () => toast.error('Failed to delete record'),
+    onError: () => toast.error(t('records.deleteFailed')),
   });
 
   const statusMutation = useMutation({
@@ -419,43 +422,43 @@ export function Records() {
     onSuccess: (res, { recordId }) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
-      toast.success(`Record ${records.find((r) => r.id === recordId)?.status === 1 ? 'disabled' : 'enabled'}`);
+      toast.success(t('records.toggled', { status: records.find((r) => r.id === recordId)?.status === 1 ? t('common.disabled') : t('common.enabled') }));
     },
-    onError: () => toast.error('Failed to toggle status'),
+    onError: () => toast.error(t('records.toggleFailed')),
   });
 
   const lineMap = Object.fromEntries(lines.map((l) => [l.id, l.name]));
 
   const columns = [
-    { key: 'name', label: 'Host', render: (r: DnsRecord) => <span className="font-mono text-sm font-medium text-gray-900">{r.name}</span> },
+    { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="font-mono text-sm font-medium text-gray-900">{r.name}</span> },
     {
-      key: 'type', label: 'Type',
+      key: 'type', label: t('common.type'),
       render: (r: DnsRecord) => (
         <span className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-xs font-bold">{r.type}</span>
       ),
     },
     {
-      key: 'value', label: 'Value',
+      key: 'value', label: t('common.value'),
       render: (r: DnsRecord) => (
         <span className="font-mono text-xs text-gray-700 max-w-xs truncate block" title={r.value}>{r.value}</span>
       ),
     },
     {
-      key: 'line', label: 'Line',
+      key: 'line', label: t('common.line'),
       render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.line ? (lineMap[r.line] ?? r.line) : '-'}</span>,
     },
-    { key: 'ttl', label: 'TTL', render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.ttl ?? '-'}</span> },
+    { key: 'ttl', label: t('common.ttl'), render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.ttl ?? '-'}</span> },
     {
-      key: 'status', label: 'Status',
-      render: (r: DnsRecord) => <Badge variant={r.status === 1 ? 'green' : 'red'}>{r.status === 1 ? 'Enabled' : 'Disabled'}</Badge>,
+      key: 'status', label: t('common.status'),
+      render: (r: DnsRecord) => <Badge variant={r.status === 1 ? 'green' : 'red'}>{r.status === 1 ? t('common.enabled') : t('common.disabled')}</Badge>,
     },
     {
-      key: 'actions', label: 'Actions',
+      key: 'actions', label: t('common.actions'),
       render: (r: DnsRecord) => (
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => statusMutation.mutate({ recordId: r.id, status: r.status === 1 ? 0 : 1 })}
-            title={r.status === 1 ? 'Disable' : 'Enable'}
+            title={r.status === 1 ? t('common.disable') : t('common.enable')}
             className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
             {r.status === 1 ? <ToggleRight className="w-4 h-4 text-green-500" /> : <ToggleLeft className="w-4 h-4" />}
           </button>
@@ -478,13 +481,13 @@ export function Records() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{domain?.name ?? 'Records'}</h2>
-            <p className="text-sm text-gray-500">DNS Records Management</p>
+            <h2 className="text-lg font-semibold text-gray-900">{domain?.name ?? t('records.title')}</h2>
+            <p className="text-sm text-gray-500">{t('records.subtitle')}</p>
           </div>
         </div>
         <button onClick={() => setShowAdd(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-          <Plus className="w-4 h-4" /> Add Record
+          <Plus className="w-4 h-4" /> {t('records.addRecord')}
         </button>
       </div>
 
@@ -492,27 +495,27 @@ export function Records() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)}
-            placeholder="Search records..." className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56" />
+            placeholder={t('common.searchRecords')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56" />
         </div>
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          <option value="">All Types</option>
+          <option value="">{t('common.allTypes')}</option>
           {RECORD_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">
-        <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText="No records found." />
+        <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} />
       </div>
 
       {showAdd && (
-        <Modal title={`Add Record - ${domain?.name ?? ''}`} onClose={() => setShowAdd(false)} size="lg">
+        <Modal title={t('records.addRecordFor', { name: domain?.name ?? '' })} onClose={() => setShowAdd(false)} size="lg">
           <RecordForm domainId={domainId} lines={lines} onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
         </Modal>
       )}
 
       {editing && (
-        <Modal title="Edit Record" onClose={() => setEditing(null)} size="lg">
+        <Modal title={t('records.editRecord')} onClose={() => setEditing(null)} size="lg">
           <RecordForm domainId={domainId} lines={lines} initial={editing}
             onSubmit={(data) => updateMutation.mutate({ recordId: editing.id, data })}
             isLoading={updateMutation.isPending} />
@@ -521,7 +524,7 @@ export function Records() {
 
       {deleting && (
         <ConfirmDialog
-          message={`Delete record "${deleting.name}" (${deleting.type}: ${deleting.value})?`}
+          message={t('records.deleteConfirm', { name: deleting.name, type: deleting.type, value: deleting.value })}
           onConfirm={() => deleteMutation.mutate(deleting.id)}
           onCancel={() => setDeleting(null)}
           isLoading={deleteMutation.isPending}

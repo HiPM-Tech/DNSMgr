@@ -21,9 +21,19 @@ interface CfRecord {
   type: string;
   content: string;
   proxied: boolean;
+  proxiable?: boolean;
   ttl: number;
   priority?: number;
   weight?: number;
+  data?: {
+    service?: string;
+    proto?: string;
+    name?: string;
+    priority?: number;
+    weight?: number;
+    port?: number;
+    target?: string;
+  };
   comment?: string;
   modified_on?: string;
 }
@@ -136,17 +146,14 @@ export class CloudflareAdapter implements DnsAdapter {
     name: string,
     type: string,
     value: string,
-    _line?: string,
+    line?: string,
     ttl = 1,
     mx = 0,
     weight?: number,
     remark?: string
   ): Promise<string | null> {
     if (!this.config.zoneId) return null;
-    const body: Record<string, unknown> = { name, type, content: value, ttl };
-    if (type === 'MX') body['priority'] = mx;
-    if (weight !== undefined) body['weight'] = weight;
-    if (remark) body['comment'] = remark;
+    const body = this.buildRecordBody(name, type, value, line, ttl, mx, weight, remark);
     const res = await this.request<CfRecord>('POST', `/zones/${this.config.zoneId}/dns_records`, body);
     if (!res.success) return null;
     return res.result.id;
@@ -157,17 +164,14 @@ export class CloudflareAdapter implements DnsAdapter {
     name: string,
     type: string,
     value: string,
-    _line?: string,
+    line?: string,
     ttl = 1,
     mx = 0,
     weight?: number,
     remark?: string
   ): Promise<boolean> {
     if (!this.config.zoneId) return false;
-    const body: Record<string, unknown> = { name, type, content: value, ttl };
-    if (type === 'MX') body['priority'] = mx;
-    if (weight !== undefined) body['weight'] = weight;
-    if (remark !== undefined) body['comment'] = remark;
+    const body = this.buildRecordBody(name, type, value, line, ttl, mx, weight, remark);
     const res = await this.request<CfRecord>('PATCH', `/zones/${this.config.zoneId}/dns_records/${recordId}`, body);
     return res.success;
   }
@@ -180,13 +184,14 @@ export class CloudflareAdapter implements DnsAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     // Cloudflare has no native enable/disable for DNS records.
-    // As a workaround, we append '_paused' to the record name when disabling
-    // and remove it when re-enabling. This is a convention used by this platform only.
+    // We emulate pause by renaming the record with a reversible suffix.
     const info = await this.getDomainRecordInfo(recordId);
     if (!info) return false;
-    let name = info.Name.replace(/_paused$/, '');
-    if (status === 0) name = `${name}_paused`;
-    return this.updateDomainRecord(recordId, name, info.Type, info.Value, info.Line, info.TTL, info.MX);
+    if (info.Status === status) return true;
+
+    const baseName = this.decodePausedRecordName(info.Name);
+    const nextName = status === 0 ? this.encodePausedRecordName(baseName) : baseName;
+    return this.updateDomainRecord(recordId, nextName, info.Type, info.Value, info.Line, info.TTL, info.MX, info.Weight, info.Remark);
   }
 
   getRecordLines(): Promise<Array<{ id: string; name: string }>> {
@@ -209,19 +214,158 @@ export class CloudflareAdapter implements DnsAdapter {
   }
 
   private mapRecord(r: CfRecord): DnsRecord {
+    const zoneName = this.getZoneName(r);
+    const normalizedManaged = this.normalizeManagedRecordName(r.name, zoneName);
+    const displayName = r.data?.service && r.data?.proto
+      ? `${r.data.service}.${r.data.proto}${r.data.name && r.data.name !== '@' ? `.${r.data.name}` : ''}`
+      : normalizedManaged.name;
+    const isPaused = r.data?.service && r.data?.proto ? false : normalizedManaged.paused;
+    const srvValue = r.data?.port && r.data?.target
+      ? `${r.data.port} ${r.data.target}`
+      : this.safeString(r.content);
+
     return {
-      RecordId: r.id,
-      Domain: r.zone_name,
-      Name: r.name,
-      Type: r.type,
-      Value: r.content,
+      RecordId: this.safeString(r.id),
+      Domain: zoneName,
+      Name: displayName || '@',
+      Type: this.safeString(r.type),
+      Value: srvValue,
       Line: r.proxied ? '1' : '0',
-      TTL: r.ttl,
-      MX: r.priority ?? 0,
-      Status: 1,
-      Weight: r.weight,
+      TTL: r.ttl ?? 1,
+      MX: r.data?.priority ?? r.priority ?? 0,
+      Status: isPaused ? 0 : 1,
+      Proxiable: r.proxiable ?? false,
+      Weight: r.data?.weight ?? r.weight,
       Remark: r.comment,
       UpdateTime: r.modified_on,
     };
+  }
+
+  private buildRecordBody(
+    name: string,
+    type: string,
+    value: string,
+    line: string | undefined,
+    ttl: number,
+    mx = 0,
+    weight?: number,
+    remark?: string
+  ): Record<string, unknown> {
+    if (type === 'SRV') {
+      const srv = this.parseSrvRecord(name, value, mx, weight);
+      const body: Record<string, unknown> = { type, ttl, data: srv };
+      if (remark !== undefined) body['comment'] = remark;
+      return body;
+    }
+
+    const normalizedName = this.normalizeRecordNameForWrite(name);
+    const body: Record<string, unknown> = { name: normalizedName, type, content: value, ttl };
+    const proxied = this.toProxiedValue(line);
+    if (proxied !== undefined) body['proxied'] = proxied;
+    if (type === 'MX') body['priority'] = mx;
+    if (weight !== undefined) body['weight'] = weight;
+    if (remark !== undefined) body['comment'] = remark;
+    return body;
+  }
+
+  private parseSrvRecord(name: string, value: string, priority = 0, weight = 0) {
+    const normalizedName = this.normalizeRecordNameForWrite(name);
+    const nameParts = normalizedName.split('.').filter(Boolean);
+    const [service = '', proto = '', ...restName] = nameParts;
+    const valueParts = value.trim().split(/\s+/).filter(Boolean);
+    const port = Number(valueParts[0] ?? 0);
+    const target = valueParts.slice(1).join(' ');
+
+    return {
+      service,
+      proto,
+      name: restName.length > 0 ? restName.join('.') : '@',
+      priority,
+      weight,
+      port,
+      target,
+    };
+  }
+
+  private normalizeRecordNameForWrite(name: string): string {
+    const zoneName = this.safeString(this.config.domain).replace(/\.$/, '');
+    const normalized = this.safeString(name).replace(/\.$/, '');
+    if (!normalized || normalized === '@') return '@';
+    if (zoneName && normalized === zoneName) return '@';
+    return this.toRelativeRecordName(normalized, zoneName);
+  }
+
+  private toProxiedValue(line?: string): boolean | undefined {
+    if (line === '1') return true;
+    if (line === '0') return false;
+    return undefined;
+  }
+
+  private toRelativeRecordName(name: string, zoneName: string): string {
+    const normalizedName = this.safeString(name).replace(/\.$/, '');
+    const normalizedZone = this.safeString(zoneName).replace(/\.$/, '');
+    if (!normalizedName || !normalizedZone) return normalizedName;
+    if (normalizedName === normalizedZone) return '@';
+    const suffix = `.${normalizedZone}`;
+    return normalizedName.endsWith(suffix)
+      ? normalizedName.slice(0, -suffix.length)
+      : normalizedName;
+  }
+
+  private isPausedRecordName(name: string): boolean {
+    return (
+      name === '_cloud_paused' ||
+      name.endsWith('_cloud_paused') ||
+      name === '_paused' ||
+      name.endsWith('_paused')
+    );
+  }
+
+  private decodePausedRecordName(name: string): string {
+    if (name === '_paused') return '@';
+    if (name === '_cloud_paused') return '@';
+    if (name.endsWith('_paused')) {
+      return name.slice(0, -'_paused'.length);
+    }
+    if (name.endsWith('_cloud_paused')) {
+      return name.slice(0, -'_cloud_paused'.length);
+    }
+    return name;
+  }
+
+  private encodePausedRecordName(name: string): string {
+    const normalized = this.decodePausedRecordName(name);
+    return normalized === '@' ? '_cloud_paused' : `${normalized}_cloud_paused`;
+  }
+
+  private normalizeManagedRecordName(name: string, zoneName: string): { name: string; paused: boolean } {
+    let current = this.safeString(name).replace(/\.$/, '');
+    const normalizedZone = this.safeString(zoneName).replace(/\.$/, '');
+    let paused = false;
+
+    if (!current) {
+      return { name: '@', paused: false };
+    }
+
+    for (let i = 0; i < 6; i++) {
+      const relative = this.toRelativeRecordName(current, normalizedZone);
+      paused = paused || this.isPausedRecordName(relative);
+
+      let next = this.decodePausedRecordName(relative);
+      if (next === normalizedZone) next = '@';
+
+      if (next === current) break;
+      current = next;
+    }
+
+    return { name: current, paused };
+  }
+
+  private getZoneName(record?: Pick<CfRecord, 'zone_name'>): string {
+    return this.safeString(record?.zone_name) || this.safeString(this.config.domain);
+  }
+
+  private safeString(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : '';
   }
 }

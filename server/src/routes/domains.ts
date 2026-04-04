@@ -61,7 +61,7 @@ function canAccessDomain(domainId: number, userId: number, role: string): Domain
  *       200:
  *         description: List of domains
  */
-router.get('/', authMiddleware, (req: Request, res: Response) => {
+router.get('/', authMiddleware, async (req: Request, res: Response) => {
   const db = getDb();
   const { account_id, keyword } = req.query as { account_id?: string; keyword?: string };
   const userId = req.user!.userId;
@@ -90,7 +90,32 @@ router.get('/', authMiddleware, (req: Request, res: Response) => {
   if (keyword) { query += ' AND d.name LIKE ?'; params.push(`%${keyword}%`); }
   query += ' ORDER BY d.id';
 
-  const domains = db.prepare(query).all(...params);
+  const domains = db.prepare(query).all(...params) as Domain[];
+
+  const accountCache = new Map<number, DnsAccount>();
+  await Promise.allSettled(
+    domains
+      .filter((domain) => !domain.record_count)
+      .map(async (domain) => {
+        let account = accountCache.get(domain.account_id);
+        if (!account) {
+          account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(domain.account_id) as DnsAccount | undefined;
+          if (!account) return;
+          accountCache.set(domain.account_id, account);
+        }
+
+        try {
+          const cfg = JSON.parse(account.config) as Record<string, string>;
+          const adapter = createAdapter(account.type, cfg, domain.name, domain.third_id);
+          const result = await adapter.getDomainRecords(1, 1);
+          domain.record_count = result.total;
+          db.prepare('UPDATE domains SET record_count = ? WHERE id = ?').run(result.total, domain.id);
+        } catch {
+          // Keep the cached count if the provider is temporarily unavailable.
+        }
+      })
+  );
+
   res.json({ code: 0, data: domains, msg: 'success' });
 });
 
@@ -134,7 +159,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     name?: string;
     third_id?: string;
     remark?: string;
-    domains?: Array<{ name: string; third_id?: string }>;
+    domains?: Array<{ name: string; third_id?: string; record_count?: number }>;
   };
   if (!account_id || (!name && (!domains || domains.length === 0))) {
     res.json({ code: -1, msg: 'account_id and domain name are required' });
@@ -148,13 +173,17 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   const db = getDb();
   const items = (domains && domains.length > 0)
     ? domains
-    : [{ name: name!, third_id }];
+    : [{ name: name!, third_id, record_count: 0 }];
 
-  const normalizedMap = new Map<string, { name: string; third_id?: string }>();
+  const normalizedMap = new Map<string, { name: string; third_id?: string; record_count?: number }>();
   for (const item of items) {
     const normalizedName = normalizeDomainName(item.name);
     if (!normalizedName) continue;
-    normalizedMap.set(normalizedName, { name: normalizedName, third_id: item.third_id?.trim() || '' });
+    normalizedMap.set(normalizedName, {
+      name: normalizedName,
+      third_id: item.third_id?.trim() || '',
+      record_count: item.record_count ?? 0,
+    });
   }
 
   if (normalizedMap.size === 0) {
@@ -163,9 +192,10 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   }
 
   const insertStmt = db.prepare(
-    'INSERT INTO domains (account_id, name, third_id, remark) VALUES (?, ?, ?, ?)'
+    'INSERT INTO domains (account_id, name, third_id, remark, record_count) VALUES (?, ?, ?, ?, ?)'
   );
   const existingStmt = db.prepare('SELECT id FROM domains WHERE account_id = ? AND name = ?');
+  const updateExistingStmt = db.prepare('UPDATE domains SET third_id = ?, record_count = ? WHERE id = ?');
 
   let added = 0;
   let firstId: number | null = null;
@@ -175,10 +205,11 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     for (const item of normalizedMap.values()) {
       const existing = existingStmt.get(account_id, item.name);
       if (existing) {
+        updateExistingStmt.run(item.third_id || '', item.record_count ?? 0, (existing as { id: number }).id);
         duplicates.push(item.name);
         continue;
       }
-      const result = insertStmt.run(account_id, item.name, item.third_id || '', remark);
+      const result = insertStmt.run(account_id, item.name, item.third_id || '', remark, item.record_count ?? 0);
       if (firstId === null) firstId = Number(result.lastInsertRowid);
       added++;
     }
@@ -298,7 +329,11 @@ router.get('/provider-list/:accountId', authMiddleware, async (req: Request, res
     const cfg = JSON.parse(account.config) as Record<string, string>;
     const adapter = createAdapter(account.type, cfg);
     const result = await adapter.getDomainList();
-    const domains = result.list.map((d) => ({ name: d.Domain, third_id: d.ThirdId }));
+    const domains = result.list.map((d) => ({
+      name: normalizeDomainName(d.Domain),
+      third_id: d.ThirdId,
+      record_count: d.RecordCount ?? 0,
+    }));
     res.json({ code: 0, data: domains, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });

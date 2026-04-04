@@ -10,11 +10,13 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import { Avatar } from '../components/Avatar';
+import { useI18n } from '../contexts/I18nContext';
 
 export function Teams() {
   const { user: me } = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
+  const { t } = useI18n();
   const [showCreate, setShowCreate] = useState(false);
   const [viewTeam, setViewTeam] = useState<Team | null>(null);
   const [editTeam, setEditTeam] = useState<Team | null>(null);
@@ -46,9 +48,9 @@ export function Teams() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['teams'] });
       setShowCreate(false);
-      toast.success('Team created');
+      toast.success(t('teams.teamCreated'));
     },
-    onError: () => toast.error('Failed to create team'),
+    onError: () => toast.error(t('teams.createFailed')),
   });
 
   const updateMutation = useMutation({
@@ -57,9 +59,9 @@ export function Teams() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['teams'] });
       setEditTeam(null);
-      toast.success('Team updated');
+      toast.success(t('teams.teamUpdated'));
     },
-    onError: () => toast.error('Failed to update team'),
+    onError: () => toast.error(t('teams.updateFailed')),
   });
 
   const deleteMutation = useMutation({
@@ -69,9 +71,9 @@ export function Teams() {
       qc.invalidateQueries({ queryKey: ['teams'] });
       if (viewTeam?.id === deleteTeam?.id) setViewTeam(null);
       setDeleteTeam(null);
-      toast.success('Team deleted');
+      toast.success(t('teams.teamDeleted'));
     },
-    onError: () => toast.error('Failed to delete team'),
+    onError: () => toast.error(t('teams.deleteFailed')),
   });
 
   const addMemberMutation = useMutation({
@@ -80,9 +82,9 @@ export function Teams() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['team-members', viewTeam?.id] });
       setShowAddMember(false);
-      toast.success('Member added');
+      toast.success(t('teams.memberAdded'));
     },
-    onError: () => toast.error('Failed to add member'),
+    onError: () => toast.error(t('teams.addMemberFailed')),
   });
 
   const removeMemberMutation = useMutation({
@@ -91,9 +93,9 @@ export function Teams() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['team-members', viewTeam?.id] });
       setRemovingMember(null);
-      toast.success('Member removed');
+      toast.success(t('teams.memberRemoved'));
     },
-    onError: () => toast.error('Failed to remove member'),
+    onError: () => toast.error(t('teams.removeMemberFailed')),
   });
 
   const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
@@ -107,36 +109,36 @@ export function Teams() {
 
   const teamColumns = [
     {
-      key: 'name', label: 'Team Name',
-      render: (t: Team) => (
-        <button onClick={() => setViewTeam(t)} className="flex items-center gap-2 font-medium text-blue-600 hover:text-blue-800 transition-colors">
+      key: 'name', label: t('teams.teamName'),
+      render: (team: Team) => (
+        <button onClick={() => setViewTeam(team)} className="flex items-center gap-2 font-medium text-blue-600 hover:text-blue-800 transition-colors">
           <UsersIcon className="w-4 h-4" />
-          {t.name}
+          {team.name}
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       ),
     },
-    { key: 'description', label: 'Description', render: (t: Team) => <span className="text-gray-500">{t.description || '—'}</span> },
+    { key: 'description', label: t('teams.description'), render: (team: Team) => <span className="text-gray-500">{team.description || '-'}</span> },
     {
-      key: 'member_count', label: 'Members',
-      render: (t: Team) => (
+      key: 'member_count', label: t('teams.members'),
+      render: (team: Team) => (
         <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
-          {t.member_count ?? 0}
+          {team.member_count ?? 0}
         </span>
       ),
     },
     {
-      key: 'my_role', label: 'My Role',
-      render: (t: Team) => t.my_role ? <Badge variant="blue">{t.my_role}</Badge> : <span className="text-gray-400 text-xs">—</span>,
+      key: 'my_role', label: t('teams.myRole'),
+      render: (team: Team) => team.my_role ? <Badge variant="blue">{team.my_role}</Badge> : <span className="text-gray-400 text-xs">-</span>,
     },
     {
-      key: 'actions', label: 'Actions',
-      render: (t: Team) => (
+      key: 'actions', label: t('common.actions'),
+      render: (team: Team) => (
         <div className="flex items-center gap-2">
-          <button onClick={() => setEditTeam(t)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+          <button onClick={() => setEditTeam(team)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
             <Edit2 className="w-4 h-4" />
           </button>
-          <button onClick={() => setDeleteTeam(t)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+          <button onClick={() => setDeleteTeam(team)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
@@ -148,101 +150,98 @@ export function Teams() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Teams</h2>
-          <p className="text-sm text-gray-500">Manage team access to DNS accounts</p>
+          <h2 className="text-lg font-semibold text-gray-900">{t('teams.title')}</h2>
+          <p className="text-sm text-gray-500">{t('teams.subtitle')}</p>
         </div>
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-          <Plus className="w-4 h-4" /> Create Team
+          <Plus className="w-4 h-4" /> {t('teams.createTeam')}
         </button>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">
-        <Table columns={teamColumns} data={teams} loading={isLoading} rowKey={(t) => t.id} emptyText="No teams yet." />
+        <Table columns={teamColumns} data={teams} loading={isLoading} rowKey={(team) => team.id} emptyText={t('teams.noTeams')} />
       </div>
 
-      {/* Create Team */}
       {showCreate && (
-        <Modal title="Create Team" onClose={() => setShowCreate(false)} size="sm">
+        <Modal title={t('teams.createTeam')} onClose={() => setShowCreate(false)} size="sm">
           <form onSubmit={(e) => {
             e.preventDefault();
             const fd = new FormData(e.target as HTMLFormElement);
             createMutation.mutate({ name: fd.get('name') as string, description: fd.get('description') as string });
           }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Team Name *</label>
-              <input name="name" required className={inputClass} placeholder="Enter team name" />
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('teams.teamName')}</label>
+              <input name="name" required className={inputClass} placeholder={t('teams.teamNamePlaceholder')} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
-              <input name="description" className={inputClass} placeholder="Optional description" />
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('teams.description')}</label>
+              <input name="description" className={inputClass} placeholder={t('teams.descriptionPlaceholder')} />
             </div>
             <div className="flex justify-end pt-2">
               <button type="submit" disabled={createMutation.isPending}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
                 {createMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                Create
+                {t('common.create')}
               </button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Edit Team */}
       {editTeam && (
-        <Modal title="Edit Team" onClose={() => setEditTeam(null)} size="sm">
+        <Modal title={t('teams.editTeam')} onClose={() => setEditTeam(null)} size="sm">
           <form onSubmit={(e) => {
             e.preventDefault();
             const fd = new FormData(e.target as HTMLFormElement);
             updateMutation.mutate({ id: editTeam.id, data: { name: fd.get('name') as string, description: fd.get('description') as string } });
           }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Team Name *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('teams.teamName')}</label>
               <input name="name" required defaultValue={editTeam.name} className={inputClass} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('teams.description')}</label>
               <input name="description" defaultValue={editTeam.description} className={inputClass} />
             </div>
             <div className="flex justify-end pt-2">
               <button type="submit" disabled={updateMutation.isPending}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
-                Save
+                {t('common.save')}
               </button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* View Team Members */}
       {viewTeam && (
-        <Modal title={`Team: ${viewTeam.name}`} onClose={() => setViewTeam(null)} size="md">
+        <Modal title={t('teams.teamMembers', { name: viewTeam.name })} onClose={() => setViewTeam(null)} size="md">
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-500">{members.length} member{members.length !== 1 ? 's' : ''}</p>
+              <p className="text-sm text-gray-500">{t('teams.membersCount', { count: members.length, suffix: members.length !== 1 ? 's' : '' })}</p>
               <button onClick={() => setShowAddMember(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                <UserPlus className="w-3.5 h-3.5" /> Add Member
+                <UserPlus className="w-3.5 h-3.5" /> {t('teams.addMember')}
               </button>
             </div>
             {membersLoading ? (
               <div className="flex justify-center py-6"><div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
             ) : members.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">No members yet</p>
+              <p className="text-sm text-gray-400 text-center py-4">{t('teams.noMembers')}</p>
             ) : (
               <div className="space-y-2">
-                {members.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                {members.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-2.5">
-                      <Avatar username={m.username} email={m.email} size={32} textClassName="text-xs" />
+                      <Avatar username={member.username} email={member.email} size={32} textClassName="text-xs" />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{m.username}</p>
-                        <p className="text-xs text-gray-500">{m.email || 'No email'}</p>
+                        <p className="text-sm font-medium text-gray-900">{member.username}</p>
+                        <p className="text-xs text-gray-500">{member.email || t('teams.noEmail')}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="gray">{m.role}</Badge>
-                      <button onClick={() => setRemovingMember(m)}
+                      <Badge variant="gray">{member.role}</Badge>
+                      <button onClick={() => setRemovingMember(member)}
                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                         <UserMinus className="w-3.5 h-3.5" />
                       </button>
@@ -255,27 +254,26 @@ export function Teams() {
         </Modal>
       )}
 
-      {/* Add Member Modal */}
       {showAddMember && viewTeam && (
-        <Modal title="Add Team Member" onClose={() => { setShowAddMember(false); setMemberSearch(''); }} size="sm">
+        <Modal title={t('teams.addTeamMember')} onClose={() => { setShowAddMember(false); setMemberSearch(''); }} size="sm">
           <div className="space-y-3">
             <input
               value={memberSearch}
               onChange={(e) => setMemberSearch(e.target.value)}
-              placeholder="Search users..."
+              placeholder={t('teams.searchUsers')}
               className={inputClass}
             />
             <div className="max-h-56 overflow-y-auto space-y-1">
               {filteredUsers.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">No users available</p>
-              ) : filteredUsers.map((u: User) => (
-                <button key={u.id} onClick={() => addMemberMutation.mutate({ userId: u.id })}
+                <p className="text-sm text-gray-400 text-center py-4">{t('teams.noUsersAvailable')}</p>
+              ) : filteredUsers.map((user) => (
+                <button key={user.id} onClick={() => addMemberMutation.mutate({ userId: user.id })}
                   disabled={addMemberMutation.isPending}
                   className="w-full flex items-center gap-2.5 p-2.5 hover:bg-blue-50 rounded-lg transition-colors text-left">
-                  <Avatar username={u.username} email={u.email} size={28} className="bg-gray-200 text-gray-600" textClassName="text-xs" />
+                  <Avatar username={user.username} email={user.email} size={28} className="bg-gray-200 text-gray-600" textClassName="text-xs" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{u.username}</p>
-                    <p className="text-xs text-gray-500">{u.email || 'No email'}</p>
+                    <p className="text-sm font-medium text-gray-900">{user.username}</p>
+                    <p className="text-xs text-gray-500">{user.email || t('teams.noEmail')}</p>
                   </div>
                 </button>
               ))}
@@ -286,17 +284,17 @@ export function Teams() {
 
       {removingMember && (
         <ConfirmDialog
-          message={`Remove "${removingMember.username}" from the team?`}
+          message={t('teams.removeMemberConfirm', { name: removingMember.username })}
           onConfirm={() => removeMemberMutation.mutate(removingMember.user_id)}
           onCancel={() => setRemovingMember(null)}
           isLoading={removeMemberMutation.isPending}
-          confirmLabel="Remove"
+          confirmLabel={t('teams.remove')}
         />
       )}
 
       {deleteTeam && (
         <ConfirmDialog
-          message={`Delete team "${deleteTeam.name}"? This will remove all team associations.`}
+          message={t('teams.deleteConfirm', { name: deleteTeam.name })}
           onConfirm={() => deleteMutation.mutate(deleteTeam.id)}
           onCancel={() => setDeleteTeam(null)}
           isLoading={deleteMutation.isPending}

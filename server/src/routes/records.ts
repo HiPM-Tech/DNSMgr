@@ -15,10 +15,57 @@ function toApiRecord(r: AdapterRecord) {
     line: r.Line,
     ttl: r.TTL,
     mx: r.MX,
+    weight: r.Weight,
     status: r.Status,
     remark: r.Remark ?? null,
     updated_at: r.UpdateTime ?? null,
   };
+}
+
+function isIPv4(value: string): boolean {
+  const parts = value.trim().split('.');
+  if (parts.length !== 4) return false;
+  return parts.every((part) => /^(0|[1-9]\d{0,2})$/.test(part) && Number(part) >= 0 && Number(part) <= 255);
+}
+
+function isIPv6(value: string): boolean {
+  const normalized = value.trim();
+  if (!normalized || !normalized.includes(':')) return false;
+  try {
+    return new URL(`http://[${normalized}]`).hostname === `[${normalized}]`;
+  } catch {
+    return false;
+  }
+}
+
+function isHostname(value: string): boolean {
+  const normalized = value.trim().replace(/\.$/, '');
+  if (!normalized || normalized.length > 253) return false;
+  return normalized.split('.').every((label) =>
+    label.length > 0 &&
+    label.length <= 63 &&
+    /^[a-zA-Z0-9-]+$/.test(label) &&
+    !label.startsWith('-') &&
+    !label.endsWith('-')
+  );
+}
+
+function validateRecordPayload(type: string, value: string, mx?: number, weight?: number): string | null {
+  if (type === 'A' && !isIPv4(value)) return 'A record must use a valid IPv4 address';
+  if (type === 'AAAA' && !isIPv6(value)) return 'AAAA record must use a valid IPv6 address';
+  if (['CNAME', 'MX', 'NS', 'PTR', 'HTTPS'].includes(type) && !isHostname(value)) {
+    return `${type} record must use a valid hostname`;
+  }
+  if (type === 'MX' && mx !== undefined && mx < 0) return 'MX priority must be 0 or greater';
+  if (type === 'SRV') {
+    const parts = value.trim().split(/\s+/).filter(Boolean);
+    if (parts.length < 2 || !/^\d+$/.test(parts[0]) || Number(parts[0]) < 1 || Number(parts[0]) > 65535 || !isHostname(parts.slice(1).join(' '))) {
+      return 'SRV record must use "port target" format with a valid target hostname';
+    }
+    if (mx !== undefined && mx < 0) return 'SRV priority must be 0 or greater';
+    if (weight !== undefined && weight < 0) return 'SRV weight must be 0 or greater';
+  }
+  return null;
 }
 
 const router = Router({ mergeParams: true });
@@ -35,6 +82,16 @@ function logOperation(userId: number, action: string, domainName: string, data: 
   getDb().prepare('INSERT INTO operation_logs (user_id, action, domain, data) VALUES (?, ?, ?, ?)').run(
     userId, action, domainName, JSON.stringify(data)
   );
+}
+
+function updateDomainRecordCount(domainId: number, count: number): void {
+  getDb().prepare('UPDATE domains SET record_count = ? WHERE id = ?').run(count, domainId);
+}
+
+async function refreshDomainRecordCount(domain: Domain, adapter = getAdapterForDomain(domain)): Promise<number> {
+  const result = await adapter.getDomainRecords(1, 1);
+  updateDomainRecordCount(domain.id, result.total);
+  return result.total;
 }
 
 /**
@@ -101,6 +158,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
       parseInt(page), parseInt(pageSize), keyword, subdomain, value, type, line,
       status !== undefined ? parseInt(status) : undefined
     );
+    updateDomainRecordCount(domain.id, result.total);
     res.json({ code: 0, data: { total: result.total, list: result.list.map(toApiRecord) }, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
@@ -164,6 +222,11 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     res.json({ code: -1, msg: 'name, type, and value are required' });
     return;
   }
+  const validationError = validateRecordPayload(type, value, mx, weight);
+  if (validationError) {
+    res.json({ code: -1, msg: validationError });
+    return;
+  }
   try {
     const adapter = getAdapterForDomain(domain);
     const recordId = await adapter.addDomainRecord(name, type, value, line, ttl, mx, weight, remark);
@@ -171,6 +234,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
       res.json({ code: -1, msg: 'Failed to add record' });
       return;
     }
+    await refreshDomainRecordCount(domain, adapter);
     logOperation(req.user!.userId, 'add_record', domain.name, { name, type, value, recordId });
     res.json({ code: 0, data: { recordId }, msg: 'success' });
   } catch (e) {
@@ -283,6 +347,11 @@ router.put('/:recordId', authMiddleware, async (req: Request, res: Response) => 
     res.json({ code: -1, msg: 'name, type, and value are required' });
     return;
   }
+  const validationError = validateRecordPayload(type, value, mx, weight);
+  if (validationError) {
+    res.json({ code: -1, msg: validationError });
+    return;
+  }
   try {
     const adapter = getAdapterForDomain(domain);
     const ok = await adapter.updateDomainRecord(req.params.recordId, name, type, value, line, ttl, mx, weight, remark);
@@ -334,6 +403,7 @@ router.delete('/:recordId', authMiddleware, async (req: Request, res: Response) 
       res.json({ code: -1, msg: 'Failed to delete record' });
       return;
     }
+    await refreshDomainRecordCount(domain, adapter);
     logOperation(req.user!.userId, 'delete_record', domain.name, { recordId: req.params.recordId });
     res.json({ code: 0, msg: 'success' });
   } catch (e) {

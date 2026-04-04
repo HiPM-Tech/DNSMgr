@@ -77,6 +77,12 @@ export interface Domain {
   created_at: string;
 }
 
+export interface ProviderDomainOption {
+  name: string;
+  third_id: string;
+  record_count?: number;
+}
+
 export interface DnsRecord {
   id: string;
   name: string;
@@ -155,10 +161,10 @@ export const domainsApi = {
     api.get<ApiResponse<Domain[]>>('/domains', { params }),
   get: (id: number) => api.get<ApiResponse<Domain>>(`/domains/${id}`),
   listFromProvider: (accountId: number) =>
-    api.get<ApiResponse<{ name: string; third_id: string }[]>>(`/domains/provider-list/${accountId}`),
+    api.get<ApiResponse<ProviderDomainOption[]>>(`/domains/provider-list/${accountId}`),
   create: (data:
     { name: string; account_id: number; third_id?: string; remark?: string } |
-    { account_id: number; remark?: string; domains: { name: string; third_id?: string }[] }) =>
+    { account_id: number; remark?: string; domains: ProviderDomainOption[] }) =>
     api.post<ApiResponse<{ id?: number; added?: number; skipped?: number; duplicates?: string[] }>>('/domains', data),
   update: (id: number, data: { remark?: string }) =>
     api.put<ApiResponse<null>>(`/domains/${id}`, data),

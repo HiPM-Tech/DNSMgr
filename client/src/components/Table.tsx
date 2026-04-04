@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useI18n } from '../contexts/I18nContext';
 
 interface Column<T> {
   key: string;
@@ -16,6 +17,7 @@ interface TableProps<T> {
 }
 
 export function Table<T>({ columns, data, loading, emptyText = 'No data', rowKey }: TableProps<T>) {
+  const { t } = useI18n();
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -39,7 +41,7 @@ export function Table<T>({ columns, data, loading, emptyText = 'No data', rowKey
             </tr>
           ) : data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="py-12 text-center text-gray-400">{emptyText}</td>
+              <td colSpan={columns.length} className="py-12 text-center text-gray-400">{emptyText === 'No data' ? t('common.noData') : emptyText}</td>
             </tr>
           ) : (
             data.map((row) => (

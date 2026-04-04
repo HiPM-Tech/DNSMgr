@@ -8,6 +8,7 @@ export interface DnsRecord {
   TTL: number;
   MX: number;
   Status: number;
+  Proxiable?: boolean;
   Weight?: number;
   Remark?: string;
   UpdateTime?: string;
