@@ -139,7 +139,7 @@ export class QingcloudAdapter extends BaseAdapter {
           Line: null as unknown as string,
           TTL: null as unknown as number,
           MX: null as unknown as number,
-          Status: row.status === 'enabled' ? 0 : 1,
+          Status: row.status === 'enabled' ? 1 : 0,
           Weight: null as unknown as number,
           Remark: safeString(row.description) || undefined,
           UpdateTime: safeString(row.create_time) || undefined,

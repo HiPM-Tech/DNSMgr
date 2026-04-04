@@ -16,7 +16,7 @@ const navItems = [
 
 const adminItems = [
   { to: '/users', icon: UserCog, key: 'common.users' },
-  { to: '/audit', icon: FileText, label: '审计' },
+  { to: '/audit', icon: FileText, key: 'common.audit' },
 ];
 
 export function Sidebar() {
@@ -32,7 +32,6 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-full w-[220px] bg-white border-r border-gray-200 flex flex-col z-30">
-      {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-100">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 bg-blue-600 rounded-lg">
@@ -42,7 +41,6 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         <div className="space-y-0.5">
           {navItems.map(({ to, icon: Icon, key }) => (
@@ -68,7 +66,7 @@ export function Sidebar() {
               <div className="pt-3 pb-1 px-3">
                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">{t('common.admin')}</span>
               </div>
-              {adminItems.map(({ to, icon: Icon, key, label }) => (
+              {adminItems.map(({ to, icon: Icon, key }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -81,7 +79,7 @@ export function Sidebar() {
                   }
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
-                  {key ? t(key) : label}
+                  {t(key)}
                 </NavLink>
               ))}
             </>
@@ -106,7 +104,6 @@ export function Sidebar() {
         </div>
       </nav>
 
-      {/* User Footer */}
       <div className="px-3 py-3 border-t border-gray-100">
         <div className="flex items-center gap-2 px-2 py-2">
           <Avatar username={displayName} email={user?.email} size={28} textClassName="text-xs" />
@@ -114,8 +111,11 @@ export function Sidebar() {
             <p className="text-xs font-semibold text-gray-900 truncate">{displayName}</p>
             <p className="text-xs text-gray-500">{t(roleLabelKey(user?.role))}</p>
           </div>
-          <button onClick={handleLogout} title={t('common.logout')}
-            className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded">
+          <button
+            onClick={handleLogout}
+            title={t('common.logout')}
+            className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded"
+          >
             <LogOut className="w-4 h-4" />
           </button>
         </div>

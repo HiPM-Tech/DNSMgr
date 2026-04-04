@@ -12,7 +12,7 @@ export function Header() {
     domains: t('common.domains'),
     records: t('common.records'),
     users: t('common.users'),
-    audit: '审计',
+    audit: t('common.audit'),
     teams: t('common.teams'),
     settings: t('common.settings'),
   };

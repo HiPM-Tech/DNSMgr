@@ -122,7 +122,14 @@ export class CloudflareAdapter implements DnsAdapter {
     if (!this.config.zoneId) return { total: 0, list: [] };
     let path = `/zones/${this.config.zoneId}/dns_records?page=${page}&per_page=${pageSize}`;
     if (type) path += `&type=${encodeURIComponent(type)}`;
-    if (subdomain) path += `&name=${encodeURIComponent(subdomain)}`;
+    // Cloudflare requires full record name for filtering (including zone name).
+    if (subdomain) {
+      try {
+        path += `&name=${encodeURIComponent(this.toFqdnRecordName(subdomain))}`;
+      } catch (e) {
+        this.error = e instanceof Error ? e.message : String(e);
+      }
+    }
     if (value) path += `&content=${encodeURIComponent(value)}`;
     if (keyword) path += `&search=${encodeURIComponent(keyword)}`;
 
@@ -152,11 +159,16 @@ export class CloudflareAdapter implements DnsAdapter {
     weight?: number,
     remark?: string
   ): Promise<string | null> {
-    if (!this.config.zoneId) return null;
-    const body = this.buildRecordBody(name, type, value, line, ttl, mx, weight, remark);
-    const res = await this.request<CfRecord>('POST', `/zones/${this.config.zoneId}/dns_records`, body);
-    if (!res.success) return null;
-    return res.result.id;
+    try {
+      if (!this.config.zoneId) return null;
+      const body = this.buildRecordBody(name, type, value, line, ttl, mx, weight, remark);
+      const res = await this.request<CfRecord>('POST', `/zones/${this.config.zoneId}/dns_records`, body);
+      if (!res.success) return null;
+      return res.result.id;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return null;
+    }
   }
 
   async updateDomainRecord(
@@ -170,10 +182,15 @@ export class CloudflareAdapter implements DnsAdapter {
     weight?: number,
     remark?: string
   ): Promise<boolean> {
-    if (!this.config.zoneId) return false;
-    const body = this.buildRecordBody(name, type, value, line, ttl, mx, weight, remark);
-    const res = await this.request<CfRecord>('PATCH', `/zones/${this.config.zoneId}/dns_records/${recordId}`, body);
-    return res.success;
+    try {
+      if (!this.config.zoneId) return false;
+      const body = this.buildRecordBody(name, type, value, line, ttl, mx, weight, remark);
+      const res = await this.request<CfRecord>('PATCH', `/zones/${this.config.zoneId}/dns_records/${recordId}`, body);
+      return res.success;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
   }
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
@@ -216,11 +233,9 @@ export class CloudflareAdapter implements DnsAdapter {
   private mapRecord(r: CfRecord): DnsRecord {
     const zoneName = this.getZoneName(r);
     const normalizedManaged = this.normalizeManagedRecordName(r.name, zoneName);
-    const displayName = r.data?.service && r.data?.proto
-      ? `${r.data.service}.${r.data.proto}${r.data.name && r.data.name !== '@' ? `.${r.data.name}` : ''}`
-      : normalizedManaged.name;
-    const isPaused = r.data?.service && r.data?.proto ? false : normalizedManaged.paused;
-    const srvValue = r.data?.port && r.data?.target
+    const displayName = normalizedManaged.name;
+    const isPaused = normalizedManaged.paused;
+    const srvValue = r.data?.port !== undefined && r.data?.target
       ? `${r.data.port} ${r.data.target}`
       : this.safeString(r.content);
 
@@ -239,7 +254,8 @@ export class CloudflareAdapter implements DnsAdapter {
         proxied: Boolean(r.proxied),
         proxiable: r.proxiable ?? false,
       },
-      Weight: r.data?.weight ?? r.weight,
+      // Cloudflare exposes weight only for certain record types (e.g. SRV/URI via `data`).
+      Weight: r.data?.weight,
       Remark: r.comment,
       UpdateTime: r.modified_on,
     };
@@ -255,35 +271,32 @@ export class CloudflareAdapter implements DnsAdapter {
     weight?: number,
     remark?: string
   ): Record<string, unknown> {
+    const fqdnName = this.toFqdnRecordName(name);
+
     if (type === 'SRV') {
       const srv = this.parseSrvRecord(name, value, mx, weight);
-      const body: Record<string, unknown> = { type, ttl, data: srv };
+      const body: Record<string, unknown> = { name: fqdnName, type, ttl, data: srv };
+      const proxied = this.toProxiedValue(line);
+      if (proxied !== undefined) body['proxied'] = proxied;
       if (remark !== undefined) body['comment'] = remark;
       return body;
     }
 
-    const normalizedName = this.normalizeRecordNameForWrite(name);
-    const body: Record<string, unknown> = { name: normalizedName, type, content: value, ttl };
+    const body: Record<string, unknown> = { name: fqdnName, type, content: value, ttl };
     const proxied = this.toProxiedValue(line);
     if (proxied !== undefined) body['proxied'] = proxied;
     if (type === 'MX') body['priority'] = mx;
-    if (weight !== undefined) body['weight'] = weight;
+    // Cloudflare DNS records do not support a generic "weight" field for most types.
     if (remark !== undefined) body['comment'] = remark;
     return body;
   }
 
-  private parseSrvRecord(name: string, value: string, priority = 0, weight = 0) {
-    const normalizedName = this.normalizeRecordNameForWrite(name);
-    const nameParts = normalizedName.split('.').filter(Boolean);
-    const [service = '', proto = '', ...restName] = nameParts;
+  private parseSrvRecord(_name: string, value: string, priority = 0, weight = 0) {
     const valueParts = value.trim().split(/\s+/).filter(Boolean);
     const port = Number(valueParts[0] ?? 0);
     const target = valueParts.slice(1).join(' ');
 
     return {
-      service,
-      proto,
-      name: restName.length > 0 ? restName.join('.') : '@',
       priority,
       weight,
       port,
@@ -291,12 +304,24 @@ export class CloudflareAdapter implements DnsAdapter {
     };
   }
 
-  private normalizeRecordNameForWrite(name: string): string {
+  private toFqdnRecordName(name: string): string {
     const zoneName = this.safeString(this.config.domain).replace(/\.$/, '');
     const normalized = this.safeString(name).replace(/\.$/, '');
-    if (!normalized || normalized === '@') return '@';
-    if (zoneName && normalized === zoneName) return '@';
-    return this.toRelativeRecordName(normalized, zoneName);
+
+    // Cloudflare API expects a fully-qualified record name including the zone name.
+    if (!normalized || normalized === '@') {
+      if (!zoneName) {
+        throw new Error('Cloudflare: config.domain is required to use @ record name');
+      }
+      return zoneName;
+    }
+
+    // Already looks like a FQDN.
+    if (!zoneName) return normalized;
+    if (normalized === zoneName) return zoneName;
+
+    const suffix = `.${zoneName}`;
+    return normalized.endsWith(suffix) ? normalized : `${normalized}${suffix}`;
   }
 
   private toProxiedValue(line?: string): boolean | undefined {

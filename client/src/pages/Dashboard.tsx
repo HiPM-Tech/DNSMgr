@@ -61,7 +61,7 @@ export function Dashboard() {
             <Clock className="w-4 h-4 text-gray-400" />
             <h2 className="font-semibold text-gray-900">{t('dashboard.recentOperations')}</h2>
           </div>
-          <span className="text-sm text-gray-500">最近 10 条</span>
+          <span className="text-sm text-gray-500">{t('dashboard.recentItems', { count: 10 })}</span>
         </div>
         {logsLoading ? (
           <div className="flex justify-center py-10">

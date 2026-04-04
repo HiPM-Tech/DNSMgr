@@ -160,6 +160,8 @@ export const authApi = {
   me: () => api.get<ApiResponse<User>>('/auth/me'),
   changePassword: (oldPassword: string, newPassword: string) =>
     api.put<ApiResponse<null>>('/auth/password', { oldPassword, newPassword }),
+  updateProfile: (data: { nickname?: string; email?: string }) =>
+    api.put<ApiResponse<User>>('/auth/profile', data),
 };
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────

@@ -172,4 +172,58 @@ router.put('/password', authMiddleware, (req: Request, res: Response) => {
   res.json({ code: 0, msg: 'success' });
 });
 
+/**
+ * @swagger
+ * /api/auth/profile:
+ *   put:
+ *     summary: Update current user profile
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nickname:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Profile updated
+ */
+router.put('/profile', authMiddleware, (req: Request, res: Response) => {
+  const { nickname, email } = req.body as { nickname?: string; email?: string };
+  if (nickname === undefined && email === undefined) {
+    res.json({ code: -1, msg: 'Nothing to update' });
+    return;
+  }
+  const db = getDb();
+  const user = db.prepare('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?')
+    .get(req.user!.userId) as User | undefined;
+  if (!user) {
+    res.json({ code: -1, msg: 'User not found' });
+    return;
+  }
+  const updates: string[] = ["updated_at = datetime('now')"];
+  const params: unknown[] = [];
+  if (nickname !== undefined) {
+    const resolvedNickname = nickname.trim() || user.username;
+    updates.push('nickname = ?');
+    params.push(resolvedNickname);
+  }
+  if (email !== undefined) {
+    updates.push('email = ?');
+    params.push(email);
+  }
+  params.push(user.id);
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  const updated = db.prepare('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?')
+    .get(user.id) as User | undefined;
+  res.json({ code: 0, data: updated, msg: 'success' });
+});
+
 export default router;

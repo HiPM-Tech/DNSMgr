@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Lock, CheckCircle } from 'lucide-react';
@@ -11,15 +11,32 @@ import { useI18n } from '../contexts/I18nContext';
 import { localeOptions } from '../i18n';
 
 export function Settings() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const toast = useToast();
   const { locale, setLocale, t } = useI18n();
   const displayName = user?.nickname || user?.username;
+  const [nickname, setNickname] = useState('');
+  const [email, setEmail] = useState('');
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setNickname(user?.nickname ?? '');
+    setEmail(user?.email ?? '');
+  }, [user?.id, user?.nickname, user?.email]);
+
+  const profileMutation = useMutation({
+    mutationFn: () => authApi.updateProfile({ nickname: nickname.trim(), email: email.trim() }),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      if (res.data.data) updateUser(res.data.data);
+      toast.success(t('settings.profileUpdated'));
+    },
+    onError: () => toast.error(t('settings.profileUpdateFailed')),
+  });
 
   const mutation = useMutation({
     mutationFn: () => authApi.changePassword(oldPassword, newPassword),
@@ -43,7 +60,14 @@ export function Settings() {
     mutation.mutate();
   };
 
+  const handleProfileSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    profileMutation.mutate();
+  };
+
   const inputClass = 'w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const hasProfileChanges = (nickname !== (user?.nickname ?? '')) || (email !== (user?.email ?? ''));
 
   return (
     <div className="max-w-lg space-y-6">
@@ -57,6 +81,38 @@ export function Settings() {
             <p className="text-xs text-gray-400 mt-0.5">{t(roleLabelKey(user?.role))}</p>
           </div>
         </div>
+        <form onSubmit={handleProfileSubmit} className="mt-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.nickname')}</label>
+            <input
+              type="text"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder={t('settings.nicknamePlaceholder')}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.email')}</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t('settings.emailPlaceholder')}
+              className={inputClass}
+            />
+          </div>
+          <div className="pt-1">
+            <button
+              type="submit"
+              disabled={profileMutation.isPending || !hasProfileChanges}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
+            >
+              {profileMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              {t('settings.updateProfile')}
+            </button>
+          </div>
+        </form>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6">

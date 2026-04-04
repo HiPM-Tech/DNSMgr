@@ -2,9 +2,9 @@ import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
 
 interface PowerdnsConfig {
-  ip: string;
-  port: string;
-  apikey: string;
+  serverUrl: string;
+  apiKey: string;
+  serverId: string;
   domain?: string;
   domainId?: string;
 }
@@ -21,27 +21,40 @@ interface Rrset {
 
 export class PowerdnsAdapter extends BaseAdapter {
   private config: PowerdnsConfig;
-  private serverId = 'localhost';
   private rrsetsCache: Rrset[] | null = null;
 
   constructor(config: Record<string, string>) {
     super();
+
+    const rawServerUrl = safeString(config.serverUrl);
+    const ip = safeString(config.ip);
+    const port = safeString(config.port) || '8081';
+    const legacyServerUrl = ip ? `http://${ip}:${port}` : '';
+    const serverUrl = rawServerUrl || legacyServerUrl;
+
     this.config = {
-      ip: safeString(config.ip),
-      port: safeString(config.port) || '8081',
-      apikey: safeString(config.apikey),
+      // Prefer UI keys (`serverUrl` / `apiKey`), keep legacy keys for backward compatibility.
+      serverUrl,
+      apiKey: safeString(config.apiKey) || safeString(config.apikey),
+      serverId: safeString(config.serverId) || 'localhost',
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
     };
   }
 
   private getBaseUrl(): string {
-    return `http://${this.config.ip}:${this.config.port}/api/v1`;
+    const base = safeString(this.config.serverUrl).replace(/\/+$/, '');
+    if (!base) {
+      // Keep a usable error for callers; request() will fail if called.
+      this.error = 'PowerDNS: serverUrl is required';
+      return '/api/v1';
+    }
+    return base.endsWith('/api/v1') ? base : `${base}/api/v1`;
   }
 
   private getHeaders(): Record<string, string> {
     return {
-      'X-API-Key': this.config.apikey,
+      'X-API-Key': this.config.apiKey,
       'Content-Type': 'application/json',
     };
   }
@@ -83,7 +96,7 @@ export class PowerdnsAdapter extends BaseAdapter {
 
   async getDomainList(keyword?: string, _page = 1, _pageSize = 20): Promise<PageResult<DomainInfo>> {
     try {
-      const data = await this.request<Array<{ id: string; name: string }>>('GET', `/servers/${this.serverId}/zones`);
+      const data = await this.request<Array<{ id: string; name: string }>>('GET', `/servers/${this.config.serverId}/zones`);
       let list = (data || []).map((row) => ({
         Domain: row.name.replace(/\.$/, ''),
         ThirdId: row.id,
@@ -114,7 +127,7 @@ export class PowerdnsAdapter extends BaseAdapter {
         return { total: 0, list: [] };
       }
 
-      const data = await this.request<{ rrsets: Rrset[] }>('GET', `/servers/${this.serverId}/zones/${this.config.domainId}`);
+      const data = await this.request<{ rrsets: Rrset[] }>('GET', `/servers/${this.config.serverId}/zones/${this.config.domainId}`);
       this.rrsetsCache = data.rrsets || [];
 
       let rrsetId = 0;
@@ -374,7 +387,7 @@ export class PowerdnsAdapter extends BaseAdapter {
       if (!domainName.endsWith('.')) {
         domainName += '.';
       }
-      await this.request('POST', `/servers/${this.serverId}/zones`, {
+      await this.request('POST', `/servers/${this.config.serverId}/zones`, {
         name: domainName,
         kind: 'Native',
         soa_edit_api: 'INCREASE',
@@ -399,12 +412,12 @@ export class PowerdnsAdapter extends BaseAdapter {
     if (remark) {
       rrset.comments = [{ account: '', content: remark }];
     }
-    await this.request('PATCH', `/servers/${this.serverId}/zones/${this.config.domainId}`, { rrsets: [rrset] });
+    await this.request('PATCH', `/servers/${this.config.serverId}/zones/${this.config.domainId}`, { rrsets: [rrset] });
   }
 
   private async rrsetDelete(host: string, type: string): Promise<void> {
     const name = host === '@' ? this.config.domainId : `${host}.${this.config.domainId}`;
-    await this.request('PATCH', `/servers/${this.serverId}/zones/${this.config.domainId}`, {
+    await this.request('PATCH', `/servers/${this.config.serverId}/zones/${this.config.domainId}`, {
       rrsets: [{ name, type, changetype: 'DELETE' }],
     });
   }

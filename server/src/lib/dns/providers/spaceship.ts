@@ -14,8 +14,9 @@ export class SpaceshipAdapter extends BaseAdapter {
   constructor(config: Record<string, string>) {
     super();
     this.config = {
-      apiKey: safeString(config.apikey),
-      apiSecret: safeString(config.apisecret),
+      // UI uses `apiKey`/`apiSecret`; keep legacy `apikey`/`apisecret` for backward compatibility.
+      apiKey: safeString(config.apiKey) || safeString(config.apikey),
+      apiSecret: safeString(config.apiSecret) || safeString(config.apisecret),
       domain: safeString(config.domain),
     };
   }
