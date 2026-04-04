@@ -17,6 +17,7 @@ import {
   AliyunesaAdapter,
   TencenteoAdapter,
   DnsheAdapter,
+  RainyunAdapter,
 } from './providers';
 
 export interface ProviderCapabilities {
@@ -196,6 +197,14 @@ const providers: ProviderInfo[] = [
       { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
     ],
   },
+  {
+    type: 'rainyun',
+    name: '雨云',
+    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false },
+    configFields: [
+      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    ],
+  },
 ];
 
 const providerMap = new Map(providers.map((p) => [p.type, p]));
@@ -228,6 +237,7 @@ export function createAdapter(type: string, config: Record<string, string>, doma
     case 'spaceship': return new SpaceshipAdapter(cfg);
     case 'powerdns': return new PowerdnsAdapter(cfg);
     case 'dnshe': return new DnsheAdapter(cfg);
+    case 'rainyun': return new RainyunAdapter(cfg);
     default: throw new Error(`Unknown provider type: ${type}`);
   }
 }
