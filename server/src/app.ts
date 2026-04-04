@@ -17,6 +17,13 @@ import initRouter from './routes/init';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
+// Global state to track initialization
+let isInitialized = false;
+
+function checkInitialization(): boolean {
+  return isDbInitialized() && hasUsers();
+}
+
 // Middlewares
 app.use(cors());
 app.use(express.json());
@@ -50,71 +57,46 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // Initialize routes - always available
 app.use('/api/init', initRouter);
 
-// Check if system needs initialization
-const needsInit = !isDbInitialized() || !hasUsers();
+// Check initial state
+isInitialized = checkInitialization();
 
-if (needsInit) {
+if (isInitialized) {
+  console.log('[Server] System initialized. Running in normal mode.');
+  enableNormalRoutes();
+} else {
   console.log('[Server] System not initialized. Running in initialization mode.');
   console.log('[Server] Please access the setup wizard to configure the system.');
+  enableInitMode();
+}
+
+// Re-check initialization status periodically (every 5 seconds)
+const initCheckInterval = setInterval(() => {
+  const newState = checkInitialization();
+  if (!isInitialized && newState) {
+    // System just got initialized
+    isInitialized = true;
+    console.log('[Server] System initialized detected. Enabling normal routes...');
+    enableNormalRoutes();
+    console.log('[Server] Normal routes enabled. You may need to refresh the page.');
+  }
+}, 5000);
+
+function enableInitMode() {
+  // In init mode, return 503 for protected routes
+  const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs'];
   
-  // In init mode, only allow init routes and return 503 for other routes
-  app.use('/api/auth', (req: Request, res: Response) => {
-    res.status(503).json({ 
-      code: 503, 
-      msg: 'System not initialized. Please complete setup first.',
-      data: { needsInit: true }
+  protectedPaths.forEach(path => {
+    app.use(path, (req: Request, res: Response) => {
+      res.status(503).json({ 
+        code: 503, 
+        msg: 'System not initialized. Please complete setup first.',
+        data: { needsInit: true }
+      });
     });
   });
-  
-  app.use('/api/users', (req: Request, res: Response) => {
-    res.status(503).json({ 
-      code: 503, 
-      msg: 'System not initialized. Please complete setup first.',
-      data: { needsInit: true }
-    });
-  });
-  
-  app.use('/api/teams', (req: Request, res: Response) => {
-    res.status(503).json({ 
-      code: 503, 
-      msg: 'System not initialized. Please complete setup first.',
-      data: { needsInit: true }
-    });
-  });
-  
-  app.use('/api/accounts', (req: Request, res: Response) => {
-    res.status(503).json({ 
-      code: 503, 
-      msg: 'System not initialized. Please complete setup first.',
-      data: { needsInit: true }
-    });
-  });
-  
-  app.use('/api/domains', (req: Request, res: Response) => {
-    res.status(503).json({ 
-      code: 503, 
-      msg: 'System not initialized. Please complete setup first.',
-      data: { needsInit: true }
-    });
-  });
-  
-  app.use('/api/domains/:domainId/records', (req: Request, res: Response) => {
-    res.status(503).json({ 
-      code: 503, 
-      msg: 'System not initialized. Please complete setup first.',
-      data: { needsInit: true }
-    });
-  });
-  
-  app.get('/api/logs', (req: Request, res: Response) => {
-    res.status(503).json({ 
-      code: 503, 
-      msg: 'System not initialized. Please complete setup first.',
-      data: { needsInit: true }
-    });
-  });
-} else {
-  // Normal mode - all routes available
+}
+
+function enableNormalRoutes() {
   // Routes
   app.use('/api/auth', authRouter);
   app.use('/api/users', usersRouter);
@@ -197,12 +179,29 @@ if (needsInit) {
 // Initialize DB schema (creates tables but not admin user)
 initSchema();
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[Server] DNSMgr running on http://localhost:${PORT}`);
   console.log(`[Server] API Docs: http://localhost:${PORT}/api/docs`);
-  if (needsInit) {
+  if (!isInitialized) {
     console.log(`[Server] Setup Wizard: http://localhost:${PORT}/setup`);
   }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  clearInterval(initCheckInterval);
+  server.close(() => {
+    console.log('[Server] Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  clearInterval(initCheckInterval);
+  server.close(() => {
+    console.log('[Server] Server closed');
+    process.exit(0);
+  });
 });
 
 export default app;
