@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft, Info } from 'lucide-react';
-import { recordsApi, domainsApi } from '../api';
+import { recordsApi, domainsApi, accountsApi } from '../api';
 import type { DnsRecord, DnsLine } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
@@ -11,13 +11,15 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 
-const RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
+const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR'];
+const CLOUDFLARE_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
 const DOMAIN_VALUE_TYPES = new Set(['CNAME', 'MX', 'NS', 'PTR', 'HTTPS']);
 const PROXIABLE_RECORD_TYPES = new Set(['A', 'AAAA', 'CNAME', 'HTTPS']);
 
 interface RecordFormProps {
   domainId: number;
   lines: DnsLine[];
+  recordTypes: string[];
   initial?: DnsRecord;
   onSubmit: (data: Partial<DnsRecord>) => void;
   isLoading: boolean;
@@ -90,7 +92,7 @@ function parseSrvValue(initial?: DnsRecord): SrvFields {
   };
 }
 
-function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
+function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: RecordFormProps) {
   const toast = useToast();
   const { t } = useI18n();
   const [form, setForm] = useState<Partial<DnsRecord>>({
@@ -215,7 +217,7 @@ function RecordForm({ lines, initial, onSubmit, isLoading }: RecordFormProps) {
             }}
             className={inputClass}
           >
-            {RECORD_TYPES.map((t) => <option key={t}>{t}</option>)}
+            {recordTypes.map((t) => <option key={t}>{t}</option>)}
           </select>
         </div>
       </div>
@@ -380,6 +382,24 @@ export function Records() {
     queryFn: () => domainsApi.get(domainId).then((r) => r.data.data),
   });
 
+  const { data: account } = useQuery({
+    queryKey: ['account-for-domain', domain?.account_id],
+    enabled: Boolean(domain?.account_id),
+    queryFn: () => accountsApi.get(domain!.account_id).then((r) => r.data.data),
+  });
+
+  const providerRecordTypes = useMemo(() => {
+    const base = account?.type === 'cloudflare' ? [...CLOUDFLARE_RECORD_TYPES] : [...COMMON_RECORD_TYPES];
+    if (editing?.type && !base.includes(editing.type)) base.push(editing.type);
+    return base;
+  }, [account?.type, editing?.type]);
+
+  useEffect(() => {
+    if (typeFilter && !providerRecordTypes.includes(typeFilter)) {
+      setTypeFilter('');
+    }
+  }, [providerRecordTypes, typeFilter]);
+
   const { data: records = [], isLoading } = useQuery({
     queryKey: ['records', domainId, typeFilter, keyword],
     queryFn: () => recordsApi.list(domainId, {
@@ -516,7 +536,7 @@ export function Records() {
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
           <option value="">{t('common.allTypes')}</option>
-          {RECORD_TYPES.map((t) => <option key={t}>{t}</option>)}
+          {providerRecordTypes.map((t) => <option key={t}>{t}</option>)}
         </select>
       </div>
 
@@ -526,13 +546,13 @@ export function Records() {
 
       {showAdd && (
         <Modal title={t('records.addRecordFor', { name: domain?.name ?? '' })} onClose={() => setShowAdd(false)} size="lg">
-          <RecordForm domainId={domainId} lines={lines} onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
+          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
         </Modal>
       )}
 
       {editing && (
         <Modal title={t('records.editRecord')} onClose={() => setEditing(null)} size="lg">
-          <RecordForm domainId={domainId} lines={lines} initial={editing}
+          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} initial={editing}
             onSubmit={(data) => updateMutation.mutate({ recordId: editing.id, data })}
             isLoading={updateMutation.isPending} />
         </Modal>
