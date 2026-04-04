@@ -146,6 +146,15 @@ interface DnsAdapter {
 | ڲ | ֱ֧ |
 |---|---|
 | `aliyun` | `aliyun`, `alidns` |
+| `aliyunesa` | `aliesa` |
+| `baidu` | `baiducloud` |
+| `huawei` | `huaweicloud` |
+| `huoshan` | `huoshan`, `volcengine` |
+| `west` | `westcn` |
+| `cloudflare` | `cloudflare` |
+| `jdcloud` | `jdcloud` |
+| `namesilo` | `namesilo` |
+| `rainyun` | `rainyun` |
 | `powerdns` | `powerdns`, `pdns` |
 | `dnspod` | `dnspod`, `tencentcloud` |
 | `tencenteo` | `tencenteo`, `edgeone` |
