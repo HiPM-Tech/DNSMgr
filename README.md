@@ -70,18 +70,26 @@ pnpm install
 
 ### Development
 
+#### Mode 1: Concurrent Start (Recommended for most users)
+
+Start both frontend and backend with a single command (runs on separate ports):
+
 ```bash
-# Start both server and client in parallel
+# Start both server (port 3001) and client (port 5173) in parallel
 pnpm dev
 ```
 
-Or separately:
+Access: http://localhost:5173
+
+#### Mode 2: Separate Start (For advanced users)
+
+Start frontend and backend independently in separate terminals:
 
 ```bash
-# Backend (port 3001)
+# Terminal 1 - Backend only (port 3001)
 cd server && pnpm dev
 
-# Frontend (port 5173)
+# Terminal 2 - Frontend only (port 5173)
 cd client && pnpm dev
 ```
 
@@ -90,6 +98,47 @@ cd client && pnpm dev
 ```bash
 pnpm build
 ```
+
+### Source Code - Unified Mode (Single Port)
+
+Run both frontend and backend on the same port (3001) - backend serves static files:
+
+```bash
+# Step 1: Build frontend first
+pnpm --filter client build
+
+# Step 2: Start backend only (serves both API and frontend on port 3001)
+cd server && pnpm dev
+```
+
+Access: http://localhost:3001
+
+This mode is useful when you want:
+- Only one port exposed
+- Same behavior as Docker deployment
+- Simpler reverse proxy configuration
+
+### Docker Deployment
+
+Docker deployment uses all-in-one mode (frontend + backend in single container):
+
+```bash
+# Build and run
+docker build -t dnsmgr .
+docker run -d \
+  -p 3001:3001 \
+  -v $(pwd)/data:/app/data \
+  --name dnsmgr \
+  dnsmgr
+```
+
+Or use Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+Access: http://localhost:3001
 
 ### Environment Variables
 
@@ -104,6 +153,12 @@ cp server/.env.example server/.env
 | `PORT` | `3001` | Server port |
 | `JWT_SECRET` | `dnsmgr-secret-key` | JWT signing secret (change in production!) |
 | `DB_PATH` | `./dnsmgr.db` | SQLite database path |
+| `DB_TYPE` | `sqlite` | Database type: `sqlite`, `mysql`, or `postgresql` |
+| `DB_HOST` | - | Database host (for MySQL/PostgreSQL) |
+| `DB_PORT` | - | Database port (for MySQL/PostgreSQL) |
+| `DB_NAME` | - | Database name (for MySQL/PostgreSQL) |
+| `DB_USER` | - | Database user (for MySQL/PostgreSQL) |
+| `DB_PASS` | - | Database password (for MySQL/PostgreSQL) |
 
 ## Default Login
 

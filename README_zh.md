@@ -51,18 +51,26 @@ pnpm install
 
 ### 开发模式
 
+#### 方式一：并发启动（推荐大多数用户使用）
+
+使用单个命令同时启动前后端（分别运行在不同端口）：
+
 ```bash
-# 同时启动后端与前端
+# 同时启动后端（端口 3001）与前端（端口 5173）
 pnpm dev
 ```
 
-或分别启动：
+访问地址：http://localhost:5173
+
+#### 方式二：独立启动（适合高级用户）
+
+在独立终端中分别启动前后端：
 
 ```bash
-# 后端（端口 3001）
+# 终端 1 - 仅后端（端口 3001）
 cd server && pnpm dev
 
-# 前端（端口 5173）
+# 终端 2 - 仅前端（端口 5173）
 cd client && pnpm dev
 ```
 
@@ -71,6 +79,47 @@ cd client && pnpm dev
 ```bash
 pnpm build
 ```
+
+### 源码运行 - 聚合模式（单端口）
+
+前后端在同一个端口（3001）运行 - 后端同时提供静态文件服务：
+
+```bash
+# 步骤 1：先构建前端
+pnpm --filter client build
+
+# 步骤 2：仅启动后端（同时提供 API 和前端页面，端口 3001）
+cd server && pnpm dev
+```
+
+访问地址：http://localhost:3001
+
+此模式适用于以下场景：
+- 只需暴露一个端口
+- 与 Docker 部署行为保持一致
+- 简化反向代理配置
+
+### Docker 部署
+
+Docker 部署使用一体化模式（前后端合并在一个容器中）：
+
+```bash
+# 构建并运行
+docker build -t dnsmgr .
+docker run -d \
+  -p 3001:3001 \
+  -v $(pwd)/data:/app/data \
+  --name dnsmgr \
+  dnsmgr
+```
+
+或使用 Docker Compose：
+
+```bash
+docker-compose up -d
+```
+
+访问地址：http://localhost:3001
 
 ### 环境变量
 
@@ -85,6 +134,12 @@ cp server/.env.example server/.env
 | `PORT` | `3001` | 服务端端口 |
 | `JWT_SECRET` | `dnsmgr-secret-key` | JWT 签名密钥（生产环境请修改） |
 | `DB_PATH` | `./dnsmgr.db` | SQLite 数据库路径 |
+| `DB_TYPE` | `sqlite` | 数据库类型：`sqlite`、`mysql` 或 `postgresql` |
+| `DB_HOST` | - | 数据库主机（MySQL/PostgreSQL 使用） |
+| `DB_PORT` | - | 数据库端口（MySQL/PostgreSQL 使用） |
+| `DB_NAME` | - | 数据库名称（MySQL/PostgreSQL 使用） |
+| `DB_USER` | - | 数据库用户（MySQL/PostgreSQL 使用） |
+| `DB_PASS` | - | 数据库密码（MySQL/PostgreSQL 使用） |
 
 ## 默认登录
 
