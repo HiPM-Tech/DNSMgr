@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
@@ -9,11 +9,10 @@ import { useToast } from '../hooks/useToast';
 import { startAuthentication } from '@simplewebauthn/browser';
 
 export function Login() {
-  const { login, loginWithToken } = useAuth();
+  const { login } = useAuth();
   const { t } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
