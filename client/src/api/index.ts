@@ -421,3 +421,32 @@ export const settingsApi = {
   getAuditRules: () => api.get<ApiResponse<any>>('/settings/audit-rules'),
   updateAuditRules: (rules: any) => api.put<ApiResponse<any>>('/settings/audit-rules', { rules }),
 };
+
+// ─── Tokens ───────────────────────────────────────────────────────────────────
+
+export interface UserToken {
+  id: number;
+  name: string;
+  allowed_domains: number[];
+  allowed_services: string[];
+  start_time: string | null;
+  end_time: string | null;
+  max_role: number;
+  is_active: boolean;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export const tokensApi = {
+  getAll: () => api.get<ApiResponse<UserToken[]>>('/tokens'),
+  create: (data: {
+    name: string;
+    allowed_domains: number[];
+    start_time?: string;
+    end_time?: string;
+  }) => api.post<ApiResponse<{ token: string; tokenData: UserToken }>>('/tokens', data),
+  delete: (id: number) => api.delete<ApiResponse<null>>(`/tokens/${id}`),
+  toggleStatus: (id: number, is_active: boolean) =>
+    api.patch<ApiResponse<null>>(`/tokens/${id}/status`, { is_active }),
+  getDomains: () => api.get<ApiResponse<{ id: number; name: string; account_name: string }[]>>('/tokens/domains'),
+};

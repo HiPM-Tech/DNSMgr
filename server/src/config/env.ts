@@ -70,6 +70,42 @@ export function saveEnvConfig(config: Record<string, string>): void {
   dotenv.config({ path: envPath, override: true });
 }
 
+// Validate environment variables
+export function validateEnv(): void {
+  const errors: string[] = [];
+
+  // 生产环境强制要求设置JWT_SECRET
+  if (process.env.NODE_ENV === 'production') {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret || jwtSecret === 'dnsmgr-secret-key') {
+      errors.push('JWT_SECRET must be set to a secure value in production (at least 32 characters)');
+    } else if (jwtSecret.length < 32) {
+      errors.push('JWT_SECRET must be at least 32 characters long');
+    }
+  }
+
+  // 验证数据库配置
+  const dbType = process.env.DB_TYPE || 'sqlite';
+  if (dbType === 'mysql' || dbType === 'postgresql') {
+    if (!process.env.DB_HOST) {
+      errors.push(`DB_HOST is required for ${dbType} database`);
+    }
+    if (!process.env.DB_PASSWORD) {
+      errors.push(`DB_PASSWORD is required for ${dbType} database`);
+    }
+    if (!process.env.DB_NAME) {
+      errors.push(`DB_NAME is required for ${dbType} database`);
+    }
+  }
+
+  // 如果有错误，抛出异常
+  if (errors.length > 0) {
+    console.error('[Environment Validation Failed]:');
+    errors.forEach(err => console.error(`  - ${err}`));
+    throw new Error(`Environment validation failed: ${errors.join(', ')}`);
+  }
+}
+
 // Get current database configuration
 export function getDbConfig(): {
   type: 'sqlite' | 'mysql' | 'postgresql';
@@ -77,6 +113,9 @@ export function getDbConfig(): {
   mysql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
   postgresql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
 } {
+  // 在获取配置前验证环境变量
+  validateEnv();
+
   return {
     type: (process.env.DB_TYPE as 'sqlite' | 'mysql' | 'postgresql') || 'sqlite',
     sqlite: {

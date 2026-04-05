@@ -28,15 +28,15 @@ export function TunnelList({ accountId }: { accountId?: number }) {
         return;
       }
       qc.invalidateQueries({ queryKey: ['tunnels'] });
-      toast.success(t('tunnels.deleted'));
+      toast.success(t('tunnels.deleteSuccess'));
     },
     onError: () => toast.error(t('tunnels.deleteFailed')),
   });
 
   const columns = [
-    { key: 'name', label: t('domains.domainName'), render: (r: any) => <span className="font-medium text-gray-900 dark:text-white">{r.name}</span> },
+    { key: 'name', label: t('tunnels.tunnelName'), render: (r: any) => <span className="font-medium text-gray-900 dark:text-white">{r.name}</span> },
     { key: 'status', label: t('audit.fields.status'), render: (r: any) => <Badge variant={r.status === 'active' ? 'green' : 'gray'}>{r.status}</Badge> },
-    { key: 'account', label: t('domains.account'), render: (r: any) => <span className="text-gray-500 text-sm">{r.account_name}</span> },
+    { key: 'account', label: t('accounts.provider'), render: (r: any) => <span className="text-gray-500 text-sm">{r.account_name}</span> },
     { key: 'created_at', label: t('common.createdAt'), render: (r: any) => <span className="text-gray-500 text-sm">{new Date(r.created_at).toLocaleString()}</span> },
     {
       key: 'actions', label: t('domains.actions'), render: (r: any) => (

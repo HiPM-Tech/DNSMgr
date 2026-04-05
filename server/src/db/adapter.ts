@@ -76,14 +76,29 @@ export class DbAdapter {
       const result = stmt.run(...(params || []));
       return Number(result.lastInsertRowid);
     } else if (this.conn.type === 'mysql') {
+      // MySQL: Use INSERT and then get LAST_INSERT_ID()
       await this.conn.execute(convertedSql, params);
       const result = await this.conn.get('SELECT LAST_INSERT_ID() as id');
       return (result as { id: number })?.id || 0;
     } else {
-      // PostgreSQL
-      await this.conn.execute(convertedSql, params);
-      const result = await this.conn.get('SELECT lastval() as id');
-      return (result as { id: number })?.id || 0;
+      // PostgreSQL: Use RETURNING clause or lastval()
+      // Check if SQL already has RETURNING clause
+      if (!convertedSql.toLowerCase().includes('returning')) {
+        // Execute insert first
+        await this.conn.execute(convertedSql, params);
+        // Then get last value
+        try {
+          const result = await this.conn.get('SELECT lastval() as id');
+          return (result as { id: number })?.id || 0;
+        } catch {
+          // lastval() might fail if no sequence was used
+          return 0;
+        }
+      } else {
+        // SQL already has RETURNING clause
+        const result = await this.conn.get(convertedSql, params);
+        return (result as { id: number })?.id || 0;
+      }
     }
   }
 
@@ -95,10 +110,24 @@ export class DbAdapter {
       const stmt = (this.conn as any).prepare(convertedSql);
       const result = stmt.run(...(params || []));
       return { changes: result.changes };
-    } else {
-      // For MySQL/PostgreSQL, we can't easily get affected rows count
+    } else if (this.conn.type === 'mysql') {
+      // MySQL: execute and get affected rows info
+      // mysql2 execute returns [ResultSetHeader, FieldPacket[]]
+      // We need to access the ResultSetHeader which contains affectedRows
+      const pool = (this.conn as any).pool;
+      if (pool) {
+        const [result] = await pool.execute(convertedSql, params);
+        // ResultSetHeader has affectedRows property
+        const affectedRows = (result as any).affectedRows || 0;
+        return { changes: affectedRows };
+      }
       await this.conn.execute(convertedSql, params);
-      return { changes: 0 }; // TODO: Implement proper row count
+      return { changes: 0 };
+    } else {
+      // PostgreSQL
+      await this.conn.execute(convertedSql, params);
+      // PostgreSQL doesn't easily return affected rows count without RETURNING
+      return { changes: 0 };
     }
   }
 
@@ -116,6 +145,38 @@ export class DbAdapter {
       return `date(${column}) ${operator} date(?)`;
     }
     return `${column} ${operator} ?`;
+  }
+
+  // Transaction support
+  async beginTransaction(): Promise<void> {
+    if (this.conn.type === 'sqlite') {
+      await this.execute('BEGIN TRANSACTION');
+    } else if (this.conn.type === 'mysql') {
+      await this.execute('START TRANSACTION');
+    } else if (this.conn.type === 'postgresql') {
+      await this.execute('BEGIN');
+    }
+  }
+
+  async commit(): Promise<void> {
+    await this.execute('COMMIT');
+  }
+
+  async rollback(): Promise<void> {
+    await this.execute('ROLLBACK');
+  }
+
+  // Execute function within a transaction
+  async transaction<T>(fn: (db: DbAdapter) => Promise<T>): Promise<T> {
+    await this.beginTransaction();
+    try {
+      const result = await fn(this);
+      await this.commit();
+      return result;
+    } catch (error) {
+      await this.rollback();
+      throw error;
+    }
   }
 }
 

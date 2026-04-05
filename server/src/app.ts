@@ -24,6 +24,7 @@ import auditRouter from './routes/audit';
 import emailTemplatesRouter from './routes/emailTemplates';
 import tunnelsRouter from './routes/tunnels';
 import webauthnRouter from './routes/webauthn';
+import tokensRouter from './routes/tokens';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
@@ -50,6 +51,16 @@ app.use(express.json());
 app.use(requestIdMiddleware);
 app.use(requestLogger);
 
+// Content Security Policy
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 // Swagger setup
 const swaggerOptions: swaggerJsdoc.Options = {
   definition: {
@@ -57,7 +68,36 @@ const swaggerOptions: swaggerJsdoc.Options = {
     info: {
       title: 'DNSMgr API',
       version: '1.0.0',
-      description: 'DNS Aggregation Management Platform API',
+      description: `DNS Aggregation Management Platform API
+
+## Authentication
+
+This API supports two authentication methods:
+
+### 1. JWT Token (User Login)
+After logging in via \`/api/auth/login\`, you will receive a JWT token. 
+Include it in the Authorization header:
+\`\`\`
+Authorization: Bearer <jwt_token>
+\`\`\`
+
+### 2. API Token (Programmatic Access)
+API tokens can be created from the web UI (Settings > API Tokens) and are 
+suitable for automated scripts and CI/CD pipelines.
+
+Include the API token in the Authorization header:
+\`\`\`
+Authorization: Bearer <api_token>
+\`\`\`
+
+API tokens have the same permissions as the user who created them and can be 
+restricted to specific domains and time ranges.
+
+### Token Permissions
+- API tokens inherit the creator's role (User/Admin/Super Admin)
+- Domain restrictions: Tokens can be limited to specific domains
+- Time restrictions: Tokens can have start/end time limits
+- All API endpoints support both JWT and API token authentication`,
     },
     servers: [{ url: `http://localhost:${PORT}` }],
     components: {
@@ -65,7 +105,8 @@ const swaggerOptions: swaggerJsdoc.Options = {
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'JWT',
+          bearerFormat: 'JWT or API Token',
+          description: 'Enter your JWT token or API token',
         },
       },
     },
@@ -93,7 +134,7 @@ function initCheckMiddleware(req: Request, res: Response, next: NextFunction) {
 }
 
 // Apply initialization check middleware to protected paths
-const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings'];
+const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings', '/api/tokens'];
 protectedPaths.forEach(path => {
   app.use(path, initCheckMiddleware);
 });
@@ -112,6 +153,7 @@ app.use('/api/audit', auditRouter);
 app.use('/api/email-templates', emailTemplatesRouter);
 app.use('/api/tunnels', tunnelsRouter);
 app.use('/api/auth/webauthn', webauthnRouter);
+app.use('/api/tokens', tokensRouter);
 
 // Logs route
 /**

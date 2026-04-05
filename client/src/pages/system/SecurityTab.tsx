@@ -732,7 +732,11 @@ export function SecurityTab() {
                   <input value={oauthForm.userInfoEndpoint} onChange={(e) => setOauthForm((v) => ({ ...v, userInfoEndpoint: e.target.value }))} placeholder={t('system.oauthUserInfoEndpoint')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
                   <input value={oauthForm.jwksUri} onChange={(e) => setOauthForm((v) => ({ ...v, jwksUri: e.target.value }))} placeholder={t('system.oauthJwksUri')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
                   <input value={oauthForm.scopes} onChange={(e) => setOauthForm((v) => ({ ...v, scopes: e.target.value }))} placeholder={t('system.oauthScopes')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-                  <input value={oauthForm.redirectUri} onChange={(e) => setOauthForm((v) => ({ ...v, redirectUri: e.target.value }))} placeholder={t('system.oauthRedirectUri')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+                  <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 flex items-center overflow-hidden">
+                    <span className="truncate" title={`${window.location.origin}/oauth/callback`}>
+                      {t('system.oauthRedirectUri')}: {window.location.origin}/oauth/callback
+                    </span>
+                  </div>
                 </div>
                 <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <input type="checkbox" checked={oauthForm.enabled} onChange={(e) => setOauthForm((v) => ({ ...v, enabled: e.target.checked }))} />
@@ -754,12 +758,19 @@ export function SecurityTab() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <input value={logtoForm.providerName} onChange={(e) => setLogtoForm((v) => ({ ...v, providerName: e.target.value }))} placeholder={t('system.oauthProvider')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+                  <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center">
+                    <span className="font-medium">Logto</span>
+                    <span className="text-xs text-gray-500 ml-2">({t('system.oauthProviderFixed')})</span>
+                  </div>
                   <input value={logtoForm.logtoDomain} onChange={(e) => setLogtoForm((v) => ({ ...v, logtoDomain: e.target.value }))} placeholder={t('system.oauthLogtoDomain')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
                   <input value={logtoForm.clientId} onChange={(e) => setLogtoForm((v) => ({ ...v, clientId: e.target.value }))} placeholder={t('system.oauthClientId')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
                   <input type="password" value={logtoForm.clientSecret} onChange={(e) => setLogtoForm((v) => ({ ...v, clientSecret: e.target.value }))} placeholder={t('system.oauthClientSecret')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-                  <input value={logtoForm.redirectUri} onChange={(e) => setLogtoForm((v) => ({ ...v, redirectUri: e.target.value }))} placeholder={t('system.oauthRedirectUri')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
                   <input value={logtoForm.scopes} onChange={(e) => setLogtoForm((v) => ({ ...v, scopes: e.target.value }))} placeholder={t('system.oauthScopes')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+                  <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 flex items-center overflow-hidden">
+                    <span className="truncate" title={`${window.location.origin}/oauth/callback`}>
+                      {t('system.oauthRedirectUri')}: {window.location.origin}/oauth/callback
+                    </span>
+                  </div>
                 </div>
                 <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <input type="checkbox" checked={logtoForm.enabled} onChange={(e) => setLogtoForm((v) => ({ ...v, enabled: e.target.checked }))} />

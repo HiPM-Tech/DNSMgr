@@ -253,7 +253,7 @@ async function checkPing(host: string): Promise<boolean> {
 }
 
 /**
- * 执行容灾切换
+ * 执行容灾切换（带事务保护）
  */
 export async function performFailover(
   configId: number,
@@ -269,79 +269,109 @@ export async function performFailover(
   const status = await getFailoverStatus(configId);
   const currentIp = status?.currentIp || config.primaryIp;
 
-  // 更新 DNS 记录
-  const domainRow = await db.get('SELECT * FROM domains WHERE id = ?', [config.domainId]) as any;
-  if (domainRow) {
-    const accountRow = await db.get('SELECT * FROM dns_accounts WHERE id = ?', [domainRow.account_id]) as any;
-    if (accountRow) {
-      const cfg = JSON.parse(accountRow.config || '{}');
-      const adapter = createAdapter(accountRow.type, cfg, domainRow.name, domainRow.third_id);
-      
-      let page = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const res = await adapter.getDomainRecords(page, 100);
-        for (const r of res.list) {
-          if ((r.Type === 'A' || r.Type === 'AAAA') && r.Value === currentIp) {
-            await adapter.updateDomainRecord(r.RecordId, r.Name, r.Type, toIp, r.Line, r.TTL, r.MX, r.Weight, r.Remark);
-          }
-        }
-        if (res.list.length < 100) {
-          hasMore = false;
-        } else {
-          page++;
+  // 使用事务保护容灾切换操作
+  await db.transaction(async (txDb) => {
+    // 更新 DNS 记录
+    const domainRow = await txDb.get('SELECT * FROM domains WHERE id = ?', [config.domainId]) as any;
+    if (!domainRow) {
+      throw new Error('Domain not found');
+    }
+
+    const accountRow = await txDb.get('SELECT * FROM dns_accounts WHERE id = ?', [domainRow.account_id]) as any;
+    if (!accountRow) {
+      throw new Error('DNS account not found');
+    }
+
+    const cfg = JSON.parse(accountRow.config || '{}');
+    const adapter = createAdapter(accountRow.type, cfg, domainRow.name, domainRow.third_id);
+
+    let page = 1;
+    let hasMore = true;
+    const updatedRecords: any[] = [];
+
+    while (hasMore) {
+      const res = await adapter.getDomainRecords(page, 100);
+      for (const r of res.list) {
+        if ((r.Type === 'A' || r.Type === 'AAAA') && r.Value === currentIp) {
+          await adapter.updateDomainRecord(r.RecordId, r.Name, r.Type, toIp, r.Line, r.TTL, r.MX, r.Weight, r.Remark);
+          updatedRecords.push(r);
         }
       }
+      if (res.list.length < 100) {
+        hasMore = false;
+      } else {
+        page++;
+      }
     }
-  }
 
-  // 更新容灾状态
-  const isPrimary = toIp === config.primaryIp;
-  const switchCount = (status?.switchCount || 0) + 1;
+    // 如果没有更新任何记录，抛出错误回滚事务
+    if (updatedRecords.length === 0) {
+      throw new Error('No DNS records found with current IP');
+    }
 
-  if (db.type === 'sqlite') {
-    const stmt = (db as any).prepare(`
-      INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
-      VALUES (?, ?, ?, datetime('now'), 1, ?)
-      ON CONFLICT(config_id) DO UPDATE SET
-        current_ip = excluded.current_ip,
-        is_primary = excluded.is_primary,
-        last_check_at = datetime('now'),
-        last_check_status = 1,
-        switch_count = excluded.switch_count
-    `);
-    stmt.run(configId, toIp, isPrimary ? 1 : 0, switchCount);
-  } else {
-    const sql = db.type === 'mysql'
-      ? `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
-         VALUES (?, ?, ?, NOW(), 1, ?)
-         ON DUPLICATE KEY UPDATE
-         current_ip = VALUES(current_ip),
-         is_primary = VALUES(is_primary),
-         last_check_at = NOW(),
-         last_check_status = 1,
-         switch_count = VALUES(switch_count)`
-      : `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
-         VALUES ($1, $2, $3, NOW(), true, $4)
-         ON CONFLICT(config_id) DO UPDATE SET
-         current_ip = EXCLUDED.current_ip,
-         is_primary = EXCLUDED.is_primary,
-         last_check_at = NOW(),
-         last_check_status = true,
-         switch_count = EXCLUDED.switch_count`;
+    // 更新容灾状态
+    const isPrimary = toIp === config.primaryIp;
+    const switchCount = (status?.switchCount || 0) + 1;
 
-    await db.execute(sql, [configId, toIp, isPrimary, switchCount]);
-  }
+    if (db.type === 'sqlite') {
+      const stmt = (txDb as any).prepare?.(`
+        INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
+        VALUES (?, ?, ?, datetime('now'), 1, ?)
+        ON CONFLICT(config_id) DO UPDATE SET
+          current_ip = excluded.current_ip,
+          is_primary = excluded.is_primary,
+          last_check_at = datetime('now'),
+          last_check_status = 1,
+          switch_count = excluded.switch_count
+      `);
+      if (stmt) {
+        stmt.run(configId, toIp, isPrimary ? 1 : 0, switchCount);
+      } else {
+        await txDb.execute(`
+          INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
+          VALUES (?, ?, ?, datetime('now'), 1, ?)
+          ON CONFLICT(config_id) DO UPDATE SET
+            current_ip = excluded.current_ip,
+            is_primary = excluded.is_primary,
+            last_check_at = datetime('now'),
+            last_check_status = 1,
+            switch_count = excluded.switch_count
+        `, [configId, toIp, isPrimary ? 1 : 0, switchCount]);
+      }
+    } else {
+      const sql = db.type === 'mysql'
+        ? `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
+           VALUES (?, ?, ?, NOW(), 1, ?)
+           ON DUPLICATE KEY UPDATE
+           current_ip = VALUES(current_ip),
+           is_primary = VALUES(is_primary),
+           last_check_at = NOW(),
+           last_check_status = 1,
+           switch_count = VALUES(switch_count)`
+        : `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
+           VALUES ($1, $2, $3, NOW(), true, $4)
+           ON CONFLICT(config_id) DO UPDATE SET
+           current_ip = EXCLUDED.current_ip,
+           is_primary = EXCLUDED.is_primary,
+           last_check_at = NOW(),
+           last_check_status = true,
+           switch_count = EXCLUDED.switch_count`;
 
-  // 记录审计日志
-  await logAuditOperation(userId, 'failover_switch', config.primaryIp, {
-    fromIp: currentIp,
-    toIp,
-    configId,
+      await txDb.execute(sql, [configId, toIp, isPrimary, switchCount]);
+    }
+
+    // 记录审计日志
+    await logAuditOperation(userId, 'failover_switch', config.primaryIp, {
+      fromIp: currentIp,
+      toIp,
+      configId,
+      updatedRecordsCount: updatedRecords.length,
+    });
   });
 
+  // 发送通知（在事务外，避免通知失败影响事务）
   try {
-    const domainName = domainRow?.name || `Domain#${config.domainId}`;
+    const domainName = config.domainId ? `Domain#${config.domainId}` : 'Unknown Domain';
     await sendNotification(
       `[DNSMgr] Failover Switch Triggered: ${domainName}`,
       `Failover was triggered for domain ${domainName}.\n\nFrom IP: ${currentIp}\nTo IP: ${toIp}\nPrimary: ${config.primaryIp}\nTime: ${new Date().toLocaleString()}`

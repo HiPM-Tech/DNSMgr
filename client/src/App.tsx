@@ -14,6 +14,7 @@ import { Users } from './pages/Users';
 import { Teams } from './pages/Teams';
 import { Settings } from './pages/Settings';
 import { Tunnels } from './pages/Tunnels';
+import { Tokens } from './pages/Tokens';
 import { About } from './pages/About';
 import { System } from './pages/System';
 import { I18nProvider } from './contexts/I18nContext';
@@ -40,6 +41,7 @@ function App() {
                   <Route path="domains" element={<Domains />} />
                   <Route path="domains/:id/records" element={<Records />} />
                   <Route path="tunnels" element={<Tunnels />} />
+                  <Route path="tokens" element={<Tokens />} />
                   <Route path="teams" element={<Teams />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="about" element={<About />} />

@@ -4,12 +4,29 @@ import crypto from 'crypto';
 import { JwtPayload } from '../types';
 import { isAdmin, normalizeRole } from '../utils/roles';
 import { getCurrentConnection } from '../db/database';
+import { verifyToken, hasServicePermission, hasDomainPermission } from '../service/token';
+import { TokenPayload } from '../types/token';
 
-const BASE_JWT_SECRET = process.env.JWT_SECRET || (() => {
+// JWT密钥配置 - 生产环境必须设置JWT_SECRET
+const BASE_JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  
+  // 生产环境强制要求设置JWT_SECRET
   if (process.env.NODE_ENV === 'production') {
-    console.warn('[WARN] JWT_SECRET environment variable is not set. Using insecure default. Set JWT_SECRET in production!');
+    if (!secret || secret === 'dnsmgr-secret-key') {
+      console.error('[ERROR] JWT_SECRET environment variable is not set or using insecure default in production!');
+      console.error('[ERROR] Please set a secure JWT_SECRET (at least 32 characters) in your environment.');
+      process.exit(1);
+    }
   }
-  return 'dnsmgr-secret-key';
+  
+  // 非生产环境使用默认值（仅用于开发）
+  if (!secret) {
+    console.warn('[WARN] JWT_SECRET not set, using insecure default. Set JWT_SECRET for better security.');
+    return 'dnsmgr-secret-key';
+  }
+  
+  return secret;
 })();
 
 const RUNTIME_SECRET_KEY = 'jwt_runtime';
@@ -103,14 +120,75 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     return;
   }
   const token = header.slice(7);
+  
+  // First try to verify as JWT
   try {
     const jwtSecret = await getJwtSecret();
     const payload = jwt.verify(token, jwtSecret) as JwtPayload;
     req.user = { ...payload, role: normalizeRole(payload.role) };
     next();
+    return;
   } catch {
-    res.status(401).json({ code: -1, msg: 'Invalid or expired token' });
+    // Not a valid JWT, try user token
   }
+  
+  // Try to verify as user token
+  const tokenPayload = await verifyToken(token);
+  if (tokenPayload) {
+    // Convert token payload to user payload
+    req.user = {
+      userId: tokenPayload.userId,
+      username: `token:${tokenPayload.tokenId}`,
+      role: tokenPayload.maxRole as 1 | 2 | 3,
+    };
+    // Store token payload for permission checks
+    (req as any).tokenPayload = tokenPayload;
+    next();
+    return;
+  }
+  
+  res.status(401).json({ code: -1, msg: 'Invalid or expired token' });
+}
+
+// Middleware to check token service permission
+export function requireServicePermission(service: string) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const tokenPayload = (req as any).tokenPayload as TokenPayload | undefined;
+    
+    // If not using token auth, allow (JWT auth has its own checks)
+    if (!tokenPayload) {
+      next();
+      return;
+    }
+    
+    if (!hasServicePermission(tokenPayload, service)) {
+      res.status(403).json({ code: -1, msg: `Token does not have permission for ${service}` });
+      return;
+    }
+    
+    next();
+  };
+}
+
+// Middleware to check token domain permission
+export function requireDomainPermission(getDomainId: (req: Request) => number | null) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const tokenPayload = (req as any).tokenPayload as TokenPayload | undefined;
+
+    // If not using token auth, allow
+    if (!tokenPayload) {
+      next();
+      return;
+    }
+
+    const domainId = getDomainId(req);
+    if (domainId !== null && !(await hasDomainPermission(tokenPayload, domainId))) {
+      res.status(403).json({ code: -1, msg: 'Token does not have permission for this domain' });
+      return;
+    }
+
+    next();
+  };
 }
 
 export function adminOnly(req: Request, res: Response, next: NextFunction): void {

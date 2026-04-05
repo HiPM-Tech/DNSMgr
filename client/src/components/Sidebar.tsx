@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap, FileText, Info, Cpu, Sun, Moon, Monitor,
+  LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap, FileText, Info, Cpu, Sun, Moon, Monitor, Key,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { roleLabelKey } from '../utils/roles';
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/accounts', icon: Server, key: 'common.dnsAccounts' },
   { to: '/domains', icon: Globe, key: 'common.domains' },
   { to: '/teams', icon: Users, key: 'common.teams' },
+  { to: '/tokens', icon: Key, key: 'common.tokens' },
 ];
 
 const adminItems = [

@@ -1,5 +1,5 @@
 import mysql from 'mysql2/promise';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import Database from 'better-sqlite3';
 import { getDbConfig } from '../config/env';
 
@@ -18,11 +18,13 @@ export interface DbConnection {
   transaction?: (fn: () => void) => () => void;
 }
 
+// MySQL connection pool
 class MySQLConnection implements DbConnection {
   type: DbType = 'mysql';
   private pool: mysql.Pool;
 
   constructor(config: { host: string; port: number; database: string; user: string; password: string; ssl: boolean }) {
+    const poolSize = parseInt(process.env.DB_POOL_SIZE || '20', 10);
     this.pool = mysql.createPool({
       host: config.host,
       port: config.port,
@@ -30,23 +32,38 @@ class MySQLConnection implements DbConnection {
       user: config.user,
       password: config.password,
       ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
-      connectionLimit: 10,
       waitForConnections: true,
+      connectionLimit: poolSize,
       queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
+      // 连接超时配置
+      connectTimeout: 60000,
+    });
+
+    // 连接池事件监控
+    this.pool.on('acquire', () => {
+      console.debug('[MySQL] Connection acquired');
+    });
+    this.pool.on('release', () => {
+      console.debug('[MySQL] Connection released');
+    });
+    this.pool.on('enqueue', () => {
+      console.warn('[MySQL] Waiting for available connection slot');
     });
   }
 
   async query(sql: string, params?: unknown[]): Promise<unknown[]> {
-    const [rows] = await this.pool.execute(sql, params as (string | number | boolean | Date | Buffer | null)[]);
+    const [rows] = await this.pool.execute(sql, params as mysql.RowDataPacket);
     return rows as unknown[];
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
-    await this.pool.execute(sql, params as (string | number | boolean | Date | Buffer | null)[]);
+    await this.pool.execute(sql, params as mysql.RowDataPacket);
   }
 
   async get(sql: string, params?: unknown[]): Promise<unknown | undefined> {
-    const [rows] = await this.pool.execute(sql, params as (string | number | boolean | Date | Buffer | null)[]);
+    const [rows] = await this.pool.execute(sql, params as mysql.RowDataPacket);
     const results = rows as unknown[];
     return results.length > 0 ? results[0] : undefined;
   }
@@ -56,11 +73,13 @@ class MySQLConnection implements DbConnection {
   }
 }
 
+// PostgreSQL connection pool
 class PostgreSQLConnection implements DbConnection {
   type: DbType = 'postgresql';
   private pool: Pool;
 
   constructor(config: { host: string; port: number; database: string; user: string; password: string; ssl: boolean }) {
+    const poolSize = parseInt(process.env.DB_POOL_SIZE || '20', 10);
     this.pool = new Pool({
       host: config.host,
       port: config.port,
@@ -68,22 +87,55 @@ class PostgreSQLConnection implements DbConnection {
       user: config.user,
       password: config.password,
       ssl: config.ssl ? { rejectUnauthorized: false } : false,
-      max: 10,
+      max: poolSize,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 60000,
+    });
+
+    // Handle pool errors
+    this.pool.on('error', (err) => {
+      console.error('[PostgreSQL] Unexpected pool error:', err);
+    });
+
+    // 连接池事件监控
+    this.pool.on('connect', () => {
+      console.debug('[PostgreSQL] New client connected');
+    });
+    this.pool.on('acquire', () => {
+      console.debug('[PostgreSQL] Client acquired from pool');
+    });
+    this.pool.on('remove', () => {
+      console.debug('[PostgreSQL] Client removed from pool');
     });
   }
 
   async query(sql: string, params?: unknown[]): Promise<unknown[]> {
-    const result = await this.pool.query(sql, params);
-    return result.rows;
+    const client = await this.pool.connect();
+    try {
+      const result = await client.query(sql, params);
+      return result.rows;
+    } finally {
+      client.release();
+    }
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
-    await this.pool.query(sql, params);
+    const client = await this.pool.connect();
+    try {
+      await client.query(sql, params);
+    } finally {
+      client.release();
+    }
   }
 
   async get(sql: string, params?: unknown[]): Promise<unknown | undefined> {
-    const result = await this.pool.query(sql, params);
-    return result.rows.length > 0 ? result.rows[0] : undefined;
+    const client = await this.pool.connect();
+    try {
+      const result = await client.query(sql, params);
+      return result.rows.length > 0 ? result.rows[0] : undefined;
+    } finally {
+      client.release();
+    }
   }
 
   async close(): Promise<void> {
@@ -144,30 +196,43 @@ class SQLiteConnection implements DbConnection {
 }
 
 let connection: DbConnection | null = null;
+let connectionPromise: Promise<DbConnection> | null = null;
 
 export async function createConnection(): Promise<DbConnection> {
-  const config = getDbConfig();
-  
+  // 如果连接已存在且未关闭，直接返回
   if (connection) {
-    await connection.close();
+    return connection;
   }
 
-  switch (config.type) {
-    case 'mysql':
-      connection = new MySQLConnection(config.mysql);
-      break;
-
-    case 'postgresql':
-      connection = new PostgreSQLConnection(config.postgresql);
-      break;
-
-    case 'sqlite':
-    default:
-      connection = new SQLiteConnection(config.sqlite.path);
-      break;
+  // 如果正在创建连接，等待创建完成
+  if (connectionPromise) {
+    return connectionPromise;
   }
 
-  return connection;
+  // 创建新连接
+  connectionPromise = (async () => {
+    const config = getDbConfig();
+
+    switch (config.type) {
+      case 'mysql':
+        connection = new MySQLConnection(config.mysql);
+        break;
+
+      case 'postgresql':
+        connection = new PostgreSQLConnection(config.postgresql);
+        break;
+
+      case 'sqlite':
+      default:
+        connection = new SQLiteConnection(config.sqlite.path);
+        break;
+    }
+
+    console.log(`[Database] Connected to ${config.type}`);
+    return connection;
+  })();
+
+  return connectionPromise;
 }
 
 // Get database connection (synchronous version for backward compatibility)

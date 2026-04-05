@@ -85,6 +85,9 @@ declare global {
   namespace Express {
     interface Request {
       user?: JwtPayload;
+      tokenPayload?: import('./token').TokenPayload;
     }
   }
 }
+
+export * from './token';

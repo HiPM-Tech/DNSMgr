@@ -102,7 +102,7 @@ function assertOAuthEnabled(config: OAuthConfig): void {
   if (!config.enabled) {
     throw new Error('OAuth login is disabled');
   }
-  if (!config.clientId || !config.clientSecret || !config.authorizationEndpoint || !config.tokenEndpoint || !config.userInfoEndpoint || !config.redirectUri) {
+  if (!config.clientId || !config.clientSecret || !config.authorizationEndpoint || !config.tokenEndpoint || !config.userInfoEndpoint) {
     throw new Error('OAuth config is incomplete');
   }
 }
@@ -390,6 +390,41 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/oauth/status:
+ *   get:
+ *     summary: Get OAuth configuration status
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: OAuth status returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: number
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     enabled:
+ *                       type: boolean
+ *                     providerName:
+ *                       type: string
+ *                     providers:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           key:
+ *                             type: string
+ *                           providerName:
+ *                             type: string
+ *                 msg:
+ *                   type: string
+ */
 router.get('/oauth/status', async (_req: Request, res: Response) => {
   try {
     const providers = await getEnabledOAuthProviders();
@@ -403,11 +438,54 @@ router.get('/oauth/status', async (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/oauth/start:
+ *   post:
+ *     summary: Start OAuth login flow
+ *     tags: [Auth]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum: ['custom', 'logto']
+ *                 default: 'custom'
+ *     responses:
+ *       200:
+ *         description: OAuth authorization URL returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: number
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     authUrl:
+ *                       type: string
+ *                 msg:
+ *                   type: string
+ *       400:
+ *         description: OAuth not enabled or configuration error
+ */
 router.post('/oauth/start', async (req: Request, res: Response) => {
   try {
     const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
     const config = await getOAuthConfigByProvider(desired);
     assertOAuthEnabled(config);
+    
+    // Force redirectUri to use the fixed callback endpoint
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+    config.redirectUri = `${baseUrl}/oauth/callback`;
+    
     const state = randomHex(24);
     oauthStateStore.set(state, {
       mode: 'login',
@@ -420,11 +498,44 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/oauth/start-bind:
+ *   post:
+ *     summary: Start OAuth bind flow for current user
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum: ['custom', 'logto']
+ *                 default: 'custom'
+ *     responses:
+ *       200:
+ *         description: OAuth authorization URL returned
+ *       400:
+ *         description: OAuth not enabled
+ *       401:
+ *         description: Unauthorized
+ */
 router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Response) => {
   try {
     const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
     const config = await getOAuthConfigByProvider(desired);
     assertOAuthEnabled(config);
+    
+    // Force redirectUri to use the fixed callback endpoint
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+    config.redirectUri = `${baseUrl}/oauth/callback`;
+    
     const state = randomHex(24);
     oauthStateStore.set(state, {
       mode: 'bind',
@@ -438,6 +549,55 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/oauth/callback:
+ *   post:
+ *     summary: OAuth callback endpoint
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - code
+ *               - state
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 description: Authorization code from OAuth provider
+ *               state:
+ *                 type: string
+ *                 description: State parameter for CSRF protection
+ *     responses:
+ *       200:
+ *         description: Login successful or bind successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: number
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     mode:
+ *                       type: string
+ *                       enum: ['login', 'bind']
+ *                     token:
+ *                       type: string
+ *                     user:
+ *                       type: object
+ *                 msg:
+ *                   type: string
+ *       400:
+ *         description: Invalid parameters or expired state
+ *       403:
+ *         description: Account not bound or disabled
+ */
 router.post('/oauth/callback', async (req: Request, res: Response) => {
   const { code, state } = req.body as { code?: string; state?: string };
   if (!code || !state) {
@@ -461,18 +621,29 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     const config = await getOAuthConfigByProvider(stateEntry.provider);
     assertOAuthEnabled(config);
     const provider = stateEntry.provider;
+    
+    // Force redirectUri to use the fixed callback endpoint
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+    config.redirectUri = `${baseUrl}/oauth/callback`;
+    
     const tokenResult = await exchangeOauthCode(config, code);
     const profile = await fetchOAuthProfile(config, tokenResult.accessToken);
     const idTokenClaims = tokenResult.idToken ? await verifyIdToken(tokenResult.idToken, config) : {};
     const mergedProfile = { ...idTokenClaims, ...profile };
     const subject = resolveOAuthSubject(config, mergedProfile);
     const normalizedEmail = resolveOAuthEmail(config, mergedProfile);
+    
+    // Get provider key for database lookup
+    const providerKey = getProviderKey(config);
+    
     const existingLink = await db.get(
-      `SELECT l.user_id, u.username, u.nickname, u.email, u.role_level as role, u.status
+      `SELECT l.user_id, u.id, u.username, u.nickname, u.email, u.role_level as role, u.status
        FROM oauth_user_links l
        INNER JOIN users u ON u.id = l.user_id
        WHERE l.provider = ? AND l.subject = ?`,
-      [provider, subject]
+      [providerKey, subject]
     ) as (LoginUserInfo & { user_id: number }) | undefined;
 
     if (stateEntry.mode === 'bind') {
@@ -492,9 +663,9 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
       await db.execute(
         `INSERT INTO oauth_user_links (user_id, provider, subject, email)
          VALUES (?, ?, ?, ?)`,
-        [currentUserId, provider, subject, normalizedEmail]
+        [currentUserId, providerKey, subject, normalizedEmail]
       );
-      await logAuditOperation(currentUserId, 'bind_oauth_account', 'system', { provider, subject, email: normalizedEmail });
+      await logAuditOperation(currentUserId, 'bind_oauth_account', 'system', { provider: providerKey, subject, email: normalizedEmail });
       res.json({ code: 0, data: { mode: 'bind' }, msg: 'success' });
       return;
     }
@@ -511,7 +682,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     }
 
     const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
-    await logAuditOperation(user.id, 'oauth_login', 'system', { provider });
+    await logAuditOperation(user.id, 'oauth_login', 'system', { provider: providerKey });
     res.json({
       code: 0,
       data: { mode: 'login', token, user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },

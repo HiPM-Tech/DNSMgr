@@ -154,7 +154,58 @@ export const postgresqlSchema: SchemaDefinition = {
       success BOOLEAN NOT NULL DEFAULT false,
       fail_reason VARCHAR(255),
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name VARCHAR(255) NOT NULL,
+      token_hash VARCHAR(255) NOT NULL UNIQUE,
+      allowed_domains JSONB NOT NULL DEFAULT '[]',
+      allowed_services JSONB NOT NULL DEFAULT '[]',
+      start_time TIMESTAMP,
+      end_time TIMESTAMP,
+      max_role INTEGER NOT NULL DEFAULT 1,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_used_at TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_user_tokens_user_id ON user_tokens(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_user_tokens_token_hash ON user_tokens(token_hash)`,
+    `CREATE TABLE IF NOT EXISTS failover_configs (
+      id SERIAL PRIMARY KEY,
+      domain_id INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+      record_id INTEGER NOT NULL,
+      record_type VARCHAR(50) NOT NULL,
+      record_name VARCHAR(255) NOT NULL,
+      primary_value VARCHAR(255) NOT NULL,
+      backup_value VARCHAR(255) NOT NULL,
+      check_interval INTEGER NOT NULL DEFAULT 60,
+      check_timeout INTEGER NOT NULL DEFAULT 5,
+      check_method VARCHAR(50) NOT NULL DEFAULT 'ping',
+      check_port INTEGER,
+      check_path VARCHAR(255),
+      check_expect VARCHAR(255),
+      enabled BOOLEAN NOT NULL DEFAULT true,
+      created_by INTEGER NOT NULL REFERENCES users(id),
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_failover_configs_domain_id ON failover_configs(domain_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_failover_configs_enabled ON failover_configs(enabled)`,
+    `CREATE TABLE IF NOT EXISTS failover_status (
+      id SERIAL PRIMARY KEY,
+      config_id INTEGER NOT NULL UNIQUE REFERENCES failover_configs(id) ON DELETE CASCADE,
+      current_value VARCHAR(255) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'primary' CHECK (status IN ('primary', 'backup', 'unknown')),
+      last_check_at TIMESTAMP,
+      last_failover_at TIMESTAMP,
+      fail_count INTEGER NOT NULL DEFAULT 0,
+      success_count INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_failover_status_config_id ON failover_status(config_id)`
   ],
   createIndexes: [
     // 索引已在 CREATE TABLE 中定义
