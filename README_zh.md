@@ -2,10 +2,6 @@
 
 一个现代化的 DNS 聚合管理平台，前端使用 React + TailwindCSS，后端使用 Node.js + TypeScript。
 
-## 文档链接
-
-- 英文文档: [README.md](README.md)
-
 ## 功能特性
 
 - **多服务商支持**: 可管理 18 家 DNS 服务商的解析记录：
