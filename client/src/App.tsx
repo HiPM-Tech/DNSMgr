@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute, AdminRoute } from './ProtectedRoute';
 import { Login } from './pages/Login';
+import { Setup } from './pages/Setup';
 import { Dashboard } from './pages/Dashboard';
 import { Audit } from './pages/Audit';
 import { Accounts } from './pages/Accounts';
@@ -12,6 +13,8 @@ import { Records } from './pages/Records';
 import { Users } from './pages/Users';
 import { Teams } from './pages/Teams';
 import { Settings } from './pages/Settings';
+import { About } from './pages/About';
+import { System } from './pages/System';
 import { I18nProvider } from './contexts/I18nContext';
 
 const queryClient = new QueryClient({
@@ -25,6 +28,7 @@ function App() {
         <AuthProvider>
           <BrowserRouter>
             <Routes>
+              <Route path="/setup" element={<Setup />} />
               <Route path="/login" element={<Login />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
@@ -34,9 +38,11 @@ function App() {
                   <Route path="domains/:id/records" element={<Records />} />
                   <Route path="teams" element={<Teams />} />
                   <Route path="settings" element={<Settings />} />
+                  <Route path="about" element={<About />} />
                   <Route element={<AdminRoute />}>
                     <Route path="users" element={<Users />} />
                     <Route path="audit" element={<Audit />} />
+                    <Route path="system" element={<System />} />
                   </Route>
                 </Route>
               </Route>

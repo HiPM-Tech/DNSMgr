@@ -1,0 +1,65 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+build
+**/build
+
+# Development
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage
+.nyc_output
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (will be mounted as volume)
+data/
+**/data/
+
+# Documentation
+README.md
+README_zh.md
+LICENSE
+LICENCE
+*.md
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# GitHub
+.github/
+
+# Runtime
+runtime/
+**/runtime/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

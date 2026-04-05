@@ -97,7 +97,19 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_operation_logs_action ON operation_logs(action)`,
     `CREATE INDEX IF NOT EXISTS idx_operation_logs_domain ON operation_logs(domain)`,
     `CREATE INDEX IF NOT EXISTS idx_operation_logs_created_at ON operation_logs(created_at)`,
-    `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        `CREATE TABLE IF NOT EXISTS oauth_user_links (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider VARCHAR(100) NOT NULL,
+      subject VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL DEFAULT '',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(provider, subject),
+      UNIQUE(user_id, provider)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_oauth_user_links_user_id ON oauth_user_links(user_id)`,
+`CREATE TABLE IF NOT EXISTS runtime_secrets (
       key VARCHAR(255) PRIMARY KEY,
       value TEXT NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

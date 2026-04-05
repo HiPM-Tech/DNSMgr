@@ -96,7 +96,20 @@ export const mysqlSchema: SchemaDefinition = {
       INDEX idx_domain (domain),
       INDEX idx_created_at (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-    `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        `CREATE TABLE IF NOT EXISTS oauth_user_links (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      provider VARCHAR(100) NOT NULL,
+      subject VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL DEFAULT '',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_provider_subject (provider, subject),
+      UNIQUE KEY unique_user_provider (user_id, provider),
+      INDEX idx_oauth_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+`CREATE TABLE IF NOT EXISTS runtime_secrets (
       key VARCHAR(255) PRIMARY KEY,
       value TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

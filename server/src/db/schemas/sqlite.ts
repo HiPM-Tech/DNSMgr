@@ -75,7 +75,19 @@ export const sqliteSchema: SchemaDefinition = {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     )`,
-    `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        `CREATE TABLE IF NOT EXISTS oauth_user_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      provider TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      email TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(provider, subject),
+      UNIQUE(user_id, provider)
+    )`,
+`CREATE TABLE IF NOT EXISTS runtime_secrets (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))

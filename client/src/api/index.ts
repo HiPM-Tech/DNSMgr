@@ -157,11 +157,24 @@ export interface LogEntry {
 export const authApi = {
   login: (username: string, password: string) =>
     api.post<ApiResponse<{ token: string; user: User }>>('/auth/login', { username, password }),
+  oauthStatus: () => api.get<ApiResponse<OAuthStatus>>('/auth/oauth/status'),
+  oauthStart: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start', { provider }),
+  oauthStartBind: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start-bind', { provider }),
+  oauthCallback: (code: string, state: string) =>
+    api.post<ApiResponse<{ token?: string; user?: User; mode?: 'login' | 'bind' }>>('/auth/oauth/callback', { code, state }),
+  oauthBindings: () => api.get<ApiResponse<OAuthBinding[]>>('/auth/oauth/bindings'),
+  unbindOAuth: (provider: string) => api.delete<ApiResponse<null>>(`/auth/oauth/bindings/${encodeURIComponent(provider)}`),
   me: () => api.get<ApiResponse<User>>('/auth/me'),
   changePassword: (oldPassword: string, newPassword: string) =>
     api.put<ApiResponse<null>>('/auth/password', { oldPassword, newPassword }),
-  updateProfile: (data: { nickname?: string; email?: string }) =>
+  updateProfile: (data: { nickname?: string; email?: string; emailCode?: string }) =>
     api.put<ApiResponse<User>>('/auth/profile', data),
+  sendEmailVerificationCode: (email: string) =>
+    api.post<ApiResponse<null>>('/auth/profile/email-code', { email }),
+  requestPasswordReset: (email: string) =>
+    api.post<ApiResponse<null>>('/auth/password-reset/request', { email }),
+  confirmPasswordReset: (email: string, code: string, newPassword: string) =>
+    api.post<ApiResponse<null>>('/auth/password-reset/confirm', { email, code, newPassword }),
 };
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
@@ -255,4 +268,118 @@ export const teamsApi = {
 export const logsApi = {
   list: (params?: { pageSize?: number; page?: number; domain?: string; userId?: number; action?: string; startDate?: string; endDate?: string }) =>
     api.get<ApiResponse<{ total: number; list: LogEntry[] }>>('/logs', { params }),
+};
+
+// ─── Initialization ───────────────────────────────────────────────────────────
+
+export const initApi = {
+  status: () => api.get<ApiResponse<{ initialized: boolean; dbInitialized: boolean; hasUsers: boolean }>>('/init/status'),
+  testDb: (data: { type: 'sqlite' | 'mysql' | 'postgresql'; sqlite?: { path: string }; mysql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean }; postgresql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean } }) =>
+    api.post<ApiResponse<{ success: boolean; message: string }>>('/init/test-db', data),
+  initDatabase: (data: { type: 'sqlite' | 'mysql' | 'postgresql'; sqlite?: { path: string }; mysql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean }; postgresql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean } }) =>
+    api.post<ApiResponse<{ success: boolean }>>('/init/database', data),
+  createAdmin: (data: { username: string; email: string; password: string }) =>
+    api.post<ApiResponse<{ success: boolean }>>('/init/admin', data),
+};
+
+// ─── System ───────────────────────────────────────────────────────────────────
+
+export interface SystemInfo {
+  version: string;
+  serverVersion: string;
+  database: {
+    type: string;
+    version: string;
+    driverVersion: string;
+  };
+  timezone: string;
+  language: string;
+}
+
+export const systemApi = {
+  info: () => api.get<ApiResponse<SystemInfo>>('/system/info'),
+};
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+export interface LoginLimitConfig {
+  enabled: boolean;
+  maxAttempts: number;
+  lockoutDuration: number;
+}
+
+export interface LoginAttemptStats {
+  totalLocked: number;
+  recentAttempts: number;
+  topIdentifiers: { identifier: string; attempts: number }[];
+}
+
+export interface JwtSecretInfo {
+  jwtSecret: string;
+}
+
+export interface SmtpConfig {
+  enabled: boolean;
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  password: string;
+  fromEmail: string;
+  fromName: string;
+}
+
+export interface SecurityConfig {
+  jwtViewEmailNotify: boolean;
+}
+
+export interface OAuthStatus {
+  enabled: boolean;
+  providerName: string;
+  providers: Array<{ key: 'custom' | 'logto'; providerName: string }>;
+}
+
+export interface OAuthBinding {
+  provider: string;
+  subject: string;
+  email: string;
+  created_at: string;
+}
+
+export interface OAuthConfig {
+  enabled: boolean;
+  template: 'generic' | 'logto';
+  providerName: string;
+  subjectKey: string;
+  emailKey: string;
+  logtoDomain: string;
+  clientId: string;
+  clientSecret: string;
+  issuer: string;
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  userInfoEndpoint: string;
+  jwksUri: string;
+  scopes: string;
+  redirectUri: string;
+}
+
+export const settingsApi = {
+  getJwtSecret: (password: string) => api.post<ApiResponse<JwtSecretInfo>>('/settings/jwt-secret', { password }),
+  getSmtpConfig: () => api.get<ApiResponse<SmtpConfig>>('/settings/smtp'),
+  updateSmtpConfig: (data: Partial<SmtpConfig>) => api.put<ApiResponse<SmtpConfig>>('/settings/smtp', data),
+  sendSmtpTest: (to?: string) => api.post<ApiResponse<null>>('/settings/smtp/test', { to }),
+  getSecurityConfig: () => api.get<ApiResponse<SecurityConfig>>('/settings/security'),
+  updateSecurityConfig: (data: Partial<SecurityConfig>) => api.put<ApiResponse<SecurityConfig>>('/settings/security', data),
+  getOAuthConfig: () => api.get<ApiResponse<OAuthConfig>>('/settings/oauth'),
+  updateOAuthConfig: (data: Partial<OAuthConfig>) => api.put<ApiResponse<OAuthConfig>>('/settings/oauth', data),
+  getLogtoOAuthConfig: () => api.get<ApiResponse<OAuthConfig>>('/settings/oauth/logto'),
+  updateLogtoOAuthConfig: (data: Partial<OAuthConfig>) => api.put<ApiResponse<OAuthConfig>>('/settings/oauth/logto', data),
+  discoverOidc: (issuer: string) => api.post<ApiResponse<Partial<OAuthConfig>>>('/settings/oauth/oidc-discover', { issuer }),
+  getLoginLimit: () => api.get<ApiResponse<LoginLimitConfig>>('/settings/login-limit'),
+  updateLoginLimit: (data: Partial<LoginLimitConfig>) =>
+    api.put<ApiResponse<LoginLimitConfig>>('/settings/login-limit', data),
+  getLoginAttemptStats: () => api.get<ApiResponse<LoginAttemptStats>>('/settings/login-attempts/stats'),
+  unlockAccount: (identifier: string) =>
+    api.post<ApiResponse<null>>('/settings/login-attempts/unlock', { identifier }),
 };

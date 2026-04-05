@@ -1,11 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { getDb } from '../db/database';
+import { getAdapter } from '../db/adapter';
 import { authMiddleware } from '../middleware/auth';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { DnsAccount, Domain } from '../types';
 import { type DnsRecord as AdapterRecord } from '../lib/dns/DnsInterface';
 import { getDomainAccess } from './domains';
 import { normalizeRole } from '../utils/roles';
+
+const router = Router({ mergeParams: true });
 
 function toApiRecord(r: AdapterRecord) {
   const cloudflare = r.Cloudflare ?? (r.Proxiable !== undefined
@@ -48,70 +50,64 @@ function isIPv6(value: string): boolean {
 function isHostname(value: string): boolean {
   const normalized = value.trim().replace(/\.$/, '');
   if (!normalized || normalized.length > 253) return false;
-  return normalized.split('.').every((label) =>
-    label.length > 0 &&
-    label.length <= 63 &&
-    /^[a-zA-Z0-9-]+$/.test(label) &&
-    !label.startsWith('-') &&
-    !label.endsWith('-')
-  );
+  const labels = normalized.split('.');
+  if (labels.some((l) => !l || l.length > 63 || /^[-]/.test(l) || /[-]$/.test(l) || /[^a-zA-Z0-9-]/.test(l))) return false;
+  return true;
 }
 
-function validateRecordPayload(type: string, value: string, mx?: number, weight?: number): string | null {
-  if (type === 'A' && !isIPv4(value)) return 'A record must use a valid IPv4 address';
-  if (type === 'AAAA' && !isIPv6(value)) return 'AAAA record must use a valid IPv6 address';
-  if (['CNAME', 'MX', 'NS', 'PTR', 'HTTPS'].includes(type) && !isHostname(value)) {
-    return `${type} record must use a valid hostname`;
+function isValidRecordValue(type: string, value: string): boolean {
+  const t = type.trim().toUpperCase();
+  const v = value.trim();
+  switch (t) {
+    case 'A': return isIPv4(v);
+    case 'AAAA': return isIPv6(v);
+    case 'CNAME':
+    case 'NS':
+    case 'MX':
+    case 'SRV':
+    case 'CAA':
+    case 'PTR': return isHostname(v);
+    case 'TXT': return v.length > 0 && v.length <= 4096;
+    default: return v.length > 0;
   }
-  if (type === 'MX' && mx !== undefined && mx < 0) return 'MX priority must be 0 or greater';
-  if (type === 'SRV') {
-    const parts = value.trim().split(/\s+/).filter(Boolean);
-    if (parts.length < 2 || !/^\d+$/.test(parts[0]) || Number(parts[0]) < 1 || Number(parts[0]) > 65535 || !isHostname(parts.slice(1).join(' '))) {
-      return 'SRV record must use "port target" format with a valid target hostname';
-    }
-    if (mx !== undefined && mx < 0) return 'SRV priority must be 0 or greater';
-    if (weight !== undefined && weight < 0) return 'SRV weight must be 0 or greater';
-  }
-  return null;
 }
 
-function normalizeRecordName(name: string): string {
-  const trimmed = name.trim().toLowerCase();
-  if (!trimmed) return '@';
-  return trimmed;
+function getSubdomain(fullName: string, domainName: string): string {
+  const full = fullName.trim().toLowerCase();
+  const domain = domainName.trim().toLowerCase();
+  if (full === domain) return '@';
+  if (full.endsWith('.' + domain)) return full.slice(0, -(domain.length + 1));
+  return full;
 }
 
-function canWriteSubdomain(writeSubs: string[] | null, name: string): boolean {
+function canWriteSubdomain(writeSubs: string[] | null, fullName: string, domainName: string): boolean {
   if (writeSubs === null) return true;
-  if (writeSubs.length === 0) return false;
-  const normalized = normalizeRecordName(name);
-  return writeSubs.includes(normalized);
+  const sub = getSubdomain(fullName, domainName);
+  return writeSubs.includes(sub);
 }
 
-const router = Router({ mergeParams: true });
-
-function getAdapterForDomain(domain: Domain) {
-  const db = getDb();
-  const account = db.prepare('SELECT * FROM dns_accounts WHERE id = ?').get(domain.account_id) as DnsAccount | undefined;
+async function getAdapterForDomain(domain: Domain) {
+  const adapter = getAdapter();
+  if (!adapter) throw new Error('Database error');
+  const account = await adapter.get('SELECT * FROM dns_accounts WHERE id = ?', [domain.account_id]) as DnsAccount | undefined;
   if (!account) throw new Error('Account not found');
   const cfg = JSON.parse(account.config) as Record<string, string>;
   return createAdapter(account.type, cfg, domain.name, domain.third_id);
 }
 
-function logOperation(userId: number, action: string, domainName: string, data: unknown): void {
-  getDb().prepare('INSERT INTO operation_logs (user_id, action, domain, data) VALUES (?, ?, ?, ?)').run(
-    userId, action, domainName, JSON.stringify(data)
+async function updateDomainRecordCount(domainId: number, count: number): Promise<void> {
+  const adapter = getAdapter();
+  if (!adapter) return;
+  await adapter.execute('UPDATE domains SET record_count = ? WHERE id = ?', [count, domainId]);
+}
+
+async function logOperation(userId: number, action: string, domainName: string, data: unknown): Promise<void> {
+  const adapter = getAdapter();
+  if (!adapter) return;
+  await adapter.execute(
+    'INSERT INTO operation_logs (user_id, action, domain, data) VALUES (?, ?, ?, ?)',
+    [userId, action, domainName, JSON.stringify(data)]
   );
-}
-
-function updateDomainRecordCount(domainId: number, count: number): void {
-  getDb().prepare('UPDATE domains SET record_count = ? WHERE id = ?').run(count, domainId);
-}
-
-async function refreshDomainRecordCount(domain: Domain, adapter = getAdapterForDomain(domain)): Promise<number> {
-  const result = await adapter.getDomainRecords(1, 1);
-  updateDomainRecordCount(domain.id, result.total);
-  return result.total;
 }
 
 /**
@@ -140,46 +136,25 @@ async function refreshDomainRecordCount(domain: Domain, adapter = getAdapterForD
  *         name: keyword
  *         schema:
  *           type: string
- *       - in: query
- *         name: subdomain
- *         schema:
- *           type: string
- *       - in: query
- *         name: type
- *         schema:
- *           type: string
- *       - in: query
- *         name: value
- *         schema:
- *           type: string
- *       - in: query
- *         name: line
- *         schema:
- *           type: string
- *         description: Legacy compatibility field. For Cloudflare prefer `cloudflare.proxied` in write payloads.
- *       - in: query
- *         name: status
- *         schema:
- *           type: integer
  *     responses:
  *       200:
  *         description: List of DNS records
  */
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   const domainId = parseInt(req.params.domainId);
-  const access = getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
     res.json({ code: -1, msg: 'Domain not found' });
     return;
   }
   const { page = '1', pageSize = '100', keyword, subdomain, value, type, line, status } = req.query as Record<string, string>;
   try {
-    const adapter = getAdapterForDomain(access.domain);
-    const result = await adapter.getDomainRecords(
+    const dnsAdapter = await getAdapterForDomain(access.domain);
+    const result = await dnsAdapter.getDomainRecords(
       parseInt(page), parseInt(pageSize), keyword, subdomain, value, type, line,
       status !== undefined ? parseInt(status) : undefined
     );
-    updateDomainRecordCount(access.domain.id, result.total);
+    await updateDomainRecordCount(access.domain.id, result.total);
     res.json({ code: 0, data: { total: result.total, list: result.list.map(toApiRecord) }, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
@@ -194,50 +169,10 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  *     tags: [Records]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: domainId
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [name, type, value]
- *             properties:
- *               name:
- *                 type: string
- *               type:
- *                 type: string
- *               value:
- *                 type: string
- *               line:
- *                 type: string
- *                 description: Legacy compatibility field (`0`=DNS only, `1`=proxied). For Cloudflare prefer `cloudflare.proxied`.
- *               cloudflare:
- *                 type: object
- *                 properties:
- *                   proxied:
- *                     type: boolean
- *                     description: Cloudflare-only proxy switch. When present, it takes precedence over `line`.
- *               ttl:
- *                 type: integer
- *               mx:
- *                 type: integer
- *               weight:
- *                 type: integer
- *               remark:
- *                 type: string
- *     responses:
- *       200:
- *         description: Record created
  */
 router.post('/', authMiddleware, async (req: Request, res: Response) => {
   const domainId = parseInt(req.params.domainId);
-  const access = getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
     res.json({ code: -1, msg: 'Domain not found' });
     return;
@@ -255,69 +190,23 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     res.json({ code: -1, msg: 'name, type, and value are required' });
     return;
   }
-  if (!canWriteSubdomain(access.writeSubs, name)) {
+  if (!canWriteSubdomain(access.writeSubs, name, access.domain.name)) {
     res.json({ code: -1, msg: 'Permission denied for subdomain' });
     return;
   }
-  const validationError = validateRecordPayload(type, value, mx, weight);
-  if (validationError) {
-    res.json({ code: -1, msg: validationError });
+  if (!isValidRecordValue(type, value)) {
+    res.json({ code: -1, msg: `Invalid value for ${type} record` });
     return;
   }
   try {
-    const adapter = getAdapterForDomain(access.domain);
-    const resolvedLine = cloudflare?.proxied === undefined ? line : (cloudflare.proxied ? '1' : '0');
-    const recordId = await adapter.addDomainRecord(name, type, value, resolvedLine, ttl, mx, weight, remark);
+    const dnsAdapter = await getAdapterForDomain(access.domain);
+    const recordId = await dnsAdapter.addDomainRecord(name, type, value, line, ttl, mx, weight, remark);
     if (!recordId) {
       res.json({ code: -1, msg: 'Failed to add record' });
       return;
     }
-    await refreshDomainRecordCount(access.domain, adapter);
-    logOperation(req.user!.userId, 'add_record', access.domain.name, { name, type, value, recordId });
-    res.json({ code: 0, data: { recordId }, msg: 'success' });
-  } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
-  }
-});
-
-/**
- * @swagger
- * /api/domains/{domainId}/records/{recordId}:
- *   get:
- *     summary: Get DNS record info
- *     tags: [Records]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: domainId
- *         required: true
- *         schema:
- *           type: integer
- *       - in: path
- *         name: recordId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Record info
- */
-router.get('/:recordId', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.domainId);
-  const access = getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
-  if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
-    return;
-  }
-  try {
-    const adapter = getAdapterForDomain(access.domain);
-    const record = await adapter.getDomainRecordInfo(req.params.recordId);
-    if (!record) {
-      res.json({ code: -1, msg: 'Record not found' });
-      return;
-    }
-    res.json({ code: 0, data: toApiRecord(record), msg: 'success' });
+    await logOperation(req.user!.userId, 'add_record', access.domain.name, { name, type, value });
+    res.json({ code: 0, data: { id: recordId }, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
   }
@@ -331,55 +220,11 @@ router.get('/:recordId', authMiddleware, async (req: Request, res: Response) => 
  *     tags: [Records]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: domainId
- *         required: true
- *         schema:
- *           type: integer
- *       - in: path
- *         name: recordId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [name, type, value]
- *             properties:
- *               name:
- *                 type: string
- *               type:
- *                 type: string
- *               value:
- *                 type: string
- *               line:
- *                 type: string
- *                 description: Legacy compatibility field (`0`=DNS only, `1`=proxied). For Cloudflare prefer `cloudflare.proxied`.
- *               cloudflare:
- *                 type: object
- *                 properties:
- *                   proxied:
- *                     type: boolean
- *                     description: Cloudflare-only proxy switch. When present, it takes precedence over `line`.
- *               ttl:
- *                 type: integer
- *               mx:
- *                 type: integer
- *               weight:
- *                 type: integer
- *               remark:
- *                 type: string
- *     responses:
- *       200:
- *         description: Record updated
  */
 router.put('/:recordId', authMiddleware, async (req: Request, res: Response) => {
   const domainId = parseInt(req.params.domainId);
-  const access = getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  const recordId = req.params.recordId;
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
     res.json({ code: -1, msg: 'Domain not found' });
     return;
@@ -388,33 +233,31 @@ router.put('/:recordId', authMiddleware, async (req: Request, res: Response) => 
     res.json({ code: -1, msg: 'Permission denied' });
     return;
   }
-  const { name, type, value, line, ttl, mx, weight, remark, cloudflare } = req.body as {
-    name: string; type: string; value: string; line?: string;
-    ttl?: number; mx?: number; weight?: number; remark?: string;
+  const { name, type, value, line, ttl, mx, weight, remark, status, cloudflare } = req.body as {
+    name?: string; type?: string; value?: string; line?: string;
+    ttl?: number; mx?: number; weight?: number; remark?: string; status?: number;
     cloudflare?: { proxied?: boolean };
   };
   if (!name || !type || !value) {
     res.json({ code: -1, msg: 'name, type, and value are required' });
     return;
   }
-  if (!canWriteSubdomain(access.writeSubs, name)) {
+  if (!canWriteSubdomain(access.writeSubs, name, access.domain.name)) {
     res.json({ code: -1, msg: 'Permission denied for subdomain' });
     return;
   }
-  const validationError = validateRecordPayload(type, value, mx, weight);
-  if (validationError) {
-    res.json({ code: -1, msg: validationError });
+  if (!isValidRecordValue(type, value)) {
+    res.json({ code: -1, msg: `Invalid value for ${type} record` });
     return;
   }
   try {
-    const adapter = getAdapterForDomain(access.domain);
-    const resolvedLine = cloudflare?.proxied === undefined ? line : (cloudflare.proxied ? '1' : '0');
-    const ok = await adapter.updateDomainRecord(req.params.recordId, name, type, value, resolvedLine, ttl, mx, weight, remark);
-    if (!ok) {
+    const dnsAdapter = await getAdapterForDomain(access.domain);
+    const success = await dnsAdapter.updateDomainRecord(recordId, name, type, value, line, ttl, mx, weight, remark);
+    if (!success) {
       res.json({ code: -1, msg: 'Failed to update record' });
       return;
     }
-    logOperation(req.user!.userId, 'update_record', access.domain.name, { recordId: req.params.recordId, name, type, value });
+    await logOperation(req.user!.userId, 'update_record', access.domain.name, { recordId, name, type, value });
     res.json({ code: 0, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
@@ -429,24 +272,11 @@ router.put('/:recordId', authMiddleware, async (req: Request, res: Response) => 
  *     tags: [Records]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: domainId
- *         required: true
- *         schema:
- *           type: integer
- *       - in: path
- *         name: recordId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Record deleted
  */
 router.delete('/:recordId', authMiddleware, async (req: Request, res: Response) => {
   const domainId = parseInt(req.params.domainId);
-  const access = getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  const recordId = req.params.recordId;
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
     res.json({ code: -1, msg: 'Domain not found' });
     return;
@@ -456,25 +286,26 @@ router.delete('/:recordId', authMiddleware, async (req: Request, res: Response) 
     return;
   }
   try {
-    const adapter = getAdapterForDomain(access.domain);
+    const dnsAdapter = await getAdapterForDomain(access.domain);
+    // Only scoped writers need subdomain ownership verification.
+    // Users with full-domain write permission can delete directly.
     if (access.writeSubs !== null) {
-      const record = await adapter.getDomainRecordInfo(req.params.recordId);
-      if (!record) {
+      const targetRecord = await dnsAdapter.getDomainRecordInfo(recordId);
+      if (!targetRecord) {
         res.json({ code: -1, msg: 'Record not found' });
         return;
       }
-      if (!canWriteSubdomain(access.writeSubs, record.Name)) {
+      if (!canWriteSubdomain(access.writeSubs, targetRecord.Name, access.domain.name)) {
         res.json({ code: -1, msg: 'Permission denied for subdomain' });
         return;
       }
     }
-    const ok = await adapter.deleteDomainRecord(req.params.recordId);
-    if (!ok) {
+    const success = await dnsAdapter.deleteDomainRecord(recordId);
+    if (!success) {
       res.json({ code: -1, msg: 'Failed to delete record' });
       return;
     }
-    await refreshDomainRecordCount(access.domain, adapter);
-    logOperation(req.user!.userId, 'delete_record', access.domain.name, { recordId: req.params.recordId });
+    await logOperation(req.user!.userId, 'delete_record', access.domain.name, { recordId });
     res.json({ code: 0, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
@@ -485,39 +316,15 @@ router.delete('/:recordId', authMiddleware, async (req: Request, res: Response) 
  * @swagger
  * /api/domains/{domainId}/records/{recordId}/status:
  *   put:
- *     summary: Toggle record status (enable/disable)
+ *     summary: Enable/disable a DNS record
  *     tags: [Records]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: domainId
- *         required: true
- *         schema:
- *           type: integer
- *       - in: path
- *         name: recordId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [status]
- *             properties:
- *               status:
- *                 type: integer
- *                 description: 1=enabled, 0=disabled
- *     responses:
- *       200:
- *         description: Status updated
  */
 router.put('/:recordId/status', authMiddleware, async (req: Request, res: Response) => {
   const domainId = parseInt(req.params.domainId);
-  const access = getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  const recordId = req.params.recordId;
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
     res.json({ code: -1, msg: 'Domain not found' });
     return;
@@ -527,29 +334,18 @@ router.put('/:recordId/status', authMiddleware, async (req: Request, res: Respon
     return;
   }
   const { status } = req.body as { status: number };
-  if (status === undefined || status === null) {
-    res.json({ code: -1, msg: 'status is required' });
+  if (status !== 0 && status !== 1) {
+    res.json({ code: -1, msg: 'status must be 0 or 1' });
     return;
   }
   try {
-    const adapter = getAdapterForDomain(access.domain);
-    if (access.writeSubs !== null) {
-      const record = await adapter.getDomainRecordInfo(req.params.recordId);
-      if (!record) {
-        res.json({ code: -1, msg: 'Record not found' });
-        return;
-      }
-      if (!canWriteSubdomain(access.writeSubs, record.Name)) {
-        res.json({ code: -1, msg: 'Permission denied for subdomain' });
-        return;
-      }
-    }
-    const ok = await adapter.setDomainRecordStatus(req.params.recordId, status);
-    if (!ok) {
+    const dnsAdapter = await getAdapterForDomain(access.domain);
+    const success = await dnsAdapter.setDomainRecordStatus(recordId, status);
+    if (!success) {
       res.json({ code: -1, msg: 'Failed to update record status' });
       return;
     }
-    logOperation(req.user!.userId, 'set_record_status', access.domain.name, { recordId: req.params.recordId, status });
+    await logOperation(req.user!.userId, status === 1 ? 'enable_record' : 'disable_record', access.domain.name, { recordId });
     res.json({ code: 0, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });

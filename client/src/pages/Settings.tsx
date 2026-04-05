@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Lock, CheckCircle } from 'lucide-react';
 import { authApi } from '../api';
+import type { OAuthBinding } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import { roleLabelKey } from '../utils/roles';
@@ -20,22 +21,69 @@ export function Settings() {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [emailCode, setEmailCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [oauthProviderName, setOauthProviderName] = useState('OIDC');
+  const [oauthEnabled, setOauthEnabled] = useState(false);
+  const [oauthProviders, setOauthProviders] = useState<Array<{ key: 'custom' | 'logto'; providerName: string }>>([]);
+  const [selectedOauthProvider, setSelectedOauthProvider] = useState<'custom' | 'logto'>('custom');
+  const [oauthBindings, setOauthBindings] = useState<OAuthBinding[]>([]);
 
   useEffect(() => {
     setNickname(user?.nickname ?? '');
     setEmail(user?.email ?? '');
   }, [user?.id, user?.nickname, user?.email]);
 
+  useEffect(() => {
+    authApi.oauthStatus()
+      .then((res) => {
+        if (res.data.code === 0) {
+          setOauthEnabled(res.data.data.enabled);
+          setOauthProviderName(res.data.data.providerName || 'OIDC');
+          const providers = res.data.data.providers || [];
+          setOauthProviders(providers);
+          if (providers.length > 0) setSelectedOauthProvider(providers[0].key);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const loadBindings = () => {
+    authApi.oauthBindings()
+      .then((res) => {
+        if (res.data.code === 0) {
+          setOauthBindings(res.data.data || []);
+        }
+      })
+      .catch(() => undefined);
+  };
+
+  useEffect(() => {
+    loadBindings();
+  }, []);
+
   const profileMutation = useMutation({
-    mutationFn: () => authApi.updateProfile({ nickname: nickname.trim(), email: email.trim() }),
+    mutationFn: () => authApi.updateProfile({ nickname: nickname.trim(), email: email.trim(), emailCode: emailCode.trim() || undefined }),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       if (res.data.data) updateUser(res.data.data);
+      setEmailCode('');
       toast.success(t('settings.profileUpdated'));
     },
     onError: () => toast.error(t('settings.profileUpdateFailed')),
+  });
+
+  const sendEmailCodeMutation = useMutation({
+    mutationFn: () => authApi.sendEmailVerificationCode(email.trim()),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) {
+        toast.error(res.data.msg);
+        return;
+      }
+      toast.success(t('settings.emailCodeSent'));
+    },
+    onError: () => toast.error(t('settings.emailCodeSendFailed')),
   });
 
   const mutation = useMutation({
@@ -52,6 +100,31 @@ export function Settings() {
     onError: () => setError(t('settings.passwordChangeFailed')),
   });
 
+  const bindOauthMutation = useMutation({
+    mutationFn: () => authApi.oauthStartBind(selectedOauthProvider),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) {
+        toast.error(res.data.msg || t('settings.oauthBindStartFailed'));
+        return;
+      }
+      window.location.href = res.data.data.authUrl;
+    },
+    onError: () => toast.error(t('settings.oauthBindStartFailed')),
+  });
+
+  const unbindOauthMutation = useMutation({
+    mutationFn: (provider: string) => authApi.unbindOAuth(provider),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) {
+        toast.error(res.data.msg || t('settings.oauthUnbindFailed'));
+        return;
+      }
+      toast.success(t('settings.oauthUnbound'));
+      loadBindings();
+    },
+    onError: () => toast.error(t('settings.oauthUnbindFailed')),
+  });
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -63,7 +136,19 @@ export function Settings() {
   const handleProfileSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (email.trim() !== (user.email || '') && !emailCode.trim()) {
+      toast.error(t('settings.emailCodeRequired'));
+      return;
+    }
     profileMutation.mutate();
+  };
+
+  const handleSendEmailCode = () => {
+    if (!email.trim()) {
+      toast.error(t('settings.emailCodeRequired'));
+      return;
+    }
+    sendEmailCodeMutation.mutate();
   };
 
   const inputClass = 'w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
@@ -102,6 +187,28 @@ export function Settings() {
               className={inputClass}
             />
           </div>
+          {email.trim() !== (user?.email ?? '') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.emailCode')}</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={emailCode}
+                  onChange={(e) => setEmailCode(e.target.value)}
+                  placeholder={t('settings.emailCodePlaceholder')}
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  onClick={handleSendEmailCode}
+                  disabled={sendEmailCodeMutation.isPending}
+                  className="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm whitespace-nowrap"
+                >
+                  {t('settings.sendEmailCode')}
+                </button>
+              </div>
+            </div>
+          )}
           <div className="pt-1">
             <button
               type="submit"
@@ -125,6 +232,56 @@ export function Settings() {
           </select>
           <p className="text-sm text-gray-500">{t('settings.languageHint')}</p>
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="text-base font-semibold text-gray-900 mb-4">{t('settings.oauthBindingTitle')}</h3>
+        {!oauthEnabled ? (
+          <p className="text-sm text-gray-500">{t('settings.oauthDisabledTip')}</p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">{t('settings.oauthBindingDesc', { provider: oauthProviderName })}</p>
+            {oauthProviders.length > 1 && (
+              <select
+                value={selectedOauthProvider}
+                onChange={(e) => setSelectedOauthProvider(e.target.value as 'custom' | 'logto')}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                {oauthProviders.map((provider) => (
+                  <option key={provider.key} value={provider.key}>{provider.providerName}</option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              onClick={() => bindOauthMutation.mutate()}
+              disabled={bindOauthMutation.isPending}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg disabled:opacity-60"
+            >
+              {t('settings.bindOauth')}
+            </button>
+            <div className="space-y-2">
+              {oauthBindings.length === 0 ? (
+                <p className="text-sm text-gray-500">{t('settings.noOauthBound')}</p>
+              ) : oauthBindings.map((binding) => (
+                <div key={`${binding.provider}:${binding.subject}`} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                  <div className="text-sm">
+                    <p className="font-medium text-gray-900">{binding.provider}</p>
+                    <p className="text-gray-500">{binding.email || binding.subject}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => unbindOauthMutation.mutate(binding.provider)}
+                    disabled={unbindOauthMutation.isPending}
+                    className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100 disabled:opacity-60"
+                  >
+                    {t('settings.unbindOauth')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6">

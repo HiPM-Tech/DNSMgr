@@ -1,18 +1,236 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { getDb } from '../db/database';
+import crypto from 'crypto';
+import { getAdapter } from '../db/adapter';
 import { authMiddleware, signToken } from '../middleware/auth';
 import { User } from '../types';
 import { ROLE_SUPER, ROLE_USER } from '../utils/roles';
+import { checkLoginAllowed, recordFailedAttempt, clearLoginAttempts } from '../service/loginLimit';
+import { sendEmailVerificationCode, verifyEmailVerificationCode } from '../service/emailVerification';
+import { logAuditOperation } from '../service/audit';
+import { getSmtpConfig, sendSmtpEmail } from '../service/smtp';
 
 const router = Router();
 const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
+const resetStore = new Map<string, { code: string; expiresAt: number }>();
+const oauthStateStore = new Map<string, { mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId?: number; expiresAt: number }>();
+
+type OAuthConfig = {
+  enabled: boolean;
+  template: 'generic' | 'logto';
+  providerName: string;
+  subjectKey: string;
+  emailKey: string;
+  logtoDomain: string;
+  clientId: string;
+  clientSecret: string;
+  issuer: string;
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  userInfoEndpoint: string;
+  jwksUri: string;
+  scopes: string;
+  redirectUri: string;
+};
+
+const DEFAULT_OAUTH_CONFIG: OAuthConfig = {
+  enabled: false,
+  template: 'generic',
+  providerName: 'OIDC',
+  subjectKey: 'sub',
+  emailKey: 'email',
+  logtoDomain: '',
+  clientId: '',
+  clientSecret: '',
+  issuer: '',
+  authorizationEndpoint: '',
+  tokenEndpoint: '',
+  userInfoEndpoint: '',
+  jwksUri: '',
+  scopes: 'openid profile email',
+  redirectUri: '',
+};
+
+type OAuthUserProfile = Record<string, unknown>;
+
+type LoginUserInfo = {
+  id: number;
+  username: string;
+  nickname: string;
+  email: string;
+  role: 1 | 2 | 3;
+  status: number;
+};
+
+function randomHex(size: number): string {
+  return crypto.randomBytes(size).toString('hex');
+}
+
+async function getOAuthConfigByProvider(provider: 'custom' | 'logto'): Promise<OAuthConfig> {
+  const db = getAdapter();
+  if (!db) throw new Error('Database connection not available');
+  const key = provider === 'logto' ? 'oauth_logto_config' : 'oauth_config';
+  const defaults: OAuthConfig = provider === 'logto'
+    ? { ...DEFAULT_OAUTH_CONFIG, template: 'logto', providerName: 'Logto' }
+    : { ...DEFAULT_OAUTH_CONFIG, template: 'generic' };
+  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', [key]) as { value: string } | undefined;
+  if (!row?.value) return defaults;
+  try {
+    return { ...defaults, ...(JSON.parse(row.value) as Partial<OAuthConfig>) };
+  } catch {
+    return defaults;
+  }
+}
+
+async function getEnabledOAuthProviders(): Promise<Array<{ key: 'custom' | 'logto'; providerName: string }>> {
+  const providers: Array<{ key: 'custom' | 'logto'; providerName: string }> = [];
+  const custom = await getOAuthConfigByProvider('custom');
+  if (custom.enabled) providers.push({ key: 'custom', providerName: custom.providerName || 'OIDC' });
+  const logto = await getOAuthConfigByProvider('logto');
+  if (logto.enabled) providers.push({ key: 'logto', providerName: logto.providerName || 'Logto' });
+  return providers;
+}
+
+function getProviderKey(config: OAuthConfig): string {
+  return (config.providerName || 'oidc').trim().toLowerCase();
+}
+
+function assertOAuthEnabled(config: OAuthConfig): void {
+  if (!config.enabled) {
+    throw new Error('OAuth login is disabled');
+  }
+  if (!config.clientId || !config.clientSecret || !config.authorizationEndpoint || !config.tokenEndpoint || !config.userInfoEndpoint || !config.redirectUri) {
+    throw new Error('OAuth config is incomplete');
+  }
+}
+
+async function exchangeOauthCode(config: OAuthConfig, code: string): Promise<{ accessToken: string; idToken?: string }> {
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    redirect_uri: config.redirectUri,
+  });
+  const response = await fetch(config.tokenEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  if (!response.ok) {
+    throw new Error(`OAuth token exchange failed: HTTP ${response.status}`);
+  }
+  const tokenPayload = await response.json() as { access_token?: string; id_token?: string };
+  if (!tokenPayload.access_token) {
+    throw new Error('OAuth token exchange failed: access_token missing');
+  }
+  return { accessToken: tokenPayload.access_token, idToken: tokenPayload.id_token || '' };
+}
+
+async function fetchOAuthProfile(config: OAuthConfig, accessToken: string): Promise<OAuthUserProfile> {
+  const response = await fetch(config.userInfoEndpoint, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    throw new Error(`OAuth userinfo failed: HTTP ${response.status}`);
+  }
+  const profile = await response.json() as OAuthUserProfile;
+  return profile;
+}
+
+function getOAuthField(profile: OAuthUserProfile, field: string): string {
+  const v = profile[field];
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'number') return String(v);
+  return '';
+}
+
+function resolveOAuthSubject(config: OAuthConfig, profile: OAuthUserProfile): string {
+  const candidates = [config.subjectKey, 'sub', 'id', 'user_id', 'uid']
+    .map((s) => (s || '').trim())
+    .filter(Boolean);
+  for (const key of candidates) {
+    const value = getOAuthField(profile, key);
+    if (value) return value;
+  }
+  throw new Error(`OAuth userinfo missing subject key. Tried: ${candidates.join(', ')}`);
+}
+
+function resolveOAuthEmail(config: OAuthConfig, profile: OAuthUserProfile): string {
+  const candidates = [config.emailKey, 'email', 'mail']
+    .map((s) => (s || '').trim())
+    .filter(Boolean);
+  for (const key of candidates) {
+    const value = getOAuthField(profile, key);
+    if (value) return value.toLowerCase();
+  }
+  return '';
+}
+
+function buildOauthAuthUrl(config: OAuthConfig, state: string): string {
+  const query = new URLSearchParams({
+    response_type: 'code',
+    client_id: config.clientId,
+    redirect_uri: config.redirectUri,
+    scope: config.scopes || 'openid profile email',
+    state,
+  });
+  return `${config.authorizationEndpoint}?${query.toString()}`;
+}
+
+function decodeBase64Url(value: string): Buffer {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = normalized.length % 4 ? '='.repeat(4 - (normalized.length % 4)) : '';
+  return Buffer.from(normalized + pad, 'base64');
+}
+
+async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAuthUserProfile> {
+  if (!idToken || !config.jwksUri) return {};
+  const parts = idToken.split('.');
+  if (parts.length !== 3) throw new Error('Invalid id_token format');
+  const header = JSON.parse(decodeBase64Url(parts[0]).toString('utf8')) as { alg?: string; kid?: string };
+  const payload = JSON.parse(decodeBase64Url(parts[1]).toString('utf8')) as Record<string, unknown>;
+  if (!header.alg || !header.kid) throw new Error('id_token missing alg or kid');
+
+  const jwksResp = await fetch(config.jwksUri);
+  if (!jwksResp.ok) throw new Error(`JWKS fetch failed: HTTP ${jwksResp.status}`);
+  const jwks = await jwksResp.json() as { keys?: Array<Record<string, unknown>> };
+  const jwk = (jwks.keys || []).find((key) => String(key.kid || '') === header.kid);
+  if (!jwk) throw new Error('Unable to find matching JWKS key for id_token');
+
+  const verifyAlgMap: Record<string, string> = {
+    RS256: 'RSA-SHA256',
+    RS384: 'RSA-SHA384',
+    RS512: 'RSA-SHA512',
+    ES256: 'sha256',
+    ES384: 'sha384',
+    ES512: 'sha512',
+  };
+  const verifyAlg = verifyAlgMap[header.alg];
+  if (!verifyAlg) throw new Error(`Unsupported id_token algorithm: ${header.alg}`);
+  const publicKey = crypto.createPublicKey({ key: jwk as crypto.JsonWebKey, format: 'jwk' });
+  const signingInput = `${parts[0]}.${parts[1]}`;
+  const signature = decodeBase64Url(parts[2]);
+  const ok = crypto.verify(verifyAlg, Buffer.from(signingInput), publicKey, signature);
+  if (!ok) throw new Error('id_token signature verification failed');
+
+  const now = Math.floor(Date.now() / 1000);
+  const exp = Number(payload.exp || 0);
+  if (exp && exp < now) throw new Error('id_token expired');
+  if (payload.aud && payload.aud !== config.clientId && !(Array.isArray(payload.aud) && payload.aud.includes(config.clientId))) {
+    throw new Error('id_token audience mismatch');
+  }
+  if (config.issuer && payload.iss && payload.iss !== config.issuer) {
+    throw new Error('id_token issuer mismatch');
+  }
+  return payload;
+}
 
 /**
  * @swagger
  * /api/auth/login:
  *   post:
- *     summary: Login with username and password
+ *     summary: Login with username/email and password
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -24,35 +242,248 @@ const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
  *             properties:
  *               username:
  *                 type: string
+ *                 description: Username or email address
  *               password:
  *                 type: string
  *     responses:
  *       200:
  *         description: JWT token returned
  */
-router.post('/login', (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response) => {
   const { username, password } = req.body as { username: string; password: string };
   if (!username || !password) {
-    res.json({ code: -1, msg: 'Username and password are required' });
+    res.json({ code: -1, msg: 'Username/email and password are required' });
     return;
   }
-  const db = getDb();
-  const user = db.prepare('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?')
-    .get(username) as User | undefined;
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    res.json({ code: -1, msg: 'Invalid username or password' });
+
+  const db = getAdapter();
+  if (!db) {
+    res.status(500).json({ code: 500, msg: 'Database connection not available' });
     return;
   }
-  if (user.status === 0) {
-    res.json({ code: -1, msg: 'Account is disabled' });
+
+  try {
+    // Check if input is an email (contains @)
+    const isEmail = username.includes('@');
+    
+    // Get the identifier for login limit check (use username if found, otherwise use the input)
+    let loginIdentifier = username.toLowerCase();
+    
+    // Check login limit
+    const ipAddress = req.ip || req.socket.remoteAddress || '';
+    const limitCheck = await checkLoginAllowed(loginIdentifier, ipAddress);
+    if (!limitCheck.allowed) {
+      res.json({ code: -1, msg: limitCheck.message || 'Account is temporarily locked' });
+      return;
+    }
+    
+    let result;
+    if (isEmail) {
+      // Login with email
+      result = await db.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE email = ?', [username]);
+    } else {
+      // Login with username
+      result = await db.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?', [username]);
+    }
+    
+    const user = result as User | undefined;
+
+    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+      // Record failed attempt
+      const failedResult = await recordFailedAttempt(loginIdentifier, ipAddress);
+      if (failedResult.locked) {
+        res.json({ code: -1, msg: failedResult.message || 'Account is temporarily locked' });
+      } else {
+        res.json({ code: -1, msg: `Invalid username/email or password. ${failedResult.message || ''}`.trim() });
+      }
+      return;
+    }
+    if (user.status === 0) {
+      res.json({ code: -1, msg: 'Account is disabled' });
+      return;
+    }
+    
+    // Clear login attempts on successful login
+    await clearLoginAttempts(loginIdentifier);
+    
+    const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
+    res.json({
+      code: 0,
+      data: { token, user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },
+      msg: 'success',
+    });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Login failed' });
+  }
+});
+
+router.get('/oauth/status', async (_req: Request, res: Response) => {
+  try {
+    const providers = await getEnabledOAuthProviders();
+    res.json({
+      code: 0,
+      data: { enabled: providers.length > 0, providerName: providers[0]?.providerName || 'OIDC', providers },
+      msg: 'success'
+    });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get oauth status' });
+  }
+});
+
+router.post('/oauth/start', async (req: Request, res: Response) => {
+  try {
+    const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
+    const config = await getOAuthConfigByProvider(desired);
+    assertOAuthEnabled(config);
+    const state = randomHex(24);
+    oauthStateStore.set(state, {
+      mode: 'login',
+      provider: desired,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+    res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
+  } catch (error) {
+    res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth flow' });
+  }
+});
+
+router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
+    const config = await getOAuthConfigByProvider(desired);
+    assertOAuthEnabled(config);
+    const state = randomHex(24);
+    oauthStateStore.set(state, {
+      mode: 'bind',
+      provider: desired,
+      userId: req.user!.userId,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+    res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
+  } catch (error) {
+    res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth bind flow' });
+  }
+});
+
+router.post('/oauth/callback', async (req: Request, res: Response) => {
+  const { code, state } = req.body as { code?: string; state?: string };
+  if (!code || !state) {
+    res.status(400).json({ code: 400, msg: 'code and state are required' });
     return;
   }
-  const token = signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
-  res.json({
-    code: 0,
-    data: { token, user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },
-    msg: 'success',
-  });
+  const stateEntry = oauthStateStore.get(state);
+  oauthStateStore.delete(state);
+  if (!stateEntry || Date.now() > stateEntry.expiresAt) {
+    res.status(400).json({ code: 400, msg: 'Invalid or expired oauth state' });
+    return;
+  }
+
+  const db = getAdapter();
+  if (!db) {
+    res.status(500).json({ code: 500, msg: 'Database connection not available' });
+    return;
+  }
+
+  try {
+    const config = await getOAuthConfigByProvider(stateEntry.provider);
+    assertOAuthEnabled(config);
+    const provider = stateEntry.provider;
+    const tokenResult = await exchangeOauthCode(config, code);
+    const profile = await fetchOAuthProfile(config, tokenResult.accessToken);
+    const idTokenClaims = tokenResult.idToken ? await verifyIdToken(tokenResult.idToken, config) : {};
+    const mergedProfile = { ...idTokenClaims, ...profile };
+    const subject = resolveOAuthSubject(config, mergedProfile);
+    const normalizedEmail = resolveOAuthEmail(config, mergedProfile);
+    const existingLink = await db.get(
+      `SELECT l.user_id, u.username, u.nickname, u.email, u.role_level as role, u.status
+       FROM oauth_user_links l
+       INNER JOIN users u ON u.id = l.user_id
+       WHERE l.provider = ? AND l.subject = ?`,
+      [provider, subject]
+    ) as (LoginUserInfo & { user_id: number }) | undefined;
+
+    if (stateEntry.mode === 'bind') {
+      const currentUserId = stateEntry.userId;
+      if (!currentUserId) {
+        res.status(401).json({ code: 401, msg: 'Unauthorized' });
+        return;
+      }
+      if (existingLink && existingLink.id !== currentUserId) {
+        res.status(409).json({ code: 409, msg: 'This OAuth account is already bound to another user' });
+        return;
+      }
+      if (existingLink && existingLink.id === currentUserId) {
+        res.json({ code: 0, data: { mode: 'bind' }, msg: 'success' });
+        return;
+      }
+      await db.execute(
+        `INSERT INTO oauth_user_links (user_id, provider, subject, email)
+         VALUES (?, ?, ?, ?)`,
+        [currentUserId, provider, subject, normalizedEmail]
+      );
+      await logAuditOperation(currentUserId, 'bind_oauth_account', 'system', { provider, subject, email: normalizedEmail });
+      res.json({ code: 0, data: { mode: 'bind' }, msg: 'success' });
+      return;
+    }
+
+    const user: LoginUserInfo | undefined = existingLink;
+
+    if (!user) {
+      res.status(403).json({ code: 403, msg: 'OAuth account is not bound. Please bind it in account settings first.' });
+      return;
+    }
+    if (user.status === 0) {
+      res.status(403).json({ code: 403, msg: 'Account is disabled' });
+      return;
+    }
+
+    const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
+    await logAuditOperation(user.id, 'oauth_login', 'system', { provider });
+    res.json({
+      code: 0,
+      data: { mode: 'login', token, user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },
+      msg: 'success',
+    });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'OAuth callback failed' });
+  }
+});
+
+router.get('/oauth/bindings', authMiddleware, async (req: Request, res: Response) => {
+  const db = getAdapter();
+  if (!db) {
+    res.status(500).json({ code: 500, msg: 'Database connection not available' });
+    return;
+  }
+  try {
+    const list = await db.query(
+      'SELECT provider, subject, email, created_at FROM oauth_user_links WHERE user_id = ? ORDER BY id DESC',
+      [req.user!.userId]
+    );
+    res.json({ code: 0, data: list, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get oauth bindings' });
+  }
+});
+
+router.delete('/oauth/bindings/:provider', authMiddleware, async (req: Request, res: Response) => {
+  const db = getAdapter();
+  if (!db) {
+    res.status(500).json({ code: 500, msg: 'Database connection not available' });
+    return;
+  }
+  try {
+    const provider = (req.params.provider || '').trim().toLowerCase();
+    if (!provider) {
+      res.status(400).json({ code: 400, msg: 'provider is required' });
+      return;
+    }
+    await db.execute('DELETE FROM oauth_user_links WHERE user_id = ? AND provider = ?', [req.user!.userId, provider]);
+    await logAuditOperation(req.user!.userId, 'unbind_oauth_account', 'system', { provider });
+    res.json({ code: 0, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to unbind oauth account' });
+  }
 });
 
 /**
@@ -81,7 +512,7 @@ router.post('/login', (req: Request, res: Response) => {
  *       200:
  *         description: User created
  */
-router.post('/register', (req: Request, res: Response) => {
+router.post('/register', async (req: Request, res: Response) => {
   const { username, nickname, email = '', password } = req.body as { username: string; nickname?: string; email?: string; password: string };
   const normalizedUsername = (username ?? '').trim();
   if (!normalizedUsername || !password) {
@@ -92,17 +523,28 @@ router.post('/register', (req: Request, res: Response) => {
     res.json({ code: -1, msg: 'Username must use letters, numbers, "_" or "-"' });
     return;
   }
-  const db = getDb();
-  const count = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
-  const role = count === 0 ? ROLE_SUPER : ROLE_USER;
-  const hash = bcrypt.hashSync(password, 10);
-  const resolvedNickname = (nickname ?? '').trim() || normalizedUsername;
+
+  const db = getAdapter();
+  if (!db) {
+    res.status(500).json({ code: 500, msg: 'Database connection not available' });
+    return;
+  }
+
   try {
+    const countResult = await db.get('SELECT COUNT(*) as cnt FROM users');
+    const count = (countResult as { cnt: number })?.cnt || 0;
+
+    const role = count === 0 ? ROLE_SUPER : ROLE_USER;
+    const hash = bcrypt.hashSync(password, 10);
+    const resolvedNickname = (nickname ?? '').trim() || normalizedUsername;
+
     const roleText = role >= 2 ? 'admin' : 'member';
-    const result = db.prepare(
-      'INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(normalizedUsername, resolvedNickname, email, hash, roleText, role);
-    res.json({ code: 0, data: { id: result.lastInsertRowid, username: normalizedUsername, nickname: resolvedNickname, role }, msg: 'success' });
+
+    const id = await db.insert(
+      'INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)',
+      [normalizedUsername, resolvedNickname, email, hash, roleText, role]
+    );
+    res.json({ code: 0, data: { id, username: normalizedUsername, nickname: resolvedNickname, role }, msg: 'success' });
   } catch {
     res.json({ code: -1, msg: 'Username already exists' });
   }
@@ -120,14 +562,25 @@ router.post('/register', (req: Request, res: Response) => {
  *       200:
  *         description: Current user info
  */
-router.get('/me', authMiddleware, (req: Request, res: Response) => {
-  const db = getDb();
-  const user = db.prepare('SELECT id, username, nickname, email, role_level as role, status, created_at FROM users WHERE id = ?').get(req.user!.userId) as User | undefined;
-  if (!user) {
-    res.json({ code: -1, msg: 'User not found' });
+router.get('/me', authMiddleware, async (req: Request, res: Response) => {
+  const db = getAdapter();
+  if (!db) {
+    res.status(500).json({ code: 500, msg: 'Database connection not available' });
     return;
   }
-  res.json({ code: 0, data: user, msg: 'success' });
+
+  try {
+    const result = await db.get('SELECT id, username, nickname, email, role_level as role, status, created_at FROM users WHERE id = ?', [req.user!.userId]);
+    const user = result as User | undefined;
+
+    if (!user) {
+      res.json({ code: -1, msg: 'User not found' });
+      return;
+    }
+    res.json({ code: 0, data: user, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get user info' });
+  }
 });
 
 /**
@@ -154,22 +607,35 @@ router.get('/me', authMiddleware, (req: Request, res: Response) => {
  *       200:
  *         description: Password changed
  */
-router.put('/password', authMiddleware, (req: Request, res: Response) => {
+router.put('/password', authMiddleware, async (req: Request, res: Response) => {
   const { oldPassword, newPassword } = req.body as { oldPassword: string; newPassword: string };
   if (!oldPassword || !newPassword) {
     res.json({ code: -1, msg: 'Old and new passwords are required' });
     return;
   }
-  const db = getDb();
-  const user = db.prepare('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?')
-    .get(req.user!.userId) as User | undefined;
-  if (!user || !bcrypt.compareSync(oldPassword, user.password_hash)) {
-    res.json({ code: -1, msg: 'Old password is incorrect' });
+
+  const db = getAdapter();
+  if (!db) {
+    res.status(500).json({ code: 500, msg: 'Database connection not available' });
     return;
   }
-  const hash = bcrypt.hashSync(newPassword, 10);
-  db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(hash, user.id);
-  res.json({ code: 0, msg: 'success' });
+
+  try {
+    const result = await db.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [req.user!.userId]);
+    const user = result as User | undefined;
+
+    if (!user || !bcrypt.compareSync(oldPassword, user.password_hash)) {
+      res.json({ code: -1, msg: 'Old password is incorrect' });
+      return;
+    }
+    const hash = bcrypt.hashSync(newPassword, 10);
+
+    await db.execute(`UPDATE users SET password_hash = ?, updated_at = ${db.now()} WHERE id = ?`, [hash, user.id]);
+
+    res.json({ code: 0, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to change password' });
+  }
 });
 
 /**
@@ -195,35 +661,146 @@ router.put('/password', authMiddleware, (req: Request, res: Response) => {
  *       200:
  *         description: Profile updated
  */
-router.put('/profile', authMiddleware, (req: Request, res: Response) => {
-  const { nickname, email } = req.body as { nickname?: string; email?: string };
+router.put('/profile', authMiddleware, async (req: Request, res: Response) => {
+  const { nickname, email, emailCode } = req.body as { nickname?: string; email?: string; emailCode?: string };
   if (nickname === undefined && email === undefined) {
     res.json({ code: -1, msg: 'Nothing to update' });
     return;
   }
-  const db = getDb();
-  const user = db.prepare('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?')
-    .get(req.user!.userId) as User | undefined;
-  if (!user) {
-    res.json({ code: -1, msg: 'User not found' });
+
+  const db = getAdapter();
+  if (!db) {
+    res.status(500).json({ code: 500, msg: 'Database connection not available' });
     return;
   }
-  const updates: string[] = ["updated_at = datetime('now')"];
-  const params: unknown[] = [];
-  if (nickname !== undefined) {
-    const resolvedNickname = nickname.trim() || user.username;
-    updates.push('nickname = ?');
-    params.push(resolvedNickname);
+
+  try {
+    const result = await db.get('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [req.user!.userId]);
+    const user = result as User | undefined;
+
+    if (!user) {
+      res.json({ code: -1, msg: 'User not found' });
+      return;
+    }
+
+    const updates: string[] = [];
+    const params: unknown[] = [];
+
+    if (nickname !== undefined) {
+      const resolvedNickname = nickname.trim() || user.username;
+      updates.push('nickname = ?');
+      params.push(resolvedNickname);
+    }
+    if (email !== undefined) {
+      const nextEmail = email.trim();
+      if (nextEmail !== user.email) {
+        if (!emailCode || !verifyEmailVerificationCode(user.id, nextEmail, emailCode)) {
+          res.status(400).json({ code: 400, msg: 'Valid email verification code is required' });
+          return;
+        }
+      }
+      updates.push('email = ?');
+      params.push(nextEmail);
+    }
+    params.push(user.id);
+
+    await db.execute(`UPDATE users SET ${updates.join(', ')}, updated_at = ${db.now()} WHERE id = ?`, params);
+    const updatedResult = await db.get('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [user.id]);
+    if (email !== undefined && email.trim() !== user.email) {
+      await logAuditOperation(user.id, 'update_profile_email', 'system', { oldEmail: user.email, newEmail: email.trim() });
+    }
+    res.json({ code: 0, data: updatedResult, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update profile' });
   }
-  if (email !== undefined) {
-    updates.push('email = ?');
-    params.push(email);
+});
+
+router.post('/profile/email-code', authMiddleware, async (req: Request, res: Response) => {
+  const { email } = req.body as { email?: string };
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized) {
+    res.status(400).json({ code: 400, msg: 'Email is required' });
+    return;
   }
-  params.push(user.id);
-  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
-  const updated = db.prepare('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?')
-    .get(user.id) as User | undefined;
-  res.json({ code: 0, data: updated, msg: 'success' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    res.status(400).json({ code: 400, msg: 'Invalid email format' });
+    return;
+  }
+  try {
+    await sendEmailVerificationCode(req.user!.userId, normalized);
+    await logAuditOperation(req.user!.userId, 'send_email_verification_code', 'system', { email: normalized });
+    res.json({ code: 0, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to send verification code' });
+  }
+});
+
+router.post('/password-reset/request', async (req: Request, res: Response) => {
+  const { email } = req.body as { email?: string };
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized) {
+    res.status(400).json({ code: 400, msg: 'Email is required' });
+    return;
+  }
+  try {
+    const smtpCfg = await getSmtpConfig();
+    if (!smtpCfg.enabled) {
+      res.status(400).json({ code: 400, msg: 'Password reset by email is unavailable: SMTP is not configured' });
+      return;
+    }
+    const db = getAdapter();
+    if (!db) {
+      res.status(500).json({ code: 500, msg: 'Database connection not available' });
+      return;
+    }
+    const user = await db.get('SELECT id, username, email FROM users WHERE email = ?', [normalized]) as { id: number; username: string; email: string } | undefined;
+    if (user) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      resetStore.set(normalized, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
+      await sendSmtpEmail(normalized, 'DNSMgr Password Reset Code', `Hi ${user.username},\n\nYour password reset code is: ${code}\nThis code will expire in 10 minutes.`);
+      await logAuditOperation(user.id, 'send_password_reset_code', 'system', { email: normalized });
+    }
+    res.json({ code: 0, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to send password reset code' });
+  }
+});
+
+router.post('/password-reset/confirm', async (req: Request, res: Response) => {
+  const { email, code, newPassword } = req.body as { email?: string; code?: string; newPassword?: string };
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized || !code || !newPassword) {
+    res.status(400).json({ code: 400, msg: 'Email, code and newPassword are required' });
+    return;
+  }
+  if (newPassword.length < 6) {
+    res.status(400).json({ code: 400, msg: 'Password must be at least 6 characters' });
+    return;
+  }
+  const entry = resetStore.get(normalized);
+  if (!entry || entry.code !== code.trim() || Date.now() > entry.expiresAt) {
+    res.status(400).json({ code: 400, msg: 'Invalid or expired reset code' });
+    return;
+  }
+  try {
+    const db = getAdapter();
+    if (!db) {
+      res.status(500).json({ code: 500, msg: 'Database connection not available' });
+      return;
+    }
+    const user = await db.get('SELECT id FROM users WHERE email = ?', [normalized]) as { id: number } | undefined;
+    if (!user) {
+      res.status(400).json({ code: 400, msg: 'Email not found' });
+      return;
+    }
+    const hash = bcrypt.hashSync(newPassword, 10);
+    await db.execute(`UPDATE users SET password_hash = ?, updated_at = ${db.now()} WHERE id = ?`, [hash, user.id]);
+    resetStore.delete(normalized);
+    await logAuditOperation(user.id, 'reset_password_by_email', 'system', { email: normalized });
+    res.json({ code: 0, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to reset password' });
+  }
 });
 
 export default router;
