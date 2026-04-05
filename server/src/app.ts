@@ -23,6 +23,7 @@ import settingsRouter from './routes/settings';
 import securityRouter from './routes/security';
 import auditRouter from './routes/audit';
 import emailTemplatesRouter from './routes/emailTemplates';
+import tunnelsRouter from './routes/tunnels';
 
 // Load environment variables (data/.env has priority over root .env)
 loadEnv();
@@ -113,6 +114,7 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/security', securityRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/email-templates', emailTemplatesRouter);
+app.use('/api/tunnels', tunnelsRouter);
 
 // Logs route
 /**

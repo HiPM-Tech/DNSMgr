@@ -434,6 +434,7 @@ export const zhCN: LocaleDefinition = {
       fixErrors: '请先修复高亮字段后再保存',
       hostRequired: '主机记录不能为空',
       hostInvalid: '仅允许 @、字母、数字、_、- 和点号',
+      cnameConflict: '当前服务商不支持 CNAME 拉平，CNAME 记录不能与 @ 或其他记录共存',
       valueRequired: '记录值不能为空',
       invalidA: 'A 记录必须是合法的 IPv4 地址',
       invalidAAAA: 'AAAA 记录必须是合法的 IPv6 地址',

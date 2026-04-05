@@ -47,6 +47,15 @@ export interface Provider {
   type: string;
   name: string;
   configFields: ProviderField[];
+  capabilities?: {
+    remark: boolean;
+    status: boolean;
+    redirect: boolean;
+    log: boolean;
+    weight: boolean;
+    line: boolean;
+    cnameFlattening: boolean;
+  };
   features?: string[];
   isStub?: boolean;
 }
@@ -182,6 +191,14 @@ export const authApi = {
 };
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
+
+// ─── Tunnels ──────────────────────────────────────────────────────────────────
+export const tunnelsApi = {
+  list: () => api.get<ApiResponse<any[]>>('/tunnels'),
+  getConfig: (accountId: string, tunnelId: string) => api.get<ApiResponse<any>>(`/tunnels/${accountId}/${tunnelId}`),
+  updateConfig: (accountId: string, tunnelId: string, config: any) => api.put<ApiResponse<any>>(`/tunnels/${accountId}/${tunnelId}/config`, { config }),
+  delete: (accountId: string, tunnelId: string) => api.delete<ApiResponse<any>>(`/tunnels/${accountId}/${tunnelId}`),
+};
 
 export const accountsApi = {
   list: () => api.get<ApiResponse<DnsAccount[]>>('/accounts'),

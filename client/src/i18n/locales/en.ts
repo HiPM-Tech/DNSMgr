@@ -434,6 +434,7 @@ export const en: LocaleDefinition = {
       fixErrors: 'Please fix the highlighted fields before saving',
       hostRequired: 'Host name is required',
       hostInvalid: 'Only @, letters, numbers, _, -, and dots are allowed',
+      cnameConflict: 'CNAME flattening not supported, CNAME cannot coexist with other records or be set on @',
       valueRequired: 'Value is required',
       invalidA: 'A record must be a valid IPv4 address',
       invalidAAAA: 'AAAA record must be a valid IPv6 address',

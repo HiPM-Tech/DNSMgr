@@ -26,6 +26,8 @@ export interface ProviderCapabilities {
   redirect: boolean;
   log: boolean;
   weight: boolean;
+  line: boolean;
+  cnameFlattening: boolean;
 }
 
 export interface ProviderConfigField {
@@ -50,7 +52,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'aliyun',
     name: '阿里云',
-    capabilities: { remark: false, status: true, redirect: false, log: true, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: true, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'AccessKeyId', label: 'AccessKeyId', type: 'text', required: true },
       { key: 'AccessKeySecret', label: 'AccessKeySecret', type: 'password', required: true },
@@ -61,7 +63,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'dnspod',
     name: '腾讯云-DNSPod',
-    capabilities: { remark: false, status: true, redirect: false, log: true, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: true, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'SecretId', label: 'SecretId', type: 'text', required: true },
       { key: 'SecretKey', label: 'SecretKey', type: 'password', required: true },
@@ -72,7 +74,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'huawei',
     name: '华为云',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'AccessKeyId', label: 'AccessKeyId', type: 'text', required: true },
       { key: 'SecretAccessKey', label: 'SecretAccessKey', type: 'password', required: true },
@@ -82,7 +84,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'baidu',
     name: '百度云',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'AccessKeyId', label: 'AccessKeyId', type: 'text', required: true },
       { key: 'SecretAccessKey', label: 'SecretAccessKey', type: 'password', required: true },
@@ -92,7 +94,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'huoshan',
     name: '火山引擎',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'AccessKeyId', label: 'AccessKeyId', type: 'text', required: true },
       { key: 'SecretAccessKey', label: 'SecretAccessKey', type: 'password', required: true },
@@ -102,7 +104,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'jdcloud',
     name: '京东云',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'AccessKeyId', label: 'AccessKeyId', type: 'text', required: true },
       { key: 'AccessKeySecret', label: 'AccessKeySecret', type: 'password', required: true },
@@ -112,8 +114,9 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'cloudflare',
     name: 'Cloudflare',
-    capabilities: { remark: true, status: false, redirect: true, log: false, weight: true },
+    capabilities: { remark: true, status: false, redirect: true, log: false, weight: true , line: true, cnameFlattening: true },
     configFields: [
+      { key: 'accountId', label: 'Account ID (for Tunnels)', type: 'text', required: false, group: 'token' },
       { key: 'apiToken', label: 'API Token', type: 'password', required: false, group: 'token' },
       { key: 'email', label: 'Email', type: 'text', required: false, group: 'key' },
       { key: 'apiKey', label: 'Global API Key', type: 'password', required: false, group: 'key' },
@@ -123,7 +126,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'dnsla',
     name: 'DNS.LA',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: true },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: true , line: true, cnameFlattening: false },
     configFields: [
       { key: 'apiid', label: 'API ID', type: 'text', required: true },
       { key: 'apisecret', label: 'API Secret', type: 'password', required: true },
@@ -133,7 +136,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'west',
     name: '西部数码',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'username', label: 'Username', type: 'text', required: true },
       { key: 'api_password', label: 'API Password', type: 'password', required: true },
@@ -143,7 +146,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'qingcloud',
     name: '青云',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'access_key_id', label: 'Access Key ID', type: 'text', required: true },
       { key: 'secret_access_key', label: 'Secret Access Key', type: 'password', required: true },
@@ -153,14 +156,14 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'namesilo',
     name: 'NameSilo',
-    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [{ key: 'apikey', label: 'API Key', type: 'password', required: true }],
     adapterFactory: (config) => new NamesiloAdapter(config),
   },
   {
     type: 'bt',
     name: '宝塔',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'AccountID', label: 'Account ID', type: 'text', required: true },
       { key: 'AccessKey', label: 'Access Key', type: 'password', required: true },
@@ -171,7 +174,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'spaceship',
     name: 'Spaceship',
-    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'apiKey', label: 'API Key', type: 'text', required: true },
       { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
@@ -181,7 +184,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'powerdns',
     name: 'PowerDNS',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'serverUrl', label: 'Server URL', type: 'text', required: true },
       { key: 'apiKey', label: 'API Key', type: 'password', required: true },
@@ -192,7 +195,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'aliyunesa',
     name: '阿里云ESA',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'AccessKeyId', label: 'AccessKeyId', type: 'text', required: true },
       { key: 'AccessKeySecret', label: 'AccessKeySecret', type: 'password', required: true },
@@ -202,7 +205,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'tencenteo',
     name: '腾讯EdgeOne',
-    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'SecretId', label: 'SecretId', type: 'text', required: true },
       { key: 'SecretKey', label: 'SecretKey', type: 'password', required: true },
@@ -212,7 +215,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'dnshe',
     name: 'DNSHE',
-    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [
       { key: 'apiKey', label: 'API Key', type: 'text', required: true },
       { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
@@ -222,7 +225,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'rainyun',
     name: '雨云',
-    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false },
+    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
     adapterFactory: (config) => new RainyunAdapter(config),
   },

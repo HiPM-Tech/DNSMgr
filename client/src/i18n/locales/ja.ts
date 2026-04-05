@@ -140,5 +140,10 @@ export const ja: LocaleDefinition = {
         no: 'いいえ',
       },
     },
+    records: {
+      hostInvalid: '@、文字、数字、_、-、ドットのみ許可されます',
+      cnameConflict: 'CNAMEフラット化はサポートされていません。CNAMEは他のレコードと共存したり、@に設定したりすることはできません',
+      valueRequired: '値は必須です',
+    },
   },
 };

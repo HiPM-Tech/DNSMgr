@@ -10,6 +10,7 @@ import { roleLabelKey } from '../utils/roles';
 import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { localeOptions } from '../i18n';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export function Settings() {
   const { user, updateUser } = useAuth();
@@ -18,6 +19,7 @@ export function Settings() {
   const displayName = user?.nickname || user?.username;
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');
+  const [showTunnels, setShowTunnels] = useLocalStorage('showTunnels', false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -292,6 +294,29 @@ export function Settings() {
         </div>
 
         <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Cloudflare Tunnels</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Show Tunnels in Sidebar</p>
+                <p className="text-sm text-gray-500">Enable this to view and manage Cloudflare Tunnels from the sidebar.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTunnels(!showTunnels)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
+                  showTunnels ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    showTunnels ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.language')}</h3>
             <div className="space-y-2">
