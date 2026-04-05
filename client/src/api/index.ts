@@ -47,6 +47,15 @@ export interface Provider {
   type: string;
   name: string;
   configFields: ProviderField[];
+  capabilities?: {
+    remark: boolean;
+    status: boolean;
+    redirect: boolean;
+    log: boolean;
+    weight: boolean;
+    line: boolean;
+    cnameFlattening: boolean;
+  };
   features?: string[];
   isStub?: boolean;
 }
@@ -76,6 +85,7 @@ export interface Domain {
   third_id?: string;
   remark: string;
   record_count?: number;
+  expires_at?: string;
   created_at: string;
 }
 
@@ -155,8 +165,13 @@ export interface LogEntry {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  login: (username: string, password: string) =>
-    api.post<ApiResponse<{ token: string; user: User }>>('/auth/login', { username, password }),
+  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: any) =>
+    api.post<ApiResponse<any>>('/auth/login', { username, password, totpCode, backupCode, webauthnResponse }),
+  webauthnRegOptions: () => api.get<ApiResponse<any>>('/auth/webauthn/registration-options'),
+  webauthnRegVerify: (data: any) => api.post<ApiResponse<any>>('/auth/webauthn/registration-verify', data),
+  webauthnLoginOptions: (username: string) => api.get<ApiResponse<any>>(`/auth/webauthn/login-options?username=${encodeURIComponent(username)}`),
+  webauthnCreds: () => api.get<ApiResponse<any[]>>('/auth/webauthn/credentials'),
+  webauthnDeleteCred: (id: string) => api.delete<ApiResponse<any>>(`/auth/webauthn/credentials/${encodeURIComponent(id)}`),
   oauthStatus: () => api.get<ApiResponse<OAuthStatus>>('/auth/oauth/status'),
   oauthStart: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start', { provider }),
   oauthStartBind: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start-bind', { provider }),
@@ -175,9 +190,21 @@ export const authApi = {
     api.post<ApiResponse<null>>('/auth/password-reset/request', { email }),
   confirmPasswordReset: (email: string, code: string, newPassword: string) =>
     api.post<ApiResponse<null>>('/auth/password-reset/confirm', { email, code, newPassword }),
+  getFailover: (id: number) => api.get<ApiResponse<{ config: any, status: any }>>(`/domains/${id}/failover`),
+  createFailover: (id: number, data: any) => api.post<ApiResponse<any>>(`/domains/${id}/failover`, data),
+  updateFailover: (id: number, data: any) => api.put<ApiResponse<any>>(`/domains/${id}/failover`, data),
+  deleteFailover: (id: number) => api.delete<ApiResponse<any>>(`/domains/${id}/failover`),
 };
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
+
+// ─── Tunnels ──────────────────────────────────────────────────────────────────
+export const tunnelsApi = {
+  list: () => api.get<ApiResponse<any[]>>('/tunnels'),
+  getConfig: (accountId: string, tunnelId: string) => api.get<ApiResponse<any>>(`/tunnels/${accountId}/${tunnelId}`),
+  updateConfig: (accountId: string, tunnelId: string, config: any) => api.put<ApiResponse<any>>(`/tunnels/${accountId}/${tunnelId}/config`, { config }),
+  delete: (accountId: string, tunnelId: string) => api.delete<ApiResponse<any>>(`/tunnels/${accountId}/${tunnelId}`),
+};
 
 export const accountsApi = {
   list: () => api.get<ApiResponse<DnsAccount[]>>('/accounts'),
@@ -206,6 +233,9 @@ export const domainsApi = {
     api.put<ApiResponse<null>>(`/domains/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/domains/${id}`),
   lines: (id: number) => api.get<ApiResponse<DnsLine[]>>(`/domains/${id}/lines`),
+  getFailover: (id: number) => api.get<ApiResponse<{ config: any, status: any } | null>>(`/domains/${id}/failover`),
+  saveFailover: (id: number, data: any) => api.post<ApiResponse<any>>(`/domains/${id}/failover`, data),
+  deleteFailover: (id: number) => api.delete<ApiResponse<any>>(`/domains/${id}/failover`),
 };
 
 // ─── Records ──────────────────────────────────────────────────────────────────
@@ -214,7 +244,9 @@ export const recordsApi = {
   list: (domainId: number, params?: { type?: string; keyword?: string }) =>
     api.get<ApiResponse<{ total: number; list: DnsRecord[] }>>(`/domains/${domainId}/records`, { params }),
   create: (domainId: number, data: Partial<DnsRecord>) =>
-    api.post<ApiResponse<{ id: number }>>(`/domains/${domainId}/records`, data),
+    api.post<ApiResponse<{ id: string }>>(`/domains/${domainId}/records`, data),
+  createBatch: (domainId: number, records: Partial<DnsRecord>[]) =>
+    api.post<ApiResponse<{ addedIds: string[] }>>(`/domains/${domainId}/records/batch`, { records }),
   update: (domainId: number, recordId: string, data: Partial<DnsRecord>) =>
     api.put<ApiResponse<null>>(`/domains/${domainId}/records/${recordId}`, data),
   delete: (domainId: number, recordId: string) =>
@@ -331,6 +363,8 @@ export interface SmtpConfig {
 
 export interface SecurityConfig {
   jwtViewEmailNotify: boolean;
+  domainExpiryNotify: boolean;
+  domainExpiryDays: number;
 }
 
 export interface OAuthStatus {
@@ -382,4 +416,8 @@ export const settingsApi = {
   getLoginAttemptStats: () => api.get<ApiResponse<LoginAttemptStats>>('/settings/login-attempts/stats'),
   unlockAccount: (identifier: string) =>
     api.post<ApiResponse<null>>('/settings/login-attempts/unlock', { identifier }),
+  getNotificationChannels: () => api.get<ApiResponse<any[]>>('/settings/notifications'),
+  updateNotificationChannels: (channels: any[]) => api.put<ApiResponse<any>>('/settings/notifications', { channels }),
+  getAuditRules: () => api.get<ApiResponse<any>>('/settings/audit-rules'),
+  updateAuditRules: (rules: any) => api.put<ApiResponse<any>>('/settings/audit-rules', { rules }),
 };

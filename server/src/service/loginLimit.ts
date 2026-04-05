@@ -1,4 +1,5 @@
 import { getAdapter } from '../db/adapter';
+import { checkAuditRules } from './auditRules';
 
 // Default configuration
 const DEFAULT_CONFIG = {
@@ -157,6 +158,8 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
           [newCount, lockedUntil.toISOString(), attempt.id]
         );
         
+        checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => console.error(e));
+        
         return {
           locked: true,
           message: `Too many failed attempts. Account locked for ${lockoutMinutes} minute(s).`,
@@ -168,6 +171,8 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
         'UPDATE login_attempts SET attempt_count = ?, last_attempt_at = ' + db.now() + ', locked_until = NULL WHERE id = ?',
         [newCount, attempt.id]
       );
+      
+      checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => console.error(e));
 
       const remainingAttempts = config.maxAttempts - newCount;
       return {

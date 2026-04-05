@@ -23,11 +23,17 @@ import settingsRouter from './routes/settings';
 import securityRouter from './routes/security';
 import auditRouter from './routes/audit';
 import emailTemplatesRouter from './routes/emailTemplates';
+import tunnelsRouter from './routes/tunnels';
+import webauthnRouter from './routes/webauthn';
 
 // Load environment variables (data/.env has priority over root .env)
 loadEnv();
 
+import { startFailoverJob } from './service/failoverJob';
+import { startWhoisJob } from './service/whoisJob';
+
 const app = express();
+
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Global state to track initialization
@@ -110,6 +116,8 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/security', securityRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/email-templates', emailTemplatesRouter);
+app.use('/api/tunnels', tunnelsRouter);
+app.use('/api/auth/webauthn', webauthnRouter);
 
 // Logs route
 /**
@@ -254,6 +262,8 @@ async function initializeApp() {
 
     if (isInitialized) {
       console.log('[Server] System initialized. Running in normal mode.');
+      startFailoverJob();
+      startWhoisJob();
     } else {
       console.log('[Server] System not initialized. Running in initialization mode.');
       console.log('[Server] Please access the setup wizard to configure the system.');
@@ -276,6 +286,8 @@ async function initializeApp() {
         isInitialized = true;
         console.log('[Server] System initialized detected. Normal routes are now enabled.');
         console.log('[Server] You may need to refresh the page.');
+        startFailoverJob();
+        startWhoisJob();
       }
     }, 5000);
 
@@ -315,6 +327,7 @@ async function initializeApp() {
         if (newState) {
           isInitialized = true;
           clearInterval(initCheckInterval);
+          startFailoverJob();
           console.log('[Server] System initialized detected. Normal routes are now enabled.');
           console.log('[Server] You may need to refresh the page.');
         }

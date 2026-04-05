@@ -7,6 +7,7 @@ import { roleLabelKey } from '../utils/roles';
 import { Avatar } from './Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, key: 'common.dashboard' },
@@ -25,6 +26,7 @@ export function Sidebar() {
   const { user, logout, isAdmin } = useAuth();
   const { t } = useI18n();
   const { theme, setTheme } = useTheme();
+  const [showTunnels] = useLocalStorage('showTunnels', false);
   const navigate = useNavigate();
   const displayName = user?.nickname || user?.username;
 
@@ -80,6 +82,22 @@ export function Sidebar() {
               {t(key)}
             </NavLink>
           ))}
+
+          {showTunnels && (
+            <NavLink
+              to="/tunnels"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              <Globe className="w-4 h-4 flex-shrink-0" />
+              Tunnels
+            </NavLink>
+          )}
 
           {isAdmin && (
             <>

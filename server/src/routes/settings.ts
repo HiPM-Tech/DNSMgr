@@ -260,23 +260,158 @@ router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: 
   });
 });
 
-router.get('/security', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
+router.get('/notifications', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
+  const db = getAdapter();
+  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
+  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['notification_channels']) as any;
+  if (!row?.value) {
+    res.json({ code: 0, data: [], msg: 'success' });
+    return;
+  }
   try {
-    const config = await getSecurityConfig();
-    res.json({ code: 0, data: config, msg: 'success' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get security config' });
+    const channels = JSON.parse(row.value);
+    res.json({ code: 0, data: channels, msg: 'success' });
+  } catch {
+    res.json({ code: 0, data: [], msg: 'success' });
+  }
+});
+
+router.put('/notifications', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+  const db = getAdapter();
+  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
+  const channels = req.body.channels;
+  if (!Array.isArray(channels)) return res.status(400).json({ code: -1, msg: 'Invalid channels array' });
+  
+  const payload = ['notification_channels', JSON.stringify(channels)];
+  if (db.type === 'mysql') {
+    await db.execute(
+      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
+      payload
+    );
+  } else {
+    await db.execute(
+      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
+      payload
+    );
+  }
+  res.json({ code: 0, msg: 'success' });
+});
+
+router.get('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+  const db = getAdapter();
+  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
+  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['audit_rules']) as any;
+  const defaultRules = {
+    enabled: true,
+    maxDeletionsPerHour: 10,
+    maxFailedLogins: 5,
+    offHoursStart: '22:00',
+    offHoursEnd: '06:00'
+  };
+  if (!row?.value) {
+    res.json({ code: 0, data: defaultRules, msg: 'success' });
+    return;
+  }
+  try {
+    const rules = JSON.parse(row.value);
+    res.json({ code: 0, data: { ...defaultRules, ...rules }, msg: 'success' });
+  } catch {
+    res.json({ code: 0, data: defaultRules, msg: 'success' });
+  }
+});
+
+router.put('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+  const db = getAdapter();
+  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
+  const rules = req.body.rules;
+  if (!rules) return res.status(400).json({ code: -1, msg: 'Rules required' });
+  
+  const payload = ['audit_rules', JSON.stringify(rules)];
+  if (db.type === 'mysql') {
+    await db.execute(
+      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
+      payload
+    );
+  } else {
+    await db.execute(
+      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
+      payload
+    );
+  }
+  res.json({ code: 0, msg: 'success' });
+});
+
+router.get('/security', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
+  const db = getAdapter();
+  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
+  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['security_config']) as any;
+  
+  const expiryNotifyRow = await db.get('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_notification']) as any;
+  const expiryDaysRow = await db.get('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_days']) as any;
+
+  const defaultConf = { 
+    jwtViewEmailNotify: false,
+    domainExpiryNotify: expiryNotifyRow ? (expiryNotifyRow.value === '1' || expiryNotifyRow.value === 'true') : false,
+    domainExpiryDays: expiryDaysRow ? parseInt(expiryDaysRow.value) : 30
+  };
+  
+  if (!row?.value) {
+    res.json({ code: 0, data: defaultConf, msg: 'success' });
+    return;
+  }
+  
+  try {
+    const config = JSON.parse(row.value);
+    res.json({ code: 0, data: { ...defaultConf, ...config }, msg: 'success' });
+  } catch {
+    res.json({ code: 0, data: defaultConf, msg: 'success' });
   }
 });
 
 router.put('/security', authMiddleware, adminOnly, async (req: Request, res: Response) => {
-  try {
-    const next = await updateSecurityConfig(req.body || {});
-    await logAuditOperation(req.user!.userId, 'update_security_config', 'system', next);
-    res.json({ code: 0, data: next, msg: 'success' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update security config' });
+  const db = getAdapter();
+  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
+  const { jwtViewEmailNotify, domainExpiryNotify, domainExpiryDays } = req.body;
+  const config = { jwtViewEmailNotify: !!jwtViewEmailNotify };
+  
+  const payload = ['security_config', JSON.stringify(config)];
+  if (db.type === 'mysql') {
+    await db.execute(
+      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
+      payload
+    );
+    if (domainExpiryNotify !== undefined) {
+      await db.execute(
+        'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
+        ['domain_expiry_notification', domainExpiryNotify ? '1' : '0']
+      );
+    }
+    if (domainExpiryDays !== undefined) {
+      await db.execute(
+        'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
+        ['domain_expiry_days', String(domainExpiryDays)]
+      );
+    }
+  } else {
+    await db.execute(
+      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
+      payload
+    );
+    if (domainExpiryNotify !== undefined) {
+      await db.execute(
+        'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
+        ['domain_expiry_notification', domainExpiryNotify ? '1' : '0']
+      );
+    }
+    if (domainExpiryDays !== undefined) {
+      await db.execute(
+        'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
+        ['domain_expiry_days', String(domainExpiryDays)]
+      );
+    }
   }
+  
+  res.json({ code: 0, msg: 'success' });
 });
 
 router.get('/smtp', authMiddleware, adminOnly, async (_req: Request, res: Response) => {

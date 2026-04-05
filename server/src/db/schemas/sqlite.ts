@@ -52,6 +52,7 @@ export const sqliteSchema: SchemaDefinition = {
       remark TEXT NOT NULL DEFAULT '',
       is_hidden INTEGER NOT NULL DEFAULT 0,
       record_count INTEGER NOT NULL DEFAULT 0,
+      expires_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE
     )`,
@@ -92,6 +93,49 @@ export const sqliteSchema: SchemaDefinition = {
       value TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
+      `CREATE TABLE IF NOT EXISTS user_2fa (
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(user_id, type)
+    )`,
+    `CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      public_key TEXT NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      device_type TEXT NOT NULL DEFAULT '',
+      backed_up INTEGER NOT NULL DEFAULT 0,
+      transports TEXT NOT NULL DEFAULT '[]',
+      name TEXT NOT NULL DEFAULT 'Passkey',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_used_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_sessions (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      user_agent TEXT NOT NULL DEFAULT '',
+      ip TEXT NOT NULL DEFAULT '',
+      last_active_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS login_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      identifier TEXT NOT NULL,
+      ip TEXT NOT NULL,
+      user_agent TEXT NOT NULL DEFAULT '',
+      success INTEGER NOT NULL DEFAULT 0,
+      fail_reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
   ],
   createIndexes: [
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_domains_account_name_unique ON domains(account_id, name)`,

@@ -233,3 +233,26 @@ interface DnsAdapter {
 ## License
 
 MIT
+
+
+## Internationalization (i18n) & Contribution
+
+DNSMgr uses `react-i18next` for internationalization. The current supported languages are English, Simplified Chinese, Spanish, and Japanese.
+
+We welcome community contributions for new languages! Here's how to add one:
+
+1. Copy an existing language file (e.g., `client/src/i18n/locales/en.ts`) to a new file like `fr.ts` (for French).
+2. Translate the string values in your new file.
+3. Import and add your new language to the `resources` object in `client/src/i18n/index.ts`.
+4. Update the language selector in `client/src/pages/Settings.tsx` to include your new language option.
+
+**Tip:** We recommend using the [i18n-ally](https://marketplace.visualstudio.com/items?itemName=Lokalise.i18n-ally) VS Code extension. The project already includes the `.vscode/settings.json` configuration for it, which helps you easily find missing translations and manage keys.
+
+## Adding New DNS Providers
+
+We support multiple DNS providers out of the box (Cloudflare, AliYun, TencentCloud, HuaweiCloud, DNSPod, GoDaddy). If your provider is not supported, you can easily add it:
+
+1. **Implement the Adapter**: Create a new file in `server/src/lib/dns/providers/` implementing the `DnsAdapter` interface.
+2. **Register the Adapter**: Add your adapter to the switch case in `server/src/lib/dns/DnsHelper.ts`.
+3. **Update Frontend**: Add your provider to the `PROVIDERS` list in `client/src/pages/Accounts.tsx` with its required configuration fields.
+4. **Submit a PR**: We welcome pull requests! Ensure your code follows the existing style and passes the tests.

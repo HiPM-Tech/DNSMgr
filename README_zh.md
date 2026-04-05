@@ -231,3 +231,26 @@ interface DnsAdapter {
 ## License
 
 MIT
+
+
+## 多语言支持 (i18n) 与贡献指南
+
+DNSMgr 使用 `react-i18next` 进行国际化（i18n）支持。目前已支持的语言包括：英文、简体中文、西班牙语和日语。
+
+我们非常欢迎社区参与多语言的共建！如果你想添加新的语言支持，请参考以下步骤：
+
+1. 复制现有的语言文件（例如 `client/src/i18n/locales/zh-CN.ts`）并重命名为新的语言代码，如 `fr.ts`（法语）。
+2. 将文件中的对应字符串翻译为目标语言。
+3. 在 `client/src/i18n/index.ts` 中引入你的新文件，并添加到 `resources` 对象中。
+4. 在 `client/src/pages/Settings.tsx` 中的语言选择器里添加你的新语言选项。
+
+**提示：** 我们强烈推荐使用 VS Code 插件 [i18n-ally](https://marketplace.visualstudio.com/items?itemName=Lokalise.i18n-ally)。本项目已经内置了 `.vscode/settings.json` 配置，你可以利用它直接在编辑器中查看翻译缺失情况并高效管理多语言键值。
+
+## 添加新的 DNS 提供商
+
+我们开箱即支持多个 DNS 提供商（Cloudflare, 阿里云, 腾讯云, 华为云, DNSPod, GoDaddy）。如果你使用的提供商尚未支持，你可以很方便地自行添加：
+
+1. **实现适配器**：在 `server/src/lib/dns/providers/` 下创建一个新文件，实现 `DnsAdapter` 接口。
+2. **注册适配器**：在 `server/src/lib/dns/DnsHelper.ts` 的工厂方法中添加你的适配器。
+3. **更新前端**：在 `client/src/pages/Accounts.tsx` 的 `PROVIDERS` 列表中添加你的提供商及其所需的配置字段。
+4. **提交 PR**：我们非常欢迎 Pull Requests！请确保你的代码符合现有的代码风格并能通过测试。

@@ -55,6 +55,7 @@ const sqliteSchema = {
       remark TEXT NOT NULL DEFAULT '',
       is_hidden INTEGER NOT NULL DEFAULT 0,
       record_count INTEGER NOT NULL DEFAULT 0,
+      expires_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE
     )`,
@@ -120,6 +121,19 @@ const sqliteSchema = {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       UNIQUE(user_id, type)
+    )`,
+    `CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      public_key TEXT NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      device_type TEXT NOT NULL DEFAULT '',
+      backed_up INTEGER NOT NULL DEFAULT 0,
+      transports TEXT NOT NULL DEFAULT '[]',
+      name TEXT NOT NULL DEFAULT 'Passkey',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_used_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS user_sessions (
       id TEXT PRIMARY KEY,
@@ -236,6 +250,7 @@ const mysqlSchema = {
       remark TEXT,
       is_hidden TINYINT NOT NULL DEFAULT 0,
       record_count INT NOT NULL DEFAULT 0,
+      expires_at DATETIME,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE,
       UNIQUE KEY unique_account_name (account_id, name),
@@ -301,6 +316,19 @@ const mysqlSchema = {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       UNIQUE KEY unique_user_type (user_id, type),
       INDEX idx_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      id VARCHAR(255) PRIMARY KEY,
+      user_id INT NOT NULL,
+      public_key TEXT NOT NULL,
+      counter INT NOT NULL DEFAULT 0,
+      device_type VARCHAR(50) NOT NULL DEFAULT '',
+      backed_up TINYINT NOT NULL DEFAULT 0,
+      transports JSON NOT NULL DEFAULT '[]',
+      name VARCHAR(255) NOT NULL DEFAULT 'Passkey',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS user_sessions (
       id VARCHAR(255) PRIMARY KEY,
@@ -424,6 +452,7 @@ const postgresqlSchema = {
       remark TEXT NOT NULL DEFAULT '',
       is_hidden SMALLINT NOT NULL DEFAULT 0,
       record_count INTEGER NOT NULL DEFAULT 0,
+      expires_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(account_id, name)
     )`,
@@ -498,6 +527,18 @@ const postgresqlSchema = {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, type)
+    )`,
+    `CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      id VARCHAR(255) PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      public_key TEXT NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      device_type VARCHAR(50) NOT NULL DEFAULT '',
+      backed_up BOOLEAN NOT NULL DEFAULT false,
+      transports JSONB NOT NULL DEFAULT '[]',
+      name VARCHAR(255) NOT NULL DEFAULT 'Passkey',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS idx_user_2fa_user_id ON user_2fa(user_id)`,
     `CREATE TABLE IF NOT EXISTS user_sessions (

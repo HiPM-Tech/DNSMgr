@@ -3,13 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft, Info, RefreshCw } from 'lucide-react';
 import { recordsApi, domainsApi, accountsApi } from '../api';
-import type { DnsRecord, DnsLine } from '../api';
+import type { DnsRecord, DnsLine, Provider } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
 import { Badge } from '../components/Badge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+
+import { TunnelList } from '../components/TunnelList';
+import { MailSetupModal } from './MailSetupModal';
 
 const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR'];
 const CLOUDFLARE_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
@@ -20,7 +24,9 @@ interface RecordFormProps {
   domainId: number;
   lines: DnsLine[];
   recordTypes: string[];
+  provider?: Provider;
   initial?: DnsRecord;
+  existingRecords?: DnsRecord[];
   onSubmit: (data: Partial<DnsRecord>) => void;
   isLoading: boolean;
 }
@@ -92,7 +98,7 @@ function parseSrvValue(initial?: DnsRecord): SrvFields {
   };
 }
 
-function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: RecordFormProps) {
+function RecordForm({ lines, recordTypes, provider, initial, existingRecords = [], onSubmit, isLoading }: RecordFormProps) {
   const toast = useToast();
   const { t } = useI18n();
   const [form, setForm] = useState<Partial<DnsRecord>>({
@@ -117,12 +123,15 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
 
   const currentType = form.type ?? 'A';
   const isSrv = currentType === 'SRV';
+  const isCloudflare = provider?.type === 'cloudflare';
   const canSelectProxy = lines.length > 0 && (
-    initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
-      ? Boolean(initial.cloudflare.proxiable)
-      : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
-        ? Boolean(initial.proxiable)
-      : PROXIABLE_RECORD_TYPES.has(currentType)
+    isCloudflare
+      ? (initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
+        ? Boolean(initial.cloudflare.proxiable)
+        : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
+          ? Boolean(initial.proxiable)
+        : PROXIABLE_RECORD_TYPES.has(currentType))
+      : provider?.capabilities?.line
   );
 
   const normalizedSrvValue = useMemo(() => {
@@ -140,6 +149,18 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
 
     if (!name) nextErrors.name = t('records.hostRequired');
     else if (!isRecordHost(name)) nextErrors.name = t('records.hostInvalid');
+    else if (currentType === 'CNAME') {
+      const hasConflict = existingRecords.some((r) => r.name === name && r.id !== initial?.id);
+      const isRoot = name === '@';
+      if ((isRoot || hasConflict) && !provider?.capabilities?.cnameFlattening) {
+        nextErrors.name = t('records.cnameConflict');
+      }
+    } else {
+      const hasCname = existingRecords.some((r) => r.name === name && r.id !== initial?.id && r.type === 'CNAME');
+      if (hasCname && !provider?.capabilities?.cnameFlattening) {
+        nextErrors.name = t('records.cnameConflict');
+      }
+    }
 
     if (!value) nextErrors.value = t('records.valueRequired');
     else if (currentType === 'A' && !isIPv4(value)) nextErrors.value = t('records.invalidA');
@@ -182,7 +203,8 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
       ttl: Number(form.ttl ?? 600),
       mx: currentType === 'MX' || currentType === 'SRV' ? Number(form.mx ?? 0) : undefined,
       weight: currentType === 'SRV' ? Number(form.weight ?? 0) : undefined,
-      cloudflare: canSelectProxy && form.line !== undefined ? { proxied: form.line === '1' } : undefined,
+      cloudflare: (isCloudflare && canSelectProxy && form.line !== undefined) ? { proxied: form.line === '1' } : undefined,
+      line: (!isCloudflare && canSelectProxy) ? form.line : undefined,
       remark: form.remark?.toString() ?? '',
     };
 
@@ -378,10 +400,13 @@ export function Records() {
   };
 
   const [showAdd, setShowAdd] = useState(false);
+  const [showMailSetup, setShowMailSetup] = useState(false);
   const [editing, setEditing] = useState<DnsRecord | null>(null);
   const [deleting, setDeleting] = useState<DnsRecord | null>(null);
   const [typeFilter, setTypeFilter] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [activeTab, setActiveTab] = useState<'records' | 'tunnels'>('records');
+  const [showTunnels] = useLocalStorage('showTunnels', false);
 
   const { data: domain } = useQuery({
     queryKey: ['domain', domainId],
@@ -393,6 +418,16 @@ export function Records() {
     enabled: Boolean(domain?.account_id),
     queryFn: () => accountsApi.get(domain!.account_id).then((r) => r.data.data),
   });
+
+  const { data: providers = [] } = useQuery({
+    queryKey: ['providers'],
+    queryFn: () => accountsApi.providers().then((r) => r.data.data),
+  });
+
+  const currentProvider = useMemo(() => {
+    if (!account) return undefined;
+    return providers.find(p => p.type === account.type);
+  }, [account, providers]);
 
   const providerRecordTypes = useMemo(() => {
     const base = account?.type === 'cloudflare' ? [...CLOUDFLARE_RECORD_TYPES] : [...COMMON_RECORD_TYPES];
@@ -528,45 +563,92 @@ export function Records() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => qc.invalidateQueries({ queryKey: ['records', domainId] })}
-            className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" /> {t('records.refresh')}
-          </button>
-          <button onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-            <Plus className="w-4 h-4" /> {t('records.addRecord')}
-          </button>
+          {activeTab === 'records' && (
+            <>
+              <button
+                onClick={() => qc.invalidateQueries({ queryKey: ['records', domainId] })}
+                className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" /> {t('records.refresh')}
+              </button>
+              <button onClick={() => setShowAdd(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                <Plus className="w-4 h-4" /> {t('records.addRecord')}
+              </button>
+              <button onClick={() => setShowMailSetup(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+                {t('mail.title')}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={keyword} onChange={(e) => setKeyword(e.target.value)}
-            placeholder={t('common.searchRecords')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+      {showTunnels && currentProvider?.type === 'cloudflare' && (
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('records')}
+              className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'records'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-500'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              DNS Records
+            </button>
+            <button
+              onClick={() => setActiveTab('tunnels')}
+              className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'tunnels'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-500'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              Tunnels
+            </button>
+          </nav>
         </div>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          <option value="">{t('common.allTypes')}</option>
-          {providerRecordTypes.map((t) => <option key={t}>{t}</option>)}
-        </select>
-      </div>
+      )}
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-        <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} />
-      </div>
+      {activeTab === 'records' && (
+        <>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input value={keyword} onChange={(e) => setKeyword(e.target.value)}
+                placeholder={t('common.searchRecords')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+            </div>
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option value="">{t('common.allTypes')}</option>
+              {providerRecordTypes.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+            <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} />
+          </div>
+        </>
+      )}
+
+      {activeTab === 'tunnels' && (
+        <TunnelList accountId={domain?.account_id} />
+      )}
 
       {showAdd && (
         <Modal title={t('records.addRecordFor', { name: domain?.name ?? '' })} onClose={() => setShowAdd(false)} size="lg">
-          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
+          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} provider={currentProvider} existingRecords={records} onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
         </Modal>
+      )}
+
+      {showMailSetup && (
+        <MailSetupModal domainId={domainId} domainName={domain?.name ?? ''} onClose={() => setShowMailSetup(false)} existingRecords={records} />
       )}
 
       {editing && (
         <Modal title={t('records.editRecord')} onClose={() => setEditing(null)} size="lg">
-          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} initial={editing}
+          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} provider={currentProvider} existingRecords={records} initial={editing}
             onSubmit={(data) => updateMutation.mutate({ recordId: editing.id, data })}
             isLoading={updateMutation.isPending} />
         </Modal>

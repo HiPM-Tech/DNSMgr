@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Smartphone, LogOut, Copy, Check } from 'lucide-react';
+import { Smartphone, LogOut, Copy, Check, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { startRegistration } from '@simplewebauthn/browser';
+import { authApi } from '../api';
 
 interface Session {
   id: string;
@@ -19,7 +21,10 @@ interface TOTPSetup {
   backupCodes: string[];
 }
 
+import { useI18n } from '../contexts/I18nContext';
+
 export function Security() {
+  const { t } = useI18n();
   const toast = useToast();
 
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -32,11 +37,65 @@ export function Security() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [passkeys, setPasskeys] = useState<any[]>([]);
 
   useEffect(() => {
     loadSessions();
     loadTotpStatus();
+    loadPasskeys();
   }, []);
+
+  const loadPasskeys = async () => {
+    try {
+      const res = await authApi.webauthnCreds();
+      if (res.data.code === 0) setPasskeys(res.data.data || []);
+    } catch (e) {
+      console.error('Failed to load passkeys', e);
+    }
+  };
+
+  const handleAddPasskey = async () => {
+    setLoading(true);
+    try {
+      const optsRes = await authApi.webauthnRegOptions();
+      if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
+      
+      const attResp = await startRegistration(optsRes.data.data);
+      
+      const verifyRes = await authApi.webauthnRegVerify({
+        ...attResp,
+        name: `Passkey added on ${new Date().toLocaleDateString()}`
+      });
+      if (verifyRes.data.code === 0) {
+        toast.success('Passkey added successfully');
+        await loadPasskeys();
+      } else {
+        throw new Error(verifyRes.data.msg);
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to add passkey');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeletePasskey = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this passkey?')) return;
+    setLoading(true);
+    try {
+      const res = await authApi.webauthnDeleteCred(id);
+      if (res.data.code === 0) {
+        toast.success('Passkey removed');
+        await loadPasskeys();
+      } else {
+        throw new Error(res.data.msg);
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to remove passkey');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadSessions = async () => {
     try {
@@ -200,6 +259,48 @@ export function Security() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Passkeys Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <KeyRound className="w-6 h-6 text-green-500" />
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('passkeys.title')}</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('passkeys.desc')}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleAddPasskey}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4" /> {t('passkeys.add')}
+          </button>
+        </div>
+
+        {passkeys.length > 0 ? (
+          <div className="mt-4 border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+            {passkeys.map((pk) => (
+              <div key={pk.id} className="flex items-center justify-between p-4">
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">{pk.name}</p>
+                  <p className="text-sm text-gray-500">{t('passkeys.addedOn')} {new Date(pk.created_at).toLocaleDateString()}</p>
+                </div>
+                <button
+                  onClick={() => handleDeletePasskey(pk.id)}
+                  disabled={loading}
+                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">{t('passkeys.none')}</p>
+        )}
       </div>
 
       {/* Sessions Section */}

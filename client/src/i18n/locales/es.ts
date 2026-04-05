@@ -140,5 +140,11 @@ export const es: LocaleDefinition = {
         no: 'No',
       },
     },
+    records: {
+      hostInvalid: 'Solo se permiten @, letras, números, _, - y puntos',
+      cnameConflict: 'Flattening de CNAME no soportado, CNAME no puede coexistir con otros registros o usarse en @',
+      valueRequired: 'El valor es obligatorio',
+    },
   },
+
 };
