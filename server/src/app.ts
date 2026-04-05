@@ -25,6 +25,8 @@ import auditRouter from './routes/audit';
 import emailTemplatesRouter from './routes/emailTemplates';
 import tunnelsRouter from './routes/tunnels';
 import webauthnRouter from './routes/webauthn';
+import { getAuditLogs } from './service/auditExport';
+import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
 // Load environment variables (data/.env has priority over root .env)
 loadEnv();
@@ -38,12 +40,6 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Global state to track initialization
 let isInitialized = false;
-
-function buildSqlWithPlaceholders(baseSql: string, dbType: string): string {
-  if (dbType !== 'postgresql') return baseSql;
-  let idx = 0;
-  return baseSql.replace(/\?/g, () => `$${++idx}`);
-}
 
 async function checkInitialization(): Promise<boolean> {
   return await isDbInitialized() && await hasUsers();
@@ -164,71 +160,31 @@ app.use('/api/auth/webauthn', webauthnRouter);
  *         description: Operation logs
  */
 app.get('/api/logs', authMiddleware, adminOnly, async (req: Request, res: Response) => {
-  const { page = '1', pageSize = '50', domain, userId, action, startDate, endDate } = req.query as Record<string, string>;
-  const pageNum = parseInt(page);
-  const size = parseInt(pageSize);
-  const offset = (pageNum - 1) * size;
-
   try {
-    const { getDb } = await import('./db/database');
-    const db = getDb();
+    const { page, pageSize } = parsePagination(req.query, { defaultPageSize: 50, maxPageSize: 200 });
+    const { total, logs } = await getAuditLogs(page, pageSize, {
+      domain: getString(req.query.domain),
+      userId: parseInteger(req.query.userId),
+      action: getString(req.query.action),
+      startDate: getString(req.query.startDate),
+      endDate: getString(req.query.endDate),
+    });
 
-    if (db.type === 'sqlite') {
-      const sqliteDb = db as any;
-
-      const conditions: string[] = ['1=1'];
-      const params: unknown[] = [];
-      if (domain) { conditions.push('l.domain LIKE ?'); params.push(`%${domain}%`); }
-      if (userId) { conditions.push('l.user_id = ?'); params.push(parseInt(userId)); }
-      if (action) { conditions.push('l.action = ?'); params.push(action); }
-      if (startDate) { conditions.push("date(l.created_at) >= date(?)"); params.push(startDate); }
-      if (endDate) { conditions.push("date(l.created_at) <= date(?)"); params.push(endDate); }
-      const where = conditions.join(' AND ');
-
-      const total = (sqliteDb.prepare(`SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`).get(...params) as { cnt: number }).cnt;
-      const list = sqliteDb.prepare(
-        `SELECT l.*, u.username, u.nickname
-         FROM operation_logs l
-         LEFT JOIN users u ON u.id = l.user_id
-         WHERE ${where}
-         ORDER BY l.id DESC
-         LIMIT ? OFFSET ?`
-      ).all(...params, size, offset);
-
-      res.json({ code: 0, data: { total, list }, msg: 'success' });
-    } else {
-      // For MySQL and PostgreSQL
-      const conditions: string[] = ['1=1'];
-      const params: unknown[] = [];
-      if (domain) { conditions.push('l.domain LIKE ?'); params.push(`%${domain}%`); }
-      if (userId) { conditions.push('l.user_id = ?'); params.push(parseInt(userId)); }
-      if (action) { conditions.push('l.action = ?'); params.push(action); }
-      if (startDate) { conditions.push('l.created_at >= ?'); params.push(startDate); }
-      if (endDate) { conditions.push('l.created_at <= ?'); params.push(endDate); }
-      const where = conditions.join(' AND ');
-
-      const totalSql = buildSqlWithPlaceholders(`SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`, db.type);
-      const totalResult = await db.get(totalSql, params);
-      const total = (totalResult as { cnt: number })?.cnt || 0;
-
-      const listSql = buildSqlWithPlaceholders(
-        `SELECT l.*, u.username, u.nickname
-         FROM operation_logs l
-         LEFT JOIN users u ON u.id = l.user_id
-         WHERE ${where}
-         ORDER BY l.id DESC
-         LIMIT ? OFFSET ?`,
-        db.type
-      );
-      const list = await db.query(
-        listSql,
-        [...params, size, offset]
-      );
-
-      res.json({ code: 0, data: { total, list }, msg: 'success' });
-    }
+    sendSuccess(res, {
+      total,
+      list: logs.map((log) => ({
+        id: log.id,
+        user_id: log.userId,
+        username: log.username,
+        nickname: log.nickname,
+        action: log.action,
+        domain: log.domain,
+        data: JSON.stringify(log.data),
+        created_at: log.createdAt,
+      })),
+    });
   } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to fetch logs' });
+    sendError(res, error instanceof Error ? error.message : 'Failed to fetch logs', 500);
   }
 });
 

@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
-import { ResponseHelper } from '../utils/response';
 import {
+  AuditLogEntry,
+  AuditLogFilters,
   getAuditLogs,
   exportAuditLogsAsCSV,
   exportAuditLogsAsJSON,
@@ -10,8 +11,32 @@ import {
   getUserActionStats,
   getActionTimeDistribution,
 } from '../service/auditExport';
+import { getString, parseInteger, parsePagination, sendSuccess } from '../utils/http';
 
 const router = Router();
+
+function getAuditFilters(query: Request['query']): AuditLogFilters {
+  return {
+    domain: getString(query.domain),
+    userId: parseInteger(query.userId),
+    action: getString(query.action),
+    startDate: getString(query.startDate),
+    endDate: getString(query.endDate),
+  };
+}
+
+function toLegacyAuditLog(log: AuditLogEntry) {
+  return {
+    id: log.id,
+    user_id: log.userId,
+    username: log.username,
+    nickname: log.nickname,
+    action: log.action,
+    domain: log.domain,
+    data: JSON.stringify(log.data),
+    created_at: log.createdAt,
+  };
+}
 
 /**
  * @swagger
@@ -61,23 +86,10 @@ router.get(
   authMiddleware,
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
-    const { page = '1', pageSize = '50', domain, userId, action, startDate, endDate } = req.query;
+    const { page, pageSize } = parsePagination(req.query, { defaultPageSize: 50, maxPageSize: 200 });
+    const { total, logs } = await getAuditLogs(page, pageSize, getAuditFilters(req.query));
 
-    const { total, logs } = await getAuditLogs(parseInt(page as string), parseInt(pageSize as string), {
-      domain: domain as string,
-      userId: userId ? parseInt(userId as string) : undefined,
-      action: action as string,
-      startDate: startDate as string,
-      endDate: endDate as string,
-    });
-
-    ResponseHelper.paginated(
-      res,
-      logs,
-      total,
-      parseInt(page as string),
-      parseInt(pageSize as string)
-    );
+    sendSuccess(res, { total, list: logs.map(toLegacyAuditLog) });
   })
 );
 
@@ -119,15 +131,7 @@ router.get(
   authMiddleware,
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
-    const { domain, userId, action, startDate, endDate } = req.query;
-
-    const csv = await exportAuditLogsAsCSV({
-      domain: domain as string,
-      userId: userId ? parseInt(userId as string) : undefined,
-      action: action as string,
-      startDate: startDate as string,
-      endDate: endDate as string,
-    });
+    const csv = await exportAuditLogsAsCSV(getAuditFilters(req.query));
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="audit-logs-${new Date().toISOString().split('T')[0]}.csv"`);
@@ -173,15 +177,7 @@ router.get(
   authMiddleware,
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
-    const { domain, userId, action, startDate, endDate } = req.query;
-
-    const json = await exportAuditLogsAsJSON({
-      domain: domain as string,
-      userId: userId ? parseInt(userId as string) : undefined,
-      action: action as string,
-      startDate: startDate as string,
-      endDate: endDate as string,
-    });
+    const json = await exportAuditLogsAsJSON(getAuditFilters(req.query));
 
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="audit-logs-${new Date().toISOString().split('T')[0]}.json"`);
@@ -218,11 +214,11 @@ router.get(
   authMiddleware,
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
-    const { userId } = req.params;
-    const { timeWindow = '60' } = req.query;
+    const userId = parseInteger(req.params.userId, { min: 1 });
+    const timeWindow = parseInteger(req.query.timeWindow, { defaultValue: 60, min: 1, max: 1440 }) ?? 60;
 
-    const anomalies = await detectAnomalies(parseInt(userId), parseInt(timeWindow as string));
-    ResponseHelper.success(res, { anomalies });
+    const anomalies = await detectAnomalies(userId ?? 0, timeWindow);
+    sendSuccess(res, { anomalies });
   })
 );
 
@@ -254,11 +250,11 @@ router.get(
   authMiddleware,
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
-    const { userId } = req.params;
-    const { days = '7' } = req.query;
+    const userId = parseInteger(req.params.userId, { min: 1 });
+    const days = parseInteger(req.query.days, { defaultValue: 7, min: 1, max: 365 }) ?? 7;
 
-    const stats = await getUserActionStats(parseInt(userId), parseInt(days as string));
-    ResponseHelper.success(res, stats);
+    const stats = await getUserActionStats(userId ?? 0, days);
+    sendSuccess(res, stats);
   })
 );
 
@@ -290,11 +286,11 @@ router.get(
   authMiddleware,
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
-    const { userId } = req.params;
-    const { days = '7' } = req.query;
+    const userId = parseInteger(req.params.userId, { min: 1 });
+    const days = parseInteger(req.query.days, { defaultValue: 7, min: 1, max: 365 }) ?? 7;
 
-    const distribution = await getActionTimeDistribution(parseInt(userId), parseInt(days as string));
-    ResponseHelper.success(res, distribution);
+    const distribution = await getActionTimeDistribution(userId ?? 0, days);
+    sendSuccess(res, distribution);
   })
 );
 

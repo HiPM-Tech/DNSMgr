@@ -11,10 +11,10 @@ import { logAuditOperation } from '../service/audit';
 import { getSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { loginLimiter, registerLimiter, emailLimiter } from '../middleware/rateLimit';
 import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/totp';
+import { isValidUsername } from '../utils/validation';
 
 
 const router = Router();
-const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 const resetStore = new Map<string, { code: string; expiresAt: number }>();
 const oauthStateStore = new Map<string, { mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId?: number; expiresAt: number }>();
 
@@ -592,7 +592,7 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
     res.json({ code: -1, msg: 'Username and password are required' });
     return;
   }
-  if (!USERNAME_PATTERN.test(normalizedUsername)) {
+  if (!isValidUsername(normalizedUsername)) {
     res.json({ code: -1, msg: 'Username must use letters, numbers, "_" or "-"' });
     return;
   }

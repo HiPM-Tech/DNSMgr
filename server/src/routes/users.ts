@@ -1,12 +1,13 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { getAdapter } from '../db/adapter';
 import { authMiddleware, adminOnly } from '../middleware/auth';
+import { asyncHandler } from '../middleware/errorHandler';
 import { User } from '../types';
 import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, normalizeRole } from '../utils/roles';
+import { getRequiredAdapter, parseInteger, sendError, sendSuccess } from '../utils/http';
+import { isValidUsername } from '../utils/validation';
 
 const router = Router();
-const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 /**
  * @swagger
@@ -20,14 +21,14 @@ const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
  *       200:
  *         description: List of users
  */
-router.get('/', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
-  const adapter = getAdapter();
+router.get('/', authMiddleware, adminOnly, asyncHandler(async (_req: Request, res: Response) => {
+  const adapter = getRequiredAdapter(res);
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    return;
   }
   const users = await adapter.query('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users ORDER BY id');
-  res.json({ code: 0, data: users, msg: 'success' });
-});
+  sendSuccess(res, users);
+}));
 
 /**
  * @swagger
@@ -60,24 +61,24 @@ router.get('/', authMiddleware, adminOnly, async (_req: Request, res: Response) 
  *       200:
  *         description: User created
  */
-router.post('/', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.post('/', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
   const { username, nickname, email = '', password, role = ROLE_USER } = req.body as {
     username: string; nickname?: string; email?: string; password: string; role?: number;
   };
   const normalizedUsername = (username ?? '').trim();
   if (!normalizedUsername || !password) {
-    res.json({ code: -1, msg: 'Username and password are required' });
+    sendError(res, 'Username and password are required');
     return;
   }
-  if (!USERNAME_PATTERN.test(normalizedUsername)) {
-    res.json({ code: -1, msg: 'Username must use letters, numbers, "_" or "-"' });
+  if (!isValidUsername(normalizedUsername)) {
+    sendError(res, 'Username must use letters, numbers, "_" or "-"');
     return;
   }
-  const adapter = getAdapter();
+  const adapter = getRequiredAdapter(res);
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    return;
   }
-  const resolvedNickname = (nickname ?? '').trim() || username;
+  const resolvedNickname = (nickname ?? '').trim() || normalizedUsername;
   const hash = bcrypt.hashSync(password, 10);
   const callerRole = normalizeRole(req.user?.role);
   let roleLevel = normalizeRole(role);
@@ -85,7 +86,7 @@ router.post('/', authMiddleware, adminOnly, async (req: Request, res: Response) 
     roleLevel = ROLE_USER;
   }
   if (roleLevel === ROLE_SUPER) {
-    res.json({ code: -1, msg: 'Super admin cannot be created' });
+    sendError(res, 'Super admin cannot be created');
     return;
   }
   const roleText = roleLevel >= ROLE_ADMIN ? 'admin' : 'member';
@@ -94,11 +95,11 @@ router.post('/', authMiddleware, adminOnly, async (req: Request, res: Response) 
       'INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)',
       [normalizedUsername, resolvedNickname, email, hash, roleText, roleLevel]
     );
-    res.json({ code: 0, data: { id }, msg: 'success' });
+    sendSuccess(res, { id });
   } catch {
-    res.json({ code: -1, msg: 'Username already exists' });
+    sendError(res, 'Username already exists');
   }
-});
+}));
 
 /**
  * @swagger
@@ -135,15 +136,15 @@ router.post('/', authMiddleware, adminOnly, async (req: Request, res: Response) 
  *       200:
  *         description: User updated
  */
-router.put('/:id', authMiddleware, adminOnly, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
-  const adapter = getAdapter();
+router.put('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id, { min: 1 });
+  const adapter = getRequiredAdapter(res);
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    return;
   }
   const user = await adapter.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [id]) as User | undefined;
   if (!user) {
-    res.json({ code: -1, msg: 'User not found' });
+    sendError(res, 'User not found');
     return;
   }
   const { nickname, email, role, status, password } = req.body as {
@@ -151,11 +152,11 @@ router.put('/:id', authMiddleware, adminOnly, async (req: Request, res: Response
   };
   const callerRole = normalizeRole(req.user?.role);
   if (user.role === ROLE_SUPER) {
-    res.json({ code: -1, msg: 'Super admin cannot be modified' });
+    sendError(res, 'Super admin cannot be modified');
     return;
   }
   if (callerRole === ROLE_ADMIN && user.role >= ROLE_ADMIN) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   const updates: string[] = [`updated_at = ${adapter.now()}`];
@@ -172,7 +173,7 @@ router.put('/:id', authMiddleware, adminOnly, async (req: Request, res: Response
       roleLevel = ROLE_USER;
     }
     if (roleLevel === ROLE_SUPER) {
-      res.json({ code: -1, msg: 'Super admin cannot be created' });
+      sendError(res, 'Super admin cannot be created');
       return;
     }
     updates.push('role_level = ?');
@@ -184,8 +185,8 @@ router.put('/:id', authMiddleware, adminOnly, async (req: Request, res: Response
   if (password) { updates.push('password_hash = ?'); params.push(bcrypt.hashSync(password, 10)); }
   params.push(id);
   await adapter.execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
-  res.json({ code: 0, msg: 'success' });
-});
+  sendSuccess(res);
+}));
 
 /**
  * @swagger
@@ -205,32 +206,32 @@ router.put('/:id', authMiddleware, adminOnly, async (req: Request, res: Response
  *       200:
  *         description: User deleted
  */
-router.delete('/:id', authMiddleware, adminOnly, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.delete('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id, { min: 1 }) ?? 0;
   if (id === req.user!.userId) {
-    res.json({ code: -1, msg: 'Cannot delete yourself' });
+    sendError(res, 'Cannot delete yourself');
     return;
   }
-  const adapter = getAdapter();
+  const adapter = getRequiredAdapter(res);
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    return;
   }
   const target = await adapter.get('SELECT id, role_level as role FROM users WHERE id = ?', [id]) as { id: number; role: number } | undefined;
   if (!target) {
-    res.json({ code: -1, msg: 'User not found' });
+    sendError(res, 'User not found');
     return;
   }
   const callerRole = normalizeRole(req.user?.role);
   if (target.role === ROLE_SUPER) {
-    res.json({ code: -1, msg: 'Super admin cannot be deleted' });
+    sendError(res, 'Super admin cannot be deleted');
     return;
   }
   if (callerRole === ROLE_ADMIN && target.role >= ROLE_ADMIN) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   await adapter.execute('DELETE FROM users WHERE id = ?', [id]);
-  res.json({ code: 0, msg: 'success' });
-});
+  sendSuccess(res);
+}));
 
 export default router;

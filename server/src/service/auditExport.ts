@@ -15,19 +15,21 @@ export interface AuditLogEntry {
   createdAt: string;
 }
 
+export interface AuditLogFilters {
+  domain?: string;
+  userId?: number;
+  action?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
 /**
  * 获取审计日志（支持筛选）
  */
 export async function getAuditLogs(
   page: number = 1,
   pageSize: number = 50,
-  filters?: {
-    domain?: string;
-    userId?: number;
-    action?: string;
-    startDate?: string;
-    endDate?: string;
-  }
+  filters?: AuditLogFilters
 ): Promise<{ total: number; logs: AuditLogEntry[] }> {
   const db = getAdapter();
   if (!db) throw new Error('Database not available');
@@ -103,13 +105,7 @@ export async function getAuditLogs(
  * 导出审计日志为 CSV
  */
 export async function exportAuditLogsAsCSV(
-  filters?: {
-    domain?: string;
-    userId?: number;
-    action?: string;
-    startDate?: string;
-    endDate?: string;
-  }
+  filters?: AuditLogFilters
 ): Promise<string> {
   const { logs } = await getAuditLogs(1, 10000, filters);
 
@@ -137,13 +133,7 @@ export async function exportAuditLogsAsCSV(
  * 导出审计日志为 JSON
  */
 export async function exportAuditLogsAsJSON(
-  filters?: {
-    domain?: string;
-    userId?: number;
-    action?: string;
-    startDate?: string;
-    endDate?: string;
-  }
+  filters?: AuditLogFilters
 ): Promise<string> {
   const { logs, total } = await getAuditLogs(1, 10000, filters);
 
