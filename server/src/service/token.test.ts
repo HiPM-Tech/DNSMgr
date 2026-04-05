@@ -3,11 +3,10 @@ import assert from 'node:assert';
 import {
   generateToken,
   hashToken,
-  verifyTokenFormat,
   hasServicePermission,
   hasDomainPermission,
-  type TokenPayload,
 } from './token';
+import type { TokenPayload } from '../types/token';
 
 describe('Token Service', () => {
   describe('generateToken', () => {
@@ -45,38 +44,14 @@ describe('Token Service', () => {
     });
   });
 
-  describe('verifyTokenFormat', () => {
-    it('should accept valid token format', () => {
-      const validToken = 'dnsmgr_' + 'a'.repeat(64);
-      assert.strictEqual(verifyTokenFormat(validToken), true, 'Valid token should be accepted');
-    });
-
-    it('should reject token without prefix', () => {
-      assert.strictEqual(verifyTokenFormat('invalid_token'), false, 'Token without prefix should be rejected');
-    });
-
-    it('should reject token with wrong prefix', () => {
-      assert.strictEqual(verifyTokenFormat('wrongprefix_abc123'), false, 'Token with wrong prefix should be rejected');
-    });
-
-    it('should reject empty token', () => {
-      assert.strictEqual(verifyTokenFormat(''), false, 'Empty token should be rejected');
-    });
-
-    it('should reject null/undefined', () => {
-      assert.strictEqual(verifyTokenFormat(null as any), false, 'Null should be rejected');
-      assert.strictEqual(verifyTokenFormat(undefined as any), false, 'Undefined should be rejected');
-    });
-  });
-
   describe('hasServicePermission', () => {
     const basePayload: TokenPayload = {
+      type: 'token',
       tokenId: 1,
       userId: 1,
       allowedDomains: [],
       allowedServices: ['domains.read', 'records.write'],
       maxRole: 1,
-      iat: Date.now(),
     };
 
     it('should allow access to explicitly permitted service', () => {
@@ -103,12 +78,12 @@ describe('Token Service', () => {
 
   describe('hasDomainPermission', () => {
     const basePayload: TokenPayload = {
+      type: 'token',
       tokenId: 1,
       userId: 1,
       allowedDomains: [1, 2, 3],
       allowedServices: ['*'],
       maxRole: 1,
-      iat: Date.now(),
     };
 
     it('should allow access to explicitly permitted domain', async () => {
