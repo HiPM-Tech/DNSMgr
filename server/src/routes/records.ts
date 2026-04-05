@@ -287,6 +287,19 @@ router.delete('/:recordId', authMiddleware, async (req: Request, res: Response) 
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
+    // Only scoped writers need subdomain ownership verification.
+    // Users with full-domain write permission can delete directly.
+    if (access.writeSubs !== null) {
+      const targetRecord = await dnsAdapter.getDomainRecordInfo(recordId);
+      if (!targetRecord) {
+        res.json({ code: -1, msg: 'Record not found' });
+        return;
+      }
+      if (!canWriteSubdomain(access.writeSubs, targetRecord.Name, access.domain.name)) {
+        res.json({ code: -1, msg: 'Permission denied for subdomain' });
+        return;
+      }
+    }
     const success = await dnsAdapter.deleteDomainRecord(recordId);
     if (!success) {
       res.json({ code: -1, msg: 'Failed to delete record' });

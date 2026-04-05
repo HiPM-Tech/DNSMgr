@@ -556,6 +556,9 @@ export function Setup() {
       </div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('setup.completeTitle')}</h2>
       <p className="text-gray-500 mb-8">{t('setup.completeSubtitle')}</p>
+      <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6">
+        {t('setup.smtpRecommended')}
+      </p>
       <button
         onClick={() => navigate('/login')}
         className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"

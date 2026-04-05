@@ -46,9 +46,18 @@ export async function updateLoginLimitConfig(config: Partial<LoginLimitConfig>):
   const currentConfig = await getLoginLimitConfig();
   const newConfig = { ...currentConfig, ...config };
 
+  const payload = ['login_limit_config', JSON.stringify(newConfig)];
+  if (db.type === 'mysql') {
+    await db.execute(
+      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
+      payload
+    );
+    return;
+  }
+
   await db.execute(
     'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
-    ['login_limit_config', JSON.stringify(newConfig)]
+    payload
   );
 }
 

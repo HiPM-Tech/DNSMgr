@@ -27,6 +27,12 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 // Global state to track initialization
 let isInitialized = false;
 
+function buildSqlWithPlaceholders(baseSql: string, dbType: string): string {
+  if (dbType !== 'postgresql') return baseSql;
+  let idx = 0;
+  return baseSql.replace(/\?/g, () => `$${++idx}`);
+}
+
 async function checkInitialization(): Promise<boolean> {
   return await isDbInitialized() && await hasUsers();
 }
@@ -181,16 +187,21 @@ app.get('/api/logs', authMiddleware, adminOnly, async (req: Request, res: Respon
       if (endDate) { conditions.push('l.created_at <= ?'); params.push(endDate); }
       const where = conditions.join(' AND ');
 
-      const totalResult = await db.get(`SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`, params);
+      const totalSql = buildSqlWithPlaceholders(`SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`, db.type);
+      const totalResult = await db.get(totalSql, params);
       const total = (totalResult as { cnt: number })?.cnt || 0;
 
-      const list = await db.query(
+      const listSql = buildSqlWithPlaceholders(
         `SELECT l.*, u.username, u.nickname
          FROM operation_logs l
          LEFT JOIN users u ON u.id = l.user_id
          WHERE ${where}
          ORDER BY l.id DESC
          LIMIT ? OFFSET ?`,
+        db.type
+      );
+      const list = await db.query(
+        listSql,
         [...params, size, offset]
       );
 

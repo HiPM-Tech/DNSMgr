@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import Database from 'better-sqlite3';
 import mysql from 'mysql2/promise';
 import { Pool } from 'pg';
@@ -184,6 +185,14 @@ router.post('/test-db', async (req: Request, res: Response) => {
 // Initialize database
 router.post('/database', async (req: Request, res: Response) => {
   const { type, sqlite, mysql: mysqlConfig, postgresql: pgConfig, reset = false } = req.body;
+
+  const systemReady = await isDbInitialized() && await hasUsers();
+  if (systemReady) {
+    return res.status(403).json({
+      code: 403,
+      msg: 'System is already initialized. Database re-initialization is not allowed via public init endpoint.',
+    });
+  }
   
   if (!type || !['sqlite', 'mysql', 'postgresql'].includes(type)) {
     return res.status(400).json({ code: 400, msg: 'Invalid database type' });
@@ -194,6 +203,13 @@ router.post('/database', async (req: Request, res: Response) => {
     const envConfig: Record<string, string> = {
       DB_TYPE: type,
     };
+
+    // Generate a random base JWT secret during initialization when missing
+    // (or still using insecure default).
+    const currentJwtSecret = process.env.JWT_SECRET || '';
+    if (!currentJwtSecret || currentJwtSecret === 'dnsmgr-secret-key') {
+      envConfig.JWT_SECRET = crypto.randomBytes(32).toString('hex');
+    }
     
     if (type === 'sqlite') {
       envConfig.DB_PATH = sqlite?.path || './data/dnsmgr.db';
