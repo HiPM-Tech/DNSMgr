@@ -23,7 +23,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Build client (frontend)
-RUN pnpm --filter client build
+RUN pnpm --filter dnsmgr-client build
 
 # Build server (backend)
 RUN pnpm --filter dnsmgr-server build
