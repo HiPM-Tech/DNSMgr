@@ -418,4 +418,6 @@ export const settingsApi = {
     api.post<ApiResponse<null>>('/settings/login-attempts/unlock', { identifier }),
   getNotificationChannels: () => api.get<ApiResponse<any[]>>('/settings/notifications'),
   updateNotificationChannels: (channels: any[]) => api.put<ApiResponse<any>>('/settings/notifications', { channels }),
+  getAuditRules: () => api.get<ApiResponse<any>>('/settings/audit-rules'),
+  updateAuditRules: (rules: any) => api.put<ApiResponse<any>>('/settings/audit-rules', { rules }),
 };

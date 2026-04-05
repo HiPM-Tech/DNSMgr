@@ -84,6 +84,14 @@ export function System() {
     redirectUri: '',
   });
 
+  const [auditRules, setAuditRules] = useState({
+    enabled: true,
+    maxDeletionsPerHour: 10,
+    maxFailedLogins: 5,
+    offHoursStart: '22:00',
+    offHoursEnd: '06:00'
+  });
+
   // Fetch system info
   const { data: systemInfo, isLoading } = useQuery({
     queryKey: ['system-info'],
@@ -285,6 +293,29 @@ export function System() {
       toast.success(t('system.smtpTestSent'));
     },
     onError: (error: Error) => toast.error(error.message || t('system.smtpTestFailed')),
+  });
+
+  useQuery({
+    queryKey: ['audit-rules'],
+    queryFn: async () => {
+      const res = await settingsApi.getAuditRules();
+      if (res.data.code === 0 && res.data.data) {
+        setAuditRules(res.data.data);
+      }
+      return res.data.data;
+    },
+  });
+
+  const updateAuditRulesMutation = useMutation({
+    mutationFn: (rules: any) => settingsApi.updateAuditRules(rules),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) {
+        toast.error(res.data.msg);
+        return;
+      }
+      toast.success('Audit rules saved');
+    },
+    onError: (error: Error) => toast.error(error.message || 'Failed to save audit rules'),
   });
 
   const updateSecurityMutation = useMutation({
@@ -594,6 +625,96 @@ export function System() {
                 <span className="text-sm text-gray-500">{t('system.minutes')}</span>
               </div>
             </div>
+            </div>
+            
+            {/* Audit Rules */}
+            <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <Shield className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">Audit Rules & Alerts</h3>
+                  <p className="text-sm text-gray-500">Configure thresholds for abnormal behavior alerts.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">Enable Alerts</p>
+                    <p className="text-xs text-gray-500">Send notifications when abnormal behaviors are detected.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const next = { ...auditRules, enabled: !auditRules.enabled };
+                      setAuditRules(next);
+                      updateAuditRulesMutation.mutate(next);
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      auditRules.enabled ? 'bg-blue-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        auditRules.enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between py-2">
+                  <div className="w-2/3">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">Max Deletions / Hour</p>
+                    <p className="text-xs text-gray-500">Alert if a user deletes more than this number of records/domains in an hour.</p>
+                  </div>
+                  <input
+                    type="number"
+                    value={auditRules.maxDeletionsPerHour}
+                    onChange={(e) => setAuditRules({ ...auditRules, maxDeletionsPerHour: parseInt(e.target.value) || 0 })}
+                    onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between py-2">
+                  <div className="w-2/3">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">Max Failed Logins / Hour</p>
+                    <p className="text-xs text-gray-500">Alert if an identifier fails to login more than this number of times.</p>
+                  </div>
+                  <input
+                    type="number"
+                    value={auditRules.maxFailedLogins}
+                    onChange={(e) => setAuditRules({ ...auditRules, maxFailedLogins: parseInt(e.target.value) || 0 })}
+                    onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between py-2">
+                  <div className="w-2/3">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">Off-Hours Alert</p>
+                    <p className="text-xs text-gray-500">Alert if operations are performed between these hours.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      value={auditRules.offHoursStart}
+                      onChange={(e) => setAuditRules({ ...auditRules, offHoursStart: e.target.value })}
+                      onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    />
+                    <span className="text-gray-500">-</span>
+                    <input
+                      type="time"
+                      value={auditRules.offHoursEnd}
+                      onChange={(e) => setAuditRules({ ...auditRules, offHoursEnd: e.target.value })}
+                      onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Login Attempt Statistics */}
