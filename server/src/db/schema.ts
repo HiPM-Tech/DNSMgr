@@ -78,6 +78,18 @@ const sqliteSchema = {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     )`,
+    `CREATE TABLE IF NOT EXISTS oauth_user_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      provider TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      email TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(provider, subject),
+      UNIQUE(user_id, provider)
+    )`,
     `CREATE TABLE IF NOT EXISTS runtime_secrets (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -201,6 +213,19 @@ const mysqlSchema = {
       INDEX idx_domain (domain),
       INDEX idx_created_at (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS oauth_user_links (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      provider VARCHAR(100) NOT NULL,
+      subject VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL DEFAULT '',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_provider_subject (provider, subject),
+      UNIQUE KEY unique_user_provider (user_id, provider),
+      INDEX idx_oauth_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS runtime_secrets (
       \`key\` VARCHAR(255) PRIMARY KEY,
       \`value\` TEXT NOT NULL,
@@ -308,6 +333,18 @@ const postgresqlSchema = {
     `CREATE INDEX IF NOT EXISTS idx_operation_logs_action ON operation_logs(action)`,
     `CREATE INDEX IF NOT EXISTS idx_operation_logs_domain ON operation_logs(domain)`,
     `CREATE INDEX IF NOT EXISTS idx_operation_logs_created_at ON operation_logs(created_at)`,
+    `CREATE TABLE IF NOT EXISTS oauth_user_links (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider VARCHAR(100) NOT NULL,
+      subject VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL DEFAULT '',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(provider, subject),
+      UNIQUE(user_id, provider)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_oauth_user_links_user_id ON oauth_user_links(user_id)`,
     `CREATE TABLE IF NOT EXISTS runtime_secrets (
       key VARCHAR(255) PRIMARY KEY,
       value TEXT NOT NULL,

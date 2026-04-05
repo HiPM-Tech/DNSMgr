@@ -8,11 +8,12 @@
 
 ## 功能特性
 
-- **多服务商支持**: 可管理 16 家 DNS 服务商的解析记录：
+- **多服务商支持**: 可管理 18 家 DNS 服务商的解析记录：
   - 阿里云 (Aliyun), DNSPod (腾讯云), 华为云 (Huawei Cloud), 百度云 (Baidu Cloud)
   - 火山引擎 (Volcengine), 京东云 (JD Cloud), Cloudflare, DNS.LA
   - 西部数码 (West Digital), 青云 (Qingcloud), NameSilo, 宝塔面板 (BT Panel)
   - Spaceship, PowerDNS, 阿里云 ESA (Aliyun ESA), 腾讯 EdgeOne (Tencent EdgeOne)
+  - DNSHE, 雨云 (Rainyun)
 
 - **多用户与团队管理**: 基于角色的访问控制（admin/member），团队共享域名
 - **完整的 DNS 记录管理**: 支持所有记录类型的增删改查（A、AAAA、CNAME、MX、TXT、SRV、CAA 等）
@@ -29,7 +30,7 @@ DNSMgr/
 │   │   ├── lib/dns/ # DNS 服务商适配器（抽象接口）
 │   │   ├── routes/  # REST API 路由
 │   │   ├── middleware/ # 认证（JWT）、校验
-│   │   └── db/      # SQLite 数据库
+│   │   └── db/      # SQLite/MySQL/PostgreSQL 抽象与 Schema
 ├── client/          # React + Vite + TailwindCSS 前端
     └── src/
         ├── pages/   # 页面
@@ -61,6 +62,8 @@ pnpm dev
 ```
 
 访问地址：http://localhost:5173
+
+> 首次启动提示：如果系统尚未初始化，请访问初始化向导 `http://localhost:5173/setup`（单端口模式为 `http://localhost:3001/setup`）配置数据库并创建首个管理员。
 
 #### 方式二：独立启动（适合高级用户）
 
@@ -132,34 +135,33 @@ cp server/.env.example server/.env
 | 变量 | 默认值 | 说明 |
 |----------|---------|-------------|
 | `PORT` | `3001` | 服务端端口 |
-| `JWT_SECRET` | `dnsmgr-secret-key` | JWT 签名密钥（生产环境请修改） |
+| `NODE_ENV` | `development` | 运行环境 |
+| `JWT_SECRET` | 未设置 | JWT 基础密钥；若不设置会回退到不安全默认值（生产环境必须设置） |
 | `DB_PATH` | `./dnsmgr.db` | SQLite 数据库路径 |
 | `DB_TYPE` | `sqlite` | 数据库类型：`sqlite`、`mysql` 或 `postgresql` |
 | `DB_HOST` | - | 数据库主机（MySQL/PostgreSQL 使用） |
 | `DB_PORT` | - | 数据库端口（MySQL/PostgreSQL 使用） |
 | `DB_NAME` | - | 数据库名称（MySQL/PostgreSQL 使用） |
 | `DB_USER` | - | 数据库用户（MySQL/PostgreSQL 使用） |
-| `DB_PASS` | - | 数据库密码（MySQL/PostgreSQL 使用） |
+| `DB_PASSWORD` | - | 数据库密码（MySQL/PostgreSQL 使用） |
+| `DB_SSL` | `false` | MySQL/PostgreSQL 是否启用 SSL |
 
-## 默认登录
+### JWT 运行时密钥轮换（重要）
 
-首次运行会创建默认管理员账号：
+- JWT 实际签名密钥为：`JWT_SECRET + runtime_secret`（`runtime_secrets` 表）。
+- 若运行时密钥不存在，系统会自动生成并落库。
+- 初始化流程创建首个管理员后，会主动轮换运行时密钥。
+- 运行时密钥变化后，旧 JWT 会失效。
 
-- **用户名**: `admin`
-- **密码**: `admin123`
+## 初始化与安全说明
 
-?? **首次登录后请立即修改密码！**
+- `/api/init/*` 仅用于未初始化阶段。
+- 当系统已初始化（数据库结构就绪且存在用户）后，`/api/init/database` 会返回 `403`，拒绝再次初始化。
+- 管理员账号通过初始化向导/API（`/api/init/admin`）创建，不存在固定默认账号。
 
 ## API 文档
 
 服务启动后访问：`http://localhost:3001/api/docs`
-
-服务商 API 对齐说明：
-- [provider-api-alignment.md](docs/provider-api-alignment.md)
-- 包含腾讯 DNSPod、腾讯 EO、阿里云 DNS 官方 API 映射与当前实现状态。
-
-服务商文档：
-- [西部数码 DNS](docs/providers/west.md)
 
 ## 记录模型说明
 
@@ -192,13 +194,11 @@ interface DnsAdapter {
 }
 ```
 
+## Provider 类型与别名映射
 
+创建/更新 DNS 账号时，API 会将 lego 风格 provider 名称归一化为内部 provider 类型。
 
-## Provider 
-
-/ DNS ˺ʱAPI  lego  provider Զ淶Ϊڲͣ
-
-| ڲ | ֱ֧ |
+| 内部类型 | 支持别名 |
 |---|---|
 | `aliyun` | `aliyun`, `alidns` |
 | `aliyunesa` | `aliesa` |
@@ -213,12 +213,13 @@ interface DnsAdapter {
 | `powerdns` | `powerdns`, `pdns` |
 | `dnspod` | `dnspod`, `tencentcloud` |
 | `tencenteo` | `tencenteo`, `edgeone` |
+
 ## 技术栈
 
 **后端:**
 - Node.js + TypeScript
 - Express.js
-- SQLite (better-sqlite3)
+- SQLite (better-sqlite3)、MySQL (mysql2)、PostgreSQL (pg)
 - JWT 认证
 - Swagger/OpenAPI 文档
 

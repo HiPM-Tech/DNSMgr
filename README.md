@@ -48,7 +48,7 @@ DNSMgr/
 │       ├── lib/dns/ # DNS provider adapters (abstract interface)
 │       ├── routes/  # REST API routes
 │       ├── middleware/ # Auth (JWT), validation
-│       └── db/      # SQLite database
+│       └── db/      # SQLite/MySQL/PostgreSQL abstraction & schema
 └── client/          # React + Vite + TailwindCSS frontend
     └── src/
         ├── pages/   # All UI pages
@@ -80,6 +80,8 @@ pnpm dev
 ```
 
 Access: http://localhost:5173
+
+> First startup note: if the system is not initialized yet, open the setup wizard at `http://localhost:5173/setup` (or `http://localhost:3001/setup` in unified mode) to configure DB and create the first admin.
 
 #### Mode 2: Separate Start (For advanced users)
 
@@ -151,34 +153,33 @@ cp server/.env.example server/.env
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3001` | Server port |
-| `JWT_SECRET` | `dnsmgr-secret-key` | JWT signing secret (change in production!) |
+| `NODE_ENV` | `development` | Runtime environment |
+| `JWT_SECRET` | unset | Base JWT secret; if unset, server falls back to an insecure default (set this in production) |
 | `DB_PATH` | `./dnsmgr.db` | SQLite database path |
 | `DB_TYPE` | `sqlite` | Database type: `sqlite`, `mysql`, or `postgresql` |
 | `DB_HOST` | - | Database host (for MySQL/PostgreSQL) |
 | `DB_PORT` | - | Database port (for MySQL/PostgreSQL) |
 | `DB_NAME` | - | Database name (for MySQL/PostgreSQL) |
 | `DB_USER` | - | Database user (for MySQL/PostgreSQL) |
-| `DB_PASS` | - | Database password (for MySQL/PostgreSQL) |
+| `DB_PASSWORD` | - | Database password (for MySQL/PostgreSQL) |
+| `DB_SSL` | `false` | Enable SSL for MySQL/PostgreSQL |
 
-## Default Login
+### JWT runtime secret rotation (important)
 
-On first run, a default admin account is created:
+- JWT signing uses: `JWT_SECRET + runtime_secret` (from DB table `runtime_secrets`).
+- A per-runtime secret is generated/stored automatically if missing.
+- During setup, after creating the first admin, runtime secrets are rotated.
+- Existing JWT tokens become invalid when runtime secret changes.
 
-- **Username**: `admin`
-- **Password**: `admin123`
+## Initialization & Security Notes
 
-⚠️ **Change this password immediately after first login!**
+- `/api/init/*` endpoints are intended for pre-setup initialization.
+- Once the system is initialized (DB ready + users exist), `/api/init/database` rejects re-initialization with `403`.
+- Admin credentials are created by setup wizard/API (`/api/init/admin`), not by a fixed default account.
 
 ## API Documentation
 
 After starting the server, visit: `http://localhost:3001/api/docs`
-
-Provider API alignment notes:
-- [provider-api-alignment.md](docs/provider-api-alignment.md)
-- Includes Tencent DNSPod, Tencent EO, and Aliyun DNS official API mapping and current implementation status.
-
-Provider docs:
-- [西部数码 DNS](docs/providers/west.md)
 
 ## Record Model Notes
 
@@ -216,7 +217,7 @@ interface DnsAdapter {
 **Backend:**
 - Node.js + TypeScript
 - Express.js
-- SQLite (better-sqlite3)
+- SQLite (better-sqlite3), MySQL (mysql2), PostgreSQL (pg)
 - JWT authentication
 - Swagger/OpenAPI documentation
 
