@@ -297,7 +297,7 @@ router.put('/notifications', authMiddleware, adminOnly, async (req: Request, res
   res.json({ code: 0, msg: 'success' });
 });
 
-router.get('/audit-rules', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.get('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: Response) => {
   const db = getAdapter();
   if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
   const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['audit_rules']) as any;
@@ -320,7 +320,7 @@ router.get('/audit-rules', authMiddleware, requireAdmin, async (req: Request, re
   }
 });
 
-router.put('/audit-rules', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.put('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: Response) => {
   const db = getAdapter();
   if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
   const rules = req.body.rules;
@@ -341,7 +341,7 @@ router.put('/audit-rules', authMiddleware, requireAdmin, async (req: Request, re
   res.json({ code: 0, msg: 'success' });
 });
 
-router.get('/security', authMiddleware, requireAdmin, async (_req: Request, res: Response) => {
+router.get('/security', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
   const db = getAdapter();
   if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
   const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['security_config']) as any;
