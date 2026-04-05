@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Lock, Smartphone, LogOut, Copy, Check } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { useI18n } from '../contexts/I18nContext';
+import { Smartphone, LogOut, Copy, Check } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -22,8 +20,6 @@ interface TOTPSetup {
 }
 
 export function Security() {
-  const { user } = useAuth();
-  const { t } = useI18n();
   const toast = useToast();
 
   const [sessions, setSessions] = useState<Session[]>([]);

@@ -275,7 +275,7 @@ export const logsApi = {
 export const initApi = {
   status: () => api.get<ApiResponse<{ initialized: boolean; dbInitialized: boolean; hasUsers: boolean }>>('/init/status'),
   testDb: (data: { type: 'sqlite' | 'mysql' | 'postgresql'; sqlite?: { path: string }; mysql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean }; postgresql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean } }) =>
-    api.post<ApiResponse<{ success: boolean; message: string }>>('/init/test-db', data),
+    api.post<ApiResponse<{ success: boolean; message: string; hasExistingData?: boolean }>>('/init/test-db', data),
   initDatabase: (data: { type: 'sqlite' | 'mysql' | 'postgresql'; sqlite?: { path: string }; mysql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean }; postgresql?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean } }) =>
     api.post<ApiResponse<{ success: boolean }>>('/init/database', data),
   createAdmin: (data: { username: string; email: string; password: string }) =>

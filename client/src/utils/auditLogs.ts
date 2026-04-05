@@ -25,11 +25,33 @@ const actionKeys: Record<string, string> = {
   update_record: 'audit.actions.update_record',
   delete_record: 'audit.actions.delete_record',
   set_record_status: 'audit.actions.set_record_status',
+  enable_record: 'audit.actions.enable_record',
+  disable_record: 'audit.actions.disable_record',
   add_domain: 'audit.actions.add_domain',
   delete_domain: 'audit.actions.delete_domain',
   update_domain: 'audit.actions.update_domain',
   sync_domains: 'audit.actions.sync_domains',
   sync_add_domain: 'audit.actions.sync_add_domain',
+  view_jwt_secret: 'audit.actions.view_jwt_secret',
+  update_security_config: 'audit.actions.update_security_config',
+  update_smtp_config: 'audit.actions.update_smtp_config',
+  smtp_test_email: 'audit.actions.smtp_test_email',
+  update_oauth_config: 'audit.actions.update_oauth_config',
+  update_logto_oauth_config: 'audit.actions.update_logto_oauth_config',
+  failover_switch: 'audit.actions.failover_switch',
+  enable_2fa: 'audit.actions.enable_2fa',
+  disable_2fa: 'audit.actions.disable_2fa',
+  logout_session: 'audit.actions.logout_session',
+  logout_other_sessions: 'audit.actions.logout_other_sessions',
+  logout_all_sessions: 'audit.actions.logout_all_sessions',
+  update_preferences: 'audit.actions.update_preferences',
+  bind_oauth_account: 'audit.actions.bind_oauth_account',
+  oauth_login: 'audit.actions.oauth_login',
+  unbind_oauth_account: 'audit.actions.unbind_oauth_account',
+  update_profile_email: 'audit.actions.update_profile_email',
+  send_email_verification_code: 'audit.actions.send_email_verification_code',
+  send_password_reset_code: 'audit.actions.send_password_reset_code',
+  reset_password_by_email: 'audit.actions.reset_password_by_email',
 };
 
 export function getAuditActionOptions(t: TranslateFn) {
@@ -65,10 +87,16 @@ export function getAuditActionVariant(log: LogEntry): 'green' | 'red' | 'yellow'
   if (log.action === 'delete_record') return 'red';
   if (log.action === 'update_record') return 'blue';
   if (log.action === 'set_record_status') return 'yellow';
+  if (log.action === 'enable_record') return 'green';
+  if (log.action === 'disable_record') return 'red';
   if (log.action === 'add_domain' || log.action === 'sync_add_domain') return 'green';
   if (log.action === 'delete_domain') return 'red';
   if (log.action === 'update_domain') return 'blue';
   if (log.action === 'sync_domains') return 'yellow';
+  if (log.action === 'smtp_test_email' || log.action === 'enable_2fa' || log.action === 'oauth_login') return 'green';
+  if (log.action === 'disable_2fa' || log.action === 'unbind_oauth_account' || log.action === 'reset_password_by_email') return 'red';
+  if (log.action === 'view_jwt_secret' || log.action === 'logout_session' || log.action === 'logout_other_sessions' || log.action === 'logout_all_sessions' || log.action === 'send_email_verification_code' || log.action === 'send_password_reset_code' || log.action === 'failover_switch') return 'yellow';
+  if (log.action === 'update_security_config' || log.action === 'update_smtp_config' || log.action === 'update_oauth_config' || log.action === 'update_logto_oauth_config' || log.action === 'update_preferences' || log.action === 'bind_oauth_account' || log.action === 'update_profile_email') return 'blue';
   return 'gray';
 }
 
