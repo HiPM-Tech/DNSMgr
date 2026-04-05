@@ -1,0 +1,437 @@
+
+File: README.md
+  + ## Internationalization (i18n) & Contribution
+  + DNSMgr uses `react-i18next` for internationalization. The current supported languages are English, Simplified Chinese, Spanish, and Japanese.
+  + We welcome community contributions for new languages! Here's how to add one:
+  + 1. Copy an existing language file (e.g., `client/src/i18n/locales/en.ts`) to a new file like `fr.ts` (for French).
+  + 2. Translate the string values in your new file.
+
+File: README_zh.md
+  + ## 多语言支持 (i18n) 与贡献指南
+  + DNSMgr 使用 `react-i18next` 进行国际化（i18n）支持。目前已支持的语言包括：英文、简体中文、西班牙语和日语。
+  + 我们非常欢迎社区参与多语言的共建！如果你想添加新的语言支持，请参考以下步骤：
+  + 1. 复制现有的语言文件（例如 `client/src/i18n/locales/zh-CN.ts`）并重命名为新的语言代码，如 `fr.ts`（法语）。
+  + 2. 将文件中的对应字符串翻译为目标语言。
+
+File: add_audit_saved.js
+  + const fs = require('fs');
+  + const path = require('path');
+  + const localesDir = path.join(__dirname, 'client/src/i18n/locales');
+  + const langs = ['en', 'zh-CN', 'es', 'ja', 'zh-CN-Mesugaki'];
+  + const translations = {
+
+File: add_translations.js
+  + const fs = require('fs');
+  + const langs = ['en', 'zh-CN', 'es', 'ja', 'zh-CN-Mesugaki'];
+  + const translations = {
+  + passkeys: {
+  + title: 'Passkeys (WebAuthn)',
+
+File: client/package.json
+  + "@simplewebauthn/browser": "^13.3.0",
+
+File: client/src/App.tsx
+  + <Route path="tunnels" element={<Tunnels />} />
+
+File: client/src/api/index.ts
+  + capabilities?: {
+  + remark: boolean;
+  + status: boolean;
+  + redirect: boolean;
+  + log: boolean;
+
+File: client/src/components/NotificationChannels.tsx
+  + export interface NotificationChannel {
+  + id: string;
+  + type: 'webhook' | 'telegram' | 'dingtalk' | 'email';
+  + name: string;
+  + enabled: boolean;
+
+File: client/src/components/Sidebar.tsx
+  + const [showTunnels] = useLocalStorage('showTunnels', false);
+  + {showTunnels && (
+  + to="/tunnels"
+  + className={({ isActive }) =>
+  + `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+
+File: client/src/components/TunnelList.tsx
+  + export function TunnelList({ accountId }: { accountId?: number }) {
+  + const { t } = useI18n();
+  + const toast = useToast();
+  + const qc = useQueryClient();
+  + const { data: tunnels = [], isLoading } = useQuery({
+
+File: client/src/contexts/AuthContext.tsx
+  + login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: any) => Promise<void>;
+  + const login = async (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: any) => {
+  + const res = await authApi.login(username, password, totpCode, backupCode, webauthnResponse);
+  + if (res.data.code === -2) {
+  + const err = new Error('2FA_REQUIRED') as any;
+
+File: client/src/hooks/useLocalStorage.ts
+  + export function useLocalStorage<T>(key: string, initialValue: T) {
+  + const [storedValue, setStoredValue] = useState<T>(() => {
+  + if (typeof window === 'undefined') return initialValue;
+  + const item = window.localStorage.getItem(key);
+  + return item ? JSON.parse(item) : initialValue;
+
+File: client/src/i18n/locales/en.ts
+  + auditRules: "Audit Rules & Alerts",
+  + auditRulesDesc: "Configure thresholds for abnormal behavior alerts.",
+  + enableAlerts: "Enable Alerts",
+  + enableAlertsDesc: "Send notifications when abnormal behaviors are detected.",
+  + maxDeletions: "Max Deletions / Hour",
+
+File: client/src/i18n/locales/en.ts.patch
+
+File: client/src/i18n/locales/es.ts
+  + hostInvalid: 'Solo se permiten @, letras, números, _, - y puntos',
+  + cnameConflict: 'Flattening de CNAME no soportado, CNAME no puede coexistir con otros registros o usarse en @',
+  + valueRequired: 'El valor es obligatorio',
+
+File: client/src/i18n/locales/ja.ts
+  + hostInvalid: '@、文字、数字、_、-、ドットのみ許可されます',
+  + cnameConflict: 'CNAMEフラット化はサポートされていません。CNAMEは他のレコードと共存したり、@に設定したりすることはできません',
+  + valueRequired: '値は必須です',
+
+File: client/src/i18n/locales/zh-CN-Mesugaki.ts
+  + auditRules: "抓内鬼规则～",
+  + auditRulesDesc: "谁敢乱动大叔的东西，就发警报抓他！",
+  + enableAlerts: "开启警报",
+  + enableAlertsDesc: "有坏蛋乱搞的时候要不要大声叫？",
+  + maxDeletions: "一小时最多删几个？",
+
+File: client/src/i18n/locales/zh-CN.ts
+  + auditRules: "审计规则与告警",
+  + auditRulesDesc: "配置异常行为的告警阈值。",
+  + enableAlerts: "启用告警",
+  + enableAlertsDesc: "检测到异常行为时发送通知。",
+  + maxDeletions: "最大删除量 / 小时",
+
+File: client/src/pages/Domains.tsx
+  + const navigate = useNavigate();
+  + if (accounts.length === 0) {
+  + <div className="py-8 text-center space-y-4">
+  + <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+  + <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+
+File: client/src/pages/Login.tsx
+  + const [require2FA, setRequire2FA] = useState(false);
+  + const [supported2FATypes, setSupported2FATypes] = useState<string[]>([]);
+  + const [totpCode, setTotpCode] = useState('');
+  + const [useBackupCode, setUseBackupCode] = useState(false);
+  + const [backupCode, setBackupCode] = useState('');
+
+File: client/src/pages/MailSetupModal.tsx
+  + interface MailSetupModalProps {
+  + domainId: number;
+  + domainName: string;
+  + onClose: () => void;
+  + existingRecords: DnsRecord[];
+
+File: client/src/pages/Records.tsx
+  + provider?: Provider;
+  + existingRecords?: DnsRecord[];
+  + function RecordForm({ lines, recordTypes, provider, initial, existingRecords = [], onSubmit, isLoading }: RecordFormProps) {
+  + const isCloudflare = provider?.type === 'cloudflare';
+  + isCloudflare
+
+File: client/src/pages/Security.tsx
+  + const { t } = useI18n();
+  + const [passkeys, setPasskeys] = useState<any[]>([]);
+  + loadPasskeys();
+  + const loadPasskeys = async () => {
+  + const res = await authApi.webauthnCreds();
+
+File: client/src/pages/Security.tsx.patch
+
+File: client/src/pages/Settings.tsx
+  + const [showTunnels, setShowTunnels] = useLocalStorage('showTunnels', false);
+  + <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+  + <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Cloudflare Tunnels</h3>
+  + <div className="flex items-center justify-between">
+  + <p className="text-sm font-medium text-gray-900 dark:text-white">Show Tunnels in Sidebar</p>
+
+File: client/src/pages/System.tsx
+  + const [activeTab, setActiveTab] = useState<'overview' | 'database' | 'security' | 'notifications'>('overview');
+  + { id: 'notifications', label: t('system.tabs.notifications'), icon: Bell },
+  + <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit overflow-x-auto">
+  + : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300'
+  + {/* Content */}
+
+File: client/src/pages/Tunnels.tsx
+  + export function Tunnels() {
+  + const { t } = useI18n();
+  + const qc = useQueryClient();
+  + <div className="space-y-4">
+  + <div className="flex items-center justify-between">
+
+File: client/src/pages/system/DatabaseTab.tsx
+  + export function DatabaseTab() {
+  + const { t } = useI18n();
+  + const { data: systemInfo, isLoading } = useQuery({
+  + queryKey: ['system-info'],
+  + queryFn: async () => {
+
+File: client/src/pages/system/OverviewTab.tsx
+  + export function OverviewTab() {
+  + const { t } = useI18n();
+  + const toast = useToast();
+  + const { data: systemInfo, isLoading } = useQuery({
+  + queryKey: ['system-info'],
+
+File: client/src/pages/system/SecurityTab.tsx
+  + export function SecurityTab() {
+  + const { t } = useI18n();
+  + const { user } = useAuth();
+  + const toast = useToast();
+  + const queryClient = useQueryClient();
+
+File: extract_security.js
+  + const fs = require('fs');
+  + const file = fs.readFileSync('client/src/pages/System.tsx', 'utf8');
+  + const securityTabStart = file.indexOf("{/* Security Tab */}");
+  + const notificationsTabStart = file.indexOf("{/* Notifications Tab */}");
+  + const securityContent = file.substring(securityTabStart, notificationsTabStart);
+
+File: fix.js
+  + const fs = require('fs');
+  + const p = './client/src/api/index.ts';
+  + let code = fs.readFileSync(p, 'utf-8');
+  + code = code.replace(
+  + `// ─── Tunnels ──────────────────────────────────────────────────────────────────
+
+File: fix_locales.js
+  + const fs = require('fs');
+  + const path = require('path');
+  + const localesDir = path.join(__dirname, 'client/src/i18n/locales');
+  + const langs = ['en', 'zh-CN', 'es', 'ja', 'zh-CN-Mesugaki'];
+  + for (const lang of langs) {
+
+File: fix_schemas.js
+  + const fs = require('fs');
+  + const path = require('path');
+  + let sqlite = fs.readFileSync('./server/src/db/schemas/sqlite.ts', 'utf8');
+  + sqlite = sqlite.replace(/record_count INTEGER NOT NULL DEFAULT 0,/, "record_count INTEGER NOT NULL DEFAULT 0,\n      expires_at TEXT,");
+  + if (!sqlite.includes('webauthn_credentials')) {
+
+File: fix_security.js
+  + const fs = require('fs');
+  + let file = fs.readFileSync('client/src/pages/system/SecurityTab.tsx', 'utf8');
+  + file = file.replace(/      \)}\n  \);\n\}/, '  );\n}');
+  + fs.writeFileSync('client/src/pages/system/SecurityTab.tsx', file);
+
+File: fix_security2.js
+  + const fs = require('fs');
+  + let file = fs.readFileSync('client/src/pages/system/SecurityTab.tsx', 'utf8');
+  + file = file.replace(/AlertTriangle, /g, '');
+  + fs.writeFileSync('client/src/pages/system/SecurityTab.tsx', file);
+
+File: make_security_tab.js
+  + const fs = require('fs');
+  + let file = fs.readFileSync('client/src/pages/System.tsx', 'utf8');
+  + let newFile = `
+  + export function SecurityTab() {
+  + const { t } = useI18n();
+
+File: make_system.js
+  + const fs = require('fs');
+  + const fileContent = `import { useState } from 'react';
+  + export function System() {
+  + const { t } = useI18n();
+  + const [activeTab, setActiveTab] = useState<'overview' | 'database' | 'security' | 'notifications'>('overview');
+
+File: modify_auth.js
+  + const fs = require('fs');
+  + const p = './server/src/routes/auth.ts';
+  + let code = fs.readFileSync(p, 'utf-8');
+  + code = code.replace(
+  + "const { username, password, totpCode, backupCode } = req.body as { username: string; password: string; totpCode?: string; backupCode?: string };",
+
+File: modify_registry.js
+  + const fs = require('fs');
+  + const path = './server/src/lib/dns/providers/registry.ts';
+  + let content = fs.readFileSync(path, 'utf8');
+  + content = content.replace(
+  + /type: 'cloudflare',\n\s*name: 'Cloudflare',\n\s*capabilities: \{([^}]+)\},/,
+
+File: server/package.json
+  + "@simplewebauthn/server": "^13.3.0",
+  + "swagger-ui-express": "^5.0.0",
+  + "whoiser": "^2.0.0-beta.10"
+
+File: server/src/app.ts
+  + app.use('/api/tunnels', tunnelsRouter);
+  + app.use('/api/auth/webauthn', webauthnRouter);
+  + startFailoverJob();
+  + startWhoisJob();
+  + startFailoverJob();
+
+File: server/src/db/init.ts
+  + const domainColumns = sqliteConn.prepare("PRAGMA table_info(domains)").all() as { name: string }[];
+  + const hasExpiresAt = domainColumns.some((col) => col.name === 'expires_at');
+  + if (!hasExpiresAt) {
+  + sqliteConn.exec("ALTER TABLE domains ADD COLUMN expires_at TEXT");
+
+File: server/src/db/schema.ts
+  + expires_at TEXT,
+  + `CREATE TABLE IF NOT EXISTS webauthn_credentials (
+  + id TEXT PRIMARY KEY,
+  + user_id INTEGER NOT NULL,
+  + public_key TEXT NOT NULL,
+
+File: server/src/db/schemas/mysql.ts
+  + expires_at DATETIME,
+  + `CREATE TABLE IF NOT EXISTS user_2fa (
+  + user_id INT NOT NULL,
+  + type VARCHAR(50) NOT NULL,
+  + secret VARCHAR(255) NOT NULL,
+
+File: server/src/db/schemas/postgresql.ts
+  + expires_at TIMESTAMP,
+  + `CREATE TABLE IF NOT EXISTS user_2fa (
+  + user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  + type VARCHAR(50) NOT NULL,
+  + secret VARCHAR(255) NOT NULL,
+
+File: server/src/db/schemas/sqlite.ts
+  + expires_at TEXT,
+  + `CREATE TABLE IF NOT EXISTS user_2fa (
+  + user_id INTEGER NOT NULL,
+  + type TEXT NOT NULL,
+  + secret TEXT NOT NULL,
+
+File: server/src/lib/dns/providers/cloudflare.ts
+  + async getTunnels(accountId: string): Promise<any[]> {
+  + const res = await this.request<any[]>('GET', `/accounts/${accountId}/cfd_tunnel`);
+  + if (!res.success) return [];
+  + return res.result;
+  + async getTunnelConfig(accountId: string, tunnelId: string): Promise<any> {
+
+File: server/src/lib/dns/providers/registry.ts
+  + line: boolean;
+  + cnameFlattening: boolean;
+  + capabilities: { remark: false, status: true, redirect: false, log: true, weight: false , line: true, cnameFlattening: false },
+  + capabilities: { remark: false, status: true, redirect: false, log: true, weight: false , line: true, cnameFlattening: false },
+  + capabilities: { remark: false, status: true, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
+
+File: server/src/routes/auth.ts
+  + const { username, password, totpCode, backupCode, webauthnResponse } = req.body as { username: string; password: string; totpCode?: string; backupCode?: string; webauthnResponse?: any };
+  + const totpStatus = await getTOTPStatus(user.id);
+  + const hasWebauthn = await db.get('SELECT enabled FROM user_2fa WHERE user_id = ? AND type = ?', [user.id, 'webauthn']) as { enabled: number } | undefined;
+  + const isTotpEnabled = totpStatus.enabled;
+  + const isWebauthnEnabled = Boolean(hasWebauthn?.enabled);
+
+File: server/src/routes/domains.ts
+  + router.get('/:id/failover', authMiddleware, async (req: Request, res: Response) => {
+  + const domainId = parseInt(req.params.id, 10);
+  + const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  + if (!access.domain || !access.canRead) {
+  + res.status(403).json({ code: 403, msg: 'No permission' });
+
+File: server/src/routes/records.ts
+  + router.post('/batch', authMiddleware, async (req: Request, res: Response) => {
+  + const domainId = parseInt(req.params.domainId);
+  + const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  + if (!access.domain || !access.canRead) {
+  + res.json({ code: -1, msg: 'Domain not found' });
+
+File: server/src/routes/records.ts.patch
+
+File: server/src/routes/settings.ts
+  + router.get('/notifications', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
+  + const db = getAdapter();
+  + if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
+  + const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['notification_channels']) as any;
+  + if (!row?.value) {
+
+File: server/src/routes/tunnels.ts
+  + const router = Router();
+  + async function getCloudflareAccountByTunnelId(adapter: any, accountId: string): Promise<DnsAccount | null> {
+  + const accounts = await adapter.query("SELECT * FROM dns_accounts WHERE type = 'cloudflare'") as unknown as DnsAccount[];
+  + for (const acc of accounts) {
+  + const cfg = JSON.parse(acc.config);
+
+File: server/src/routes/webauthn.ts
+  + const router = Router();
+  + const userChallengeStore = new Map<number, string>();
+  + const loginChallengeStore = new Map<string, string>(); // username -> challenge
+  + (global as any).loginChallengeStore = loginChallengeStore;
+  + const rpName = 'DNSMgr';
+
+File: server/src/service/audit.ts
+  + checkAuditRules(userId, action, domain, data).catch(err => {
+  + console.error('Audit rule engine error:', err);
+
+File: server/src/service/auditRules.ts
+  + interface AuditRuleConfig {
+  + enabled: boolean;
+  + maxDeletionsPerHour: number;
+  + maxFailedLogins: number;
+  + offHoursStart: string; // HH:mm
+
+File: server/src/service/failover.ts
+  + const controller = new AbortController();
+  + const timeout = setTimeout(() => controller.abort(), 5000);
+  + const response = await fetch(url, { signal: controller.signal });
+  + clearTimeout(timeout);
+  + return response.ok;
+
+File: server/src/service/failoverJob.ts
+  + export function startFailoverJob() {
+  + setInterval(async () => {
+  + const db = getAdapter();
+  + if (!db) return;
+  + const configs = await db.query('SELECT id FROM failover_configs WHERE enabled = 1') as { id: number }[];
+
+File: server/src/service/loginLimit.ts
+  + checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => console.error(e));
+  + checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => console.error(e));
+
+File: server/src/service/notification.ts
+  + export interface NotificationChannel {
+  + id: string;
+  + type: 'webhook' | 'telegram' | 'dingtalk' | 'email';
+  + name: string;
+  + enabled: boolean;
+
+File: server/src/service/webauthn.ts
+  + export interface WebAuthnCredential {
+  + id: string;
+  + user_id: number;
+  + public_key: string;
+  + counter: number;
+
+File: server/src/service/whoisJob.ts
+  + export async function checkWhoisForDomain(domainName: string): Promise<Date | null> {
+  + const domainWhois = await whoisDomain(domainName, { follow: 1 });
+  + const firstFoundWhois = firstResult(domainWhois) as any;
+  + if (!firstFoundWhois) return null;
+  + const expiryStr = firstFoundWhois['Registry Expiry Date'] || firstFoundWhois['Expiry Date'] || firstFoundWhois['Registrar Registration Expiration Date'];
+
+File: server/test-whois.js
+  + import('whoiser').then(async m => {
+  + const info = await m.whoisDomain('example.com');
+  + const first = m.firstResult(info);
+  + console.log(first);
+
+File: update_locales_again.js
+  + const fs = require('fs');
+  + const path = require('path');
+  + const localesDir = path.join(__dirname, 'client/src/i18n/locales');
+  + const langs = ['en', 'zh-CN', 'es', 'ja', 'zh-CN-Mesugaki'];
+  + const newTranslations = {
+
+File: update_readme.js
+  + const fs = require('fs');
+  + function updateReadme(file, title, content) {
+  + if (!fs.existsSync(file)) return;
+  + let text = fs.readFileSync(file, 'utf8');
+  + if (text.includes(title)) return;
+
+File: update_readme_dns.js
+  + const fs = require('fs');
+  + function updateReadme(file, title, content) {
+  + if (!fs.existsSync(file)) return;
+  + let text = fs.readFileSync(file, 'utf8');
+  + if (text.includes(title)) return;
