@@ -8,7 +8,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, totpCode?: string, backupCode?: string) => Promise<void>;
   loginWithToken: (token: string, user: User) => void;
   logout: () => void;
   updateUser: (user: User) => void;
@@ -36,8 +36,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, [token]);
 
-  const login = async (username: string, password: string) => {
-    const res = await authApi.login(username, password);
+  const login = async (username: string, password: string, totpCode?: string, backupCode?: string) => {
+    const res = await authApi.login(username, password, totpCode, backupCode);
+    if (res.data.code === -2) {
+      // 2FA required
+      throw new Error('2FA_REQUIRED');
+    }
     if (res.data.code !== 0) throw new Error(res.data.msg);
     const { token: tok, user: u } = res.data.data;
     localStorage.setItem('token', tok);

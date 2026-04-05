@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ExternalLink, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, Search, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { domainsApi, accountsApi } from '../api';
 import type { Domain, DnsAccount } from '../api';
@@ -161,6 +161,131 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
   );
 }
 
+function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { data, isLoading } = useQuery({
+    queryKey: ['failover', domain.id],
+    queryFn: () => domainsApi.getFailover(domain.id).then((r) => r.data.data),
+  });
+
+  const [primaryIp, setPrimaryIp] = useState('');
+  const [backupIps, setBackupIps] = useState<string[]>([]);
+  const [checkMethod, setCheckMethod] = useState<'http' | 'tcp' | 'ping'>('http');
+  const [checkInterval, setCheckInterval] = useState(300);
+  const [checkPort, setCheckPort] = useState(80);
+  const [checkPath, setCheckPath] = useState('');
+  const [autoSwitchBack, setAutoSwitchBack] = useState(true);
+
+  // Initialize form when data loads
+  useEffect(() => {
+    if (data?.config) {
+      setPrimaryIp(data.config.primaryIp);
+      setBackupIps(data.config.backupIps);
+      setCheckMethod(data.config.checkMethod);
+      setCheckInterval(data.config.checkInterval);
+      setCheckPort(data.config.checkPort);
+      setCheckPath(data.config.checkPath || '');
+      setAutoSwitchBack(data.config.autoSwitchBack);
+    }
+  }, [data]);
+
+  const saveMutation = useMutation({
+    mutationFn: (cfg: any) => domainsApi.saveFailover(domain.id, cfg),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      qc.invalidateQueries({ queryKey: ['failover', domain.id] });
+      toast.success('Failover config saved');
+      onClose();
+    },
+    onError: () => toast.error('Failed to save config'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => domainsApi.deleteFailover(domain.id),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      qc.invalidateQueries({ queryKey: ['failover', domain.id] });
+      toast.success('Failover config deleted');
+      onClose();
+    },
+  });
+
+  if (isLoading) return <div className="p-4 text-center">Loading...</div>;
+
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      saveMutation.mutate({ primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack });
+    }} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Primary IP</label>
+        <input value={primaryIp} onChange={e => setPrimaryIp(e.target.value)} required
+          className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Backup IPs (comma separated)</label>
+        <input value={backupIps.join(',')} onChange={e => setBackupIps(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+          className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Check Method</label>
+          <select value={checkMethod} onChange={e => setCheckMethod(e.target.value as any)}
+            className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800">
+            <option value="http">HTTP</option>
+            <option value="tcp">TCP</option>
+            <option value="ping">PING</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Port</label>
+          <input type="number" value={checkPort} onChange={e => setCheckPort(Number(e.target.value))}
+            className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
+        </div>
+      </div>
+      {checkMethod === 'http' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Check Path</label>
+          <input value={checkPath} onChange={e => setCheckPath(e.target.value)} placeholder="/"
+            className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
+        </div>
+      )}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Interval (seconds)</label>
+        <input type="number" value={checkInterval} onChange={e => setCheckInterval(Number(e.target.value))}
+          className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" checked={autoSwitchBack} onChange={e => setAutoSwitchBack(e.target.checked)} id="autoSwitchBack" />
+        <label htmlFor="autoSwitchBack" className="text-sm font-medium text-gray-700">Auto switch back to primary when healthy</label>
+      </div>
+
+      {data?.status && (
+        <div className="p-3 bg-gray-50 rounded-lg text-sm space-y-1">
+          <p><strong>Current IP:</strong> {data.status.currentIp}</p>
+          <p><strong>Status:</strong> {data.status.lastCheckStatus ? 'Healthy' : 'Unhealthy'}</p>
+          <p><strong>Last Check:</strong> {new Date(data.status.lastCheckAt).toLocaleString()}</p>
+          <p><strong>Switch Count:</strong> {data.status.switchCount}</p>
+        </div>
+      )}
+
+      <div className="flex justify-between pt-4">
+        {data?.config ? (
+          <button type="button" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}
+            className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
+            Delete Config
+          </button>
+        ) : <div />}
+        <button type="submit" disabled={saveMutation.isPending}
+          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+          Save Config
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function Domains() {
   const qc = useQueryClient();
   const toast = useToast();
@@ -171,6 +296,7 @@ export function Domains() {
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
   const [deleting, setDeleting] = useState<Domain | null>(null);
+  const [configuringFailover, setConfiguringFailover] = useState<Domain | null>(null);
   const [accountFilter, setAccountFilter] = useState('');
   const [keyword, setKeyword] = useState('');
 
@@ -242,6 +368,10 @@ export function Domains() {
           <button onClick={() => setEditing(row)} disabled={!canManage}
             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
             <Edit2 className="w-4 h-4" />
+          </button>
+          <button onClick={() => setConfiguringFailover(row)} disabled={!canManage} title="Failover Config"
+            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+            <Activity className="w-4 h-4" />
           </button>
           <button onClick={() => setDeleting(row)} disabled={!canManage}
             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
@@ -317,6 +447,12 @@ export function Domains() {
           onCancel={() => setDeleting(null)}
           isLoading={deleteMutation.isPending}
         />
+      )}
+
+      {configuringFailover && canManage && (
+        <Modal title={`Failover Config: ${configuringFailover.name}`} onClose={() => setConfiguringFailover(null)}>
+          <FailoverConfigModal domain={configuringFailover} onClose={() => setConfiguringFailover(null)} />
+        </Modal>
       )}
     </div>
   );

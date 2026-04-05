@@ -27,7 +27,10 @@ import emailTemplatesRouter from './routes/emailTemplates';
 // Load environment variables (data/.env has priority over root .env)
 loadEnv();
 
+import { startFailoverJob } from './service/failoverJob';
+
 const app = express();
+
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Global state to track initialization
@@ -254,6 +257,7 @@ async function initializeApp() {
 
     if (isInitialized) {
       console.log('[Server] System initialized. Running in normal mode.');
+      startFailoverJob();
     } else {
       console.log('[Server] System not initialized. Running in initialization mode.');
       console.log('[Server] Please access the setup wizard to configure the system.');
@@ -315,6 +319,7 @@ async function initializeApp() {
         if (newState) {
           isInitialized = true;
           clearInterval(initCheckInterval);
+          startFailoverJob();
           console.log('[Server] System initialized detected. Normal routes are now enabled.');
           console.log('[Server] You may need to refresh the page.');
         }

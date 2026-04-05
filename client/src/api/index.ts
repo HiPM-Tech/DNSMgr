@@ -155,8 +155,8 @@ export interface LogEntry {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  login: (username: string, password: string) =>
-    api.post<ApiResponse<{ token: string; user: User }>>('/auth/login', { username, password }),
+  login: (username: string, password: string, totpCode?: string, backupCode?: string) =>
+    api.post<ApiResponse<any>>('/auth/login', { username, password, totpCode, backupCode }),
   oauthStatus: () => api.get<ApiResponse<OAuthStatus>>('/auth/oauth/status'),
   oauthStart: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start', { provider }),
   oauthStartBind: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start-bind', { provider }),
@@ -175,6 +175,10 @@ export const authApi = {
     api.post<ApiResponse<null>>('/auth/password-reset/request', { email }),
   confirmPasswordReset: (email: string, code: string, newPassword: string) =>
     api.post<ApiResponse<null>>('/auth/password-reset/confirm', { email, code, newPassword }),
+  getFailover: (id: number) => api.get<ApiResponse<{ config: any, status: any }>>(`/domains/${id}/failover`),
+  createFailover: (id: number, data: any) => api.post<ApiResponse<any>>(`/domains/${id}/failover`, data),
+  updateFailover: (id: number, data: any) => api.put<ApiResponse<any>>(`/domains/${id}/failover`, data),
+  deleteFailover: (id: number) => api.delete<ApiResponse<any>>(`/domains/${id}/failover`),
 };
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
@@ -206,6 +210,9 @@ export const domainsApi = {
     api.put<ApiResponse<null>>(`/domains/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/domains/${id}`),
   lines: (id: number) => api.get<ApiResponse<DnsLine[]>>(`/domains/${id}/lines`),
+  getFailover: (id: number) => api.get<ApiResponse<{ config: any, status: any } | null>>(`/domains/${id}/failover`),
+  saveFailover: (id: number, data: any) => api.post<ApiResponse<any>>(`/domains/${id}/failover`, data),
+  deleteFailover: (id: number) => api.delete<ApiResponse<any>>(`/domains/${id}/failover`),
 };
 
 // ─── Records ──────────────────────────────────────────────────────────────────

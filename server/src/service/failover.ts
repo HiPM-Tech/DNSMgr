@@ -1,9 +1,6 @@
 import { getAdapter } from '../db/adapter';
 import { logAuditOperation } from './audit';
-
-/**
- * 容灾切换服务
- */
+import { createAdapter } from '../lib/dns/DnsHelper';
 
 export interface FailoverConfig {
   id: number;
@@ -192,8 +189,16 @@ export async function performHealthCheck(config: FailoverConfig): Promise<boolea
   try {
     if (config.checkMethod === 'http') {
       const url = `http://${config.primaryIp}:${config.checkPort}${config.checkPath || '/'}`;
-      const response = await fetch(url, { timeout: 5000 });
-      return response.ok;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        return response.ok;
+      } catch (e) {
+        clearTimeout(timeout);
+        return false;
+      }
     } else if (config.checkMethod === 'tcp') {
       // TCP 检查需要使用 net 模块
       return await checkTcpConnection(config.primaryIp, config.checkPort);
@@ -260,12 +265,37 @@ export async function performFailover(
   const config = await getFailoverConfig(configId);
   if (!config) throw new Error('Failover config not found');
 
-  // 更新 DNS 记录（这里需要调用相应的 DNS 提供商 API）
-  // 这是一个占位符，实际实现需要根据 DNS 提供商而定
+  const status = await getFailoverStatus(configId);
+  const currentIp = status?.currentIp || config.primaryIp;
+
+  // 更新 DNS 记录
+  const domainRow = await db.get('SELECT * FROM domains WHERE id = ?', [config.domainId]) as any;
+  if (domainRow) {
+    const accountRow = await db.get('SELECT * FROM dns_accounts WHERE id = ?', [domainRow.account_id]) as any;
+    if (accountRow) {
+      const cfg = JSON.parse(accountRow.config || '{}');
+      const adapter = createAdapter(accountRow.type, cfg, domainRow.name, domainRow.third_id);
+      
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const res = await adapter.getDomainRecords(page, 100);
+        for (const r of res.list) {
+          if ((r.Type === 'A' || r.Type === 'AAAA') && r.Value === currentIp) {
+            await adapter.updateDomainRecord(r.RecordId, r.Name, r.Type, toIp, r.Line, r.TTL, r.MX, r.Weight, r.Remark);
+          }
+        }
+        if (res.list.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+    }
+  }
 
   // 更新容灾状态
   const isPrimary = toIp === config.primaryIp;
-  const status = await getFailoverStatus(configId);
   const switchCount = (status?.switchCount || 0) + 1;
 
   if (db.type === 'sqlite') {

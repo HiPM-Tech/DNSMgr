@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getAdapter } from '../db/adapter';
 import { authMiddleware } from '../middleware/auth';
 import { createAdapter } from '../lib/dns/DnsHelper';
+import { createFailoverConfig, getFailoverConfigByDomain, getFailoverStatus, updateFailoverConfig, deleteFailoverConfig } from '../service/failover';
 import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 
@@ -618,6 +619,92 @@ router.get('/:id/lines', authMiddleware, async (req: Request, res: Response) => 
     const dnsAdapter = createAdapter(account.type, cfg, access.domain.name, access.domain.third_id);
     const lines = await dnsAdapter.getRecordLines();
     res.json({ code: 0, data: lines, msg: 'success' });
+  } catch (e) {
+    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+router.get('/:id/failover', authMiddleware, async (req: Request, res: Response) => {
+  const domainId = parseInt(req.params.id, 10);
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
+    res.status(403).json({ code: 403, msg: 'No permission' });
+    return;
+  }
+  try {
+    const config = await getFailoverConfigByDomain(domainId);
+    if (!config) {
+      res.json({ code: 0, data: null, msg: 'success' });
+      return;
+    }
+    const status = await getFailoverStatus(config.id);
+    res.json({ code: 0, data: { config, status }, msg: 'success' });
+  } catch (e) {
+    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+router.post('/:id/failover', authMiddleware, async (req: Request, res: Response) => {
+  const domainId = parseInt(req.params.id, 10);
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canWrite) {
+    res.status(403).json({ code: 403, msg: 'No write permission' });
+    return;
+  }
+  const { primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack } = req.body;
+  if (!primaryIp) {
+    res.status(400).json({ code: -1, msg: 'primaryIp is required' });
+    return;
+  }
+  try {
+    const existing = await getFailoverConfigByDomain(domainId);
+    if (existing) {
+      await updateFailoverConfig(existing.id, { primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack });
+      res.json({ code: 0, data: { id: existing.id }, msg: 'success' });
+    } else {
+      const config = await createFailoverConfig(domainId, primaryIp, backupIps || [], checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack);
+      res.json({ code: 0, data: config, msg: 'success' });
+    }
+  } catch (e) {
+    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+router.put('/:id/failover', authMiddleware, async (req: Request, res: Response) => {
+  const domainId = parseInt(req.params.id, 10);
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canWrite) {
+    res.status(403).json({ code: 403, msg: 'No write permission' });
+    return;
+  }
+  try {
+    const existing = await getFailoverConfigByDomain(domainId);
+    if (!existing) {
+      res.status(404).json({ code: -1, msg: 'Not found' });
+      return;
+    }
+    await updateFailoverConfig(existing.id, req.body);
+    res.json({ code: 0, msg: 'success' });
+  } catch (e) {
+    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+router.delete('/:id/failover', authMiddleware, async (req: Request, res: Response) => {
+  const domainId = parseInt(req.params.id, 10);
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canWrite) {
+    res.status(403).json({ code: 403, msg: 'No write permission' });
+    return;
+  }
+  try {
+    const existing = await getFailoverConfigByDomain(domainId);
+    if (!existing) {
+      res.status(404).json({ code: -1, msg: 'Not found' });
+      return;
+    }
+    await deleteFailoverConfig(existing.id);
+    res.json({ code: 0, msg: 'success' });
   } catch (e) {
     res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
   }

@@ -84,16 +84,29 @@ export function Login() {
       .finally(() => setOauthLoading(false));
   }, [loginWithToken, navigate, searchParams, setSearchParams, t]);
 
+  const [require2FA, setRequire2FA] = useState(false);
+  const [totpCode, setTotpCode] = useState('');
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [backupCode, setBackupCode] = useState('');
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!username || !password) { setError(t('login.required')); return; }
+    if (require2FA && !useBackupCode && !totpCode) { setError('TOTP code is required'); return; }
+    if (require2FA && useBackupCode && !backupCode) { setError('Backup code is required'); return; }
+
     setError('');
     setLoading(true);
     try {
-      await login(username, password);
+      await login(username, password, require2FA && !useBackupCode ? totpCode : undefined, require2FA && useBackupCode ? backupCode : undefined);
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('login.failed'));
+      if (err instanceof Error && err.message === '2FA_REQUIRED') {
+        setRequire2FA(true);
+        setError('');
+      } else {
+        setError(err instanceof Error ? err.message : t('login.failed'));
+      }
     } finally {
       setLoading(false);
     }
@@ -186,28 +199,65 @@ export function Login() {
               {error}
             </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.usernameOrEmail')}</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder={t('login.usernameOrEmailPlaceholder')}
-              autoComplete="username"
-              className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.password')}</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t('login.passwordPlaceholder')}
-              autoComplete="current-password"
-              className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-            />
-          </div>
+          {!require2FA ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.usernameOrEmail')}</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder={t('login.usernameOrEmailPlaceholder')}
+                  autoComplete="username"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.password')}</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t('login.passwordPlaceholder')}
+                  autoComplete="current-password"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-center text-sm text-gray-600 dark:text-gray-400 mb-2">
+                2FA Verification Required
+              </div>
+              {!useBackupCode ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Authenticator Code</label>
+                  <input
+                    type="text"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value)}
+                    placeholder="Enter 6-digit code"
+                    autoComplete="one-time-code"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-center tracking-widest text-lg"
+                    maxLength={6}
+                  />
+                  <button type="button" onClick={() => setUseBackupCode(true)} className="mt-2 text-sm text-blue-600 hover:text-blue-700 w-full text-center">Use backup code instead</button>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Backup Code</label>
+                  <input
+                    type="text"
+                    value={backupCode}
+                    onChange={(e) => setBackupCode(e.target.value)}
+                    placeholder="Enter backup code"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-center tracking-widest text-lg"
+                  />
+                  <button type="button" onClick={() => setUseBackupCode(false)} className="mt-2 text-sm text-blue-600 hover:text-blue-700 w-full text-center">Use authenticator code instead</button>
+                </div>
+              )}
+            </>
+          )}
           <button
             type="submit"
             disabled={loading}

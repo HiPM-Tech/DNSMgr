@@ -10,6 +10,8 @@ import { sendEmailVerificationCode, verifyEmailVerificationCode } from '../servi
 import { logAuditOperation } from '../service/audit';
 import { getSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { loginLimiter, registerLimiter, emailLimiter } from '../middleware/rateLimit';
+import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/totp';
+
 
 const router = Router();
 const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -251,7 +253,7 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
  *         description: JWT token returned
  */
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
-  const { username, password } = req.body as { username: string; password: string };
+  const { username, password, totpCode, backupCode } = req.body as { username: string; password: string; totpCode?: string; backupCode?: string };
   if (!username || !password) {
     res.json({ code: -1, msg: 'Username/email and password are required' });
     return;
@@ -303,7 +305,29 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       res.json({ code: -1, msg: 'Account is disabled' });
       return;
     }
-    
+
+    // Check 2FA
+    const totpStatus = await getTOTPStatus(user.id);
+    if (totpStatus.enabled) {
+      if (backupCode) {
+        const isValid = await verifyBackupCode(user.id, backupCode);
+        if (!isValid) {
+          res.json({ code: -1, msg: 'Invalid backup code' });
+          return;
+        }
+      } else if (totpCode) {
+        const secretRow = await db.get('SELECT secret FROM user_2fa WHERE user_id = ? AND type = ?', [user.id, 'totp']) as { secret: string } | undefined;
+        if (!secretRow || !verifyTOTPToken(secretRow.secret, totpCode)) {
+          res.json({ code: -1, msg: 'Invalid 2FA code' });
+          return;
+        }
+      } else {
+        // 2FA required
+        res.json({ code: -2, msg: '2FA required', data: { require2FA: true, type: 'totp' } });
+        return;
+      }
+    }
+
     // Clear login attempts on successful login
     await clearLoginAttempts(loginIdentifier);
     
