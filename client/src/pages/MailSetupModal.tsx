@@ -73,10 +73,10 @@ export function MailSetupModal({ domainId, onClose, existingRecords }: MailSetup
         return;
       }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
-      toast.success('Mail records added successfully');
+      toast.success(t('mail.addSuccess'));
       onClose();
     },
-    onError: () => toast.error('Failed to add mail records')
+    onError: () => toast.error(t('mail.addFailed'))
   });
 
   const handleAdd = () => {

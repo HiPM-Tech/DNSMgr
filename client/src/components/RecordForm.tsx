@@ -318,7 +318,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
 
       <div className={`grid gap-4 ${currentType === 'MX' || currentType === 'SRV' || canSelectProxy ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">TTL</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.ttl')}</label>
           <input
             type="number"
             min={1}

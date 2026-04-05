@@ -39,11 +39,11 @@ export function NotificationChannels() {
         toast.error(res.data.msg);
         return;
       }
-      toast.success(t('notifications.saved'));
+      toast.success(t('system.notifications.saved'));
       qc.invalidateQueries({ queryKey: ['notification-channels'] });
       setEditingId(null);
     },
-    onError: () => toast.error(t('notifications.saveFailed'))
+    onError: () => toast.error(t('system.notifications.saveFailed'))
   });
 
   const handleAdd = (type: 'webhook' | 'telegram' | 'dingtalk' | 'email') => {
@@ -76,7 +76,7 @@ export function NotificationChannels() {
   };
 
   const handleDelete = (id: string) => {
-    if (!confirm(t('notifications.deleteConfirm'))) return;
+    if (!confirm(t('system.notifications.deleteConfirm'))) return;
     const newChannels = channels.filter(c => c.id !== id);
     setChannels(newChannels);
     saveMutation.mutate(newChannels);
@@ -86,26 +86,26 @@ export function NotificationChannels() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('notifications.title')}</h3>
-          <p className="text-sm text-gray-500">{t('notifications.desc')}</p>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.notifications.title')}</h3>
+          <p className="text-sm text-gray-500">{t('system.notifications.desc')}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => handleAdd('webhook')} className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300">{t('notifications.addWebhook')}</button>
-          <button onClick={() => handleAdd('telegram')} className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-400">{t('notifications.addTelegram')}</button>
-          <button onClick={() => handleAdd('dingtalk')} className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-400">{t('notifications.addDingtalk')}</button>
-          <button onClick={() => handleAdd('email')} className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300">{t('notifications.addEmail')}</button>
+          <button onClick={() => handleAdd('webhook')} className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300">{t('system.notifications.addWebhook')}</button>
+          <button onClick={() => handleAdd('telegram')} className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-400">{t('system.notifications.addTelegram')}</button>
+          <button onClick={() => handleAdd('dingtalk')} className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-400">{t('system.notifications.addDingtalk')}</button>
+          <button onClick={() => handleAdd('email')} className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300">{t('system.notifications.addEmail')}</button>
         </div>
       </div>
 
       <div className="space-y-4">
-        {channels.length === 0 && <div className="text-center text-gray-500 py-8 text-sm">{t('notifications.empty')}</div>}
+        {channels.length === 0 && <div className="text-center text-gray-500 py-8 text-sm">{t('system.notifications.empty')}</div>}
         {channels.map(channel => (
           <div key={channel.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-900">
             {editingId === channel.id ? (
               <div className="space-y-4">
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">{t('notifications.name')}</label>
+                    <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.name')}</label>
                     <input type="text" value={editForm?.name} onChange={e => setEditForm({ ...editForm!, name: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                   </div>
                 </div>
@@ -113,14 +113,14 @@ export function NotificationChannels() {
                 {channel.type === 'webhook' && (
                   <div className="flex gap-4">
                     <div className="w-1/4">
-                      <label className="block text-xs text-gray-500 mb-1">{t('notifications.method')}</label>
+                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.method')}</label>
                       <select value={editForm?.config.method} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, method: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
                         <option>POST</option>
                         <option>GET</option>
                       </select>
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('notifications.url')}</label>
+                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.url')}</label>
                       <input type="text" value={editForm?.config.url} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, url: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" placeholder="https://..." />
                     </div>
                   </div>
@@ -129,11 +129,11 @@ export function NotificationChannels() {
                 {channel.type === 'telegram' && (
                   <div className="flex gap-4">
                     <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('notifications.botToken')}</label>
+                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.botToken')}</label>
                       <input type="text" value={editForm?.config.botToken} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, botToken: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('notifications.chatId')}</label>
+                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.chatId')}</label>
                       <input type="text" value={editForm?.config.chatId} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, chatId: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                     </div>
                   </div>
@@ -142,7 +142,7 @@ export function NotificationChannels() {
                 {channel.type === 'dingtalk' && (
                   <div className="flex gap-4">
                     <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('notifications.webhookUrl')}</label>
+                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.webhookUrl')}</label>
                       <input type="text" value={editForm?.config.webhook} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, webhook: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
                     </div>
                   </div>
@@ -151,15 +151,15 @@ export function NotificationChannels() {
                 {channel.type === 'email' && (
                   <div className="flex gap-4">
                     <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('notifications.emailAddress')}</label>
+                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.emailAddress')}</label>
                       <input type="email" value={editForm?.config.to} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, to: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" placeholder="admin@example.com" />
                     </div>
                   </div>
                 )}
 
                 <div className="flex justify-end gap-2 mt-4">
-                  <button onClick={() => { setEditingId(null); if (!channels.find(c => c.id === channel.id)?.name) setChannels(channels.filter(c => c.id !== channel.id)); }} className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400">{t('notifications.cancel')}</button>
-                  <button onClick={handleSave} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"><Save className="w-4 h-4"/> {t('notifications.save')}</button>
+                  <button onClick={() => { setEditingId(null); if (!channels.find(c => c.id === channel.id)?.name) setChannels(channels.filter(c => c.id !== channel.id)); }} className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400">{t('system.notifications.cancel')}</button>
+                  <button onClick={handleSave} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"><Save className="w-4 h-4"/> {t('system.notifications.save')}</button>
                 </div>
               </div>
             ) : (

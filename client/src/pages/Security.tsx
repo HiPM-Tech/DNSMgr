@@ -67,31 +67,31 @@ export function Security() {
         name: `Passkey added on ${new Date().toLocaleDateString()}`
       });
       if (verifyRes.data.code === 0) {
-        toast.success('Passkey added successfully');
+        toast.success(t('passkeys.addSuccess'));
         await loadPasskeys();
       } else {
         throw new Error(verifyRes.data.msg);
       }
     } catch (e: any) {
-      toast.error(e.message || 'Failed to add passkey');
+      toast.error(e.message || t('passkeys.addFailed'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeletePasskey = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this passkey?')) return;
+    if (!confirm(t('passkeys.confirmRemove'))) return;
     setLoading(true);
     try {
       const res = await authApi.webauthnDeleteCred(id);
       if (res.data.code === 0) {
-        toast.success('Passkey removed');
+        toast.success(t('passkeys.removeSuccess'));
         await loadPasskeys();
       } else {
         throw new Error(res.data.msg);
       }
     } catch (e: any) {
-      toast.error(e.message || 'Failed to remove passkey');
+      toast.error(e.message || t('passkeys.removeFailed'));
     } finally {
       setLoading(false);
     }
@@ -138,7 +138,7 @@ export function Security() {
         setTotpSetup(data.data);
       }
     } catch (error) {
-      toast.error('Failed to setup 2FA');
+      toast.error(t('security.setupFailed'));
     } finally {
       setLoading(false);
     }
@@ -146,7 +146,7 @@ export function Security() {
 
   const handleEnableTotp = async () => {
     if (!totpSetup || !totpToken) {
-      toast.error('Please enter the verification code');
+      toast.error(t('security.enterVerificationCode'));
       return;
     }
 
@@ -166,16 +166,16 @@ export function Security() {
       });
 
       if (response.ok) {
-        toast.success('2FA enabled successfully');
+        toast.success(t('security.enableSuccess'));
         setShowTotpSetup(false);
         setTotpToken('');
         setTotpSetup(null);
         await loadTotpStatus();
       } else {
-        toast.error('Failed to enable 2FA');
+        toast.error(t('security.enableFailed'));
       }
     } catch (error) {
-      toast.error('Failed to enable 2FA');
+      toast.error(t('security.enableFailed'));
     } finally {
       setLoading(false);
     }
@@ -190,11 +190,11 @@ export function Security() {
       });
 
       if (response.ok) {
-        toast.success('Session logged out');
+        toast.success(t('security.sessionLoggedOut'));
         await loadSessions();
       }
     } catch (error) {
-      toast.error('Failed to logout session');
+      toast.error(t('security.logoutFailed'));
     } finally {
       setLoading(false);
       setShowConfirmLogout(false);
@@ -211,11 +211,11 @@ export function Security() {
       });
 
       if (response.ok) {
-        toast.success('Other sessions logged out');
+        toast.success(t('security.othersLoggedOut'));
         await loadSessions();
       }
     } catch (error) {
-      toast.error('Failed to logout other sessions');
+      toast.error(t('security.logoutOthersFailed'));
     } finally {
       setLoading(false);
     }
@@ -230,8 +230,8 @@ export function Security() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Security Settings</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">Manage your account security and sessions</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('security.title')}</h1>
+        <p className="mt-2 text-gray-600 dark:text-gray-400">{t('security.subtitle')}</p>
       </div>
 
       {/* 2FA Section */}
@@ -240,9 +240,9 @@ export function Security() {
           <div className="flex items-center gap-3">
             <Smartphone className="w-6 h-6 text-blue-500" />
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Two-Factor Authentication</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('security.twoFactorAuth')}</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {totpEnabled ? `Enabled (${backupCodesRemaining} backup codes remaining)` : 'Not enabled'}
+                {totpEnabled ? t('security.twoFactorEnabled', { count: backupCodesRemaining }) : t('security.twoFactorDisabled')}
               </p>
             </div>
           </div>
@@ -255,7 +255,7 @@ export function Security() {
               disabled={loading}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
             >
-              Enable 2FA
+              {t('security.enable2fa')}
             </button>
           )}
         </div>
@@ -309,8 +309,8 @@ export function Security() {
           <div className="flex items-center gap-3">
             <LogOut className="w-6 h-6 text-green-500" />
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Active Sessions</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{sessions.length} active session(s)</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('security.activeSessions')}</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('security.sessionsCount', { count: sessions.length })}</p>
             </div>
           </div>
           {sessions.length > 1 && (
@@ -319,7 +319,7 @@ export function Security() {
               disabled={loading}
               className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
             >
-              Logout Others
+              {t('security.logoutOthers')}
             </button>
           )}
         </div>
@@ -331,7 +331,7 @@ export function Security() {
                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{session.userAgent}</p>
                 <p className="text-xs text-gray-600 dark:text-gray-400">{session.ipAddress}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-500">
-                  Last active: {new Date(session.lastActivityAt).toLocaleString()}
+                  {t('security.lastActive')} {new Date(session.lastActivityAt).toLocaleString()}
                 </p>
               </div>
               <button
@@ -342,7 +342,7 @@ export function Security() {
                 disabled={loading}
                 className="ml-4 px-3 py-1 text-sm bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200 rounded hover:bg-red-200 dark:hover:bg-red-800 disabled:opacity-50"
               >
-                Logout
+                {t('security.logout')}
               </button>
             </div>
           ))}
@@ -351,17 +351,17 @@ export function Security() {
 
       {/* 2FA Setup Modal */}
       {showTotpSetup && totpSetup && (
-        <Modal title="Setup Two-Factor Authentication" onClose={() => setShowTotpSetup(false)}>
+        <Modal title={t('security.setup2fa')} onClose={() => setShowTotpSetup(false)}>
           <div className="space-y-4">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                Scan this QR code with your authenticator app:
+                {t('security.scanQrCode')}
               </p>
               <img src={totpSetup.qrCode} alt="QR Code" className="w-48 h-48 mx-auto" />
             </div>
 
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Or enter this secret manually:</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{t('security.enterSecretManually')}</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm font-mono">
                   {totpSetup.secret}
@@ -369,7 +369,7 @@ export function Security() {
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(totpSetup.secret);
-                    toast.success('Copied');
+                    toast.success(t('security.copied'));
                   }}
                   className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
                 >
@@ -380,7 +380,7 @@ export function Security() {
 
             <div>
               <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                Enter verification code:
+                {t('security.enterVerificationCode')}
               </label>
               <input
                 type="text"
@@ -393,7 +393,7 @@ export function Security() {
             </div>
 
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Backup codes:</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">{t('security.backupCodes')}</p>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {totpSetup.backupCodes.map((code) => (
                   <div
@@ -415,7 +415,7 @@ export function Security() {
                 ))}
               </div>
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-                Save these codes in a safe place. You can use them to access your account if you lose access to your authenticator.
+                {t('security.backupCodesDesc')}
               </p>
             </div>
 
@@ -424,14 +424,14 @@ export function Security() {
                 onClick={() => setShowTotpSetup(false)}
                 className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleEnableTotp}
                 disabled={loading || totpToken.length !== 6}
                 className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
               >
-                {loading ? 'Enabling...' : 'Enable 2FA'}
+                {loading ? t('security.enabling') : t('security.enable2fa')}
               </button>
             </div>
           </div>
@@ -441,14 +441,14 @@ export function Security() {
       {/* Logout Confirmation Dialog */}
       {showConfirmLogout && selectedSessionId && (
         <ConfirmDialog
-          message="Are you sure you want to logout this session?"
+          message={t('security.confirmLogoutSession')}
           onConfirm={() => handleLogoutSession(selectedSessionId)}
           onCancel={() => {
             setShowConfirmLogout(false);
             setSelectedSessionId(null);
           }}
           isLoading={loading}
-          confirmLabel="Logout"
+          confirmLabel={t('security.logout')}
         />
       )}
     </div>

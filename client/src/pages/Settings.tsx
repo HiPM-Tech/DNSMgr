@@ -295,11 +295,11 @@ export function Settings() {
 
         <div className="space-y-6">
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Cloudflare Tunnels</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.cloudflareTunnels')}</h3>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Show Tunnels in Sidebar</p>
-                <p className="text-sm text-gray-500">Enable this to view and manage Cloudflare Tunnels from the sidebar.</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('settings.showTunnels')}</p>
+                <p className="text-sm text-gray-500">{t('settings.showTunnelsDesc')}</p>
               </div>
               <button
                 type="button"

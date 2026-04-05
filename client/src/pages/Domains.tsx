@@ -10,7 +10,6 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdmin } from '../utils/roles';
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -21,6 +20,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
   const qc = useQueryClient();
   const toast = useToast();
   const { t } = useI18n();
+  const navigate = useNavigate();
   const [accountId, setAccountId] = useState<number>(accounts[0]?.id ?? 0);
   const [mode, setMode] = useState<'manual' | 'sync'>('manual');
   const [name, setName] = useState('');
@@ -77,7 +77,6 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
   };
 
   const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-  const navigate = useNavigate();
 
   if (accounts.length === 0) {
     return (
@@ -86,8 +85,8 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
           <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
         </div>
         <div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">No DNS Accounts</h3>
-          <p className="text-sm text-gray-500 mt-1">You need to add a DNS account before adding domains.</p>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">{t('domains.noAccounts')}</h3>
+          <p className="text-sm text-gray-500 mt-1">{t('domains.noAccountsDesc')}</p>
         </div>
         <button
           type="button"
@@ -98,7 +97,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Go to Add DNS Account
+          {t('domains.goToAddAccount')}
         </button>
       </div>
     );
@@ -190,9 +189,10 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
 function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const { t } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ['failover', domain.id],
-    queryFn: () => domainsApi.getFailover(domain.id).then((r) => r.data.data),
+    queryFn: () => domainsApi.getFailover(domain.id).then(r => r.data.data),
   });
 
   const [primaryIp, setPrimaryIp] = useState('');
@@ -221,10 +221,10 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['failover', domain.id] });
-      toast.success('Failover config saved');
+      toast.success(t('domains.configSaved'));
       onClose();
     },
-    onError: () => toast.error('Failed to save config'),
+    onError: () => toast.error(t('domains.updateFailed')),
   });
 
   const deleteMutation = useMutation({
@@ -232,12 +232,12 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['failover', domain.id] });
-      toast.success('Failover config deleted');
+      toast.success(t('domains.configDeleted'));
       onClose();
     },
   });
 
-  if (isLoading) return <div className="p-4 text-center">Loading...</div>;
+  if (isLoading) return <div className="p-4 text-center">{t('common.loading')}</div>;
 
   return (
     <form onSubmit={(e) => {
@@ -245,18 +245,18 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
       saveMutation.mutate({ primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack });
     }} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Primary IP</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.primaryIp')}</label>
         <input value={primaryIp} onChange={e => setPrimaryIp(e.target.value)} required
           className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Backup IPs (comma separated)</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.backupIps')}</label>
         <input value={backupIps.join(',')} onChange={e => setBackupIps(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
           className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Check Method</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.checkMethod')}</label>
           <select value={checkMethod} onChange={e => setCheckMethod(e.target.value as any)}
             className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800">
             <option value="http">HTTP</option>
@@ -265,34 +265,34 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Port</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.checkPort')}</label>
           <input type="number" value={checkPort} onChange={e => setCheckPort(Number(e.target.value))}
             className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
         </div>
       </div>
       {checkMethod === 'http' && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Check Path</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.checkPath')}</label>
           <input value={checkPath} onChange={e => setCheckPath(e.target.value)} placeholder="/"
             className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
         </div>
       )}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Interval (seconds)</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.checkInterval')}</label>
         <input type="number" value={checkInterval} onChange={e => setCheckInterval(Number(e.target.value))}
           className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
       </div>
       <div className="flex items-center gap-2">
         <input type="checkbox" checked={autoSwitchBack} onChange={e => setAutoSwitchBack(e.target.checked)} id="autoSwitchBack" />
-        <label htmlFor="autoSwitchBack" className="text-sm font-medium text-gray-700">Auto switch back to primary when healthy</label>
+        <label htmlFor="autoSwitchBack" className="text-sm font-medium text-gray-700">{t('domains.autoSwitchBack')}</label>
       </div>
 
       {data?.status && (
         <div className="p-3 bg-gray-50 rounded-lg text-sm space-y-1">
-          <p><strong>Current IP:</strong> {data.status.currentIp}</p>
-          <p><strong>Status:</strong> {data.status.lastCheckStatus ? 'Healthy' : 'Unhealthy'}</p>
-          <p><strong>Last Check:</strong> {new Date(data.status.lastCheckAt).toLocaleString()}</p>
-          <p><strong>Switch Count:</strong> {data.status.switchCount}</p>
+          <p><strong>{t('domains.currentIp')}:</strong> {data.status.currentIp}</p>
+          <p><strong>{t('common.status')}:</strong> {data.status.lastCheckStatus ? t('domains.healthy') : t('domains.unhealthy')}</p>
+          <p><strong>{t('domains.lastCheck')}:</strong> {new Date(data.status.lastCheckAt).toLocaleString()}</p>
+          <p><strong>{t('domains.switchCount')}:</strong> {data.status.switchCount}</p>
         </div>
       )}
 
@@ -300,12 +300,12 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
         {data?.config ? (
           <button type="button" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}
             className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
-            Delete Config
+            {t('domains.deleteConfig')}
           </button>
         ) : <div />}
         <button type="submit" disabled={saveMutation.isPending}
           className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
-          Save Config
+          {t('domains.saveConfig')}
         </button>
       </div>
     </form>
@@ -317,8 +317,8 @@ export function Domains() {
   const toast = useToast();
   const { t } = useI18n();
   const navigate = useNavigate();
-  const { user: me } = useAuth();
-  const canManage = isAdmin(me?.role);
+  const { isAdmin: isActuallyAdmin } = useAuth();
+  const canManage = isActuallyAdmin;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
   const [deleting, setDeleting] = useState<Domain | null>(null);
@@ -505,7 +505,7 @@ export function Domains() {
       )}
 
       {configuringFailover && canManage && (
-        <Modal title={`Failover Config: ${configuringFailover.name}`} onClose={() => setConfiguringFailover(null)}>
+        <Modal title={t('domains.failoverTitle', { name: configuringFailover.name })} onClose={() => setConfiguringFailover(null)}>
           <FailoverConfigModal domain={configuringFailover} onClose={() => setConfiguringFailover(null)} />
         </Modal>
       )}
