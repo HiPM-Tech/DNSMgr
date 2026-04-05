@@ -122,7 +122,30 @@ This mode is useful when you want:
 
 ### Docker Deployment
 
-Docker deployment uses all-in-one mode (frontend + backend in single container):
+Docker deployment uses all-in-one mode (frontend + backend in single container).
+
+#### Option 1: Use Pre-built Image (Recommended)
+
+```bash
+# Run with pre-built image from GitHub Container Registry
+docker run -d \
+  -p 3001:3001 \
+  -v $(pwd)/data:/app/data \
+  --name dnsmgr \
+  ghcr.io/hipm-tech/dnsmgr:latest
+```
+
+Or use Docker Compose:
+
+```bash
+# Download compose file
+curl -O https://raw.githubusercontent.com/HiPM-Tech/DNSMgr/main/docker-compose.yml
+
+# Start service
+docker-compose up -d
+```
+
+#### Option 2: Build from Source
 
 ```bash
 # Build and run
@@ -132,12 +155,6 @@ docker run -d \
   -v $(pwd)/data:/app/data \
   --name dnsmgr \
   dnsmgr
-```
-
-Or use Docker Compose:
-
-```bash
-docker-compose up -d
 ```
 
 Access: http://localhost:3001

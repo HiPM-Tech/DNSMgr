@@ -100,7 +100,30 @@ cd server && pnpm dev
 
 ### Docker 部署
 
-Docker 部署使用一体化模式（前后端合并在一个容器中）：
+Docker 部署使用一体化模式（前后端合并在一个容器中）。
+
+#### 方式一：使用预构建镜像（推荐）
+
+```bash
+# 使用 GitHub Container Registry 的预构建镜像
+docker run -d \
+  -p 3001:3001 \
+  -v $(pwd)/data:/app/data \
+  --name dnsmgr \
+  ghcr.io/hipm-tech/dnsmgr:latest
+```
+
+或使用 Docker Compose：
+
+```bash
+# 下载编排文件
+curl -O https://raw.githubusercontent.com/HiPM-Tech/DNSMgr/main/docker-compose.yml
+
+# 启动服务
+docker-compose up -d
+```
+
+#### 方式二：从源码构建
 
 ```bash
 # 构建并运行
@@ -110,12 +133,6 @@ docker run -d \
   -v $(pwd)/data:/app/data \
   --name dnsmgr \
   dnsmgr
-```
-
-或使用 Docker Compose：
-
-```bash
-docker-compose up -d
 ```
 
 访问地址：http://localhost:3001

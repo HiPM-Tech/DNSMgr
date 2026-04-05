@@ -2,10 +2,7 @@ version: '3.8'
 
 services:
   dnsmgr:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ghcr.io/${GITHUB_REPOSITORY:-dnsmgr}/dnsmgr:latest
+    image: ghcr.io/hipm-tech/dnsmgr:latest
     container_name: dnsmgr
     restart: unless-stopped
     ports:
