@@ -59,8 +59,8 @@ export async function addWebAuthnCredential(cred: Omit<WebAuthnCredential, 'crea
 export async function updateWebAuthnCredentialCounter(id: string, counter: number) {
   const db = getAdapter();
   if (!db) return;
-  await db.query(
-    'UPDATE webauthn_credentials SET counter = ?, last_used_at = datetime("now") WHERE id = ?',
+  await db.execute(
+    `UPDATE webauthn_credentials SET counter = ?, last_used_at = ${db.now()} WHERE id = ?`,
     [counter, id]
   );
 }

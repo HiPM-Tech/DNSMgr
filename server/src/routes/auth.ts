@@ -327,7 +327,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         }
       } else if (webauthnResponse && isWebauthnEnabled) {
         // webauthnResponse verification is handled by another endpoint or we verify it here
-        const expectedChallenge = (global as any).loginChallengeStore?.get(user.username);
+        const expectedChallenge = (global as any).loginChallengeStore?.get(user.id);
         if (!expectedChallenge) {
           res.json({ code: -1, msg: 'WebAuthn challenge expired or missing' });
           return;
@@ -361,7 +361,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
             return;
           }
           await updateWebAuthnCredentialCounter(cred.id, verification.authenticationInfo.newCounter);
-          (global as any).loginChallengeStore.delete(user.username);
+          (global as any).loginChallengeStore.delete(user.id);
         } catch (e: any) {
           res.json({ code: -1, msg: e.message });
           return;

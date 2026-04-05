@@ -328,6 +328,7 @@ async function initializeApp() {
           isInitialized = true;
           clearInterval(initCheckInterval);
           startFailoverJob();
+          startWhoisJob();
           console.log('[Server] System initialized detected. Normal routes are now enabled.');
           console.log('[Server] You may need to refresh the page.');
         }

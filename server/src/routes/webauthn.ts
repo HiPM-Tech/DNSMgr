@@ -9,7 +9,7 @@ const router = Router();
 
 // Store challenges temporarily
 const userChallengeStore = new Map<number, string>();
-const loginChallengeStore = new Map<string, string>(); // username -> challenge
+const loginChallengeStore = new Map<number, string>(); // user_id -> challenge
 (global as any).loginChallengeStore = loginChallengeStore;
 
 // Ensure RP name and ID match your deployment
@@ -117,7 +117,7 @@ router.get('/login-options', async (req: Request, res: Response) => {
     userVerification: 'preferred',
   });
   
-  loginChallengeStore.set(username, options.challenge);
+  loginChallengeStore.set(user.id, options.challenge);
   res.json({ code: 0, data: options, msg: 'success' });
 });
 

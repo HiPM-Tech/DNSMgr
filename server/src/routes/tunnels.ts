@@ -3,11 +3,31 @@ import { authMiddleware } from '../middleware/auth';
 import { getAdapter } from '../db/adapter';
 import { CloudflareAdapter } from '../lib/dns/providers';
 import { DnsAccount } from '../types';
+import { isSuper, normalizeRole } from '../utils/roles';
 
 const router = Router();
 
-async function getCloudflareAccountByTunnelId(adapter: any, accountId: string): Promise<DnsAccount | null> {
-  const accounts = await adapter.query("SELECT * FROM dns_accounts WHERE type = 'cloudflare'") as unknown as DnsAccount[];
+async function getAccessibleCloudflareAccounts(adapter: any, userId: number, role: number): Promise<DnsAccount[]> {
+  if (isSuper(role)) {
+    return await adapter.query("SELECT * FROM dns_accounts WHERE type = 'cloudflare'") as unknown as DnsAccount[];
+  }
+  const teamIds = ((await adapter.query('SELECT team_id FROM team_members WHERE user_id = ?', [userId])) as unknown as { team_id: number }[])
+    .map((r) => r.team_id);
+  if (teamIds.length > 0) {
+    const placeholders = teamIds.map(() => '?').join(',');
+    return await adapter.query(
+      `SELECT * FROM dns_accounts WHERE type = 'cloudflare' AND (created_by = ? OR team_id IN (${placeholders}))`,
+      [userId, ...teamIds]
+    ) as unknown as DnsAccount[];
+  }
+  return await adapter.query(
+    "SELECT * FROM dns_accounts WHERE type = 'cloudflare' AND created_by = ?",
+    [userId]
+  ) as unknown as DnsAccount[];
+}
+
+async function getCloudflareAccountByTunnelId(adapter: any, accountId: string, userId: number, role: number): Promise<DnsAccount | null> {
+  const accounts = await getAccessibleCloudflareAccounts(adapter, userId, role);
   for (const acc of accounts) {
     try {
       const cfg = JSON.parse(acc.config);
@@ -25,9 +45,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
   }
 
   try {
-    const accounts = await adapter.query(
-      "SELECT * FROM dns_accounts WHERE type = 'cloudflare'"
-    ) as unknown as DnsAccount[];
+    const accounts = await getAccessibleCloudflareAccounts(adapter, req.user!.userId, normalizeRole(req.user?.role));
 
     const allTunnels: any[] = [];
     for (const acc of accounts) {
@@ -52,7 +70,12 @@ router.get('/:accountId/:tunnelId', authMiddleware, async (req: Request, res: Re
     return;
   }
   try {
-    const acc = await getCloudflareAccountByTunnelId(adapter, req.params.accountId);
+    const acc = await getCloudflareAccountByTunnelId(
+      adapter,
+      req.params.accountId,
+      req.user!.userId,
+      normalizeRole(req.user?.role)
+    );
     if (!acc) return res.status(404).json({ code: 404, msg: 'Account not found' });
     
     const cfg = JSON.parse(acc.config);
@@ -68,7 +91,12 @@ router.put('/:accountId/:tunnelId/config', authMiddleware, async (req: Request, 
   const adapter = getAdapter();
   if (!adapter) return res.status(500).json({ code: 500, msg: 'Database error' });
   try {
-    const acc = await getCloudflareAccountByTunnelId(adapter, req.params.accountId);
+    const acc = await getCloudflareAccountByTunnelId(
+      adapter,
+      req.params.accountId,
+      req.user!.userId,
+      normalizeRole(req.user?.role)
+    );
     if (!acc) return res.status(404).json({ code: 404, msg: 'Account not found' });
     
     const cfg = JSON.parse(acc.config);
@@ -88,7 +116,12 @@ router.delete('/:accountId/:tunnelId', authMiddleware, async (req: Request, res:
   const adapter = getAdapter();
   if (!adapter) return res.status(500).json({ code: 500, msg: 'Database error' });
   try {
-    const acc = await getCloudflareAccountByTunnelId(adapter, req.params.accountId);
+    const acc = await getCloudflareAccountByTunnelId(
+      adapter,
+      req.params.accountId,
+      req.user!.userId,
+      normalizeRole(req.user?.role)
+    );
     if (!acc) return res.status(404).json({ code: 404, msg: 'Account not found' });
     
     const cfg = JSON.parse(acc.config);
