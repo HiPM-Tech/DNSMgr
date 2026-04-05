@@ -146,4 +146,5 @@ export const es: LocaleDefinition = {
       valueRequired: 'El valor es obligatorio',
     },
   },
+
 };

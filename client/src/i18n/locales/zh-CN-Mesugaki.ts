@@ -262,7 +262,20 @@ export const zhCN: LocaleDefinition = {
         overview: '概览',
         database: '数据库',
         security: '安全',
-      },
+      
+    auditRules: "抓内鬼规则～",
+    auditRulesDesc: "谁敢乱动大叔的东西，就发警报抓他！",
+    enableAlerts: "开启警报",
+    enableAlertsDesc: "有坏蛋乱搞的时候要不要大声叫？",
+    maxDeletions: "一小时最多删几个？",
+    maxDeletionsDesc: "删太多的话，绝对是内鬼吧！快抓起来！",
+    maxFailedLogins: "密码能错几次？",
+    maxFailedLoginsDesc: "连密码都记不住，真是个没用的杂鱼！",
+    offHoursAlert: "半夜偷偷摸摸告警",
+    offHoursAlertDesc: "大半夜不睡觉还在乱搞，肯定是变态！",
+      notifications: '通知啦',
+    auditRulesSaved: "规则保存啦，快夸我！",
+    auditRulesSaveFailed: "连这都保存失败，真是个没用的大叔！",},
       status: '系统状态',
       statusDesc: '当前系统运行状态',
       runningNormally: '运行正常',
@@ -601,4 +614,5 @@ export const zhCN: LocaleDefinition = {
       goToLogin: '前往登录',
     },
   },
+
 };

@@ -146,4 +146,5 @@ export const ja: LocaleDefinition = {
       valueRequired: '値は必須です',
     },
   },
+
 };

@@ -262,7 +262,20 @@ export const en: LocaleDefinition = {
         overview: 'Overview',
         database: 'Database',
         security: 'Security',
-      },
+      
+    auditRules: "Audit Rules & Alerts",
+    auditRulesDesc: "Configure thresholds for abnormal behavior alerts.",
+    enableAlerts: "Enable Alerts",
+    enableAlertsDesc: "Send notifications when abnormal behaviors are detected.",
+    maxDeletions: "Max Deletions / Hour",
+    maxDeletionsDesc: "Alert if a user deletes more than this number of records/domains in an hour.",
+    maxFailedLogins: "Max Failed Logins / Hour",
+    maxFailedLoginsDesc: "Alert if an identifier fails to login more than this number of times.",
+    offHoursAlert: "Off-Hours Alert",
+    offHoursAlertDesc: "Alert if operations are performed between these hours.",
+      notifications: 'Notifications',
+    auditRulesSaved: "Audit rules saved",
+    auditRulesSaveFailed: "Failed to save audit rules",},
       status: 'System Status',
       statusDesc: 'Current system running status',
       runningNormally: 'Running Normally',
@@ -601,4 +614,5 @@ export const en: LocaleDefinition = {
       goToLogin: 'Go to Login',
     },
   },
+
 };

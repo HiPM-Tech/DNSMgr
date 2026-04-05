@@ -262,7 +262,20 @@ export const zhCN: LocaleDefinition = {
         overview: '概览',
         database: '数据库',
         security: '安全',
-      },
+      
+    auditRules: "审计规则与告警",
+    auditRulesDesc: "配置异常行为的告警阈值。",
+    enableAlerts: "启用告警",
+    enableAlertsDesc: "检测到异常行为时发送通知。",
+    maxDeletions: "最大删除量 / 小时",
+    maxDeletionsDesc: "如果用户在一小时内删除超过此数量的记录/域名，则触发告警。",
+    maxFailedLogins: "最大登录失败次数 / 小时",
+    maxFailedLoginsDesc: "如果同一账号登录失败超过此次数，则触发告警。",
+    offHoursAlert: "非工作时间告警",
+    offHoursAlertDesc: "如果在以下时间段内执行敏感操作，则触发告警。",
+      notifications: '通知设置',
+    auditRulesSaved: "审计规则已保存",
+    auditRulesSaveFailed: "保存审计规则失败",},
       status: '系统状态',
       statusDesc: '当前系统运行状态',
       runningNormally: '运行正常',
@@ -601,4 +614,5 @@ export const zhCN: LocaleDefinition = {
       goToLogin: '前往登录',
     },
   },
+
 };

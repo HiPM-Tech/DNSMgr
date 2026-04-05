@@ -313,9 +313,9 @@ export function System() {
         toast.error(res.data.msg);
         return;
       }
-      toast.success('Audit rules saved');
+      toast.success(t('system.auditRulesSaved'));
     },
-    onError: (error: Error) => toast.error(error.message || 'Failed to save audit rules'),
+    onError: (error: Error) => toast.error(error.message || t('system.auditRulesSaveFailed')),
   });
 
   const updateSecurityMutation = useMutation({
@@ -398,7 +398,7 @@ export function System() {
     { id: 'overview', label: t('system.tabs.overview'), icon: Info },
     { id: 'database', label: t('system.tabs.database'), icon: Database },
     { id: 'security', label: t('system.tabs.security'), icon: Shield },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'notifications', label: t('system.tabs.notifications'), icon: Bell },
   ];
 
   return (
@@ -634,16 +634,16 @@ export function System() {
                   <Shield className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">Audit Rules & Alerts</h3>
-                  <p className="text-sm text-gray-500">Configure thresholds for abnormal behavior alerts.</p>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.auditRules')}</h3>
+                  <p className="text-sm text-gray-500">{t('system.auditRulesDesc')}</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Enable Alerts</p>
-                    <p className="text-xs text-gray-500">Send notifications when abnormal behaviors are detected.</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.enableAlerts')}</p>
+                    <p className="text-xs text-gray-500">{t('system.enableAlertsDesc')}</p>
                   </div>
                   <button
                     onClick={() => {
@@ -665,8 +665,8 @@ export function System() {
 
                 <div className="flex items-center justify-between py-2">
                   <div className="w-2/3">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Max Deletions / Hour</p>
-                    <p className="text-xs text-gray-500">Alert if a user deletes more than this number of records/domains in an hour.</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.maxDeletions')}</p>
+                    <p className="text-xs text-gray-500">{t('system.maxDeletionsDesc')}</p>
                   </div>
                   <input
                     type="number"
@@ -679,8 +679,8 @@ export function System() {
 
                 <div className="flex items-center justify-between py-2">
                   <div className="w-2/3">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Max Failed Logins / Hour</p>
-                    <p className="text-xs text-gray-500">Alert if an identifier fails to login more than this number of times.</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.maxFailedLogins')}</p>
+                    <p className="text-xs text-gray-500">{t('system.maxFailedLoginsDesc')}</p>
                   </div>
                   <input
                     type="number"
@@ -693,8 +693,8 @@ export function System() {
 
                 <div className="flex items-center justify-between py-2">
                   <div className="w-2/3">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Off-Hours Alert</p>
-                    <p className="text-xs text-gray-500">Alert if operations are performed between these hours.</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.offHoursAlert')}</p>
+                    <p className="text-xs text-gray-500">{t('system.offHoursAlertDesc')}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
