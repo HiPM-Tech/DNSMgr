@@ -9,7 +9,6 @@ import { initSchema, initSchemaAsync } from './db/schema';
 import { authMiddleware, adminOnly } from './middleware/auth';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { requestLogger, requestIdMiddleware } from './middleware/requestLogger';
-import { globalLimiter, loginLimiter, registerLimiter, emailLimiter } from './middleware/rateLimit';
 
 import authRouter from './routes/auth';
 import usersRouter from './routes/users';
@@ -50,7 +49,6 @@ app.use(cors());
 app.use(express.json());
 app.use(requestIdMiddleware);
 app.use(requestLogger);
-app.use(globalLimiter);
 
 // Swagger setup
 const swaggerOptions: swaggerJsdoc.Options = {
