@@ -363,7 +363,7 @@ export function System() {
   ];
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full max-w-none">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('system.title')}</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">{t('system.subtitle')}</p>
@@ -512,9 +512,10 @@ export function System() {
 
       {/* Security Tab */}
       {activeTab === 'security' && (
-        <div className="space-y-6">
-          {/* Login Limit Configuration */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="columns-1 xl:columns-3 xl:[column-gap:1.5rem]">
+          <div className="contents">
+            {/* Login Limit Configuration */}
+            <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
                 <Lock className="w-5 h-5 text-orange-600" />
@@ -585,10 +586,10 @@ export function System() {
                 <span className="text-sm text-gray-500">{t('system.minutes')}</span>
               </div>
             </div>
-          </div>
+            </div>
 
-          {/* Login Attempt Statistics */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            {/* Login Attempt Statistics */}
+            <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                 <Users className="w-5 h-5 text-blue-600" />
@@ -632,23 +633,21 @@ export function System() {
                 </button>
               </div>
             </div>
+            </div>
           </div>
 
-          {/* Other Security Settings */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <Shield className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.otherSecurity')}</h3>
-                <p className="text-sm text-gray-500">{t('system.otherSecurityDesc')}</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="py-3 border-b border-gray-100 dark:border-gray-700">
-                <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">{t('system.jwtSecret')}</p>
-                <p className="text-xs text-gray-500 mb-3">{t('system.jwtSecretDesc')}</p>
+          <div className="contents">
+            <div className="contents">
+              <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Lock className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.jwtSecret')}</h3>
+                    <p className="text-sm text-gray-500">{t('system.jwtSecretDesc')}</p>
+                  </div>
+                </div>
                 <div className="flex gap-2 mb-3">
                   <input
                     type="password"
@@ -687,25 +686,33 @@ export function System() {
                     <Copy className="w-4 h-4" />
                   </button>
                 </div>
-              </div>
-              <div className="py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.jwtViewNotify')}</p>
-                  <p className="text-xs text-gray-500">{t('system.jwtViewNotifyDesc')}</p>
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.jwtViewNotify')}</p>
+                    <p className="text-xs text-gray-500">{t('system.jwtViewNotifyDesc')}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const next = !jwtNotifyEnabled;
+                      setJwtNotifyEnabled(next);
+                      updateSecurityMutation.mutate(next);
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${jwtNotifyEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${jwtNotifyEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    const next = !jwtNotifyEnabled;
-                    setJwtNotifyEnabled(next);
-                    updateSecurityMutation.mutate(next);
-                  }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${jwtNotifyEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${jwtNotifyEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
               </div>
-              <div className="py-3 border-b border-gray-100 dark:border-gray-700 space-y-3">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.smtpConfig')}</p>
+              <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                    <Server className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.smtpConfig')}</h3>
+                    <p className="text-sm text-gray-500">{t('system.smtpConfigDesc')}</p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <input value={smtpForm.host} onChange={(e) => setSmtpForm((v) => ({ ...v, host: e.target.value }))} placeholder={t('system.smtpHost')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
                   <input type="number" value={smtpForm.port} onChange={(e) => setSmtpForm((v) => ({ ...v, port: Number(e.target.value) || 0 }))} placeholder={t('system.smtpPort')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
@@ -724,8 +731,16 @@ export function System() {
                   <button onClick={() => testSmtpMutation.mutate()} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg">{t('system.smtpTest')}</button>
                 </div>
               </div>
-              <div className="py-3 border-b border-gray-100 dark:border-gray-700 space-y-3">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.oauthConfig')}</p>
+              <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                    <Shield className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.oauthConfig')}</h3>
+                    <p className="text-sm text-gray-500">{t('system.oauthConfigDesc')}</p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <select value={oauthForm.template} onChange={(e) => setOauthForm((v) => ({ ...v, template: e.target.value as 'generic' | 'logto' }))} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500">
                     <option value="generic">{t('system.oauthTemplateGeneric')}</option>
@@ -756,8 +771,16 @@ export function System() {
                   <button onClick={() => updateOauthMutation.mutate()} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">{t('system.oauthSave')}</button>
                 </div>
               </div>
-              <div className="py-3 border-b border-gray-100 dark:border-gray-700 space-y-3">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.oauthLogtoConfig')}</p>
+              <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
+                    <Settings className="w-5 h-5 text-violet-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.oauthLogtoConfig')}</h3>
+                    <p className="text-sm text-gray-500">{t('system.oauthLogtoConfigDesc')}</p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <input value={logtoForm.providerName} onChange={(e) => setLogtoForm((v) => ({ ...v, providerName: e.target.value }))} placeholder={t('system.oauthProvider')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
                   <input value={logtoForm.logtoDomain} onChange={(e) => setLogtoForm((v) => ({ ...v, logtoDomain: e.target.value }))} placeholder={t('system.oauthLogtoDomain')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
@@ -774,7 +797,17 @@ export function System() {
                   <button onClick={() => updateLogtoOauthMutation.mutate()} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">{t('system.oauthSave')}</button>
                 </div>
               </div>
-              <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                    <XCircle className="w-5 h-5 text-gray-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.comingSoon')}</h3>
+                    <p className="text-sm text-gray-500">{t('system.comingSoonDesc')}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.forceHttps')}</p>
                   <p className="text-xs text-gray-500">{t('system.forceHttpsDesc')}</p>
@@ -784,7 +817,7 @@ export function System() {
                   <span className="text-sm text-gray-500">{t('system.comingSoon')}</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between py-3">
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.twoFactorAuth')}</p>
                   <p className="text-xs text-gray-500">{t('system.twoFactorAuthDesc')}</p>
@@ -793,6 +826,7 @@ export function System() {
                   <XCircle className="w-5 h-5 text-gray-400" />
                   <span className="text-sm text-gray-500">{t('system.comingSoon')}</span>
                 </div>
+              </div>
               </div>
             </div>
           </div>

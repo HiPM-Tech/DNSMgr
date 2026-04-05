@@ -155,199 +155,205 @@ export function Settings() {
   const hasProfileChanges = (nickname !== (user?.nickname ?? '')) || (email !== (user?.email ?? ''));
 
   return (
-    <div className="max-w-lg space-y-6">
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.profile')}</h3>
-        <div className="flex items-center gap-4">
-          <Avatar username={displayName} email={user?.email} size={56} textClassName="text-xl" />
-          <div>
-            <p className="font-semibold text-gray-900 dark:text-white">{displayName}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{user?.email || t('common.noEmailSet')}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t(roleLabelKey(user?.role))}</p>
-          </div>
-        </div>
-        <form onSubmit={handleProfileSubmit} className="mt-5 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.nickname')}</label>
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder={t('settings.nicknamePlaceholder')}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.email')}</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t('settings.emailPlaceholder')}
-              className={inputClass}
-            />
-          </div>
-          {email.trim() !== (user?.email ?? '') && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.emailCode')}</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={emailCode}
-                  onChange={(e) => setEmailCode(e.target.value)}
-                  placeholder={t('settings.emailCodePlaceholder')}
-                  className={inputClass}
-                />
-                <button
-                  type="button"
-                  onClick={handleSendEmailCode}
-                  disabled={sendEmailCodeMutation.isPending}
-                  className="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm whitespace-nowrap"
-                >
-                  {t('settings.sendEmailCode')}
-                </button>
+    <div className="max-w-6xl">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.profile')}</h3>
+            <div className="flex items-center gap-4">
+              <Avatar username={displayName} email={user?.email} size={56} textClassName="text-xl" />
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">{displayName}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{user?.email || t('common.noEmailSet')}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t(roleLabelKey(user?.role))}</p>
               </div>
             </div>
-          )}
-          <div className="pt-1">
-            <button
-              type="submit"
-              disabled={profileMutation.isPending || !hasProfileChanges}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
-            >
-              {profileMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-              {t('settings.updateProfile')}
-            </button>
+            <form onSubmit={handleProfileSubmit} className="mt-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.nickname')}</label>
+                <input
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder={t('settings.nicknamePlaceholder')}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.email')}</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t('settings.emailPlaceholder')}
+                  className={inputClass}
+                />
+              </div>
+              {email.trim() !== (user?.email ?? '') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.emailCode')}</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={emailCode}
+                      onChange={(e) => setEmailCode(e.target.value)}
+                      placeholder={t('settings.emailCodePlaceholder')}
+                      className={inputClass}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendEmailCode}
+                      disabled={sendEmailCodeMutation.isPending}
+                      className="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm whitespace-nowrap"
+                    >
+                      {t('settings.sendEmailCode')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="pt-1">
+                <button
+                  type="submit"
+                  disabled={profileMutation.isPending || !hasProfileChanges}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
+                >
+                  {profileMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {t('settings.updateProfile')}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.language')}</h3>
-        <div className="space-y-2">
-          <select value={locale} onChange={(e) => setLocale(e.target.value)} className={inputClass}>
-            {localeOptions.map((option) => (
-              <option key={option.code} value={option.code}>{option.label}</option>
-            ))}
-          </select>
-          <p className="text-sm text-gray-500">{t('settings.languageHint')}</p>
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <Lock className="w-4 h-4 text-gray-400" />
+              <h3 className="text-base font-semibold text-gray-900">{t('settings.changePassword')}</h3>
+            </div>
+
+            {success && (
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg mb-4">
+                <CheckCircle className="w-4 h-4" />
+                {t('settings.passwordChanged')}
+              </div>
+            )}
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.currentPassword')}</label>
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  required
+                  placeholder={t('settings.currentPasswordPlaceholder')}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.newPassword')}</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  placeholder={t('settings.newPasswordPlaceholder')}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.confirmPassword')}</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder={t('settings.confirmPasswordPlaceholder')}
+                  className={inputClass}
+                />
+              </div>
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={mutation.isPending}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
+                >
+                  {mutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {t('settings.updatePassword')}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.oauthBindingTitle')}</h3>
-        {!oauthEnabled ? (
-          <p className="text-sm text-gray-500">{t('settings.oauthDisabledTip')}</p>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-600">{t('settings.oauthBindingDesc', { provider: oauthProviderName })}</p>
-            {oauthProviders.length > 1 && (
-              <select
-                value={selectedOauthProvider}
-                onChange={(e) => setSelectedOauthProvider(e.target.value as 'custom' | 'logto')}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              >
-                {oauthProviders.map((provider) => (
-                  <option key={provider.key} value={provider.key}>{provider.providerName}</option>
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.language')}</h3>
+            <div className="space-y-2">
+              <select value={locale} onChange={(e) => setLocale(e.target.value)} className={inputClass}>
+                {localeOptions.map((option) => (
+                  <option key={option.code} value={option.code}>{option.label}</option>
                 ))}
               </select>
-            )}
-            <button
-              type="button"
-              onClick={() => bindOauthMutation.mutate()}
-              disabled={bindOauthMutation.isPending}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg disabled:opacity-60"
-            >
-              {t('settings.bindOauth')}
-            </button>
-            <div className="space-y-2">
-              {oauthBindings.length === 0 ? (
-                <p className="text-sm text-gray-500">{t('settings.noOauthBound')}</p>
-              ) : oauthBindings.map((binding) => (
-                <div key={`${binding.provider}:${binding.subject}`} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <div className="text-sm">
-                    <p className="font-medium text-gray-900 dark:text-white">{binding.provider}</p>
-                    <p className="text-gray-500">{binding.email || binding.subject}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => unbindOauthMutation.mutate(binding.provider)}
-                    disabled={unbindOauthMutation.isPending}
-                    className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100 disabled:opacity-60"
-                  >
-                    {t('settings.unbindOauth')}
-                  </button>
-                </div>
-              ))}
+              <p className="text-sm text-gray-500">{t('settings.languageHint')}</p>
             </div>
           </div>
-        )}
-      </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center gap-2 mb-5">
-          <Lock className="w-4 h-4 text-gray-400" />
-          <h3 className="text-base font-semibold text-gray-900">{t('settings.changePassword')}</h3>
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.oauthBindingTitle')}</h3>
+            {!oauthEnabled ? (
+              <p className="text-sm text-gray-500">{t('settings.oauthDisabledTip')}</p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">{t('settings.oauthBindingDesc', { provider: oauthProviderName })}</p>
+                {oauthProviders.length > 1 && (
+                  <select
+                    value={selectedOauthProvider}
+                    onChange={(e) => setSelectedOauthProvider(e.target.value as 'custom' | 'logto')}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    {oauthProviders.map((provider) => (
+                      <option key={provider.key} value={provider.key}>{provider.providerName}</option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  type="button"
+                  onClick={() => bindOauthMutation.mutate()}
+                  disabled={bindOauthMutation.isPending}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg disabled:opacity-60"
+                >
+                  {t('settings.bindOauth')}
+                </button>
+                <div className="space-y-2">
+                  {oauthBindings.length === 0 ? (
+                    <p className="text-sm text-gray-500">{t('settings.noOauthBound')}</p>
+                  ) : oauthBindings.map((binding) => (
+                    <div key={`${binding.provider}:${binding.subject}`} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                      <div className="text-sm">
+                        <p className="font-medium text-gray-900 dark:text-white">{binding.provider}</p>
+                        <p className="text-gray-500">{binding.email || binding.subject}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => unbindOauthMutation.mutate(binding.provider)}
+                        disabled={unbindOauthMutation.isPending}
+                        className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100 disabled:opacity-60"
+                      >
+                        {t('settings.unbindOauth')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-
-        {success && (
-          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg mb-4">
-            <CheckCircle className="w-4 h-4" />
-            {t('settings.passwordChanged')}
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.currentPassword')}</label>
-            <input
-              type="password"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              required
-              placeholder={t('settings.currentPasswordPlaceholder')}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.newPassword')}</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              placeholder={t('settings.newPasswordPlaceholder')}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.confirmPassword')}</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              placeholder={t('settings.confirmPasswordPlaceholder')}
-              className={inputClass}
-            />
-          </div>
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
-            >
-              {mutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-              {t('settings.updatePassword')}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );

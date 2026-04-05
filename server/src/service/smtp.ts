@@ -85,13 +85,43 @@ function escapeSmtpText(text: string): string {
 async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, text: string): Promise<void> {
   if (!config.host || !config.port || !config.fromEmail) throw new Error('SMTP configuration is incomplete');
 
-  const socket = config.secure
+  const timeoutMs = Number(process.env.SMTP_TIMEOUT_MS || 15000);
+  const useImplicitTls = config.secure || config.port === 465;
+  let socket: net.Socket | tls.TLSSocket = useImplicitTls
     ? tls.connect({ host: config.host, port: config.port, servername: config.host })
     : net.connect({ host: config.host, port: config.port });
 
-  const waitForCode = async (expectedPrefix?: string): Promise<string> => {
+  const waitForCode = async (expectedPrefix?: string | string[]): Promise<string> => {
     return await new Promise<string>((resolve, reject) => {
       let buf = '';
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`SMTP timeout waiting for ${Array.isArray(expectedPrefix) ? expectedPrefix.join('/') : (expectedPrefix || 'response')} (${timeoutMs}ms)`));
+      }, timeoutMs);
+
+      const matchesExpected = (line: string): boolean => {
+        if (!expectedPrefix) return true;
+        if (Array.isArray(expectedPrefix)) return expectedPrefix.some((prefix) => line.startsWith(prefix));
+        return line.startsWith(expectedPrefix);
+      };
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        socket.off('data', onData);
+        socket.off('error', onError);
+        socket.off('close', onClose);
+      };
+
+      const onError = (error: Error) => {
+        cleanup();
+        reject(error);
+      };
+
+      const onClose = () => {
+        cleanup();
+        reject(new Error('SMTP connection closed unexpectedly'));
+      };
+
       const onData = (chunk: Buffer) => {
         buf += chunk.toString('utf8');
         const lines = buf.split(/\r?\n/).filter(Boolean);
@@ -100,8 +130,8 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
         const code = last.slice(0, 3);
         const continueFlag = last[3];
         if (!/^\d{3}$/.test(code) || continueFlag === '-') return;
-        socket.off('data', onData);
-        if (expectedPrefix && !last.startsWith(expectedPrefix)) {
+        cleanup();
+        if (!matchesExpected(last)) {
           reject(new Error(`SMTP unexpected response: ${last}`));
           return;
         }
@@ -112,17 +142,28 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
         resolve(last);
       };
       socket.on('data', onData);
-      socket.once('error', reject);
+      socket.on('error', onError);
+      socket.on('close', onClose);
     });
   };
 
-  const sendCmd = async (command: string, expectedPrefix?: string): Promise<string> => {
+  const sendCmd = async (command: string, expectedPrefix?: string | string[]): Promise<string> => {
     socket.write(command + '\r\n');
     return await waitForCode(expectedPrefix);
   };
 
   await waitForCode('220');
-  await sendCmd(`EHLO dnsmgr.local`, '250');
+  let ehloResp = await sendCmd('EHLO dnsmgr.local', '250');
+
+  // If server supports STARTTLS, upgrade plaintext connection before AUTH/MAIL.
+  if (!useImplicitTls && /(^|\r?\n)250[ -].*STARTTLS/i.test(ehloResp)) {
+    await sendCmd('STARTTLS', '220');
+    socket = await new Promise<tls.TLSSocket>((resolve, reject) => {
+      const tlsSocket = tls.connect({ socket, servername: config.host }, () => resolve(tlsSocket));
+      tlsSocket.once('error', reject);
+    });
+    ehloResp = await sendCmd('EHLO dnsmgr.local', '250');
+  }
 
   if (config.username && config.password) {
     await sendCmd('AUTH LOGIN', '334');
@@ -131,7 +172,7 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
   }
 
   await sendCmd(`MAIL FROM:<${config.fromEmail}>`, '250');
-  await sendCmd(`RCPT TO:<${to}>`, '250');
+  await sendCmd(`RCPT TO:<${to}>`, ['250', '251']);
   await sendCmd('DATA', '354');
 
   const fromDisplay = config.fromName ? `"${config.fromName}" <${config.fromEmail}>` : config.fromEmail;
