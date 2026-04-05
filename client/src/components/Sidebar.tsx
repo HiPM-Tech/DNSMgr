@@ -96,7 +96,7 @@ export function Sidebar() {
               }
             >
               <Globe className="w-4 h-4 flex-shrink-0" />
-              Tunnels
+              {t('tunnels.title')}
             </NavLink>
           )}
 

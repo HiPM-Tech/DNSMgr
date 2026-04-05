@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Key, Plus, Trash2, Copy, Check, X, Calendar, Globe, Infinity } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { tokensApi } from '../api';
+import { useI18n } from '../contexts/I18nContext';
 
 interface Token {
   id: number;
@@ -16,6 +17,7 @@ interface Token {
 }
 
 export function Tokens() {
+  const { t } = useI18n();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -56,7 +58,7 @@ export function Tokens() {
       if (res.data.code === 0) {
         setNewToken(res.data.data.token);
         queryClient.invalidateQueries({ queryKey: ['tokens'] });
-        toast.success('令牌创建成功');
+        toast.success(t('tokens.tokenCreated'));
       } else {
         toast.error(res.data.msg);
       }
@@ -69,7 +71,7 @@ export function Tokens() {
     onSuccess: (res) => {
       if (res.data.code === 0) {
         queryClient.invalidateQueries({ queryKey: ['tokens'] });
-        toast.success('令牌已删除');
+        toast.success(t('tokens.tokenDeleted'));
       } else {
         toast.error(res.data.msg);
       }
@@ -83,7 +85,7 @@ export function Tokens() {
     onSuccess: (res) => {
       if (res.data.code === 0) {
         queryClient.invalidateQueries({ queryKey: ['tokens'] });
-        toast.success('状态已更新');
+        toast.success(t('tokens.tokenStatusUpdated'));
       } else {
         toast.error(res.data.msg);
       }
@@ -93,7 +95,7 @@ export function Tokens() {
 
   const handleCreate = () => {
     if (!formData.name) {
-      toast.error('请填写令牌名称');
+      toast.error(t('tokens.tokenNameRequired'));
       return;
     }
     
@@ -114,7 +116,7 @@ export function Tokens() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error('复制失败');
+      toast.error(t('tokens.copyFailed'));
     }
   };
 
@@ -132,8 +134,8 @@ export function Tokens() {
   };
 
   const formatDate = (date: string | null) => {
-    if (!date) return '无限制';
-    return new Date(date).toLocaleString('zh-CN');
+    if (!date) return t('tokens.noExpiry');
+    return new Date(date).toLocaleString();
   };
 
   // Filter domains by search
@@ -159,15 +161,15 @@ export function Tokens() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">API 令牌管理</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">创建和管理用于 API 访问的令牌，令牌权限与您的用户权限相同</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('tokens.title')}</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">{t('tokens.subtitle')}</p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          创建令牌
+          {t('tokens.createToken')}
         </button>
       </div>
 
@@ -176,22 +178,22 @@ export function Tokens() {
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-gray-800">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">名称</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">域名</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">有效期</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">状态</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">最后使用</th>
-              <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">操作</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.tokenName')}</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.domains')}</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.expiresAt')}</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.status')}</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.lastUsedAt')}</th>
+              <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">加载中...</td>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">{t('common.loading')}</td>
               </tr>
             ) : tokens?.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">暂无令牌</td>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">{t('tokens.noTokens')}</td>
               </tr>
             ) : (
               tokens?.map((token) => (
@@ -204,11 +206,11 @@ export function Tokens() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {token.allowed_domains.length === 0 ? '所有域名' : `${token.allowed_domains.length} 个域名`}
+                      {token.allowed_domains.length === 0 ? t('tokens.allDomains') : t('tokens.domainCount', { count: token.allowed_domains.length })}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                    {formatDate(token.start_time)} - {token.end_time ? formatDate(token.end_time) : '长期有效'}
+                    {formatDate(token.start_time)} - {token.end_time ? formatDate(token.end_time) : t('tokens.noExpiry')}
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -223,12 +225,12 @@ export function Tokens() {
                     </button>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                    {token.last_used_at ? new Date(token.last_used_at).toLocaleString('zh-CN') : '从未使用'}
+                    {token.last_used_at ? new Date(token.last_used_at).toLocaleString() : t('tokens.neverUsed')}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => {
-                        if (confirm('确定要删除此令牌吗？')) {
+                        if (confirm(t('tokens.deleteConfirm'))) {
                           deleteMutation.mutate(token.id);
                         }
                       }}
@@ -253,8 +255,8 @@ export function Tokens() {
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Key className="w-8 h-8 text-green-600" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">令牌创建成功</h2>
-                <p className="text-gray-500 mb-4">请立即复制此令牌，它只会显示一次</p>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('tokens.tokenCreated')}</h2>
+                <p className="text-gray-500 mb-4">{t('tokens.copyToken')}</p>
                 <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg flex items-center gap-2 mb-4">
                   <code className="flex-1 text-sm break-all">{newToken}</code>
                   <button
@@ -268,13 +270,13 @@ export function Tokens() {
                   onClick={closeModal}
                   className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg"
                 >
-                  完成
+                  {t('common.confirmAction')}
                 </button>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">创建新令牌</h2>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('tokens.createToken')}</h2>
                   <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
                     <X className="w-5 h-5" />
                   </button>
@@ -284,13 +286,13 @@ export function Tokens() {
                   {/* Name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      令牌名称 <span className="text-red-500">*</span>
+                      {t('tokens.tokenName')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="例如：CI/CD 部署令牌"
+                      placeholder={t('tokens.tokenNamePlaceholder')}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
                     />
                   </div>
@@ -299,13 +301,13 @@ export function Tokens() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       <Globe className="w-4 h-4 inline mr-1" />
-                      允许访问的域名
+                      {t('tokens.allowedDomains')}
                     </label>
                     
                     {/* Domain Search */}
                     <input
                       type="text"
-                      placeholder="搜索域名..."
+                      placeholder={t('tokens.searchDomains')}
                       value={domainSearch}
                       onChange={(e) => setDomainSearch(e.target.value)}
                       className="w-full px-3 py-1.5 mb-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
@@ -317,26 +319,26 @@ export function Tokens() {
                         onClick={selectAllFiltered}
                         className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                       >
-                        全选筛选
+                        {t('tokens.selectAllFiltered')}
                       </button>
                       <button
                         onClick={clearAllSelection}
                         className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
                       >
-                        清空
+                        {t('tokens.clearAll')}
                       </button>
                       <span className="text-xs text-gray-500 ml-auto">
-                        已选 {formData.allowed_domains.length} 个
+                        {t('tokens.selectedCount', { count: formData.allowed_domains.length })}
                       </span>
                     </div>
 
                     <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto">
                       {isLoadingDomains ? (
-                        <p className="text-sm text-gray-500 text-center py-4">加载中...</p>
+                        <p className="text-sm text-gray-500 text-center py-4">{t('common.loading')}</p>
                       ) : !domains || domains.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">暂无可用域名</p>
+                        <p className="text-sm text-gray-500 text-center py-4">{t('tokens.noDomains')}</p>
                       ) : filteredDomains?.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">无匹配域名</p>
+                        <p className="text-sm text-gray-500 text-center py-4">{t('tokens.noMatchingDomains')}</p>
                       ) : (
                         <>
                           <label className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
@@ -350,7 +352,7 @@ export function Tokens() {
                               }}
                               className="rounded"
                             />
-                            <span className="text-sm font-medium">所有域名</span>
+                            <span className="text-sm font-medium">{t('tokens.allDomains')}</span>
                           </label>
                           {filteredDomains?.map((domain) => (
                             <label key={domain.id} className="flex items-center gap-2 mb-1 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
@@ -382,7 +384,7 @@ export function Tokens() {
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      不选择任何域名则表示允许访问所有域名
+                      {t('tokens.allDomainsAllowed')}
                     </p>
                   </div>
 
@@ -391,7 +393,7 @@ export function Tokens() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         <Calendar className="w-4 h-4 inline mr-1" />
-                        生效时间
+                        {t('tokens.startTime')}
                       </label>
                       <input
                         type="datetime-local"
@@ -399,12 +401,12 @@ export function Tokens() {
                         onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
                       />
-                      <p className="text-xs text-gray-500 mt-1">留空表示立即生效</p>
+                      <p className="text-xs text-gray-500 mt-1">{t('tokens.startTimeHint')}</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         <Calendar className="w-4 h-4 inline mr-1" />
-                        过期时间
+                        {t('tokens.endTime')}
                       </label>
                       <input
                         type="datetime-local"
@@ -413,7 +415,7 @@ export function Tokens() {
                         disabled={formData.no_expiry}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 disabled:bg-gray-100"
                       />
-                      <p className="text-xs text-gray-500 mt-1">留空表示长期有效</p>
+                      <p className="text-xs text-gray-500 mt-1">{t('tokens.endTimeHint')}</p>
                     </div>
                     <div className="flex items-end">
                       <label className="flex items-center gap-2 cursor-pointer">
@@ -429,14 +431,14 @@ export function Tokens() {
                         />
                         <span className="text-sm text-gray-700 dark:text-gray-300">
                           <Infinity className="w-4 h-4 inline mr-1" />
-                          长期有效
+                          {t('tokens.noExpiry')}
                         </span>
                       </label>
                     </div>
                   </div>
 
                   <p className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                    <strong>提示：</strong>此令牌的权限与您的用户权限相同，可用于管理域名、添加解析等操作。
+                    <strong>{t('common.remark')}:</strong> {t('tokens.tokenTip')}
                   </p>
                 </div>
 
@@ -445,14 +447,14 @@ export function Tokens() {
                     onClick={closeModal}
                     className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
-                    取消
+                    {t('common.cancel')}
                   </button>
                   <button
                     onClick={handleCreate}
                     disabled={createMutation.isPending || !formData.name}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
                   >
-                    {createMutation.isPending ? '创建中...' : '创建令牌'}
+                    {createMutation.isPending ? t('common.loading') : t('tokens.createToken')}
                   </button>
                 </div>
               </>

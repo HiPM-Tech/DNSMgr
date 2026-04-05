@@ -565,6 +565,7 @@
     "noTokens": "No tokens yet",
     "tokenNameRequired": "Please enter a token name",
     "copyToken": "Copy this token now. It will only be shown once",
+    "copyFailed": "Failed to copy",
     "copySuccess": "Copied",
     "tokenTip": "This token has the same permissions as your user account and can be used to manage domains, add records, and perform other actions.",
     "createdAt": "Created At",
@@ -573,6 +574,9 @@
     "neverUsed": "Never used",
     "active": "Active",
     "inactive": "Inactive",
+    "domains": "Domains",
+    "status": "Status",
+    "actions": "Actions",
     "domainCount": "{count} domains",
     "allDomainsAllowed": "All domains"
   },
