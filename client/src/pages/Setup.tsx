@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Database, User, CheckCircle, AlertCircle, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Zap, Database, User, CheckCircle, AlertCircle, ChevronRight, ChevronLeft, Trash2, DatabaseZap } from 'lucide-react';
 import { initApi } from '../api';
 import { useI18n } from '../contexts/I18nContext';
 
-type Step = 'database' | 'admin' | 'complete';
+type Step = 'database' | 'dataChoice' | 'admin' | 'complete';
 
 interface DbConfig {
   type: 'sqlite' | 'mysql' | 'postgresql';
@@ -20,6 +20,7 @@ export function Setup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dbTested, setDbTested] = useState(false);
+  const [hasExistingData, setHasExistingData] = useState(false);
   
   const [dbConfig, setDbConfig] = useState<DbConfig>({
     type: 'sqlite',
@@ -49,6 +50,7 @@ export function Setup() {
   const testDatabase = async () => {
     setLoading(true);
     setError('');
+    setHasExistingData(false);
     try {
       const config = {
         type: dbConfig.type,
@@ -59,6 +61,7 @@ export function Setup() {
       const res = await initApi.testDb(config);
       if (res.data.code === 0 && res.data.data.success) {
         setDbTested(true);
+        setHasExistingData(res.data.data.hasExistingData || false);
       } else {
         setError(res.data.msg || t('setup.dbTestFailed'));
       }
@@ -69,7 +72,7 @@ export function Setup() {
     }
   };
 
-  const initDatabase = async () => {
+  const initDatabase = async (reset: boolean = false) => {
     setLoading(true);
     setError('');
     try {
@@ -78,10 +81,18 @@ export function Setup() {
         ...(dbConfig.type === 'sqlite' && { sqlite: dbConfig.sqlite }),
         ...(dbConfig.type === 'mysql' && { mysql: dbConfig.mysql }),
         ...(dbConfig.type === 'postgresql' && { postgresql: dbConfig.postgresql }),
+        reset,
       };
       const res = await initApi.initDatabase(config);
       if (res.data.code === 0) {
-        setCurrentStep('admin');
+        if (reset) {
+          // If reset, go to admin step
+          setCurrentStep('admin');
+        } else {
+          // If not reset and has existing users, go to complete
+          // If not reset and no existing users, go to admin
+          setCurrentStep('admin');
+        }
       } else {
         setError(res.data.msg || t('setup.dbInitFailed'));
       }
@@ -335,21 +346,38 @@ export function Setup() {
             disabled={loading}
             className={`flex-1 py-2.5 border rounded-lg text-sm font-semibold transition-colors disabled:opacity-60 ${
               dbTested
-                ? 'border-green-500 text-green-700 bg-green-50'
+                ? hasExistingData
+                  ? 'border-yellow-500 text-yellow-700 bg-yellow-50'
+                  : 'border-green-500 text-green-700 bg-green-50'
                 : 'border-gray-300 text-gray-700 hover:bg-gray-50'
             }`}
           >
             {dbTested ? (
               <span className="flex items-center justify-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                {t('setup.dbTested')}
+                {hasExistingData ? (
+                  <>
+                    <AlertCircle className="w-4 h-4" />
+                    {t('setup.dbTestedWithData')}
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    {t('setup.dbTested')}
+                  </>
+                )}
               </span>
             ) : (
               t('setup.testConnection')
             )}
           </button>
           <button
-            onClick={initDatabase}
+            onClick={() => {
+              if (hasExistingData) {
+                setCurrentStep('dataChoice');
+              } else {
+                initDatabase(false);
+              }
+            }}
             disabled={loading || !dbTested}
             className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
@@ -358,6 +386,80 @@ export function Setup() {
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
+      </div>
+    </div>
+  );
+
+  const renderDataChoiceStep = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-4">
+          <DatabaseZap className="w-8 h-8 text-yellow-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900">{t('setup.dataChoiceTitle')}</h2>
+        <p className="text-gray-500 mt-2">{t('setup.dataChoiceSubtitle')}</p>
+      </div>
+
+      <div className="space-y-4">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-yellow-800">{t('setup.existingDataWarning')}</p>
+              <p className="text-sm text-yellow-700 mt-1">{t('setup.existingDataDescription')}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
+          <button
+            onClick={() => initDatabase(true)}
+            disabled={loading}
+            className="p-4 border-2 border-red-200 rounded-lg hover:border-red-300 hover:bg-red-50 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">{t('setup.resetDatabase')}</p>
+                <p className="text-sm text-gray-500">{t('setup.resetDatabaseDesc')}</p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => initDatabase(false)}
+            disabled={loading}
+            className="p-4 border-2 border-blue-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Database className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">{t('setup.keepData')}</p>
+                <p className="text-sm text-gray-500">{t('setup.keepDataDesc')}</p>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={() => setCurrentStep('database')}
+          disabled={loading}
+          className="w-full py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          {t('setup.prevStep')}
+        </button>
       </div>
     </div>
   );
@@ -488,6 +590,7 @@ export function Setup() {
         </div>
 
         {currentStep === 'database' && renderDatabaseStep()}
+        {currentStep === 'dataChoice' && renderDataChoiceStep()}
         {currentStep === 'admin' && renderAdminStep()}
         {currentStep === 'complete' && renderCompleteStep()}
       </div>

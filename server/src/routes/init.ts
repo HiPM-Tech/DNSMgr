@@ -38,7 +38,7 @@ router.get('/status', async (req: Request, res: Response) => {
   }
 });
 
-// Test database connection
+// Test database connection and check for existing data
 router.post('/test-db', async (req: Request, res: Response) => {
   const { type, sqlite, mysql: mysqlConfig, postgresql: pgConfig } = req.body;
   
@@ -56,9 +56,33 @@ router.post('/test-db', async (req: Request, res: Response) => {
         fs.mkdirSync(dir, { recursive: true });
       }
       const testDb = new Database(sqlitePath);
-      testDb.prepare('SELECT 1').get();
+      
+      // Check if tables exist
+      let hasData = false;
+      try {
+        const tables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
+        if (tables.length > 0) {
+          // Check if there's any data
+          const firstTable = tables[0]?.name;
+          if (firstTable) {
+            const count = testDb.prepare(`SELECT COUNT(*) as cnt FROM "${firstTable}"`).get() as { cnt: number };
+            hasData = count?.cnt > 0;
+          }
+        }
+      } catch {
+        // No tables yet
+      }
+      
       testDb.close();
-      return res.json({ code: 0, data: { success: true, message: 'SQLite connection successful' }, msg: 'success' });
+      return res.json({ 
+        code: 0, 
+        data: { 
+          success: true, 
+          message: 'SQLite connection successful',
+          hasExistingData: hasData
+        }, 
+        msg: 'success' 
+      });
     }
     
     if (type === 'mysql') {
@@ -74,9 +98,33 @@ router.post('/test-db', async (req: Request, res: Response) => {
         ssl: mysqlConfig.ssl ? { rejectUnauthorized: false } : undefined,
         connectionLimit: 1,
       });
-      const [rows] = await pool.execute('SELECT 1');
+      
+      // Check if there's any data
+      let hasData = false;
+      try {
+        const [tables] = await pool.execute<any[]>('SHOW TABLES');
+        if (tables && tables.length > 0) {
+          const firstTable = Object.values(tables[0])[0] as string;
+          if (firstTable) {
+            const [countResult] = await pool.execute<any[]>(`SELECT COUNT(*) as cnt FROM \`${firstTable}\``);
+            const count = countResult[0]?.cnt || 0;
+            hasData = count > 0;
+          }
+        }
+      } catch {
+        // No tables yet
+      }
+      
       await pool.end();
-      return res.json({ code: 0, data: { success: true, message: 'MySQL connection successful' }, msg: 'success' });
+      return res.json({ 
+        code: 0, 
+        data: { 
+          success: true, 
+          message: 'MySQL connection successful',
+          hasExistingData: hasData
+        }, 
+        msg: 'success' 
+      });
     }
     
     if (type === 'postgresql') {
@@ -92,9 +140,37 @@ router.post('/test-db', async (req: Request, res: Response) => {
         ssl: pgConfig.ssl ? { rejectUnauthorized: false } : false,
         max: 1,
       });
-      const result = await pool.query('SELECT 1');
+      
+      // Check if there's any data
+      let hasData = false;
+      try {
+        const tablesResult = await pool.query(`
+          SELECT table_name FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+        `);
+        const tables = tablesResult.rows as { table_name: string }[];
+        if (tables && tables.length > 0) {
+          const firstTable = tables[0]?.table_name;
+          if (firstTable) {
+            const countResult = await pool.query(`SELECT COUNT(*) as cnt FROM "${firstTable}"`);
+            const count = countResult.rows[0]?.cnt || 0;
+            hasData = count > 0;
+          }
+        }
+      } catch {
+        // No tables yet
+      }
+      
       await pool.end();
-      return res.json({ code: 0, data: { success: true, message: 'PostgreSQL connection successful' }, msg: 'success' });
+      return res.json({ 
+        code: 0, 
+        data: { 
+          success: true, 
+          message: 'PostgreSQL connection successful',
+          hasExistingData: hasData
+        }, 
+        msg: 'success' 
+      });
     }
   } catch (error) {
     return res.status(400).json({ 
@@ -107,7 +183,7 @@ router.post('/test-db', async (req: Request, res: Response) => {
 
 // Initialize database
 router.post('/database', async (req: Request, res: Response) => {
-  const { type, sqlite, mysql: mysqlConfig, postgresql: pgConfig } = req.body;
+  const { type, sqlite, mysql: mysqlConfig, postgresql: pgConfig, reset = false } = req.body;
   
   if (!type || !['sqlite', 'mysql', 'postgresql'].includes(type)) {
     return res.status(400).json({ code: 400, msg: 'Invalid database type' });
@@ -143,12 +219,17 @@ router.post('/database', async (req: Request, res: Response) => {
     const conn = await createConnection();
     
     // Initialize schema (use async version for all database types)
-    await initSchemaAsync(conn);
+    // If reset is true, drop existing tables first
+    if (reset) {
+      await initSchemaAsync(conn, true);
+    } else {
+      await initSchemaAsync(conn, false);
+    }
     
     res.json({
       code: 0,
-      data: { success: true },
-      msg: 'Database initialized successfully',
+      data: { success: true, reset },
+      msg: reset ? 'Database reset successfully' : 'Database initialized successfully',
     });
   } catch (error) {
     res.status(500).json({

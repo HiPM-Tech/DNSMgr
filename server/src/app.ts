@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+import path from 'path';
 import { loadEnv } from './config/env';
 import { createConnection, isDbInitialized, hasUsers } from './db/database';
 import { initSchema, initSchemaAsync } from './db/schema';
@@ -15,6 +16,7 @@ import domainsRouter from './routes/domains';
 import recordsRouter from './routes/records';
 import initRouter from './routes/init';
 import systemRouter from './routes/system';
+import settingsRouter from './routes/settings';
 
 // Load environment variables (data/.env has priority over root .env)
 loadEnv();
@@ -76,7 +78,7 @@ function initCheckMiddleware(req: Request, res: Response, next: NextFunction) {
 }
 
 // Apply initialization check middleware to protected paths
-const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs'];
+const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings'];
 protectedPaths.forEach(path => {
   app.use(path, initCheckMiddleware);
 });
@@ -89,6 +91,7 @@ app.use('/api/accounts', accountsRouter);
 app.use('/api/domains', domainsRouter);
 app.use('/api/domains/:domainId/records', recordsRouter);
 app.use('/api/system', systemRouter);
+app.use('/api/settings', settingsRouter);
 
 // Logs route
 /**
@@ -196,6 +199,19 @@ app.get('/api/logs', authMiddleware, adminOnly, async (req: Request, res: Respon
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to fetch logs' });
   }
+});
+
+// Serve static files from client build directory
+const clientBuildPath = path.join(__dirname, '../../client/dist');
+app.use(express.static(clientBuildPath));
+
+// Serve index.html for all non-API routes (SPA support)
+app.get('*', (req: Request, res: Response) => {
+  // Don't interfere with API routes
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ code: 404, msg: 'API endpoint not found' });
+  }
+  res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
 // Initialize database connection and check state

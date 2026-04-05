@@ -286,3 +286,26 @@ export interface SystemInfo {
 export const systemApi = {
   info: () => api.get<ApiResponse<SystemInfo>>('/system/info'),
 };
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+export interface LoginLimitConfig {
+  enabled: boolean;
+  maxAttempts: number;
+  lockoutDuration: number;
+}
+
+export interface LoginAttemptStats {
+  totalLocked: number;
+  recentAttempts: number;
+  topIdentifiers: { identifier: string; attempts: number }[];
+}
+
+export const settingsApi = {
+  getLoginLimit: () => api.get<ApiResponse<LoginLimitConfig>>('/settings/login-limit'),
+  updateLoginLimit: (data: Partial<LoginLimitConfig>) =>
+    api.put<ApiResponse<LoginLimitConfig>>('/settings/login-limit', data),
+  getLoginAttemptStats: () => api.get<ApiResponse<LoginAttemptStats>>('/settings/login-attempts/stats'),
+  unlockAccount: (identifier: string) =>
+    api.post<ApiResponse<null>>('/settings/login-attempts/unlock', { identifier }),
+};

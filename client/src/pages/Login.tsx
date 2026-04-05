@@ -76,12 +76,12 @@ export function Login() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.username')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.usernameOrEmail')}</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder={t('login.usernamePlaceholder')}
+              placeholder={t('login.usernameOrEmailPlaceholder')}
               autoComplete="username"
               className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
             />

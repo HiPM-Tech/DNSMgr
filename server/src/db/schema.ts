@@ -83,6 +83,20 @@ const sqliteSchema = {
       value TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
+    `CREATE TABLE IF NOT EXISTS login_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      identifier TEXT NOT NULL,
+      ip_address TEXT NOT NULL DEFAULT '',
+      attempt_count INTEGER NOT NULL DEFAULT 1,
+      last_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+      locked_until TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
   ],
   indexes: [
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_domains_account_name_unique ON domains(account_id, name)`,
@@ -299,6 +313,23 @@ const postgresqlSchema = {
       value TEXT NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE IF NOT EXISTS login_attempts (
+      id SERIAL PRIMARY KEY,
+      identifier VARCHAR(255) NOT NULL,
+      ip_address VARCHAR(255) NOT NULL DEFAULT '',
+      attempt_count INTEGER NOT NULL DEFAULT 1,
+      last_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      locked_until TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_login_attempts_identifier ON login_attempts(identifier)`,
+    `CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address)`,
+    `CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON login_attempts(locked_until)`,
+    `CREATE TABLE IF NOT EXISTS system_settings (
+      key VARCHAR(255) PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
   ],
 };
 
@@ -314,18 +345,30 @@ export function initSchema(): void {
 }
 
 // Async initSchema for all database types
-export async function initSchemaAsync(conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<void> }): Promise<void> {
+export async function initSchemaAsync(conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<void> }, reset: boolean = false): Promise<void> {
   if (conn.type === 'sqlite') {
     // For SQLite, use sync version
-    initSQLiteSchema(conn as SQLiteConnection);
+    initSQLiteSchema(conn as SQLiteConnection, reset);
   } else if (conn.type === 'mysql') {
-    await initMySQLSchema(conn as { execute: (sql: string, params?: unknown[]) => Promise<void> });
+    await initMySQLSchema(conn as { execute: (sql: string, params?: unknown[]) => Promise<void> }, reset);
   } else if (conn.type === 'postgresql') {
-    await initPostgreSQLSchema(conn as { execute: (sql: string, params?: unknown[]) => Promise<void> });
+    await initPostgreSQLSchema(conn as { execute: (sql: string, params?: unknown[]) => Promise<void> }, reset);
   }
 }
 
-function initSQLiteSchema(conn: SQLiteConnection): void {
+function initSQLiteSchema(conn: SQLiteConnection, reset: boolean = false): void {
+  // If reset, drop all tables first
+  if (reset) {
+    const tables = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
+    for (const table of tables) {
+      try {
+        conn.exec(`DROP TABLE IF EXISTS "${table.name}"`);
+      } catch (e) {
+        console.warn(`[DB] Failed to drop table ${table.name}:`, e);
+      }
+    }
+  }
+
   // Create tables
   for (const sql of sqliteSchema.tables) {
     conn.exec(sql);
@@ -370,14 +413,62 @@ function initSQLiteSchema(conn: SQLiteConnection): void {
   `);
 }
 
-async function initMySQLSchema(conn: { execute: (sql: string, params?: unknown[]) => Promise<void> }): Promise<void> {
+async function initMySQLSchema(conn: { execute: (sql: string, params?: unknown[]) => Promise<void>; query?: (sql: string) => Promise<[any[], any[]]> }, reset: boolean = false): Promise<void> {
+  // If reset, drop all tables first
+  if (reset) {
+    try {
+      // Get all tables
+      const [tables] = await (conn as any).query?.("SHOW TABLES") || [[]];
+      for (const table of tables) {
+        const tableName = Object.values(table)[0] as string;
+        try {
+          await conn.execute(`DROP TABLE IF EXISTS \`${tableName}\``);
+        } catch (e) {
+          console.warn(`[DB] Failed to drop table ${tableName}:`, e);
+        }
+      }
+    } catch (e) {
+      console.warn('[DB] Failed to get tables for reset:', e);
+    }
+  }
+
   // Create tables
   for (const sql of mysqlSchema.tables) {
     await conn.execute(sql);
   }
 }
 
-async function initPostgreSQLSchema(conn: { execute: (sql: string, params?: unknown[]) => Promise<void> }): Promise<void> {
+async function initPostgreSQLSchema(conn: { execute: (sql: string, params?: unknown[]) => Promise<void>; query?: (sql: string) => Promise<{ rows: any[] }> }, reset: boolean = false): Promise<void> {
+  // If reset, drop all tables first
+  if (reset) {
+    try {
+      // Get all tables in public schema
+      const result = await (conn as any).query?.(`
+        SELECT tablename FROM pg_tables 
+        WHERE schemaname = 'public'
+      `);
+      const tables = result?.rows?.map((row: any) => row.tablename) || [];
+      
+      // Drop tables in reverse order to handle foreign key constraints
+      for (const tableName of tables.reverse()) {
+        try {
+          await conn.execute(`DROP TABLE IF EXISTS "${tableName}" CASCADE`);
+        } catch (e) {
+          console.warn(`[DB] Failed to drop table ${tableName}:`, e);
+        }
+      }
+      
+      // Also drop functions and triggers
+      try {
+        await conn.execute(`DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE`);
+      } catch (e) {
+        // Ignore
+      }
+    } catch (e) {
+      console.warn('[DB] Failed to get tables for reset:', e);
+    }
+  }
+
   // Create tables and indexes
   for (const sql of postgresqlSchema.tables) {
     try {

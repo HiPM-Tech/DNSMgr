@@ -15,6 +15,8 @@ export function Header() {
     audit: t('common.audit'),
     teams: t('common.teams'),
     settings: t('common.settings'),
+    about: t('common.about'),
+    system: t('common.system'),
   };
 
   const crumbs = [

@@ -4,6 +4,7 @@ import { getAdapter } from '../db/adapter';
 import { authMiddleware, signToken } from '../middleware/auth';
 import { User } from '../types';
 import { ROLE_SUPER, ROLE_USER } from '../utils/roles';
+import { checkLoginAllowed, recordFailedAttempt, clearLoginAttempts } from '../service/loginLimit';
 
 const router = Router();
 const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -12,7 +13,7 @@ const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
  * @swagger
  * /api/auth/login:
  *   post:
- *     summary: Login with username and password
+ *     summary: Login with username/email and password
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -24,6 +25,7 @@ const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
  *             properties:
  *               username:
  *                 type: string
+ *                 description: Username or email address
  *               password:
  *                 type: string
  *     responses:
@@ -33,7 +35,7 @@ const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 router.post('/login', async (req: Request, res: Response) => {
   const { username, password } = req.body as { username: string; password: string };
   if (!username || !password) {
-    res.json({ code: -1, msg: 'Username and password are required' });
+    res.json({ code: -1, msg: 'Username/email and password are required' });
     return;
   }
 
@@ -44,17 +46,49 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await db.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?', [username]);
+    // Check if input is an email (contains @)
+    const isEmail = username.includes('@');
+    
+    // Get the identifier for login limit check (use username if found, otherwise use the input)
+    let loginIdentifier = username.toLowerCase();
+    
+    // Check login limit
+    const ipAddress = req.ip || req.socket.remoteAddress || '';
+    const limitCheck = await checkLoginAllowed(loginIdentifier, ipAddress);
+    if (!limitCheck.allowed) {
+      res.json({ code: -1, msg: limitCheck.message || 'Account is temporarily locked' });
+      return;
+    }
+    
+    let result;
+    if (isEmail) {
+      // Login with email
+      result = await db.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE email = ?', [username]);
+    } else {
+      // Login with username
+      result = await db.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?', [username]);
+    }
+    
     const user = result as User | undefined;
 
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-      res.json({ code: -1, msg: 'Invalid username or password' });
+      // Record failed attempt
+      const failedResult = await recordFailedAttempt(loginIdentifier, ipAddress);
+      if (failedResult.locked) {
+        res.json({ code: -1, msg: failedResult.message || 'Account is temporarily locked' });
+      } else {
+        res.json({ code: -1, msg: `Invalid username/email or password. ${failedResult.message || ''}`.trim() });
+      }
       return;
     }
     if (user.status === 0) {
       res.json({ code: -1, msg: 'Account is disabled' });
       return;
     }
+    
+    // Clear login attempts on successful login
+    await clearLoginAttempts(loginIdentifier);
+    
     const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
     res.json({
       code: 0,
