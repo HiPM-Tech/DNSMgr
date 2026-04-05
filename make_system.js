@@ -1,4 +1,6 @@
-import { useState } from 'react';
+const fs = require('fs');
+
+const fileContent = `import { useState } from 'react';
 import { Info, Database, Shield, Bell } from 'lucide-react';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -31,11 +33,11 @@ export function System() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            className={\`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors \${
               activeTab === tab.id
                 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
+            }\`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -55,3 +57,6 @@ export function System() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('client/src/pages/System.tsx', fileContent);
