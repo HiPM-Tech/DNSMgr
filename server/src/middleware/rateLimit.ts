@@ -2,22 +2,6 @@ import rateLimit from 'express-rate-limit';
 import { Request, Response } from 'express';
 
 /**
- * 全局速率限制 - 防止 API 滥用
- * 默认：15 分钟内最多 100 个请求
- */
-export const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 分钟
-  max: 100, // 限制请求数
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true, // 返回速率限制信息在 RateLimit-* 头中
-  legacyHeaders: false, // 禁用 X-RateLimit-* 头
-  skip: (req: Request) => {
-    // 跳过 API 文档和健康检查
-    return req.path.startsWith('/api/docs') || req.path === '/health';
-  },
-});
-
-/**
  * 登录速率限制 - 防止暴力破解
  * 默认：15 分钟内最多 5 个失败尝试
  */
@@ -67,7 +51,7 @@ export const emailLimiter = rateLimit({
  */
 export const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 分钟
-  max: 30, // 限制请求数
+  max: 120, // 限制请求数
   message: 'Too many requests to this endpoint, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -75,11 +59,11 @@ export const apiLimiter = rateLimit({
 
 /**
  * 严格的 API 端点速率限制 - 用于敏感操作
- * 默认：1 分钟内最多 10 个请求
+ * 默认：1 分钟内最多 120 个请求
  */
 export const strictApiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 分钟
-  max: 10, // 限制请求数
+  max: 120, // 限制请求数
   message: 'Too many requests to this endpoint, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
