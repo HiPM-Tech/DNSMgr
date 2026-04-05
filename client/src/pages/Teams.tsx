@@ -173,7 +173,7 @@ export function Teams() {
     onError: () => toast.error(t('teams.permissionRemoveFailed')),
   });
 
-  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
 
   const memberUserIds = new Set(members.map((m) => m.user_id));
   const availableUsers = allUsers.filter((u: User) => !memberUserIds.has(u.id) && u.id !== me?.id);
@@ -199,11 +199,11 @@ export function Teams() {
         </button>
       ),
     },
-    { key: 'description', label: t('teams.description'), render: (team: Team) => <span className="text-gray-500">{team.description || '-'}</span> },
+    { key: 'description', label: t('teams.description'), render: (team: Team) => <span className="text-gray-500 dark:text-gray-400">{team.description || '-'}</span> },
     {
       key: 'member_count', label: t('teams.members'),
       render: (team: Team) => (
-        <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+        <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium">
           {team.member_count ?? 0}
         </span>
       ),
@@ -231,8 +231,8 @@ export function Teams() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">{t('teams.title')}</h2>
-          <p className="text-sm text-gray-500">{t('teams.subtitle')}</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('teams.title')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('teams.subtitle')}</p>
         </div>
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
@@ -240,7 +240,7 @@ export function Teams() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
         <Table columns={teamColumns} data={teams} loading={isLoading} rowKey={(team) => team.id} emptyText={t('teams.noTeams')} />
       </div>
 
@@ -252,11 +252,11 @@ export function Teams() {
             createMutation.mutate({ name: fd.get('name') as string, description: fd.get('description') as string });
           }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('teams.teamName')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('teams.teamName')}</label>
               <input name="name" required className={inputClass} placeholder={t('teams.teamNamePlaceholder')} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('teams.description')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('teams.description')}</label>
               <input name="description" className={inputClass} placeholder={t('teams.descriptionPlaceholder')} />
             </div>
             <div className="flex justify-end pt-2">
@@ -278,11 +278,11 @@ export function Teams() {
             updateMutation.mutate({ id: editTeam.id, data: { name: fd.get('name') as string, description: fd.get('description') as string } });
           }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('teams.teamName')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('teams.teamName')}</label>
               <input name="name" required defaultValue={editTeam.name} className={inputClass} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('teams.description')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('teams.description')}</label>
               <input name="description" defaultValue={editTeam.description} className={inputClass} />
             </div>
             <div className="flex justify-end pt-2">
@@ -312,11 +312,11 @@ export function Teams() {
             ) : (
               <div className="space-y-2">
                 {members.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                     <div className="flex items-center gap-2.5">
                       <Avatar username={getDisplayName(member)} email={member.email} size={32} textClassName="text-xs" />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{getDisplayName(member)}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{getDisplayName(member)}</p>
                         <p className="text-xs text-gray-400">{member.username}</p>
                         <p className="text-xs text-gray-500">{member.email || t('teams.noEmail')}</p>
                       </div>
@@ -338,9 +338,9 @@ export function Teams() {
                 ))}
               </div>
             )}
-            <div className="border-t pt-4 space-y-3">
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-900">{t('teams.domainPermissions')}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('teams.domainPermissions')}</p>
               </div>
               {canManageTeam && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
@@ -391,9 +391,9 @@ export function Teams() {
               ) : (
                 <div className="space-y-2">
                   {teamDomainPermissions.map((perm: DomainPermission) => (
-                    <div key={perm.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div key={perm.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{perm.domain_name ?? `#${perm.domain_id}`}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{perm.domain_name ?? `#${perm.domain_id}`}</p>
                         <p className="text-xs text-gray-500">
                           {perm.sub ? `${t('teams.subdomain')}: ${perm.sub}` : t('teams.allSubdomains')}
                         </p>
@@ -438,7 +438,7 @@ export function Teams() {
                   className="w-full flex items-center gap-2.5 p-2.5 hover:bg-blue-50 rounded-lg transition-colors text-left">
                   <Avatar username={getDisplayName(user)} email={user.email} size={28} className="bg-gray-200 text-gray-600" textClassName="text-xs" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{getDisplayName(user)}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{getDisplayName(user)}</p>
                     <p className="text-xs text-gray-400">{user.username}</p>
                     <p className="text-xs text-gray-500">{user.email || t('teams.noEmail')}</p>
                   </div>
@@ -505,9 +505,9 @@ export function Teams() {
             ) : (
               <div className="space-y-2">
                 {memberDomainPermissions.map((perm: DomainPermission) => (
-                  <div key={perm.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={perm.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{perm.domain_name ?? `#${perm.domain_id}`}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{perm.domain_name ?? `#${perm.domain_id}`}</p>
                       <p className="text-xs text-gray-500">
                         {perm.sub ? `${t('teams.subdomain')}: ${perm.sub}` : t('teams.allSubdomains')}
                       </p>

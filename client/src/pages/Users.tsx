@@ -62,7 +62,7 @@ export function Users() {
     onError: () => toast.error(t('users.deleteFailed')),
   });
 
-  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
   const roleOptions = (me?.role ?? ROLE_USER) >= ROLE_SUPER ? [ROLE_USER, ROLE_ADMIN] : [ROLE_USER];
   const canEditTarget = (target: User) => {
     if ((me?.role ?? ROLE_USER) >= ROLE_SUPER) return target.role !== ROLE_SUPER;
@@ -76,15 +76,15 @@ export function Users() {
         <div className="flex items-center gap-2">
           <Avatar username={user.nickname || user.username} email={user.email} size={28} textClassName="text-xs" />
           <div className="min-w-0">
-            <span className="font-medium text-gray-900">{user.nickname || user.username}</span>
-            <p className="text-xs text-gray-500 truncate">{user.username}</p>
+            <span className="font-medium text-gray-900 dark:text-white">{user.nickname || user.username}</span>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.username}</p>
           </div>
           {user.id === me?.id && <Badge variant="blue">{t('users.you')}</Badge>}
         </div>
       ),
     },
-    { key: 'username', label: t('users.username'), render: (user: User) => <span className="text-gray-600">{user.username}</span> },
-    { key: 'email', label: t('users.email'), render: (user: User) => <span className="text-gray-600">{user.email || '-'}</span> },
+    { key: 'username', label: t('users.username'), render: (user: User) => <span className="text-gray-600 dark:text-gray-400">{user.username}</span> },
+    { key: 'email', label: t('users.email'), render: (user: User) => <span className="text-gray-600 dark:text-gray-400">{user.email || '-'}</span> },
     {
       key: 'role', label: t('users.role'),
       render: (user: User) => (
@@ -120,8 +120,8 @@ export function Users() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">{t('users.title')}</h2>
-          <p className="text-sm text-gray-500">{t('users.subtitle')}</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('users.title')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('users.subtitle')}</p>
         </div>
         <button onClick={() => setShowAdd(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
@@ -129,7 +129,7 @@ export function Users() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
         <Table columns={columns} data={users} loading={isLoading} rowKey={(user) => user.id} emptyText={t('users.noUsers')} />
       </div>
 
@@ -152,11 +152,11 @@ export function Users() {
             });
           }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.nicknameRequired')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.nicknameRequired')}</label>
               <input name="nickname" required className={inputClass} placeholder={t('users.nicknamePlaceholder')} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.usernameRequired')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.usernameRequired')}</label>
               <input
                 name="username"
                 required
@@ -170,15 +170,15 @@ export function Users() {
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.email')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.email')}</label>
               <input name="email" type="email" className={inputClass} placeholder={t('users.emailPlaceholder')} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.password')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.password')}</label>
               <input name="password" type="password" required className={inputClass} placeholder={t('users.passwordPlaceholder')} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.role')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.role')}</label>
               <select name="role" className={inputClass}>
                 {roleOptions.map((role) => (
                   <option key={role} value={role}>{t(roleLabelKey(role))}</option>
@@ -214,23 +214,23 @@ export function Users() {
             updateMutation.mutate({ id: editing.id, data });
           }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.nickname')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.nickname')}</label>
               <input name="nickname" required defaultValue={editing.nickname || editing.username} className={inputClass} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.username')}</label>
-              <p className="text-sm font-semibold text-gray-900">{editing.username}</p>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.username')}</label>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{editing.username}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.email')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.email')}</label>
               <input name="email" type="email" defaultValue={editing.email} className={inputClass} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.newPassword')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.newPassword')}</label>
               <input name="password" type="password" className={inputClass} placeholder={t('users.newPasswordPlaceholder')} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.role')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.role')}</label>
               <select name="role" defaultValue={editing.role} className={inputClass}>
                 {roleOptions.map((role) => (
                   <option key={role} value={role}>{t(roleLabelKey(role))}</option>
@@ -238,7 +238,7 @@ export function Users() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('users.status')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.status')}</label>
               <select name="status" defaultValue={editing.status} className={inputClass}>
                 <option value={1}>{t('users.active')}</option>
                 <option value={0}>{t('users.disabled')}</option>

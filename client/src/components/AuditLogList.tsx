@@ -17,7 +17,7 @@ export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
   const { t } = useI18n();
 
   return (
-    <div className="divide-y divide-gray-100">
+    <div className="divide-y divide-gray-100 dark:divide-gray-700">
       {logs.map((log) => {
         const displayName = log.nickname || log.username;
         const fields = getAuditFields(log, t);
@@ -28,8 +28,8 @@ export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0 flex flex-wrap items-center gap-2">
                   <Badge variant={getAuditActionVariant(log)}>{getAuditActionLabel(log, t)}</Badge>
-                  {displayName && <span className="text-sm text-gray-700">{displayName}</span>}
-                  {log.domain && <span className="truncate text-sm text-gray-500">{log.domain}</span>}
+                  {displayName && <span className="text-sm text-gray-700 dark:text-gray-300">{displayName}</span>}
+                  {log.domain && <span className="truncate text-sm text-gray-500 dark:text-gray-400">{log.domain}</span>}
                 </div>
                 <span className="flex-shrink-0 text-xs text-gray-400">{new Date(log.created_at).toLocaleString()}</span>
               </div>
@@ -48,16 +48,16 @@ export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
                 </div>
 
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{getAuditSummary(log, t)}</p>
-                  <p className="mt-1 text-xs text-gray-500">{new Date(log.created_at).toLocaleString()}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{getAuditSummary(log, t)}</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{new Date(log.created_at).toLocaleString()}</p>
                 </div>
 
                 {fields.length > 0 && (
                   <div className="grid grid-cols-1 gap-2 text-xs text-gray-600 sm:grid-cols-2 xl:grid-cols-3">
                     {fields.map((field) => (
-                      <div key={`${log.id}-${field.label}`} className="rounded-lg bg-gray-50 px-3 py-2">
+                      <div key={`${log.id}-${field.label}`} className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2">
                         <span className="text-gray-400">{field.label}</span>
-                        <p className="mt-1 break-all text-gray-700">{field.value}</p>
+                        <p className="mt-1 break-all text-gray-700 dark:text-gray-300">{field.value}</p>
                       </div>
                     ))}
                   </div>

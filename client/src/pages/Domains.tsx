@@ -76,25 +76,25 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
       .map((d) => d.third_id));
   };
 
-  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.dnsAccount')}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('domains.dnsAccount')}</label>
         <select value={accountId} onChange={(e) => { setAccountId(Number(e.target.value)); setSelectedProviders([]); }} className={inputClass}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.addMethod')}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('domains.addMethod')}</label>
         <div className="flex rounded-lg border border-gray-300 overflow-hidden">
           <button type="button" onClick={() => setMode('manual')}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
             {t('domains.manual')}
           </button>
           <button type="button" onClick={() => setMode('sync')}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'sync' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'sync' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
             {t('domains.syncFromProvider')}
           </button>
         </div>
@@ -114,7 +114,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
       ) : (
         <div>
           <div className="flex items-center justify-between gap-3 mb-1.5">
-            <label className="block text-sm font-medium text-gray-700">{t('domains.selectDomains')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('domains.selectDomains')}</label>
             {providerDomains.length > 0 && (
               <div className="flex items-center gap-2">
                 <button type="button" onClick={handleSelectAll}
@@ -133,9 +133,9 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
           ) : providerDomains.length === 0 ? (
             <p className="text-sm text-gray-400 py-2">{t('domains.noProviderDomains')}</p>
           ) : (
-            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+            <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-700">
               {providerDomains.map((d) => (
-                <label key={d.third_id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
+                <label key={d.third_id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
                   <input type="checkbox" checked={selectedProviders.includes(d.third_id)}
                     onChange={() => toggleProvider(d.third_id)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                   <span className="text-sm">{d.name}</span>
@@ -256,8 +256,8 @@ export function Domains() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">{t('domains.title')}</h2>
-          <p className="text-sm text-gray-500">{t('domains.subtitle')}</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('domains.title')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('domains.subtitle')}</p>
         </div>
         <button onClick={() => setShowAdd(true)} disabled={!canManage}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
@@ -269,16 +269,16 @@ export function Domains() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)}
-            placeholder={t('domains.searchPlaceholder')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56" />
+            placeholder={t('domains.searchPlaceholder')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
         </div>
         <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
           <option value="">{t('domains.allAccounts')}</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
         <Table columns={columns} data={domains} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.noDomainsFound')} />
       </div>
 
@@ -298,7 +298,7 @@ export function Domains() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.remark')}</label>
               <input name="remark" defaultValue={editing.remark}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button type="submit" disabled={updateMutation.isPending}

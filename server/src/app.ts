@@ -7,6 +7,9 @@ import { loadEnv } from './config/env';
 import { createConnection, isDbInitialized, hasUsers } from './db/database';
 import { initSchema, initSchemaAsync } from './db/schema';
 import { authMiddleware, adminOnly } from './middleware/auth';
+import { errorHandler, asyncHandler } from './middleware/errorHandler';
+import { requestLogger, requestIdMiddleware } from './middleware/requestLogger';
+import { globalLimiter, loginLimiter, registerLimiter, emailLimiter } from './middleware/rateLimit';
 
 import authRouter from './routes/auth';
 import usersRouter from './routes/users';
@@ -17,6 +20,9 @@ import recordsRouter from './routes/records';
 import initRouter from './routes/init';
 import systemRouter from './routes/system';
 import settingsRouter from './routes/settings';
+import securityRouter from './routes/security';
+import auditRouter from './routes/audit';
+import emailTemplatesRouter from './routes/emailTemplates';
 
 // Load environment variables (data/.env has priority over root .env)
 loadEnv();
@@ -40,6 +46,9 @@ async function checkInitialization(): Promise<boolean> {
 // Middlewares
 app.use(cors());
 app.use(express.json());
+app.use(requestIdMiddleware);
+app.use(requestLogger);
+app.use(globalLimiter);
 
 // Swagger setup
 const swaggerOptions: swaggerJsdoc.Options = {
@@ -98,6 +107,9 @@ app.use('/api/domains', domainsRouter);
 app.use('/api/domains/:domainId/records', recordsRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/security', securityRouter);
+app.use('/api/audit', auditRouter);
+app.use('/api/email-templates', emailTemplatesRouter);
 
 // Logs route
 /**
@@ -224,6 +236,9 @@ app.get('*', (req: Request, res: Response) => {
   }
   res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
+
+// Global error handler (must be last)
+app.use(errorHandler);
 
 // Initialize database connection and check state
 async function initializeApp() {

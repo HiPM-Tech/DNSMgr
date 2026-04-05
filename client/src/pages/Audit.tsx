@@ -36,15 +36,15 @@ export function Audit() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-6 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">{t('audit.title')}</h2>
-          <p className="mt-1 text-sm text-gray-500">{t('audit.subtitle')}</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('audit.title')}</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('audit.subtitle')}</p>
         </div>
 
         <div className="grid w-full gap-4 lg:grid-cols-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{t('audit.filterDomain')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('audit.filterDomain')}</label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -54,20 +54,20 @@ export function Audit() {
                   setPage(1);
                 }}
                 placeholder={t('audit.domainPlaceholder')}
-                className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-blue-500"
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 py-2 pl-9 pr-3 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 outline-none transition-colors focus:border-blue-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{t('audit.actionType')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('audit.actionType')}</label>
             <select
               value={action}
               onChange={(e) => {
                 setAction(e.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none transition-colors focus:border-blue-500"
             >
               <option value="">{t('audit.allActions')}</option>
               {actionOptions.map((item) => (
@@ -79,7 +79,7 @@ export function Audit() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{t('audit.dateRange')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('audit.dateRange')}</label>
             <div className="flex items-center gap-2">
               <input
                 type="date"
@@ -88,7 +88,7 @@ export function Audit() {
                   setStartDate(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none transition-colors focus:border-blue-500"
               />
               <span className="text-sm text-gray-400">{t('audit.to')}</span>
               <input
@@ -98,7 +98,7 @@ export function Audit() {
                   setEndDate(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500"
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none transition-colors focus:border-blue-500"
               />
             </div>
             <button
@@ -110,7 +110,7 @@ export function Audit() {
                 setEndDate('');
                 setPage(1);
               }}
-              className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+              className="mt-3 w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               {t('audit.clearFilters')}
             </button>
@@ -118,13 +118,13 @@ export function Audit() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-gray-400" />
-            <h3 className="font-semibold text-gray-900">{t('audit.detailTitle')}</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white">{t('audit.detailTitle')}</h3>
           </div>
-          <span className="text-sm text-gray-500">{t('audit.totalCount', { total })}</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">{t('audit.totalCount', { total })}</span>
         </div>
 
         {isLoading ? (
@@ -136,22 +136,22 @@ export function Audit() {
         ) : (
           <>
             <AuditLogList logs={logs} />
-            <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
-              <span className="text-sm text-gray-500">
+            <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-700 px-6 py-4">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
                 {t('audit.pageInfo', { page, totalPages })}
               </span>
               <div className="flex gap-2">
                 <button
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={page <= 1}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {t('audit.prevPage')}
                 </button>
                 <button
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                   disabled={page >= totalPages}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {t('audit.nextPage')}
                 </button>

@@ -9,6 +9,7 @@ import { checkLoginAllowed, recordFailedAttempt, clearLoginAttempts } from '../s
 import { sendEmailVerificationCode, verifyEmailVerificationCode } from '../service/emailVerification';
 import { logAuditOperation } from '../service/audit';
 import { getSmtpConfig, sendSmtpEmail } from '../service/smtp';
+import { loginLimiter, registerLimiter, emailLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -249,7 +250,7 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
  *       200:
  *         description: JWT token returned
  */
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   const { username, password } = req.body as { username: string; password: string };
   if (!username || !password) {
     res.json({ code: -1, msg: 'Username/email and password are required' });
@@ -512,7 +513,7 @@ router.delete('/oauth/bindings/:provider', authMiddleware, async (req: Request, 
  *       200:
  *         description: User created
  */
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', registerLimiter, async (req: Request, res: Response) => {
   const { username, nickname, email = '', password } = req.body as { username: string; nickname?: string; email?: string; password: string };
   const normalizedUsername = (username ?? '').trim();
   if (!normalizedUsername || !password) {
@@ -715,7 +716,7 @@ router.put('/profile', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-router.post('/profile/email-code', authMiddleware, async (req: Request, res: Response) => {
+router.post('/profile/email-code', authMiddleware, emailLimiter, async (req: Request, res: Response) => {
   const { email } = req.body as { email?: string };
   const normalized = (email || '').trim().toLowerCase();
   if (!normalized) {

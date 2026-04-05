@@ -5,7 +5,7 @@ import { ToastContainer } from './ToastContainer';
 
 export function Layout() {
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
       <Sidebar />
       <div className="flex-1 ml-[220px] flex flex-col min-h-0">
         <Header />

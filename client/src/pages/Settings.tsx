@@ -151,24 +151,24 @@ export function Settings() {
     sendEmailCodeMutation.mutate();
   };
 
-  const inputClass = 'w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const inputClass = 'w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
   const hasProfileChanges = (nickname !== (user?.nickname ?? '')) || (email !== (user?.email ?? ''));
 
   return (
     <div className="max-w-lg space-y-6">
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="text-base font-semibold text-gray-900 mb-4">{t('settings.profile')}</h3>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.profile')}</h3>
         <div className="flex items-center gap-4">
           <Avatar username={displayName} email={user?.email} size={56} textClassName="text-xl" />
           <div>
-            <p className="font-semibold text-gray-900">{displayName}</p>
-            <p className="text-sm text-gray-500">{user?.email || t('common.noEmailSet')}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{t(roleLabelKey(user?.role))}</p>
+            <p className="font-semibold text-gray-900 dark:text-white">{displayName}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{user?.email || t('common.noEmailSet')}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t(roleLabelKey(user?.role))}</p>
           </div>
         </div>
         <form onSubmit={handleProfileSubmit} className="mt-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.nickname')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.nickname')}</label>
             <input
               type="text"
               value={nickname}
@@ -178,7 +178,7 @@ export function Settings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.email')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.email')}</label>
             <input
               type="email"
               value={email}
@@ -189,7 +189,7 @@ export function Settings() {
           </div>
           {email.trim() !== (user?.email ?? '') && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.emailCode')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.emailCode')}</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -222,8 +222,8 @@ export function Settings() {
         </form>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="text-base font-semibold text-gray-900 mb-4">{t('settings.language')}</h3>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.language')}</h3>
         <div className="space-y-2">
           <select value={locale} onChange={(e) => setLocale(e.target.value)} className={inputClass}>
             {localeOptions.map((option) => (
@@ -234,8 +234,8 @@ export function Settings() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="text-base font-semibold text-gray-900 mb-4">{t('settings.oauthBindingTitle')}</h3>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.oauthBindingTitle')}</h3>
         {!oauthEnabled ? (
           <p className="text-sm text-gray-500">{t('settings.oauthDisabledTip')}</p>
         ) : (
@@ -266,7 +266,7 @@ export function Settings() {
               ) : oauthBindings.map((binding) => (
                 <div key={`${binding.provider}:${binding.subject}`} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
                   <div className="text-sm">
-                    <p className="font-medium text-gray-900">{binding.provider}</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{binding.provider}</p>
                     <p className="text-gray-500">{binding.email || binding.subject}</p>
                   </div>
                   <button
@@ -284,7 +284,7 @@ export function Settings() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center gap-2 mb-5">
           <Lock className="w-4 h-4 text-gray-400" />
           <h3 className="text-base font-semibold text-gray-900">{t('settings.changePassword')}</h3>
@@ -305,7 +305,7 @@ export function Settings() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.currentPassword')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.currentPassword')}</label>
             <input
               type="password"
               value={oldPassword}
@@ -316,7 +316,7 @@ export function Settings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.newPassword')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.newPassword')}</label>
             <input
               type="password"
               value={newPassword}
@@ -327,7 +327,7 @@ export function Settings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.confirmPassword')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.confirmPassword')}</label>
             <input
               type="password"
               value={confirmPassword}

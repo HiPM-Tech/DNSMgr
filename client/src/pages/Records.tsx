@@ -189,14 +189,14 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
     onSubmit(payload);
   };
 
-  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
   const errorClass = 'border-red-300 focus:ring-red-500';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.hostName')}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.hostName')}</label>
           <input
             required
             value={form.name ?? ''}
@@ -207,7 +207,7 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
           {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('common.type')} *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.type')} *</label>
           <select
             value={form.type ?? 'A'}
             onChange={(e) => {
@@ -223,14 +223,14 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
       </div>
 
       {isSrv ? (
-        <div className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+        <div className="space-y-4 rounded-xl border border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-900/20 p-4">
           <div className="flex items-start gap-2 text-xs text-blue-700">
             <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <p>{t('records.srvHelp')}</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.priority')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.priority')}</label>
               <input
                 type="number"
                 min={0}
@@ -241,7 +241,7 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
               {errors.mx && <p className="mt-1 text-xs text-red-600">{errors.mx}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.weight')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.weight')}</label>
               <input
                 type="number"
                 min={0}
@@ -254,7 +254,7 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.port')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.port')}</label>
               <input
                 type="number"
                 min={1}
@@ -270,7 +270,7 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
               {errors.srvPort && <p className="mt-1 text-xs text-red-600">{errors.srvPort}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.target')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.target')}</label>
               <input
                 value={srv.target}
                 onChange={(e) => {
@@ -284,8 +284,8 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.preview')}</label>
-            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-xs text-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.preview')}</label>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">
               {normalizedSrvValue || 'port target'}
             </div>
             {errors.value && <p className="mt-1 text-xs text-red-600">{errors.value}</p>}
@@ -293,7 +293,7 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
         </div>
       ) : (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.valueLabel')}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.valueLabel')}</label>
           <input
             required
             value={form.value ?? ''}
@@ -307,7 +307,7 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
 
       <div className={`grid gap-4 ${currentType === 'MX' || currentType === 'SRV' || canSelectProxy ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">TTL</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">TTL</label>
           <input
             type="number"
             min={1}
@@ -319,7 +319,7 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
         </div>
         {currentType === 'MX' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.mxPriority')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.mxPriority')}</label>
             <input
               type="number"
               min={0}
@@ -332,7 +332,7 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
         )}
         {canSelectProxy && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('records.lineLabel')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.lineLabel')}</label>
             <select value={form.line ?? ''} onChange={(e) => set('line', e.target.value)} className={inputClass}>
               {lines.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
@@ -341,11 +341,11 @@ function RecordForm({ lines, recordTypes, initial, onSubmit, isLoading }: Record
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('common.remark')}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.remark')}</label>
         <input value={form.remark ?? ''} onChange={(e) => set('remark', e.target.value)} placeholder={t('common.optionalRemark')} className={inputClass} />
       </div>
 
-      <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+      <div className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
         {currentType === 'A' && t('records.aHelp')}
         {currentType === 'AAAA' && t('records.aaaaHelp')}
         {DOMAIN_VALUE_TYPES.has(currentType) && t('records.hostnameHelp', { type: currentType })}
@@ -467,7 +467,7 @@ export function Records() {
   const lineMap = Object.fromEntries(lines.map((l) => [l.id, l.name]));
 
   const columns = [
-    { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="font-mono text-sm font-medium text-gray-900">{r.name}</span> },
+    { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">{r.name}</span> },
     {
       key: 'type', label: t('common.type'),
       render: (r: DnsRecord) => (
@@ -519,18 +519,18 @@ export function Records() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/domains')} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={() => navigate('/domains')} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{domain?.name ?? t('records.title')}</h2>
-            <p className="text-sm text-gray-500">{t('records.subtitle')}</p>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{domain?.name ?? t('records.title')}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('records.subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => qc.invalidateQueries({ queryKey: ['records', domainId] })}
-            className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors"
           >
             <RefreshCw className="w-4 h-4" /> {t('records.refresh')}
           </button>
@@ -545,16 +545,16 @@ export function Records() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)}
-            placeholder={t('common.searchRecords')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56" />
+            placeholder={t('common.searchRecords')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
         </div>
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
           <option value="">{t('common.allTypes')}</option>
           {providerRecordTypes.map((t) => <option key={t}>{t}</option>)}
         </select>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
         <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} />
       </div>
 

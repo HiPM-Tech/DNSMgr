@@ -16,6 +16,7 @@ import { Settings } from './pages/Settings';
 import { About } from './pages/About';
 import { System } from './pages/System';
 import { I18nProvider } from './contexts/I18nContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -24,8 +25,9 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <I18nProvider>
-        <AuthProvider>
+      <ThemeProvider>
+        <I18nProvider>
+          <AuthProvider>
           <BrowserRouter>
             <Routes>
               <Route path="/setup" element={<Setup />} />
@@ -51,6 +53,7 @@ function App() {
           </BrowserRouter>
         </AuthProvider>
       </I18nProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

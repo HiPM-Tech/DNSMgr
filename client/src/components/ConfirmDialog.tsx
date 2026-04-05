@@ -15,17 +15,17 @@ export function ConfirmDialog({ message, onConfirm, onCancel, isLoading, confirm
   const resolvedConfirmLabel = confirmLabel ?? t('common.delete');
   const dialog = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-sm p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-red-100 rounded-lg">
+          <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
             <AlertTriangle className="w-5 h-5 text-red-600" />
           </div>
-          <h3 className="font-semibold text-gray-900">{t('common.confirmAction')}</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white">{t('common.confirmAction')}</h3>
         </div>
-        <p className="text-gray-600 text-sm mb-6">{message}</p>
+        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">{message}</p>
         <div className="flex gap-3 justify-end">
           <button onClick={onCancel} disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50">
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50">
             {t('common.cancel')}
           </button>
           <button onClick={onConfirm} disabled={isLoading}

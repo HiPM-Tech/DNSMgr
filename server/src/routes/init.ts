@@ -99,7 +99,11 @@ router.post('/test-db', async (req: Request, res: Response) => {
         ssl: mysqlConfig.ssl ? { rejectUnauthorized: false } : undefined,
         connectionLimit: 1,
       });
-      
+
+      // Verify the connection is actually reachable before proceeding
+      const conn = await pool.getConnection();
+      conn.release();
+
       // Check if there's any data
       let hasData = false;
       try {
@@ -141,7 +145,11 @@ router.post('/test-db', async (req: Request, res: Response) => {
         ssl: pgConfig.ssl ? { rejectUnauthorized: false } : false,
         max: 1,
       });
-      
+
+      // Verify the connection is actually reachable before proceeding
+      const client = await pool.connect();
+      client.release();
+
       // Check if there's any data
       let hasData = false;
       try {

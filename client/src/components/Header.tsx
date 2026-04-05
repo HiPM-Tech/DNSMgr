@@ -30,18 +30,18 @@ export function Header() {
   const pageTitle = crumbs[crumbs.length - 1]?.label ?? t('common.dashboard');
 
   return (
-    <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 gap-4">
+    <header className="h-14 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center px-6 gap-4">
       <div className="flex-1">
-        <h1 className="text-base font-semibold text-gray-900">{pageTitle}</h1>
+        <h1 className="text-base font-semibold text-gray-900 dark:text-white">{pageTitle}</h1>
         {crumbs.length > 1 && (
-          <nav className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+          <nav className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {crumbs.map((c, i) => (
               <span key={c.to} className="flex items-center gap-1">
                 {i > 0 && <ChevronRight className="w-3 h-3" />}
                 {i < crumbs.length - 1 ? (
-                  <Link to={c.to} className="hover:text-blue-600 transition-colors">{c.label}</Link>
+                  <Link to={c.to} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{c.label}</Link>
                 ) : (
-                  <span className="text-gray-700 font-medium">{c.label}</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{c.label}</span>
                 )}
               </span>
             ))}

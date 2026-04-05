@@ -1,6 +1,7 @@
 # Editor
 .idea
 .vscode
+.kiro
 
 # Dependencies
 node_modules/

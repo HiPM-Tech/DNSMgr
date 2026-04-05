@@ -7,13 +7,13 @@ import { AuditLogList } from '../components/AuditLogList';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: number | string; color: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5 flex items-center gap-4">
       <div className={`p-3 rounded-xl ${color}`}>
         <Icon className="w-5 h-5 text-white" />
       </div>
       <div>
-        <p className="text-sm text-gray-500">{label}</p>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
       </div>
     </div>
   );
@@ -55,13 +55,13 @@ export function Dashboard() {
         {isAdmin && <StatCard icon={Users} label={t('dashboard.activeUsers')} value={users?.filter((u) => u.status !== 0).length ?? 0} color="bg-emerald-600" />}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="flex items-center justify-between gap-2 px-6 py-4 border-b border-gray-100">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-2 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-gray-400" />
-            <h2 className="font-semibold text-gray-900">{t('dashboard.recentOperations')}</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-white">{t('dashboard.recentOperations')}</h2>
           </div>
-          <span className="text-sm text-gray-500">{t('dashboard.recentItems', { count: 10 })}</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.recentItems', { count: 10 })}</span>
         </div>
         {logsLoading ? (
           <div className="flex justify-center py-10">

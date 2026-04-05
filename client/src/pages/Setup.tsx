@@ -152,13 +152,13 @@ export function Setup() {
         <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
           <Database className="w-8 h-8 text-blue-600" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900">{t('setup.dbTitle')}</h2>
-        <p className="text-gray-500 mt-2">{t('setup.dbSubtitle')}</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('setup.dbTitle')}</h2>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">{t('setup.dbSubtitle')}</p>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">{t('setup.dbType')}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('setup.dbType')}</label>
           <div className="grid grid-cols-3 gap-3">
             {(['sqlite', 'mysql', 'postgresql'] as const).map((type) => (
               <button
@@ -170,7 +170,7 @@ export function Setup() {
                 className={`px-4 py-3 rounded-lg border text-sm font-medium transition ${
                   dbConfig.type === type
                     ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-gray-300'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
               >
                 {t(`setup.dbTypes.${type}`)}
@@ -181,7 +181,7 @@ export function Setup() {
 
         {dbConfig.type === 'sqlite' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbPath')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbPath')}</label>
             <input
               type="text"
               value={dbConfig.sqlite.path}
@@ -189,7 +189,7 @@ export function Setup() {
                 setDbConfig({ ...dbConfig, sqlite: { path: e.target.value } });
                 setDbTested(false);
               }}
-              className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="./data/dnsmgr.db"
             />
           </div>
@@ -199,7 +199,7 @@ export function Setup() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbHost')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbHost')}</label>
                 <input
                   type="text"
                   value={dbConfig.mysql.host}
@@ -207,11 +207,11 @@ export function Setup() {
                     setDbConfig({ ...dbConfig, mysql: { ...dbConfig.mysql, host: e.target.value } });
                     setDbTested(false);
                   }}
-                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbPort')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbPort')}</label>
                 <input
                   type="number"
                   value={dbConfig.mysql.port}
@@ -219,12 +219,12 @@ export function Setup() {
                     setDbConfig({ ...dbConfig, mysql: { ...dbConfig.mysql, port: parseInt(e.target.value) || 3306 } });
                     setDbTested(false);
                   }}
-                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbName')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbName')}</label>
               <input
                 type="text"
                 value={dbConfig.mysql.database}
@@ -232,12 +232,12 @@ export function Setup() {
                   setDbConfig({ ...dbConfig, mysql: { ...dbConfig.mysql, database: e.target.value } });
                   setDbTested(false);
                 }}
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbUser')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbUser')}</label>
                 <input
                   type="text"
                   value={dbConfig.mysql.user}
@@ -245,11 +245,11 @@ export function Setup() {
                     setDbConfig({ ...dbConfig, mysql: { ...dbConfig.mysql, user: e.target.value } });
                     setDbTested(false);
                   }}
-                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbPassword')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbPassword')}</label>
                 <input
                   type="password"
                   value={dbConfig.mysql.password}
@@ -257,7 +257,7 @@ export function Setup() {
                     setDbConfig({ ...dbConfig, mysql: { ...dbConfig.mysql, password: e.target.value } });
                     setDbTested(false);
                   }}
-                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -268,7 +268,7 @@ export function Setup() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbHost')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbHost')}</label>
                 <input
                   type="text"
                   value={dbConfig.postgresql.host}
@@ -276,11 +276,11 @@ export function Setup() {
                     setDbConfig({ ...dbConfig, postgresql: { ...dbConfig.postgresql, host: e.target.value } });
                     setDbTested(false);
                   }}
-                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbPort')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbPort')}</label>
                 <input
                   type="number"
                   value={dbConfig.postgresql.port}
@@ -288,12 +288,12 @@ export function Setup() {
                     setDbConfig({ ...dbConfig, postgresql: { ...dbConfig.postgresql, port: parseInt(e.target.value) || 5432 } });
                     setDbTested(false);
                   }}
-                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbName')}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbName')}</label>
               <input
                 type="text"
                 value={dbConfig.postgresql.database}
@@ -301,12 +301,12 @@ export function Setup() {
                   setDbConfig({ ...dbConfig, postgresql: { ...dbConfig.postgresql, database: e.target.value } });
                   setDbTested(false);
                 }}
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbUser')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbUser')}</label>
                 <input
                   type="text"
                   value={dbConfig.postgresql.user}
@@ -314,11 +314,11 @@ export function Setup() {
                     setDbConfig({ ...dbConfig, postgresql: { ...dbConfig.postgresql, user: e.target.value } });
                     setDbTested(false);
                   }}
-                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.dbPassword')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.dbPassword')}</label>
                 <input
                   type="password"
                   value={dbConfig.postgresql.password}
@@ -326,7 +326,7 @@ export function Setup() {
                     setDbConfig({ ...dbConfig, postgresql: { ...dbConfig.postgresql, password: e.target.value } });
                     setDbTested(false);
                   }}
-                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -349,7 +349,7 @@ export function Setup() {
                 ? hasExistingData
                   ? 'border-yellow-500 text-yellow-700 bg-yellow-50'
                   : 'border-green-500 text-green-700 bg-green-50'
-                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
             }`}
           >
             {dbTested ? (
@@ -396,8 +396,8 @@ export function Setup() {
         <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-4">
           <DatabaseZap className="w-8 h-8 text-yellow-600" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900">{t('setup.dataChoiceTitle')}</h2>
-        <p className="text-gray-500 mt-2">{t('setup.dataChoiceSubtitle')}</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('setup.dataChoiceTitle')}</h2>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">{t('setup.dataChoiceSubtitle')}</p>
       </div>
 
       <div className="space-y-4">
@@ -418,12 +418,12 @@ export function Setup() {
             className="p-4 border-2 border-red-200 rounded-lg hover:border-red-300 hover:bg-red-50 transition-colors text-left"
           >
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-lg">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
                 <Trash2 className="w-5 h-5 text-red-600" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">{t('setup.resetDatabase')}</p>
-                <p className="text-sm text-gray-500">{t('setup.resetDatabaseDesc')}</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{t('setup.resetDatabase')}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('setup.resetDatabaseDesc')}</p>
               </div>
             </div>
           </button>
@@ -434,12 +434,12 @@ export function Setup() {
             className="p-4 border-2 border-blue-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
           >
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                 <Database className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">{t('setup.keepData')}</p>
-                <p className="text-sm text-gray-500">{t('setup.keepDataDesc')}</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{t('setup.keepData')}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('setup.keepDataDesc')}</p>
               </div>
             </div>
           </button>
@@ -455,7 +455,7 @@ export function Setup() {
         <button
           onClick={() => setCurrentStep('database')}
           disabled={loading}
-          className="w-full py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+          className="w-full py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
         >
           <ChevronLeft className="w-4 h-4" />
           {t('setup.prevStep')}
@@ -470,54 +470,54 @@ export function Setup() {
         <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
           <User className="w-8 h-8 text-blue-600" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900">{t('setup.adminTitle')}</h2>
-        <p className="text-gray-500 mt-2">{t('setup.adminSubtitle')}</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('setup.adminTitle')}</h2>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">{t('setup.adminSubtitle')}</p>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.username')}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.username')}</label>
           <input
             type="text"
             value={adminInfo.username}
             onChange={(e) => setAdminInfo({ ...adminInfo, username: e.target.value })}
             placeholder={t('setup.usernamePlaceholder')}
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <p className="text-xs text-gray-500 mt-1">{t('setup.usernameHint')}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('setup.usernameHint')}</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.email')}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.email')}</label>
           <input
             type="email"
             value={adminInfo.email}
             onChange={(e) => setAdminInfo({ ...adminInfo, email: e.target.value })}
             placeholder={t('setup.emailPlaceholder')}
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.password')}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.password')}</label>
           <input
             type="password"
             value={adminInfo.password}
             onChange={(e) => setAdminInfo({ ...adminInfo, password: e.target.value })}
             placeholder={t('setup.passwordPlaceholder')}
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <p className="text-xs text-gray-500 mt-1">{t('setup.passwordHint')}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('setup.passwordHint')}</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('setup.confirmPassword')}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('setup.confirmPassword')}</label>
           <input
             type="password"
             value={adminInfo.confirmPassword}
             onChange={(e) => setAdminInfo({ ...adminInfo, confirmPassword: e.target.value })}
             placeholder={t('setup.confirmPasswordPlaceholder')}
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -531,7 +531,7 @@ export function Setup() {
         <div className="flex gap-3">
           <button
             onClick={() => setCurrentStep('database')}
-            className="flex-1 py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
           >
             <ChevronLeft className="w-4 h-4" />
             {t('setup.prevStep')}
@@ -554,8 +554,8 @@ export function Setup() {
       <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
         <CheckCircle className="w-10 h-10 text-green-600" />
       </div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('setup.completeTitle')}</h2>
-      <p className="text-gray-500 mb-8">{t('setup.completeSubtitle')}</p>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('setup.completeTitle')}</h2>
+      <p className="text-gray-500 dark:text-gray-400 mb-8">{t('setup.completeSubtitle')}</p>
       <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6">
         {t('setup.smtpRecommended')}
       </p>
@@ -569,14 +569,14 @@ export function Setup() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-lg p-8">
         <div className="flex flex-col items-center mb-8">
           <div className="p-3 bg-blue-600 rounded-xl mb-3">
             <Zap className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">DNSMgr</h1>
-          <p className="text-sm text-gray-500 mt-1">{t('setup.subtitle')}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">DNSMgr</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('setup.subtitle')}</p>
         </div>
 
         {/* Progress indicator */}

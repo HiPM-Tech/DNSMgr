@@ -50,7 +50,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
     onSubmit({ type, name, config, remark });
   };
 
-  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -152,7 +152,7 @@ export function Accounts() {
   });
 
   const columns = [
-    { key: 'name', label: t('common.name'), render: (row: DnsAccount) => <span className="font-medium text-gray-900">{row.name}</span> },
+    { key: 'name', label: t('common.name'), render: (row: DnsAccount) => <span className="font-medium text-gray-900 dark:text-white">{row.name}</span> },
     { key: 'type', label: t('accounts.provider'), render: (row: DnsAccount) => <ProviderBadge type={row.type} /> },
     { key: 'remark', label: t('common.remark'), render: (row: DnsAccount) => <span className="text-gray-500">{row.remark || '-'}</span> },
     { key: 'created_at', label: t('common.created'), render: (row: DnsAccount) => <span className="text-gray-500 text-xs">{new Date(row.created_at).toLocaleDateString()}</span> },
@@ -177,8 +177,8 @@ export function Accounts() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">{t('accounts.title')}</h2>
-          <p className="text-sm text-gray-500">{t('accounts.subtitle')}</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('accounts.title')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('accounts.subtitle')}</p>
         </div>
         <button onClick={() => setShowAdd(true)} disabled={!canManage}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
@@ -186,7 +186,7 @@ export function Accounts() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
         <Table
           columns={columns}
           data={accounts}

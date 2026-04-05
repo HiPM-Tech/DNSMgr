@@ -29,11 +29,11 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
 
   return (
     <div
-      className={`flex items-start gap-3 bg-white border border-gray-200 border-l-4 ${borders[toast.type]} rounded-lg shadow-lg px-4 py-3 min-w-[280px] max-w-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
+      className={`flex items-start gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 border-l-4 ${borders[toast.type]} rounded-lg shadow-lg px-4 py-3 min-w-[280px] max-w-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
     >
       {icons[toast.type]}
-      <p className="flex-1 text-sm text-gray-700">{toast.message}</p>
-      <button onClick={onRemove} className="text-gray-400 hover:text-gray-600 transition-colors">
+      <p className="flex-1 text-sm text-gray-700 dark:text-gray-200">{toast.message}</p>
+      <button onClick={onRemove} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
         <X className="w-4 h-4" />
       </button>
     </div>
