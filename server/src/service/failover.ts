@@ -390,11 +390,11 @@ export async function updateFailoverConfig(
   }
   if (updates.autoSwitchBack !== undefined) {
     fields.push('auto_switch_back = ?');
-    values.push(updates.autoSwitchBack ? 1 : 0);
+    values.push(db.type === 'sqlite' ? (updates.autoSwitchBack ? 1 : 0) : updates.autoSwitchBack);
   }
   if (updates.enabled !== undefined) {
     fields.push('enabled = ?');
-    values.push(updates.enabled ? 1 : 0);
+    values.push(db.type === 'sqlite' ? (updates.enabled ? 1 : 0) : updates.enabled);
   }
 
   if (fields.length === 0) return;

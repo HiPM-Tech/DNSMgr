@@ -7,7 +7,11 @@ export function startFailoverJob() {
       const db = getAdapter();
       if (!db) return;
 
-      const configs = await db.query('SELECT id FROM failover_configs WHERE enabled = 1') as { id: number }[];
+      const enabledValue = db.type === 'postgresql' ? true : 1;
+      const configs = await db.query(
+        'SELECT id FROM failover_configs WHERE enabled = ?',
+        [enabledValue]
+      ) as { id: number }[];
       for (const { id } of configs) {
         const config = await getFailoverConfig(id);
         if (!config) continue;
