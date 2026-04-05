@@ -212,6 +212,75 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
+router.post('/batch', authMiddleware, async (req: Request, res: Response) => {
+  const domainId = parseInt(req.params.domainId);
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
+    res.json({ code: -1, msg: 'Domain not found' });
+    return;
+  }
+  if (!access.canWrite) {
+    res.json({ code: -1, msg: 'Permission denied' });
+    return;
+  }
+  
+  const records = req.body.records as Array<{
+    name: string; type: string; value: string; line?: string;
+    ttl?: number; mx?: number; weight?: number; remark?: string;
+  }>;
+  
+  if (!Array.isArray(records) || records.length === 0) {
+    res.json({ code: -1, msg: 'records array is required' });
+    return;
+  }
+
+  for (const r of records) {
+    if (!r.name || !r.type || !r.value) {
+      res.json({ code: -1, msg: 'name, type, and value are required for all records' });
+      return;
+    }
+    if (!canWriteSubdomain(access.writeSubs, r.name, access.domain.name)) {
+      res.json({ code: -1, msg: `Permission denied for subdomain: ${r.name}` });
+      return;
+    }
+    if (!isValidRecordValue(r.type, r.value)) {
+      res.json({ code: -1, msg: `Invalid value for ${r.type} record` });
+      return;
+    }
+  }
+
+  try {
+    const dnsAdapter = await getAdapterForDomain(access.domain);
+    const addedIds = [];
+    const errors = [];
+    
+    for (const r of records) {
+      try {
+        const recordId = await dnsAdapter.addDomainRecord(r.name, r.type, r.value, r.line, r.ttl, r.mx, r.weight, r.remark);
+        if (recordId) {
+          addedIds.push(recordId);
+        } else {
+          errors.push(`Failed to add ${r.type} ${r.name}`);
+        }
+      } catch (e) {
+        errors.push(`Error adding ${r.type} ${r.name}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    
+    if (addedIds.length > 0) {
+      await logOperation(req.user!.userId, 'add_records_batch', access.domain.name, { count: addedIds.length });
+    }
+    
+    if (errors.length > 0) {
+      res.json({ code: -1, msg: errors.join('; '), data: { addedIds } });
+    } else {
+      res.json({ code: 0, data: { addedIds }, msg: 'success' });
+    }
+  } catch (e) {
+    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  }
+});
+
 /**
  * @swagger
  * /api/domains/{domainId}/records/{recordId}:

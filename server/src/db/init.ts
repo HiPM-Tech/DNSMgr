@@ -57,6 +57,12 @@ async function initSQLiteSchema(conn: DbConnection): Promise<void> {
     sqliteConn.exec("UPDATE users SET role_level = CASE role WHEN 'admin' THEN 2 ELSE 1 END");
   }
 
+  const domainColumns = sqliteConn.prepare("PRAGMA table_info(domains)").all() as { name: string }[];
+  const hasExpiresAt = domainColumns.some((col) => col.name === 'expires_at');
+  if (!hasExpiresAt) {
+    sqliteConn.exec("ALTER TABLE domains ADD COLUMN expires_at TEXT");
+  }
+
   const permColumns = sqliteConn.prepare("PRAGMA table_info(domain_permissions)").all() as { name: string }[];
   const hasPermission = permColumns.some((col) => col.name === 'permission');
   if (!hasPermission) {

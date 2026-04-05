@@ -231,3 +231,17 @@ interface DnsAdapter {
 ## License
 
 MIT
+
+
+## 多语言支持 (i18n) 与贡献指南
+
+DNSMgr 使用 `react-i18next` 进行国际化（i18n）支持。目前已支持的语言包括：英文、简体中文、西班牙语和日语。
+
+我们非常欢迎社区参与多语言的共建！如果你想添加新的语言支持，请参考以下步骤：
+
+1. 复制现有的语言文件（例如 `client/src/i18n/locales/zh-CN.ts`）并重命名为新的语言代码，如 `fr.ts`（法语）。
+2. 将文件中的对应字符串翻译为目标语言。
+3. 在 `client/src/i18n/index.ts` 中引入你的新文件，并添加到 `resources` 对象中。
+4. 在 `client/src/pages/Settings.tsx` 中的语言选择器里添加你的新语言选项。
+
+**提示：** 我们强烈推荐使用 VS Code 插件 [i18n-ally](https://marketplace.visualstudio.com/items?itemName=Lokalise.i18n-ally)。本项目已经内置了 `.vscode/settings.json` 配置，你可以利用它直接在编辑器中查看翻译缺失情况并高效管理多语言键值。

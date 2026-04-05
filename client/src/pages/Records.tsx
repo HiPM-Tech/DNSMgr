@@ -13,6 +13,7 @@ import { useI18n } from '../contexts/I18nContext';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
 import { TunnelList } from '../components/TunnelList';
+import { MailSetupModal } from './MailSetupModal';
 
 const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR'];
 const CLOUDFLARE_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
@@ -399,6 +400,7 @@ export function Records() {
   };
 
   const [showAdd, setShowAdd] = useState(false);
+  const [showMailSetup, setShowMailSetup] = useState(false);
   const [editing, setEditing] = useState<DnsRecord | null>(null);
   const [deleting, setDeleting] = useState<DnsRecord | null>(null);
   const [typeFilter, setTypeFilter] = useState('');
@@ -573,6 +575,10 @@ export function Records() {
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
                 <Plus className="w-4 h-4" /> {t('records.addRecord')}
               </button>
+              <button onClick={() => setShowMailSetup(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+                {t('mail.title')}
+              </button>
             </>
           )}
         </div>
@@ -634,6 +640,10 @@ export function Records() {
         <Modal title={t('records.addRecordFor', { name: domain?.name ?? '' })} onClose={() => setShowAdd(false)} size="lg">
           <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} provider={currentProvider} existingRecords={records} onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
         </Modal>
+      )}
+
+      {showMailSetup && (
+        <MailSetupModal domainId={domainId} domainName={domain?.name ?? ''} onClose={() => setShowMailSetup(false)} existingRecords={records} />
       )}
 
       {editing && (

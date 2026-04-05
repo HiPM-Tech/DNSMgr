@@ -13,9 +13,9 @@ export function Tunnels() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Globe className="w-6 h-6 text-blue-500" />
-            Cloudflare Tunnels
+            {t('tunnels.title')}
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your Cloudflare Zero Trust Tunnels</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('tunnels.desc')}</p>
         </div>
         <button
           onClick={() => qc.invalidateQueries({ queryKey: ['tunnels'] })}

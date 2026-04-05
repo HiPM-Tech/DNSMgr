@@ -360,6 +360,35 @@ export function Domains() {
         </span>
       ),
     },
+    {
+      key: 'expires_at', label: t('domains.expires'),
+      render: (row: Domain) => {
+        if (!row.expires_at) return <span className="text-gray-400 text-xs">{t('domains.unknown')}</span>;
+        const expiry = new Date(row.expires_at);
+        const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        
+        let colorClass = 'text-gray-600 dark:text-gray-400';
+        if (daysLeft < 0) colorClass = 'text-red-600 font-medium';
+        else if (daysLeft <= 30) colorClass = 'text-yellow-600 font-medium';
+        else if (daysLeft <= 90) colorClass = 'text-blue-600 font-medium';
+        
+        return (
+          <div className="flex flex-col">
+            <span className={`text-sm ${colorClass}`}>
+              {expiry.toLocaleDateString()}
+            </span>
+            {daysLeft >= 0 && (
+              <span className={`text-xs ${daysLeft <= 30 ? 'text-yellow-600' : 'text-gray-500'}`}>
+                {t('domains.daysLeft', { days: daysLeft })}
+              </span>
+            )}
+            {daysLeft < 0 && (
+              <span className="text-xs text-red-600">{t('domains.expired')}</span>
+            )}
+          </div>
+        );
+      },
+    },
     { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="text-gray-500">{row.remark || t('domains.emptyRemark')}</span> },
     {
       key: 'actions', label: t('domains.actions'),

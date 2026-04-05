@@ -67,6 +67,7 @@ export const postgresqlSchema: SchemaDefinition = {
       remark TEXT NOT NULL DEFAULT '',
       is_hidden SMALLINT NOT NULL DEFAULT 0,
       record_count INTEGER NOT NULL DEFAULT 0,
+      expires_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(account_id, name)
     )`,
@@ -114,6 +115,46 @@ export const postgresqlSchema: SchemaDefinition = {
       value TEXT NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+      `CREATE TABLE IF NOT EXISTS user_2fa (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type VARCHAR(50) NOT NULL,
+      secret VARCHAR(255) NOT NULL,
+      enabled BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, type)
+    )`,
+    `CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      id VARCHAR(255) PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      public_key TEXT NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      device_type VARCHAR(50) NOT NULL DEFAULT '',
+      backed_up BOOLEAN NOT NULL DEFAULT false,
+      transports JSONB NOT NULL DEFAULT '[]',
+      name VARCHAR(255) NOT NULL DEFAULT 'Passkey',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_sessions (
+      id VARCHAR(255) PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token VARCHAR(255) NOT NULL UNIQUE,
+      user_agent TEXT NOT NULL DEFAULT '',
+      ip VARCHAR(45) NOT NULL DEFAULT '',
+      last_active_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS login_attempts (
+      id SERIAL PRIMARY KEY,
+      identifier VARCHAR(255) NOT NULL,
+      ip VARCHAR(45) NOT NULL,
+      user_agent TEXT NOT NULL DEFAULT '',
+      success BOOLEAN NOT NULL DEFAULT false,
+      fail_reason VARCHAR(255),
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`
   ],
   createIndexes: [
     // 索引已在 CREATE TABLE 中定义

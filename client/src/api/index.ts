@@ -85,6 +85,7 @@ export interface Domain {
   third_id?: string;
   remark: string;
   record_count?: number;
+  expires_at?: string;
   created_at: string;
 }
 
@@ -164,8 +165,13 @@ export interface LogEntry {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  login: (username: string, password: string, totpCode?: string, backupCode?: string) =>
-    api.post<ApiResponse<any>>('/auth/login', { username, password, totpCode, backupCode }),
+  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: any) =>
+    api.post<ApiResponse<any>>('/auth/login', { username, password, totpCode, backupCode, webauthnResponse }),
+  webauthnRegOptions: () => api.get<ApiResponse<any>>('/auth/webauthn/registration-options'),
+  webauthnRegVerify: (data: any) => api.post<ApiResponse<any>>('/auth/webauthn/registration-verify', data),
+  webauthnLoginOptions: (username: string) => api.get<ApiResponse<any>>(`/auth/webauthn/login-options?username=${encodeURIComponent(username)}`),
+  webauthnCreds: () => api.get<ApiResponse<any[]>>('/auth/webauthn/credentials'),
+  webauthnDeleteCred: (id: string) => api.delete<ApiResponse<any>>(`/auth/webauthn/credentials/${encodeURIComponent(id)}`),
   oauthStatus: () => api.get<ApiResponse<OAuthStatus>>('/auth/oauth/status'),
   oauthStart: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start', { provider }),
   oauthStartBind: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start-bind', { provider }),
@@ -238,7 +244,9 @@ export const recordsApi = {
   list: (domainId: number, params?: { type?: string; keyword?: string }) =>
     api.get<ApiResponse<{ total: number; list: DnsRecord[] }>>(`/domains/${domainId}/records`, { params }),
   create: (domainId: number, data: Partial<DnsRecord>) =>
-    api.post<ApiResponse<{ id: number }>>(`/domains/${domainId}/records`, data),
+    api.post<ApiResponse<{ id: string }>>(`/domains/${domainId}/records`, data),
+  createBatch: (domainId: number, records: Partial<DnsRecord>[]) =>
+    api.post<ApiResponse<{ addedIds: string[] }>>(`/domains/${domainId}/records/batch`, { records }),
   update: (domainId: number, recordId: string, data: Partial<DnsRecord>) =>
     api.put<ApiResponse<null>>(`/domains/${domainId}/records/${recordId}`, data),
   delete: (domainId: number, recordId: string) =>
@@ -355,6 +363,8 @@ export interface SmtpConfig {
 
 export interface SecurityConfig {
   jwtViewEmailNotify: boolean;
+  domainExpiryNotify: boolean;
+  domainExpiryDays: number;
 }
 
 export interface OAuthStatus {
@@ -406,4 +416,6 @@ export const settingsApi = {
   getLoginAttemptStats: () => api.get<ApiResponse<LoginAttemptStats>>('/settings/login-attempts/stats'),
   unlockAccount: (identifier: string) =>
     api.post<ApiResponse<null>>('/settings/login-attempts/unlock', { identifier }),
+  getNotificationChannels: () => api.get<ApiResponse<any[]>>('/settings/notifications'),
+  updateNotificationChannels: (channels: any[]) => api.put<ApiResponse<any>>('/settings/notifications', { channels }),
 };

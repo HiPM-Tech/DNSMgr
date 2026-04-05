@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { authApi, initApi } from '../api';
 import { useToast } from '../hooks/useToast';
+import { startAuthentication } from '@simplewebauthn/browser';
 
 export function Login() {
   const { login, loginWithToken } = useAuth();
@@ -85,6 +86,7 @@ export function Login() {
   }, [loginWithToken, navigate, searchParams, setSearchParams, t]);
 
   const [require2FA, setRequire2FA] = useState(false);
+  const [supported2FATypes, setSupported2FATypes] = useState<string[]>([]);
   const [totpCode, setTotpCode] = useState('');
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [backupCode, setBackupCode] = useState('');
@@ -100,13 +102,31 @@ export function Login() {
     try {
       await login(username, password, require2FA && !useBackupCode ? totpCode : undefined, require2FA && useBackupCode ? backupCode : undefined);
       navigate('/');
-    } catch (err) {
-      if (err instanceof Error && err.message === '2FA_REQUIRED') {
+    } catch (err: any) {
+      if (err.message === '2FA_REQUIRED') {
         setRequire2FA(true);
+        setSupported2FATypes(err.types || ['totp']);
         setError('');
       } else {
-        setError(err instanceof Error ? err.message : t('login.failed'));
+        setError(err.message || t('login.failed'));
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const optsRes = await authApi.webauthnLoginOptions(username);
+      if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
+      
+      const attResp = await startAuthentication(optsRes.data.data);
+      await login(username, password, undefined, undefined, attResp);
+      navigate('/');
+    } catch (e: any) {
+      setError(e.message || t('login.failed'));
     } finally {
       setLoading(false);
     }
@@ -227,35 +247,62 @@ export function Login() {
           ) : (
             <>
               <div className="text-center text-sm text-gray-600 dark:text-gray-400 mb-2">
-                2FA Verification Required
+                {t('login.verify2FA')}
               </div>
-              {!useBackupCode ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Authenticator Code</label>
-                  <input
-                    type="text"
-                    value={totpCode}
-                    onChange={(e) => setTotpCode(e.target.value)}
-                    placeholder="Enter 6-digit code"
-                    autoComplete="one-time-code"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-center tracking-widest text-lg"
-                    maxLength={6}
-                  />
-                  <button type="button" onClick={() => setUseBackupCode(true)} className="mt-2 text-sm text-blue-600 hover:text-blue-700 w-full text-center">Use backup code instead</button>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Backup Code</label>
-                  <input
-                    type="text"
-                    value={backupCode}
-                    onChange={(e) => setBackupCode(e.target.value)}
-                    placeholder="Enter backup code"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-center tracking-widest text-lg"
-                  />
-                  <button type="button" onClick={() => setUseBackupCode(false)} className="mt-2 text-sm text-blue-600 hover:text-blue-700 w-full text-center">Use authenticator code instead</button>
+              
+              {supported2FATypes.includes('webauthn') && (
+                <button
+                  type="button"
+                  onClick={handlePasskeyLogin}
+                  disabled={loading}
+                  className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2 mb-4"
+                >
+                  {t('passkeys.usePasskey')}
+                </button>
+              )}
+
+              {supported2FATypes.includes('webauthn') && supported2FATypes.includes('totp') && (
+                <div className="relative mb-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white dark:bg-gray-900 text-gray-500">OR</span>
+                  </div>
                 </div>
               )}
+
+              {supported2FATypes.includes('totp') && (
+                  <>
+                    {!useBackupCode ? (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.authCode')}</label>
+                        <input
+                          type="text"
+                          value={totpCode}
+                          onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                          placeholder={t('login.enterAuthCode')}
+                          autoComplete="one-time-code"
+                          className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-center tracking-widest text-lg"
+                          maxLength={6}
+                        />
+                        <button type="button" onClick={() => setUseBackupCode(true)} className="mt-2 text-sm text-blue-600 hover:text-blue-700 w-full text-center">{t('login.useBackupCode')}</button>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.backupCode')}</label>
+                        <input
+                          type="text"
+                          value={backupCode}
+                          onChange={(e) => setBackupCode(e.target.value)}
+                          placeholder={t('login.enterBackupCode')}
+                          className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-center tracking-widest text-lg"
+                        />
+                        <button type="button" onClick={() => setUseBackupCode(false)} className="mt-2 text-sm text-blue-600 hover:text-blue-700 w-full text-center">{t('login.useAuthCode')}</button>
+                      </div>
+                    )}
+                  </>
+                )}
             </>
           )}
           <button

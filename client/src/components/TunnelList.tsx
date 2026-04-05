@@ -5,7 +5,10 @@ import { Table } from './Table';
 import { useToast } from '../hooks/useToast';
 import { Badge } from './Badge';
 
+import { useI18n } from '../contexts/I18nContext';
+
 export function TunnelList({ accountId }: { accountId?: number }) {
+  const { t } = useI18n();
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -25,22 +28,22 @@ export function TunnelList({ accountId }: { accountId?: number }) {
         return;
       }
       qc.invalidateQueries({ queryKey: ['tunnels'] });
-      toast.success('Tunnel deleted');
+      toast.success(t('tunnels.deleted'));
     },
-    onError: () => toast.error('Failed to delete tunnel'),
+    onError: () => toast.error(t('tunnels.deleteFailed')),
   });
 
   const columns = [
-    { key: 'name', label: 'Name', render: (r: any) => <span className="font-medium text-gray-900 dark:text-white">{r.name}</span> },
-    { key: 'status', label: 'Status', render: (r: any) => <Badge variant={r.status === 'active' ? 'green' : 'gray'}>{r.status}</Badge> },
-    { key: 'account', label: 'Account', render: (r: any) => <span className="text-gray-500 text-sm">{r.account_name}</span> },
-    { key: 'created_at', label: 'Created At', render: (r: any) => <span className="text-gray-500 text-sm">{new Date(r.created_at).toLocaleString()}</span> },
+    { key: 'name', label: t('domains.domainName'), render: (r: any) => <span className="font-medium text-gray-900 dark:text-white">{r.name}</span> },
+    { key: 'status', label: t('audit.fields.status'), render: (r: any) => <Badge variant={r.status === 'active' ? 'green' : 'gray'}>{r.status}</Badge> },
+    { key: 'account', label: t('domains.account'), render: (r: any) => <span className="text-gray-500 text-sm">{r.account_name}</span> },
+    { key: 'created_at', label: t('common.createdAt'), render: (r: any) => <span className="text-gray-500 text-sm">{new Date(r.created_at).toLocaleString()}</span> },
     {
-      key: 'actions', label: 'Actions', render: (r: any) => (
+      key: 'actions', label: t('domains.actions'), render: (r: any) => (
         <div className="flex gap-2">
           <button
             onClick={() => {
-              if (confirm(`Delete tunnel ${r.name}?`)) {
+              if (confirm(t('tunnels.deleteConfirm', { name: r.name }))) {
                 deleteMutation.mutate({ accId: r.account_id, tunnelId: r.id });
               }
             }}
@@ -55,7 +58,7 @@ export function TunnelList({ accountId }: { accountId?: number }) {
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <Table columns={columns} data={filteredTunnels} loading={isLoading} rowKey={(r) => r.id} emptyText="No tunnels found" />
+      <Table columns={columns} data={filteredTunnels} loading={isLoading} rowKey={(r) => r.id} emptyText={t('tunnels.notFound')} />
     </div>
   );
 }

@@ -10,6 +10,7 @@
     "test": "node --require ts-node/register --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^13.3.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.5",
@@ -22,7 +23,8 @@
     "pg": "^8.20.0",
     "qrcode": "^1.5.3",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.0"
+    "swagger-ui-express": "^5.0.0",
+    "whoiser": "^2.0.0-beta.10"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

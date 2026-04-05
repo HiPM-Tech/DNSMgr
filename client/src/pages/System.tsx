@@ -16,18 +16,21 @@ import {
   Eye,
   EyeOff,
   Copy,
+  Bell,
 } from 'lucide-react';
 import { systemApi, settingsApi } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 
+import { NotificationChannels } from '../components/NotificationChannels';
+
 export function System() {
   const { t } = useI18n();
   const { user } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'database' | 'security'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'database' | 'security' | 'notifications'>('overview');
   const [unlockIdentifier, setUnlockIdentifier] = useState('');
   const [showJwtSecret, setShowJwtSecret] = useState(false);
   const [jwtPassword, setJwtPassword] = useState('');
@@ -44,6 +47,8 @@ export function System() {
     testTo: '',
   });
   const [jwtNotifyEnabled, setJwtNotifyEnabled] = useState(true);
+  const [domainExpiryNotifyEnabled, setDomainExpiryNotifyEnabled] = useState(false);
+  const [domainExpiryDays, setDomainExpiryDays] = useState(30);
   const [oauthForm, setOauthForm] = useState({
     enabled: false,
     template: 'generic' as 'generic' | 'logto',
@@ -129,6 +134,8 @@ export function System() {
       const res = await settingsApi.getSecurityConfig();
       if (res.data.code === 0 && res.data.data) {
         setJwtNotifyEnabled(!!res.data.data.jwtViewEmailNotify);
+        setDomainExpiryNotifyEnabled(!!res.data.data.domainExpiryNotify);
+        setDomainExpiryDays(res.data.data.domainExpiryDays || 30);
       }
       return res.data.data;
     },
@@ -281,7 +288,7 @@ export function System() {
   });
 
   const updateSecurityMutation = useMutation({
-    mutationFn: (enabled: boolean) => settingsApi.updateSecurityConfig({ jwtViewEmailNotify: enabled }),
+    mutationFn: (data: Partial<{ jwtViewEmailNotify: boolean, domainExpiryNotify: boolean, domainExpiryDays: number }>) => settingsApi.updateSecurityConfig(data),
     onSuccess: (res) => {
       if (res.data.code !== 0) {
         toast.error(res.data.msg);
@@ -360,6 +367,7 @@ export function System() {
     { id: 'overview', label: t('system.tabs.overview'), icon: Info },
     { id: 'database', label: t('system.tabs.database'), icon: Database },
     { id: 'security', label: t('system.tabs.security'), icon: Shield },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
   ];
 
   return (
@@ -686,21 +694,57 @@ export function System() {
                     <Copy className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.jwtViewNotify')}</p>
-                    <p className="text-xs text-gray-500">{t('system.jwtViewNotifyDesc')}</p>
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.jwtViewNotify')}</p>
+                      <p className="text-xs text-gray-500">{t('system.jwtViewNotifyDesc')}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const next = !jwtNotifyEnabled;
+                        setJwtNotifyEnabled(next);
+                        updateSecurityMutation.mutate({ jwtViewEmailNotify: next });
+                      }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${jwtNotifyEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${jwtNotifyEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      const next = !jwtNotifyEnabled;
-                      setJwtNotifyEnabled(next);
-                      updateSecurityMutation.mutate(next);
-                    }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${jwtNotifyEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${jwtNotifyEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.expiryNotice')}</p>
+                      <p className="text-xs text-gray-500">{t('system.expiryNoticeDesc')}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500">{t('system.threshold')}</span>
+                        <input 
+                          type="number" 
+                          className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                          value={domainExpiryDays}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 30;
+                            setDomainExpiryDays(val);
+                          }}
+                          onBlur={() => {
+                            updateSecurityMutation.mutate({ domainExpiryDays });
+                          }}
+                        />
+                        <span className="text-sm text-gray-500">{t('system.days')}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const next = !domainExpiryNotifyEnabled;
+                          setDomainExpiryNotifyEnabled(next);
+                          updateSecurityMutation.mutate({ domainExpiryNotify: next });
+                        }}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${domainExpiryNotifyEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${domainExpiryNotifyEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
@@ -830,6 +874,13 @@ export function System() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === 'notifications' && (
+        <div className="space-y-6">
+          <NotificationChannels />
         </div>
       )}
     </div>

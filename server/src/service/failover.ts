@@ -1,6 +1,7 @@
 import { getAdapter } from '../db/adapter';
 import { logAuditOperation } from './audit';
 import { createAdapter } from '../lib/dns/DnsHelper';
+import { sendNotification } from './notification';
 
 export interface FailoverConfig {
   id: number;
@@ -334,10 +335,20 @@ export async function performFailover(
 
   // 记录审计日志
   await logAuditOperation(userId, 'failover_switch', config.primaryIp, {
-    fromIp: config.primaryIp,
+    fromIp: currentIp,
     toIp,
     configId,
   });
+
+  try {
+    const domainName = domainRow?.name || `Domain#${config.domainId}`;
+    await sendNotification(
+      `[DNSMgr] Failover Switch Triggered: ${domainName}`,
+      `Failover was triggered for domain ${domainName}.\n\nFrom IP: ${currentIp}\nTo IP: ${toIp}\nPrimary: ${config.primaryIp}\nTime: ${new Date().toLocaleString()}`
+    );
+  } catch (err) {
+    console.error('Failed to send failover notification:', err);
+  }
 }
 
 /**
