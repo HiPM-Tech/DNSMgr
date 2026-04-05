@@ -58,33 +58,6 @@ export function Login() {
       .catch(() => setOauthEnabled(false));
   }, []);
 
-  useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    if (!code || !state) return;
-
-    setOauthLoading(true);
-    authApi.oauthCallback(code, state)
-      .then((res) => {
-        if (res.data.code !== 0) {
-          setError(res.data.msg || t('login.oauthFailed'));
-          return;
-        }
-        if (res.data.data.token && res.data.data.user) {
-          loginWithToken(res.data.data.token, res.data.data.user);
-          setSearchParams({});
-          navigate('/');
-          return;
-        }
-        setSearchParams({});
-        navigate('/settings');
-      })
-      .catch((e) => {
-        setError(e instanceof Error ? e.message : t('login.oauthFailed'));
-      })
-      .finally(() => setOauthLoading(false));
-  }, [loginWithToken, navigate, searchParams, setSearchParams, t]);
-
   const [require2FA, setRequire2FA] = useState(false);
   const [supported2FATypes, setSupported2FATypes] = useState<string[]>([]);
   const [totpCode, setTotpCode] = useState('');

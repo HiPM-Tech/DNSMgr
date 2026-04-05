@@ -1,0 +1,19 @@
+{
+  "i18n-ally.localesPaths": [
+    "client/src/i18n/locales"
+  ],
+  "i18n-ally.sourceLanguage": "en",
+  "i18n-ally.keystyle": "nested",
+  "i18n-ally.enabledParsers": [
+    "json"
+  ],
+  "i18n-ally.pathMatcher": "{locale}.json",
+  "i18n-ally.namespace": false,
+  "i18n-ally.enabledFrameworks": [
+    "react",
+    "i18next"
+  ],
+  "i18n-ally.extract.keyPrefix": "messages.",
+  "i18n-ally.sortKeys": true,
+  "i18n-ally.translate.fallbackLanguage": "en"
+}
