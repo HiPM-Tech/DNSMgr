@@ -1,10 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { getAdapter } from '../db/adapter';
 import { authMiddleware } from '../middleware/auth';
+import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter, getProvider, getProviders, isStubProvider } from '../lib/dns/DnsHelper';
 import { DnsAccount } from '../types';
 import { normalizeProviderType } from '../lib/dns/providerAlias';
 import { isAdmin, isSuper, normalizeRole, ROLE_ADMIN } from '../utils/roles';
+import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 
 const router = Router();
 
@@ -38,7 +40,7 @@ function canManageAccount(account: DnsAccount, userId: number, role: number): bo
  *         description: Provider list
  */
 router.get('/providers', authMiddleware, (_req: Request, res: Response) => {
-  res.json({ code: 0, data: getProviders(), msg: 'success' });
+  sendSuccess(res, getProviders());
 });
 
 /**
@@ -53,10 +55,11 @@ router.get('/providers', authMiddleware, (_req: Request, res: Response) => {
  *       200:
  *         description: List of accounts
  */
-router.get('/', authMiddleware, async (req: Request, res: Response) => {
+router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   let accounts: DnsAccount[];
   if (isSuper(req.user!.role)) {
@@ -81,8 +84,8 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
     for (const k of Object.keys(cfg)) masked[k] = '***';
     return { ...a, type: normalizeProviderType(a.type), config: masked };
   });
-  res.json({ code: 0, data: safe, msg: 'success' });
-});
+  sendSuccess(res, safe);
+}));
 
 /**
  * @swagger
@@ -114,9 +117,9 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Account created
  */
-router.post('/', authMiddleware, async (req: Request, res: Response) => {
+router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   if (!isAdmin(req.user?.role)) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   const { type, name, config, remark = '', team_id } = req.body as {
@@ -124,38 +127,39 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   };
   const normalizedType = normalizeProviderType(type ?? '');
   if (!normalizedType || !name || !config) {
-    res.json({ code: -1, msg: 'type, name, and config are required' });
+    sendError(res, 'type, name, and config are required');
     return;
   }
   if (!getProvider(normalizedType)) {
-    res.json({ code: -1, msg: `Unknown provider type: ${type}` });
+    sendError(res, `Unknown provider type: ${type}`);
     return;
   }
   if (isStubProvider(normalizedType)) {
-    res.json({ code: -1, msg: 'Provider is a stub and cannot be added' });
+    sendError(res, 'Provider is a stub and cannot be added');
     return;
   }
   try {
-    const adapter = createAdapter(normalizedType, config);
-    const ok = await adapter.check();
+    const dnsAdapter = createAdapter(normalizedType, config);
+    const ok = await dnsAdapter.check();
     if (!ok) {
-      res.json({ code: -1, msg: `Credential check failed: ${adapter.getError()}` });
+      sendError(res, `Credential check failed: ${dnsAdapter.getError()}`);
       return;
     }
   } catch (e) {
-    res.json({ code: -1, msg: `Provider error: ${e instanceof Error ? e.message : String(e)}` });
+    sendError(res, `Provider error: ${e instanceof Error ? e.message : String(e)}`);
     return;
   }
   const db = getAdapter();
   if (!db) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   const id = await db.insert(
     'INSERT INTO dns_accounts (type, name, config, remark, created_by, team_id) VALUES (?, ?, ?, ?, ?, ?)',
     [normalizedType, name, JSON.stringify(config), remark, req.user!.userId, team_id ?? null]
   );
-  res.json({ code: 0, data: { id }, msg: 'success' });
-});
+  sendSuccess(res, { id });
+}));
 
 /**
  * @swagger
@@ -175,22 +179,23 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Account info
  */
-router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   const account = await adapter.get('SELECT * FROM dns_accounts WHERE id = ?', [id]) as DnsAccount | undefined;
   if (!account || !(await canReadAccount(account, req.user!.userId, normalizeRole(req.user?.role)))) {
-    res.json({ code: -1, msg: 'Account not found' });
+    sendError(res, 'Account not found');
     return;
   }
   const cfg = JSON.parse(account.config) as Record<string, string>;
   const masked: Record<string, string> = {};
   for (const k of Object.keys(cfg)) masked[k] = '***';
-  res.json({ code: 0, data: { ...account, type: normalizeProviderType(account.type), config: masked }, msg: 'success' });
-});
+  sendSuccess(res, { ...account, type: normalizeProviderType(account.type), config: masked });
+}));
 
 /**
  * @swagger
@@ -225,15 +230,16 @@ router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Account updated
  */
-router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   const account = await adapter.get('SELECT * FROM dns_accounts WHERE id = ?', [id]) as DnsAccount | undefined;
   if (!account || !canManageAccount(account, req.user!.userId, normalizeRole(req.user?.role))) {
-    res.json({ code: -1, msg: 'Account not found' });
+    sendError(res, 'Account not found');
     return;
   }
   const { type, name, config, remark, team_id } = req.body as {
@@ -242,24 +248,24 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
   const normalizedType = type !== undefined ? normalizeProviderType(type) : undefined;
   if (normalizedType !== undefined) {
     if (!getProvider(normalizedType)) {
-      res.json({ code: -1, msg: `Unknown provider type: ${type}` });
+      sendError(res, `Unknown provider type: ${type}`);
       return;
     }
     if (isStubProvider(normalizedType)) {
-      res.json({ code: -1, msg: 'Provider is a stub and cannot be used' });
+      sendError(res, 'Provider is a stub and cannot be used');
       return;
     }
   }
   if (config) {
     try {
-      const adapter = createAdapter(normalizedType ?? normalizeProviderType(account.type), config);
-      const ok = await adapter.check();
+      const dnsAdapter = createAdapter(normalizedType ?? normalizeProviderType(account.type), config);
+      const ok = await dnsAdapter.check();
       if (!ok) {
-        res.json({ code: -1, msg: `Credential check failed: ${adapter.getError()}` });
+        sendError(res, `Credential check failed: ${dnsAdapter.getError()}`);
         return;
       }
     } catch (e) {
-      res.json({ code: -1, msg: `Provider error: ${e instanceof Error ? e.message : String(e)}` });
+      sendError(res, `Provider error: ${e instanceof Error ? e.message : String(e)}`);
       return;
     }
   }
@@ -271,13 +277,13 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
   if (remark !== undefined) { updates.push('remark = ?'); params.push(remark); }
   if (team_id !== undefined) { updates.push('team_id = ?'); params.push(team_id); }
   if (updates.length === 0) {
-    res.json({ code: 0, msg: 'success' });
+    sendSuccess(res);
     return;
   }
   params.push(id);
   await adapter.execute(`UPDATE dns_accounts SET ${updates.join(', ')} WHERE id = ?`, params);
-  res.json({ code: 0, msg: 'success' });
-});
+  sendSuccess(res);
+}));
 
 /**
  * @swagger
@@ -297,19 +303,20 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Account deleted
  */
-router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   const account = await adapter.get('SELECT * FROM dns_accounts WHERE id = ?', [id]) as DnsAccount | undefined;
   if (!account || !canManageAccount(account, req.user!.userId, normalizeRole(req.user?.role))) {
-    res.json({ code: -1, msg: 'Account not found' });
+    sendError(res, 'Account not found');
     return;
   }
   await adapter.execute('DELETE FROM dns_accounts WHERE id = ?', [id]);
-  res.json({ code: 0, msg: 'success' });
-});
+  sendSuccess(res);
+}));
 
 export default router;

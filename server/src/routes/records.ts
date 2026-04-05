@@ -1,11 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { getAdapter } from '../db/adapter';
 import { authMiddleware } from '../middleware/auth';
+import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { DnsAccount, Domain } from '../types';
 import { type DnsRecord as AdapterRecord } from '../lib/dns/DnsInterface';
 import { getDomainAccess } from './domains';
 import { normalizeRole } from '../utils/roles';
+import { logAuditOperation } from '../service/audit';
+import { parseInteger, sendError, sendSuccess } from '../utils/http';
 
 const router = Router({ mergeParams: true });
 
@@ -101,15 +104,6 @@ async function updateDomainRecordCount(domainId: number, count: number): Promise
   await adapter.execute('UPDATE domains SET record_count = ? WHERE id = ?', [count, domainId]);
 }
 
-async function logOperation(userId: number, action: string, domainName: string, data: unknown): Promise<void> {
-  const adapter = getAdapter();
-  if (!adapter) return;
-  await adapter.execute(
-    'INSERT INTO operation_logs (user_id, action, domain, data) VALUES (?, ?, ?, ?)',
-    [userId, action, domainName, JSON.stringify(data)]
-  );
-}
-
 /**
  * @swagger
  * /api/domains/{domainId}/records:
@@ -140,11 +134,11 @@ async function logOperation(userId: number, action: string, domainName: string, 
  *       200:
  *         description: List of DNS records
  */
-router.get('/', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.domainId);
+router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.domainId) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   const { page = '1', pageSize = '100', keyword, subdomain, value, type, line, status } = req.query as Record<string, string>;
@@ -155,11 +149,11 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
       status !== undefined ? parseInt(status) : undefined
     );
     await updateDomainRecordCount(access.domain.id, result.total);
-    res.json({ code: 0, data: { total: result.total, list: result.list.map(toApiRecord) }, msg: 'success' });
+    sendSuccess(res, { total: result.total, list: result.list.map(toApiRecord) });
   } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+    sendError(res, e instanceof Error ? e.message : String(e));
   }
-});
+}));
 
 /**
  * @swagger
@@ -170,15 +164,15 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.post('/', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.domainId);
+router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.domainId) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   if (!access.canWrite) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   const { name, type, value, line, ttl, mx, weight, remark, cloudflare } = req.body as {
@@ -187,40 +181,40 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     cloudflare?: { proxied?: boolean };
   };
   if (!name || !type || !value) {
-    res.json({ code: -1, msg: 'name, type, and value are required' });
+    sendError(res, 'name, type, and value are required');
     return;
   }
   if (!canWriteSubdomain(access.writeSubs, name, access.domain.name)) {
-    res.json({ code: -1, msg: 'Permission denied for subdomain' });
+    sendError(res, 'Permission denied for subdomain');
     return;
   }
   if (!isValidRecordValue(type, value)) {
-    res.json({ code: -1, msg: `Invalid value for ${type} record` });
+    sendError(res, `Invalid value for ${type} record`);
     return;
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
     const recordId = await dnsAdapter.addDomainRecord(name, type, value, line, ttl, mx, weight, remark);
     if (!recordId) {
-      res.json({ code: -1, msg: 'Failed to add record' });
+      sendError(res, 'Failed to add record');
       return;
     }
-    await logOperation(req.user!.userId, 'add_record', access.domain.name, { name, type, value });
-    res.json({ code: 0, data: { id: recordId }, msg: 'success' });
+    await logAuditOperation(req.user!.userId, 'add_record', access.domain.name, { name, type, value });
+    sendSuccess(res, { id: recordId });
   } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+    sendError(res, e instanceof Error ? e.message : String(e));
   }
-});
+}));
 
-router.post('/batch', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.domainId);
+router.post('/batch', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.domainId) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   if (!access.canWrite) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   
@@ -230,56 +224,52 @@ router.post('/batch', authMiddleware, async (req: Request, res: Response) => {
   }>;
   
   if (!Array.isArray(records) || records.length === 0) {
-    res.json({ code: -1, msg: 'records array is required' });
+    sendError(res, 'records array is required');
     return;
   }
 
   for (const r of records) {
     if (!r.name || !r.type || !r.value) {
-      res.json({ code: -1, msg: 'name, type, and value are required for all records' });
+      sendError(res, 'name, type, and value are required for all records');
       return;
     }
     if (!canWriteSubdomain(access.writeSubs, r.name, access.domain.name)) {
-      res.json({ code: -1, msg: `Permission denied for subdomain: ${r.name}` });
+      sendError(res, `Permission denied for subdomain: ${r.name}`);
       return;
     }
     if (!isValidRecordValue(r.type, r.value)) {
-      res.json({ code: -1, msg: `Invalid value for ${r.type} record` });
+      sendError(res, `Invalid value for ${r.type} record`);
       return;
     }
   }
 
-  try {
-    const dnsAdapter = await getAdapterForDomain(access.domain);
-    const addedIds = [];
-    const errors = [];
-    
-    for (const r of records) {
-      try {
-        const recordId = await dnsAdapter.addDomainRecord(r.name, r.type, r.value, r.line, r.ttl, r.mx, r.weight, r.remark);
-        if (recordId) {
-          addedIds.push(recordId);
-        } else {
-          errors.push(`Failed to add ${r.type} ${r.name}`);
-        }
-      } catch (e) {
-        errors.push(`Error adding ${r.type} ${r.name}: ${e instanceof Error ? e.message : String(e)}`);
+  const dnsAdapter = await getAdapterForDomain(access.domain);
+  const addedIds: string[] = [];
+  const errors: string[] = [];
+  
+  for (const r of records) {
+    try {
+      const recordId = await dnsAdapter.addDomainRecord(r.name, r.type, r.value, r.line, r.ttl, r.mx, r.weight, r.remark);
+      if (recordId) {
+        addedIds.push(recordId);
+      } else {
+        errors.push(`Failed to add ${r.type} ${r.name}`);
       }
+    } catch (e) {
+      errors.push(`Error adding ${r.type} ${r.name}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    
-    if (addedIds.length > 0) {
-      await logOperation(req.user!.userId, 'add_records_batch', access.domain.name, { count: addedIds.length });
-    }
-    
-    if (errors.length > 0) {
-      res.json({ code: -1, msg: errors.join('; '), data: { addedIds } });
-    } else {
-      res.json({ code: 0, data: { addedIds }, msg: 'success' });
-    }
-  } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
   }
-});
+
+  if (addedIds.length > 0) {
+    await logAuditOperation(req.user!.userId, 'add_records_batch', access.domain.name, { count: addedIds.length });
+  }
+    
+  if (errors.length > 0) {
+    sendError(res, errors.join('; '), 200, { addedIds });
+  } else {
+    sendSuccess(res, { addedIds });
+  }
+}));
 
 /**
  * @swagger
@@ -290,16 +280,16 @@ router.post('/batch', authMiddleware, async (req: Request, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.put('/:recordId', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.domainId);
+router.put('/:recordId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.domainId) ?? 0;
   const recordId = req.params.recordId;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   if (!access.canWrite) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   const { name, type, value, line, ttl, mx, weight, remark, status, cloudflare } = req.body as {
@@ -308,30 +298,30 @@ router.put('/:recordId', authMiddleware, async (req: Request, res: Response) => 
     cloudflare?: { proxied?: boolean };
   };
   if (!name || !type || !value) {
-    res.json({ code: -1, msg: 'name, type, and value are required' });
+    sendError(res, 'name, type, and value are required');
     return;
   }
   if (!canWriteSubdomain(access.writeSubs, name, access.domain.name)) {
-    res.json({ code: -1, msg: 'Permission denied for subdomain' });
+    sendError(res, 'Permission denied for subdomain');
     return;
   }
   if (!isValidRecordValue(type, value)) {
-    res.json({ code: -1, msg: `Invalid value for ${type} record` });
+    sendError(res, `Invalid value for ${type} record`);
     return;
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
     const success = await dnsAdapter.updateDomainRecord(recordId, name, type, value, line, ttl, mx, weight, remark);
     if (!success) {
-      res.json({ code: -1, msg: 'Failed to update record' });
+      sendError(res, 'Failed to update record');
       return;
     }
-    await logOperation(req.user!.userId, 'update_record', access.domain.name, { recordId, name, type, value });
-    res.json({ code: 0, msg: 'success' });
+    await logAuditOperation(req.user!.userId, 'update_record', access.domain.name, { recordId, name, type, value });
+    sendSuccess(res);
   } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+    sendError(res, e instanceof Error ? e.message : String(e));
   }
-});
+}));
 
 /**
  * @swagger
@@ -342,16 +332,16 @@ router.put('/:recordId', authMiddleware, async (req: Request, res: Response) => 
  *     security:
  *       - bearerAuth: []
  */
-router.delete('/:recordId', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.domainId);
+router.delete('/:recordId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.domainId) ?? 0;
   const recordId = req.params.recordId;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   if (!access.canWrite) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   try {
@@ -361,25 +351,25 @@ router.delete('/:recordId', authMiddleware, async (req: Request, res: Response) 
     if (access.writeSubs !== null) {
       const targetRecord = await dnsAdapter.getDomainRecordInfo(recordId);
       if (!targetRecord) {
-        res.json({ code: -1, msg: 'Record not found' });
+        sendError(res, 'Record not found');
         return;
       }
       if (!canWriteSubdomain(access.writeSubs, targetRecord.Name, access.domain.name)) {
-        res.json({ code: -1, msg: 'Permission denied for subdomain' });
+        sendError(res, 'Permission denied for subdomain');
         return;
       }
     }
     const success = await dnsAdapter.deleteDomainRecord(recordId);
     if (!success) {
-      res.json({ code: -1, msg: 'Failed to delete record' });
+      sendError(res, 'Failed to delete record');
       return;
     }
-    await logOperation(req.user!.userId, 'delete_record', access.domain.name, { recordId });
-    res.json({ code: 0, msg: 'success' });
+    await logAuditOperation(req.user!.userId, 'delete_record', access.domain.name, { recordId });
+    sendSuccess(res);
   } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+    sendError(res, e instanceof Error ? e.message : String(e));
   }
-});
+}));
 
 /**
  * @swagger
@@ -390,35 +380,35 @@ router.delete('/:recordId', authMiddleware, async (req: Request, res: Response) 
  *     security:
  *       - bearerAuth: []
  */
-router.put('/:recordId/status', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.domainId);
+router.put('/:recordId/status', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.domainId) ?? 0;
   const recordId = req.params.recordId;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   if (!access.canWrite) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   const { status } = req.body as { status: number };
   if (status !== 0 && status !== 1) {
-    res.json({ code: -1, msg: 'status must be 0 or 1' });
+    sendError(res, 'status must be 0 or 1');
     return;
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
     const success = await dnsAdapter.setDomainRecordStatus(recordId, status);
     if (!success) {
-      res.json({ code: -1, msg: 'Failed to update record status' });
+      sendError(res, 'Failed to update record status');
       return;
     }
-    await logOperation(req.user!.userId, status === 1 ? 'enable_record' : 'disable_record', access.domain.name, { recordId });
-    res.json({ code: 0, msg: 'success' });
+    await logAuditOperation(req.user!.userId, status === 1 ? 'enable_record' : 'disable_record', access.domain.name, { recordId });
+    sendSuccess(res);
   } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+    sendError(res, e instanceof Error ? e.message : String(e));
   }
-});
+}));
 
 export default router;

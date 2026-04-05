@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { getAdapter } from '../db/adapter';
 import { authMiddleware } from '../middleware/auth';
+import { asyncHandler } from '../middleware/errorHandler';
 import { Team, TeamMember } from '../types';
 import { isAdmin, isSuper } from '../utils/roles';
+import { parseInteger, sendError, sendSuccess } from '../utils/http';
 
 const router = Router();
 
@@ -35,10 +37,11 @@ function normalizeSubInput(sub?: string): string {
  *       200:
  *         description: List of teams
  */
-router.get('/', authMiddleware, async (req: Request, res: Response) => {
+router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   let teams: unknown[];
   if (isSuper(req.user?.role)) {
@@ -51,8 +54,8 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
       [req.user!.userId]
     );
   }
-  res.json({ code: 0, data: teams, msg: 'success' });
-});
+  sendSuccess(res, teams);
+}));
 
 /**
  * @swagger
@@ -78,25 +81,26 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Team created
  */
-router.post('/', authMiddleware, async (req: Request, res: Response) => {
+router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   if (!isAdmin(req.user?.role)) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   const { name, description = '' } = req.body as { name: string; description?: string };
   if (!name) {
-    res.json({ code: -1, msg: 'Team name is required' });
+    sendError(res, 'Team name is required');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const userId = req.user!.userId;
   const teamId = await adapter.insert('INSERT INTO teams (name, description, created_by) VALUES (?, ?, ?)', [name, description, userId]);
   await adapter.execute('INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)', [teamId, userId, 'owner']);
-  res.json({ code: 0, data: { id: teamId }, msg: 'success' });
-});
+  sendSuccess(res, { id: teamId });
+}));
 
 /**
  * @swagger
@@ -116,15 +120,16 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Team details
  */
-router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [id]) as Team | undefined;
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   const members = await adapter.query(
@@ -133,8 +138,8 @@ router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
      WHERE tm.team_id = ?`,
     [id]
   );
-  res.json({ code: 0, data: { ...team, members }, msg: 'success' });
-});
+  sendSuccess(res, { ...team, members });
+}));
 
 /**
  * @swagger
@@ -165,20 +170,21 @@ router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Team updated
  */
-router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [id]) as Team | undefined;
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   const member = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [id, req.user!.userId]) as TeamMember | undefined;
   if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    res.json({ code: -1, msg: 'Only team owner or admin can update team' });
+    sendError(res, 'Only team owner or admin can update team');
     return;
   }
   const { name, description } = req.body as { name?: string; description?: string };
@@ -187,13 +193,13 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
   if (name !== undefined) { updates.push('name = ?'); params.push(name); }
   if (description !== undefined) { updates.push('description = ?'); params.push(description); }
   if (updates.length === 0) {
-    res.json({ code: 0, msg: 'success' });
+    sendSuccess(res);
     return;
   }
   params.push(id);
   await adapter.execute(`UPDATE teams SET ${updates.join(', ')} WHERE id = ?`, params);
-  res.json({ code: 0, msg: 'success' });
-});
+  sendSuccess(res);
+}));
 
 /**
  * @swagger
@@ -213,25 +219,26 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Team deleted
  */
-router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [id]) as Team | undefined;
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   const member = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [id, req.user!.userId]) as TeamMember | undefined;
   if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    res.json({ code: -1, msg: 'Only team owner or admin can delete team' });
+    sendError(res, 'Only team owner or admin can delete team');
     return;
   }
   await adapter.execute('DELETE FROM teams WHERE id = ?', [id]);
-  res.json({ code: 0, msg: 'success' });
-});
+  sendSuccess(res);
+}));
 
 /**
  * @swagger
@@ -251,15 +258,16 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: List of team members
  */
-router.get('/:id/members', authMiddleware, async (req: Request, res: Response) => {
-  const teamId = parseInt(req.params.id);
+router.get('/:id/members', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInteger(req.params.id) ?? 0;
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [teamId]) as Team | undefined;
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   const members = await adapter.query(
@@ -268,8 +276,8 @@ router.get('/:id/members', authMiddleware, async (req: Request, res: Response) =
      WHERE tm.team_id = ?`,
     [teamId]
   );
-  res.json({ code: 0, data: members, msg: 'success' });
-});
+  sendSuccess(res, members);
+}));
 
 /**
  * @swagger
@@ -302,34 +310,35 @@ router.get('/:id/members', authMiddleware, async (req: Request, res: Response) =
  *       200:
  *         description: Member added
  */
-router.post('/:id/members', authMiddleware, async (req: Request, res: Response) => {
-  const teamId = parseInt(req.params.id);
+router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInteger(req.params.id) ?? 0;
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [teamId]) as Team | undefined;
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   const callerMember = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, req.user!.userId]) as TeamMember | undefined;
   if (!isSuper(req.user?.role) && callerMember?.role !== 'owner') {
-    res.json({ code: -1, msg: 'Only team owner or admin can add members' });
+    sendError(res, 'Only team owner or admin can add members');
     return;
   }
   const { userId, role = 'member' } = req.body as { userId: number; role?: string };
   if (!userId) {
-    res.json({ code: -1, msg: 'userId is required' });
+    sendError(res, 'userId is required');
     return;
   }
   try {
     await adapter.execute('INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)', [teamId, userId, role]);
-    res.json({ code: 0, msg: 'success' });
+    sendSuccess(res);
   } catch {
-    res.json({ code: -1, msg: 'User already in team' });
+    sendError(res, 'User already in team');
   }
-});
+}));
 
 /**
  * @swagger
@@ -354,21 +363,22 @@ router.post('/:id/members', authMiddleware, async (req: Request, res: Response) 
  *       200:
  *         description: Member removed
  */
-router.delete('/:id/members/:userId', authMiddleware, async (req: Request, res: Response) => {
-  const teamId = parseInt(req.params.id);
-  const targetUserId = parseInt(req.params.userId);
+router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInteger(req.params.id) ?? 0;
+  const targetUserId = parseInteger(req.params.userId) ?? 0;
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const callerMember = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, req.user!.userId]) as TeamMember | undefined;
   if (!isSuper(req.user?.role) && callerMember?.role !== 'owner') {
-    res.json({ code: -1, msg: 'Only team owner or admin can remove members' });
+    sendError(res, 'Only team owner or admin can remove members');
     return;
   }
   await adapter.execute('DELETE FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]);
-  res.json({ code: 0, msg: 'success' });
-});
+  sendSuccess(res);
+}));
 
 /**
  * @swagger
@@ -388,20 +398,21 @@ router.delete('/:id/members/:userId', authMiddleware, async (req: Request, res: 
  *       200:
  *         description: List of domain permissions
  */
-router.get('/:id/domain-permissions', authMiddleware, async (req: Request, res: Response) => {
-  const teamId = parseInt(req.params.id);
+router.get('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInteger(req.params.id) ?? 0;
   const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   if (!isSuper(req.user?.role) && !member) {
-    res.json({ code: -1, msg: 'Access denied' });
+    sendError(res, 'Access denied');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const list = await adapter.query(
     `SELECT dp.*, d.name as domain_name
@@ -411,8 +422,8 @@ router.get('/:id/domain-permissions', authMiddleware, async (req: Request, res: 
      ORDER BY d.name`,
     [teamId]
   );
-  res.json({ code: 0, data: list, msg: 'success' });
-});
+  sendSuccess(res, list);
+}));
 
 /**
  * @swagger
@@ -423,31 +434,32 @@ router.get('/:id/domain-permissions', authMiddleware, async (req: Request, res: 
  *     security:
  *       - bearerAuth: []
  */
-router.post('/:id/domain-permissions', authMiddleware, async (req: Request, res: Response) => {
-  const teamId = parseInt(req.params.id);
+router.post('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInteger(req.params.id) ?? 0;
   const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    res.json({ code: -1, msg: 'Only team owner or admin can manage permissions' });
+    sendError(res, 'Only team owner or admin can manage permissions');
     return;
   }
   const { domain_id, permission = 'write', sub = '' } = req.body as {
     domain_id: number; permission?: 'read' | 'write'; sub?: string;
   };
   if (!domain_id) {
-    res.json({ code: -1, msg: 'domain_id is required' });
+    sendError(res, 'domain_id is required');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const domain = await adapter.get('SELECT id FROM domains WHERE id = ?', [domain_id]);
   if (!domain) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   const normalizedSub = normalizeSubInput(sub);
@@ -457,15 +469,15 @@ router.post('/:id/domain-permissions', authMiddleware, async (req: Request, res:
   ) as { id: number } | undefined;
   if (existing) {
     await adapter.execute('UPDATE domain_permissions SET permission = ? WHERE id = ?', [permission, existing.id]);
-    res.json({ code: 0, data: { id: existing.id }, msg: 'success' });
+    sendSuccess(res, { id: existing.id });
     return;
   }
   const result = await adapter.insert(
     'INSERT INTO domain_permissions (team_id, domain_id, sub, permission) VALUES (?, ?, ?, ?)',
     [teamId, domain_id, normalizedSub, permission]
   );
-  res.json({ code: 0, data: { id: result }, msg: 'success' });
-});
+  sendSuccess(res, { id: result });
+}));
 
 /**
  * @swagger
@@ -476,25 +488,26 @@ router.post('/:id/domain-permissions', authMiddleware, async (req: Request, res:
  *     security:
  *       - bearerAuth: []
  */
-router.delete('/:id/domain-permissions/:permId', authMiddleware, async (req: Request, res: Response) => {
-  const teamId = parseInt(req.params.id);
-  const permId = parseInt(req.params.permId);
+router.delete('/:id/domain-permissions/:permId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInteger(req.params.id) ?? 0;
+  const permId = parseInteger(req.params.permId) ?? 0;
   const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    res.json({ code: -1, msg: 'Only team owner or admin can manage permissions' });
+    sendError(res, 'Only team owner or admin can manage permissions');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   await adapter.execute('DELETE FROM domain_permissions WHERE id = ? AND team_id = ?', [permId, teamId]);
-  res.json({ code: 0, msg: 'success' });
-});
+  sendSuccess(res);
+}));
 
 /**
  * @swagger
@@ -505,26 +518,27 @@ router.delete('/:id/domain-permissions/:permId', authMiddleware, async (req: Req
  *     security:
  *       - bearerAuth: []
  */
-router.get('/:id/members/:userId/domain-permissions', authMiddleware, async (req: Request, res: Response) => {
-  const teamId = parseInt(req.params.id);
-  const targetUserId = parseInt(req.params.userId);
+router.get('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInteger(req.params.id) ?? 0;
+  const targetUserId = parseInteger(req.params.userId) ?? 0;
   const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const targetMember = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]) as TeamMember | undefined;
   if (!targetMember) {
-    res.json({ code: -1, msg: 'User is not in team' });
+    sendError(res, 'User is not in team');
     return;
   }
   const isSelf = req.user!.userId === targetUserId;
   if (!isSuper(req.user?.role) && member?.role !== 'owner' && !isSelf) {
-    res.json({ code: -1, msg: 'Access denied' });
+    sendError(res, 'Access denied');
     return;
   }
   const list = await adapter.query(
@@ -535,8 +549,8 @@ router.get('/:id/members/:userId/domain-permissions', authMiddleware, async (req
      ORDER BY d.name`,
     [targetUserId]
   );
-  res.json({ code: 0, data: list, msg: 'success' });
-});
+  sendSuccess(res, list);
+}));
 
 /**
  * @swagger
@@ -547,37 +561,38 @@ router.get('/:id/members/:userId/domain-permissions', authMiddleware, async (req
  *     security:
  *       - bearerAuth: []
  */
-router.post('/:id/members/:userId/domain-permissions', authMiddleware, async (req: Request, res: Response) => {
-  const teamId = parseInt(req.params.id);
-  const targetUserId = parseInt(req.params.userId);
+router.post('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInteger(req.params.id) ?? 0;
+  const targetUserId = parseInteger(req.params.userId) ?? 0;
   const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    res.json({ code: -1, msg: 'Only team owner or admin can manage permissions' });
+    sendError(res, 'Only team owner or admin can manage permissions');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   const targetMember = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]) as TeamMember | undefined;
   if (!targetMember) {
-    res.json({ code: -1, msg: 'User is not in team' });
+    sendError(res, 'User is not in team');
     return;
   }
   const { domain_id, permission = 'write', sub = '' } = req.body as {
     domain_id: number; permission?: 'read' | 'write'; sub?: string;
   };
   if (!domain_id) {
-    res.json({ code: -1, msg: 'domain_id is required' });
+    sendError(res, 'domain_id is required');
     return;
   }
   const domain = await adapter.get('SELECT id FROM domains WHERE id = ?', [domain_id]);
   if (!domain) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   const normalizedSub = normalizeSubInput(sub);
@@ -587,15 +602,15 @@ router.post('/:id/members/:userId/domain-permissions', authMiddleware, async (re
   ) as { id: number } | undefined;
   if (existing) {
     await adapter.execute('UPDATE domain_permissions SET permission = ? WHERE id = ?', [permission, existing.id]);
-    res.json({ code: 0, data: { id: existing.id }, msg: 'success' });
+    sendSuccess(res, { id: existing.id });
     return;
   }
   const result = await adapter.insert(
     'INSERT INTO domain_permissions (user_id, domain_id, sub, permission) VALUES (?, ?, ?, ?)',
     [targetUserId, domain_id, normalizedSub, permission]
   );
-  res.json({ code: 0, data: { id: result }, msg: 'success' });
-});
+  sendSuccess(res, { id: result });
+}));
 
 /**
  * @swagger
@@ -606,25 +621,26 @@ router.post('/:id/members/:userId/domain-permissions', authMiddleware, async (re
  *     security:
  *       - bearerAuth: []
  */
-router.delete('/:id/members/:userId/domain-permissions/:permId', authMiddleware, async (req: Request, res: Response) => {
-  const teamId = parseInt(req.params.id);
-  const targetUserId = parseInt(req.params.userId);
-  const permId = parseInt(req.params.permId);
+router.delete('/:id/members/:userId/domain-permissions/:permId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInteger(req.params.id) ?? 0;
+  const targetUserId = parseInteger(req.params.userId) ?? 0;
+  const permId = parseInteger(req.params.permId) ?? 0;
   const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
   if (!team) {
-    res.json({ code: -1, msg: 'Team not found' });
+    sendError(res, 'Team not found');
     return;
   }
   if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    res.json({ code: -1, msg: 'Only team owner or admin can manage permissions' });
+    sendError(res, 'Only team owner or admin can manage permissions');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.json({ code: -1, msg: 'Database error' });
+    sendError(res, 'Database error');
+    return;
   }
   await adapter.execute('DELETE FROM domain_permissions WHERE id = ? AND user_id = ?', [permId, targetUserId]);
-  res.json({ code: 0, msg: 'success' });
-});
+  sendSuccess(res);
+}));
 
 export default router;

@@ -1,24 +1,18 @@
 import { Router, Request, Response } from 'express';
 import { getAdapter } from '../db/adapter';
 import { authMiddleware } from '../middleware/auth';
+import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { createFailoverConfig, getFailoverConfigByDomain, getFailoverStatus, updateFailoverConfig, deleteFailoverConfig } from '../service/failover';
 import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
+import { logAuditOperation } from '../service/audit';
+import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 
 const router = Router();
 
 function normalizeDomainName(name: string): string {
   return name.trim().toLowerCase();
-}
-
-async function logOperation(userId: number, action: string, domainName: string, data: unknown): Promise<void> {
-  const adapter = getAdapter();
-  if (!adapter) return;
-  await adapter.execute(
-    'INSERT INTO operation_logs (user_id, action, domain, data) VALUES (?, ?, ?, ?)',
-    [userId, action, domainName, JSON.stringify(data)]
-  );
 }
 
 async function getAccountForUser(accountId: number, userId: number, role: number): Promise<DnsAccount | null> {
@@ -159,10 +153,11 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *       200:
  *         description: List of domains
  */
-router.get('/', authMiddleware, async (req: Request, res: Response) => {
+router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   const { account_id, keyword } = req.query as { account_id?: string; keyword?: string };
   const userId = req.user!.userId;
@@ -187,7 +182,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
     query += ' WHERE 1=1';
   }
 
-  if (account_id) { query += ' AND d.account_id = ?'; params.push(parseInt(account_id)); }
+  if (account_id) { query += ' AND d.account_id = ?'; params.push(parseInteger(account_id)); }
   if (keyword) { query += ' AND d.name LIKE ?'; params.push(`%${keyword}%`); }
   query += ' ORDER BY d.id';
 
@@ -223,8 +218,8 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
       })
   );
 
-  res.json({ code: 0, data: domains, msg: 'success' });
-});
+  sendSuccess(res, domains);
+}));
 
 /**
  * @swagger
@@ -254,7 +249,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Domain added
  */
-router.post('/', authMiddleware, async (req: Request, res: Response) => {
+router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const {
     account_id,
     name,
@@ -269,17 +264,18 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     domains?: Array<{ name: string; third_id?: string; record_count?: number }>;
   };
   if (!account_id || (!name && (!domains || domains.length === 0))) {
-    res.json({ code: -1, msg: 'account_id and domain name are required' });
+    sendError(res, 'account_id and domain name are required');
     return;
   }
   const account = await getAccountForManage(account_id, req.user!.userId, normalizeRole(req.user!.role));
   if (!account) {
-    res.json({ code: -1, msg: 'Account not found or access denied' });
+    sendError(res, 'Account not found or access denied');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   const items = (domains && domains.length > 0)
     ? domains
@@ -297,7 +293,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   }
 
   if (normalizedMap.size === 0) {
-    res.json({ code: -1, msg: 'No valid domain names provided' });
+    sendError(res, 'No valid domain names provided');
     return;
   }
 
@@ -331,23 +327,17 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   }
 
   if (added === 0) {
-    res.json({
-      code: -1,
-      msg: duplicates.length > 0 ? `Domain already exists: ${duplicates.join(', ')}` : 'No domain added',
-    });
+    sendError(res, duplicates.length > 0 ? `Domain already exists: ${duplicates.join(', ')}` : 'No domain added');
     return;
   }
 
   const duplicateMsg = duplicates.length > 0 ? `, skipped ${duplicates.length} duplicate(s)` : '';
   for (const domainName of addedDomains) {
-    await logOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id });
+    await logAuditOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id });
   }
-  res.json({
-    code: 0,
-    data: { id: firstId, added, skipped: duplicates.length, duplicates },
-    msg: added > 1 ? `Added ${added} domains${duplicateMsg}` : `Domain added successfully${duplicateMsg}`,
-  });
-});
+  sendSuccess(res, { id: firstId, added, skipped: duplicates.length, duplicates },
+    added > 1 ? `Added ${added} domains${duplicateMsg}` : `Domain added successfully${duplicateMsg}`);
+}));
 
 /**
  * @swagger
@@ -371,20 +361,21 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Sync result
  */
-router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
+router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const { account_id } = req.body as { account_id: number };
   if (!account_id) {
-    res.json({ code: -1, msg: 'account_id is required' });
+    sendError(res, 'account_id is required');
     return;
   }
   const account = await getAccountForManage(account_id, req.user!.userId, normalizeRole(req.user!.role));
   if (!account) {
-    res.json({ code: -1, msg: 'Account not found or access denied' });
+    sendError(res, 'Account not found or access denied');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   try {
     const cfg = JSON.parse(account.config) as Record<string, string>;
@@ -400,7 +391,7 @@ router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
           [account_id, normalizedName, d.ThirdId, d.RecordCount ?? 0]
         );
         added++;
-        await logOperation(req.user!.userId, 'sync_add_domain', normalizedName, { accountId: account_id });
+        await logAuditOperation(req.user!.userId, 'sync_add_domain', normalizedName, { accountId: account_id });
       } else {
         await adapter.execute(
           'UPDATE domains SET third_id = ?, record_count = ? WHERE account_id = ? AND name = ?',
@@ -408,12 +399,12 @@ router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
         );
       }
     }
-    await logOperation(req.user!.userId, 'sync_domains', '', { accountId: account_id, total: result.total, added });
-    res.json({ code: 0, data: { total: result.total, added }, msg: 'success' });
+    await logAuditOperation(req.user!.userId, 'sync_domains', '', { accountId: account_id, total: result.total, added });
+    sendSuccess(res, { total: result.total, added });
   } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+    sendError(res, e instanceof Error ? e.message : String(e));
   }
-});
+}));
 
 /**
  * @swagger
@@ -433,11 +424,11 @@ router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: List of domains from provider
  */
-router.get('/provider-list/:accountId', authMiddleware, async (req: Request, res: Response) => {
-  const accountId = parseInt(req.params.accountId);
+router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const accountId = parseInteger(req.params.accountId) ?? 0;
   const account = await getAccountForManage(accountId, req.user!.userId, normalizeRole(req.user!.role));
   if (!account) {
-    res.json({ code: -1, msg: 'Account not found or access denied' });
+    sendError(res, 'Account not found or access denied');
     return;
   }
   try {
@@ -449,11 +440,11 @@ router.get('/provider-list/:accountId', authMiddleware, async (req: Request, res
       third_id: d.ThirdId,
       record_count: d.RecordCount ?? 0,
     }));
-    res.json({ code: 0, data: domains, msg: 'success' });
+    sendSuccess(res, domains);
   } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+    sendError(res, e instanceof Error ? e.message : String(e));
   }
-});
+}));
 
 /**
  * @swagger
@@ -473,15 +464,15 @@ router.get('/provider-list/:accountId', authMiddleware, async (req: Request, res
  *       200:
  *         description: Domain info
  */
-router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
-  res.json({ code: 0, data: access.domain, msg: 'success' });
-});
+  sendSuccess(res, access.domain);
+}));
 
 /**
  * @swagger
@@ -512,15 +503,15 @@ router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Domain updated
  */
-router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   if (!access.canWrite) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   const { remark, is_hidden } = req.body as { remark?: string; is_hidden?: number };
@@ -529,18 +520,19 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
   if (remark !== undefined) { updates.push('remark = ?'); params.push(remark); }
   if (is_hidden !== undefined) { updates.push('is_hidden = ?'); params.push(is_hidden); }
   if (updates.length === 0) {
-    res.json({ code: 0, msg: 'success' });
+    sendSuccess(res);
     return;
   }
   params.push(id);
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   await adapter.execute(`UPDATE domains SET ${updates.join(', ')} WHERE id = ?`, params);
-  await logOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden });
-  res.json({ code: 0, msg: 'success' });
-});
+  await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden });
+  sendSuccess(res);
+}));
 
 /**
  * @swagger
@@ -560,25 +552,26 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Domain deleted
  */
-router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   if (!access.canWrite) {
-    res.json({ code: -1, msg: 'Permission denied' });
+    sendError(res, 'Permission denied');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   await adapter.execute('DELETE FROM domains WHERE id = ?', [id]);
-  await logOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id });
-  res.json({ code: 0, msg: 'success' });
-});
+  await logAuditOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id });
+  sendSuccess(res);
+}));
 
 /**
  * @swagger
@@ -598,117 +591,102 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Record lines
  */
-router.get('/:id/lines', authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+router.get('/:id/lines', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
   const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.json({ code: -1, msg: 'Domain not found' });
+    sendError(res, 'Domain not found');
     return;
   }
   const adapter = getAdapter();
   if (!adapter) {
-    return res.status(500).json({ code: 500, msg: 'Database error' });
+    sendServerError(res);
+    return;
   }
   const account = await adapter.get('SELECT * FROM dns_accounts WHERE id = ?', [access.domain.account_id]) as DnsAccount | undefined;
   if (!account) {
-    res.json({ code: -1, msg: 'Account not found' });
+    sendError(res, 'Account not found');
     return;
   }
   try {
     const cfg = JSON.parse(account.config) as Record<string, string>;
     const dnsAdapter = createAdapter(account.type, cfg, access.domain.name, access.domain.third_id);
     const lines = await dnsAdapter.getRecordLines();
-    res.json({ code: 0, data: lines, msg: 'success' });
+    sendSuccess(res, lines);
   } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+    sendError(res, e instanceof Error ? e.message : String(e));
   }
-});
+}));
 
-router.get('/:id/failover', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.id, 10);
+router.get('/:id/failover', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.id, { min: 1 }) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
-    res.status(403).json({ code: 403, msg: 'No permission' });
+    sendError(res, 'No permission', 403);
     return;
   }
-  try {
-    const config = await getFailoverConfigByDomain(domainId);
-    if (!config) {
-      res.json({ code: 0, data: null, msg: 'success' });
-      return;
-    }
-    const status = await getFailoverStatus(config.id);
-    res.json({ code: 0, data: { config, status }, msg: 'success' });
-  } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  const config = await getFailoverConfigByDomain(domainId);
+  if (!config) {
+    sendSuccess(res, null);
+    return;
   }
-});
+  const status = await getFailoverStatus(config.id);
+  sendSuccess(res, { config, status });
+}));
 
-router.post('/:id/failover', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.id, 10);
+router.post('/:id/failover', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.id, { min: 1 }) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canWrite) {
-    res.status(403).json({ code: 403, msg: 'No write permission' });
+    sendError(res, 'No write permission', 403);
     return;
   }
   const { primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack } = req.body;
   if (!primaryIp) {
-    res.status(400).json({ code: -1, msg: 'primaryIp is required' });
+    sendError(res, 'primaryIp is required', 400);
     return;
   }
-  try {
-    const existing = await getFailoverConfigByDomain(domainId);
-    if (existing) {
-      await updateFailoverConfig(existing.id, { primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack });
-      res.json({ code: 0, data: { id: existing.id }, msg: 'success' });
-    } else {
-      const config = await createFailoverConfig(domainId, primaryIp, backupIps || [], checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack);
-      res.json({ code: 0, data: config, msg: 'success' });
-    }
-  } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  const existing = await getFailoverConfigByDomain(domainId);
+  if (existing) {
+    await updateFailoverConfig(existing.id, { primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack });
+    sendSuccess(res, { id: existing.id });
+  } else {
+    const config = await createFailoverConfig(domainId, primaryIp, backupIps || [], checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack);
+    sendSuccess(res, config);
   }
-});
+}));
 
-router.put('/:id/failover', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.id, 10);
+router.put('/:id/failover', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.id, { min: 1 }) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canWrite) {
-    res.status(403).json({ code: 403, msg: 'No write permission' });
+    sendError(res, 'No write permission', 403);
     return;
   }
-  try {
-    const existing = await getFailoverConfigByDomain(domainId);
-    if (!existing) {
-      res.status(404).json({ code: -1, msg: 'Not found' });
-      return;
-    }
-    await updateFailoverConfig(existing.id, req.body);
-    res.json({ code: 0, msg: 'success' });
-  } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  const existing = await getFailoverConfigByDomain(domainId);
+  if (!existing) {
+    sendError(res, 'Not found', 404);
+    return;
   }
-});
+  await updateFailoverConfig(existing.id, req.body);
+  sendSuccess(res);
+}));
 
-router.delete('/:id/failover', authMiddleware, async (req: Request, res: Response) => {
-  const domainId = parseInt(req.params.id, 10);
+router.delete('/:id/failover', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.id, { min: 1 }) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canWrite) {
-    res.status(403).json({ code: 403, msg: 'No write permission' });
+    sendError(res, 'No write permission', 403);
     return;
   }
-  try {
-    const existing = await getFailoverConfigByDomain(domainId);
-    if (!existing) {
-      res.status(404).json({ code: -1, msg: 'Not found' });
-      return;
-    }
-    await deleteFailoverConfig(existing.id);
-    res.json({ code: 0, msg: 'success' });
-  } catch (e) {
-    res.json({ code: -1, msg: e instanceof Error ? e.message : String(e) });
+  const existing = await getFailoverConfigByDomain(domainId);
+  if (!existing) {
+    sendError(res, 'Not found', 404);
+    return;
   }
-});
+  await deleteFailoverConfig(existing.id);
+  sendSuccess(res);
+}));
 
 export { canAccessDomain, getAccountForUser };
 export default router;
