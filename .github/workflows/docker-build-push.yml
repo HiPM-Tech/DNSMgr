@@ -35,31 +35,36 @@ jobs:
       - name: Get latest tag and calculate next version
         id: version
         run: |
-          # Get the latest tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0.0")
+          # Get the latest tag (sorted by version)
+          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -n 1 || echo "v0.0.0.0")
           echo "Latest tag: $LATEST_TAG"
 
           # Parse version components (support both 3-segment and 4-segment versions)
           VERSION=${LATEST_TAG#v}
+          
+          # Remove -beta or other suffixes for version calculation
+          VERSION_BASE=$(echo "$VERSION" | cut -d- -f1)
+          echo "Version base: $VERSION_BASE"
 
-          # Count number of segments
-          SEGMENT_COUNT=$(echo "$VERSION" | tr '.' '\n' | wc -l)
+          # Count number of segments in base version
+          SEGMENT_COUNT=$(echo "$VERSION_BASE" | tr '.' '\n' | wc -l)
+          echo "Segment count: $SEGMENT_COUNT"
 
           if [ "$SEGMENT_COUNT" -eq 4 ]; then
             # 4-segment version: MAJOR.MINOR.PATCH.BUILD (e.g., 0.0.4.4)
-            MAJOR=$(echo $VERSION | cut -d. -f1)
-            MINOR=$(echo $VERSION | cut -d. -f2)
-            PATCH=$(echo $VERSION | cut -d. -f3)
-            BUILD=$(echo $VERSION | cut -d. -f4 | cut -d- -f1)
+            MAJOR=$(echo $VERSION_BASE | cut -d. -f1)
+            MINOR=$(echo $VERSION_BASE | cut -d. -f2)
+            PATCH=$(echo $VERSION_BASE | cut -d. -f3)
+            BUILD=$(echo $VERSION_BASE | cut -d. -f4)
 
             # Increment build number
             NEW_BUILD=$((BUILD + 1))
             NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}.${NEW_BUILD}"
           else
             # 3-segment version: MAJOR.MINOR.PATCH (e.g., 0.1.5)
-            MAJOR=$(echo $VERSION | cut -d. -f1)
-            MINOR=$(echo $VERSION | cut -d. -f2)
-            PATCH=$(echo $VERSION | cut -d. -f3 | cut -d- -f1)
+            MAJOR=$(echo $VERSION_BASE | cut -d. -f1)
+            MINOR=$(echo $VERSION_BASE | cut -d. -f2)
+            PATCH=$(echo $VERSION_BASE | cut -d. -f3)
 
             # Increment patch version
             NEW_PATCH=$((PATCH + 1))
