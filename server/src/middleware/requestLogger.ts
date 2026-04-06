@@ -7,34 +7,69 @@ import { Request, Response, NextFunction } from 'express';
 export function requestLogger(req: Request, res: Response, next: NextFunction): void {
   const startTime = Date.now();
   const originalSend = res.send;
+  const originalJson = res.json;
 
-  // Override send to capture response
-  res.send = function (data: unknown) {
+  // Helper function to perform logging
+  const doLog = () => {
     const duration = Date.now() - startTime;
     const statusCode = res.statusCode;
 
     // Log request details
     const logLevel = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
-    const logData = {
+    const logData: Record<string, unknown> = {
       method: req.method,
       path: req.path,
       status: statusCode,
       duration: `${duration}ms`,
       ip: req.ip,
-      userAgent: req.get('user-agent'),
+      requestId: req.id,
       timestamp: new Date().toISOString(),
     };
 
-    if (logLevel === 'error') {
-      console.error('[HTTP]', logData);
-    } else if (logLevel === 'warn') {
-      console.warn('[HTTP]', logData);
-    } else {
-      console.log('[HTTP]', logData);
+    // Add user info if available (from auth middleware)
+    if ((req as any).user) {
+      logData.userId = (req as any).user.id;
+      logData.username = (req as any).user.username;
     }
 
-    // Call original send
+    // Add query params for GET requests
+    if (req.method === 'GET' && Object.keys(req.query).length > 0) {
+      logData.query = req.query;
+    }
+
+    // Add body for non-GET requests (excluding sensitive endpoints)
+    const sensitivePaths = ['/api/auth/login', '/api/auth/register', '/api/init/admin'];
+    const isSensitive = sensitivePaths.some(path => req.path.includes(path));
+    if (req.method !== 'GET' && !isSensitive && req.body && Object.keys(req.body).length > 0) {
+      // Filter out sensitive fields
+      const filteredBody = { ...req.body };
+      delete filteredBody.password;
+      delete filteredBody.password_hash;
+      delete filteredBody.token;
+      if (Object.keys(filteredBody).length > 0) {
+        logData.body = filteredBody;
+      }
+    }
+
+    if (logLevel === 'error') {
+      console.error('[HTTP]', JSON.stringify(logData));
+    } else if (logLevel === 'warn') {
+      console.warn('[HTTP]', JSON.stringify(logData));
+    } else {
+      console.log('[HTTP]', JSON.stringify(logData));
+    }
+  };
+
+  // Override send to capture response
+  res.send = function (data: unknown) {
+    doLog();
     return originalSend.call(this, data);
+  };
+
+  // Override json to capture response
+  res.json = function (data: unknown) {
+    doLog();
+    return originalJson.call(this, data);
   };
 
   next();

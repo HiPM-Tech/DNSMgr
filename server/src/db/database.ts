@@ -63,21 +63,55 @@ class MySQLConnection implements DbConnection {
   }
 
   async query(sql: string, params?: unknown[]): Promise<unknown[]> {
-    const [rows] = await this.pool.execute(sql, params as mysql.RowDataPacket);
-    return rows as unknown[];
+    const startTime = Date.now();
+    this.stats.queries++;
+    try {
+      const [rows] = await this.pool.execute(sql, params as mysql.RowDataPacket);
+      const duration = Date.now() - startTime;
+      if (duration > 100) {
+        console.warn(`[MySQL] Slow query (${duration}ms): ${sql.substring(0, 100)}`);
+      }
+      return rows as unknown[];
+    } catch (error) {
+      console.error(`[MySQL] Query error: ${sql.substring(0, 100)}`, error);
+      throw error;
+    }
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
-    await this.pool.execute(sql, params as mysql.RowDataPacket);
+    const startTime = Date.now();
+    this.stats.queries++;
+    try {
+      await this.pool.execute(sql, params as mysql.RowDataPacket);
+      const duration = Date.now() - startTime;
+      if (duration > 100) {
+        console.warn(`[MySQL] Slow execute (${duration}ms): ${sql.substring(0, 100)}`);
+      }
+    } catch (error) {
+      console.error(`[MySQL] Execute error: ${sql.substring(0, 100)}`, error);
+      throw error;
+    }
   }
 
   async get(sql: string, params?: unknown[]): Promise<unknown | undefined> {
-    const [rows] = await this.pool.execute(sql, params as mysql.RowDataPacket);
-    const results = rows as unknown[];
-    return results.length > 0 ? results[0] : undefined;
+    const startTime = Date.now();
+    this.stats.queries++;
+    try {
+      const [rows] = await this.pool.execute(sql, params as mysql.RowDataPacket);
+      const results = rows as unknown[];
+      const duration = Date.now() - startTime;
+      if (duration > 100) {
+        console.warn(`[MySQL] Slow get (${duration}ms): ${sql.substring(0, 100)}`);
+      }
+      return results.length > 0 ? results[0] : undefined;
+    } catch (error) {
+      console.error(`[MySQL] Get error: ${sql.substring(0, 100)}`, error);
+      throw error;
+    }
   }
 
   async close(): Promise<void> {
+    console.log(`[MySQL] Closing connection pool (stats: acquired=${this.stats.acquired}, released=${this.stats.released}, queries=${this.stats.queries})`);
     await this.pool.end();
   }
 }
