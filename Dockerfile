@@ -49,6 +49,9 @@ RUN pnpm install --frozen-lockfile --prod
 # Copy built server files from builder
 COPY --from=builder /app/server/dist ./server/dist
 
+# Copy server scripts
+COPY --from=builder /app/server/scripts ./server/scripts
+
 # Copy built client files from builder
 COPY --from=builder /app/client/dist ./client/dist
 
