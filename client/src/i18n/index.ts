@@ -6,7 +6,7 @@ import zhCNMesugaki from './locales/zh-CN-Mesugaki.json';
 import type { LocaleDefinition } from './types';
 
 export const locales: Record<string, LocaleDefinition> = {
-  en: { code: 'en', label: 'English', messages: en },
+  en: { code: 'en', label: 'English', messages: en.messages },
   es: { code: 'es', label: 'Español', messages: es.messages },
   ja: { code: 'ja', label: '日本語', messages: ja.messages },
   'zh-CN': { code: 'zh-CN', label: '简体中文', messages: zhCN.messages },
