@@ -335,7 +335,7 @@ const mysqlSchema = {
       user_id INT NOT NULL,
       token VARCHAR(500) NOT NULL UNIQUE,
       ip_address VARCHAR(255) NOT NULL DEFAULT '',
-      user_agent TEXT NOT NULL DEFAULT '',
+      user_agent TEXT,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       last_activity_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       expires_at DATETIME NOT NULL,
