@@ -82,6 +82,7 @@ jobs:
             type=sha,prefix=,suffix=,format=short
             type=ref,event=branch
             ${{ github.event.inputs.beta != 'true' && 'type=raw,value=latest' || '' }}
+            ${{ github.event.inputs.beta == 'true' && 'type=raw,value=beta' || '' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
