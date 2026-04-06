@@ -19,6 +19,9 @@ server/*.db
 server/*.db-shm
 server/*.db-wal
 
+# AI-Censorship
+AI-Censorship/
+
 # Logs
 *.log
 nohup.out
