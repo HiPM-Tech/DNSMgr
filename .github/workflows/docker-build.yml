@@ -1,6 +1,6 @@
 name: Build and Push Docker Image
 
-# This workflow can only be triggered manually
+# This workflow can be triggered manually or called by other workflows
 on:
   workflow_dispatch:
     inputs:
@@ -21,6 +21,22 @@ on:
         options:
           - 'true'
           - 'false'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Docker image tag (e.g., 0.1.0)'
+        required: true
+        type: string
+      beta:
+        description: 'Beta release (auto add -beta suffix if not present, skip latest tag)'
+        required: false
+        default: false
+        type: boolean
+      push:
+        description: 'Push to registry'
+        required: false
+        default: 'true'
+        type: string
 
 env:
   REGISTRY: ghcr.io
