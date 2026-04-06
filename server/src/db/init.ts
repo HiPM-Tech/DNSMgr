@@ -8,6 +8,9 @@ import crypto from 'crypto';
 
 export async function initSchema(): Promise<void> {
   const conn = getConnection();
+  if (!conn) {
+    throw new Error('Database connection not initialized. Call createConnection first.');
+  }
   const type = conn.type;
 
   switch (type) {
@@ -168,6 +171,9 @@ async function rotateRuntimeSecrets(conn: DbConnection): Promise<void> {
 export function getRuntimeSecret(key: string): string | null {
   try {
     const conn = getConnection();
+    if (!conn) {
+      return null;
+    }
 
     if (conn.type === 'sqlite') {
       const sqliteConn = conn as SQLiteConnection;
