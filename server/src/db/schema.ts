@@ -770,7 +770,7 @@ export async function rotateRuntimeSecretsAsync(conn: { type: string; exec?: (sq
       stmt.run('jwt_runtime', jwtRuntimeSecret);
     } else if (conn.type === 'mysql') {
       await (conn as { execute: (sql: string, params?: unknown[]) => Promise<void> }).execute('DELETE FROM runtime_secrets');
-      await (conn as { execute: (sql: string, params?: unknown[]) => Promise<void> }).execute('INSERT INTO runtime_secrets (key, value) VALUES (?, ?)', ['jwt_runtime', jwtRuntimeSecret]);
+      await (conn as { execute: (sql: string, params?: unknown[]) => Promise<void> }).execute('INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?)', ['jwt_runtime', jwtRuntimeSecret]);
     } else if (conn.type === 'postgresql') {
       await (conn as { execute: (sql: string, params?: unknown[]) => Promise<void> }).execute('DELETE FROM runtime_secrets');
       await (conn as { execute: (sql: string, params?: unknown[]) => Promise<void> }).execute('INSERT INTO runtime_secrets (key, value) VALUES ($1, $2)', ['jwt_runtime', jwtRuntimeSecret]);
