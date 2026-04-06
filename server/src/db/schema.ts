@@ -380,6 +380,23 @@ const mysqlSchema = {
       switch_count INT NOT NULL DEFAULT 0,
       FOREIGN KEY (config_id) REFERENCES failover_configs(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS login_attempts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      identifier VARCHAR(255) NOT NULL,
+      ip_address VARCHAR(255) NOT NULL DEFAULT '',
+      attempt_count INT NOT NULL DEFAULT 1,
+      last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      locked_until DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_identifier (identifier),
+      INDEX idx_ip_address (ip_address),
+      INDEX idx_locked_until (locked_until)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS system_settings (
+      \`key\` VARCHAR(255) PRIMARY KEY,
+      \`value\` TEXT NOT NULL,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   ],
 };
 
