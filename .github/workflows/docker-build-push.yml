@@ -16,6 +16,10 @@ on:
       - 'pnpm-workspace.yaml'
       - '.github/workflows/docker-build*.yml'
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   version:
     runs-on: ubuntu-latest
