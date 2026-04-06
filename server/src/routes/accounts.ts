@@ -79,7 +79,8 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   }
   // Mask config secrets
   const safe = accounts.map(a => {
-    const cfg = JSON.parse(a.config) as Record<string, string>;
+    // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
+    const cfg = typeof a.config === 'string' ? JSON.parse(a.config) as Record<string, string> : a.config as Record<string, string>;
     const masked: Record<string, string> = {};
     for (const k of Object.keys(cfg)) masked[k] = '***';
     return { ...a, type: normalizeProviderType(a.type), config: masked };
@@ -191,7 +192,8 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
     sendError(res, 'Account not found');
     return;
   }
-  const cfg = JSON.parse(account.config) as Record<string, string>;
+  // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
+  const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
   const masked: Record<string, string> = {};
   for (const k of Object.keys(cfg)) masked[k] = '***';
   sendSuccess(res, { ...account, type: normalizeProviderType(account.type), config: masked });
