@@ -22,9 +22,12 @@ export interface DbConnection {
 class MySQLConnection implements DbConnection {
   type: DbType = 'mysql';
   private pool: mysql.Pool;
+  private stats = { acquired: 0, released: 0, queries: 0 };
 
   constructor(config: { host: string; port: number; database: string; user: string; password: string; ssl: boolean }) {
     const poolSize = parseInt(process.env.DB_POOL_SIZE || '20', 10);
+    console.log(`[MySQL] Initializing connection pool to ${config.host}:${config.port}/${config.database} (pool size: ${poolSize})`);
+
     this.pool = mysql.createPool({
       host: config.host,
       port: config.port,
@@ -41,15 +44,19 @@ class MySQLConnection implements DbConnection {
       connectTimeout: 60000,
     });
 
-    // 连接池事件监控（仅在非生产环境或需要调试时启用）
-    if (process.env.NODE_ENV !== 'production') {
-      this.pool.on('acquire', () => {
-        console.debug('[MySQL] Connection acquired');
-      });
-      this.pool.on('release', () => {
-        console.debug('[MySQL] Connection released');
-      });
-    }
+    // 连接池事件监控
+    this.pool.on('acquire', () => {
+      this.stats.acquired++;
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug(`[MySQL] Connection acquired (total: ${this.stats.acquired})`);
+      }
+    });
+    this.pool.on('release', () => {
+      this.stats.released++;
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug(`[MySQL] Connection released (total: ${this.stats.released})`);
+      }
+    });
     this.pool.on('enqueue', () => {
       console.warn('[MySQL] Waiting for available connection slot');
     });
@@ -79,9 +86,12 @@ class MySQLConnection implements DbConnection {
 class PostgreSQLConnection implements DbConnection {
   type: DbType = 'postgresql';
   private pool: Pool;
+  private stats = { connected: 0, acquired: 0, removed: 0 };
 
   constructor(config: { host: string; port: number; database: string; user: string; password: string; ssl: boolean }) {
     const poolSize = parseInt(process.env.DB_POOL_SIZE || '20', 10);
+    console.log(`[PostgreSQL] Initializing connection pool to ${config.host}:${config.port}/${config.database} (pool size: ${poolSize})`);
+
     this.pool = new Pool({
       host: config.host,
       port: config.port,
@@ -101,13 +111,22 @@ class PostgreSQLConnection implements DbConnection {
 
     // 连接池事件监控
     this.pool.on('connect', () => {
-      console.debug('[PostgreSQL] New client connected');
+      this.stats.connected++;
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug(`[PostgreSQL] New client connected (total: ${this.stats.connected})`);
+      }
     });
     this.pool.on('acquire', () => {
-      console.debug('[PostgreSQL] Client acquired from pool');
+      this.stats.acquired++;
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug(`[PostgreSQL] Client acquired from pool (total: ${this.stats.acquired})`);
+      }
     });
     this.pool.on('remove', () => {
-      console.debug('[PostgreSQL] Client removed from pool');
+      this.stats.removed++;
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug(`[PostgreSQL] Client removed from pool (total: ${this.stats.removed})`);
+      }
     });
   }
 
@@ -148,16 +167,20 @@ class PostgreSQLConnection implements DbConnection {
 class SQLiteConnection implements DbConnection {
   type: DbType = 'sqlite';
   private db: Database.Database;
+  private stats = { queries: 0, transactions: 0 };
 
   constructor(path: string) {
+    console.log(`[SQLite] Opening database at ${path}`);
     const fs = require('fs');
     const dir = require('path').dirname(path);
     if (!fs.existsSync(dir)) {
+      console.log(`[SQLite] Creating directory: ${dir}`);
       fs.mkdirSync(dir, { recursive: true });
     }
     this.db = new Database(path);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
+    console.log(`[SQLite] Database opened successfully (WAL mode enabled)`);
   }
 
   async query(sql: string, params?: unknown[]): Promise<unknown[]> {
