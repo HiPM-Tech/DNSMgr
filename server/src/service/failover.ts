@@ -282,7 +282,8 @@ export async function performFailover(
       throw new Error('DNS account not found');
     }
 
-    const cfg = JSON.parse(accountRow.config || '{}');
+    // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
+    const cfg = typeof accountRow.config === 'string' ? JSON.parse(accountRow.config || '{}') : accountRow.config || {};
     const adapter = createAdapter(accountRow.type, cfg, domainRow.name, domainRow.third_id);
 
     let page = 1;

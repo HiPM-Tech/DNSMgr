@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { createUserToken, getUserTokens, deleteUserToken, toggleTokenStatus } from '../service/token';
-import { getAdapter } from '../db/adapter';
+import { db } from '../db';
 import { normalizeRole } from '../utils/roles';
 
 const router = Router();
@@ -284,12 +284,6 @@ router.patch('/:id/status', authMiddleware, async (req: Request, res: Response) 
  *         description: Database connection not available
  */
 router.get('/domains', authMiddleware, async (req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    return;
-  }
-
   try {
     const domains = await db.query(
       `SELECT d.id, d.name, da.name as account_name

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { getAdapter } from '../db/adapter';
+import { db } from '../db';
 import { authMiddleware, signToken } from '../middleware/auth';
 import { User } from '../types';
 import { ROLE_SUPER, ROLE_USER } from '../utils/roles';
@@ -70,13 +70,11 @@ function randomHex(size: number): string {
 }
 
 async function getOAuthConfigByProvider(provider: 'custom' | 'logto'): Promise<OAuthConfig> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database connection not available');
   const key = provider === 'logto' ? 'oauth_logto_config' : 'oauth_config';
   const defaults: OAuthConfig = provider === 'logto'
     ? { ...DEFAULT_OAUTH_CONFIG, template: 'logto', providerName: 'Logto' }
     : { ...DEFAULT_OAUTH_CONFIG, template: 'generic' };
-  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', [key]) as { value: string } | undefined;
+  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', [key]);
   if (!row?.value) return defaults;
   try {
     return { ...defaults, ...(JSON.parse(row.value) as Partial<OAuthConfig>) };
@@ -259,12 +257,6 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     return;
   }
 
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    return;
-  }
-
   try {
     // Check if input is an email (contains @)
     const isEmail = username.includes('@');
@@ -280,16 +272,14 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       return;
     }
     
-    let result;
+    let user: User | undefined;
     if (isEmail) {
       // Login with email
-      result = await db.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE email = ?', [username]);
+      user = await db.get<User>('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE email = ?', [username]);
     } else {
       // Login with username
-      result = await db.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?', [username]);
+      user = await db.get<User>('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?', [username]);
     }
-    
-    const user = result as User | undefined;
 
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       // Record failed attempt
@@ -308,7 +298,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
 
     // Check 2FA
     const totpStatus = await getTOTPStatus(user.id);
-    const hasWebauthn = await db.get('SELECT enabled FROM user_2fa WHERE user_id = ? AND type = ?', [user.id, 'webauthn']) as { enabled: number } | undefined;
+    const hasWebauthn = await db.get<{ enabled: number }>('SELECT enabled FROM user_2fa WHERE user_id = ? AND type = ?', [user.id, 'webauthn']);
     const isTotpEnabled = totpStatus.enabled;
     const isWebauthnEnabled = Boolean(hasWebauthn?.enabled);
 
@@ -320,7 +310,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
           return;
         }
       } else if (totpCode && isTotpEnabled) {
-        const secretRow = await db.get('SELECT secret FROM user_2fa WHERE user_id = ? AND type = ?', [user.id, 'totp']) as { secret: string } | undefined;
+        const secretRow = await db.get<{ secret: string }>('SELECT secret FROM user_2fa WHERE user_id = ? AND type = ?', [user.id, 'totp']);
         if (!secretRow || !verifyTOTPToken(secretRow.secret, totpCode)) {
           res.json({ code: -1, msg: 'Invalid 2FA code' });
           return;
@@ -611,12 +601,6 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     return;
   }
 
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    return;
-  }
-
   try {
     const config = await getOAuthConfigByProvider(stateEntry.provider);
     assertOAuthEnabled(config);
@@ -638,13 +622,13 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     // Get provider key for database lookup
     const providerKey = getProviderKey(config);
     
-    const existingLink = await db.get(
+    const existingLink = await db.get<LoginUserInfo & { user_id: number }>(
       `SELECT l.user_id, u.id, u.username, u.nickname, u.email, u.role_level as role, u.status
        FROM oauth_user_links l
        INNER JOIN users u ON u.id = l.user_id
        WHERE l.provider = ? AND l.subject = ?`,
       [providerKey, subject]
-    ) as (LoginUserInfo & { user_id: number }) | undefined;
+    );
 
     if (stateEntry.mode === 'bind') {
       const currentUserId = stateEntry.userId;
@@ -694,11 +678,6 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
 });
 
 router.get('/oauth/bindings', authMiddleware, async (req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    return;
-  }
   try {
     const list = await db.query(
       'SELECT provider, subject, email, created_at FROM oauth_user_links WHERE user_id = ? ORDER BY id DESC',
@@ -711,11 +690,6 @@ router.get('/oauth/bindings', authMiddleware, async (req: Request, res: Response
 });
 
 router.delete('/oauth/bindings/:provider', authMiddleware, async (req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    return;
-  }
   try {
     const provider = (req.params.provider || '').trim().toLowerCase();
     if (!provider) {
@@ -768,15 +742,9 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
     return;
   }
 
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    return;
-  }
-
   try {
-    const countResult = await db.get('SELECT COUNT(*) as cnt FROM users');
-    const count = (countResult as { cnt: number })?.cnt || 0;
+    const countResult = await db.get<{ cnt: number }>('SELECT COUNT(*) as cnt FROM users');
+    const count = countResult?.cnt || 0;
 
     const role = count === 0 ? ROLE_SUPER : ROLE_USER;
     const hash = bcrypt.hashSync(password, 10);
@@ -807,15 +775,8 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
  *         description: Current user info
  */
 router.get('/me', authMiddleware, async (req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    return;
-  }
-
   try {
-    const result = await db.get('SELECT id, username, nickname, email, role_level as role, status, created_at FROM users WHERE id = ?', [req.user!.userId]);
-    const user = result as User | undefined;
+    const user = await db.get<User>('SELECT id, username, nickname, email, role_level as role, status, created_at FROM users WHERE id = ?', [req.user!.userId]);
 
     if (!user) {
       res.json({ code: -1, msg: 'User not found' });
@@ -858,15 +819,8 @@ router.put('/password', authMiddleware, async (req: Request, res: Response) => {
     return;
   }
 
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    return;
-  }
-
   try {
-    const result = await db.get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [req.user!.userId]);
-    const user = result as User | undefined;
+    const user = await db.get<User>('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [req.user!.userId]);
 
     if (!user || !bcrypt.compareSync(oldPassword, user.password_hash)) {
       res.json({ code: -1, msg: 'Old password is incorrect' });
@@ -874,7 +828,7 @@ router.put('/password', authMiddleware, async (req: Request, res: Response) => {
     }
     const hash = bcrypt.hashSync(newPassword, 10);
 
-    await db.execute(`UPDATE users SET password_hash = ?, updated_at = ${db.now()} WHERE id = ?`, [hash, user.id]);
+    await db.execute('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
 
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
@@ -912,15 +866,8 @@ router.put('/profile', authMiddleware, async (req: Request, res: Response) => {
     return;
   }
 
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    return;
-  }
-
   try {
-    const result = await db.get('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [req.user!.userId]);
-    const user = result as User | undefined;
+    const user = await db.get<User>('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [req.user!.userId]);
 
     if (!user) {
       res.json({ code: -1, msg: 'User not found' });
@@ -948,7 +895,7 @@ router.put('/profile', authMiddleware, async (req: Request, res: Response) => {
     }
     params.push(user.id);
 
-    await db.execute(`UPDATE users SET ${updates.join(', ')}, updated_at = ${db.now()} WHERE id = ?`, params);
+    await db.execute(`UPDATE users SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
     const updatedResult = await db.get('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [user.id]);
     if (email !== undefined && email.trim() !== user.email) {
       await logAuditOperation(user.id, 'update_profile_email', 'system', { oldEmail: user.email, newEmail: email.trim() });
@@ -992,12 +939,7 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
       res.status(400).json({ code: 400, msg: 'Password reset by email is unavailable: SMTP is not configured' });
       return;
     }
-    const db = getAdapter();
-    if (!db) {
-      res.status(500).json({ code: 500, msg: 'Database connection not available' });
-      return;
-    }
-    const user = await db.get('SELECT id, username, email FROM users WHERE email = ?', [normalized]) as { id: number; username: string; email: string } | undefined;
+    const user = await db.get<{ id: number; username: string; email: string }>('SELECT id, username, email FROM users WHERE email = ?', [normalized]);
     if (user) {
       const code = String(Math.floor(100000 + Math.random() * 900000));
       resetStore.set(normalized, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
@@ -1027,18 +969,13 @@ router.post('/password-reset/confirm', async (req: Request, res: Response) => {
     return;
   }
   try {
-    const db = getAdapter();
-    if (!db) {
-      res.status(500).json({ code: 500, msg: 'Database connection not available' });
-      return;
-    }
-    const user = await db.get('SELECT id FROM users WHERE email = ?', [normalized]) as { id: number } | undefined;
+    const user = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', [normalized]);
     if (!user) {
       res.status(400).json({ code: 400, msg: 'Email not found' });
       return;
     }
     const hash = bcrypt.hashSync(newPassword, 10);
-    await db.execute(`UPDATE users SET password_hash = ?, updated_at = ${db.now()} WHERE id = ?`, [hash, user.id]);
+    await db.execute('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
     resetStore.delete(normalized);
     await logAuditOperation(user.id, 'reset_password_by_email', 'system', { email: normalized });
     res.json({ code: 0, msg: 'success' });

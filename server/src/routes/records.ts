@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getAdapter } from '../db/adapter';
+import { db } from '../db';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
@@ -90,18 +90,15 @@ function canWriteSubdomain(writeSubs: string[] | null, fullName: string, domainN
 }
 
 async function getAdapterForDomain(domain: Domain) {
-  const adapter = getAdapter();
-  if (!adapter) throw new Error('Database error');
-  const account = await adapter.get('SELECT * FROM dns_accounts WHERE id = ?', [domain.account_id]) as DnsAccount | undefined;
+  const account = await db.get<DnsAccount>('SELECT * FROM dns_accounts WHERE id = ?', [domain.account_id]);
   if (!account) throw new Error('Account not found');
-  const cfg = JSON.parse(account.config) as Record<string, string>;
+  // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
+  const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
   return createAdapter(account.type, cfg, domain.name, domain.third_id);
 }
 
 async function updateDomainRecordCount(domainId: number, count: number): Promise<void> {
-  const adapter = getAdapter();
-  if (!adapter) return;
-  await adapter.execute('UPDATE domains SET record_count = ? WHERE id = ?', [count, domainId]);
+  await db.execute('UPDATE domains SET record_count = ? WHERE id = ?', [count, domainId]);
 }
 
 /**

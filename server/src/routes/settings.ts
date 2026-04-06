@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
 import { getLoginLimitConfig, updateLoginLimitConfig, getLoginAttemptStats, unlockAccount } from '../service/loginLimit';
-import { getAdapter } from '../db/adapter';
+import { db } from '../db';
 import { getSmtpConfig, updateSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { logAuditOperation } from '../service/audit';
 
@@ -81,9 +81,7 @@ function applyOAuthTemplate(input: OAuthConfig): OAuthConfig {
 }
 
 async function getSecurityConfig(): Promise<SecurityConfig> {
-  const db = getAdapter();
-  if (!db) return DEFAULT_SECURITY_CONFIG;
-  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['security_config']) as { value: string } | undefined;
+  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['security_config']);
   if (!row?.value) return DEFAULT_SECURITY_CONFIG;
   try {
     const parsed = JSON.parse(row.value) as Partial<SecurityConfig>;
@@ -94,28 +92,17 @@ async function getSecurityConfig(): Promise<SecurityConfig> {
 }
 
 async function updateSecurityConfig(input: Partial<SecurityConfig>): Promise<SecurityConfig> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
   const next = { ...(await getSecurityConfig()), ...input };
   const payload = ['security_config', JSON.stringify(next)];
-  if (db.type === 'mysql') {
-    await db.execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
-      payload
-    );
-  } else {
-    await db.execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
-      payload
-    );
-  }
+  await db.execute(
+    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
+    payload
+  );
   return next;
 }
 
 async function getOAuthConfig(): Promise<OAuthConfig> {
-  const db = getAdapter();
-  if (!db) return DEFAULT_OAUTH_CONFIG;
-  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['oauth_config']) as { value: string } | undefined;
+  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['oauth_config']);
   if (!row?.value) return DEFAULT_OAUTH_CONFIG;
   try {
     const parsed = JSON.parse(row.value) as Partial<OAuthConfig>;
@@ -126,9 +113,7 @@ async function getOAuthConfig(): Promise<OAuthConfig> {
 }
 
 async function getLogtoOAuthConfig(): Promise<OAuthConfig> {
-  const db = getAdapter();
-  if (!db) return DEFAULT_LOGTO_OAUTH_CONFIG;
-  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['oauth_logto_config']) as { value: string } | undefined;
+  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['oauth_logto_config']);
   if (!row?.value) return DEFAULT_LOGTO_OAUTH_CONFIG;
   try {
     const parsed = JSON.parse(row.value) as Partial<OAuthConfig>;
@@ -139,8 +124,6 @@ async function getLogtoOAuthConfig(): Promise<OAuthConfig> {
 }
 
 async function updateOAuthConfig(input: Partial<OAuthConfig>): Promise<OAuthConfig> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
   const next = applyOAuthTemplate({ ...(await getOAuthConfig()), ...input });
   if (next.enabled) {
     const required = ['clientId', 'clientSecret', 'authorizationEndpoint', 'tokenEndpoint', 'userInfoEndpoint', 'jwksUri'] as const;
@@ -150,23 +133,14 @@ async function updateOAuthConfig(input: Partial<OAuthConfig>): Promise<OAuthConf
     if (!String(next.subjectKey || '').trim()) throw new Error('subjectKey is required');
   }
   const payload = ['oauth_config', JSON.stringify(next)];
-  if (db.type === 'mysql') {
-    await db.execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
-      payload
-    );
-  } else {
-    await db.execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
-      payload
-    );
-  }
+  await db.execute(
+    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
+    payload
+  );
   return next;
 }
 
 async function updateLogtoOAuthConfig(input: Partial<OAuthConfig>): Promise<OAuthConfig> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
   const next = applyOAuthTemplate({ ...(await getLogtoOAuthConfig()), ...input, template: 'logto' });
   if (next.enabled) {
     const required = ['clientId', 'clientSecret', 'authorizationEndpoint', 'tokenEndpoint', 'userInfoEndpoint', 'jwksUri'] as const;
@@ -175,17 +149,10 @@ async function updateLogtoOAuthConfig(input: Partial<OAuthConfig>): Promise<OAut
     }
   }
   const payload = ['oauth_logto_config', JSON.stringify(next)];
-  if (db.type === 'mysql') {
-    await db.execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
-      payload
-    );
-  } else {
-    await db.execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
-      payload
-    );
-  }
+  await db.execute(
+    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
+    payload
+  );
   return next;
 }
 
@@ -218,19 +185,13 @@ router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: 
     return;
   }
 
-  const db = getAdapter();
-  if (!db) {
-    res.status(500).json({ code: 500, msg: 'Database not available' });
-    return;
-  }
-
-  const currentUser = await db.get('SELECT id, password_hash FROM users WHERE id = ?', [req.user!.userId]) as { id: number; password_hash: string } | undefined;
+  const currentUser = await db.get<{ id: number; password_hash: string }>('SELECT id, password_hash FROM users WHERE id = ?', [req.user!.userId]);
   if (!currentUser || !bcrypt.compareSync(password, currentUser.password_hash)) {
     res.status(401).json({ code: 401, msg: 'Invalid admin password' });
     return;
   }
 
-  const initialSuper = await db.get('SELECT id FROM users WHERE role_level = 3 ORDER BY id ASC LIMIT 1') as { id: number } | undefined;
+  const initialSuper = await db.get<{ id: number }>('SELECT id FROM users WHERE role_level = 3 ORDER BY id ASC LIMIT 1');
   if (!initialSuper || initialSuper.id !== req.user!.userId) {
     res.status(403).json({ code: 403, msg: 'Only the initial super admin can view JWT secret' });
     return;
@@ -241,7 +202,7 @@ router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: 
   try {
     const secCfg = await getSecurityConfig();
     if (secCfg.jwtViewEmailNotify) {
-      const superInfo = await db.get('SELECT email, username FROM users WHERE id = ?', [initialSuper.id]) as { email: string; username: string } | undefined;
+      const superInfo = await db.get<{ email: string; username: string }>('SELECT email, username FROM users WHERE id = ?', [initialSuper.id]);
       if (superInfo?.email) {
         await sendSmtpEmail(
           superInfo.email,
@@ -261,9 +222,7 @@ router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: 
 });
 
 router.get('/notifications', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
-  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['notification_channels']) as any;
+  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['notification_channels']);
   if (!row?.value) {
     res.json({ code: 0, data: [], msg: 'success' });
     return;
@@ -277,30 +236,19 @@ router.get('/notifications', authMiddleware, adminOnly, async (_req: Request, re
 });
 
 router.put('/notifications', authMiddleware, adminOnly, async (req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
   const channels = req.body.channels;
   if (!Array.isArray(channels)) return res.status(400).json({ code: -1, msg: 'Invalid channels array' });
   
   const payload = ['notification_channels', JSON.stringify(channels)];
-  if (db.type === 'mysql') {
-    await db.execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
-      payload
-    );
-  } else {
-    await db.execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
-      payload
-    );
-  }
+  await db.execute(
+    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
+    payload
+  );
   res.json({ code: 0, msg: 'success' });
 });
 
 router.get('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
-  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['audit_rules']) as any;
+  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['audit_rules']);
   const defaultRules = {
     enabled: true,
     maxDeletionsPerHour: 10,
@@ -321,33 +269,22 @@ router.get('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: 
 });
 
 router.put('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
   const rules = req.body.rules;
   if (!rules) return res.status(400).json({ code: -1, msg: 'Rules required' });
   
   const payload = ['audit_rules', JSON.stringify(rules)];
-  if (db.type === 'mysql') {
-    await db.execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
-      payload
-    );
-  } else {
-    await db.execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
-      payload
-    );
-  }
+  await db.execute(
+    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
+    payload
+  );
   res.json({ code: 0, msg: 'success' });
 });
 
 router.get('/security', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
-  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['security_config']) as any;
+  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['security_config']);
   
-  const expiryNotifyRow = await db.get('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_notification']) as any;
-  const expiryDaysRow = await db.get('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_days']) as any;
+  const expiryNotifyRow = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_notification']);
+  const expiryDaysRow = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_days']);
 
   const defaultConf = { 
     jwtViewEmailNotify: false,
@@ -369,46 +306,25 @@ router.get('/security', authMiddleware, adminOnly, async (_req: Request, res: Re
 });
 
 router.put('/security', authMiddleware, adminOnly, async (req: Request, res: Response) => {
-  const db = getAdapter();
-  if (!db) return res.status(500).json({ code: 500, msg: 'Database error' });
   const { jwtViewEmailNotify, domainExpiryNotify, domainExpiryDays } = req.body;
   const config = { jwtViewEmailNotify: !!jwtViewEmailNotify };
   
   const payload = ['security_config', JSON.stringify(config)];
-  if (db.type === 'mysql') {
+  await db.execute(
+    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
+    payload
+  );
+  if (domainExpiryNotify !== undefined) {
     await db.execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
-      payload
+      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
+      ['domain_expiry_notification', domainExpiryNotify ? '1' : '0']
     );
-    if (domainExpiryNotify !== undefined) {
-      await db.execute(
-        'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
-        ['domain_expiry_notification', domainExpiryNotify ? '1' : '0']
-      );
-    }
-    if (domainExpiryDays !== undefined) {
-      await db.execute(
-        'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
-        ['domain_expiry_days', String(domainExpiryDays)]
-      );
-    }
-  } else {
+  }
+  if (domainExpiryDays !== undefined) {
     await db.execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
-      payload
+      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
+      ['domain_expiry_days', String(domainExpiryDays)]
     );
-    if (domainExpiryNotify !== undefined) {
-      await db.execute(
-        'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
-        ['domain_expiry_notification', domainExpiryNotify ? '1' : '0']
-      );
-    }
-    if (domainExpiryDays !== undefined) {
-      await db.execute(
-        'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
-        ['domain_expiry_days', String(domainExpiryDays)]
-      );
-    }
   }
   
   res.json({ code: 0, msg: 'success' });
@@ -436,12 +352,7 @@ router.put('/smtp', authMiddleware, adminOnly, async (req: Request, res: Respons
 router.post('/smtp/test', authMiddleware, adminOnly, async (req: Request, res: Response) => {
   const { to } = req.body as { to?: string };
   try {
-    const db = getAdapter();
-    if (!db) {
-      res.status(500).json({ code: 500, msg: 'Database not available' });
-      return;
-    }
-    const me = await db.get('SELECT email FROM users WHERE id = ?', [req.user!.userId]) as { email: string } | undefined;
+    const me = await db.get<{ email: string }>('SELECT email FROM users WHERE id = ?', [req.user!.userId]);
     const target = (to || me?.email || '').trim();
     if (!target) {
       res.status(400).json({ code: 400, msg: 'Target email is required' });

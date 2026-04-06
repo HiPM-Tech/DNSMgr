@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
-import { getAdapter } from '../db/adapter';
+import { db } from '../db';
 import { authMiddleware } from '../middleware/auth';
 import { getUserWebAuthnCredentials, addWebAuthnCredential, deleteWebAuthnCredential, updateWebAuthnCredentialCounter } from '../service/webauthn';
 import crypto from 'crypto';
@@ -19,7 +19,7 @@ const origin = process.env.WEBAUTHN_ORIGIN || `http://${rpID}:3000`; // Modify a
 
 router.get('/registration-options', authMiddleware, async (req: Request, res: Response) => {
   const userId = req.user!.userId;
-  const user = await getAdapter()?.get('SELECT username FROM users WHERE id = ?', [userId]);
+  const user = await db.get<{ username: string }>('SELECT username FROM users WHERE id = ?', [userId]);
   if (!user) return res.status(404).json({ code: -1, msg: 'User not found' });
 
   const userCredentials = await getUserWebAuthnCredentials(userId);
@@ -97,11 +97,8 @@ router.get('/login-options', async (req: Request, res: Response) => {
   const username = req.query.username as string;
   if (!username) return res.status(400).json({ code: -1, msg: 'Username required' });
   
-  const db = getAdapter();
-  if (!db) return res.status(500).json({ code: -1, msg: 'DB Error' });
-  
   const isEmail = username.includes('@');
-  const user = await db.get(isEmail ? 'SELECT id FROM users WHERE email = ?' : 'SELECT id FROM users WHERE username = ?', [username]) as { id: number } | undefined;
+  const user = await db.get<{ id: number }>(isEmail ? 'SELECT id FROM users WHERE email = ?' : 'SELECT id FROM users WHERE username = ?', [username]);
   
   if (!user) return res.status(404).json({ code: -1, msg: 'User not found' });
   

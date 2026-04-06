@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getAdapter } from '../db/adapter';
+import { db } from '../db';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { Team, TeamMember } from '../types';
@@ -9,13 +9,9 @@ import { parseInteger, sendError, sendSuccess } from '../utils/http';
 const router = Router();
 
 async function getTeamAndMember(teamId: number, userId: number): Promise<{ team: Team | null; member: TeamMember | null }> {
-  const adapter = getAdapter();
-  if (!adapter) {
-    throw new Error('Database adapter not available');
-  }
-  const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [teamId]) as Team | undefined;
+  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [teamId]);
   if (!team) return { team: null, member: null };
-  const member = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, userId]) as TeamMember | undefined;
+  const member = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, userId]);
   return { team, member: member ?? null };
 }
 
@@ -38,16 +34,11 @@ function normalizeSubInput(sub?: string): string {
  *         description: List of teams
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
   let teams: unknown[];
   if (isSuper(req.user?.role)) {
-    teams = await adapter.query('SELECT * FROM teams ORDER BY id');
+    teams = await db.query('SELECT * FROM teams ORDER BY id');
   } else {
-    teams = await adapter.query(
+    teams = await db.query(
       `SELECT t.* FROM teams t
        INNER JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
        ORDER BY t.id`,
@@ -91,14 +82,9 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     sendError(res, 'Team name is required');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
   const userId = req.user!.userId;
-  const teamId = await adapter.insert('INSERT INTO teams (name, description, created_by) VALUES (?, ?, ?)', [name, description, userId]);
-  await adapter.execute('INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)', [teamId, userId, 'owner']);
+  const teamId = await db.insert('INSERT INTO teams (name, description, created_by) VALUES (?, ?, ?)', [name, description, userId]);
+  await db.execute('INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)', [teamId, userId, 'owner']);
   sendSuccess(res, { id: teamId });
 }));
 
@@ -122,17 +108,12 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
  */
 router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [id]) as Team | undefined;
+  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [id]);
   if (!team) {
     sendError(res, 'Team not found');
     return;
   }
-  const members = await adapter.query(
+  const members = await db.query(
     `SELECT tm.*, u.username, u.nickname, u.email FROM team_members tm
      INNER JOIN users u ON u.id = tm.user_id
      WHERE tm.team_id = ?`,
@@ -172,17 +153,12 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  */
 router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [id]) as Team | undefined;
+  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [id]);
   if (!team) {
     sendError(res, 'Team not found');
     return;
   }
-  const member = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [id, req.user!.userId]) as TeamMember | undefined;
+  const member = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [id, req.user!.userId]);
   if (!isSuper(req.user?.role) && member?.role !== 'owner') {
     sendError(res, 'Only team owner or admin can update team');
     return;
@@ -197,7 +173,7 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
     return;
   }
   params.push(id);
-  await adapter.execute(`UPDATE teams SET ${updates.join(', ')} WHERE id = ?`, params);
+  await db.execute(`UPDATE teams SET ${updates.join(', ')} WHERE id = ?`, params);
   sendSuccess(res);
 }));
 
@@ -221,22 +197,17 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  */
 router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [id]) as Team | undefined;
+  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [id]);
   if (!team) {
     sendError(res, 'Team not found');
     return;
   }
-  const member = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [id, req.user!.userId]) as TeamMember | undefined;
+  const member = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [id, req.user!.userId]);
   if (!isSuper(req.user?.role) && member?.role !== 'owner') {
     sendError(res, 'Only team owner or admin can delete team');
     return;
   }
-  await adapter.execute('DELETE FROM teams WHERE id = ?', [id]);
+  await db.execute('DELETE FROM teams WHERE id = ?', [id]);
   sendSuccess(res);
 }));
 
@@ -260,17 +231,12 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
  */
 router.get('/:id/members', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const teamId = parseInteger(req.params.id) ?? 0;
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [teamId]) as Team | undefined;
+  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [teamId]);
   if (!team) {
     sendError(res, 'Team not found');
     return;
   }
-  const members = await adapter.query(
+  const members = await db.query(
     `SELECT tm.*, u.username, u.nickname, u.email FROM team_members tm
      INNER JOIN users u ON u.id = tm.user_id
      WHERE tm.team_id = ?`,
@@ -312,17 +278,12 @@ router.get('/:id/members', authMiddleware, asyncHandler(async (req: Request, res
  */
 router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const teamId = parseInteger(req.params.id) ?? 0;
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const team = await adapter.get('SELECT * FROM teams WHERE id = ?', [teamId]) as Team | undefined;
+  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [teamId]);
   if (!team) {
     sendError(res, 'Team not found');
     return;
   }
-  const callerMember = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, req.user!.userId]) as TeamMember | undefined;
+  const callerMember = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, req.user!.userId]);
   if (!isSuper(req.user?.role) && callerMember?.role !== 'owner') {
     sendError(res, 'Only team owner or admin can add members');
     return;
@@ -333,7 +294,7 @@ router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, re
     return;
   }
   try {
-    await adapter.execute('INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)', [teamId, userId, role]);
+    await db.execute('INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)', [teamId, userId, role]);
     sendSuccess(res);
   } catch {
     sendError(res, 'User already in team');
@@ -366,17 +327,12 @@ router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, re
 router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const teamId = parseInteger(req.params.id) ?? 0;
   const targetUserId = parseInteger(req.params.userId) ?? 0;
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const callerMember = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, req.user!.userId]) as TeamMember | undefined;
+  const callerMember = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, req.user!.userId]);
   if (!isSuper(req.user?.role) && callerMember?.role !== 'owner') {
     sendError(res, 'Only team owner or admin can remove members');
     return;
   }
-  await adapter.execute('DELETE FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]);
+  await db.execute('DELETE FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]);
   sendSuccess(res);
 }));
 
@@ -409,12 +365,7 @@ router.get('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: R
     sendError(res, 'Access denied');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const list = await adapter.query(
+  const list = await db.query(
     `SELECT dp.*, d.name as domain_name
      FROM domain_permissions dp
      INNER JOIN domains d ON d.id = dp.domain_id
@@ -452,27 +403,22 @@ router.post('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: 
     sendError(res, 'domain_id is required');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const domain = await adapter.get('SELECT id FROM domains WHERE id = ?', [domain_id]);
+  const domain = await db.get('SELECT id FROM domains WHERE id = ?', [domain_id]);
   if (!domain) {
     sendError(res, 'Domain not found');
     return;
   }
   const normalizedSub = normalizeSubInput(sub);
-  const existing = await adapter.get(
+  const existing = await db.get<{ id: number }>(
     'SELECT id FROM domain_permissions WHERE team_id = ? AND domain_id = ? AND sub = ?',
     [teamId, domain_id, normalizedSub]
-  ) as { id: number } | undefined;
+  );
   if (existing) {
-    await adapter.execute('UPDATE domain_permissions SET permission = ? WHERE id = ?', [permission, existing.id]);
+    await db.execute('UPDATE domain_permissions SET permission = ? WHERE id = ?', [permission, existing.id]);
     sendSuccess(res, { id: existing.id });
     return;
   }
-  const result = await adapter.insert(
+  const result = await db.insert(
     'INSERT INTO domain_permissions (team_id, domain_id, sub, permission) VALUES (?, ?, ?, ?)',
     [teamId, domain_id, normalizedSub, permission]
   );
@@ -500,12 +446,7 @@ router.delete('/:id/domain-permissions/:permId', authMiddleware, asyncHandler(as
     sendError(res, 'Only team owner or admin can manage permissions');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  await adapter.execute('DELETE FROM domain_permissions WHERE id = ? AND team_id = ?', [permId, teamId]);
+  await db.execute('DELETE FROM domain_permissions WHERE id = ? AND team_id = ?', [permId, teamId]);
   sendSuccess(res);
 }));
 
@@ -526,12 +467,7 @@ router.get('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandl
     sendError(res, 'Team not found');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const targetMember = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]) as TeamMember | undefined;
+  const targetMember = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]);
   if (!targetMember) {
     sendError(res, 'User is not in team');
     return;
@@ -541,7 +477,7 @@ router.get('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandl
     sendError(res, 'Access denied');
     return;
   }
-  const list = await adapter.query(
+  const list = await db.query(
     `SELECT dp.*, d.name as domain_name
      FROM domain_permissions dp
      INNER JOIN domains d ON d.id = dp.domain_id
@@ -573,12 +509,7 @@ router.post('/:id/members/:userId/domain-permissions', authMiddleware, asyncHand
     sendError(res, 'Only team owner or admin can manage permissions');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  const targetMember = await adapter.get('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]) as TeamMember | undefined;
+  const targetMember = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]);
   if (!targetMember) {
     sendError(res, 'User is not in team');
     return;
@@ -590,22 +521,22 @@ router.post('/:id/members/:userId/domain-permissions', authMiddleware, asyncHand
     sendError(res, 'domain_id is required');
     return;
   }
-  const domain = await adapter.get('SELECT id FROM domains WHERE id = ?', [domain_id]);
+  const domain = await db.get('SELECT id FROM domains WHERE id = ?', [domain_id]);
   if (!domain) {
     sendError(res, 'Domain not found');
     return;
   }
   const normalizedSub = normalizeSubInput(sub);
-  const existing = await adapter.get(
+  const existing = await db.get<{ id: number }>(
     'SELECT id FROM domain_permissions WHERE user_id = ? AND domain_id = ? AND sub = ?',
     [targetUserId, domain_id, normalizedSub]
-  ) as { id: number } | undefined;
+  );
   if (existing) {
-    await adapter.execute('UPDATE domain_permissions SET permission = ? WHERE id = ?', [permission, existing.id]);
+    await db.execute('UPDATE domain_permissions SET permission = ? WHERE id = ?', [permission, existing.id]);
     sendSuccess(res, { id: existing.id });
     return;
   }
-  const result = await adapter.insert(
+  const result = await db.insert(
     'INSERT INTO domain_permissions (user_id, domain_id, sub, permission) VALUES (?, ?, ?, ?)',
     [targetUserId, domain_id, normalizedSub, permission]
   );
@@ -634,12 +565,7 @@ router.delete('/:id/members/:userId/domain-permissions/:permId', authMiddleware,
     sendError(res, 'Only team owner or admin can manage permissions');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendError(res, 'Database error');
-    return;
-  }
-  await adapter.execute('DELETE FROM domain_permissions WHERE id = ? AND user_id = ?', [permId, targetUserId]);
+  await db.execute('DELETE FROM domain_permissions WHERE id = ? AND user_id = ?', [permId, targetUserId]);
   sendSuccess(res);
 }));
 

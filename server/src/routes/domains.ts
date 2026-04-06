@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getAdapter } from '../db/adapter';
+import { db } from '../db';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
@@ -16,13 +16,11 @@ function normalizeDomainName(name: string): string {
 }
 
 async function getAccountForUser(accountId: number, userId: number, role: number): Promise<DnsAccount | null> {
-  const adapter = getAdapter();
-  if (!adapter) return null;
-  const account = await adapter.get('SELECT * FROM dns_accounts WHERE id = ?', [accountId]) as DnsAccount | undefined;
+  const account = await db.get<DnsAccount>('SELECT * FROM dns_accounts WHERE id = ?', [accountId]);
   if (!account) return null;
   if (isSuper(role) || account.created_by === userId) return account;
   if (account.team_id) {
-    const membership = await adapter.get('SELECT id FROM team_members WHERE team_id = ? AND user_id = ?', [account.team_id, userId]);
+    const membership = await db.get<{ id: number }>('SELECT id FROM team_members WHERE team_id = ? AND user_id = ?', [account.team_id, userId]);
     if (membership) return account;
   }
   return null;
@@ -51,19 +49,17 @@ function normalizeSubInput(sub?: string): string {
 }
 
 async function getPermissionRows(domainId: number, userId: number): Promise<Array<{ permission: 'read' | 'write'; sub: string }>> {
-  const adapter = getAdapter();
-  if (!adapter) return [];
-  const userPerms = await adapter.query(
+  const userPerms = await db.query<{ permission: 'read' | 'write'; sub: string }>(
     'SELECT permission, sub FROM domain_permissions WHERE domain_id = ? AND user_id = ?',
     [domainId, userId]
-  ) as Array<{ permission: 'read' | 'write'; sub: string }>;
-  const teamPerms = await adapter.query(
+  );
+  const teamPerms = await db.query<{ permission: 'read' | 'write'; sub: string }>(
     `SELECT dp.permission, dp.sub
      FROM domain_permissions dp
      INNER JOIN team_members tm ON tm.team_id = dp.team_id
      WHERE dp.domain_id = ? AND tm.user_id = ?`,
     [domainId, userId]
-  ) as Array<{ permission: 'read' | 'write'; sub: string }>;
+  );
   return [...userPerms, ...teamPerms].map((row) => ({
     permission: row.permission,
     sub: normalizeSubInput(row.sub),
@@ -71,12 +67,10 @@ async function getPermissionRows(domainId: number, userId: number): Promise<Arra
 }
 
 async function getUserPermissionRows(domainId: number, userId: number): Promise<Array<{ permission: 'read' | 'write'; sub: string }>> {
-  const adapter = getAdapter();
-  if (!adapter) return [];
-  const userPerms = await adapter.query(
+  const userPerms = await db.query<{ permission: 'read' | 'write'; sub: string }>(
     'SELECT permission, sub FROM domain_permissions WHERE domain_id = ? AND user_id = ?',
     [domainId, userId]
-  ) as Array<{ permission: 'read' | 'write'; sub: string }>;
+  );
   return userPerms.map((row) => ({
     permission: row.permission,
     sub: normalizeSubInput(row.sub),
@@ -84,13 +78,11 @@ async function getUserPermissionRows(domainId: number, userId: number): Promise<
 }
 
 async function resolveDomainAccess(domain: Domain, userId: number, role: number): Promise<DomainAccess> {
-  const adapter = getAdapter();
-  if (!adapter) return { domain, canRead: false, canWrite: false, writeSubs: [], hasRules: false };
-  const hasRules = !!(await adapter.get('SELECT 1 FROM domain_permissions WHERE domain_id = ? LIMIT 1', [domain.id]));
+  const hasRules = !!(await db.get('SELECT 1 FROM domain_permissions WHERE domain_id = ? LIMIT 1', [domain.id]));
   if (isSuper(role)) {
     return { domain, canRead: true, canWrite: true, writeSubs: null, hasRules };
   }
-  const owner = await adapter.get('SELECT created_by FROM dns_accounts WHERE id = ?', [domain.account_id]) as { created_by: number } | undefined;
+  const owner = await db.get<{ created_by: number }>('SELECT created_by FROM dns_accounts WHERE id = ?', [domain.account_id]);
   if (owner?.created_by === userId && role >= ROLE_ADMIN) {
     return { domain, canRead: true, canWrite: true, writeSubs: null, hasRules };
   }
@@ -114,18 +106,14 @@ async function resolveDomainAccess(domain: Domain, userId: number, role: number)
 }
 
 async function canAccessDomain(domainId: number, userId: number, role: number): Promise<Domain | null> {
-  const adapter = getAdapter();
-  if (!adapter) return null;
-  const domain = await adapter.get('SELECT * FROM domains WHERE id = ?', [domainId]) as Domain | undefined;
+  const domain = await db.get<Domain>('SELECT * FROM domains WHERE id = ?', [domainId]);
   if (!domain) return null;
   const access = await resolveDomainAccess(domain, userId, role);
   return access.canRead ? domain : null;
 }
 
 export async function getDomainAccess(domainId: number, userId: number, role: number): Promise<DomainAccess> {
-  const adapter = getAdapter();
-  if (!adapter) return { domain: null, canRead: false, canWrite: false, writeSubs: [], hasRules: false };
-  const domain = await adapter.get('SELECT * FROM domains WHERE id = ?', [domainId]) as Domain | undefined;
+  const domain = await db.get<Domain>('SELECT * FROM domains WHERE id = ?', [domainId]);
   if (!domain) {
     return { domain: null, canRead: false, canWrite: false, writeSubs: [], hasRules: false };
   }
@@ -154,11 +142,6 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendServerError(res);
-    return;
-  }
   const { account_id, keyword } = req.query as { account_id?: string; keyword?: string };
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
@@ -167,7 +150,8 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   const params: unknown[] = [];
 
   if (!isSuper(role)) {
-    const teamIds = ((await adapter.query('SELECT team_id FROM team_members WHERE user_id = ?', [userId])) as unknown as { team_id: number }[]).map(r => r.team_id);
+    const teamMembers = await db.query<{ team_id: number }>('SELECT team_id FROM team_members WHERE user_id = ?', [userId]);
+    const teamIds = teamMembers.map(r => r.team_id);
     const teamFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
     const teamPermFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
     query += ` WHERE (d.account_id IN (
@@ -186,7 +170,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   if (keyword) { query += ' AND d.name LIKE ?'; params.push(`%${keyword}%`); }
   query += ' ORDER BY d.id';
 
-  let domains = (await adapter.query(query, params)) as unknown as Domain[];
+  let domains = await db.query<Domain>(query, params);
   if (!isSuper(role)) {
     domains = await Promise.all(domains.map(async (domain) => {
       const access = await resolveDomainAccess(domain, userId, role);
@@ -201,17 +185,18 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       .map(async (domain) => {
         let account = accountCache.get(domain.account_id);
         if (!account) {
-          account = await adapter.get('SELECT * FROM dns_accounts WHERE id = ?', [domain.account_id]) as DnsAccount | undefined;
+          account = await db.get<DnsAccount>('SELECT * FROM dns_accounts WHERE id = ?', [domain.account_id]);
           if (!account) return;
           accountCache.set(domain.account_id, account);
         }
 
         try {
-          const cfg = JSON.parse(account.config) as Record<string, string>;
+          // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
+          const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
           const dnsAdapter = createAdapter(account.type, cfg, domain.name, domain.third_id);
           const result = await dnsAdapter.getDomainRecords(1, 1);
           domain.record_count = result.total;
-          await adapter.execute('UPDATE domains SET record_count = ? WHERE id = ?', [result.total, domain.id]);
+          await db.execute('UPDATE domains SET record_count = ? WHERE id = ?', [result.total, domain.id]);
         } catch {
           // Keep the cached count if the provider is temporarily unavailable.
         }
@@ -272,11 +257,6 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     sendError(res, 'Account not found or access denied');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendServerError(res);
-    return;
-  }
   const items = (domains && domains.length > 0)
     ? domains
     : [{ name: name!, third_id, record_count: 0 }];
@@ -303,14 +283,14 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   const duplicates: string[] = [];
 
   for (const item of normalizedMap.values()) {
-    const existing = await adapter.get('SELECT id FROM domains WHERE account_id = ? AND name = ?', [account_id, item.name]);
+    const existing = await db.get('SELECT id FROM domains WHERE account_id = ? AND name = ?', [account_id, item.name]);
     if (existing) {
-      await adapter.execute('UPDATE domains SET third_id = ?, record_count = ? WHERE id = ?', [item.third_id || '', item.record_count ?? 0, (existing as { id: number }).id]);
+      await db.execute('UPDATE domains SET third_id = ?, record_count = ? WHERE id = ?', [item.third_id || '', item.record_count ?? 0, (existing as { id: number }).id]);
       duplicates.push(item.name);
       continue;
     }
     try {
-      const id = await adapter.insert(
+      const id = await db.insert(
         'INSERT INTO domains (account_id, name, third_id, remark, record_count) VALUES (?, ?, ?, ?, ?)',
         [account_id, item.name, item.third_id || '', remark, item.record_count ?? 0]
       );
@@ -372,28 +352,24 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
     sendError(res, 'Account not found or access denied');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendServerError(res);
-    return;
-  }
   try {
-    const cfg = JSON.parse(account.config) as Record<string, string>;
+    // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
+    const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
     const dnsAdapter = createAdapter(account.type, cfg);
     const result = await dnsAdapter.getDomainList();
     let added = 0;
     for (const d of result.list) {
       const normalizedName = normalizeDomainName(d.Domain);
-      const existing = await adapter.get('SELECT id FROM domains WHERE account_id = ? AND name = ?', [account_id, normalizedName]);
+      const existing = await db.get('SELECT id FROM domains WHERE account_id = ? AND name = ?', [account_id, normalizedName]);
       if (!existing) {
-        await adapter.execute(
+        await db.execute(
           'INSERT INTO domains (account_id, name, third_id, record_count) VALUES (?, ?, ?, ?)',
           [account_id, normalizedName, d.ThirdId, d.RecordCount ?? 0]
         );
         added++;
         await logAuditOperation(req.user!.userId, 'sync_add_domain', normalizedName, { accountId: account_id });
       } else {
-        await adapter.execute(
+        await db.execute(
           'UPDATE domains SET third_id = ?, record_count = ? WHERE account_id = ? AND name = ?',
           [d.ThirdId, d.RecordCount ?? 0, account_id, normalizedName]
         );
@@ -524,12 +500,7 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
     return;
   }
   params.push(id);
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendServerError(res);
-    return;
-  }
-  await adapter.execute(`UPDATE domains SET ${updates.join(', ')} WHERE id = ?`, params);
+  await db.execute(`UPDATE domains SET ${updates.join(', ')} WHERE id = ?`, params);
   await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden });
   sendSuccess(res);
 }));
@@ -563,12 +534,7 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
     sendError(res, 'Permission denied');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendServerError(res);
-    return;
-  }
-  await adapter.execute('DELETE FROM domains WHERE id = ?', [id]);
+  await db.execute('DELETE FROM domains WHERE id = ?', [id]);
   await logAuditOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id });
   sendSuccess(res);
 }));
@@ -598,12 +564,7 @@ router.get('/:id/lines', authMiddleware, asyncHandler(async (req: Request, res: 
     sendError(res, 'Domain not found');
     return;
   }
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendServerError(res);
-    return;
-  }
-  const account = await adapter.get('SELECT * FROM dns_accounts WHERE id = ?', [access.domain.account_id]) as DnsAccount | undefined;
+  const account = await db.get<DnsAccount>('SELECT * FROM dns_accounts WHERE id = ?', [access.domain.account_id]);
   if (!account) {
     sendError(res, 'Account not found');
     return;

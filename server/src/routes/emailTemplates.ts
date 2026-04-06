@@ -8,7 +8,7 @@ import {
   detectConflicts,
   generatePreview,
 } from '../service/emailTemplate';
-import { getAdapter } from '../db/adapter';
+import { db } from '../db';
 
 const router = Router();
 
@@ -193,12 +193,6 @@ router.post(
     const template = getEmailTemplate(templateId);
     if (!template) {
       ResponseHelper.notFound(res, 'Template not found');
-      return;
-    }
-
-    const db = getAdapter();
-    if (!db) {
-      ResponseHelper.internalError(res, 'Database not available');
       return;
     }
 

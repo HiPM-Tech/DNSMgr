@@ -1,184 +1,98 @@
-import { getCurrentConnection, DbConnection } from './database';
+/**
+ * 兼容层 (Adapter)
+ * 保持现有 API 兼容，内部使用新架构
+ * 用于平滑迁移现有代码到新数据库抽象层
+ */
 
-// Helper type for query results
+import type { DatabaseConnection, Transaction } from './core/types';
+import { getConnection, getConnectionManager, transaction } from './core/connection';
+import { createCompiler, getDefaultCompiler } from './query/compiler';
+import type { SQLCompiler } from './query/compiler';
+
+/** 查询结果类型 */
 type QueryResult = Record<string, unknown>;
 
-// MySQL reserved keywords that need to be escaped
-const MYSQL_RESERVED_KEYWORDS = new Set([
-  'key', 'value', 'order', 'group', 'primary', 'foreign', 'index', 'table', 'column',
-  'database', 'select', 'insert', 'update', 'delete', 'from', 'where', 'and', 'or',
-  'not', 'null', 'default', 'unique', 'check', 'references', 'constraint'
-]);
-
-// Convert ? placeholders to PostgreSQL $1, $2... format
-function convertPlaceholders(sql: string, dbType: string): string {
-  if (dbType !== 'postgresql') return sql;
-
-  let index = 0;
-  return sql.replace(/\?/g, () => `$${++index}`);
-}
-
-// Escape identifiers for MySQL (wrap in backticks)
-function escapeMySqlIdentifiers(sql: string, dbType: string): string {
-  if (dbType !== 'mysql') return sql;
-
-  // Match patterns like "WHERE key =" or "SET key =" or "SELECT key FROM"
-  // and escape the keyword with backticks
-  let result = sql;
-
-  // Escape standalone column names that are reserved keywords
-  // Pattern: word boundaries around reserved keywords when used as identifiers
-  MYSQL_RESERVED_KEYWORDS.forEach(keyword => {
-    // Match the keyword when it's used as a column name (not in string literals)
-    // Pattern: (WHERE|SET|SELECT|,|\()\s*keyword\s*(=|,|FROM|WHERE|SET)
-    const regex = new RegExp(`(\\s+|^|\\()(${keyword})(\\s*=|\\s*,|\\s+FROM|\\s+WHERE|\\s+SET|\\s+AND|\\s+OR|$)`, 'gi');
-    result = result.replace(regex, (match, before, kw, after) => {
-      // Don't escape if already escaped
-      if (before.endsWith('`') || after.startsWith('`')) return match;
-      return `${before}\`${kw}\`${after}`;
-    });
-  });
-
-  return result;
-}
-
-// Database adapter class that provides unified interface for all database types
+/** 数据库适配器类 */
 export class DbAdapter {
-  private conn: DbConnection;
+  private conn: DatabaseConnection;
+  private compiler: SQLCompiler;
 
-  constructor(conn: DbConnection) {
+  constructor(conn: DatabaseConnection, compiler?: SQLCompiler) {
     this.conn = conn;
+    this.compiler = compiler || getDefaultCompiler();
   }
 
+  /** 获取适配器实例 */
   static getInstance(): DbAdapter | null {
-    const conn = getCurrentConnection();
-    if (!conn) return null;
-    return new DbAdapter(conn);
+    try {
+      const conn = getConnection();
+      return new DbAdapter(conn);
+    } catch {
+      return null;
+    }
   }
 
+  /** 获取数据库类型 */
   get type(): string {
     return this.conn.type;
   }
 
-  // Process SQL for the specific database type
+  /** 处理 SQL（转换占位符、转义标识符） */
   private processSql(sql: string): string {
-    let processed = sql;
-    processed = convertPlaceholders(processed, this.conn.type);
-    processed = escapeMySqlIdentifiers(processed, this.conn.type);
-    return processed;
+    // 转换 PostgreSQL 的 $1, $2... 占位符
+    if (this.conn.type === 'postgresql') {
+      let index = 0;
+      sql = sql.replace(/\?/g, () => `$${++index}`);
+    }
+
+    // MySQL 保留关键字转义
+    if (this.conn.type === 'mysql') {
+      const keywords = ['key', 'value', 'order', 'group'];
+      keywords.forEach(keyword => {
+        const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+        sql = sql.replace(regex, `\`${keyword}\``);
+      });
+    }
+
+    return sql;
   }
 
-  // Execute a query that returns multiple rows
+  /** 执行查询并返回多行 */
   async query(sql: string, params?: unknown[]): Promise<QueryResult[]> {
-    const convertedSql = this.processSql(sql);
-
-    if (this.conn.type === 'sqlite') {
-      const stmt = (this.conn as any).prepare(convertedSql);
-      if (convertedSql.trim().toLowerCase().startsWith('select')) {
-        return stmt.all(...(params || [])) as QueryResult[];
-      }
-      stmt.run(...(params || []));
-      return [];
-    }
-    return await this.conn.query(convertedSql, params) as QueryResult[];
+    const processedSql = this.processSql(sql);
+    return this.conn.query<QueryResult>(processedSql, params);
   }
 
-  // Execute a query that returns a single row
+  /** 执行查询并返回单行 */
   async get(sql: string, params?: unknown[]): Promise<QueryResult | undefined> {
-    const convertedSql = this.processSql(sql);
-
-    if (this.conn.type === 'sqlite') {
-      const stmt = (this.conn as any).prepare(convertedSql);
-      return stmt.get(...(params || [])) as QueryResult | undefined;
-    }
-    return await this.conn.get(convertedSql, params) as QueryResult | undefined;
+    const processedSql = this.processSql(sql);
+    return this.conn.get<QueryResult>(processedSql, params);
   }
 
-  // Execute an INSERT/UPDATE/DELETE query
+  /** 执行 INSERT/UPDATE/DELETE */
   async execute(sql: string, params?: unknown[]): Promise<void> {
-    const convertedSql = this.processSql(sql);
-
-    if (this.conn.type === 'sqlite') {
-      const stmt = (this.conn as any).prepare(convertedSql);
-      stmt.run(...(params || []));
-    } else {
-      await this.conn.execute(convertedSql, params);
-    }
+    const processedSql = this.processSql(sql);
+    await this.conn.execute(processedSql, params);
   }
 
-  // Execute INSERT and return the last insert ID
+  /** 执行 INSERT 并返回最后插入的 ID */
   async insert(sql: string, params?: unknown[]): Promise<number> {
-    const convertedSql = this.processSql(sql);
-
-    if (this.conn.type === 'sqlite') {
-      const stmt = (this.conn as any).prepare(convertedSql);
-      const result = stmt.run(...(params || []));
-      return Number(result.lastInsertRowid);
-    } else if (this.conn.type === 'mysql') {
-      // MySQL: Use INSERT and then get LAST_INSERT_ID()
-      await this.conn.execute(convertedSql, params);
-      const result = await this.conn.get('SELECT LAST_INSERT_ID() as id');
-      return (result as { id: number })?.id || 0;
-    } else {
-      // PostgreSQL: Use RETURNING clause or lastval()
-      // Check if SQL already has RETURNING clause
-      if (!convertedSql.toLowerCase().includes('returning')) {
-        // Execute insert first
-        await this.conn.execute(convertedSql, params);
-        // Then get last value
-        try {
-          const result = await this.conn.get('SELECT lastval() as id');
-          return (result as { id: number })?.id || 0;
-        } catch {
-          // lastval() might fail if no sequence was used
-          return 0;
-        }
-      } else {
-        // SQL already has RETURNING clause
-        const result = await this.conn.get(convertedSql, params);
-        return (result as { id: number })?.id || 0;
-      }
-    }
+    const processedSql = this.processSql(sql);
+    return this.conn.insert(processedSql, params);
   }
 
-  // Execute UPDATE/DELETE and return the number of affected rows
+  /** 执行 UPDATE/DELETE 并返回影响的行数 */
   async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
-    const convertedSql = this.processSql(sql);
-
-    if (this.conn.type === 'sqlite') {
-      const stmt = (this.conn as any).prepare(convertedSql);
-      const result = stmt.run(...(params || []));
-      return { changes: result.changes };
-    } else if (this.conn.type === 'mysql') {
-      // MySQL: execute and get affected rows info
-      // mysql2 execute returns [ResultSetHeader, FieldPacket[]]
-      // We need to access the ResultSetHeader which contains affectedRows
-      const pool = (this.conn as any).pool;
-      if (pool) {
-        const [result] = await pool.execute(convertedSql, params);
-        // ResultSetHeader has affectedRows property
-        const affectedRows = (result as any).affectedRows || 0;
-        return { changes: affectedRows };
-      }
-      await this.conn.execute(convertedSql, params);
-      return { changes: 0 };
-    } else {
-      // PostgreSQL
-      await this.conn.execute(convertedSql, params);
-      // PostgreSQL doesn't easily return affected rows count without RETURNING
-      return { changes: 0 };
-    }
+    const processedSql = this.processSql(sql);
+    return this.conn.run(processedSql, params);
   }
 
-  // Get current timestamp function for SQL
+  /** 获取当前时间函数 */
   now(): string {
-    if (this.conn.type === 'sqlite') {
-      return "datetime('now')";
-    }
-    return 'NOW()';
+    return this.compiler.now();
   }
 
-  // Get date comparison function
+  /** 获取日期比较函数 */
   dateCompare(column: string, operator: string, value: string): string {
     if (this.conn.type === 'sqlite') {
       return `date(${column}) ${operator} date(?)`;
@@ -186,40 +100,112 @@ export class DbAdapter {
     return `${column} ${operator} ?`;
   }
 
-  // Transaction support
+  /** 开始事务 */
   async beginTransaction(): Promise<void> {
-    if (this.conn.type === 'sqlite') {
-      await this.execute('BEGIN TRANSACTION');
-    } else if (this.conn.type === 'mysql') {
-      await this.execute('START TRANSACTION');
-    } else if (this.conn.type === 'postgresql') {
-      await this.execute('BEGIN');
-    }
+    await this.conn.execute('BEGIN TRANSACTION');
   }
 
+  /** 提交事务 */
   async commit(): Promise<void> {
-    await this.execute('COMMIT');
+    await this.conn.execute('COMMIT');
   }
 
+  /** 回滚事务 */
   async rollback(): Promise<void> {
-    await this.execute('ROLLBACK');
+    await this.conn.execute('ROLLBACK');
   }
 
-  // Execute function within a transaction
+  /** 在事务中执行函数 */
   async transaction<T>(fn: (db: DbAdapter) => Promise<T>): Promise<T> {
-    await this.beginTransaction();
-    try {
-      const result = await fn(this);
-      await this.commit();
-      return result;
-    } catch (error) {
-      await this.rollback();
-      throw error;
-    }
+    return transaction(async (trx) => {
+      // 创建临时适配器使用事务连接
+      const trxAdapter = new DbAdapter(
+        {
+          ...this.conn,
+          query: trx.query.bind(trx),
+          get: trx.get.bind(trx),
+          execute: trx.execute.bind(trx),
+          insert: trx.insert.bind(trx),
+          run: trx.run.bind(trx),
+        } as DatabaseConnection,
+        this.compiler
+      );
+      return fn(trxAdapter);
+    });
   }
 }
 
-// Helper function to get adapter instance
+/** 便捷函数：获取适配器实例 */
 export function getAdapter(): DbAdapter | null {
   return DbAdapter.getInstance();
 }
+
+/** 便捷函数：执行查询 */
+export async function query(sql: string, params?: unknown[]): Promise<QueryResult[]> {
+  const adapter = getAdapter();
+  if (!adapter) {
+    throw new Error('Database not connected');
+  }
+  return adapter.query(sql, params);
+}
+
+/** 便捷函数：执行查询并返回单行 */
+export async function get(sql: string, params?: unknown[]): Promise<QueryResult | undefined> {
+  const adapter = getAdapter();
+  if (!adapter) {
+    throw new Error('Database not connected');
+  }
+  return adapter.get(sql, params);
+}
+
+/** 便捷函数：执行 SQL */
+export async function execute(sql: string, params?: unknown[]): Promise<void> {
+  const adapter = getAdapter();
+  if (!adapter) {
+    throw new Error('Database not connected');
+  }
+  return adapter.execute(sql, params);
+}
+
+/** 便捷函数：执行 INSERT */
+export async function insert(sql: string, params?: unknown[]): Promise<number> {
+  const adapter = getAdapter();
+  if (!adapter) {
+    throw new Error('Database not connected');
+  }
+  return adapter.insert(sql, params);
+}
+
+/** 便捷函数：执行 UPDATE/DELETE */
+export async function run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
+  const adapter = getAdapter();
+  if (!adapter) {
+    throw new Error('Database not connected');
+  }
+  return adapter.run(sql, params);
+}
+
+/** 重新导出核心类型和函数以保持兼容性 */
+export {
+  getConnection,
+  getConnectionManager,
+  connect,
+  disconnect,
+  transaction,
+} from './core/connection';
+
+export type {
+  DatabaseConnection,
+  Transaction,
+  DatabaseType,
+  Operator,
+  OrderDirection,
+  JoinType,
+  ColumnType,
+  ColumnDefinition,
+  TableDefinition,
+  CompiledSQL,
+} from './core/types';
+
+export type { DatabaseConfig, MySQLConfig, PostgreSQLConfig, SQLiteConfig } from './core/config';
+export { getDatabaseConfig, validateConfig, mergeConfig } from './core/config';
