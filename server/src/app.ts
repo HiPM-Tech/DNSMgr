@@ -6,6 +6,7 @@ import path from 'path';
 import { loadEnv } from './config/env';
 import { createConnection, isDbInitialized, hasUsers } from './db/database';
 import { initSchema, initSchemaAsync } from './db/schema';
+import { db } from './db';
 import { authMiddleware, adminOnly } from './middleware/auth';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { requestLogger, requestIdMiddleware } from './middleware/requestLogger';
@@ -247,8 +248,11 @@ app.use(errorHandler);
 // Initialize database connection and check state
 async function initializeApp() {
   try {
-    // Try to create database connection
+    // Try to create database connection (legacy system)
     const conn = await createConnection();
+
+    // Initialize new database system (used by some routes like auth.ts)
+    await db.connect();
 
     // Initialize schema if needed (use async version for all database types)
     await initSchemaAsync(conn);
@@ -318,6 +322,7 @@ async function initializeApp() {
     const initCheckInterval = setInterval(async () => {
       try {
         const conn = await createConnection();
+        await db.connect();
         await initSchemaAsync(conn);
         const newState = await checkInitialization();
         if (newState) {
