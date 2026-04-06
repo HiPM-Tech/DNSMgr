@@ -15,24 +15,41 @@ function getCwd(): string {
 export function loadEnv(): void {
   const cwd = getCwd();
   const dataDir = path.join(cwd, 'data');
-  
+
   // Ensure data directory exists
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
-  
+
   const dataEnvPath = path.join(dataDir, '.env');
   const rootEnvPath = path.join(cwd, '.env');
-  
+
+  console.log(`[Env] Current working directory: ${cwd}`);
+  console.log(`[Env] Looking for data/.env at: ${dataEnvPath}`);
+  console.log(`[Env] Looking for root .env at: ${rootEnvPath}`);
+
   // Load root .env first (lowest priority)
   if (fs.existsSync(rootEnvPath)) {
+    console.log('[Env] Loading root .env');
     dotenv.config({ path: rootEnvPath });
+  } else {
+    console.log('[Env] Root .env not found');
   }
-  
+
   // Load data/.env second (highest priority, overrides root .env)
   if (fs.existsSync(dataEnvPath)) {
-    dotenv.config({ path: dataEnvPath, override: true });
+    console.log('[Env] Loading data/.env');
+    const result = dotenv.config({ path: dataEnvPath, override: true });
+    if (result.error) {
+      console.error('[Env] Error loading data/.env:', result.error);
+    } else {
+      console.log('[Env] data/.env loaded successfully');
+    }
+  } else {
+    console.log('[Env] data/.env not found');
   }
+
+  console.log(`[Env] DB_TYPE after loading: ${process.env.DB_TYPE || 'not set'}`);
 }
 
 // Save configuration to ./data/.env (current working directory)
@@ -116,11 +133,16 @@ export function getDbConfig(): {
   mysql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
   postgresql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
 } {
+  console.log(`[Env] getDbConfig() called, DB_TYPE=${process.env.DB_TYPE || 'not set'}`);
+
   // 在获取配置前验证环境变量
   validateEnv();
 
+  const dbType = (process.env.DB_TYPE as 'sqlite' | 'mysql' | 'postgresql') || 'sqlite';
+  console.log(`[Env] Using database type: ${dbType}`);
+
   return {
-    type: (process.env.DB_TYPE as 'sqlite' | 'mysql' | 'postgresql') || 'sqlite',
+    type: dbType,
     sqlite: {
       path: process.env.DB_PATH || './data/dnsmgr.db',
     },

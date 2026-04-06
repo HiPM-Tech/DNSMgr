@@ -199,31 +199,40 @@ let connection: DbConnection | null = null;
 let connectionPromise: Promise<DbConnection> | null = null;
 
 export async function createConnection(): Promise<DbConnection> {
+  console.log('[Database] createConnection() called');
+
   // 如果连接已存在且未关闭，直接返回
   if (connection) {
+    console.log(`[Database] Returning existing connection: ${connection.type}`);
     return connection;
   }
 
   // 如果正在创建连接，等待创建完成
   if (connectionPromise) {
+    console.log('[Database] Waiting for existing connection promise');
     return connectionPromise;
   }
 
   // 创建新连接
   connectionPromise = (async () => {
+    console.log('[Database] Creating new connection...');
     const config = getDbConfig();
+    console.log(`[Database] Config type: ${config.type}`);
 
     switch (config.type) {
       case 'mysql':
+        console.log('[Database] Creating MySQL connection...');
         connection = new MySQLConnection(config.mysql);
         break;
 
       case 'postgresql':
+        console.log('[Database] Creating PostgreSQL connection...');
         connection = new PostgreSQLConnection(config.postgresql);
         break;
 
       case 'sqlite':
       default:
+        console.log('[Database] Creating SQLite connection...');
         connection = new SQLiteConnection(config.sqlite.path);
         break;
     }
