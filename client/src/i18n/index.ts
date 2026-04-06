@@ -10,7 +10,7 @@ export const locales: Record<string, LocaleDefinition> = {
   es: { code: 'es', label: 'Español', messages: es.messages },
   ja: { code: 'ja', label: '日本語', messages: ja.messages },
   'zh-CN': { code: 'zh-CN', label: '简体中文', messages: zhCN.messages },
-  'zh-CN-Mesugaki': { code: 'zh-CN-Mesugaki', label: '简体中文 (Mesugaki)', messages: zhCNMesugaki.messages },
+  'zh-CN-Mesugaki': { code: 'zh-CN-Mesugaki', label: '简体中文-雌小鬼版', messages: zhCNMesugaki.messages },
 };
 
 export const defaultLocale = 'zh-CN';
@@ -20,5 +20,5 @@ export const localeOptions: { code: string; label: string }[] = [
   { code: 'es', label: 'Español' },
   { code: 'ja', label: '日本語' },
   { code: 'zh-CN', label: '简体中文' },
-  { code: 'zh-CN-Mesugaki', label: '简体中文 (Mesugaki)' },
+  { code: 'zh-CN-Mesugaki', label: '简体中文-雌小鬼版' },
 ];
