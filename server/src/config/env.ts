@@ -2,14 +2,19 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 
+// Get the current working directory (where the server is running)
+function getCwd(): string {
+  return process.cwd();
+}
+
 // Load environment variables with priority:
-// 1. data/.env (highest priority)
+// 1. ./data/.env (current working directory, highest priority)
 // 2. .env (root directory)
 // 3. process.env (lowest priority)
 
 export function loadEnv(): void {
-  const rootDir = path.resolve(__dirname, '../..');
-  const dataDir = path.join(rootDir, 'data');
+  const cwd = getCwd();
+  const dataDir = path.join(cwd, 'data');
   
   // Ensure data directory exists
   if (!fs.existsSync(dataDir)) {
@@ -17,7 +22,7 @@ export function loadEnv(): void {
   }
   
   const dataEnvPath = path.join(dataDir, '.env');
-  const rootEnvPath = path.join(rootDir, '.env');
+  const rootEnvPath = path.join(cwd, '.env');
   
   // Load root .env first (lowest priority)
   if (fs.existsSync(rootEnvPath)) {
@@ -30,10 +35,10 @@ export function loadEnv(): void {
   }
 }
 
-// Save configuration to data/.env
+// Save configuration to ./data/.env (current working directory)
 export function saveEnvConfig(config: Record<string, string>): void {
-  const rootDir = path.resolve(__dirname, '../..');
-  const dataDir = path.join(rootDir, 'data');
+  const cwd = getCwd();
+  const dataDir = path.join(cwd, 'data');
   const envPath = path.join(dataDir, '.env');
   
   // Ensure data directory exists
