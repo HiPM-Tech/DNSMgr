@@ -113,15 +113,19 @@ async function exchangeOauthCode(config: OAuthConfig, code: string): Promise<{ a
     client_secret: config.clientSecret,
     redirect_uri: config.redirectUri,
   });
+  console.log('[OAuth Debug] Token request to:', config.tokenEndpoint);
+  console.log('[OAuth Debug] Token request body:', body.toString());
   const response = await fetch(config.tokenEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   });
+  console.log('[OAuth Debug] Token response status:', response.status);
+  const tokenPayload = await response.json() as { access_token?: string; id_token?: string; error?: string; error_description?: string };
+  console.log('[OAuth Debug] Token response:', JSON.stringify(tokenPayload));
   if (!response.ok) {
-    throw new Error(`OAuth token exchange failed: HTTP ${response.status}`);
+    throw new Error(`OAuth token exchange failed: HTTP ${response.status}${tokenPayload.error_description ? ' - ' + tokenPayload.error_description : ''}`);
   }
-  const tokenPayload = await response.json() as { access_token?: string; id_token?: string };
   if (!tokenPayload.access_token) {
     throw new Error('OAuth token exchange failed: access_token missing');
   }
@@ -185,18 +189,48 @@ function decodeBase64Url(value: string): Buffer {
   return Buffer.from(normalized + pad, 'base64');
 }
 
+function ellipticSigToDer(r: Buffer, s: Buffer): Buffer {
+  const rLen = r.length;
+  const sLen = s.length;
+  const totalLen = rLen + sLen + 10;
+  const der = Buffer.alloc(totalLen);
+  let offset = 0;
+  der[offset++] = 0x30;
+  der[offset++] = totalLen - 2;
+  der[offset++] = 0x02;
+  der[offset++] = rLen;
+  r.copy(der, offset);
+  offset += rLen;
+  der[offset++] = 0x02;
+  der[offset++] = sLen;
+  s.copy(der, offset);
+  return der.slice(0, offset + sLen);
+}
+
 async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAuthUserProfile> {
   if (!idToken || !config.jwksUri) return {};
   const parts = idToken.split('.');
   if (parts.length !== 3) throw new Error('Invalid id_token format');
   const header = JSON.parse(decodeBase64Url(parts[0]).toString('utf8')) as { alg?: string; kid?: string };
   const payload = JSON.parse(decodeBase64Url(parts[1]).toString('utf8')) as Record<string, unknown>;
+
+  console.log('[OAuth Debug] id_token header:', JSON.stringify(header));
+  console.log('[OAuth Debug] id_token payload:', JSON.stringify(payload));
+  console.log('[OAuth Debug] Expected issuer:', config.issuer);
+  console.log('[OAuth Debug] Expected clientId:', config.clientId);
+  console.log('[OAuth Debug] JWKS URI:', config.jwksUri);
+
   if (!header.alg || !header.kid) throw new Error('id_token missing alg or kid');
 
   const jwksResp = await fetch(config.jwksUri);
+  console.log('[OAuth Debug] JWKS fetch status:', jwksResp.status);
   if (!jwksResp.ok) throw new Error(`JWKS fetch failed: HTTP ${jwksResp.status}`);
   const jwks = await jwksResp.json() as { keys?: Array<Record<string, unknown>> };
+  console.log('[OAuth Debug] JWKS keys count:', jwks.keys?.length);
+  console.log('[OAuth Debug] JWKS keys:', JSON.stringify(jwks.keys?.map(k => ({ kid: k.kid, alg: k.alg, kty: k.kty }))));
+
   const jwk = (jwks.keys || []).find((key) => String(key.kid || '') === header.kid);
+  console.log('[OAuth Debug] Matched JWK:', jwk ? JSON.stringify({ kid: jwk.kid, alg: jwk.alg, kty: jwk.kty }) : 'NOT FOUND');
   if (!jwk) throw new Error('Unable to find matching JWKS key for id_token');
 
   const verifyAlgMap: Record<string, string> = {
@@ -208,11 +242,25 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
     ES512: 'sha512',
   };
   const verifyAlg = verifyAlgMap[header.alg];
+  console.log('[OAuth Debug] Using verify algorithm:', verifyAlg);
   if (!verifyAlg) throw new Error(`Unsupported id_token algorithm: ${header.alg}`);
   const publicKey = crypto.createPublicKey({ key: jwk as crypto.JsonWebKey, format: 'jwk' });
   const signingInput = `${parts[0]}.${parts[1]}`;
-  const signature = decodeBase64Url(parts[2]);
+  let signature = decodeBase64Url(parts[2]);
+  console.log('[OAuth Debug] Original signature length:', signature.length);
+
+  if (header.alg.startsWith('ES') && jwk.kty === 'EC') {
+    const keySize = header.alg === 'ES256' ? 32 : header.alg === 'ES384' ? 48 : 66;
+    if (signature.length === keySize * 2) {
+      const r = signature.slice(0, keySize);
+      const s = signature.slice(keySize);
+      signature = ellipticSigToDer(r, s);
+      console.log('[OAuth Debug] Converted ECDSA signature to DER format, new length:', signature.length);
+    }
+  }
+
   const ok = crypto.verify(verifyAlg, Buffer.from(signingInput), publicKey, signature);
+  console.log('[OAuth Debug] Signature verification result:', ok);
   if (!ok) throw new Error('id_token signature verification failed');
 
   const now = Math.floor(Date.now() / 1000);
