@@ -309,7 +309,7 @@ const mysqlSchema = {
       user_id INT NOT NULL UNIQUE,
       type VARCHAR(50) NOT NULL DEFAULT 'totp' CHECK(type IN ('totp', 'webauthn')),
       secret VARCHAR(255) NOT NULL,
-      backup_codes JSON NOT NULL DEFAULT '[]',
+      backup_codes JSON,
       enabled TINYINT NOT NULL DEFAULT 0,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
