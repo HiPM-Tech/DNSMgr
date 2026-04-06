@@ -7,26 +7,25 @@ import { getCurrentConnection } from '../db/database';
 import { verifyToken, hasServicePermission, hasDomainPermission } from '../service/token';
 import { TokenPayload } from '../types/token';
 
-// JWT密钥配置 - 生产环境必须设置JWT_SECRET
+// JWT密钥配置 - 如果没有设置则随机生成
 const BASE_JWT_SECRET = (() => {
   const secret = process.env.JWT_SECRET;
   
-  // 生产环境强制要求设置JWT_SECRET
-  if (process.env.NODE_ENV === 'production') {
-    if (!secret || secret === 'dnsmgr-secret-key') {
-      console.error('[ERROR] JWT_SECRET environment variable is not set or using insecure default in production!');
-      console.error('[ERROR] Please set a secure JWT_SECRET (at least 32 characters) in your environment.');
+  // 如果设置了环境变量，使用环境变量
+  if (secret) {
+    // 生产环境检查密钥强度
+    if (process.env.NODE_ENV === 'production' && secret.length < 32) {
+      console.error('[ERROR] JWT_SECRET must be at least 32 characters long in production!');
       process.exit(1);
     }
+    return secret;
   }
   
-  // 非生产环境使用默认值（仅用于开发）
-  if (!secret) {
-    console.warn('[WARN] JWT_SECRET not set, using insecure default. Set JWT_SECRET for better security.');
-    return 'dnsmgr-secret-key';
-  }
-  
-  return secret;
+  // 如果没有设置，生成随机密钥（每次重启服务会变化，仅适合开发环境）
+  const generatedSecret = crypto.randomBytes(32).toString('hex');
+  console.warn('[WARN] JWT_SECRET not set, using randomly generated secret.');
+  console.warn('[WARN] For production, please set JWT_SECRET environment variable to ensure token persistence across restarts.');
+  return generatedSecret;
 })();
 
 const RUNTIME_SECRET_KEY = 'jwt_runtime';
