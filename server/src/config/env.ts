@@ -79,12 +79,10 @@ export function saveEnvConfig(config: Record<string, string>): void {
 export function validateEnv(): void {
   const errors: string[] = [];
 
-  // 生产环境强制要求设置JWT_SECRET
+  // 生产环境检查JWT_SECRET强度（如果设置了的话）
   if (process.env.NODE_ENV === 'production') {
     const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret || jwtSecret === 'dnsmgr-secret-key') {
-      errors.push('JWT_SECRET must be set to a secure value in production (at least 32 characters)');
-    } else if (jwtSecret.length < 32) {
+    if (jwtSecret && jwtSecret.length < 32) {
       errors.push('JWT_SECRET must be at least 32 characters long');
     }
   }
