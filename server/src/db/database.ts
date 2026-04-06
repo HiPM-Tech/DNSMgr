@@ -41,13 +41,15 @@ class MySQLConnection implements DbConnection {
       connectTimeout: 60000,
     });
 
-    // 连接池事件监控
-    this.pool.on('acquire', () => {
-      console.debug('[MySQL] Connection acquired');
-    });
-    this.pool.on('release', () => {
-      console.debug('[MySQL] Connection released');
-    });
+    // 连接池事件监控（仅在非生产环境或需要调试时启用）
+    if (process.env.NODE_ENV !== 'production') {
+      this.pool.on('acquire', () => {
+        console.debug('[MySQL] Connection acquired');
+      });
+      this.pool.on('release', () => {
+        console.debug('[MySQL] Connection released');
+      });
+    }
     this.pool.on('enqueue', () => {
       console.warn('[MySQL] Waiting for available connection slot');
     });
