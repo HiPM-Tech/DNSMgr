@@ -71,6 +71,7 @@ export class AliyunAdapter extends AliyunRpcAdapter {
       return { total: toNumber(data.TotalCount, list.length), list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Aliyun] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

@@ -173,6 +173,7 @@ export class WestAdapter extends BaseAdapter implements DnsAdapter {
       };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[West] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

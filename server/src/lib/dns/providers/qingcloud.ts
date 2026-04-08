@@ -95,6 +95,7 @@ export class QingcloudAdapter extends BaseAdapter {
       return { total: data.total_count || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Qingcloud] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

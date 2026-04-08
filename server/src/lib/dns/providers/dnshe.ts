@@ -126,6 +126,7 @@ export class DnsheAdapter extends BaseAdapter {
       return { total, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Dnshe] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

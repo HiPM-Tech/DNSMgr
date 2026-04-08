@@ -108,6 +108,7 @@ export class PowerdnsAdapter extends BaseAdapter {
       return { total: list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Powerdns] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

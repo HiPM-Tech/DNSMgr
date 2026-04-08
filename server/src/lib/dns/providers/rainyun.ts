@@ -120,6 +120,7 @@ export class RainyunAdapter extends BaseAdapter {
       };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Rainyun] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

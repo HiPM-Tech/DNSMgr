@@ -181,6 +181,7 @@ export class HuoshanAdapter extends BaseAdapter {
       return { total: data.Total || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Huoshan] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

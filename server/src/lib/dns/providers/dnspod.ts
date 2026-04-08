@@ -95,6 +95,7 @@ export class DnspodAdapter extends TencentCloudAdapter {
       return { total, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Dnspod] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

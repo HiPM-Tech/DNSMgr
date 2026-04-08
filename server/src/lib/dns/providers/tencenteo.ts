@@ -98,6 +98,7 @@ export class TencenteoAdapter extends TencentCloudAdapter {
       return { total: toNumber(data.TotalCount, list.length), list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Tencenteo] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

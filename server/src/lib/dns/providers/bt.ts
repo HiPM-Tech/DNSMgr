@@ -82,6 +82,7 @@ export class BtAdapter extends BaseAdapter {
       return { total: data.total || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Bt] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }

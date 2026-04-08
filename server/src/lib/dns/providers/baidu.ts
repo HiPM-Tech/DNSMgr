@@ -172,6 +172,7 @@ export class BaiduAdapter extends BaseAdapter {
       return { total: list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      console.error('[Baidu] getDomainList failed:', this.error);
       return { total: 0, list: [] };
     }
   }
