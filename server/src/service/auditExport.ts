@@ -56,7 +56,9 @@ export async function getAuditLogs(
   }
 
   const where = conditions.join(' AND ');
-  const offset = (page - 1) * pageSize;
+  const pageNum = Math.max(1, Math.floor(Number(page) || 1));
+  const pageSizeNum = Math.max(1, Math.floor(Number(pageSize) || 50));
+  const offset = (pageNum - 1) * pageSizeNum;
 
   // 获取总数
   const countSql = `SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`;
@@ -80,7 +82,7 @@ export async function getAuditLogs(
        ORDER BY l.id DESC
        LIMIT ? OFFSET ?`;
 
-  const logs = await query(listSql, [...params, Number(pageSize), Number(offset)]);
+  const logs = await query(listSql, [...params, pageSizeNum, offset]);
 
   return {
     total,
