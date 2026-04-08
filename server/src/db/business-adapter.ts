@@ -694,14 +694,24 @@ export const AuditOperations = {
     
     sql += ' ORDER BY created_at DESC';
     
+    // MySQL 的 LIMIT/OFFSET 需要直接嵌入数值
+    const dbType = getDbType();
     if (options.limit) {
-      sql += ' LIMIT ?';
-      params.push(Number(options.limit));
+      if (dbType === 'mysql') {
+        sql += ` LIMIT ${Number(options.limit)}`;
+      } else {
+        sql += ' LIMIT ?';
+        params.push(Number(options.limit));
+      }
     }
     
     if (options.offset) {
-      sql += ' OFFSET ?';
-      params.push(Number(options.offset));
+      if (dbType === 'mysql') {
+        sql += ` OFFSET ${Number(options.offset)}`;
+      } else {
+        sql += ' OFFSET ?';
+        params.push(Number(options.offset));
+      }
     }
     
     return queryInternal(sql, params, { operation: 'Audit.getLogs', table: 'audit_logs' });

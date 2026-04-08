@@ -82,7 +82,13 @@ export async function getAuditLogs(
        ORDER BY l.id DESC
        LIMIT ? OFFSET ?`;
 
-  const logs = await query(listSql, [...params, pageSizeNum, offset]);
+  // MySQL 的 LIMIT/OFFSET 需要直接嵌入数值，不能使用参数化查询
+  const finalSql = dbType === 'mysql'
+    ? listSql.replace('LIMIT ? OFFSET ?', `LIMIT ${pageSizeNum} OFFSET ${offset}`)
+    : listSql;
+  const finalParams = dbType === 'mysql' ? params : [...params, pageSizeNum, offset];
+  
+  const logs = await query(finalSql, finalParams);
 
   return {
     total,
