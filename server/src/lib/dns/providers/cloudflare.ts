@@ -1,4 +1,5 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
+import { log } from '../../logger';
 
 interface CloudflareConfig {
   email?: string;
@@ -67,17 +68,17 @@ export class CloudflareAdapter implements DnsAdapter {
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<CfApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
-    console.log(`[Cloudflare] Request: ${method} ${url}`);
+    log.providerRequest('Cloudflare', method, url, body);
     const res = await fetch(url, {
       method,
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = (await res.json()) as CfApiResponse<T>;
-    console.log(`[Cloudflare] Response: status=${res.status}, success=${data.success}`);
+    log.providerResponse('Cloudflare', res.status, data.success, { resultCount: Array.isArray(data.result) ? data.result.length : 0 });
     if (!data.success && data.errors?.length) {
       this.error = data.errors[0].message;
-      console.error('[Cloudflare] API errors:', data.errors);
+      log.providerError('Cloudflare', data.errors);
     }
     return data;
   }
@@ -100,12 +101,14 @@ export class CloudflareAdapter implements DnsAdapter {
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
     let path = `/zones?page=${page}&per_page=${pageSize}`;
     if (keyword) path += `&name=${encodeURIComponent(keyword)}`;
+    log.debug('Cloudflare', `getDomainList: page=${page}, pageSize=${pageSize}, keyword=${keyword || 'none'}`);
     const res = await this.request<CfZone[]>('GET', path);
     if (!res.success) {
-      console.error('[Cloudflare] getDomainList failed:', res.errors);
+      log.error('Cloudflare', 'getDomainList failed', res.errors);
       return { total: 0, list: [] };
     }
     const total = res.result_info?.total_count ?? res.result.length;
+    log.info('Cloudflare', `getDomainList success: total=${total}, returned=${res.result.length}`);
     return {
       total,
       list: res.result.map((z) => ({
