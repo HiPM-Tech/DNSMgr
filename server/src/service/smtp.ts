@@ -1,6 +1,6 @@
 import net from 'net';
 import tls from 'tls';
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, now, getDbType } from '../db';
 
 export interface SmtpConfig {
   enabled: boolean;
@@ -44,16 +44,12 @@ function parseConfig(raw: unknown): SmtpConfig {
 }
 
 export async function getSmtpConfig(): Promise<SmtpConfig> {
-  const db = getAdapter();
-  if (!db) return DEFAULT_SMTP_CONFIG;
-  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['smtp_config']) as { value: string } | undefined;
+  const row = await get('SELECT value FROM system_settings WHERE key = ?', ['smtp_config']) as { value: string } | undefined;
   if (!row?.value) return DEFAULT_SMTP_CONFIG;
   return parseConfig(row.value);
 }
 
 export async function updateSmtpConfig(input: Partial<SmtpConfig>): Promise<SmtpConfig> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
   const current = await getSmtpConfig();
   const next: SmtpConfig = {
     ...current,
@@ -64,14 +60,15 @@ export async function updateSmtpConfig(input: Partial<SmtpConfig>): Promise<Smtp
   };
 
   const payload = ['smtp_config', JSON.stringify(next)];
-  if (db.type === 'mysql') {
-    await db.execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
+  const dbType = getDbType();
+  if (dbType === 'mysql') {
+    await execute(
+      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + now(),
       payload
     );
   } else {
-    await db.execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
+    await execute(
+      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + now(),
       payload
     );
   }
@@ -194,4 +191,3 @@ export async function sendSmtpEmail(to: string, subject: string, text: string): 
   if (!config.enabled) throw new Error('SMTP is not enabled');
   await sendRawSmtpMail(config, to, subject, text);
 }
-

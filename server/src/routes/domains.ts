@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db';
+import { query, get, execute, insert, run, now } from '../db';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
@@ -10,6 +10,9 @@ import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 
 const router = Router();
+
+// 本地 db 对象，兼容旧代码
+const db = { get, query, execute, insert, run, now };
 
 function normalizeDomainName(name: string): string {
   return name.trim().toLowerCase();
@@ -608,12 +611,22 @@ router.post('/:id/failover', authMiddleware, asyncHandler(async (req: Request, r
     return;
   }
   const existing = await getFailoverConfigByDomain(domainId);
+  const configData = {
+    primaryIp,
+    backupIps: backupIps || [],
+    checkMethod: checkMethod || 'ping',
+    checkInterval: checkInterval || 60,
+    checkPort: checkPort || 80,
+    checkPath: checkPath || '',
+    autoSwitchBack: autoSwitchBack !== false,
+    enabled: true,
+  };
   if (existing) {
-    await updateFailoverConfig(existing.id, { primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack });
+    await updateFailoverConfig(existing.id, configData);
     sendSuccess(res, { id: existing.id });
   } else {
-    const config = await createFailoverConfig(domainId, primaryIp, backupIps || [], checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack);
-    sendSuccess(res, config);
+    const configId = await createFailoverConfig(domainId, configData);
+    sendSuccess(res, { id: configId });
   }
 }));
 

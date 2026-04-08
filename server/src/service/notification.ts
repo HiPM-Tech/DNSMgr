@@ -1,4 +1,4 @@
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, now } from '../db';
 import { sendSmtpEmail } from './smtp';
 
 export interface NotificationChannel {
@@ -57,9 +57,7 @@ async function withRetry<T>(
 }
 
 export async function getNotificationChannels(): Promise<NotificationChannel[]> {
-  const db = getAdapter();
-  if (!db) return [];
-  const row = await db.get('SELECT value FROM system_settings WHERE key = ?', ['notification_channels']) as any;
+  const row = await get('SELECT value FROM system_settings WHERE key = ?', ['notification_channels']) as any;
   if (!row?.value) return [];
   try {
     return JSON.parse(row.value);

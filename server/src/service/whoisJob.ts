@@ -1,5 +1,5 @@
 import { whoisDomain, firstResult } from 'whoiser';
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, now } from '../db';
 import { Domain } from '../types';
 import { sendNotification } from './notification';
 
@@ -22,26 +22,23 @@ export async function checkWhoisForDomain(domainName: string): Promise<Date | nu
 }
 
 export async function syncAllDomainsWhois() {
-  const db = getAdapter();
-  if (!db) return;
-
-  const domains = await db.query('SELECT id, name FROM domains') as unknown as Domain[];
+  const domains = await query('SELECT id, name FROM domains') as unknown as Domain[];
   for (const d of domains) {
     const expiresAt = await checkWhoisForDomain(d.name);
     if (expiresAt) {
-      await db.query('UPDATE domains SET expires_at = ? WHERE id = ?', [
+      await query('UPDATE domains SET expires_at = ? WHERE id = ?', [
         expiresAt.toISOString(),
         d.id
       ]);
 
-      const now = new Date();
-      const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const nowTime = new Date();
+      const daysLeft = Math.ceil((expiresAt.getTime() - nowTime.getTime()) / (1000 * 60 * 60 * 24));
       
       // Check if we should send a notification
-      const enableNotifyRow = await db.get('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_notification']) as any;
+      const enableNotifyRow = await get('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_notification']) as any;
       const enableNotify = enableNotifyRow ? enableNotifyRow.value === '1' || enableNotifyRow.value === 'true' : false;
       
-      const thresholdRow = await db.get('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_days']) as any;
+      const thresholdRow = await get('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_days']) as any;
       const threshold = thresholdRow ? parseInt(thresholdRow.value) : 30;
 
       if (enableNotify && (daysLeft === threshold || daysLeft === 7 || daysLeft === 1)) {

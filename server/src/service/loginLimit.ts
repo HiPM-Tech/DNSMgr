@@ -1,4 +1,4 @@
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, now, getDbType } from '../db';
 import { checkAuditRules } from './auditRules';
 
 // Default configuration
@@ -25,11 +25,8 @@ interface LoginAttempt {
 
 // Get login limit configuration
 export async function getLoginLimitConfig(): Promise<LoginLimitConfig> {
-  const db = getAdapter();
-  if (!db) return DEFAULT_CONFIG;
-
   try {
-    const result = await db.get('SELECT value FROM system_settings WHERE key = ?', ['login_limit_config']);
+    const result = await get('SELECT value FROM system_settings WHERE key = ?', ['login_limit_config']);
     if (result) {
       return { ...DEFAULT_CONFIG, ...JSON.parse((result as { value: string }).value) };
     }
@@ -41,23 +38,21 @@ export async function getLoginLimitConfig(): Promise<LoginLimitConfig> {
 
 // Update login limit configuration
 export async function updateLoginLimitConfig(config: Partial<LoginLimitConfig>): Promise<void> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
   const currentConfig = await getLoginLimitConfig();
   const newConfig = { ...currentConfig, ...config };
 
   const payload = ['login_limit_config', JSON.stringify(newConfig)];
-  if (db.type === 'mysql') {
-    await db.execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + db.now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + db.now(),
+  const dbType = getDbType();
+  if (dbType === 'mysql') {
+    await execute(
+      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + now(),
       payload
     );
     return;
   }
 
-  await db.execute(
-    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + db.now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + db.now(),
+  await execute(
+    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + now(),
     payload
   );
 }
@@ -70,12 +65,9 @@ export async function checkLoginAllowed(identifier: string, ipAddress: string = 
     return { allowed: true };
   }
 
-  const db = getAdapter();
-  if (!db) return { allowed: true };
-
   try {
     // Check existing attempt record
-    const result = await db.get(
+    const result = await get(
       'SELECT * FROM login_attempts WHERE identifier = ? ORDER BY created_at DESC LIMIT 1',
       [identifier.toLowerCase()]
     );
@@ -84,10 +76,10 @@ export async function checkLoginAllowed(identifier: string, ipAddress: string = 
 
     if (attempt && attempt.locked_until) {
       const lockedUntil = new Date(attempt.locked_until);
-      const now = new Date();
+      const nowTime = new Date();
       
-      if (lockedUntil > now) {
-        const minutesLeft = Math.ceil((lockedUntil.getTime() - now.getTime()) / (1000 * 60));
+      if (lockedUntil > nowTime) {
+        const minutesLeft = Math.ceil((lockedUntil.getTime() - nowTime.getTime()) / (1000 * 60));
         return {
           allowed: false,
           message: `Account locked. Please try again in ${minutesLeft} minute(s).`,
@@ -117,27 +109,24 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
     return { locked: false };
   }
 
-  const db = getAdapter();
-  if (!db) return { locked: false };
-
   try {
     const normalizedIdentifier = identifier.toLowerCase();
     
     // Get existing record
-    const result = await db.get(
+    const result = await get(
       'SELECT * FROM login_attempts WHERE identifier = ? ORDER BY created_at DESC LIMIT 1',
       [normalizedIdentifier]
     );
     
     const attempt = result as LoginAttempt | undefined;
-    const now = new Date();
+    const nowTime = new Date();
 
     if (attempt) {
       // Check if already locked
       if (attempt.locked_until) {
         const lockedUntil = new Date(attempt.locked_until);
-        if (lockedUntil > now) {
-          const minutesLeft = Math.ceil((lockedUntil.getTime() - now.getTime()) / (1000 * 60));
+        if (lockedUntil > nowTime) {
+          const minutesLeft = Math.ceil((lockedUntil.getTime() - nowTime.getTime()) / (1000 * 60));
           return {
             locked: true,
             message: `Account locked. Please try again in ${minutesLeft} minute(s).`,
@@ -151,10 +140,10 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
       // Check if should lock
       if (newCount >= config.maxAttempts) {
         const lockoutMinutes = config.lockoutDuration;
-        const lockedUntil = new Date(now.getTime() + lockoutMinutes * 60 * 1000);
+        const lockedUntil = new Date(nowTime.getTime() + lockoutMinutes * 60 * 1000);
         
-        await db.execute(
-          'UPDATE login_attempts SET attempt_count = ?, last_attempt_at = ' + db.now() + ', locked_until = ? WHERE id = ?',
+        await execute(
+          'UPDATE login_attempts SET attempt_count = ?, last_attempt_at = ' + now() + ', locked_until = ? WHERE id = ?',
           [newCount, lockedUntil.toISOString(), attempt.id]
         );
         
@@ -167,8 +156,8 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
       }
 
       // Update attempt count
-      await db.execute(
-        'UPDATE login_attempts SET attempt_count = ?, last_attempt_at = ' + db.now() + ', locked_until = NULL WHERE id = ?',
+      await execute(
+        'UPDATE login_attempts SET attempt_count = ?, last_attempt_at = ' + now() + ', locked_until = NULL WHERE id = ?',
         [newCount, attempt.id]
       );
       
@@ -181,8 +170,8 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
       };
     } else {
       // Create new record
-      await db.execute(
-        'INSERT INTO login_attempts (identifier, ip_address, attempt_count, last_attempt_at) VALUES (?, ?, 1, ' + db.now() + ')',
+      await execute(
+        'INSERT INTO login_attempts (identifier, ip_address, attempt_count, last_attempt_at) VALUES (?, ?, 1, ' + now() + ')',
         [normalizedIdentifier, ipAddress]
       );
 
@@ -200,11 +189,8 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
 
 // Clear login attempts on successful login
 export async function clearLoginAttempts(identifier: string): Promise<void> {
-  const db = getAdapter();
-  if (!db) return;
-
   try {
-    await db.execute(
+    await execute(
       'DELETE FROM login_attempts WHERE identifier = ?',
       [identifier.toLowerCase()]
     );
@@ -219,26 +205,21 @@ export async function getLoginAttemptStats(): Promise<{
   recentAttempts: number;
   topIdentifiers: { identifier: string; attempts: number }[];
 }> {
-  const db = getAdapter();
-  if (!db) {
-    return { totalLocked: 0, recentAttempts: 0, topIdentifiers: [] };
-  }
-
   try {
     // Get total locked accounts
-    const lockedResult = await db.get(
+    const lockedResult = await get(
       "SELECT COUNT(*) as cnt FROM login_attempts WHERE locked_until > datetime('now')"
     );
     const totalLocked = (lockedResult as { cnt: number })?.cnt || 0;
 
     // Get recent attempts (last 24 hours)
-    const recentResult = await db.get(
+    const recentResult = await get(
       "SELECT COUNT(*) as cnt FROM login_attempts WHERE last_attempt_at > datetime('now', '-1 day')"
     );
     const recentAttempts = (recentResult as { cnt: number })?.cnt || 0;
 
     // Get top identifiers with failed attempts
-    const topResult = await db.query(
+    const topResult = await query(
       'SELECT identifier, attempt_count as attempts FROM login_attempts ORDER BY attempt_count DESC LIMIT 10'
     );
     const topIdentifiers = (topResult as { identifier: string; attempts: number }[]) || [];
@@ -256,10 +237,7 @@ export async function getLoginAttemptStats(): Promise<{
 
 // Manually unlock an account (for admin)
 export async function unlockAccount(identifier: string): Promise<void> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
-  await db.execute(
+  await execute(
     'DELETE FROM login_attempts WHERE identifier = ?',
     [identifier.toLowerCase()]
   );

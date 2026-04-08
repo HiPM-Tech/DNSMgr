@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { DbAdapter, getAdapter } from '../db/adapter';
 import { ApiResponse } from '../types';
 
 type IntegerOptions = {
@@ -85,13 +84,4 @@ export function sendError(res: Response, msg: string, statusCode = 200, data?: u
 
 export function sendServerError(res: Response, msg = 'Database error'): Response {
   return sendError(res, msg, 500);
-}
-
-export function getRequiredAdapter(res: Response, msg = 'Database error'): DbAdapter | null {
-  const adapter = getAdapter();
-  if (!adapter) {
-    sendServerError(res, msg);
-    return null;
-  }
-  return adapter;
 }

@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { JwtPayload } from '../types';
 import { isAdmin, normalizeRole } from '../utils/roles';
-import { getCurrentConnection } from '../db/database';
+import { get, execute, query } from '../db';
 import { verifyToken, hasServicePermission, hasDomainPermission } from '../service/token';
 import { TokenPayload } from '../types/token';
 
@@ -34,29 +34,11 @@ let runtimeSecretCache: string | null = null;
 async function getRuntimeSecret(): Promise<string> {
   if (runtimeSecretCache) return runtimeSecretCache;
   
-  const conn = getCurrentConnection();
-  if (!conn) {
-    // No connection available, generate a temporary secret
-    const generated = crypto.randomBytes(32).toString('hex');
-    runtimeSecretCache = generated;
-    return generated;
-  }
-  
   try {
-    if (conn.type === 'sqlite') {
-      const sqliteConn = conn as any;
-      const row = sqliteConn.prepare('SELECT value FROM runtime_secrets WHERE key = ?').get(RUNTIME_SECRET_KEY) as { value: string } | undefined;
-      if (row?.value) {
-        runtimeSecretCache = row.value;
-        return row.value;
-      }
-    } else {
-      const result = await conn.get('SELECT value FROM runtime_secrets WHERE key = ?', [RUNTIME_SECRET_KEY]);
-      const row = result as { value: string } | undefined;
-      if (row?.value) {
-        runtimeSecretCache = row.value;
-        return row.value;
-      }
+    const row = await get<{ value: string }>('SELECT value FROM runtime_secrets WHERE key = ?', [RUNTIME_SECRET_KEY]);
+    if (row?.value) {
+      runtimeSecretCache = row.value;
+      return row.value;
     }
   } catch {
     // Table might not exist, will create below
@@ -66,39 +48,18 @@ async function getRuntimeSecret(): Promise<string> {
   const generated = crypto.randomBytes(32).toString('hex');
   
   try {
-    if (conn.type === 'sqlite') {
-      const sqliteConn = conn as any;
-      sqliteConn.exec(`
-        CREATE TABLE IF NOT EXISTS runtime_secrets (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL,
-          created_at TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-      `);
-      sqliteConn.prepare('INSERT OR REPLACE INTO runtime_secrets (key, value) VALUES (?, ?)').run(RUNTIME_SECRET_KEY, generated);
-    } else if (conn.type === 'mysql') {
-      await conn.execute(`
-        CREATE TABLE IF NOT EXISTS runtime_secrets (
-          \`key\` VARCHAR(255) PRIMARY KEY,
-          \`value\` TEXT NOT NULL,
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await conn.execute('INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?', [RUNTIME_SECRET_KEY, generated, generated]);
-    } else {
-      // PostgreSQL
-      await conn.execute(`
-        CREATE TABLE IF NOT EXISTS runtime_secrets (
-          "key" VARCHAR(255) PRIMARY KEY,
-          "value" TEXT NOT NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await conn.execute(`
-        INSERT INTO runtime_secrets ("key", "value") VALUES ($1, $2)
-        ON CONFLICT ("key") DO UPDATE SET "value" = $2
-      `, [RUNTIME_SECRET_KEY, generated]);
-    }
+    // Try to create table and insert
+    await execute(`
+      CREATE TABLE IF NOT EXISTS runtime_secrets (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await execute(
+      'INSERT INTO runtime_secrets (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      [RUNTIME_SECRET_KEY, generated]
+    );
   } catch (e) {
     console.error('[Auth] Error creating runtime_secrets table:', e);
   }

@@ -1,10 +1,8 @@
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, now } from '../db';
 import { checkAuditRules } from './auditRules';
 
 export async function logAuditOperation(userId: number, action: string, domain: string, data: unknown): Promise<void> {
-  const db = getAdapter();
-  if (!db) return;
-  await db.execute(
+  await execute(
     'INSERT INTO operation_logs (user_id, action, domain, data) VALUES (?, ?, ?, ?)',
     [userId, action, domain, JSON.stringify(data ?? {})]
   );
@@ -14,4 +12,3 @@ export async function logAuditOperation(userId: number, action: string, domain: 
     console.error('Audit rule engine error:', err);
   });
 }
-

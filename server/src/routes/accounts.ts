@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db';
+import { DnsAccountOperations, TeamOperations } from '../db';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter, getProvider, getProviders, isStubProvider } from '../lib/dns/DnsHelper';
@@ -14,8 +14,7 @@ async function canReadAccount(account: DnsAccount, userId: number, role: number)
   if (isSuper(role)) return true;
   if (account.created_by === userId) return true;
   if (account.team_id) {
-    const membership = await db.get<{ id: number }>('SELECT id FROM team_members WHERE team_id = ? AND user_id = ?', [account.team_id, userId]);
-    if (membership) return true;
+    return await TeamOperations.isMember(account.team_id, userId);
   }
   return false;
 }
@@ -56,20 +55,12 @@ router.get('/providers', authMiddleware, (_req: Request, res: Response) => {
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   let accounts: DnsAccount[];
   if (isSuper(req.user!.role)) {
-    accounts = await db.query<DnsAccount>('SELECT * FROM dns_accounts ORDER BY id');
+    accounts = await DnsAccountOperations.getAll() as unknown as DnsAccount[];
   } else {
     const userId = req.user!.userId;
-    const teamMembers = await db.query<{ team_id: number }>('SELECT team_id FROM team_members WHERE user_id = ?', [userId]);
-    const teamIds = teamMembers.map(r => r.team_id);
-    if (teamIds.length > 0) {
-      const placeholders = teamIds.map(() => '?').join(',');
-      accounts = await db.query<DnsAccount>(
-        `SELECT * FROM dns_accounts WHERE created_by = ? OR team_id IN (${placeholders}) ORDER BY id`,
-        [userId, ...teamIds]
-      );
-    } else {
-      accounts = await db.query<DnsAccount>('SELECT * FROM dns_accounts WHERE created_by = ? ORDER BY id', [userId]);
-    }
+    const teams = await TeamOperations.getByUserId(userId);
+    const teamIds = teams.map(r => r.id as number);
+    accounts = await DnsAccountOperations.getAccessibleByUserId(userId, teamIds) as unknown as DnsAccount[];
   }
   // Mask config secrets
   const safe = accounts.map(a => {
@@ -144,10 +135,14 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     sendError(res, `Provider error: ${e instanceof Error ? e.message : String(e)}`);
     return;
   }
-  const id = await db.insert(
-    'INSERT INTO dns_accounts (type, name, config, remark, created_by, team_id) VALUES (?, ?, ?, ?, ?, ?)',
-    [normalizedType, name, JSON.stringify(config), remark, req.user!.userId, team_id ?? null]
-  );
+  const id = await DnsAccountOperations.create({
+    type: normalizedType,
+    name,
+    config: JSON.stringify(config),
+    remark,
+    created_by: req.user!.userId,
+    team_id: team_id ?? null
+  });
   sendSuccess(res, { id });
 }));
 
@@ -171,7 +166,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
  */
 router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
-  const account = await db.get<DnsAccount>('SELECT * FROM dns_accounts WHERE id = ?', [id]);
+  const account = await DnsAccountOperations.getById(id) as DnsAccount | undefined;
   if (!account || !(await canReadAccount(account, req.user!.userId, normalizeRole(req.user?.role)))) {
     sendError(res, 'Account not found');
     return;
@@ -218,7 +213,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  */
 router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
-  const account = await db.get<DnsAccount>('SELECT * FROM dns_accounts WHERE id = ?', [id]);
+  const account = await DnsAccountOperations.getById(id) as DnsAccount | undefined;
   if (!account || !canManageAccount(account, req.user!.userId, normalizeRole(req.user?.role))) {
     sendError(res, 'Account not found');
     return;
@@ -250,19 +245,19 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       return;
     }
   }
-  const updates: string[] = [];
-  const params: unknown[] = [];
-  if (normalizedType !== undefined) { updates.push('type = ?'); params.push(normalizedType); }
-  if (name !== undefined) { updates.push('name = ?'); params.push(name); }
-  if (config !== undefined) { updates.push('config = ?'); params.push(JSON.stringify(config)); }
-  if (remark !== undefined) { updates.push('remark = ?'); params.push(remark); }
-  if (team_id !== undefined) { updates.push('team_id = ?'); params.push(team_id); }
-  if (updates.length === 0) {
+  const updates: Record<string, unknown> = {};
+  if (normalizedType !== undefined) updates.type = normalizedType;
+  if (name !== undefined) updates.name = name;
+  if (config !== undefined) updates.config = JSON.stringify(config);
+  if (remark !== undefined) updates.remark = remark;
+  if (team_id !== undefined) updates.team_id = team_id;
+  
+  if (Object.keys(updates).length === 0) {
     sendSuccess(res);
     return;
   }
-  params.push(id);
-  await db.execute(`UPDATE dns_accounts SET ${updates.join(', ')} WHERE id = ?`, params);
+  
+  await DnsAccountOperations.update(id, updates);
   sendSuccess(res);
 }));
 
@@ -286,12 +281,12 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  */
 router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
-  const account = await db.get<DnsAccount>('SELECT * FROM dns_accounts WHERE id = ?', [id]);
+  const account = await DnsAccountOperations.getById(id) as DnsAccount | undefined;
   if (!account || !canManageAccount(account, req.user!.userId, normalizeRole(req.user?.role))) {
     sendError(res, 'Account not found');
     return;
   }
-  await db.execute('DELETE FROM dns_accounts WHERE id = ?', [id]);
+  await DnsAccountOperations.delete(id);
   sendSuccess(res);
 }));
 

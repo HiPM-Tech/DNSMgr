@@ -1,4 +1,4 @@
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, now, getDbType } from '../db';
 import { sendNotification } from './notification';
 
 interface AuditRuleConfig {
@@ -10,9 +10,7 @@ interface AuditRuleConfig {
 }
 
 export async function getAuditRuleConfig(): Promise<AuditRuleConfig> {
-  const db = getAdapter();
-  if (!db) return getDefaultConfig();
-  const row = await db.get("SELECT value FROM system_settings WHERE key = 'audit_rules'") as any;
+  const row = await get("SELECT value FROM system_settings WHERE key = 'audit_rules'") as any;
   if (!row?.value) return getDefaultConfig();
   try {
     return { ...getDefaultConfig(), ...JSON.parse(row.value) };
@@ -35,10 +33,7 @@ export async function checkAuditRules(userId: number, action: string, domain: st
   const config = await getAuditRuleConfig();
   if (!config.enabled) return;
 
-  const db = getAdapter();
-  if (!db) return;
-
-  const user = await db.get('SELECT username FROM users WHERE id = ?', [userId]) as any;
+  const user = await get('SELECT username FROM users WHERE id = ?', [userId]) as any;
   const username = user?.username || `User#${userId}`;
 
   const timeStr = new Date().toLocaleString();
@@ -72,8 +67,9 @@ export async function checkAuditRules(userId: number, action: string, domain: st
 
   // 2. High-frequency deletion check
   if (action === 'delete_record' || action === 'delete_domain') {
-    const timeQuery = db.type === 'sqlite' ? "datetime('now', '-1 hour')" : "NOW() - INTERVAL 1 HOUR";
-    const recentDeletions = await db.get(
+    const dbType = getDbType();
+    const timeQuery = dbType === 'sqlite' ? "datetime('now', '-1 hour')" : "NOW() - INTERVAL 1 HOUR";
+    const recentDeletions = await get(
       `SELECT COUNT(*) as count FROM operation_logs WHERE user_id = ? AND action IN ('delete_record', 'delete_domain') AND created_at >= ${timeQuery}`,
       [userId]
     ) as any;

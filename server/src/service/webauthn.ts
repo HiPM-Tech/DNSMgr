@@ -1,4 +1,4 @@
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, now } from '../db';
 
 export interface WebAuthnCredential {
   id: string;
@@ -14,9 +14,7 @@ export interface WebAuthnCredential {
 }
 
 export async function getUserWebAuthnCredentials(userId: number): Promise<WebAuthnCredential[]> {
-  const db = getAdapter();
-  if (!db) return [];
-  const rows = await db.query('SELECT * FROM webauthn_credentials WHERE user_id = ?', [userId]) as any[];
+  const rows = await query('SELECT * FROM webauthn_credentials WHERE user_id = ?', [userId]) as any[];
   return rows.map(r => ({
     id: r.id,
     user_id: r.user_id,
@@ -32,9 +30,7 @@ export async function getUserWebAuthnCredentials(userId: number): Promise<WebAut
 }
 
 export async function addWebAuthnCredential(cred: Omit<WebAuthnCredential, 'created_at' | 'last_used_at'>) {
-  const db = getAdapter();
-  if (!db) return;
-  await db.query(
+  await query(
     'INSERT INTO webauthn_credentials (id, user_id, public_key, counter, device_type, backed_up, transports, name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [
       cred.id, cred.user_id, cred.public_key, cred.counter, cred.device_type, 
@@ -42,14 +38,14 @@ export async function addWebAuthnCredential(cred: Omit<WebAuthnCredential, 'crea
     ]
   );
   // Ensure user has webauthn enabled in user_2fa
-  const existing = await db.get('SELECT * FROM user_2fa WHERE user_id = ? AND type = ?', [cred.user_id, 'webauthn']);
+  const existing = await get('SELECT * FROM user_2fa WHERE user_id = ? AND type = ?', [cred.user_id, 'webauthn']);
   if (!existing) {
-    await db.query(
+    await query(
       'INSERT INTO user_2fa (user_id, type, secret, enabled) VALUES (?, ?, ?, ?)',
       [cred.user_id, 'webauthn', 'webauthn', 1]
     );
   } else {
-    await db.query(
+    await query(
       'UPDATE user_2fa SET enabled = 1 WHERE user_id = ? AND type = ?',
       [cred.user_id, 'webauthn']
     );
@@ -57,22 +53,18 @@ export async function addWebAuthnCredential(cred: Omit<WebAuthnCredential, 'crea
 }
 
 export async function updateWebAuthnCredentialCounter(id: string, counter: number) {
-  const db = getAdapter();
-  if (!db) return;
-  await db.execute(
-    `UPDATE webauthn_credentials SET counter = ?, last_used_at = ${db.now()} WHERE id = ?`,
+  await execute(
+    `UPDATE webauthn_credentials SET counter = ?, last_used_at = ${now()} WHERE id = ?`,
     [counter, id]
   );
 }
 
 export async function deleteWebAuthnCredential(userId: number, id: string) {
-  const db = getAdapter();
-  if (!db) return;
-  await db.query('DELETE FROM webauthn_credentials WHERE user_id = ? AND id = ?', [userId, id]);
+  await query('DELETE FROM webauthn_credentials WHERE user_id = ? AND id = ?', [userId, id]);
   
   // Disable webauthn if no credentials left
   const remaining = await getUserWebAuthnCredentials(userId);
   if (remaining.length === 0) {
-    await db.query('UPDATE user_2fa SET enabled = 0 WHERE user_id = ? AND type = ?', [userId, 'webauthn']);
+    await query('UPDATE user_2fa SET enabled = 0 WHERE user_id = ? AND type = ?', [userId, 'webauthn']);
   }
 }

@@ -380,3 +380,9 @@ export async function hasUsers(): Promise<boolean> {
 }
 
 export { SQLiteConnection };
+
+// 导出 db 实例（向后兼容）
+export const db = {
+  get isConnected() { return !!connection; },
+  get type() { return process.env.DB_TYPE || 'sqlite'; },
+};

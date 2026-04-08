@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, now } from '../db';
 import { UserToken, UserTokenCreate, UserTokenResponse, TokenPayload } from '../types/token';
 import { isAdmin } from '../utils/roles';
 
@@ -20,15 +20,12 @@ export async function createUserToken(
   userId: number,
   data: UserTokenCreate
 ): Promise<{ token: string; tokenData: UserTokenResponse }> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database connection not available');
-
   // Generate token
   const plainToken = generateToken();
   const tokenHash = hashToken(plainToken);
 
   // Insert into database
-  const id = await db.insert(
+  const id = await insert(
     `INSERT INTO user_tokens (user_id, name, token_hash, allowed_domains, allowed_services, start_time, end_time, max_role)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
@@ -61,14 +58,11 @@ export async function createUserToken(
 
 // Verify a token and return payload
 export async function verifyToken(plainToken: string): Promise<TokenPayload | null> {
-  const db = getAdapter();
-  if (!db) return null;
-
   if (!plainToken.startsWith(TOKEN_PREFIX)) return null;
 
   const tokenHash = hashToken(plainToken);
 
-  const result = await db.get(
+  const result = await get(
     `SELECT id, user_id, allowed_domains, allowed_services, start_time, end_time, max_role, is_active
      FROM user_tokens WHERE token_hash = ?`,
     [tokenHash]
@@ -77,13 +71,13 @@ export async function verifyToken(plainToken: string): Promise<TokenPayload | nu
   if (!result || !result.is_active) return null;
 
   // Check time restrictions
-  const now = new Date();
-  if (result.start_time && new Date(result.start_time) > now) return null;
-  if (result.end_time && new Date(result.end_time) < now) return null;
+  const nowTime = new Date();
+  if (result.start_time && new Date(result.start_time) > nowTime) return null;
+  if (result.end_time && new Date(result.end_time) < nowTime) return null;
 
   // Update last used time
-  await db.execute(
-    `UPDATE user_tokens SET last_used_at = ${db.now()} WHERE id = ?`,
+  await execute(
+    `UPDATE user_tokens SET last_used_at = ${now()} WHERE id = ?`,
     [result.id]
   );
 
@@ -99,10 +93,7 @@ export async function verifyToken(plainToken: string): Promise<TokenPayload | nu
 
 // Get all tokens for a user
 export async function getUserTokens(userId: number): Promise<UserTokenResponse[]> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database connection not available');
-
-  const results = (await db.query(
+  const results = (await query(
     `SELECT id, name, allowed_domains, allowed_services, start_time, end_time, max_role, is_active, created_at, last_used_at
      FROM user_tokens WHERE user_id = ? ORDER BY created_at DESC`,
     [userId]
@@ -124,10 +115,7 @@ export async function getUserTokens(userId: number): Promise<UserTokenResponse[]
 
 // Delete a token
 export async function deleteUserToken(tokenId: number, userId: number): Promise<void> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database connection not available');
-
-  await db.execute(
+  await execute(
     'DELETE FROM user_tokens WHERE id = ? AND user_id = ?',
     [tokenId, userId]
   );
@@ -135,10 +123,7 @@ export async function deleteUserToken(tokenId: number, userId: number): Promise<
 
 // Toggle token active status
 export async function toggleTokenStatus(tokenId: number, userId: number, isActive: boolean): Promise<void> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database connection not available');
-
-  await db.execute(
+  await execute(
     `UPDATE user_tokens SET is_active = ? WHERE id = ? AND user_id = ?`,
     [isActive ? 1 : 0, tokenId, userId]
   );
@@ -159,10 +144,6 @@ export async function hasDomainPermission(tokenPayload: TokenPayload, domainId: 
   
   if (!tokenAllowsDomain) return false;
   
-  // Then check if the token's creator has access to this domain
-  const db = getAdapter();
-  if (!db) return false;
-  
   // Admin users have access to all domains
   if (isAdmin(tokenPayload.maxRole)) {
     return true;
@@ -170,7 +151,7 @@ export async function hasDomainPermission(tokenPayload: TokenPayload, domainId: 
   
   try {
     // Check if user has access to the domain through domain_permissions or is the creator
-    const result = await db.get(
+    const result = await get(
       `SELECT d.id FROM domains d
        JOIN dns_accounts da ON d.account_id = da.id
        WHERE d.id = ? AND (da.created_by = ? OR d.id IN (

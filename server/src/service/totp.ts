@@ -1,7 +1,7 @@
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, now, getDbType } from '../db';
 
 /**
  * TOTP (Time-based One-Time Password) 2FA 服务
@@ -53,14 +53,12 @@ export function verifyTOTPToken(secret: string, token: string): boolean {
  * 启用 TOTP 2FA
  */
 export async function enableTOTP(userId: number, secret: string, backupCodes: string[]): Promise<void> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
   // 加密备用码
   const encryptedCodes = backupCodes.map(code => encryptBackupCode(code));
 
-  if (db.type === 'sqlite') {
-    const stmt = (db as any).prepare(`
+  const dbType = getDbType();
+  if (dbType === 'sqlite') {
+    const stmt = (global as any).db?.prepare?.(`
       INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
       VALUES (?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(user_id, type) DO UPDATE SET
@@ -69,38 +67,38 @@ export async function enableTOTP(userId: number, secret: string, backupCodes: st
         enabled = 1,
         updated_at = datetime('now')
     `);
-    stmt.run(userId, 'totp', secret, JSON.stringify(encryptedCodes));
-  } else {
-    const sql = db.type === 'mysql'
-      ? `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
-         VALUES (?, ?, ?, ?, 1, NOW())
-         ON DUPLICATE KEY UPDATE
-         secret = VALUES(secret),
-         backup_codes = VALUES(backup_codes),
-         enabled = 1,
-         updated_at = NOW()`
-      : `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
-         VALUES ($1, $2, $3, $4, true, NOW())
-         ON CONFLICT(user_id, type) DO UPDATE SET
-         secret = EXCLUDED.secret,
-         backup_codes = EXCLUDED.backup_codes,
-         enabled = true,
-         updated_at = NOW()`;
-    
-    await db.execute(sql, [userId, 'totp', secret, JSON.stringify(encryptedCodes)]);
+    if (stmt) {
+      stmt.run(userId, 'totp', secret, JSON.stringify(encryptedCodes));
+      return;
+    }
   }
+  
+  const sql = dbType === 'mysql'
+    ? `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
+       VALUES (?, ?, ?, ?, 1, NOW())
+       ON DUPLICATE KEY UPDATE
+       secret = VALUES(secret),
+       backup_codes = VALUES(backup_codes),
+       enabled = 1,
+       updated_at = NOW()`
+    : `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
+       VALUES ($1, $2, $3, $4, true, NOW())
+       ON CONFLICT(user_id, type) DO UPDATE SET
+       secret = EXCLUDED.secret,
+       backup_codes = EXCLUDED.backup_codes,
+       enabled = true,
+       updated_at = NOW()`;
+  
+  await execute(sql, [userId, 'totp', secret, JSON.stringify(encryptedCodes)]);
 }
 
 /**
  * 禁用 TOTP 2FA
  */
 export async function disableTOTP(userId: number): Promise<void> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
-  await db.execute(
+  await execute(
     'UPDATE user_2fa SET enabled = ? WHERE user_id = ? AND type = ?',
-    [db.type === 'sqlite' ? 0 : false, userId, 'totp']
+    [getDbType() === 'sqlite' ? 0 : false, userId, 'totp']
   );
 }
 
@@ -108,10 +106,7 @@ export async function disableTOTP(userId: number): Promise<void> {
  * 获取 TOTP 状态
  */
 export async function getTOTPStatus(userId: number): Promise<TOTPStatus> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
-  const result = await db.get(
+  const result = await get(
     'SELECT enabled, backup_codes FROM user_2fa WHERE user_id = ? AND type = ?',
     [userId, 'totp']
   );
@@ -131,12 +126,9 @@ export async function getTOTPStatus(userId: number): Promise<TOTPStatus> {
  * 使用备用码验证
  */
 export async function verifyBackupCode(userId: number, code: string): Promise<boolean> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
-  const result = await db.get(
+  const result = await get(
     'SELECT backup_codes FROM user_2fa WHERE user_id = ? AND type = ? AND enabled = ?',
-    [userId, 'totp', db.type === 'sqlite' ? 1 : true]
+    [userId, 'totp', getDbType() === 'sqlite' ? 1 : true]
   );
 
   if (!result) return false;
@@ -149,7 +141,7 @@ export async function verifyBackupCode(userId: number, code: string): Promise<bo
 
   // 移除已使用的备用码
   backupCodes.splice(index, 1);
-  await db.execute(
+  await execute(
     'UPDATE user_2fa SET backup_codes = ? WHERE user_id = ? AND type = ?',
     [JSON.stringify(backupCodes), userId, 'totp']
   );

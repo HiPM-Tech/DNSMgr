@@ -1,4 +1,4 @@
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, now, getDbType } from '../db';
 
 /**
  * 审计日志导出服务
@@ -31,9 +31,6 @@ export async function getAuditLogs(
   pageSize: number = 50,
   filters?: AuditLogFilters
 ): Promise<{ total: number; logs: AuditLogEntry[] }> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
   const conditions: string[] = ['1=1'];
   const params: unknown[] = [];
 
@@ -62,15 +59,14 @@ export async function getAuditLogs(
   const offset = (page - 1) * pageSize;
 
   // 获取总数
-  const countSql = db.type === 'postgresql'
-    ? `SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`
-    : `SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`;
+  const countSql = `SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`;
 
-  const countResult = await db.get(countSql, params);
+  const countResult = await get(countSql, params);
   const total = (countResult as { cnt: number })?.cnt || 0;
 
   // 获取日志
-  const listSql = db.type === 'postgresql'
+  const dbType = getDbType();
+  const listSql = dbType === 'postgresql'
     ? `SELECT l.*, u.username, u.nickname
        FROM operation_logs l
        LEFT JOIN users u ON u.id = l.user_id
@@ -84,7 +80,7 @@ export async function getAuditLogs(
        ORDER BY l.id DESC
        LIMIT ? OFFSET ?`;
 
-  const logs = await db.query(listSql, [...params, pageSize, offset]);
+  const logs = await query(listSql, [...params, pageSize, offset]);
 
   return {
     total,
@@ -153,21 +149,19 @@ export async function exportAuditLogsAsJSON(
  * 检测异常操作
  */
 export async function detectAnomalies(userId: number, timeWindowMinutes: number = 60): Promise<string[]> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
   const anomalies: string[] = [];
-  const now = new Date();
-  const timeWindow = new Date(now.getTime() - timeWindowMinutes * 60 * 1000);
+  const nowTime = new Date();
+  const timeWindow = new Date(nowTime.getTime() - timeWindowMinutes * 60 * 1000);
+  const dbType = getDbType();
 
   // 检查：短时间内大量删除记录
-  const deleteSql = db.type === 'postgresql'
+  const deleteSql = dbType === 'postgresql'
     ? `SELECT COUNT(*) as cnt FROM operation_logs 
        WHERE user_id = $1 AND action LIKE '%delete%' AND created_at > $2`
     : `SELECT COUNT(*) as cnt FROM operation_logs 
        WHERE user_id = ? AND action LIKE '%delete%' AND created_at > ?`;
 
-  const deleteResult = await db.get(deleteSql, [userId, timeWindow.toISOString()]);
+  const deleteResult = await get(deleteSql, [userId, timeWindow.toISOString()]);
   const deleteCount = (deleteResult as { cnt: number })?.cnt || 0;
 
   if (deleteCount > 10) {
@@ -175,13 +169,13 @@ export async function detectAnomalies(userId: number, timeWindowMinutes: number 
   }
 
   // 检查：短时间内大量创建记录
-  const createSql = db.type === 'postgresql'
+  const createSql = dbType === 'postgresql'
     ? `SELECT COUNT(*) as cnt FROM operation_logs 
        WHERE user_id = $1 AND action LIKE '%create%' AND created_at > $2`
     : `SELECT COUNT(*) as cnt FROM operation_logs 
        WHERE user_id = ? AND action LIKE '%create%' AND created_at > ?`;
 
-  const createResult = await db.get(createSql, [userId, timeWindow.toISOString()]);
+  const createResult = await get(createSql, [userId, timeWindow.toISOString()]);
   const createCount = (createResult as { cnt: number })?.cnt || 0;
 
   if (createCount > 50) {
@@ -189,13 +183,13 @@ export async function detectAnomalies(userId: number, timeWindowMinutes: number 
   }
 
   // 检查：多个不同域名的操作
-  const domainSql = db.type === 'postgresql'
+  const domainSql = dbType === 'postgresql'
     ? `SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs 
        WHERE user_id = $1 AND created_at > $2`
     : `SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs 
        WHERE user_id = ? AND created_at > ?`;
 
-  const domainResult = await db.get(domainSql, [userId, timeWindow.toISOString()]);
+  const domainResult = await get(domainSql, [userId, timeWindow.toISOString()]);
   const domainCount = (domainResult as { cnt: number })?.cnt || 0;
 
   if (domainCount > 20) {
@@ -209,13 +203,11 @@ export async function detectAnomalies(userId: number, timeWindowMinutes: number 
  * 获取用户操作统计
  */
 export async function getUserActionStats(userId: number, days: number = 7): Promise<Record<string, number>> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
+  const dbType = getDbType();
 
-  const sql = db.type === 'postgresql'
+  const sql = dbType === 'postgresql'
     ? `SELECT action, COUNT(*) as count FROM operation_logs 
        WHERE user_id = $1 AND created_at > $2
        GROUP BY action
@@ -225,7 +217,7 @@ export async function getUserActionStats(userId: number, days: number = 7): Prom
        GROUP BY action
        ORDER BY count DESC`;
 
-  const results = await db.query(sql, [userId, startDate.toISOString()]);
+  const results = await query(sql, [userId, startDate.toISOString()]);
 
   const stats: Record<string, number> = {};
   for (const row of results) {
@@ -239,13 +231,11 @@ export async function getUserActionStats(userId: number, days: number = 7): Prom
  * 获取操作时间分布
  */
 export async function getActionTimeDistribution(userId: number, days: number = 7): Promise<Record<string, number>> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
+  const dbType = getDbType();
 
-  const sql = db.type === 'postgresql'
+  const sql = dbType === 'postgresql'
     ? `SELECT EXTRACT(HOUR FROM created_at) as hour, COUNT(*) as count FROM operation_logs 
        WHERE user_id = $1 AND created_at > $2
        GROUP BY EXTRACT(HOUR FROM created_at)
@@ -255,7 +245,7 @@ export async function getActionTimeDistribution(userId: number, days: number = 7
        GROUP BY STRFTIME('%H', created_at)
        ORDER BY hour`;
 
-  const results = await db.query(sql, [userId, startDate.toISOString()]);
+  const results = await query(sql, [userId, startDate.toISOString()]);
 
   const distribution: Record<string, number> = {};
   for (let i = 0; i < 24; i++) {

@@ -1,4 +1,4 @@
-import { getAdapter } from '../db/adapter';
+import { query, get, execute, insert, run, withTransaction } from '../db';
 import { logAuditOperation } from './audit';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { sendNotification } from './notification';
@@ -19,143 +19,105 @@ export interface FailoverConfig {
 }
 
 export interface FailoverStatus {
+  id: number;
   configId: number;
   currentIp: string;
   isPrimary: boolean;
-  lastCheckAt: string;
-  lastCheckStatus: boolean;
+  lastCheckTime: string;
+  lastCheckResult: boolean;
+  failCount: number;
   switchCount: number;
+  lastSwitchTime?: string;
+}
+
+/**
+ * 获取容灾配置（按域名ID）
+ * @deprecated 使用 getFailoverConfig
+ */
+export async function getFailoverConfigByDomain(domainId: number): Promise<FailoverConfig | null> {
+  return getFailoverConfig(domainId);
 }
 
 /**
  * 创建容灾配置
+ * @deprecated 使用 saveFailoverConfig
  */
 export async function createFailoverConfig(
   domainId: number,
-  primaryIp: string,
-  backupIps: string[],
-  checkMethod: 'http' | 'tcp' | 'ping' = 'http',
-  checkInterval: number = 300,
-  checkPort: number = 80,
-  checkPath?: string,
-  autoSwitchBack: boolean = true
-): Promise<FailoverConfig> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
+  config: Omit<FailoverConfig, 'id' | 'domainId' | 'createdAt' | 'updatedAt'>
+): Promise<number> {
+  return saveFailoverConfig(domainId, config);
+}
 
-  if (db.type === 'sqlite') {
-    const stmt = (db as any).prepare(`
-      INSERT INTO failover_configs (
-        domain_id, primary_ip, backup_ips, check_method, check_interval,
-        check_port, check_path, auto_switch_back, enabled, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
-    `);
-    stmt.run(
-      domainId,
-      primaryIp,
-      JSON.stringify(backupIps),
-      checkMethod,
-      checkInterval,
-      checkPort,
-      checkPath || null,
-      autoSwitchBack ? 1 : 0
-    );
-  } else {
-    const sql = db.type === 'mysql'
-      ? `INSERT INTO failover_configs (
-           domain_id, primary_ip, backup_ips, check_method, check_interval,
-           check_port, check_path, auto_switch_back, enabled, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`
-      : `INSERT INTO failover_configs (
-           domain_id, primary_ip, backup_ips, check_method, check_interval,
-           check_port, check_path, auto_switch_back, enabled, created_at, updated_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW())`;
-
-    await db.execute(sql, [
-      domainId,
-      primaryIp,
-      JSON.stringify(backupIps),
-      checkMethod,
-      checkInterval,
-      checkPort,
-      checkPath || null,
-      autoSwitchBack,
-    ]);
+/**
+ * 更新容灾配置
+ * @deprecated 使用 saveFailoverConfig
+ */
+export async function updateFailoverConfig(
+  domainId: number,
+  config: Partial<Omit<FailoverConfig, 'id' | 'domainId' | 'createdAt' | 'updatedAt'>>
+): Promise<void> {
+  const existing = await get('SELECT id FROM failover_configs WHERE domain_id = ?', [domainId]) as any;
+  if (!existing) {
+    throw new Error('Failover config not found');
   }
+  
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  
+  if (config.primaryIp !== undefined) { fields.push('primary_ip = ?'); values.push(config.primaryIp); }
+  if (config.backupIps !== undefined) { fields.push('backup_ips = ?'); values.push(JSON.stringify(config.backupIps)); }
+  if (config.checkMethod !== undefined) { fields.push('check_method = ?'); values.push(config.checkMethod); }
+  if (config.checkInterval !== undefined) { fields.push('check_interval = ?'); values.push(config.checkInterval); }
+  if (config.checkPort !== undefined) { fields.push('check_port = ?'); values.push(config.checkPort); }
+  if (config.checkPath !== undefined) { fields.push('check_path = ?'); values.push(config.checkPath); }
+  if (config.autoSwitchBack !== undefined) { fields.push('auto_switch_back = ?'); values.push(config.autoSwitchBack ? 1 : 0); }
+  if (config.enabled !== undefined) { fields.push('enabled = ?'); values.push(config.enabled ? 1 : 0); }
+  
+  if (fields.length > 0) {
+    values.push(existing.id);
+    await execute(`UPDATE failover_configs SET ${fields.join(', ')} WHERE id = ?`, values);
+  }
+}
 
-  return {
-    id: 0,
-    domainId,
-    primaryIp,
-    backupIps,
-    checkMethod,
-    checkInterval,
-    checkPort,
-    checkPath,
-    autoSwitchBack,
-    enabled: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+/**
+ * 执行健康检查
+ */
+export async function performHealthCheck(
+  config: FailoverConfig,
+  status: FailoverStatus
+): Promise<{ available: boolean; responseTime: number }> {
+  const startTime = Date.now();
+  const available = await checkIpAvailability(
+    status.currentIp,
+    config.checkMethod,
+    config.checkPort,
+    config.checkPath
+  );
+  const responseTime = Date.now() - startTime;
+  return { available, responseTime };
 }
 
 /**
  * 获取容灾配置
  */
-export async function getFailoverConfig(configId: number): Promise<FailoverConfig | null> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
-  const result = await db.get(
-    'SELECT * FROM failover_configs WHERE id = ?',
-    [configId]
-  );
-
-  if (!result) return null;
+export async function getFailoverConfig(domainId: number): Promise<FailoverConfig | null> {
+  const row = await get('SELECT * FROM failover_configs WHERE domain_id = ?', [domainId]) as any;
+  if (!row) return null;
 
   return {
-    id: (result as any).id,
-    domainId: (result as any).domain_id,
-    primaryIp: (result as any).primary_ip,
-    backupIps: JSON.parse((result as any).backup_ips || '[]'),
-    checkMethod: (result as any).check_method,
-    checkInterval: (result as any).check_interval,
-    checkPort: (result as any).check_port,
-    checkPath: (result as any).check_path,
-    autoSwitchBack: !!(result as any).auto_switch_back,
-    enabled: !!(result as any).enabled,
-    createdAt: (result as any).created_at,
-    updatedAt: (result as any).updated_at,
-  };
-}
-
-/**
- * 获取域名的容灾配置
- */
-export async function getFailoverConfigByDomain(domainId: number): Promise<FailoverConfig | null> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
-  const result = await db.get(
-    'SELECT * FROM failover_configs WHERE domain_id = ? LIMIT 1',
-    [domainId]
-  );
-
-  if (!result) return null;
-
-  return {
-    id: (result as any).id,
-    domainId: (result as any).domain_id,
-    primaryIp: (result as any).primary_ip,
-    backupIps: JSON.parse((result as any).backup_ips || '[]'),
-    checkMethod: (result as any).check_method,
-    checkInterval: (result as any).check_interval,
-    checkPort: (result as any).check_port,
-    checkPath: (result as any).check_path,
-    autoSwitchBack: !!(result as any).auto_switch_back,
-    enabled: !!(result as any).enabled,
-    createdAt: (result as any).created_at,
-    updatedAt: (result as any).updated_at,
+    id: row.id,
+    domainId: row.domain_id,
+    primaryIp: row.primary_ip,
+    backupIps: JSON.parse(row.backup_ips || '[]'),
+    checkMethod: row.check_method,
+    checkInterval: row.check_interval,
+    checkPort: row.check_port,
+    checkPath: row.check_path,
+    autoSwitchBack: row.auto_switch_back === 1,
+    enabled: row.enabled === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -163,114 +125,137 @@ export async function getFailoverConfigByDomain(domainId: number): Promise<Failo
  * 获取容灾状态
  */
 export async function getFailoverStatus(configId: number): Promise<FailoverStatus | null> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
-  const result = await db.get(
-    'SELECT * FROM failover_status WHERE config_id = ? LIMIT 1',
-    [configId]
-  );
-
-  if (!result) return null;
+  const row = await get('SELECT * FROM failover_status WHERE config_id = ?', [configId]) as any;
+  if (!row) return null;
 
   return {
-    configId: (result as any).config_id,
-    currentIp: (result as any).current_ip,
-    isPrimary: !!(result as any).is_primary,
-    lastCheckAt: (result as any).last_check_at,
-    lastCheckStatus: !!(result as any).last_check_status,
-    switchCount: (result as any).switch_count,
+    id: row.id,
+    configId: row.config_id,
+    currentIp: row.current_ip,
+    isPrimary: row.is_primary === 1,
+    lastCheckTime: row.last_check_time,
+    lastCheckResult: row.last_check_result === 1,
+    failCount: row.fail_count,
+    switchCount: row.switch_count,
+    lastSwitchTime: row.last_switch_time,
   };
 }
 
 /**
- * 执行健康检查
+ * 创建或更新容灾配置
  */
-export async function performHealthCheck(config: FailoverConfig): Promise<boolean> {
-  try {
-    if (config.checkMethod === 'http') {
-      const url = `http://${config.primaryIp}:${config.checkPort}${config.checkPath || '/'}`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      try {
-        const response = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeout);
-        return response.ok;
-      } catch (e) {
-        clearTimeout(timeout);
-        return false;
-      }
-    } else if (config.checkMethod === 'tcp') {
-      // TCP 检查需要使用 net 模块
-      return await checkTcpConnection(config.primaryIp, config.checkPort);
-    } else if (config.checkMethod === 'ping') {
-      // Ping 检查需要使用 child_process
-      return await checkPing(config.primaryIp);
-    }
-  } catch (error) {
-    console.error('[Failover] Health check failed:', error);
+export async function saveFailoverConfig(
+  domainId: number,
+  config: Omit<FailoverConfig, 'id' | 'domainId' | 'createdAt' | 'updatedAt'>
+): Promise<number> {
+  const existing = await get('SELECT id FROM failover_configs WHERE domain_id = ?', [domainId]) as any;
+
+  const data = {
+    domain_id: domainId,
+    primary_ip: config.primaryIp,
+    backup_ips: JSON.stringify(config.backupIps),
+    check_method: config.checkMethod,
+    check_interval: config.checkInterval,
+    check_port: config.checkPort,
+    check_path: config.checkPath,
+    auto_switch_back: config.autoSwitchBack ? 1 : 0,
+    enabled: config.enabled ? 1 : 0,
+  };
+
+  if (existing) {
+    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
+    const values = Object.values(data);
+    await execute(`UPDATE failover_configs SET ${fields} WHERE id = ?`, [...values, existing.id]);
+    return existing.id;
+  } else {
+    const fields = Object.keys(data).join(', ');
+    const placeholders = Object.keys(data).map(() => '?').join(', ');
+    const id = await insert(`INSERT INTO failover_configs (${fields}) VALUES (${placeholders})`, Object.values(data));
+
+    // 初始化状态记录
+    await execute(
+      'INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, fail_count, switch_count) VALUES (?, ?, ?, datetime("now"), ?, ?, ?)',
+      [id, config.primaryIp, 1, 1, 0, 0]
+    );
+
+    return id;
   }
-  return false;
 }
 
 /**
- * TCP 连接检查
+ * 删除容灾配置
  */
-async function checkTcpConnection(host: string, port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const net = require('net');
-    const socket = new net.Socket();
-    const timeout = setTimeout(() => {
-      socket.destroy();
-      resolve(false);
-    }, 5000);
-
-    socket.connect(port, host, () => {
-      clearTimeout(timeout);
-      socket.destroy();
-      resolve(true);
-    });
-
-    socket.on('error', () => {
-      clearTimeout(timeout);
-      resolve(false);
-    });
-  });
+export async function deleteFailoverConfig(domainId: number): Promise<void> {
+  const config = await get('SELECT id FROM failover_configs WHERE domain_id = ?', [domainId]) as any;
+  if (config) {
+    await execute('DELETE FROM failover_status WHERE config_id = ?', [config.id]);
+    await execute('DELETE FROM failover_configs WHERE id = ?', [config.id]);
+  }
 }
 
 /**
- * Ping 检查
+ * 检查IP可用性
  */
-async function checkPing(host: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const { exec } = require('child_process');
-    const command = process.platform === 'win32' ? `ping -n 1 ${host}` : `ping -c 1 ${host}`;
+export async function checkIpAvailability(
+  ip: string,
+  method: 'http' | 'tcp' | 'ping',
+  port: number,
+  path?: string
+): Promise<boolean> {
+  try {
+    if (method === 'ping') {
+      // 使用 ping 检查
+      const { exec } = require('child_process');
+      const util = require('util');
+      const execAsync = util.promisify(exec);
 
-    exec(command, { timeout: 5000 }, (error: Error | null) => {
-      resolve(!error);
-    });
-  });
+      const { stdout } = await execAsync(`ping -n 1 -w 3000 ${ip}`);
+      return stdout.includes('TTL=') || stdout.includes('time=');
+    } else if (method === 'tcp') {
+      // 使用 TCP 连接检查
+      const net = require('net');
+      return new Promise((resolve) => {
+        const socket = new net.Socket();
+        socket.setTimeout(5000);
+        socket.on('connect', () => {
+          socket.destroy();
+          resolve(true);
+        });
+        socket.on('timeout', () => {
+          socket.destroy();
+          resolve(false);
+        });
+        socket.on('error', () => {
+          resolve(false);
+        });
+        socket.connect(port, ip);
+      });
+    } else {
+      // HTTP 检查
+      const fetch = require('node-fetch');
+      const url = `http://${ip}:${port}${path || '/'}`;
+      const response = await fetch(url, { timeout: 5000 });
+      return response.ok;
+    }
+  } catch {
+    return false;
+  }
 }
 
 /**
- * 执行容灾切换（带事务保护）
+ * 执行容灾切换
  */
 export async function performFailover(
-  configId: number,
-  toIp: string,
+  config: FailoverConfig,
+  status: FailoverStatus,
+  targetIp: string,
+  isPrimary: boolean,
   userId: number
 ): Promise<void> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
-  const config = await getFailoverConfig(configId);
-  if (!config) throw new Error('Failover config not found');
-
-  const status = await getFailoverStatus(configId);
   const currentIp = status?.currentIp || config.primaryIp;
 
   // 使用事务保护容灾切换操作
-  await db.transaction(async (txDb) => {
+  await withTransaction(async (txDb) => {
     // 更新 DNS 记录
     const domainRow = await txDb.get('SELECT * FROM domains WHERE id = ?', [config.domainId]) as any;
     if (!domainRow) {
@@ -282,168 +267,108 @@ export async function performFailover(
       throw new Error('DNS account not found');
     }
 
-    // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
-    const cfg = typeof accountRow.config === 'string' ? JSON.parse(accountRow.config || '{}') : accountRow.config || {};
-    const adapter = createAdapter(accountRow.type, cfg, domainRow.name, domainRow.third_id);
+    // 获取当前 DNS 记录
+    const dnsAdapter = createAdapter(accountRow.type, JSON.parse(accountRow.config));
+    const result = await dnsAdapter.getDomainRecords(domainRow.name);
+    const records = result.list || [];
 
-    let page = 1;
-    let hasMore = true;
-    const updatedRecords: any[] = [];
-
-    while (hasMore) {
-      const res = await adapter.getDomainRecords(page, 100);
-      for (const r of res.list) {
-        if ((r.Type === 'A' || r.Type === 'AAAA') && r.Value === currentIp) {
-          await adapter.updateDomainRecord(r.RecordId, r.Name, r.Type, toIp, r.Line, r.TTL, r.MX, r.Weight, r.Remark);
-          updatedRecords.push(r);
-        }
-      }
-      if (res.list.length < 100) {
-        hasMore = false;
-      } else {
-        page++;
-      }
+    // 找到需要更新的 A 记录
+    const aRecords = records.filter((r: any) => r.type === 'A' && r.value === currentIp);
+    if (aRecords.length === 0) {
+      throw new Error('No matching A record found');
     }
 
-    // 如果没有更新任何记录，抛出错误回滚事务
-    if (updatedRecords.length === 0) {
-      throw new Error('No DNS records found with current IP');
+    // 更新 DNS 记录
+    for (const record of aRecords) {
+      await dnsAdapter.updateDomainRecord(
+        record.RecordId,
+        record.Name,
+        record.Type,
+        targetIp,
+        record.Line,
+        record.TTL,
+        record.MX,
+        record.Weight,
+        record.Remark
+      );
     }
 
-    // 更新容灾状态
-    const isPrimary = toIp === config.primaryIp;
-    const switchCount = (status?.switchCount || 0) + 1;
-
-    if (db.type === 'sqlite') {
-      const stmt = (txDb as any).prepare?.(`
-        INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
-        VALUES (?, ?, ?, datetime('now'), 1, ?)
-        ON CONFLICT(config_id) DO UPDATE SET
-          current_ip = excluded.current_ip,
-          is_primary = excluded.is_primary,
-          last_check_at = datetime('now'),
-          last_check_status = 1,
-          switch_count = excluded.switch_count
-      `);
-      if (stmt) {
-        stmt.run(configId, toIp, isPrimary ? 1 : 0, switchCount);
-      } else {
-        await txDb.execute(`
-          INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
-          VALUES (?, ?, ?, datetime('now'), 1, ?)
-          ON CONFLICT(config_id) DO UPDATE SET
-            current_ip = excluded.current_ip,
-            is_primary = excluded.is_primary,
-            last_check_at = datetime('now'),
-            last_check_status = 1,
-            switch_count = excluded.switch_count
-        `, [configId, toIp, isPrimary ? 1 : 0, switchCount]);
-      }
-    } else {
-      const sql = db.type === 'mysql'
-        ? `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
-           VALUES (?, ?, ?, NOW(), 1, ?)
-           ON DUPLICATE KEY UPDATE
-           current_ip = VALUES(current_ip),
-           is_primary = VALUES(is_primary),
-           last_check_at = NOW(),
-           last_check_status = 1,
-           switch_count = VALUES(switch_count)`
-        : `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_at, last_check_status, switch_count)
-           VALUES ($1, $2, $3, NOW(), true, $4)
-           ON CONFLICT(config_id) DO UPDATE SET
-           current_ip = EXCLUDED.current_ip,
-           is_primary = EXCLUDED.is_primary,
-           last_check_at = NOW(),
-           last_check_status = true,
-           switch_count = EXCLUDED.switch_count`;
-
-      await txDb.execute(sql, [configId, toIp, isPrimary, switchCount]);
-    }
+    // 更新状态
+    await txDb.execute(
+      'UPDATE failover_status SET current_ip = ?, is_primary = ?, last_switch_time = datetime("now"), switch_count = switch_count + 1 WHERE config_id = ?',
+      [targetIp, isPrimary ? 1 : 0, config.id]
+    );
 
     // 记录审计日志
-    await logAuditOperation(userId, 'failover_switch', config.primaryIp, {
+    await logAuditOperation(userId, 'failover_switch', 'domain', {
+      domainId: config.domainId,
       fromIp: currentIp,
-      toIp,
-      configId,
-      updatedRecordsCount: updatedRecords.length,
+      toIp: targetIp,
+      isPrimary,
     });
-  });
 
-  // 发送通知（在事务外，避免通知失败影响事务）
-  try {
-    const domainName = config.domainId ? `Domain#${config.domainId}` : 'Unknown Domain';
+    // 发送通知
     await sendNotification(
-      `[DNSMgr] Failover Switch Triggered: ${domainName}`,
-      `Failover was triggered for domain ${domainName}.\n\nFrom IP: ${currentIp}\nTo IP: ${toIp}\nPrimary: ${config.primaryIp}\nTime: ${new Date().toLocaleString()}`
+      '[容灾切换] DNSMgr',
+      `域名 ${domainRow.name} 已从 ${currentIp} 切换至 ${targetIp}`
     );
-  } catch (err) {
-    console.error('Failed to send failover notification:', err);
-  }
+  });
 }
 
 /**
- * 更新容灾配置
+ * 获取所有启用的容灾配置
  */
-export async function updateFailoverConfig(
-  configId: number,
-  updates: Partial<FailoverConfig>
-): Promise<void> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
+export async function getAllEnabledFailoverConfigs(): Promise<FailoverConfig[]> {
+  const rows = await query('SELECT * FROM failover_configs WHERE enabled = 1') as any[];
+  return rows.map(row => ({
+    id: row.id,
+    domainId: row.domain_id,
+    primaryIp: row.primary_ip,
+    backupIps: JSON.parse(row.backup_ips || '[]'),
+    checkMethod: row.check_method,
+    checkInterval: row.check_interval,
+    checkPort: row.check_port,
+    checkPath: row.check_path,
+    autoSwitchBack: row.auto_switch_back === 1,
+    enabled: row.enabled === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
 
+/**
+ * 更新容灾状态
+ */
+export async function updateFailoverStatus(
+  configId: number,
+  updates: Partial<Omit<FailoverStatus, 'id' | 'configId'>>
+): Promise<void> {
   const fields: string[] = [];
   const values: unknown[] = [];
 
-  if (updates.primaryIp) {
-    fields.push('primary_ip = ?');
-    values.push(updates.primaryIp);
+  if (updates.currentIp !== undefined) {
+    fields.push('current_ip = ?');
+    values.push(updates.currentIp);
   }
-  if (updates.backupIps) {
-    fields.push('backup_ips = ?');
-    values.push(JSON.stringify(updates.backupIps));
+  if (updates.isPrimary !== undefined) {
+    fields.push('is_primary = ?');
+    values.push(updates.isPrimary ? 1 : 0);
   }
-  if (updates.checkMethod) {
-    fields.push('check_method = ?');
-    values.push(updates.checkMethod);
+  if (updates.lastCheckTime !== undefined) {
+    fields.push('last_check_time = ?');
+    values.push(updates.lastCheckTime);
   }
-  if (updates.checkInterval) {
-    fields.push('check_interval = ?');
-    values.push(updates.checkInterval);
+  if (updates.lastCheckResult !== undefined) {
+    fields.push('last_check_result = ?');
+    values.push(updates.lastCheckResult ? 1 : 0);
   }
-  if (updates.checkPort) {
-    fields.push('check_port = ?');
-    values.push(updates.checkPort);
-  }
-  if (updates.checkPath !== undefined) {
-    fields.push('check_path = ?');
-    values.push(updates.checkPath || null);
-  }
-  if (updates.autoSwitchBack !== undefined) {
-    fields.push('auto_switch_back = ?');
-    values.push(db.type === 'sqlite' ? (updates.autoSwitchBack ? 1 : 0) : updates.autoSwitchBack);
-  }
-  if (updates.enabled !== undefined) {
-    fields.push('enabled = ?');
-    values.push(db.type === 'sqlite' ? (updates.enabled ? 1 : 0) : updates.enabled);
+  if (updates.failCount !== undefined) {
+    fields.push('fail_count = ?');
+    values.push(updates.failCount);
   }
 
-  if (fields.length === 0) return;
-
-  fields.push('updated_at = ' + (db.type === 'sqlite' ? "datetime('now')" : 'NOW()'));
-  values.push(configId);
-
-  const sql = `UPDATE failover_configs SET ${fields.join(', ')} WHERE id = ?`;
-  await db.execute(sql, values);
-}
-
-/**
- * 删除容灾配置
- */
-export async function deleteFailoverConfig(configId: number): Promise<void> {
-  const db = getAdapter();
-  if (!db) throw new Error('Database not available');
-
-  await db.execute('DELETE FROM failover_configs WHERE id = ?', [configId]);
-  await db.execute('DELETE FROM failover_status WHERE config_id = ?', [configId]);
+  if (fields.length > 0) {
+    values.push(configId);
+    await execute(`UPDATE failover_status SET ${fields.join(', ')} WHERE config_id = ?`, values);
+  }
 }
