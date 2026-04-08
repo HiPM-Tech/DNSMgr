@@ -206,15 +206,19 @@ export async function getLoginAttemptStats(): Promise<{
   topIdentifiers: { identifier: string; attempts: number }[];
 }> {
   try {
+    const dbType = getDbType();
+    const nowExpr = dbType === 'sqlite' ? "datetime('now')" : dbType === 'mysql' ? 'NOW()' : 'NOW()';
+    const yesterdayExpr = dbType === 'sqlite' ? "datetime('now', '-1 day')" : dbType === 'mysql' ? 'NOW() - INTERVAL 1 DAY' : 'NOW() - INTERVAL \'1 day\'';
+
     // Get total locked accounts
     const lockedResult = await get(
-      "SELECT COUNT(*) as cnt FROM login_attempts WHERE locked_until > datetime('now')"
+      `SELECT COUNT(*) as cnt FROM login_attempts WHERE locked_until > ${nowExpr}`
     );
     const totalLocked = (lockedResult as { cnt: number })?.cnt || 0;
 
     // Get recent attempts (last 24 hours)
     const recentResult = await get(
-      "SELECT COUNT(*) as cnt FROM login_attempts WHERE last_attempt_at > datetime('now', '-1 day')"
+      `SELECT COUNT(*) as cnt FROM login_attempts WHERE last_attempt_at > ${yesterdayExpr}`
     );
     const recentAttempts = (recentResult as { cnt: number })?.cnt || 0;
 

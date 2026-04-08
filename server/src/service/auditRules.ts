@@ -68,7 +68,11 @@ export async function checkAuditRules(userId: number, action: string, domain: st
   // 2. High-frequency deletion check
   if (action === 'delete_record' || action === 'delete_domain') {
     const dbType = getDbType();
-    const timeQuery = dbType === 'sqlite' ? "datetime('now', '-1 hour')" : "NOW() - INTERVAL 1 HOUR";
+    const timeQuery = dbType === 'sqlite' 
+      ? "datetime('now', '-1 hour')" 
+      : dbType === 'mysql' 
+        ? "NOW() - INTERVAL 1 HOUR"
+        : "NOW() - INTERVAL '1 hour'";
     const recentDeletions = await get(
       `SELECT COUNT(*) as count FROM operation_logs WHERE user_id = ? AND action IN ('delete_record', 'delete_domain') AND created_at >= ${timeQuery}`,
       [userId]
