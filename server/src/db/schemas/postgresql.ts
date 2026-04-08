@@ -115,15 +115,18 @@ export const postgresqlSchema: SchemaDefinition = {
       value TEXT NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
-      `CREATE TABLE IF NOT EXISTS user_2fa (
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type VARCHAR(50) NOT NULL,
+    `CREATE TABLE IF NOT EXISTS user_2fa (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      type VARCHAR(50) NOT NULL DEFAULT 'totp' CHECK(type IN ('totp', 'webauthn')),
       secret VARCHAR(255) NOT NULL,
+      backup_codes JSONB NOT NULL DEFAULT '[]',
       enabled BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, type)
     )`,
+    `CREATE INDEX IF NOT EXISTS idx_user_2fa_user_id ON user_2fa(user_id)`,
     `CREATE TABLE IF NOT EXISTS webauthn_credentials (
       id VARCHAR(255) PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -149,12 +152,31 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS login_attempts (
       id SERIAL PRIMARY KEY,
       identifier VARCHAR(255) NOT NULL,
-      ip VARCHAR(45) NOT NULL,
-      user_agent TEXT NOT NULL DEFAULT '',
-      success BOOLEAN NOT NULL DEFAULT false,
-      fail_reason VARCHAR(255),
+      ip_address VARCHAR(255) NOT NULL DEFAULT '',
+      attempt_count INTEGER NOT NULL DEFAULT 1,
+      last_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      locked_until TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE INDEX IF NOT EXISTS idx_login_attempts_identifier ON login_attempts(identifier)`,
+    `CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address)`,
+    `CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON login_attempts(locked_until)`,
+    `CREATE TABLE IF NOT EXISTS system_settings (
+      key VARCHAR(255) PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_preferences (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      theme VARCHAR(50) NOT NULL DEFAULT 'auto' CHECK(theme IN ('light', 'dark', 'auto')),
+      language VARCHAR(50) NOT NULL DEFAULT 'zh-CN',
+      notifications_enabled BOOLEAN NOT NULL DEFAULT true,
+      email_notifications BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON user_preferences(user_id)`,
     `CREATE TABLE IF NOT EXISTS user_tokens (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

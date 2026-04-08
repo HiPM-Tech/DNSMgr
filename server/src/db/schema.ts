@@ -1,8 +1,11 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { getDb, SQLiteConnection } from './database';
+import { sqliteSchema as sqliteSchemaNew } from './schemas/sqlite';
+import { mysqlSchema as mysqlSchemaNew } from './schemas/mysql';
+import { postgresqlSchema as postgresqlSchemaNew } from './schemas/postgresql';
 
-// SQLite Schema
+// SQLite Schema (legacy - use schemas/sqlite.ts instead)
 const sqliteSchema = {
   tables: [
     `CREATE TABLE IF NOT EXISTS users (
@@ -643,13 +646,13 @@ function initSQLiteSchema(conn: SQLiteConnection, reset: boolean = false): void 
     }
   }
 
-  // Create tables
-  for (const sql of sqliteSchema.tables) {
+  // Create tables using new schema
+  for (const sql of sqliteSchemaNew.createTables) {
     conn.exec(sql);
   }
 
-  // Create indexes
-  for (const sql of sqliteSchema.indexes) {
+  // Create indexes using new schema
+  for (const sql of sqliteSchemaNew.createIndexes) {
     conn.exec(sql);
   }
 
@@ -706,8 +709,8 @@ async function initMySQLSchema(conn: { execute: (sql: string, params?: unknown[]
     }
   }
 
-  // Create tables
-  for (const sql of mysqlSchema.tables) {
+  // Create tables using new schema
+  for (const sql of mysqlSchemaNew.createTables) {
     await conn.execute(sql);
   }
 }
@@ -743,8 +746,8 @@ async function initPostgreSQLSchema(conn: { execute: (sql: string, params?: unkn
     }
   }
 
-  // Create tables and indexes
-  for (const sql of postgresqlSchema.tables) {
+  // Create tables and indexes using new schema
+  for (const sql of postgresqlSchemaNew.createTables) {
     try {
       await conn.execute(sql);
     } catch (e) {

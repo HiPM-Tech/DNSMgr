@@ -93,10 +93,12 @@ export const sqliteSchema: SchemaDefinition = {
       value TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
-      `CREATE TABLE IF NOT EXISTS user_2fa (
-      user_id INTEGER NOT NULL,
-      type TEXT NOT NULL,
+    `CREATE TABLE IF NOT EXISTS user_2fa (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      type TEXT NOT NULL DEFAULT 'totp' CHECK(type IN ('totp', 'webauthn')),
       secret TEXT NOT NULL,
+      backup_codes TEXT NOT NULL DEFAULT '[]',
       enabled INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -130,11 +132,27 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS login_attempts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       identifier TEXT NOT NULL,
-      ip TEXT NOT NULL,
-      user_agent TEXT NOT NULL DEFAULT '',
-      success INTEGER NOT NULL DEFAULT 0,
-      fail_reason TEXT,
+      ip_address TEXT NOT NULL DEFAULT '',
+      attempt_count INTEGER NOT NULL DEFAULT 1,
+      last_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+      locked_until TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_preferences (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      theme TEXT NOT NULL DEFAULT 'auto' CHECK(theme IN ('light', 'dark', 'auto')),
+      language TEXT NOT NULL DEFAULT 'zh-CN',
+      notifications_enabled INTEGER NOT NULL DEFAULT 1,
+      email_notifications INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS user_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

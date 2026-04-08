@@ -115,15 +115,18 @@ export const mysqlSchema: SchemaDefinition = {
       value TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-      `CREATE TABLE IF NOT EXISTS user_2fa (
-      user_id INT NOT NULL,
-      type VARCHAR(50) NOT NULL,
+    `CREATE TABLE IF NOT EXISTS user_2fa (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL UNIQUE,
+      type VARCHAR(50) NOT NULL DEFAULT 'totp' CHECK(type IN ('totp', 'webauthn')),
       secret VARCHAR(255) NOT NULL,
+      backup_codes JSON NOT NULL DEFAULT ('[]'),
       enabled TINYINT NOT NULL DEFAULT 0,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_user_type (user_id, type)
+      UNIQUE KEY unique_user_type (user_id, type),
+      INDEX idx_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS webauthn_credentials (
       id VARCHAR(255) PRIMARY KEY,
@@ -155,14 +158,31 @@ export const mysqlSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS login_attempts (
       id INT AUTO_INCREMENT PRIMARY KEY,
       identifier VARCHAR(255) NOT NULL,
-      ip VARCHAR(45) NOT NULL,
-      user_agent TEXT,
-      success TINYINT NOT NULL DEFAULT 0,
-      fail_reason VARCHAR(255),
+      ip_address VARCHAR(255) NOT NULL DEFAULT '',
+      attempt_count INT NOT NULL DEFAULT 1,
+      last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      locked_until DATETIME,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_identifier (identifier),
-      INDEX idx_ip (ip),
-      INDEX idx_created_at (created_at)
+      INDEX idx_ip_address (ip_address),
+      INDEX idx_locked_until (locked_until)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS system_settings (
+      \`key\` VARCHAR(255) PRIMARY KEY,
+      \`value\` TEXT NOT NULL,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS user_preferences (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL UNIQUE,
+      theme VARCHAR(50) NOT NULL DEFAULT 'auto' CHECK(theme IN ('light', 'dark', 'auto')),
+      language VARCHAR(50) NOT NULL DEFAULT 'zh-CN',
+      notifications_enabled TINYINT NOT NULL DEFAULT 1,
+      email_notifications TINYINT NOT NULL DEFAULT 1,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS user_tokens (
       id INT AUTO_INCREMENT PRIMARY KEY,
