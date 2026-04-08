@@ -89,8 +89,8 @@ export const sqliteSchema: SchemaDefinition = {
       UNIQUE(user_id, provider)
     )`,
 `CREATE TABLE IF NOT EXISTS runtime_secrets (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
+      "key" TEXT PRIMARY KEY,
+      "value" TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS user_2fa (
@@ -139,8 +139,8 @@ export const sqliteSchema: SchemaDefinition = {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS system_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
+      "key" TEXT PRIMARY KEY,
+      "value" TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS user_preferences (

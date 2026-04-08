@@ -111,8 +111,8 @@ export const postgresqlSchema: SchemaDefinition = {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_oauth_user_links_user_id ON oauth_user_links(user_id)`,
 `CREATE TABLE IF NOT EXISTS runtime_secrets (
-      key VARCHAR(255) PRIMARY KEY,
-      value TEXT NOT NULL,
+      "key" VARCHAR(255) PRIMARY KEY,
+      "value" TEXT NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS user_2fa (
@@ -162,8 +162,8 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address)`,
     `CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON login_attempts(locked_until)`,
     `CREATE TABLE IF NOT EXISTS system_settings (
-      key VARCHAR(255) PRIMARY KEY,
-      value TEXT NOT NULL,
+      "key" VARCHAR(255) PRIMARY KEY,
+      "value" TEXT NOT NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS user_preferences (
