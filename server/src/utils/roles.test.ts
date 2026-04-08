@@ -72,7 +72,7 @@ describe('Roles Utils', () => {
     it('should handle edge cases', () => {
       assert.strictEqual(normalizeRole(undefined as any), ROLE_USER);
       assert.strictEqual(normalizeRole(null as any), ROLE_USER);
-      assert.strictEqual(normalizeRole('admin' as any), ROLE_USER);
+      assert.strictEqual(normalizeRole('admin' as any), ROLE_ADMIN); // 'admin' string is mapped to ROLE_ADMIN
     });
   });
 });

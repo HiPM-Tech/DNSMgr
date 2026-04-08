@@ -13,7 +13,7 @@ describe('Token Service', () => {
     it('should generate a token with correct prefix', () => {
       const token = generateToken();
       assert.ok(token.startsWith('dnsmgr_'), 'Token should start with dnsmgr_');
-      assert.strictEqual(token.length, 73, 'Token should be 73 characters long (prefix + 64 hex chars)');
+      assert.strictEqual(token.length, 71, 'Token should be 71 characters long (7 prefix + 64 hex chars)');
     });
 
     it('should generate unique tokens', () => {
