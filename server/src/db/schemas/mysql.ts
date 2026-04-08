@@ -111,8 +111,8 @@ export const mysqlSchema: SchemaDefinition = {
       INDEX idx_oauth_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 `CREATE TABLE IF NOT EXISTS runtime_secrets (
-      key VARCHAR(255) PRIMARY KEY,
-      value TEXT NOT NULL,
+      \`key\` VARCHAR(255) PRIMARY KEY,
+      \`value\` TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS user_2fa (
