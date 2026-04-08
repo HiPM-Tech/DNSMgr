@@ -80,7 +80,7 @@ export async function getAuditLogs(
        ORDER BY l.id DESC
        LIMIT ? OFFSET ?`;
 
-  const logs = await query(listSql, [...params, pageSize, offset]);
+  const logs = await query(listSql, [...params, Number(pageSize), Number(offset)]);
 
   return {
     total,

@@ -696,12 +696,12 @@ export const AuditOperations = {
     
     if (options.limit) {
       sql += ' LIMIT ?';
-      params.push(options.limit);
+      params.push(Number(options.limit));
     }
     
     if (options.offset) {
       sql += ' OFFSET ?';
-      params.push(options.offset);
+      params.push(Number(options.offset));
     }
     
     return queryInternal(sql, params, { operation: 'Audit.getLogs', table: 'audit_logs' });
