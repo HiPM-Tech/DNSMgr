@@ -19,6 +19,8 @@
 
 ## 架构
 
+### 系统架构
+
 ```
 DNSMgr/
 ├── server/          # Node.js + TypeScript 后端
@@ -26,13 +28,58 @@ DNSMgr/
 │   │   ├── lib/dns/ # DNS 服务商适配器（抽象接口）
 │   │   ├── routes/  # REST API 路由
 │   │   ├── middleware/ # 认证（JWT）、校验
-│   │   └── db/      # SQLite/MySQL/PostgreSQL 抽象与 Schema
+│   │   ├── service/ # 业务逻辑服务
+│   │   └── db/      # 三层数据库架构
+│   │       ├── business-adapter.ts  # 业务适配器层（函数式 API）
+│   │       ├── core/                # 数据库抽象层
+│   │       ├── drivers/             # 数据库驱动（MySQL/PostgreSQL/SQLite）
+│   │       └── schemas/             # 数据库 Schema
 ├── client/          # React + Vite + TailwindCSS 前端
     └── src/
         ├── pages/   # 页面
         ├── components/ # 复用组件
         └── api/     # API 客户端
 ```
+
+### 数据库架构（三层设计）
+
+DNSMgr 实现了严格的三层数据库架构：
+
+```
+路由/服务层 → 业务适配器层 → 核心层 → 驱动层 → 数据库
+```
+
+**第一层：业务适配器层** (`db/business-adapter.ts`)
+- 函数式 API：`query()`、`get()`、`execute()`、`insert()`、`run()`
+- 业务操作模块：`UserOperations`、`DnsAccountOperations` 等
+- 所有数据库操作必须通过此层
+- 自动日志记录和性能监控
+
+**第二层：数据库抽象层** (`db/core/`)
+- 统一类型定义
+- 连接管理器（单例模式）
+- 数据库配置管理
+
+**第三层：驱动层** (`db/drivers/`)
+- MySQL 驱动（连接池）
+- PostgreSQL 驱动（连接池）
+- SQLite 驱动（better-sqlite3）
+
+### 数据库 API 使用
+
+```typescript
+// ✅ 正确 - 使用业务适配器函数
+import { query, get, execute, insert, UserOperations } from '../db';
+
+const user = await get<User>('SELECT * FROM users WHERE id = ?', [userId]);
+const users = await query<User>('SELECT * FROM users WHERE status = ?', ['active']);
+const id = await insert('INSERT INTO users (name, email) VALUES (?, ?)', [name, email]);
+
+// 使用业务操作模块
+const user = await UserOperations.getById(1);
+```
+
+详见 [ARCHITECTURE.md](ARCHITECTURE.md) 获取详细架构文档。
 
 ## 快速开始
 

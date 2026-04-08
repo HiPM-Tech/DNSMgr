@@ -41,6 +41,8 @@ When creating/updating DNS accounts, the API normalizes lego-style provider name
 
 ## Architecture
 
+### System Architecture
+
 ```
 DNSMgr/
 ├── server/          # Node.js + TypeScript backend
@@ -48,13 +50,58 @@ DNSMgr/
 │       ├── lib/dns/ # DNS provider adapters (abstract interface)
 │       ├── routes/  # REST API routes
 │       ├── middleware/ # Auth (JWT), validation
-│       └── db/      # SQLite/MySQL/PostgreSQL abstraction & schema
+│       ├── service/ # Business logic services
+│       └── db/      # Three-layer database architecture
+│           ├── business-adapter.ts  # Business adapter layer (functional API)
+│           ├── core/                # Database abstraction layer
+│           ├── drivers/             # Database drivers (MySQL/PostgreSQL/SQLite)
+│           └── schemas/             # Database schemas
 └── client/          # React + Vite + TailwindCSS frontend
     └── src/
         ├── pages/   # All UI pages
         ├── components/ # Reusable components
         └── api/     # API client
 ```
+
+### Database Architecture (Three-Layer Design)
+
+DNSMgr implements a strict three-layer database architecture:
+
+```
+Routes/Service Layer → Business Adapter Layer → Core Layer → Driver Layer → Database
+```
+
+**Layer 1: Business Adapter Layer** (`db/business-adapter.ts`)
+- Functional API: `query()`, `get()`, `execute()`, `insert()`, `run()`
+- Business operation modules: `UserOperations`, `DnsAccountOperations`, etc.
+- All database operations MUST go through this layer
+- Automatic logging and performance monitoring
+
+**Layer 2: Database Abstraction Layer** (`db/core/`)
+- Unified type definitions
+- Connection manager (singleton pattern)
+- Database configuration management
+
+**Layer 3: Driver Layer** (`db/drivers/`)
+- MySQL driver (connection pool)
+- PostgreSQL driver (connection pool)
+- SQLite driver (better-sqlite3)
+
+### Database API Usage
+
+```typescript
+// ✅ Correct - Use business adapter functions
+import { query, get, execute, insert, UserOperations } from '../db';
+
+const user = await get<User>('SELECT * FROM users WHERE id = ?', [userId]);
+const users = await query<User>('SELECT * FROM users WHERE status = ?', ['active']);
+const id = await insert('INSERT INTO users (name, email) VALUES (?, ?)', [name, email]);
+
+// Use business operation modules
+const user = await UserOperations.getById(1);
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
 
 ## Quick Start
 
