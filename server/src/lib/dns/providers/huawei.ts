@@ -106,6 +106,7 @@ class HuaweiCloudClient {
       if (queryStr) url += '?' + queryStr;
     }
 
+    console.log(`[Huawei] Request: ${method} ${url.substring(0, 200)}...`);
     const res = await fetch(url, {
       method,
       headers,
@@ -113,8 +114,10 @@ class HuaweiCloudClient {
     });
 
     const data = (await res.json()) as Dict;
+    console.log(`[Huawei] Response: status=${res.status}`);
     if (!res.ok || data.error_msg || data.message || (data.error as Dict)?.error_msg) {
       const err = safeString(data.error_msg) || safeString(data.message) || safeString((data.error as Dict)?.error_msg) || `HuaweiCloud request failed: ${res.status}`;
+      console.error(`[Huawei] Response error:`, data);
       throw new Error(err);
     }
 

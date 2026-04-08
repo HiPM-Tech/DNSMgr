@@ -66,14 +66,18 @@ export class CloudflareAdapter implements DnsAdapter {
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<CfApiResponse<T>> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
+    const url = `${this.baseUrl}${path}`;
+    console.log(`[Cloudflare] Request: ${method} ${url}`);
+    const res = await fetch(url, {
       method,
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = (await res.json()) as CfApiResponse<T>;
+    console.log(`[Cloudflare] Response: status=${res.status}, success=${data.success}`);
     if (!data.success && data.errors?.length) {
       this.error = data.errors[0].message;
+      console.error('[Cloudflare] API errors:', data.errors);
     }
     return data;
   }

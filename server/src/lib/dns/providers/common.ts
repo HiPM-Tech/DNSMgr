@@ -170,16 +170,21 @@ export abstract class AliyunRpcAdapter extends BaseAdapter {
     }
     query.set('Signature', signature);
 
-    return requestJson<T>(`${this.endpoint()}?${query.toString()}`, {
+    const url = `${this.endpoint()}?${query.toString()}`;
+    console.log(`[Aliyun] Request: GET ${url.substring(0, 200)}...`);
+    const result = await requestJson<T>(url, {
       method: 'GET',
       parseError: (payload) => {
         const data = (payload ?? {}) as Dict;
         if (data.Code || data.Message) {
+          console.error(`[Aliyun] Response error:`, data);
           return safeString(data.Message) || safeString(data.Code) || `Aliyun action ${action} failed`;
         }
         return undefined;
       },
     });
+    console.log(`[Aliyun] Response: action=${action}, hasData=${result !== null}`);
+    return result;
   }
 }
 
@@ -237,7 +242,9 @@ export abstract class TencentCloudAdapter extends BaseAdapter {
       `TC3-HMAC-SHA256 Credential=${this.secretId}/${credentialScope}, ` +
       `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const data = await requestJson<Dict>(`https://${host}`, {
+    const url = `https://${host}`;
+    console.log(`[TencentCloud] Request: POST ${url}, action=${action}`);
+    const data = await requestJson<Dict>(url, {
       method: 'POST',
       headers: {
         Authorization: authorization,
@@ -255,8 +262,10 @@ export abstract class TencentCloudAdapter extends BaseAdapter {
     if (error) {
       const code = safeString(error?.Code);
       const msg = safeString(error?.Message) || `TencentCloud action ${action} failed`;
+      console.error(`[TencentCloud] Response error:`, error);
       throw new Error(code ? `${code}: ${msg}` : msg);
     }
+    console.log(`[TencentCloud] Response: action=${action}, hasData=${response !== null}`);
     return response as T;
   }
 }
