@@ -3,11 +3,12 @@
 ## 目录
 
 - [整体架构图](#整体架构图)
+- [数据库架构流程](#数据库架构流程)
 - [用户登录流程](#用户登录流程)
-- \[OAuth 登录流程]\(#oauth 登录流程)
-- \[DNS 记录管理流程]\(#dns 记录管理流程)
+- [OAuth 登录流程](#oauth-登录流程)
+- [DNS 记录管理流程](#dns-记录管理流程)
 - [数据库初始化流程](#数据库初始化流程)
-- \[API 请求处理流程]\(#api 请求处理流程)
+- [API 请求处理流程](#api-请求处理流程)
 - [前端路由与页面加载流程](#前端路由与页面加载流程)
 
 ***
@@ -30,7 +31,9 @@ graph TB
         Middleware[中间件 Middleware]
         Service[业务服务 Service]
         DNS[DNS 核心层 DNS Core]
-        DB[数据库层 Database]
+        DBAdapter[业务适配器层 Business Adapter]
+        DB[数据库抽象层 Database Core]
+        Drivers[驱动层 Drivers]
     end
 
     subgraph "外部服务"
@@ -49,19 +52,152 @@ graph TB
     API --> Routes
     Routes --> Middleware
     Middleware --> Service
-    Service --> DB
+    Service --> DBAdapter
+    DBAdapter --> DB
+    DB --> Drivers
+    Drivers --> SQLite
     Service --> DNS
     DNS --> DNSProviders
     Service --> OAuth
     Service --> SMTP
-    DB --> SQLite
 
     style UI fill:#e1f5ff
     style API fill:#e1f5ff
     style Routes fill:#ffe1e1
     style Service fill:#fff4e1
-    style DNS fill:#e1ffe1
+    style DBAdapter fill:#ffe1ff
     style DB fill:#f0e1ff
+    style Drivers fill:#e1ffe1
+    style DNS fill:#e1ffe1
+```
+
+***
+
+## 数据库架构流程
+
+### 三层架构调用链路
+
+```mermaid
+sequenceDiagram
+    participant Route as API 路由
+    participant Service as 业务服务
+    participant Adapter as 业务适配器层
+    participant Core as 数据库抽象层
+    participant Driver as 驱动层
+    participant DB as 数据库
+
+    Note over Route,DB: 严格三层架构：路由/Service → 业务适配器 → 抽象层 → 驱动 → 数据库
+
+    Route->>Service: 1. 调用业务方法
+    
+    Service->>Adapter: 2. 调用业务适配器函数
+    Note over Adapter: query(), get(), execute(), insert(), run()
+    
+    Adapter->>Adapter: 3. 记录操作日志
+    Note over Adapter: [BusinessAdapter] [DEBUG] Executing query
+    
+    Adapter->>Core: 4. 调用数据库抽象层
+    Note over Core: ConnectionManager.getConnection()
+    
+    Core->>Driver: 5. 调用具体驱动
+    Note over Driver: MySQL/PostgreSQL/SQLite
+    
+    Driver->>DB: 6. 执行 SQL
+    DB-->>Driver: 返回结果
+    
+    Driver-->>Core: 返回数据
+    Core-->>Adapter: 返回数据
+    
+    Adapter->>Adapter: 7. 记录性能日志
+    Note over Adapter: duration: 15ms
+    
+    Adapter-->>Service: 返回结果
+    Service-->>Route: 返回响应
+```
+
+### 数据库初始化流程
+
+```mermaid
+sequenceDiagram
+    participant App as app.ts
+    participant LegacyDB as database.ts
+    participant Adapter as business-adapter.ts
+    participant Core as core/connection.ts
+    participant Schema as schema.ts
+    participant DB as 数据库
+
+    App->>LegacyDB: 1. createConnection()
+    LegacyDB->>DB: 2. 创建数据库连接
+    DB-->>LegacyDB: 返回连接
+    LegacyDB-->>App: 返回 conn
+    
+    App->>Adapter: 3. connect()
+    Adapter->>Core: 4. ConnectionManager.connect()
+    Core->>Core: 5. 初始化连接管理器
+    Core-->>Adapter: 返回连接
+    Adapter-->>App: 连接就绪
+    
+    App->>Schema: 6. initSchemaAsync(conn)
+    
+    alt SQLite
+        Schema->>DB: 7. 执行 SQLite Schema
+    else MySQL
+        Schema->>DB: 7. 执行 MySQL Schema
+    else PostgreSQL
+        Schema->>DB: 7. 执行 PostgreSQL Schema
+    end
+    
+    DB-->>Schema: 表创建完成
+    Schema-->>App: 初始化完成
+```
+
+### 业务适配器层详细流程
+
+```mermaid
+graph TB
+    subgraph "调用入口"
+        Route[API 路由]
+        Service[业务服务]
+    end
+    
+    subgraph "业务适配器层 (business-adapter.ts)"
+        API[函数式 API]
+        Ops[业务操作模块]
+        Logger[日志记录器]
+    end
+    
+    subgraph "数据库抽象层 (core/)"
+        Conn[ConnectionManager]
+        Types[类型定义]
+    end
+    
+    subgraph "驱动层 (drivers/)"
+        MySQL[MySQL 驱动]
+        PG[PostgreSQL 驱动]
+        SQLite[SQLite 驱动]
+    end
+    
+    Route -->|import { query } from '../db'| API
+    Service -->|import { UserOperations } from '../db'| Ops
+    
+    API --> Logger
+    API --> Conn
+    Ops --> API
+    
+    Conn --> MySQL
+    Conn --> PG
+    Conn --> SQLite
+    
+    MySQL --> DB[(MySQL)]
+    PG --> DB2[(PostgreSQL)]
+    SQLite --> DB3[(SQLite)]
+    
+    style API fill:#ffe1ff
+    style Ops fill:#ffe1ff
+    style Conn fill:#f0e1ff
+    style MySQL fill:#e1ffe1
+    style PG fill:#e1ffe1
+    style SQLite fill:#e1ffe1
 ```
 
 ***
@@ -78,6 +214,7 @@ sequenceDiagram
     participant Backend as 后端 (Express)
     participant Auth as 认证中间件
     participant LoginLimit as 登录限制服务
+    participant Adapter as 业务适配器层
     participant DB as 数据库
     participant TOTP as TOTP 服务
     participant Audit as 审计服务
@@ -89,28 +226,30 @@ sequenceDiagram
     Note over Backend: 请求到达认证路由
 
     Backend->>LoginLimit: 4. checkLoginAllowed()
-    LoginLimit->>DB: 5. 查询登录限制配置
-    DB-->>LoginLimit: 返回配置
-    LoginLimit->>DB: 6. 查询失败尝试记录
-    DB-->>LoginLimit: 返回记录
-    LoginLimit-->>Backend: 7. 返回是否允许登录
+    LoginLimit->>Adapter: 5. get() 查询登录限制配置
+    Adapter->>DB: 6. SELECT * FROM system_settings
+    DB-->>Adapter: 返回配置
+    Adapter-->>LoginLimit: 返回配置
+    LoginLimit->>Adapter: 7. get() 查询失败尝试记录
+    Adapter->>DB: 8. SELECT * FROM login_attempts
+    DB-->>Adapter: 返回记录
+    Adapter-->>LoginLimit: 返回记录
+    LoginLimit-->>Backend: 9. 返回是否允许登录
 
     alt 登录被限制
-        Backend-->>API: 8. 返回错误：账户被锁定
+        Backend-->>API: 10. 返回错误：账户被锁定
         API-->>Frontend: 显示错误信息
         Frontend-->>User: 提示稍后重试
     else 允许登录
-        Backend->>DB: 9. 查询用户信息
-        alt 按邮箱登录
-            Note over DB: WHERE email = ?
-        else 按用户名登录
-            Note over DB: WHERE username = ?
-        end
-        DB-->>Backend: 返回用户数据
+        Backend->>Adapter: 11. get() 查询用户信息
+        Adapter->>DB: 12. SELECT * FROM users WHERE ...
+        DB-->>Adapter: 返回用户数据
+        Adapter-->>Backend: 返回用户数据
 
         alt 用户不存在
             Backend->>LoginLimit: 记录失败尝试
-            LoginLimit->>DB: 更新尝试记录
+            LoginLimit->>Adapter: 13. execute() 更新尝试记录
+            Adapter->>DB: INSERT/UPDATE login_attempts
             Backend-->>API: 返回：用户名或密码错误
             API-->>Frontend: 显示错误
             Frontend-->>User: 提示凭证错误
@@ -123,8 +262,10 @@ sequenceDiagram
                 Frontend-->>User: 提示密码错误
             else 密码正确
                 Backend->>TOTP: 检查 2FA 状态
-                TOTP->>DB: 查询 TOTP 配置
-                DB-->>TOTP: 返回配置
+                TOTP->>Adapter: 14. get() 查询 TOTP 配置
+                Adapter->>DB: SELECT * FROM user_2fa
+                DB-->>Adapter: 返回配置
+                Adapter-->>TOTP: 返回配置
                 TOTP-->>Backend: 返回是否启用
 
                 alt 2FA 已启用
@@ -149,9 +290,11 @@ sequenceDiagram
                 Note over Backend: 2FA 验证通过或无需 2FA
 
                 Backend->>LoginLimit: clearLoginAttempts()
-                LoginLimit->>DB: 清除失败记录
+                LoginLimit->>Adapter: 15. execute() 清除失败记录
+                Adapter->>DB: DELETE FROM login_attempts
                 Backend->>Audit: logAuditOperation()
-                Audit->>DB: 记录登录审计日志
+                Audit->>Adapter: 16. execute() 记录审计日志
+                Adapter->>DB: INSERT INTO operation_logs
                 Backend->>Backend: signToken() 生成 JWT
                 Backend-->>API: 返回：{token, user}
                 API-->>Frontend: 存储 token 到 localStorage
@@ -175,7 +318,7 @@ Login.tsx
 POST /api/auth/login (routes/auth.ts)
   → loginLimiter 中间件 (限流)
   → checkLoginAllowed() (service/loginLimit.ts)
-  → db.get() 查询用户 (db/adapter.ts)
+  → get() 查询用户 (通过业务适配器层)
   → bcrypt.compareSync() 验证密码
   → getTOTPStatus() 检查 2FA (service/totp.ts)
   → verifyTOTPToken() 验证 2FA 码
@@ -198,44 +341,51 @@ sequenceDiagram
     participant API as API 客户端
     participant Backend as 后端
     participant OAuth as OAuth 提供商
+    participant Adapter as 业务适配器层
     participant DB as 数据库
     participant Audit as 审计服务
 
     User->>Frontend: 1. 点击"OAuth 登录"
     Frontend->>API: 2. 调用 authApi.oauthStatus()
     API->>Backend: 3. GET /api/auth/oauth/status
-    Backend->>DB: 4. 查询 OAuth 配置
-    DB-->>Backend: 返回配置
-    Backend-->>API: 5. 返回启用的提供商
+    Backend->>Adapter: 4. get() 查询 OAuth 配置
+    Adapter->>DB: 5. SELECT * FROM system_settings
+    DB-->>Adapter: 返回配置
+    Adapter-->>Backend: 返回配置
+    Backend-->>API: 6. 返回启用的提供商
     API-->>Frontend: 显示 OAuth 按钮
 
-    User->>Frontend: 6. 点击 OAuth 提供商按钮
-    Frontend->>API: 7. 调用 authApi.oauthStart()
-    API->>Backend: 8. POST /api/auth/oauth/start
-    Backend->>DB: 9. 查询 OAuth 配置
-    DB-->>Backend: 返回配置
+    User->>Frontend: 7. 点击 OAuth 提供商按钮
+    Frontend->>API: 8. 调用 authApi.oauthStart()
+    API->>Backend: 9. POST /api/auth/oauth/start
+    Backend->>Adapter: 10. get() 查询 OAuth 配置
+    Adapter->>DB: 11. SELECT * FROM system_settings
+    DB-->>Adapter: 返回配置
+    Adapter-->>Backend: 返回配置
     Backend->>Backend: 生成 state (防 CSRF)
     Backend->>Backend: 存储 state 到内存
-    Backend-->>API: 10. 返回 authUrl
+    Backend-->>API: 12. 返回 authUrl
     API-->>Frontend: 返回授权 URL
-    Frontend->>OAuth: 11. 重定向到 OAuth 授权页
+    Frontend->>OAuth: 13. 重定向到 OAuth 授权页
 
     Note over OAuth: 用户授权登录
 
-    OAuth->>Frontend: 12. 重定向回 /oauth/callback?code=xxx
-    Frontend->>API: 13. 调用 authApi.oauthCallback()
-    API->>Backend: 14. POST /api/auth/oauth/callback
+    OAuth->>Frontend: 14. 重定向回 /oauth/callback?code=xxx
+    Frontend->>API: 15. 调用 authApi.oauthCallback()
+    API->>Backend: 16. POST /api/auth/oauth/callback
 
     Note over Backend: OAuth 回调处理
 
     Backend->>Backend: 验证 state
-    Backend->>OAuth: 15. 用 code 换取 access_token
+    Backend->>OAuth: 17. 用 code 换取 access_token
     OAuth-->>Backend: 返回 {access_token, id_token}
-    Backend->>OAuth: 16. 获取用户信息
+    Backend->>OAuth: 18. 获取用户信息
     OAuth-->>Backend: 返回用户资料
     Backend->>Backend: 解析用户标识 (subject)
-    Backend->>DB: 17. 查询是否已绑定
-    DB-->>Backend: 返回绑定信息
+    Backend->>Adapter: 19. get() 查询是否已绑定
+    Adapter->>DB: 20. SELECT * FROM oauth_user_links
+    DB-->>Adapter: 返回绑定信息
+    Adapter-->>Backend: 返回绑定信息
 
     alt 未绑定
         Backend-->>API: 返回：账户未绑定
@@ -244,7 +394,8 @@ sequenceDiagram
     else 已绑定且状态正常
         Backend->>Backend: signToken() 生成 JWT
         Backend->>Audit: logAuditOperation()
-        Audit->>DB: 记录 OAuth 登录日志
+        Audit->>Adapter: 21. execute() 记录 OAuth 登录日志
+        Adapter->>DB: INSERT INTO operation_logs
         Backend-->>API: 返回：{token, user}
         API-->>Frontend: 存储 token
         Frontend->>Frontend: 更新 AuthContext
@@ -254,43 +405,6 @@ sequenceDiagram
         API-->>Frontend: 显示错误
         Frontend-->>User: 提示联系管理员
     end
-```
-
-### 关键代码路径
-
-```Textile
-OAuth 启动流程:
-前端：
-  Login.tsx/OAuthCallback.tsx
-    → authApi.oauthStatus()
-    → authApi.oauthStart(provider)
-
-后端：
-  GET /api/auth/oauth/status (routes/auth.ts:418)
-    → getEnabledOAuthProviders()
-      → getOAuthConfigByProvider()
-        → db.get('SELECT value FROM system_settings WHERE key = ?')
-  
-  POST /api/auth/oauth/start (routes/auth.ts:467)
-    → getOAuthConfigByProvider()
-    → assertOAuthEnabled()
-    → 生成 state 并存储
-    → buildOauthAuthUrl()
-    → 返回 authUrl
-
-OAuth 回调流程:
-  POST /api/auth/oauth/callback (routes/auth.ts:591)
-    → 验证 state
-    → exchangeOauthCode() 换取 token
-    → fetchOAuthProfile() 获取用户信息
-    → verifyIdToken() 验证 id_token
-    → resolveOAuthSubject() 解析用户标识
-    → resolveOAuthEmail() 解析邮箱
-    → db.get() 查询 oauth_user_links
-    → 检查绑定状态
-    → signToken() 生成 JWT
-    → logAuditOperation() 记录审计
-    → 返回 {token, user}
 ```
 
 ***
@@ -306,7 +420,7 @@ sequenceDiagram
     participant API as API 客户端
     participant AuthMW as 认证中间件
     participant Routes as API 路由
-    participant Adapter as 数据库适配器
+    participant Adapter as 业务适配器层
     participant DnsHelper as DNS 助手
     participant Provider as DNS 服务商
     participant DB as 数据库
@@ -324,21 +438,26 @@ sequenceDiagram
         API-->>Frontend: 跳转到登录页
     else Token 有效
         AuthMW->>Routes: 4. 进入记录路由
-        Routes->>Adapter: 5. 查询域名权限
-        Adapter->>DB: 6. 查询 domain_permissions
+        Routes->>Adapter: 5. get() 查询域名权限
+        Adapter->>DB: 6. SELECT * FROM domain_permissions
         DB-->>Adapter: 返回权限信息
+        Adapter-->>Routes: 返回权限信息
 
         alt 无权限
             Routes-->>API: 返回 403
             API-->>Frontend: 显示无权限
             Frontend-->>User: 提示无访问权限
         else 有权限
-            Routes->>Adapter: 7. 查询域名信息
+            Routes->>Adapter: 7. get() 查询域名信息
             Adapter->>DB: 8. SELECT * FROM domains
             DB-->>Adapter: 返回域名数据
-            Routes->>Adapter: 9. 查询所属账号
+            Adapter-->>Routes: 返回域名数据
+            
+            Routes->>Adapter: 9. get() 查询所属账号
             Adapter->>DB: 10. SELECT * FROM dns_accounts
             DB-->>Adapter: 返回账号配置
+            Adapter-->>Routes: 返回账号配置
+            
             Routes->>DnsHelper: 11. createAdapter()
             DnsHelper->>Provider: 12. 实例化服务商适配器
 
@@ -361,17 +480,20 @@ sequenceDiagram
     Frontend->>API: 17. 调用 recordsApi.update()
     API->>AuthMW: 18. PUT /api/domains/:id/records/:recordId
     AuthMW->>Routes: 19. 进入更新路由
-    Routes->>Adapter: 20. 查询权限
+    Routes->>Adapter: 20. get() 查询权限
     Adapter->>DB: 21. 验证写权限
     DB-->>Adapter: 返回权限结果
+    Adapter-->>Routes: 返回权限结果
 
     alt 无写权限
         Routes-->>API: 返回 403
         API-->>Frontend: 显示无权限
     else 有写权限
-        Routes->>Adapter: 22. 获取域名和账号
+        Routes->>Adapter: 22. get() 获取域名和账号
         Adapter->>DB: 23. 查询配置
         DB-->>Adapter: 返回配置
+        Adapter-->>Routes: 返回配置
+        
         Routes->>DnsHelper: 24. createAdapter()
         DnsHelper->>Provider: 25. 实例化适配器
         Routes->>Provider: 26. updateDomainRecord()
@@ -383,10 +505,11 @@ sequenceDiagram
             API-->>Frontend: 显示错误
             Frontend-->>User: 提示更新失败
         else 更新成功
-            Routes->>Adapter: 28. 更新本地缓存
+            Routes->>Adapter: 28. execute() 更新本地缓存
             Adapter->>DB: 29. UPDATE domain_records
-            Routes->>Audit: 30. logAuditOperation()
-            Audit->>DB: 记录操作日志
+            Routes->>Audit: logAuditOperation()
+            Audit->>Adapter: 30. execute() 记录操作日志
+            Adapter->>DB: INSERT INTO operation_logs
             Routes-->>API: 31. 返回成功
             API-->>Frontend: 刷新列表
             Frontend-->>User: 显示成功提示
@@ -408,8 +531,8 @@ sequenceDiagram
   GET /api/domains/:domainId/records (routes/records.ts)
     → authMiddleware (认证)
     → 检查域名权限
-    → db.get() 查询域名信息
-    → db.get() 查询账号配置
+    → get() 查询域名信息 (通过业务适配器层)
+    → get() 查询账号配置 (通过业务适配器层)
     → createAdapter() 创建 DNS 适配器
     → adapter.getDomainRecords() 调用服务商 API
     → 格式化返回数据
@@ -425,10 +548,10 @@ sequenceDiagram
   PUT /api/domains/:domainId/records/:recordId (routes/records.ts)
     → authMiddleware (认证)
     → 检查写权限
-    → db.get() 查询域名和账号
+    → get() 查询域名和账号 (通过业务适配器层)
     → createAdapter() 创建 DNS 适配器
     → adapter.updateDomainRecord() 调用服务商 API
-    → db.execute() 更新本地数据库
+    → execute() 更新本地数据库 (通过业务适配器层)
     → logAuditOperation() 记录审计
     → 返回成功
 ```
@@ -445,24 +568,30 @@ sequenceDiagram
     participant Frontend as 前端
     participant API as API 客户端
     participant InitRouter as 初始化路由
+    participant LegacyDB as database.ts
+    participant Adapter as 业务适配器层
+    participant Core as core/connection.ts
     participant Schema as Schema 管理
     participant DB as 数据库
 
     User->>Frontend: 1. 访问 /setup
     Frontend->>API: 2. 调用 initApi.status()
     API->>InitRouter: 3. GET /api/init/status
-    InitRouter->>DB: 4. 检查数据库状态
-    DB-->>InitRouter: 返回初始化状态
-    InitRouter-->>API: 5. 返回 {initialized, dbInitialized}
+    InitRouter->>LegacyDB: 4. isDbInitialized()
+    LegacyDB->>DB: 5. 检查表是否存在
+    DB-->>LegacyDB: 返回状态
+    LegacyDB-->>InitRouter: 返回初始化状态
+    InitRouter-->>API: 6. 返回 {initialized, dbInitialized}
     API-->>Frontend: 显示设置向导
 
     Note over User: 配置数据库
 
-    User->>Frontend: 6. 选择数据库类型并填写配置
-    Frontend->>API: 7. 调用 initApi.testDb()
-    API->>InitRouter: 8. POST /api/init/test-db
-    InitRouter->>DB: 9. 尝试连接数据库
-    DB-->>InitRouter: 返回连接结果
+    User->>Frontend: 7. 选择数据库类型并填写配置
+    Frontend->>API: 8. 调用 initApi.testDb()
+    API->>InitRouter: 9. POST /api/init/test-db
+    InitRouter->>LegacyDB: 10. 尝试连接数据库
+    LegacyDB->>DB: 11. 测试连接
+    DB-->>LegacyDB: 返回连接结果
 
     alt 连接失败
         InitRouter-->>API: 返回：连接失败
@@ -474,11 +603,16 @@ sequenceDiagram
         Frontend-->>User: 确认初始化
     end
 
-    User->>Frontend: 10. 点击"初始化数据库"
-    Frontend->>API: 11. 调用 initApi.initDatabase()
-    API->>InitRouter: 12. POST /api/init/database
-    InitRouter->>Schema: 13. initSchemaAsync()
-    Schema->>DB: 14. 创建表结构
+    User->>Frontend: 12. 点击"初始化数据库"
+    Frontend->>API: 13. 调用 initApi.initDatabase()
+    API->>InitRouter: 14. POST /api/init/database
+    InitRouter->>LegacyDB: 15. createConnection()
+    LegacyDB->>DB: 16. 创建连接
+    InitRouter->>Adapter: 17. connect()
+    Adapter->>Core: 18. ConnectionManager.connect()
+    Core->>Core: 19. 初始化连接管理器
+    InitRouter->>Schema: 20. initSchemaAsync(conn)
+    Schema->>DB: 21. 创建表结构
 
     Note over DB: 根据数据库类型
     Note over DB: 执行对应 Schema
@@ -499,21 +633,28 @@ sequenceDiagram
 
     Note over User: 创建管理员账户
 
-    User->>Frontend: 15. 填写管理员信息
-    Frontend->>API: 16. 调用 initApi.createAdmin()
-    API->>InitRouter: 17. POST /api/init/admin
-    InitRouter->>DB: 18. 检查是否已有用户
-    DB-->>InitRouter: 返回用户数
+    User->>Frontend: 22. 填写管理员信息
+    Frontend->>API: 23. 调用 initApi.createAdmin()
+    API->>InitRouter: 24. POST /api/init/admin
+    InitRouter->>Adapter: 25. get() 检查是否已有用户
+    Adapter->>DB: 26. SELECT COUNT(*) FROM users
+    DB-->>Adapter: 返回用户数
+    Adapter-->>InitRouter: 返回用户数
 
     alt 已有用户
         InitRouter-->>API: 返回 403: 已初始化
         API-->>Frontend: 显示错误
         Frontend-->>User: 提示无需重复创建
     else 无用户
-        InitRouter->>DB: 19. INSERT INTO users
-        DB-->>InitRouter: 返回用户 ID
-        InitRouter->>DB: 20. 生成 runtime_secret
-        DB-->>InitRouter: 存储完成
+        InitRouter->>InitRouter: bcrypt.hashSync() 加密密码
+        InitRouter->>Adapter: 27. insert() 插入用户记录
+        Adapter->>DB: 28. INSERT INTO users
+        DB-->>Adapter: 返回用户 ID
+        Adapter-->>InitRouter: 返回用户 ID
+        InitRouter->>Adapter: 29. execute() 生成 runtime_secret
+        Adapter->>DB: 30. INSERT INTO runtime_secrets
+        DB-->>Adapter: 存储完成
+        Adapter-->>InitRouter: 存储完成
         InitRouter-->>API: 返回：{success: true}
         API-->>Frontend: 初始化完成
         Frontend-->>User: 跳转到登录页
@@ -540,7 +681,9 @@ sequenceDiagram
 数据库初始化:
   POST /api/init/database (routes/init.ts)
     → createConnection() (db/database.ts)
-      → 根据配置创建连接
+    → connect() (通过业务适配器层)
+      → ConnectionManager 创建连接
+      → 根据 DB_TYPE 初始化对应驱动
     → initSchemaAsync() (db/schema.ts)
       → 根据 DB_TYPE 选择 Schema
       → schemas/sqlite.ts
@@ -553,7 +696,7 @@ sequenceDiagram
   POST /api/init/admin (routes/init.ts)
     → hasUsers() 检查是否已有用户
     → bcrypt.hashSync() 加密密码
-    → db.insert() 插入用户记录
+    → insert() 插入用户记录 (通过业务适配器层)
     → 生成 runtime_secret
     → 返回 {success: true}
 ```
@@ -594,9 +737,12 @@ graph TB
     
     RouteHandler --> BusinessLogic[业务逻辑处理]
     BusinessLogic --> Service[调用服务层]
-    Service --> DB[DNS 适配器/数据库]
+    Service --> DBAdapter[业务适配器层]
+    DBAdapter --> DB[数据库抽象层]
+    DB --> Drivers[驱动层]
+    Drivers --> Database[(数据库)]
     
-    DB --> Success{操作成功？}
+    Drivers --> Success{操作成功？}
     Success -->|是 | Response[返回成功响应]
     Success -->|否 | ErrorHandle[错误处理中间件]
     
@@ -611,7 +757,9 @@ graph TB
     style AuthMW fill:#ffe1e1
     style RouteHandler fill:#e1ffe1
     style Service fill:#fff4e1
+    style DBAdapter fill:#ffe1ff
     style DB fill:#f0e1ff
+    style Drivers fill:#e1ffe1
     style Response fill:#e1f5ff
 ```
 
@@ -656,6 +804,7 @@ graph TB
 9. 路由处理器 (Route Handler)
    - 处理业务逻辑
    - 调用服务层
+   - 通过业务适配器层访问数据库
    - 返回响应
 
 10. 错误处理中间件 (errorHandler)
@@ -676,7 +825,7 @@ sequenceDiagram
     participant React as React 应用
     participant Router as React Router
     participant App as App.tsx
-    participant Context as Context  providers
+    participant Context as Context providers
     participant Page as 页面组件
     participant API as API 客户端
     participant Server as 后端服务
@@ -800,7 +949,7 @@ POST /api/auth/login
   ↓
 [后端] checkLoginAllowed() - 检查登录限制
   ↓
-[后端] db.get() - 查询用户
+[后端] get() - 查询用户 (通过业务适配器层)
   ↓
 [后端] bcrypt.compare() - 验证密码
   ↓
@@ -812,7 +961,7 @@ POST /api/auth/login
   ↓
 [后端] signToken() - 生成 JWT
   ↓
-[后端] logAuditOperation() - 记录审计日志
+[后端] logAuditOperation() - 记录审计日志 (通过业务适配器层)
   ↓
 返回 {token, user}
   ↓
@@ -838,23 +987,43 @@ POST /api/domains/:domainId/records
   ↓
 [后端] 检查域名权限
   ↓
-[后端] db.get() - 查询域名信息
+[后端] get() - 查询域名信息 (通过业务适配器层)
   ↓
-[后端] db.get() - 查询账号配置
+[后端] get() - 查询账号配置 (通过业务适配器层)
   ↓
 [后端] createAdapter() - 创建 DNS 适配器
   ↓
 [后端] adapter.addDomainRecord() - 调用服务商 API
   ↓
-[后端] db.insert() - 更新本地数据库
+[后端] insert() - 更新本地数据库 (通过业务适配器层)
   ↓
-[后端] logAuditOperation() - 记录审计日志
+[后端] logAuditOperation() - 记录审计日志 (通过业务适配器层)
   ↓
 返回 {id}
   ↓
 前端刷新记录列表
   ↓
 显示成功提示
+```
+
+### 故障转移流程
+
+```
+定时任务触发
+  ↓
+getAllEnabledFailoverConfigs() (通过业务适配器层)
+  ↓
+对每个配置执行健康检查
+  ↓
+检测到主记录失败
+  ↓
+自动切换到备用记录
+  ↓
+execute() - 更新数据库状态 (通过业务适配器层)
+  ↓
+发送告警通知
+  ↓
+记录切换日志 (通过业务适配器层)
 ```
 
 ***
@@ -864,16 +1033,20 @@ POST /api/domains/:domainId/records
 本文档详细描述了 DNSMgr 项目的前后端调用流程和各模块的交互逻辑，包括：
 
 1. **整体架构**：前后端分离，通过 RESTful API 通信
-2. **认证流程**：支持用户名密码、OAuth、2FA 多种认证方式
-3. **DNS 管理**：通过适配器模式统一管理多个 DNS 服务商
-4. **权限控制**：基于 RBAC 的权限模型，支持团队和域名级别授权
-5. **数据流**：完整的请求 - 响应链路，包含中间件处理、业务逻辑、数据库操作
+2. **数据库三层架构**：
+   - 业务适配器层（函数式 API）
+   - 数据库抽象层（统一类型和连接管理）
+   - 驱动层（具体数据库实现）
+3. **认证流程**：支持用户名密码、OAuth、2FA 多种认证方式
+4. **DNS 管理**：通过适配器模式统一管理多个 DNS 服务商
+5. **权限控制**：基于 RBAC 的权限模型，支持团队和域名级别授权
+6. **数据流**：完整的请求 - 响应链路，包含中间件处理、业务逻辑、数据库操作
 
 所有流程都遵循以下设计原则：
 
-- **分层架构**：路由层 → 服务层 → 数据访问层
+- **分层架构**：路由层 → 业务适配器层 → 数据库抽象层 → 驱动层
 - **统一认证**：所有 API 请求都经过认证中间件
-- **审计日志**：关键操作都记录审计日志
+- **审计日志**：关键操作都记录审计日志（通过业务适配器层）
 - **错误处理**：统一的错误处理中间件
 - **限流保护**：登录、注册等接口有限流保护
-
+- **数据库访问规范**：所有数据库操作必须通过业务适配器层，禁止直接调用底层
