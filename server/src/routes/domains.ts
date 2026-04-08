@@ -411,9 +411,12 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
     return;
   }
   try {
-    const cfg = JSON.parse(account.config) as Record<string, string>;
+    // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
+    const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
+    console.log('[ProviderList] Account type:', account.type, 'Config keys:', Object.keys(cfg));
     const dnsAdapter = createAdapter(account.type, cfg);
     const result = await dnsAdapter.getDomainList();
+    console.log('[ProviderList] Result:', { total: result.total, listCount: result.list.length });
     const domains = result.list.map((d) => ({
       name: normalizeDomainName(d.Domain),
       third_id: d.ThirdId,
@@ -421,6 +424,7 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
     }));
     sendSuccess(res, domains);
   } catch (e) {
+    console.error('[ProviderList] Error:', e);
     sendError(res, e instanceof Error ? e.message : String(e));
   }
 }));

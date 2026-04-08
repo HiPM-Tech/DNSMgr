@@ -97,7 +97,10 @@ export class CloudflareAdapter implements DnsAdapter {
     let path = `/zones?page=${page}&per_page=${pageSize}`;
     if (keyword) path += `&name=${encodeURIComponent(keyword)}`;
     const res = await this.request<CfZone[]>('GET', path);
-    if (!res.success) return { total: 0, list: [] };
+    if (!res.success) {
+      console.error('[Cloudflare] getDomainList failed:', res.errors);
+      return { total: 0, list: [] };
+    }
     const total = res.result_info?.total_count ?? res.result.length;
     return {
       total,
