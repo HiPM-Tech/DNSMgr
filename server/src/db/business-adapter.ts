@@ -103,12 +103,22 @@ function processSql(sql: string, dbType: string): string {
     sql = sql.replace(/\?/g, () => `$${++index}`);
   }
 
-  // MySQL 保留关键字转义
+  // MySQL 保留关键字转义（仅转义作为标识符的关键字，不转义 SQL 关键字如 ORDER BY）
   if (dbType === 'mysql') {
-    const keywords = ['key', 'value', 'order', 'group'];
+    // 只转义在特定上下文中的关键字（如列名、表名别名等）
+    // 避免转义 SQL 关键字如 ORDER BY, GROUP BY 等
+    const keywords = ['key', 'value'];
     keywords.forEach(keyword => {
-      const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
-      sql = sql.replace(regex, `\`${keyword}\``);
+      // 只匹配作为独立标识符的关键字，后面不跟 BY 等 SQL 关键字
+      const regex = new RegExp(`\\b${keyword}\\b(?!\\s+(?:BY|AS|FROM|WHERE|AND|OR))`, 'gi');
+      sql = sql.replace(regex, (match, offset) => {
+        // 检查是否在 ORDER BY 或 GROUP BY 上下文中
+        const beforeContext = sql.substring(Math.max(0, offset - 10), offset).toUpperCase();
+        if (beforeContext.includes('ORDER') || beforeContext.includes('GROUP')) {
+          return match; // 不转义
+        }
+        return `\`${keyword}\``;
+      });
     });
   }
 
