@@ -1,12 +1,10 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import Database from 'better-sqlite3';
-import mysql from 'mysql2/promise';
-import { Pool } from 'pg';
 import { initSchema, initSchemaAsync, rotateRuntimeSecretsAsync } from '../db/schema';
 import { saveEnvConfig, getDbConfig } from '../config/env';
 import { createConnection, isDbInitialized, hasUsers, getDb, getCurrentConnection } from '../db/database';
+import { UserOperations, SystemOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 
 const router = Router();
@@ -51,38 +49,11 @@ router.post('/test-db', async (req: Request, res: Response) => {
   try {
     if (type === 'sqlite') {
       const sqlitePath = sqlite?.path || './data/dnsmgr.db';
-      const fs = require('fs');
-      const path = require('path');
-      const dir = path.dirname(sqlitePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      const testDb = new Database(sqlitePath);
       
-      // Check if tables exist
-      let hasData = false;
-      try {
-        const tables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
-        if (tables.length > 0) {
-          // Check if there's any data
-          const firstTable = tables[0]?.name;
-          if (firstTable) {
-            const count = testDb.prepare(`SELECT COUNT(*) as cnt FROM "${firstTable}"`).get() as { cnt: number };
-            hasData = count?.cnt > 0;
-          }
-        }
-      } catch {
-        // No tables yet
-      }
-      
-      testDb.close();
+      const result = await SystemOperations.testSqliteConnection(sqlitePath);
       return res.json({ 
         code: 0, 
-        data: { 
-          success: true, 
-          message: 'SQLite connection successful',
-          hasExistingData: hasData
-        }, 
+        data: result, 
         msg: 'success' 
       });
     }
@@ -91,44 +62,11 @@ router.post('/test-db', async (req: Request, res: Response) => {
       if (!mysqlConfig) {
         return res.status(400).json({ code: 400, msg: 'MySQL configuration required' });
       }
-      const pool = mysql.createPool({
-        host: mysqlConfig.host,
-        port: mysqlConfig.port || 3306,
-        user: mysqlConfig.user,
-        password: mysqlConfig.password,
-        database: mysqlConfig.database,
-        ssl: mysqlConfig.ssl ? { rejectUnauthorized: false } : undefined,
-        connectionLimit: 1,
-      });
-
-      // Verify the connection is actually reachable before proceeding
-      const conn = await pool.getConnection();
-      conn.release();
-
-      // Check if there's any data
-      let hasData = false;
-      try {
-        const [tables] = await pool.execute<any[]>('SHOW TABLES');
-        if (tables && tables.length > 0) {
-          const firstTable = Object.values(tables[0])[0] as string;
-          if (firstTable) {
-            const [countResult] = await pool.execute<any[]>(`SELECT COUNT(*) as cnt FROM \`${firstTable}\``);
-            const count = countResult[0]?.cnt || 0;
-            hasData = count > 0;
-          }
-        }
-      } catch {
-        // No tables yet
-      }
       
-      await pool.end();
+      const result = await SystemOperations.testMysqlConnection(mysqlConfig);
       return res.json({ 
         code: 0, 
-        data: { 
-          success: true, 
-          message: 'MySQL connection successful',
-          hasExistingData: hasData
-        }, 
+        data: result, 
         msg: 'success' 
       });
     }
@@ -137,48 +75,11 @@ router.post('/test-db', async (req: Request, res: Response) => {
       if (!pgConfig) {
         return res.status(400).json({ code: 400, msg: 'PostgreSQL configuration required' });
       }
-      const pool = new Pool({
-        host: pgConfig.host,
-        port: pgConfig.port || 5432,
-        user: pgConfig.user,
-        password: pgConfig.password,
-        database: pgConfig.database,
-        ssl: pgConfig.ssl ? { rejectUnauthorized: false } : false,
-        max: 1,
-      });
-
-      // Verify the connection is actually reachable before proceeding
-      const client = await pool.connect();
-      client.release();
-
-      // Check if there's any data
-      let hasData = false;
-      try {
-        const tablesResult = await pool.query(`
-          SELECT table_name FROM information_schema.tables 
-          WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-        `);
-        const tables = tablesResult.rows as { table_name: string }[];
-        if (tables && tables.length > 0) {
-          const firstTable = tables[0]?.table_name;
-          if (firstTable) {
-            const countResult = await pool.query(`SELECT COUNT(*) as cnt FROM "${firstTable}"`);
-            const count = countResult.rows[0]?.cnt || 0;
-            hasData = count > 0;
-          }
-        }
-      } catch {
-        // No tables yet
-      }
       
-      await pool.end();
+      const result = await SystemOperations.testPostgresqlConnection(pgConfig);
       return res.json({ 
         code: 0, 
-        data: { 
-          success: true, 
-          message: 'PostgreSQL connection successful',
-          hasExistingData: hasData
-        }, 
+        data: result, 
         msg: 'success' 
       });
     }
@@ -309,18 +210,20 @@ router.post('/admin', async (req: Request, res: Response) => {
     
     const hash = bcrypt.hashSync(password, 10);
     
-    // Use appropriate parameter placeholders based on database type
-    const placeholders = conn.type === 'postgresql' 
-      ? '$1, $2, $3, $4, $5, $6, $7' 
-      : '?, ?, ?, ?, ?, ?, ?';
-    
-    await conn.execute(
-      `INSERT INTO users (username, nickname, email, password_hash, role, role_level, status) VALUES (${placeholders})`,
-      [username, username, email, hash, 'admin', 3, 1]
-    );
+    // 使用业务适配器创建用户，而不是直接调用数据库抽象层
+    await UserOperations.create({
+      username,
+      nickname: username,
+      email,
+      password_hash: hash,
+      role: 'admin',
+      role_level: 3,
+    });
     
     // Rotate runtime secrets
     await rotateRuntimeSecretsAsync(conn);
+    
+    log.info('Init', 'Admin user created successfully', { username, email });
     
     res.json({
       code: 0,
@@ -328,6 +231,7 @@ router.post('/admin', async (req: Request, res: Response) => {
       msg: 'Admin user created successfully',
     });
   } catch (error) {
+    log.error('Init', 'Failed to create admin user', { error, username, email });
     res.status(500).json({
       code: 500,
       msg: error instanceof Error ? error.message : 'Failed to create admin user',

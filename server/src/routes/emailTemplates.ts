@@ -8,7 +8,6 @@ import {
   detectConflicts,
   generatePreview,
 } from '../service/emailTemplate';
-import { db } from '../db';
 
 const router = Router();
 
@@ -196,11 +195,12 @@ router.post(
       return;
     }
 
-    // 获取现有记录
-    const existingRecords = await db.query(
-      'SELECT * FROM dns_records WHERE domain_id = ?',
-      [domainId]
-    );
+    // 获取现有记录 - 注意：dns_records 表不存在，此功能需要重新实现
+    // const existingRecords = await db.query(
+    //   'SELECT * FROM dns_records WHERE domain_id = ?',
+    //   [domainId]
+    // );
+    const existingRecords: any[] = [];
 
     // 检查冲突
     const conflicts = detectConflicts(existingRecords, template.records);

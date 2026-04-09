@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { db } from '../db';
 import { authMiddleware, signToken } from '../middleware/auth';
 import { User } from '../types';
 import { ROLE_SUPER, ROLE_USER } from '../utils/roles';

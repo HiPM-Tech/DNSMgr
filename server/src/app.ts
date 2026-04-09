@@ -7,6 +7,7 @@ import { loadEnv } from './config/env';
 import { createConnection, isDbInitialized, hasUsers } from './db/database';
 import { initSchema, initSchemaAsync } from './db/schema';
 import { connect } from './db';
+import { disconnect } from './db/core/connection';
 import { authMiddleware, adminOnly } from './middleware/auth';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { requestLogger, requestIdMiddleware } from './middleware/requestLogger';
@@ -293,16 +294,30 @@ async function initializeApp() {
     }, 5000);
 
     // Graceful shutdown
-    process.on('SIGTERM', () => {
+    process.on('SIGTERM', async () => {
       clearInterval(initCheckInterval);
+      log.info('Server', 'SIGTERM received, starting graceful shutdown...');
+      try {
+        await disconnect();
+        log.info('Server', 'Database disconnected gracefully');
+      } catch (err) {
+        log.error('Server', 'Error during database disconnect', { error: err });
+      }
       server.close(() => {
         log.info('Server', 'Server closed');
         process.exit(0);
       });
     });
 
-    process.on('SIGINT', () => {
+    process.on('SIGINT', async () => {
       clearInterval(initCheckInterval);
+      log.info('Server', 'SIGINT received, starting graceful shutdown...');
+      try {
+        await disconnect();
+        log.info('Server', 'Database disconnected gracefully');
+      } catch (err) {
+        log.error('Server', 'Error during database disconnect', { error: err });
+      }
       server.close(() => {
         log.info('Server', 'Server closed');
         process.exit(0);
@@ -340,16 +355,30 @@ async function initializeApp() {
     }, 5000);
 
     // Graceful shutdown
-    process.on('SIGTERM', () => {
+    process.on('SIGTERM', async () => {
       clearInterval(initCheckInterval);
+      log.info('Server', 'SIGTERM received, starting graceful shutdown...');
+      try {
+        await disconnect();
+        log.info('Server', 'Database disconnected gracefully');
+      } catch (err) {
+        log.error('Server', 'Error during database disconnect', { error: err });
+      }
       server.close(() => {
         log.info('Server', 'Server closed');
         process.exit(0);
       });
     });
 
-    process.on('SIGINT', () => {
+    process.on('SIGINT', async () => {
       clearInterval(initCheckInterval);
+      log.info('Server', 'SIGINT received, starting graceful shutdown...');
+      try {
+        await disconnect();
+        log.info('Server', 'Database disconnected gracefully');
+      } catch (err) {
+        log.error('Server', 'Error during database disconnect', { error: err });
+      }
       server.close(() => {
         log.info('Server', 'Server closed');
         process.exit(0);

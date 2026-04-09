@@ -1,43 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { getCurrentConnection } from '../db/database';
+import { SystemOperations } from '../db/business-adapter';
 
 const router = Router();
 
 // Get system information for about page
 router.get('/info', async (req: Request, res: Response) => {
   try {
-    const conn = getCurrentConnection();
-    
-    let dbInfo = {
-      type: 'unknown',
-      version: 'unknown',
-      driverVersion: 'unknown',
-    };
-    
-    if (conn) {
-      dbInfo.type = conn.type;
-      
-      if (conn.type === 'sqlite') {
-        // Get SQLite version
-        const sqliteConn = conn as any;
-        const versionRow = sqliteConn.prepare('SELECT sqlite_version() as version').get();
-        dbInfo.version = versionRow?.version || 'unknown';
-        dbInfo.driverVersion = require('better-sqlite3/package.json').version;
-      } else if (conn.type === 'mysql') {
-        // Get MySQL version
-        const result = await conn.get('SELECT VERSION() as version');
-        dbInfo.version = (result as { version: string })?.version || 'unknown';
-        dbInfo.driverVersion = require('mysql2/package.json').version;
-      } else if (conn.type === 'postgresql') {
-        // Get PostgreSQL version
-        const result = await conn.get('SELECT version() as version');
-        const fullVersion = (result as { version: string })?.version || 'unknown';
-        // Extract version number from string like "PostgreSQL 15.2 on ..."
-        const match = fullVersion.match(/PostgreSQL\s+(\d+\.?\d*)/);
-        dbInfo.version = match ? match[1] : fullVersion;
-        dbInfo.driverVersion = require('pg/package.json').version;
-      }
-    }
+    // Get database info from business adapter
+    const dbInfo = await SystemOperations.getDatabaseInfo();
     
     // Get server package version
     const serverVersion = require('../../package.json').version;
