@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { createUserToken, getUserTokens, deleteUserToken, toggleTokenStatus } from '../service/token';
-import { db } from '../db';
+import { DomainOperations } from '../db/business-adapter';
 import { normalizeRole } from '../utils/roles';
 
 const router = Router();
@@ -285,16 +285,7 @@ router.patch('/:id/status', authMiddleware, async (req: Request, res: Response) 
  */
 router.get('/domains', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const domains = await db.query(
-      `SELECT d.id, d.name, da.name as account_name
-       FROM domains d
-       JOIN dns_accounts da ON d.account_id = da.id
-       WHERE da.created_by = ? OR d.id IN (
-         SELECT domain_id FROM domain_permissions WHERE user_id = ?
-       )
-       ORDER BY d.name`,
-      [req.user!.userId, req.user!.userId]
-    );
+    const domains = await DomainOperations.getUserAccessibleDomains(req.user!.userId);
 
     res.json({ code: 0, data: domains, msg: 'success' });
   } catch (error) {

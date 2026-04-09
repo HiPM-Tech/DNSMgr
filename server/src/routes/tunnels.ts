@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
-import { db } from '../db';
+import { DnsAccountOperations, TeamOperations } from '../db/business-adapter';
 import { CloudflareAdapter } from '../lib/dns/providers';
 import { DnsAccount } from '../types';
 import { isSuper, normalizeRole } from '../utils/roles';
@@ -9,24 +9,16 @@ const router = Router();
 
 async function getAccessibleCloudflareAccounts(userId: number, role: number): Promise<DnsAccount[]> {
   if (isSuper(role)) {
-    return await db.query<DnsAccount>("SELECT * FROM dns_accounts WHERE type = 'cloudflare'");
+    return await DnsAccountOperations.getByType('cloudflare') as unknown as DnsAccount[];
   }
   
-  const teamMembers = await db.query<{ team_id: number }>('SELECT team_id FROM team_members WHERE user_id = ?', [userId]);
-  const teamIds = teamMembers.map((r) => r.team_id);
+  const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
   
   if (teamIds.length > 0) {
-    const placeholders = teamIds.map(() => '?').join(',');
-    return await db.query<DnsAccount>(
-      `SELECT * FROM dns_accounts WHERE type = 'cloudflare' AND (created_by = ? OR team_id IN (${placeholders}))`,
-      [userId, ...teamIds]
-    );
+    return await DnsAccountOperations.getByTypeAndUserOrTeams('cloudflare', userId, teamIds) as unknown as DnsAccount[];
   }
   
-  return await db.query<DnsAccount>(
-    "SELECT * FROM dns_accounts WHERE type = 'cloudflare' AND created_by = ?",
-    [userId]
-  );
+  return await DnsAccountOperations.getByTypeAndUser('cloudflare', userId) as unknown as DnsAccount[];
 }
 
 async function getCloudflareAccountByTunnelId(accountId: string, userId: number, role: number): Promise<DnsAccount | null> {
