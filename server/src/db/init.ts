@@ -5,6 +5,7 @@ import { mysqlSchema } from './schemas/mysql';
 import { postgresqlSchema } from './schemas/postgresql';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { log } from '../lib/logger';
 
 export async function initSchema(): Promise<void> {
   const conn = getConnection();
@@ -123,7 +124,7 @@ async function createDefaultAdminUser(conn: DbConnection): Promise<void> {
         `INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)`,
         ['admin', 'admin', 'admin@localhost', hash, 'admin', 3]
       );
-      console.log('[DB] Default super admin user created (admin / admin123)');
+      log.info('DB', 'Default super admin user created', { username: 'admin', password: 'admin123' });
     }
 
     // 确保至少有一个超级管理员
@@ -139,7 +140,7 @@ async function createDefaultAdminUser(conn: DbConnection): Promise<void> {
       }
     }
   } catch (e) {
-    console.error('[DB] Error creating default admin user:', e);
+    log.error('DB', 'Error creating default admin user', { error: e });
   }
 }
 
@@ -162,9 +163,9 @@ async function rotateRuntimeSecrets(conn: DbConnection): Promise<void> {
       await conn.execute('INSERT INTO runtime_secrets (key, value) VALUES ($1, $2)', ['jwt_runtime', jwtRuntimeSecret]);
     }
 
-    console.log('[DB] Runtime secrets rotated');
+    log.info('DB', 'Runtime secrets rotated');
   } catch (e) {
-    console.error('[DB] Error rotating runtime secrets:', e);
+    log.error('DB', 'Error rotating runtime secrets', { error: e });
   }
 }
 

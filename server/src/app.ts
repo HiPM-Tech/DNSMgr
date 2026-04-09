@@ -34,6 +34,7 @@ loadEnv();
 
 import { startFailoverJob } from './service/failoverJob';
 import { startWhoisJob } from './service/whoisJob';
+import { log } from './lib/logger';
 
 const app = express();
 
@@ -261,20 +262,20 @@ async function initializeApp() {
     isInitialized = await checkInitialization();
 
     if (isInitialized) {
-      console.log('[Server] System initialized. Running in normal mode.');
+      log.info('Server', 'System initialized. Running in normal mode.');
       startFailoverJob();
       startWhoisJob();
     } else {
-      console.log('[Server] System not initialized. Running in initialization mode.');
-      console.log('[Server] Please access the setup wizard to configure the system.');
+      log.info('Server', 'System not initialized. Running in initialization mode.');
+      log.info('Server', 'Please access the setup wizard to configure the system.');
     }
 
     // Start server
     const server = app.listen(PORT, () => {
-      console.log(`[Server] DNSMgr running on http://localhost:${PORT}`);
-      console.log(`[Server] API Docs: http://localhost:${PORT}/api/docs`);
+      log.info('Server', `DNSMgr running on http://localhost:${PORT}`);
+      log.info('Server', `API Docs: http://localhost:${PORT}/api/docs`);
       if (!isInitialized) {
-        console.log(`[Server] Setup Wizard: http://localhost:${PORT}/setup`);
+        log.info('Server', `Setup Wizard: http://localhost:${PORT}/setup`);
       }
     });
 
@@ -284,8 +285,8 @@ async function initializeApp() {
       if (!isInitialized && newState) {
         // System just got initialized
         isInitialized = true;
-        console.log('[Server] System initialized detected. Normal routes are now enabled.');
-        console.log('[Server] You may need to refresh the page.');
+        log.info('Server', 'System initialized detected. Normal routes are now enabled.');
+        log.info('Server', 'You may need to refresh the page.');
         startFailoverJob();
         startWhoisJob();
       }
@@ -295,7 +296,7 @@ async function initializeApp() {
     process.on('SIGTERM', () => {
       clearInterval(initCheckInterval);
       server.close(() => {
-        console.log('[Server] Server closed');
+        log.info('Server', 'Server closed');
         process.exit(0);
       });
     });
@@ -303,19 +304,19 @@ async function initializeApp() {
     process.on('SIGINT', () => {
       clearInterval(initCheckInterval);
       server.close(() => {
-        console.log('[Server] Server closed');
+        log.info('Server', 'Server closed');
         process.exit(0);
       });
     });
 
   } catch (error) {
-    console.log('[Server] Database not configured. Running in initialization mode.');
-    console.log('[Server] Please access the setup wizard to configure the system.');
+    log.info('Server', 'Database not configured. Running in initialization mode.');
+    log.info('Server', 'Please access the setup wizard to configure the system.');
 
     const server = app.listen(PORT, () => {
-      console.log(`[Server] DNSMgr running on http://localhost:${PORT}`);
-      console.log(`[Server] API Docs: http://localhost:${PORT}/api/docs`);
-      console.log(`[Server] Setup Wizard: http://localhost:${PORT}/setup`);
+      log.info('Server', `DNSMgr running on http://localhost:${PORT}`);
+      log.info('Server', `API Docs: http://localhost:${PORT}/api/docs`);
+      log.info('Server', `Setup Wizard: http://localhost:${PORT}/setup`);
     });
 
     // Re-check initialization status periodically
@@ -330,8 +331,8 @@ async function initializeApp() {
           clearInterval(initCheckInterval);
           startFailoverJob();
           startWhoisJob();
-          console.log('[Server] System initialized detected. Normal routes are now enabled.');
-          console.log('[Server] You may need to refresh the page.');
+          log.info('Server', 'System initialized detected. Normal routes are now enabled.');
+          log.info('Server', 'You may need to refresh the page.');
         }
       } catch {
         // Still not initialized
@@ -342,7 +343,7 @@ async function initializeApp() {
     process.on('SIGTERM', () => {
       clearInterval(initCheckInterval);
       server.close(() => {
-        console.log('[Server] Server closed');
+        log.info('Server', 'Server closed');
         process.exit(0);
       });
     });
@@ -350,7 +351,7 @@ async function initializeApp() {
     process.on('SIGINT', () => {
       clearInterval(initCheckInterval);
       server.close(() => {
-        console.log('[Server] Server closed');
+        log.info('Server', 'Server closed');
         process.exit(0);
       });
     });

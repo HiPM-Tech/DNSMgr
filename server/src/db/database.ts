@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise';
 import { Pool, PoolClient } from 'pg';
 import Database from 'better-sqlite3';
 import { getDbConfig } from '../config/env';
+import { log } from '../lib/logger';
 
 export type DbType = 'sqlite' | 'mysql' | 'postgresql';
 
@@ -26,7 +27,7 @@ class MySQLConnection implements DbConnection {
 
   constructor(config: { host: string; port: number; database: string; user: string; password: string; ssl: boolean }) {
     const poolSize = parseInt(process.env.DB_POOL_SIZE || '20', 10);
-    console.log(`[MySQL] Initializing connection pool to ${config.host}:${config.port}/${config.database} (pool size: ${poolSize})`);
+    log.info('MySQL', 'Initializing connection pool', { host: config.host, port: config.port, database: config.database, poolSize });
 
     this.pool = mysql.createPool({
       host: config.host,
@@ -48,17 +49,17 @@ class MySQLConnection implements DbConnection {
     this.pool.on('acquire', () => {
       this.stats.acquired++;
       if (process.env.NODE_ENV !== 'production') {
-        console.debug(`[MySQL] Connection acquired (total: ${this.stats.acquired})`);
+        log.debug('MySQL', 'Connection acquired', { total: this.stats.acquired });
       }
     });
     this.pool.on('release', () => {
       this.stats.released++;
       if (process.env.NODE_ENV !== 'production') {
-        console.debug(`[MySQL] Connection released (total: ${this.stats.released})`);
+        log.debug('MySQL', 'Connection released', { total: this.stats.released });
       }
     });
     this.pool.on('enqueue', () => {
-      console.warn('[MySQL] Waiting for available connection slot');
+      log.warn('MySQL', 'Waiting for available connection slot');
     });
   }
 
@@ -69,11 +70,11 @@ class MySQLConnection implements DbConnection {
       const [rows] = await this.pool.execute(sql, params as mysql.RowDataPacket);
       const duration = Date.now() - startTime;
       if (duration > 100) {
-        console.warn(`[MySQL] Slow query (${duration}ms): ${sql.substring(0, 100)}`);
+        log.warn('MySQL', `Slow query (${duration}ms)`, { sql: sql.substring(0, 100) });
       }
       return rows as unknown[];
     } catch (error) {
-      console.error(`[MySQL] Query error: ${sql.substring(0, 100)}`, error);
+      log.error('MySQL', 'Query error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -85,10 +86,10 @@ class MySQLConnection implements DbConnection {
       await this.pool.execute(sql, params as mysql.RowDataPacket);
       const duration = Date.now() - startTime;
       if (duration > 100) {
-        console.warn(`[MySQL] Slow execute (${duration}ms): ${sql.substring(0, 100)}`);
+        log.warn('MySQL', `Slow execute (${duration}ms)`, { sql: sql.substring(0, 100) });
       }
     } catch (error) {
-      console.error(`[MySQL] Execute error: ${sql.substring(0, 100)}`, error);
+      log.error('MySQL', 'Execute error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -101,17 +102,17 @@ class MySQLConnection implements DbConnection {
       const results = rows as unknown[];
       const duration = Date.now() - startTime;
       if (duration > 100) {
-        console.warn(`[MySQL] Slow get (${duration}ms): ${sql.substring(0, 100)}`);
+        log.warn('MySQL', `Slow get (${duration}ms)`, { sql: sql.substring(0, 100) });
       }
       return results.length > 0 ? results[0] : undefined;
     } catch (error) {
-      console.error(`[MySQL] Get error: ${sql.substring(0, 100)}`, error);
+      log.error('MySQL', 'Get error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
 
   async close(): Promise<void> {
-    console.log(`[MySQL] Closing connection pool (stats: acquired=${this.stats.acquired}, released=${this.stats.released}, queries=${this.stats.queries})`);
+    log.info('MySQL', 'Closing connection pool', { stats: this.stats });
     await this.pool.end();
   }
 }
@@ -124,7 +125,7 @@ class PostgreSQLConnection implements DbConnection {
 
   constructor(config: { host: string; port: number; database: string; user: string; password: string; ssl: boolean }) {
     const poolSize = parseInt(process.env.DB_POOL_SIZE || '20', 10);
-    console.log(`[PostgreSQL] Initializing connection pool to ${config.host}:${config.port}/${config.database} (pool size: ${poolSize})`);
+    log.info('PostgreSQL', 'Initializing connection pool', { host: config.host, port: config.port, database: config.database, poolSize });
 
     this.pool = new Pool({
       host: config.host,
@@ -140,26 +141,26 @@ class PostgreSQLConnection implements DbConnection {
 
     // Handle pool errors
     this.pool.on('error', (err) => {
-      console.error('[PostgreSQL] Unexpected pool error:', err);
+      log.error('PostgreSQL', 'Unexpected pool error', { error: err });
     });
 
     // 连接池事件监控
     this.pool.on('connect', () => {
       this.stats.connected++;
       if (process.env.NODE_ENV !== 'production') {
-        console.debug(`[PostgreSQL] New client connected (total: ${this.stats.connected})`);
+        log.debug('PostgreSQL', 'New client connected', { total: this.stats.connected });
       }
     });
     this.pool.on('acquire', () => {
       this.stats.acquired++;
       if (process.env.NODE_ENV !== 'production') {
-        console.debug(`[PostgreSQL] Client acquired from pool (total: ${this.stats.acquired})`);
+        log.debug('PostgreSQL', 'Client acquired from pool', { total: this.stats.acquired });
       }
     });
     this.pool.on('remove', () => {
       this.stats.removed++;
       if (process.env.NODE_ENV !== 'production') {
-        console.debug(`[PostgreSQL] Client removed from pool (total: ${this.stats.removed})`);
+        log.debug('PostgreSQL', 'Client removed from pool', { total: this.stats.removed });
       }
     });
   }
@@ -204,17 +205,17 @@ class SQLiteConnection implements DbConnection {
   private stats = { queries: 0, transactions: 0 };
 
   constructor(path: string) {
-    console.log(`[SQLite] Opening database at ${path}`);
+    log.info('SQLite', 'Opening database', { path });
     const fs = require('fs');
     const dir = require('path').dirname(path);
     if (!fs.existsSync(dir)) {
-      console.log(`[SQLite] Creating directory: ${dir}`);
+      log.info('SQLite', 'Creating directory', { dir });
       fs.mkdirSync(dir, { recursive: true });
     }
     this.db = new Database(path);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
-    console.log(`[SQLite] Database opened successfully (WAL mode enabled)`);
+    log.info('SQLite', 'Database opened successfully', { mode: 'WAL' });
   }
 
   async query(sql: string, params?: unknown[]): Promise<unknown[]> {
@@ -258,45 +259,45 @@ let connection: DbConnection | null = null;
 let connectionPromise: Promise<DbConnection> | null = null;
 
 export async function createConnection(): Promise<DbConnection> {
-  console.log('[Database] createConnection() called');
+  log.info('Database', 'createConnection() called');
 
   // 如果连接已存在且未关闭，直接返回
   if (connection) {
-    console.log(`[Database] Returning existing connection: ${connection.type}`);
+    log.info('Database', 'Returning existing connection', { type: connection.type });
     return connection;
   }
 
   // 如果正在创建连接，等待创建完成
   if (connectionPromise) {
-    console.log('[Database] Waiting for existing connection promise');
+    log.info('Database', 'Waiting for existing connection promise');
     return connectionPromise;
   }
 
   // 创建新连接
   connectionPromise = (async () => {
-    console.log('[Database] Creating new connection...');
+    log.info('Database', 'Creating new connection...');
     const config = getDbConfig();
-    console.log(`[Database] Config type: ${config.type}`);
+    log.info('Database', 'Config type', { type: config.type });
 
     switch (config.type) {
       case 'mysql':
-        console.log('[Database] Creating MySQL connection...');
+        log.info('Database', 'Creating MySQL connection...');
         connection = new MySQLConnection(config.mysql);
         break;
 
       case 'postgresql':
-        console.log('[Database] Creating PostgreSQL connection...');
+        log.info('Database', 'Creating PostgreSQL connection...');
         connection = new PostgreSQLConnection(config.postgresql);
         break;
 
       case 'sqlite':
       default:
-        console.log('[Database] Creating SQLite connection...');
+        log.info('Database', 'Creating SQLite connection...');
         connection = new SQLiteConnection(config.sqlite.path);
         break;
     }
 
-    console.log(`[Database] Connected to ${config.type}`);
+    log.info('Database', 'Connected', { type: config.type });
     return connection;
   })();
 

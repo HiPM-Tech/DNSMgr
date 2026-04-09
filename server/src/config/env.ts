@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { log } from '../lib/logger';
 
 // Get the current working directory (where the server is running)
 function getCwd(): string {
@@ -24,32 +25,32 @@ export function loadEnv(): void {
   const dataEnvPath = path.join(dataDir, '.env');
   const rootEnvPath = path.join(cwd, '.env');
 
-  console.log(`[Env] Current working directory: ${cwd}`);
-  console.log(`[Env] Looking for data/.env at: ${dataEnvPath}`);
-  console.log(`[Env] Looking for root .env at: ${rootEnvPath}`);
+  log.info('Env', 'Current working directory', { cwd });
+  log.info('Env', 'Looking for data/.env', { path: dataEnvPath });
+  log.info('Env', 'Looking for root .env', { path: rootEnvPath });
 
   // Load root .env first (lowest priority)
   if (fs.existsSync(rootEnvPath)) {
-    console.log('[Env] Loading root .env');
+    log.info('Env', 'Loading root .env');
     dotenv.config({ path: rootEnvPath });
   } else {
-    console.log('[Env] Root .env not found');
+    log.info('Env', 'Root .env not found');
   }
 
   // Load data/.env second (highest priority, overrides root .env)
   if (fs.existsSync(dataEnvPath)) {
-    console.log('[Env] Loading data/.env');
+    log.info('Env', 'Loading data/.env');
     const result = dotenv.config({ path: dataEnvPath, override: true });
     if (result.error) {
-      console.error('[Env] Error loading data/.env:', result.error);
+      log.error('Env', 'Error loading data/.env', { error: result.error });
     } else {
-      console.log('[Env] data/.env loaded successfully');
+      log.info('Env', 'data/.env loaded successfully');
     }
   } else {
-    console.log('[Env] data/.env not found');
+    log.info('Env', 'data/.env not found');
   }
 
-  console.log(`[Env] DB_TYPE after loading: ${process.env.DB_TYPE || 'not set'}`);
+  log.info('Env', 'DB_TYPE after loading', { dbType: process.env.DB_TYPE || 'not set' });
 }
 
 // Save configuration to ./data/.env (current working directory)
@@ -120,8 +121,7 @@ export function validateEnv(): void {
 
   // 如果有错误，抛出异常
   if (errors.length > 0) {
-    console.error('[Environment Validation Failed]:');
-    errors.forEach(err => console.error(`  - ${err}`));
+    log.error('Env', 'Environment Validation Failed', { errors });
     throw new Error(`Environment validation failed: ${errors.join(', ')}`);
   }
 }
@@ -133,13 +133,13 @@ export function getDbConfig(): {
   mysql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
   postgresql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
 } {
-  console.log(`[Env] getDbConfig() called, DB_TYPE=${process.env.DB_TYPE || 'not set'}`);
+  log.info('Env', 'getDbConfig() called', { dbType: process.env.DB_TYPE || 'not set' });
 
   // 在获取配置前验证环境变量
   validateEnv();
 
   const dbType = (process.env.DB_TYPE as 'sqlite' | 'mysql' | 'postgresql') || 'sqlite';
-  console.log(`[Env] Using database type: ${dbType}`);
+  log.info('Env', 'Using database type', { dbType });
 
   return {
     type: dbType,

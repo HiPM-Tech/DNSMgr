@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { log } from '../lib/logger';
 
 /**
  * Standard API response format
@@ -150,7 +151,7 @@ export const asyncHandler = (fn: Function) => (req: any, res: any, next: any) =>
  * Global error handler middleware
  */
 export function globalErrorHandler(err: Error, req: any, res: Response, _next: any): void {
-  console.error('[Error]', err);
+  log.error('Error', 'Unhandled error', { error: err });
   
   // Handle specific error types
   if (err.name === 'ValidationError') {
