@@ -160,11 +160,15 @@ function processSql(sql: string, dbType: string): string {
 
   // MySQL 兼容性处理
   if (dbType === 'mysql') {
-    // 1. 将 ON CONFLICT 转换为 ON DUPLICATE KEY UPDATE
+    // 1. 先转义保留关键字（在 ON CONFLICT 转换之前）
+    // 但跳过 ON CONFLICT 子句中的关键字
+    const keywords = ['key', 'value'];
+    
+    // 先处理 ON CONFLICT 转换（在关键字转义之前）
     // 匹配: ON CONFLICT(...) DO UPDATE SET col = excluded.col, ...
     sql = sql.replace(
-      /ON\s+CONFLICT\s*\(\s*([^)]+)\s*\)\s*DO\s+UPDATE\s+SET\s+(.+?)(?:\s*$|\s+(?=RETURNING|WHERE|ORDER|LIMIT|OFFSET))/i,
-      (match, conflictKey, updateClause) => {
+      /ON\s+CONFLICT\s*\([^)]+\)\s*DO\s+UPDATE\s+SET\s+(.+?)(?:\s*$|\s+(?=RETURNING|WHERE|ORDER|LIMIT|OFFSET))/i,
+      (match, updateClause) => {
         // 转换 excluded.col 为 VALUES(col)
         const mysqlUpdateClause = updateClause.replace(
           /excluded\.([a-zA-Z_][a-zA-Z0-9_]*)/gi,
@@ -175,7 +179,6 @@ function processSql(sql: string, dbType: string): string {
     );
 
     // 2. 转义保留关键字（仅转义作为标识符的关键字）
-    const keywords = ['key', 'value'];
     keywords.forEach(keyword => {
       // 只匹配作为独立标识符的关键字，后面不跟 BY 等 SQL 关键字
       const regex = new RegExp(`\\b${keyword}\\b(?!\\s+(?:BY|AS|FROM|WHERE|AND|OR))`, 'gi');
