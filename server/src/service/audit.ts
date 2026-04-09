@@ -1,5 +1,6 @@
 import { query, get, execute, insert, run, now } from '../db';
 import { checkAuditRules } from './auditRules';
+import { log } from '../lib/logger';
 
 export async function logAuditOperation(userId: number, action: string, domain: string, data: unknown): Promise<void> {
   await execute(
@@ -9,6 +10,6 @@ export async function logAuditOperation(userId: number, action: string, domain: 
   
   // Async check against audit rules
   checkAuditRules(userId, action, domain, data).catch(err => {
-    console.error('Audit rule engine error:', err);
+    log.error('Audit', 'Audit rule engine error', { error: err });
   });
 }

@@ -2,6 +2,7 @@ import { whoisDomain, firstResult } from 'whoiser';
 import { query, get, execute, insert, run, now } from '../db';
 import { Domain } from '../types';
 import { sendNotification } from './notification';
+import { log } from '../lib/logger';
 
 export async function checkWhoisForDomain(domainName: string): Promise<Date | null> {
   try {
@@ -16,7 +17,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<Date | nu
       if (!isNaN(d.getTime())) return d;
     }
   } catch (error) {
-    console.error(`Whois error for ${domainName}:`, error);
+    log.error('Whois', `Error for ${domainName}`, { error });
   }
   return null;
 }
@@ -48,7 +49,7 @@ export async function syncAllDomainsWhois() {
             `Your domain ${d.name} is expiring in ${daysLeft} days (on ${expiresAt.toLocaleDateString()}). Please renew it soon.`
           );
         } catch (err) {
-          console.error(`Failed to send expiration notification for ${d.name}:`, err);
+          log.error('Whois', `Failed to send expiration notification for ${d.name}`, { error: err });
         }
       }
     }
@@ -60,11 +61,11 @@ export async function syncAllDomainsWhois() {
 export function startWhoisJob() {
   // Run once on startup
   setTimeout(() => {
-    syncAllDomainsWhois().catch(console.error);
+    syncAllDomainsWhois().catch(err => log.error('Whois', 'Sync error', { error: err }));
   }, 10 * 1000);
 
   // Run once every 24 hours
   setInterval(() => {
-    syncAllDomainsWhois().catch(console.error);
+    syncAllDomainsWhois().catch(err => log.error('Whois', 'Sync error', { error: err }));
   }, 24 * 60 * 60 * 1000);
 }

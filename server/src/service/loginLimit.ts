@@ -1,5 +1,6 @@
 import { query, get, execute, insert, run, now, getDbType } from '../db';
 import { checkAuditRules } from './auditRules';
+import { log } from '../lib/logger';
 
 // Default configuration
 const DEFAULT_CONFIG = {
@@ -31,7 +32,7 @@ export async function getLoginLimitConfig(): Promise<LoginLimitConfig> {
       return { ...DEFAULT_CONFIG, ...JSON.parse((result as { value: string }).value) };
     }
   } catch (e) {
-    console.error('[LoginLimit] Failed to get config:', e);
+    log.error('LoginLimit', 'Failed to get config', { error: e });
   }
   return DEFAULT_CONFIG;
 }
@@ -96,7 +97,7 @@ export async function checkLoginAllowed(identifier: string, ipAddress: string = 
       remainingAttempts,
     };
   } catch (e) {
-    console.error('[LoginLimit] Failed to check login allowed:', e);
+    log.error('LoginLimit', 'Failed to check login allowed', { error: e });
     return { allowed: true };
   }
 }
@@ -147,7 +148,7 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
           [newCount, lockedUntil.toISOString(), attempt.id]
         );
         
-        checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => console.error(e));
+        checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => log.error('LoginLimit', 'Audit rule check failed', { error: e }));
         
         return {
           locked: true,
@@ -161,7 +162,7 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
         [newCount, attempt.id]
       );
       
-      checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => console.error(e));
+      checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => log.error('LoginLimit', 'Audit rule check failed', { error: e }));
 
       const remainingAttempts = config.maxAttempts - newCount;
       return {
@@ -182,7 +183,7 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
       };
     }
   } catch (e) {
-    console.error('[LoginLimit] Failed to record failed attempt:', e);
+    log.error('LoginLimit', 'Failed to record failed attempt', { error: e });
     return { locked: false };
   }
 }
@@ -195,7 +196,7 @@ export async function clearLoginAttempts(identifier: string): Promise<void> {
       [identifier.toLowerCase()]
     );
   } catch (e) {
-    console.error('[LoginLimit] Failed to clear attempts:', e);
+    log.error('LoginLimit', 'Failed to clear attempts', { error: e });
   }
 }
 
@@ -234,7 +235,7 @@ export async function getLoginAttemptStats(): Promise<{
       topIdentifiers,
     };
   } catch (e) {
-    console.error('[LoginLimit] Failed to get stats:', e);
+    log.error('LoginLimit', 'Failed to get stats', { error: e });
     return { totalLocked: 0, recentAttempts: 0, topIdentifiers: [] };
   }
 }

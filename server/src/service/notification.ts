@@ -1,5 +1,6 @@
 import { query, get, execute, insert, run, now } from '../db';
 import { sendSmtpEmail } from './smtp';
+import { log } from '../lib/logger';
 
 export interface NotificationChannel {
   id: string;
@@ -33,12 +34,12 @@ async function withRetry<T>(
     try {
       const result = await fn();
       if (attempt > 1) {
-        console.log(`[Notification] Success for ${channelName} on attempt ${attempt}`);
+        log.info('Notification', `Success for ${channelName} on attempt ${attempt}`);
       }
       return result;
     } catch (error) {
       lastError = error as Error;
-      console.warn(`[Notification] Attempt ${attempt}/${maxRetries} failed for ${channelName}:`, (error as Error).message);
+      log.warn('Notification', `Attempt ${attempt}/${maxRetries} failed for ${channelName}`, { error: (error as Error).message });
       
       if (attempt < maxRetries) {
         // 指数退避策略
@@ -46,13 +47,13 @@ async function withRetry<T>(
           RETRY_CONFIG.retryDelay * Math.pow(2, attempt - 1),
           RETRY_CONFIG.maxDelay
         );
-        console.log(`[Notification] Retrying ${channelName} in ${retryDelay}ms...`);
+        log.info('Notification', `Retrying ${channelName} in ${retryDelay}ms...`);
         await delay(retryDelay);
       }
     }
   }
   
-  console.error(`[Notification] All ${maxRetries} attempts failed for ${channelName}:`, lastError);
+  log.error('Notification', `All ${maxRetries} attempts failed for ${channelName}`, { error: lastError });
   return null;
 }
 
@@ -167,7 +168,7 @@ export async function sendNotification(title: string, message: string, htmlMessa
   const enabledChannels = channels.filter(c => c.enabled);
   
   if (enabledChannels.length === 0) {
-    console.log('[Notification] No enabled channels found');
+    log.info('Notification', 'No enabled channels found');
     return;
   }
   
@@ -191,12 +192,12 @@ export async function sendNotification(title: string, message: string, htmlMessa
           success = await sendDingtalkWithRetry(channel, title, message);
           break;
         default:
-          console.warn(`[Notification] Unknown channel type: ${channel.type}`);
+          log.warn('Notification', `Unknown channel type: ${channel.type}`);
       }
       
       results.push({ channel: channel.name, success });
     } catch (e) {
-      console.error(`[Notification] Unexpected error for ${channel.name} (${channel.type}):`, e);
+      log.error('Notification', `Unexpected error for ${channel.name} (${channel.type})`, { error: e });
       results.push({ channel: channel.name, success: false });
     }
   }
@@ -206,11 +207,11 @@ export async function sendNotification(title: string, message: string, htmlMessa
   const failCount = results.length - successCount;
   
   if (failCount > 0) {
-    console.warn(`[Notification] Summary: ${successCount} succeeded, ${failCount} failed`);
+    log.warn('Notification', `Summary: ${successCount} succeeded, ${failCount} failed`);
     results.filter(r => !r.success).forEach(r => {
-      console.warn(`[Notification] Failed: ${r.channel}`);
+      log.warn('Notification', `Failed: ${r.channel}`);
     });
   } else {
-    console.log(`[Notification] All ${successCount} channels succeeded`);
+    log.info('Notification', `All ${successCount} channels succeeded`);
   }
 }

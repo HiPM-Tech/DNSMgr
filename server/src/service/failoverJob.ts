@@ -1,5 +1,6 @@
 import { query, get, execute, getDbType } from '../db';
 import { getFailoverConfig, getFailoverStatus, performHealthCheck, performFailover, FailoverConfig } from './failover';
+import { log } from '../lib/logger';
 
 export function startFailoverJob() {
   setInterval(async () => {
@@ -51,7 +52,7 @@ export function startFailoverJob() {
         }
       }
     } catch (e) {
-      console.error('[Failover Job] Error:', e);
+      log.error('FailoverJob', 'Error', { error: e });
     }
   }, 10000); // check every 10 seconds, but inside we respect checkInterval
 }
