@@ -3,6 +3,11 @@
  * 
  * 项目理念：详细的日志是调试和监控的基础
  * 所有模块都应该使用此日志系统记录关键操作
+ * 
+ * 审查要求：
+ * - 日志必须包含上下文信息（模块名、函数名、行号等）
+ * - 日志必须包含详细错误信息（错误类型、错误消息、错误栈等）
+ * - 日志必须包含详细操作信息（操作类型、操作对象、操作结果等）
  */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -13,6 +18,22 @@ interface LogEntry {
   module: string;
   message: string;
   data?: unknown;
+  context?: LogContext;
+}
+
+interface LogContext {
+  function?: string;
+  line?: number;
+  column?: number;
+  file?: string;
+}
+
+interface ErrorDetails {
+  type: string;
+  message: string;
+  stack?: string;
+  code?: string | number;
+  [key: string]: unknown;
 }
 
 class Logger {
@@ -37,38 +58,91 @@ class Logger {
     return levels.indexOf(level) >= levels.indexOf(this.logLevel);
   }
 
+  private getCallerInfo(): LogContext {
+    const stack = new Error().stack;
+    if (!stack) return {};
+
+    const lines = stack.split('\n');
+    // 跳过前3行（Error、getCallerInfo、log方法本身）
+    const callerLine = lines[4] || lines[3];
+    if (!callerLine) return {};
+
+    const match = callerLine.match(/at\s+(?:(\S+)\s+\()?([^)]+)\)?/);
+    if (!match) return {};
+
+    const functionName = match[1] || 'anonymous';
+    const location = match[2];
+    
+    const locationMatch = location.match(/([^:]+):(\d+):(\d+)$/);
+    if (locationMatch) {
+      return {
+        function: functionName,
+        file: locationMatch[1],
+        line: parseInt(locationMatch[2], 10),
+        column: parseInt(locationMatch[3], 10),
+      };
+    }
+
+    return { function: functionName, file: location };
+  }
+
+  private formatError(error: unknown): ErrorDetails {
+    if (error instanceof Error) {
+      return {
+        type: error.constructor.name,
+        message: error.message,
+        stack: error.stack,
+        ...(error as any).code && { code: (error as any).code },
+      };
+    }
+    return {
+      type: typeof error,
+      message: String(error),
+    };
+  }
+
   private formatMessage(entry: LogEntry): string {
     const time = entry.timestamp;
     const level = entry.level.toUpperCase().padStart(5);
     const module = `[${entry.module}]`;
-    return `${time} ${level} ${module} ${entry.message}`;
+    const context = entry.context?.function ? ` [${entry.context.function}]` : '';
+    return `${time} ${level} ${module}${context} ${entry.message}`;
   }
 
   private log(level: LogLevel, module: string, message: string, data?: unknown): void {
     if (!this.shouldLog(level)) return;
+
+    const context = this.getCallerInfo();
+    
+    // 如果数据是错误类型，格式化为详细错误信息
+    let formattedData = data;
+    if (data instanceof Error || (data && typeof data === 'object' && 'message' in data)) {
+      formattedData = this.formatError(data);
+    }
 
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
       module,
       message,
-      data,
+      data: formattedData,
+      context,
     };
 
     const formatted = this.formatMessage(entry);
 
     switch (level) {
       case 'debug':
-        console.debug(formatted, data !== undefined ? data : '');
+        console.debug(formatted, formattedData !== undefined ? formattedData : '');
         break;
       case 'info':
-        console.info(formatted, data !== undefined ? data : '');
+        console.info(formatted, formattedData !== undefined ? formattedData : '');
         break;
       case 'warn':
-        console.warn(formatted, data !== undefined ? data : '');
+        console.warn(formatted, formattedData !== undefined ? formattedData : '');
         break;
       case 'error':
-        console.error(formatted, data !== undefined ? data : '');
+        console.error(formatted, formattedData !== undefined ? formattedData : '');
         break;
     }
   }
@@ -91,42 +165,108 @@ class Logger {
 
   // DNS Provider 专用日志方法
   logProviderRequest(provider: string, method: string, url: string, params?: unknown): void {
-    this.info(`DNS:${provider}`, `Request: ${method} ${url.substring(0, 200)}`, params);
+    this.info(`DNS:${provider}`, `Request: ${method} ${url.substring(0, 200)}`, {
+      operationType: 'DNS_REQUEST',
+      provider,
+      method,
+      url: url.substring(0, 200),
+      params,
+    });
   }
 
   logProviderResponse(provider: string, status: number, success: boolean, data?: unknown): void {
-    this.info(`DNS:${provider}`, `Response: status=${status}, success=${success}`, data);
+    this.info(`DNS:${provider}`, `Response: status=${status}, success=${success}`, {
+      operationType: 'DNS_RESPONSE',
+      provider,
+      status,
+      success,
+      data,
+    });
   }
 
   logProviderError(provider: string, error: unknown): void {
-    this.error(`DNS:${provider}`, 'API Error', error);
+    this.error(`DNS:${provider}`, 'API Error', {
+      operationType: 'DNS_ERROR',
+      provider,
+      error: this.formatError(error),
+    });
   }
 
   // 数据库操作日志
   logDbQuery(operation: string, sql: string, params?: unknown): void {
-    this.debug('DB', `${operation}: ${sql.substring(0, 100)}`, params);
+    this.debug('DB', `${operation}: ${sql.substring(0, 100)}`, {
+      operationType: 'DB_QUERY',
+      operation,
+      sql: sql.substring(0, 100),
+      params,
+    });
   }
 
   logDbError(operation: string, error: unknown): void {
-    this.error('DB', `Error in ${operation}`, error);
+    this.error('DB', `Error in ${operation}`, {
+      operationType: 'DB_ERROR',
+      operation,
+      error: this.formatError(error),
+    });
   }
 
   // HTTP 请求日志
   logHttpRequest(method: string, path: string, body?: unknown): void {
-    this.debug('HTTP', `Request: ${method} ${path}`, body);
+    this.debug('HTTP', `Request: ${method} ${path}`, {
+      operationType: 'HTTP_REQUEST',
+      method,
+      path,
+      body,
+    });
   }
 
   logHttpResponse(method: string, path: string, status: number, duration: number): void {
-    this.info('HTTP', `Response: ${method} ${path} - ${status} (${duration}ms)`);
+    this.info('HTTP', `Response: ${method} ${path} - ${status} (${duration}ms)`, {
+      operationType: 'HTTP_RESPONSE',
+      method,
+      path,
+      status,
+      duration,
+    });
   }
 
   // 业务操作日志
   logBusiness(operation: string, message: string, data?: unknown): void {
-    this.info('Business', `${operation}: ${message}`, data);
+    this.info('Business', `${operation}: ${message}`, {
+      operationType: 'BUSINESS',
+      operation,
+      ...((typeof data === 'object' && data !== null) ? data : { data }),
+    });
   }
 
   logBusinessError(operation: string, error: unknown): void {
-    this.error('Business', `Error in ${operation}`, error);
+    this.error('Business', `Error in ${operation}`, {
+      operationType: 'BUSINESS_ERROR',
+      operation,
+      error: this.formatError(error),
+    });
+  }
+
+  // 用户操作日志
+  logUserAction(userId: number, action: string, target?: string, details?: unknown): void {
+    this.info('User', `User ${userId} performed ${action}`, {
+      operationType: 'USER_ACTION',
+      userId,
+      action,
+      target,
+      details,
+    });
+  }
+
+  // 审计日志
+  logAudit(userId: number, action: string, domain: string, data?: unknown): void {
+    this.info('Audit', `User ${userId} ${action} on ${domain}`, {
+      operationType: 'AUDIT',
+      userId,
+      action,
+      domain,
+      data,
+    });
   }
 }
 
@@ -164,6 +304,14 @@ export const log = {
     logger.logBusiness(operation, message, data),
   businessError: (operation: string, error: unknown) => 
     logger.logBusinessError(operation, error),
+  
+  // User
+  userAction: (userId: number, action: string, target?: string, details?: unknown) =>
+    logger.logUserAction(userId, action, target, details),
+  
+  // Audit
+  audit: (userId: number, action: string, domain: string, data?: unknown) =>
+    logger.logAudit(userId, action, domain, data),
 };
 
 export default logger;
