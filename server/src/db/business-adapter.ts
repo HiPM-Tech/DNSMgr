@@ -160,11 +160,7 @@ function processSql(sql: string, dbType: string): string {
 
   // MySQL 兼容性处理
   if (dbType === 'mysql') {
-    // 1. 先转义保留关键字（在 ON CONFLICT 转换之前）
-    // 但跳过 ON CONFLICT 子句中的关键字
-    const keywords = ['key', 'value'];
-    
-    // 先处理 ON CONFLICT 转换（在关键字转义之前）
+    // 1. 先处理 ON CONFLICT 转换（在关键字转义之前）
     // 匹配: ON CONFLICT(...) DO UPDATE SET col = excluded.col, ...
     sql = sql.replace(
       /ON\s+CONFLICT\s*\([^)]+\)\s*DO\s+UPDATE\s+SET\s+(.+?)(?:\s*$|\s+(?=RETURNING|WHERE|ORDER|LIMIT|OFFSET))/i,
@@ -179,15 +175,31 @@ function processSql(sql: string, dbType: string): string {
     );
 
     // 2. 转义保留关键字（仅转义作为标识符的关键字）
+    // 注意：跳过已经转义的、在 ON DUPLICATE KEY UPDATE 中的、以及 SQL 关键字上下文中的
+    const keywords = ['key', 'value'];
     keywords.forEach(keyword => {
-      // 只匹配作为独立标识符的关键字，后面不跟 BY 等 SQL 关键字
-      const regex = new RegExp(`\\b${keyword}\\b(?!\\s+(?:BY|AS|FROM|WHERE|AND|OR))`, 'gi');
+      // 匹配未转义的关键字：前面不是反引号，后面也不是反引号
+      const regex = new RegExp(`(?<!")\\b${keyword}\\b(?!")`, 'gi');
       sql = sql.replace(regex, (match, offset) => {
-        // 检查是否在 ORDER BY 或 GROUP BY 上下文中
-        const beforeContext = sql.substring(Math.max(0, offset - 10), offset).toUpperCase();
-        if (beforeContext.includes('ORDER') || beforeContext.includes('GROUP')) {
-          return match; // 不转义
+        const upperSql = sql.toUpperCase();
+        const beforeContext = sql.substring(Math.max(0, offset - 20), offset).toUpperCase();
+        const afterContext = sql.substring(offset + match.length, Math.min(sql.length, offset + match.length + 20)).toUpperCase();
+        
+        // 跳过 ON DUPLICATE KEY UPDATE 中的 KEY
+        if (beforeContext.includes('ON DUPLICATE') && keyword.toLowerCase() === 'key') {
+          return match;
         }
+        
+        // 跳过 ORDER BY / GROUP BY 中的 BY
+        if (beforeContext.includes('ORDER') || beforeContext.includes('GROUP')) {
+          return match;
+        }
+        
+        // 跳过 FOREIGN KEY / PRIMARY KEY 中的 KEY
+        if (beforeContext.includes('FOREIGN') || beforeContext.includes('PRIMARY')) {
+          return match;
+        }
+        
         return `\`${keyword}\``;
       });
     });
