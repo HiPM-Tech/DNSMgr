@@ -630,11 +630,21 @@ export const SettingsOperations = {
 
   /** 设置值 */
   async set(key: string, value: string): Promise<void> {
-    return executeInternal(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
-      [key, value],
-      { operation: 'Settings.set', table: 'system_settings' }
-    );
+    const dbType = getDbType();
+    let sql: string;
+    
+    if (dbType === 'mysql') {
+      // MySQL 使用 ON DUPLICATE KEY UPDATE
+      sql = 'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = CURRENT_TIMESTAMP';
+    } else if (dbType === 'postgresql') {
+      // PostgreSQL 使用 ON CONFLICT
+      sql = 'INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP';
+    } else {
+      // SQLite 使用 ON CONFLICT
+      sql = 'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP';
+    }
+    
+    return executeInternal(sql, [key, value], { operation: 'Settings.set', table: 'system_settings' });
   },
 
   /** 获取JSON设置 */
