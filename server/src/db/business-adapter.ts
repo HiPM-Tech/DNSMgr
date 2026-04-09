@@ -15,6 +15,7 @@
 import type { SQLCompiler } from './query/compiler';
 import { getDefaultCompiler } from './query/compiler';
 import { transaction, getConnection } from './core/connection';
+import { getCurrentConnection } from './database';
 import { log } from '../lib/logger';
 
 // 本地 db 对象，避免循环依赖
@@ -555,6 +556,44 @@ export const DnsAccountOperations = {
   async delete(id: number): Promise<void> {
     return executeInternal('DELETE FROM dns_accounts WHERE id = ?', [id], { operation: 'DnsAccount.delete', table: 'dns_accounts' });
   },
+
+  /** 获取账号的创建者 */
+  async getCreatedBy(id: number): Promise<number | undefined> {
+    const result = await getInternal<{ created_by: number }>(
+      'SELECT created_by FROM dns_accounts WHERE id = ?',
+      [id],
+      { operation: 'DnsAccount.getCreatedBy', table: 'dns_accounts' }
+    );
+    return result?.created_by;
+  },
+
+  /** 根据类型获取账号 */
+  async getByType(type: string): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM dns_accounts WHERE type = ?',
+      [type],
+      { operation: 'DnsAccount.getByType', table: 'dns_accounts' }
+    );
+  },
+
+  /** 根据类型和用户获取账号 */
+  async getByTypeAndUser(type: string, userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM dns_accounts WHERE type = ? AND created_by = ?',
+      [type, userId],
+      { operation: 'DnsAccount.getByTypeAndUser', table: 'dns_accounts' }
+    );
+  },
+
+  /** 根据类型、用户或团队获取账号 */
+  async getByTypeAndUserOrTeams(type: string, userId: number, teamIds: number[]): Promise<QueryResult[]> {
+    const placeholders = teamIds.map(() => '?').join(',');
+    return queryInternal(
+      `SELECT * FROM dns_accounts WHERE type = ? AND (created_by = ? OR team_id IN (${placeholders}))`,
+      [type, userId, ...teamIds],
+      { operation: 'DnsAccount.getByTypeAndUserOrTeams', table: 'dns_accounts' }
+    );
+  },
 };
 
 // ============================================================================
@@ -621,6 +660,106 @@ export const DomainOperations = {
       'UPDATE domains SET record_count = ? WHERE id = ?',
       [count, id],
       { operation: 'Domain.updateRecordCount', table: 'domains' }
+    );
+  },
+
+  /** 根据账号ID和名称获取域名 */
+  async getByAccountIdAndName(accountId: number, name: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM domains WHERE account_id = ? AND name = ?',
+      [accountId, name],
+      { operation: 'Domain.getByAccountIdAndName', table: 'domains' }
+    );
+  },
+
+  /** 更新域名的第三方ID和记录数 */
+  async updateThirdIdAndRecordCount(id: number, thirdId: string, recordCount: number): Promise<void> {
+    return executeInternal(
+      'UPDATE domains SET third_id = ?, record_count = ? WHERE id = ?',
+      [thirdId, recordCount, id],
+      { operation: 'Domain.updateThirdIdAndRecordCount', table: 'domains' }
+    );
+  },
+
+  /** 更新域名的备注和隐藏状态 */
+  async updateRemarkAndHidden(id: number, remark?: string, isHidden?: number): Promise<void> {
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    if (remark !== undefined) { updates.push('remark = ?'); params.push(remark); }
+    if (isHidden !== undefined) { updates.push('is_hidden = ?'); params.push(isHidden); }
+    if (updates.length === 0) return;
+    params.push(id);
+    return executeInternal(
+      `UPDATE domains SET ${updates.join(', ')} WHERE id = ?`,
+      params,
+      { operation: 'Domain.updateRemarkAndHidden', table: 'domains' }
+    );
+  },
+
+  /** 获取用户可访问的域名列表（带过滤） */
+  async getAccessibleDomains(params: {
+    userId: number;
+    teamIds: number[];
+    accountId?: number;
+    keyword?: string;
+    isSuper?: boolean;
+  }): Promise<QueryResult[]> {
+    const { userId, teamIds, accountId, keyword, isSuper } = params;
+    
+    if (isSuper) {
+      let sql = 'SELECT * FROM domains WHERE 1=1';
+      const queryParams: unknown[] = [];
+      if (accountId) { sql += ' AND account_id = ?'; queryParams.push(accountId); }
+      if (keyword) { sql += ' AND name LIKE ?'; queryParams.push(`%${keyword}%`); }
+      sql += ' ORDER BY id';
+      return queryInternal(sql, queryParams, { operation: 'Domain.getAccessibleDomains.super', table: 'domains' });
+    }
+    
+    // 非超级管理员需要检查权限
+    const teamFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
+    const teamPermFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
+    
+    let sql = `SELECT d.* FROM domains d WHERE (d.account_id IN (
+      SELECT id FROM dns_accounts WHERE created_by = ? ${teamFilter}
+    ) OR d.id IN (
+      SELECT domain_id FROM domain_permissions WHERE user_id = ? ${teamPermFilter}
+    ))`;
+    
+    const queryParams: unknown[] = [userId, ...teamIds, userId, ...teamIds];
+    
+    if (accountId) { sql += ' AND d.account_id = ?'; queryParams.push(accountId); }
+    if (keyword) { sql += ' AND d.name LIKE ?'; queryParams.push(`%${keyword}%`); }
+    sql += ' ORDER BY d.id';
+    
+    return queryInternal(sql, queryParams, { operation: 'Domain.getAccessibleDomains', table: 'domains' });
+  },
+
+  /** 检查用户是否有权限访问特定域名（用于令牌权限验证） */
+  async checkUserDomainAccess(domainId: number, userId: number): Promise<boolean> {
+    const result = await getInternal<{ id: number }>(
+      `SELECT d.id FROM domains d
+       JOIN dns_accounts da ON d.account_id = da.id
+       WHERE d.id = ? AND (da.created_by = ? OR d.id IN (
+         SELECT domain_id FROM domain_permissions WHERE user_id = ?
+       ))`,
+      [domainId, userId, userId],
+      { operation: 'Domain.checkUserDomainAccess', table: 'domains' }
+    );
+    return !!result;
+  },
+
+  /** 获取用户可访问的域名列表（用于令牌创建） */
+  async getUserAccessibleDomains(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT d.id, d.name, da.name as account_name
+       FROM domains d
+       JOIN dns_accounts da ON d.account_id = da.id
+       WHERE da.created_by = ? OR d.id IN (
+         SELECT domain_id FROM domain_permissions WHERE user_id = ?
+       )
+       ORDER BY d.name`,
+      [userId, userId],
+      { operation: 'Domain.getUserAccessibleDomains', table: 'domains' }
     );
   },
 };
@@ -716,6 +855,34 @@ export const TeamOperations = {
       'DELETE FROM team_members WHERE team_id = ? AND user_id = ?',
       [teamId, userId],
       { operation: 'Team.removeMember', table: 'team_members' }
+    );
+  },
+
+  /** 更新团队成员角色 */
+  async updateMemberRole(teamId: number, userId: number, role: string): Promise<void> {
+    return executeInternal(
+      'UPDATE team_members SET role = ? WHERE team_id = ? AND user_id = ?',
+      [role, teamId, userId],
+      { operation: 'Team.updateMemberRole', table: 'team_members' }
+    );
+  },
+
+  /** 获取用户的所有团队ID */
+  async getTeamIdsByUserId(userId: number): Promise<number[]> {
+    const results = await queryInternal<{ team_id: number }>(
+      'SELECT team_id FROM team_members WHERE user_id = ?',
+      [userId],
+      { operation: 'Team.getTeamIdsByUserId', table: 'team_members' }
+    );
+    return results.map(r => r.team_id);
+  },
+
+  /** 获取团队成员及其角色 */
+  async getMemberWithRole(teamId: number, userId: number): Promise<{ id: number; role: string } | undefined> {
+    return getInternal<{ id: number; role: string }>(
+      'SELECT id, role FROM team_members WHERE team_id = ? AND user_id = ?',
+      [teamId, userId],
+      { operation: 'Team.getMemberWithRole', table: 'team_members' }
     );
   },
 };
@@ -1007,16 +1174,16 @@ export const TokenOperations = {
     );
   },
 
-  /** 根据令牌字符串获取令牌 */
-  async getByToken(token: string): Promise<QueryResult | undefined> {
-    return getInternal('SELECT * FROM user_tokens WHERE token = ?', [token], { operation: 'Token.getByToken', table: 'user_tokens' });
+  /** 根据 token_hash 获取令牌 */
+  async getByTokenHash(tokenHash: string): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM user_tokens WHERE token_hash = ?', [tokenHash], { operation: 'Token.getByTokenHash', table: 'user_tokens' });
   },
 
   /** 创建令牌 */
   async create(data: {
     user_id: number;
     name: string;
-    token: string;
+    token_hash: string;
     allowed_domains: string;
     allowed_services: string;
     start_time?: string | null;
@@ -1024,8 +1191,8 @@ export const TokenOperations = {
     max_role: number;
   }): Promise<number> {
     return insertInternal(
-      'INSERT INTO user_tokens (user_id, name, token, allowed_domains, allowed_services, start_time, end_time, max_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [data.user_id, data.name, data.token, data.allowed_domains, data.allowed_services, data.start_time ?? null, data.end_time ?? null, data.max_role],
+      'INSERT INTO user_tokens (user_id, name, token_hash, allowed_domains, allowed_services, start_time, end_time, max_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [data.user_id, data.name, data.token_hash, data.allowed_domains, data.allowed_services, data.start_time ?? null, data.end_time ?? null, data.max_role],
       { operation: 'Token.create', table: 'user_tokens' }
     );
   },
@@ -1051,6 +1218,24 @@ export const TokenOperations = {
   /** 删除令牌 */
   async delete(id: number): Promise<void> {
     return executeInternal('DELETE FROM user_tokens WHERE id = ?', [id], { operation: 'Token.delete', table: 'user_tokens' });
+  },
+
+  /** 删除指定用户的令牌 */
+  async deleteByUser(tokenId: number, userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_tokens WHERE id = ? AND user_id = ?',
+      [tokenId, userId],
+      { operation: 'Token.deleteByUser', table: 'user_tokens' }
+    );
+  },
+
+  /** 切换令牌状态（带用户验证） */
+  async toggleStatusByUser(tokenId: number, userId: number, isActive: boolean): Promise<void> {
+    return executeInternal(
+      `UPDATE user_tokens SET is_active = ? WHERE id = ? AND user_id = ?`,
+      [isActive ? 1 : 0, tokenId, userId],
+      { operation: 'Token.toggleStatusByUser', table: 'user_tokens' }
+    );
   },
 };
 
@@ -1106,8 +1291,8 @@ export const DomainPermissionOperations = {
     team_id?: number | null;
     permission: 'read' | 'write';
     sub?: string;
-  }): Promise<void> {
-    return executeInternal(
+  }): Promise<number> {
+    return insertInternal(
       'INSERT INTO domain_permissions (domain_id, user_id, team_id, permission, sub) VALUES (?, ?, ?, ?, ?)',
       [data.domain_id, data.user_id ?? null, data.team_id ?? null, data.permission, data.sub ?? null],
       { operation: 'DomainPermission.create', table: 'domain_permissions' }
@@ -1125,6 +1310,77 @@ export const DomainPermissionOperations = {
       'DELETE FROM domain_permissions WHERE domain_id = ?',
       [domainId],
       { operation: 'DomainPermission.deleteByDomainId', table: 'domain_permissions' }
+    );
+  },
+
+  /** 获取团队的域名权限列表 */
+  async getByTeamId(teamId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT dp.*, d.name as domain_name
+       FROM domain_permissions dp
+       INNER JOIN domains d ON d.id = dp.domain_id
+       WHERE dp.team_id = ?
+       ORDER BY d.name`,
+      [teamId],
+      { operation: 'DomainPermission.getByTeamId', table: 'domain_permissions' }
+    );
+  },
+
+  /** 根据团队ID、域名ID和子域名获取权限 */
+  async getByTeamDomainAndSub(teamId: number, domainId: number, sub: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id FROM domain_permissions WHERE team_id = ? AND domain_id = ? AND sub = ?',
+      [teamId, domainId, sub],
+      { operation: 'DomainPermission.getByTeamDomainAndSub', table: 'domain_permissions' }
+    );
+  },
+
+  /** 更新权限 */
+  async updatePermission(id: number, permission: 'read' | 'write'): Promise<void> {
+    return executeInternal(
+      'UPDATE domain_permissions SET permission = ? WHERE id = ?',
+      [permission, id],
+      { operation: 'DomainPermission.updatePermission', table: 'domain_permissions' }
+    );
+  },
+
+  /** 删除团队权限 */
+  async deleteByTeamAndId(id: number, teamId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM domain_permissions WHERE id = ? AND team_id = ?',
+      [id, teamId],
+      { operation: 'DomainPermission.deleteByTeamAndId', table: 'domain_permissions' }
+    );
+  },
+
+  /** 获取用户的域名权限列表（带域名名称） */
+  async getByUserIdWithDomainName(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT dp.*, d.name as domain_name
+       FROM domain_permissions dp
+       INNER JOIN domains d ON d.id = dp.domain_id
+       WHERE dp.user_id = ?
+       ORDER BY d.name`,
+      [userId],
+      { operation: 'DomainPermission.getByUserIdWithDomainName', table: 'domain_permissions' }
+    );
+  },
+
+  /** 根据用户ID、域名ID和子域名获取权限 */
+  async getByUserDomainAndSub(userId: number, domainId: number, sub: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id FROM domain_permissions WHERE user_id = ? AND domain_id = ? AND sub = ?',
+      [userId, domainId, sub],
+      { operation: 'DomainPermission.getByUserDomainAndSub', table: 'domain_permissions' }
+    );
+  },
+
+  /** 删除用户权限 */
+  async deleteByUserAndId(id: number, userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM domain_permissions WHERE id = ? AND user_id = ?',
+      [id, userId],
+      { operation: 'DomainPermission.deleteByUserAndId', table: 'domain_permissions' }
     );
   },
 };
@@ -1326,6 +1582,210 @@ export class TransactionOperations {
 }
 
 // ============================================================================
+// 系统信息业务操作
+// ============================================================================
+
+export const SystemOperations = {
+  /** 获取数据库信息（版本、驱动等） */
+  async getDatabaseInfo(): Promise<{ type: string; version: string; driverVersion: string }> {
+    const conn = getCurrentConnection();
+    
+    let dbInfo = {
+      type: 'unknown',
+      version: 'unknown',
+      driverVersion: 'unknown',
+    };
+    
+    if (conn) {
+      dbInfo.type = conn.type;
+      
+      if (conn.type === 'sqlite') {
+        // Get SQLite version
+        const sqliteConn = conn as any;
+        const versionRow = sqliteConn.prepare('SELECT sqlite_version() as version').get();
+        dbInfo.version = versionRow?.version || 'unknown';
+        dbInfo.driverVersion = require('better-sqlite3/package.json').version;
+      } else if (conn.type === 'mysql') {
+        // Get MySQL version
+        const result = await conn.get('SELECT VERSION() as version');
+        dbInfo.version = (result as { version: string })?.version || 'unknown';
+        dbInfo.driverVersion = require('mysql2/package.json').version;
+      } else if (conn.type === 'postgresql') {
+        // Get PostgreSQL version
+        const result = await conn.get('SELECT version() as version');
+        const fullVersion = (result as { version: string })?.version || 'unknown';
+        // Extract version number from string like "PostgreSQL 15.2 on ..."
+        const match = fullVersion.match(/PostgreSQL\s+(\d+\.?\d*)/);
+        dbInfo.version = match ? match[1] : fullVersion;
+        dbInfo.driverVersion = require('pg/package.json').version;
+      }
+    }
+    
+    return dbInfo;
+  },
+
+  /** 
+   * 测试 SQLite 数据库连接并检查是否有现有数据
+   * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
+   */
+  async testSqliteConnection(sqlitePath: string): Promise<{ success: boolean; message: string; hasExistingData: boolean }> {
+    const Database = require('better-sqlite3');
+    const fs = require('fs');
+    const path = require('path');
+    
+    const dir = path.dirname(sqlitePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    const testDb = new Database(sqlitePath);
+    
+    // Check if tables exist
+    let hasData = false;
+    try {
+      const tables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
+      if (tables.length > 0) {
+        // Check if there's any data
+        const firstTable = tables[0]?.name;
+        if (firstTable) {
+          const count = testDb.prepare(`SELECT COUNT(*) as cnt FROM "${firstTable}"`).get() as { cnt: number };
+          hasData = count?.cnt > 0;
+        }
+      }
+    } catch {
+      // No tables yet
+    }
+    
+    testDb.close();
+    return { success: true, message: 'SQLite connection successful', hasExistingData: hasData };
+  },
+
+  /** 
+   * 测试 MySQL 数据库连接并检查是否有现有数据
+   * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
+   */
+  async testMysqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean }> {
+    const mysql = require('mysql2/promise');
+    
+    const pool = mysql.createPool({
+      host: config.host,
+      port: config.port || 3306,
+      user: config.user,
+      password: config.password,
+      database: config.database,
+      ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+      connectionLimit: 1,
+    });
+
+    // Verify the connection is actually reachable before proceeding
+    const conn = await pool.getConnection();
+    conn.release();
+
+    // Check if there's any data
+    let hasData = false;
+    try {
+      const [tables] = await pool.execute('SHOW TABLES') as [any[], any];
+      if (tables && tables.length > 0) {
+        const firstTable = Object.values(tables[0])[0] as string;
+        if (firstTable) {
+          const [countResult] = await pool.execute(`SELECT COUNT(*) as cnt FROM \`${firstTable}\``) as [any[], any];
+          const count = countResult[0]?.cnt || 0;
+          hasData = count > 0;
+        }
+      }
+    } catch {
+      // No tables yet
+    }
+    
+    await pool.end();
+    return { success: true, message: 'MySQL connection successful', hasExistingData: hasData };
+  },
+
+  /** 
+   * 测试 PostgreSQL 数据库连接并检查是否有现有数据
+   * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
+   */
+  async testPostgresqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean }> {
+    const { Pool } = require('pg');
+    
+    const pool = new Pool({
+      host: config.host,
+      port: config.port || 5432,
+      user: config.user,
+      password: config.password,
+      database: config.database,
+      ssl: config.ssl ? { rejectUnauthorized: false } : false,
+      max: 1,
+    });
+
+    // Verify the connection is actually reachable before proceeding
+    const client = await pool.connect();
+    client.release();
+
+    // Check if there's any data
+    let hasData = false;
+    try {
+      const tablesResult = await pool.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+      `);
+      const tables = tablesResult.rows as { table_name: string }[];
+      if (tables && tables.length > 0) {
+        const firstTable = tables[0]?.table_name;
+        if (firstTable) {
+          const countResult = await pool.query(`SELECT COUNT(*) as cnt FROM "${firstTable}"`);
+          const count = countResult.rows[0]?.cnt || 0;
+          hasData = count > 0;
+        }
+      }
+    } catch {
+      // No tables yet
+    }
+    
+    await pool.end();
+    return { success: true, message: 'PostgreSQL connection successful', hasExistingData: hasData };
+  },
+};
+
+// ============================================================================
+// 运行时密钥业务操作
+// ============================================================================
+
+export const SecretOperations = {
+  /** 获取运行时密钥 */
+  async getRuntimeSecret(key: string): Promise<string | undefined> {
+    const row = await getInternal<{ value: string }>(
+      'SELECT value FROM runtime_secrets WHERE key = ?',
+      [key],
+      { operation: 'Secret.getRuntimeSecret', table: 'runtime_secrets' }
+    );
+    return row?.value;
+  },
+
+  /** 确保运行时密钥表存在 */
+  async ensureRuntimeSecretsTable(): Promise<void> {
+    return executeInternal(
+      `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      [],
+      { operation: 'Secret.ensureRuntimeSecretsTable', table: 'runtime_secrets' }
+    );
+  },
+
+  /** 设置运行时密钥 */
+  async setRuntimeSecret(key: string, value: string): Promise<void> {
+    return executeInternal(
+      'INSERT INTO runtime_secrets (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      [key, value],
+      { operation: 'Secret.setRuntimeSecret', table: 'runtime_secrets' }
+    );
+  },
+};
+
+// ============================================================================
 // 导出默认对象（兼容旧代码）
 // ============================================================================
 
@@ -1358,4 +1818,6 @@ export default {
   Team: TeamOperations,
   Settings: SettingsOperations,
   Audit: AuditOperations,
+  Token: TokenOperations,
+  Secret: SecretOperations,
 };
