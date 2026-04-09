@@ -15,6 +15,7 @@
 import type { SQLCompiler } from './query/compiler';
 import { getDefaultCompiler } from './query/compiler';
 import { transaction, getConnection } from './core/connection';
+import { log } from '../lib/logger';
 
 // 本地 db 对象，避免循环依赖
 const db = {
@@ -56,9 +57,6 @@ const db = {
 /** 查询结果类型 */
 export type QueryResult = Record<string, unknown>;
 
-/** 日志级别 */
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-
 /** 业务操作上下文 */
 interface OperationContext {
   operation: string;
@@ -68,24 +66,17 @@ interface OperationContext {
 }
 
 // ============================================================================
-// 日志系统
+// 日志系统 - 使用统一日志模块
 // ============================================================================
-
-/** 日志记录函数 */
-function log(level: LogLevel, message: string, meta?: Record<string, unknown>): void {
-  const timestamp = new Date().toISOString();
-  const metaStr = meta ? ` ${JSON.stringify(meta)}` : '';
-  console[level](`[${timestamp}] [BusinessAdapter] [${level.toUpperCase()}] ${message}${metaStr}`);
-}
 
 /** 创建操作日志上下文 */
 function createOperationLogger(context: OperationContext) {
   return {
-    start: () => log('debug', `Starting ${context.operation}`, { table: context.table, userId: context.userId }),
+    start: () => log.debug('BusinessAdapter', `Starting ${context.operation}`, { table: context.table, userId: context.userId }),
     success: (duration: number, meta?: Record<string, unknown>) => 
-      log('info', `${context.operation} completed`, { ...meta, duration: `${duration}ms`, table: context.table }),
+      log.info('BusinessAdapter', `${context.operation} completed`, { ...meta, duration: `${duration}ms`, table: context.table }),
     error: (error: unknown, duration: number) => 
-      log('error', `${context.operation} failed`, { error: String(error), duration: `${duration}ms`, table: context.table }),
+      log.error('BusinessAdapter', `${context.operation} failed`, { error, duration: `${duration}ms`, table: context.table }),
   };
 }
 
@@ -123,7 +114,7 @@ function processSql(sql: string, dbType: string): string {
   }
 
   if (sql !== originalSql) {
-    log('debug', 'SQL processed', { original: originalSql, processed: sql });
+    log.debug('BusinessAdapter', 'SQL processed', { original: originalSql, processed: sql });
   }
 
   return sql;
@@ -134,12 +125,12 @@ async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], c
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log('debug', 'Executing query', { sql: processedSql, params, operation: context?.operation });
+  log.debug('BusinessAdapter', 'Executing query', { sql: processedSql, params, operation: context?.operation });
   
   try {
     const results = await db.query<T>(processedSql, params);
     const duration = Date.now() - startTime;
-    log('info', `Query executed`, { 
+    log.info('BusinessAdapter', `Query executed`, { 
       sql: processedSql.substring(0, 100), 
       rowCount: results.length,
       duration: `${duration}ms`,
@@ -148,10 +139,10 @@ async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], c
     return results;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log('error', 'Query failed', { 
+    log.error('BusinessAdapter', 'Query failed', { 
       sql: processedSql, 
       params, 
-      error: String(error),
+      error,
       duration: `${duration}ms`,
       operation: context?.operation
     });
@@ -164,12 +155,12 @@ async function getInternal<T = QueryResult>(sql: string, params?: unknown[], con
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log('debug', 'Executing get', { sql: processedSql, params, operation: context?.operation });
+  log.debug('BusinessAdapter', 'Executing get', { sql: processedSql, params, operation: context?.operation });
   
   try {
     const result = await db.get<T>(processedSql, params);
     const duration = Date.now() - startTime;
-    log('info', `Get executed`, { 
+    log.info('BusinessAdapter', `Get executed`, { 
       sql: processedSql.substring(0, 100), 
       found: result !== undefined,
       duration: `${duration}ms`,
@@ -178,10 +169,10 @@ async function getInternal<T = QueryResult>(sql: string, params?: unknown[], con
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log('error', 'Get failed', { 
+    log.error('BusinessAdapter', 'Get failed', { 
       sql: processedSql, 
       params, 
-      error: String(error),
+      error,
       duration: `${duration}ms`,
       operation: context?.operation
     });
@@ -194,22 +185,22 @@ async function executeInternal(sql: string, params?: unknown[], context?: Operat
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log('debug', 'Executing command', { sql: processedSql, params, operation: context?.operation });
+  log.debug('BusinessAdapter', 'Executing command', { sql: processedSql, params, operation: context?.operation });
   
   try {
     await db.execute(processedSql, params);
     const duration = Date.now() - startTime;
-    log('info', `Command executed`, { 
+    log.info('BusinessAdapter', `Command executed`, { 
       sql: processedSql.substring(0, 100),
       duration: `${duration}ms`,
       operation: context?.operation
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    log('error', 'Command failed', { 
+    log.error('BusinessAdapter', 'Command failed', { 
       sql: processedSql, 
       params, 
-      error: String(error),
+      error,
       duration: `${duration}ms`,
       operation: context?.operation
     });
@@ -222,12 +213,12 @@ async function insertInternal(sql: string, params?: unknown[], context?: Operati
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log('debug', 'Executing insert', { sql: processedSql, params, operation: context?.operation });
+  log.debug('BusinessAdapter', 'Executing insert', { sql: processedSql, params, operation: context?.operation });
   
   try {
     const id = await db.insert(processedSql, params);
     const duration = Date.now() - startTime;
-    log('info', `Insert executed`, { 
+    log.info('BusinessAdapter', `Insert executed`, { 
       sql: processedSql.substring(0, 100), 
       insertId: id,
       duration: `${duration}ms`,
@@ -236,10 +227,10 @@ async function insertInternal(sql: string, params?: unknown[], context?: Operati
     return id;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log('error', 'Insert failed', { 
+    log.error('BusinessAdapter', 'Insert failed', { 
       sql: processedSql, 
       params, 
-      error: String(error),
+      error,
       duration: `${duration}ms`,
       operation: context?.operation
     });
@@ -252,12 +243,12 @@ async function runInternal(sql: string, params?: unknown[], context?: OperationC
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log('debug', 'Executing run', { sql: processedSql, params, operation: context?.operation });
+  log.debug('BusinessAdapter', 'Executing run', { sql: processedSql, params, operation: context?.operation });
   
   try {
     const result = await db.run(processedSql, params);
     const duration = Date.now() - startTime;
-    log('info', `Run executed`, { 
+    log.info('BusinessAdapter', `Run executed`, { 
       sql: processedSql.substring(0, 100), 
       changes: result.changes,
       duration: `${duration}ms`,
@@ -266,10 +257,10 @@ async function runInternal(sql: string, params?: unknown[], context?: OperationC
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log('error', 'Run failed', { 
+    log.error('BusinessAdapter', 'Run failed', { 
       sql: processedSql, 
       params, 
-      error: String(error),
+      error,
       duration: `${duration}ms`,
       operation: context?.operation
     });
@@ -724,7 +715,7 @@ export const AuditOperations = {
 
 /** 在事务中执行函数 */
 export async function withTransaction<T>(fn: (trx: TransactionOperations) => Promise<T>): Promise<T> {
-  log('info', 'Starting transaction block');
+  log.info('BusinessAdapter', 'Starting transaction block');
   const startTime = Date.now();
   
   try {
@@ -740,11 +731,11 @@ export async function withTransaction<T>(fn: (trx: TransactionOperations) => Pro
     });
     
     const duration = Date.now() - startTime;
-    log('info', `Transaction block completed`, { duration: `${duration}ms` });
+    log.info('BusinessAdapter', `Transaction block completed`, { duration: `${duration}ms` });
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log('error', 'Transaction block failed', { error: String(error), duration: `${duration}ms` });
+    log.error('BusinessAdapter', 'Transaction block failed', { error, duration: `${duration}ms` });
     throw error;
   }
 }
@@ -765,31 +756,31 @@ export class TransactionOperations {
 
   async query<T = QueryResult>(sql: string, params?: unknown[]): Promise<T[]> {
     const processedSql = processSql(sql, db.type);
-    log('debug', '[Transaction] Executing query', { sql: processedSql });
+    log.debug('BusinessAdapter', '[Transaction] Executing query', { sql: processedSql });
     return this.trx.query<T>(processedSql, params);
   }
 
   async get<T = QueryResult>(sql: string, params?: unknown[]): Promise<T | undefined> {
     const processedSql = processSql(sql, db.type);
-    log('debug', '[Transaction] Executing get', { sql: processedSql });
+    log.debug('BusinessAdapter', '[Transaction] Executing get', { sql: processedSql });
     return this.trx.get<T>(processedSql, params);
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
     const processedSql = processSql(sql, db.type);
-    log('debug', '[Transaction] Executing execute', { sql: processedSql });
+    log.debug('BusinessAdapter', '[Transaction] Executing execute', { sql: processedSql });
     return this.trx.execute(processedSql, params);
   }
 
   async insert(sql: string, params?: unknown[]): Promise<number> {
     const processedSql = processSql(sql, db.type);
-    log('debug', '[Transaction] Executing insert', { sql: processedSql });
+    log.debug('BusinessAdapter', '[Transaction] Executing insert', { sql: processedSql });
     return this.trx.insert(processedSql, params);
   }
 
   async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
     const processedSql = processSql(sql, db.type);
-    log('debug', '[Transaction] Executing run', { sql: processedSql });
+    log.debug('BusinessAdapter', '[Transaction] Executing run', { sql: processedSql });
     return this.trx.run(processedSql, params);
   }
 }
