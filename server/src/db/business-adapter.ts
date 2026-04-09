@@ -858,6 +858,309 @@ export const DomainExpiryOperations = {
 };
 
 // ============================================================================
+// OAuth 用户链接业务操作
+// ============================================================================
+
+export const OAuthOperations = {
+  /** 根据 provider 和 subject 获取用户链接 */
+  async getByProviderSubject(provider: string, subject: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM oauth_user_links WHERE provider = ? AND subject = ?',
+      [provider, subject],
+      { operation: 'OAuth.getByProviderSubject', table: 'oauth_user_links' }
+    );
+  },
+
+  /** 获取用户的所有 OAuth 绑定 */
+  async getByUserId(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT provider, subject, email, created_at FROM oauth_user_links WHERE user_id = ? ORDER BY id DESC',
+      [userId],
+      { operation: 'OAuth.getByUserId', table: 'oauth_user_links' }
+    );
+  },
+
+  /** 创建 OAuth 用户链接 */
+  async create(userId: number, provider: string, subject: string, email: string): Promise<void> {
+    return executeInternal(
+      'INSERT INTO oauth_user_links (user_id, provider, subject, email) VALUES (?, ?, ?, ?)',
+      [userId, provider, subject, email],
+      { operation: 'OAuth.create', table: 'oauth_user_links' }
+    );
+  },
+
+  /** 删除 OAuth 用户链接 */
+  async delete(userId: number, provider: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM oauth_user_links WHERE user_id = ? AND provider = ?',
+      [userId, provider],
+      { operation: 'OAuth.delete', table: 'oauth_user_links' }
+    );
+  },
+};
+
+// ============================================================================
+// API 令牌业务操作
+// ============================================================================
+
+export const TokenOperations = {
+  /** 根据 ID 获取令牌 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM user_tokens WHERE id = ?', [id], { operation: 'Token.getById', table: 'user_tokens' });
+  },
+
+  /** 获取用户的所有令牌 */
+  async getByUserId(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM user_tokens WHERE user_id = ? ORDER BY created_at DESC',
+      [userId],
+      { operation: 'Token.getByUserId', table: 'user_tokens' }
+    );
+  },
+
+  /** 根据令牌字符串获取令牌 */
+  async getByToken(token: string): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM user_tokens WHERE token = ?', [token], { operation: 'Token.getByToken', table: 'user_tokens' });
+  },
+
+  /** 创建令牌 */
+  async create(data: {
+    user_id: number;
+    name: string;
+    token: string;
+    allowed_domains: string;
+    allowed_services: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    max_role: number;
+  }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO user_tokens (user_id, name, token, allowed_domains, allowed_services, start_time, end_time, max_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [data.user_id, data.name, data.token, data.allowed_domains, data.allowed_services, data.start_time ?? null, data.end_time ?? null, data.max_role],
+      { operation: 'Token.create', table: 'user_tokens' }
+    );
+  },
+
+  /** 更新令牌状态 */
+  async updateStatus(id: number, isActive: boolean): Promise<void> {
+    return executeInternal(
+      'UPDATE user_tokens SET is_active = ? WHERE id = ?',
+      [isActive ? 1 : 0, id],
+      { operation: 'Token.updateStatus', table: 'user_tokens' }
+    );
+  },
+
+  /** 更新最后使用时间 */
+  async updateLastUsed(id: number): Promise<void> {
+    return executeInternal(
+      'UPDATE user_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [id],
+      { operation: 'Token.updateLastUsed', table: 'user_tokens' }
+    );
+  },
+
+  /** 删除令牌 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM user_tokens WHERE id = ?', [id], { operation: 'Token.delete', table: 'user_tokens' });
+  },
+};
+
+// ============================================================================
+// 域名权限业务操作
+// ============================================================================
+
+export const DomainPermissionOperations = {
+  /** 获取域名的所有权限规则 */
+  async getByDomainId(domainId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM domain_permissions WHERE domain_id = ?',
+      [domainId],
+      { operation: 'DomainPermission.getByDomainId', table: 'domain_permissions' }
+    );
+  },
+
+  /** 获取用户的域名权限 */
+  async getByDomainAndUser(domainId: number, userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT permission, sub FROM domain_permissions WHERE domain_id = ? AND user_id = ?',
+      [domainId, userId],
+      { operation: 'DomainPermission.getByDomainAndUser', table: 'domain_permissions' }
+    );
+  },
+
+  /** 获取用户的团队域名权限 */
+  async getByDomainAndTeamMember(domainId: number, userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT dp.permission, dp.sub
+       FROM domain_permissions dp
+       INNER JOIN team_members tm ON tm.team_id = dp.team_id
+       WHERE dp.domain_id = ? AND tm.user_id = ?`,
+      [domainId, userId],
+      { operation: 'DomainPermission.getByDomainAndTeamMember', table: 'domain_permissions' }
+    );
+  },
+
+  /** 检查域名是否有权限规则 */
+  async hasRules(domainId: number): Promise<boolean> {
+    const result = await getInternal<{ cnt: number }>(
+      'SELECT COUNT(*) as cnt FROM domain_permissions WHERE domain_id = ?',
+      [domainId],
+      { operation: 'DomainPermission.hasRules', table: 'domain_permissions' }
+    );
+    return (result?.cnt || 0) > 0;
+  },
+
+  /** 创建权限规则 */
+  async create(data: {
+    domain_id: number;
+    user_id?: number | null;
+    team_id?: number | null;
+    permission: 'read' | 'write';
+    sub?: string;
+  }): Promise<void> {
+    return executeInternal(
+      'INSERT INTO domain_permissions (domain_id, user_id, team_id, permission, sub) VALUES (?, ?, ?, ?, ?)',
+      [data.domain_id, data.user_id ?? null, data.team_id ?? null, data.permission, data.sub ?? null],
+      { operation: 'DomainPermission.create', table: 'domain_permissions' }
+    );
+  },
+
+  /** 删除权限规则 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM domain_permissions WHERE id = ?', [id], { operation: 'DomainPermission.delete', table: 'domain_permissions' });
+  },
+
+  /** 删除域名的所有权限 */
+  async deleteByDomainId(domainId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM domain_permissions WHERE domain_id = ?',
+      [domainId],
+      { operation: 'DomainPermission.deleteByDomainId', table: 'domain_permissions' }
+    );
+  },
+};
+
+// ============================================================================
+// DNS 记录业务操作
+// ============================================================================
+
+export const RecordOperations = {
+  /** 根据 ID 获取记录 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM records WHERE id = ?', [id], { operation: 'Record.getById', table: 'records' });
+  },
+
+  /** 获取域名的所有记录 */
+  async getByDomainId(domainId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM records WHERE domain_id = ? ORDER BY id',
+      [domainId],
+      { operation: 'Record.getByDomainId', table: 'records' }
+    );
+  },
+
+  /** 创建记录 */
+  async create(data: {
+    domain_id: number;
+    name: string;
+    type: string;
+    content: string;
+    ttl?: number;
+    priority?: number;
+    third_id?: string;
+  }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO records (domain_id, name, type, content, ttl, priority, third_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [data.domain_id, data.name, data.type, data.content, data.ttl ?? 3600, data.priority ?? 0, data.third_id ?? null],
+      { operation: 'Record.create', table: 'records' }
+    );
+  },
+
+  /** 更新记录 */
+  async update(id: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+
+    return executeInternal(
+      `UPDATE records SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'Record.update', table: 'records' }
+    );
+  },
+
+  /** 删除记录 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM records WHERE id = ?', [id], { operation: 'Record.delete', table: 'records' });
+  },
+
+  /** 删除域名的所有记录 */
+  async deleteByDomainId(domainId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM records WHERE domain_id = ?',
+      [domainId],
+      { operation: 'Record.deleteByDomainId', table: 'records' }
+    );
+  },
+};
+
+// ============================================================================
+// 邮件模板业务操作
+// ============================================================================
+
+export const EmailTemplateOperations = {
+  /** 获取所有模板 */
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM email_templates ORDER BY id',
+      [],
+      { operation: 'EmailTemplate.getAll', table: 'email_templates' }
+    );
+  },
+
+  /** 根据 ID 获取模板 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM email_templates WHERE id = ?', [id], { operation: 'EmailTemplate.getById', table: 'email_templates' });
+  },
+
+  /** 根据类型获取模板 */
+  async getByType(type: string): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM email_templates WHERE type = ?', [type], { operation: 'EmailTemplate.getByType', table: 'email_templates' });
+  },
+
+  /** 创建模板 */
+  async create(data: { type: string; subject: string; body: string }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO email_templates (type, subject, body) VALUES (?, ?, ?)',
+      [data.type, data.subject, data.body],
+      { operation: 'EmailTemplate.create', table: 'email_templates' }
+    );
+  },
+
+  /** 更新模板 */
+  async update(id: number, updates: { subject?: string; body?: string }): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+
+    return executeInternal(
+      `UPDATE email_templates SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'EmailTemplate.update', table: 'email_templates' }
+    );
+  },
+
+  /** 删除模板 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM email_templates WHERE id = ?', [id], { operation: 'EmailTemplate.delete', table: 'email_templates' });
+  },
+};
+
+// ============================================================================
 // 事务支持
 // ============================================================================
 
