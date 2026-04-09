@@ -235,16 +235,17 @@ jobs:
           </html>
           EOF
 
+      - name: Install dependencies
+        run: |
+          npm install markdown-it markdown-it-anchor markdown-it-table-of-contents
+
       - name: Convert Markdown to HTML
         run: |
-          # 安装 markdown-it 和 highlight.js
-          npm install -g markdown-it markdown-it-anchor markdown-it-table-of-contents
-          
           # 创建转换脚本
           cat > convert.js << 'EOF'
           const fs = require('fs');
           const path = require('path');
-          const MarkdownIt = require('markdown-it');
+          const MarkdownIt = require('./node_modules/markdown-it');
 
           const md = new MarkdownIt({
               html: true,
@@ -256,8 +257,8 @@ jobs:
           });
 
           // 添加目录支持
-          md.use(require('markdown-it-anchor'));
-          md.use(require('markdown-it-table-of-contents'));
+          md.use(require('./node_modules/markdown-it-anchor'));
+          md.use(require('./node_modules/markdown-it-table-of-contents'));
 
           function convertFile(inputPath, outputPath) {
               const content = fs.readFileSync(inputPath, 'utf-8');
