@@ -1,31 +1,20 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { Team, TeamMember } from '../types';
-import { isAdmin, isSuper } from '../utils/roles';
-import { parseInteger, sendError, sendSuccess } from '../utils/http';
+import { ROLE_ADMIN, isAdmin, isSuper } from '../utils/roles';
+import { logAuditOperation } from '../service/audit';
+import { sendError, sendSuccess } from '../utils/http';
+import { log } from '../lib/logger';
+import { TeamOperations, DomainPermissionOperations, UserOperations } from '../db/business-adapter';
 
 const router = Router();
-
-async function getTeamAndMember(teamId: number, userId: number): Promise<{ team: Team | null; member: TeamMember | null }> {
-  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [teamId]);
-  if (!team) return { team: null, member: null };
-  const member = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, userId]);
-  return { team, member: member ?? null };
-}
-
-function normalizeSubInput(sub?: string): string {
-  const trimmed = (sub ?? '').trim().toLowerCase();
-  if (trimmed === '@') return '@';
-  return trimmed;
-}
 
 /**
  * @swagger
  * /api/teams:
  *   get:
- *     summary: List teams for current user
+ *     summary: Get teams list
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
@@ -34,25 +23,32 @@ function normalizeSubInput(sub?: string): string {
  *         description: List of teams
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  let teams: unknown[];
-  if (isSuper(req.user?.role)) {
-    teams = await db.query('SELECT * FROM teams ORDER BY id');
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  let teams: Team[];
+  if (isSuper(role)) {
+    teams = await TeamOperations.getAll() as unknown as Team[];
   } else {
-    teams = await db.query(
-      `SELECT t.* FROM teams t
-       INNER JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
-       ORDER BY t.id`,
-      [req.user!.userId]
-    );
+    teams = await TeamOperations.getByUserId(userId) as unknown as Team[];
   }
-  sendSuccess(res, teams);
+  
+  // Get member count for each team
+  const teamsWithCount = await Promise.all(
+    teams.map(async (team) => {
+      const members = await TeamOperations.getMembers(team.id) as unknown as TeamMember[];
+      return { ...team, member_count: members.length };
+    })
+  );
+  
+  sendSuccess(res, teamsWithCount);
 }));
 
 /**
  * @swagger
  * /api/teams:
  *   post:
- *     summary: Create a team
+ *     summary: Create a new team
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
@@ -73,26 +69,32 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
  *         description: Team created
  */
 router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  if (!isAdmin(req.user?.role)) {
-    sendError(res, 'Permission denied');
-    return;
-  }
-  const { name, description = '' } = req.body as { name: string; description?: string };
-  if (!name) {
+  const { name, description } = req.body as { name: string; description?: string };
+  const userId = req.user!.userId;
+  
+  if (!name || name.trim().length === 0) {
     sendError(res, 'Team name is required');
     return;
   }
-  const userId = req.user!.userId;
-  const teamId = await db.insert('INSERT INTO teams (name, description, created_by) VALUES (?, ?, ?)', [name, description, userId]);
-  await db.execute('INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)', [teamId, userId, 'owner']);
-  sendSuccess(res, { id: teamId });
+  
+  const id = await TeamOperations.create({
+    name: name.trim(),
+    description: description?.trim() || '',
+    created_by: userId,
+  });
+  
+  // Add creator as admin
+  await TeamOperations.addMember(id, userId, 'admin');
+  
+  await logAuditOperation(userId, 'create_team', name.trim(), { teamId: id });
+  sendSuccess(res, { id }, 'Team created successfully');
 }));
 
 /**
  * @swagger
  * /api/teams/{id}:
  *   get:
- *     summary: Get team details with members
+ *     summary: Get team details
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
@@ -107,18 +109,25 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
  *         description: Team details
  */
 router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const id = parseInteger(req.params.id) ?? 0;
-  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [id]);
+  const teamId = parseInt(req.params.id);
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
-    sendError(res, 'Team not found');
+    sendError(res, 'Team not found', 404);
     return;
   }
-  const members = await db.query(
-    `SELECT tm.*, u.username, u.nickname, u.email FROM team_members tm
-     INNER JOIN users u ON u.id = tm.user_id
-     WHERE tm.team_id = ?`,
-    [id]
-  );
+  
+  // Check if user is member
+  const isMember = await TeamOperations.isMember(teamId, userId);
+  if (!isSuper(role) && !isMember) {
+    sendError(res, 'Access denied', 403);
+    return;
+  }
+  
+  const members = await TeamOperations.getMembers(teamId) as unknown as TeamMember[];
+  
   sendSuccess(res, { ...team, members });
 }));
 
@@ -126,7 +135,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  * @swagger
  * /api/teams/{id}:
  *   put:
- *     summary: Update team (owner only)
+ *     summary: Update team
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
@@ -152,28 +161,31 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  *         description: Team updated
  */
 router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const id = parseInteger(req.params.id) ?? 0;
-  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [id]);
-  if (!team) {
-    sendError(res, 'Team not found');
-    return;
-  }
-  const member = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [id, req.user!.userId]);
-  if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    sendError(res, 'Only team owner or admin can update team');
-    return;
-  }
+  const teamId = parseInt(req.params.id);
   const { name, description } = req.body as { name?: string; description?: string };
-  const updates: string[] = [];
-  const params: unknown[] = [];
-  if (name !== undefined) { updates.push('name = ?'); params.push(name); }
-  if (description !== undefined) { updates.push('description = ?'); params.push(description); }
-  if (updates.length === 0) {
-    sendSuccess(res);
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
+  if (!team) {
+    sendError(res, 'Team not found', 404);
     return;
   }
-  params.push(id);
-  await db.execute(`UPDATE teams SET ${updates.join(', ')} WHERE id = ?`, params);
+  
+  // Check permission (admin or creator)
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
+    return;
+  }
+  
+  const updates: { name?: string; description?: string } = {};
+  if (name !== undefined) updates.name = name.trim();
+  if (description !== undefined) updates.description = description.trim();
+  
+  await TeamOperations.update(teamId, updates);
+  
+  await logAuditOperation(userId, 'update_team', team.name, { teamId, ...updates });
   sendSuccess(res);
 }));
 
@@ -181,7 +193,7 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  * @swagger
  * /api/teams/{id}:
  *   delete:
- *     summary: Delete team (admin or owner)
+ *     summary: Delete team
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
@@ -196,18 +208,25 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  *         description: Team deleted
  */
 router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const id = parseInteger(req.params.id) ?? 0;
-  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [id]);
+  const teamId = parseInt(req.params.id);
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
-    sendError(res, 'Team not found');
+    sendError(res, 'Team not found', 404);
     return;
   }
-  const member = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [id, req.user!.userId]);
-  if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    sendError(res, 'Only team owner or admin can delete team');
+  
+  // Only super admin or creator can delete
+  if (!isSuper(role) && team.created_by !== userId) {
+    sendError(res, 'Permission denied', 403);
     return;
   }
-  await db.execute('DELETE FROM teams WHERE id = ?', [id]);
+  
+  await TeamOperations.delete(teamId);
+  
+  await logAuditOperation(userId, 'delete_team', team.name, { teamId });
   sendSuccess(res);
 }));
 
@@ -215,7 +234,7 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
  * @swagger
  * /api/teams/{id}/members:
  *   get:
- *     summary: List members of a team
+ *     summary: Get team members
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
@@ -227,21 +246,27 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
  *           type: integer
  *     responses:
  *       200:
- *         description: List of team members
+ *         description: List of members
  */
 router.get('/:id/members', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const teamId = parseInteger(req.params.id) ?? 0;
-  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [teamId]);
+  const teamId = parseInt(req.params.id);
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
-    sendError(res, 'Team not found');
+    sendError(res, 'Team not found', 404);
     return;
   }
-  const members = await db.query(
-    `SELECT tm.*, u.username, u.nickname, u.email FROM team_members tm
-     INNER JOIN users u ON u.id = tm.user_id
-     WHERE tm.team_id = ?`,
-    [teamId]
-  );
+  
+  // Check if user is member
+  const isMember = await TeamOperations.isMember(teamId, userId);
+  if (!isSuper(role) && !isMember) {
+    sendError(res, 'Access denied', 403);
+    return;
+  }
+  
+  const members = await TeamOperations.getMembers(teamId) as unknown as TeamMember[];
   sendSuccess(res, members);
 }));
 
@@ -265,40 +290,120 @@ router.get('/:id/members', authMiddleware, asyncHandler(async (req: Request, res
  *         application/json:
  *           schema:
  *             type: object
- *             required: [userId]
+ *             required: [user_id, role]
  *             properties:
- *               userId:
+ *               user_id:
  *                 type: integer
  *               role:
  *                 type: string
- *                 enum: [owner, member]
+ *                 enum: [admin, member]
  *     responses:
  *       200:
  *         description: Member added
  */
 router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const teamId = parseInteger(req.params.id) ?? 0;
-  const team = await db.get<Team>('SELECT * FROM teams WHERE id = ?', [teamId]);
+  const teamId = parseInt(req.params.id);
+  const { user_id, role: memberRole } = req.body as { user_id: number; role: 'admin' | 'member' };
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
-    sendError(res, 'Team not found');
+    sendError(res, 'Team not found', 404);
     return;
   }
-  const callerMember = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, req.user!.userId]);
-  if (!isSuper(req.user?.role) && callerMember?.role !== 'owner') {
-    sendError(res, 'Only team owner or admin can add members');
+  
+  // Check permission (admin or creator)
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
     return;
   }
-  const { userId, role = 'member' } = req.body as { userId: number; role?: string };
-  if (!userId) {
-    sendError(res, 'userId is required');
+  
+  // Check if user exists
+  const targetUser = await UserOperations.getById(user_id);
+  if (!targetUser) {
+    sendError(res, 'User not found');
     return;
   }
-  try {
-    await db.execute('INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)', [teamId, userId, role]);
-    sendSuccess(res);
-  } catch {
-    sendError(res, 'User already in team');
+  
+  // Check if already member
+  const isAlreadyMember = await TeamOperations.isMember(teamId, user_id);
+  if (isAlreadyMember) {
+    sendError(res, 'User is already a member of this team');
+    return;
   }
+  
+  await TeamOperations.addMember(teamId, user_id, memberRole || 'member');
+  
+  await logAuditOperation(userId, 'add_team_member', team.name, { teamId, targetUserId: user_id, role: memberRole });
+  sendSuccess(res);
+}));
+
+/**
+ * @swagger
+ * /api/teams/{id}/members/{userId}:
+ *   put:
+ *     summary: Update member role
+ *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [role]
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [admin, member]
+ *     responses:
+ *       200:
+ *         description: Member role updated
+ */
+router.put('/:id/members/:userId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInt(req.params.id);
+  const targetUserId = parseInt(req.params.userId);
+  const { role: newRole } = req.body as { role: 'admin' | 'member' };
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
+  if (!team) {
+    sendError(res, 'Team not found', 404);
+    return;
+  }
+  
+  // Check permission (admin or creator)
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
+    return;
+  }
+  
+  // Cannot change own role
+  if (targetUserId === userId) {
+    sendError(res, 'Cannot change your own role');
+    return;
+  }
+  
+  await TeamOperations.updateMemberRole(teamId, targetUserId, newRole);
+  
+  await logAuditOperation(userId, 'update_team_member_role', team.name, { teamId, targetUserId, newRole });
+  sendSuccess(res);
 }));
 
 /**
@@ -325,22 +430,41 @@ router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, re
  *         description: Member removed
  */
 router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const teamId = parseInteger(req.params.id) ?? 0;
-  const targetUserId = parseInteger(req.params.userId) ?? 0;
-  const callerMember = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, req.user!.userId]);
-  if (!isSuper(req.user?.role) && callerMember?.role !== 'owner') {
-    sendError(res, 'Only team owner or admin can remove members');
+  const teamId = parseInt(req.params.id);
+  const targetUserId = parseInt(req.params.userId);
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
+  if (!team) {
+    sendError(res, 'Team not found', 404);
     return;
   }
-  await db.execute('DELETE FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]);
+  
+  // Check permission (admin or creator)
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
+    return;
+  }
+  
+  // Cannot remove creator
+  if (targetUserId === team.created_by) {
+    sendError(res, 'Cannot remove team creator');
+    return;
+  }
+  
+  await TeamOperations.removeMember(teamId, targetUserId);
+  
+  await logAuditOperation(userId, 'remove_team_member', team.name, { teamId, targetUserId });
   sendSuccess(res);
 }));
 
 /**
  * @swagger
- * /api/teams/{id}/domain-permissions:
+ * /api/teams/{id}/permissions:
  *   get:
- *     summary: List domain permissions for a team
+ *     summary: Get team domain permissions
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
@@ -352,220 +476,205 @@ router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: R
  *           type: integer
  *     responses:
  *       200:
- *         description: List of domain permissions
+ *         description: List of permissions
  */
-router.get('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const teamId = parseInteger(req.params.id) ?? 0;
-  const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
+router.get('/:id/permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInt(req.params.id);
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
-    sendError(res, 'Team not found');
+    sendError(res, 'Team not found', 404);
     return;
   }
-  if (!isSuper(req.user?.role) && !member) {
-    sendError(res, 'Access denied');
+  
+  // Check permission
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
     return;
   }
-  const list = await db.query(
-    `SELECT dp.*, d.name as domain_name
-     FROM domain_permissions dp
-     INNER JOIN domains d ON d.id = dp.domain_id
-     WHERE dp.team_id = ?
-     ORDER BY d.name`,
-    [teamId]
-  );
-  sendSuccess(res, list);
+  
+  const permissions = await DomainPermissionOperations.getByTeamId(teamId);
+  sendSuccess(res, permissions);
 }));
 
 /**
  * @swagger
- * /api/teams/{id}/domain-permissions:
+ * /api/teams/{id}/permissions:
  *   post:
- *     summary: Add or update a domain permission for a team
+ *     summary: Add domain permission for team
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [domain_id, permission]
+ *             properties:
+ *               domain_id:
+ *                 type: integer
+ *               permission:
+ *                 type: string
+ *                 enum: [read, write]
+ *               sub:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Permission added
  */
-router.post('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const teamId = parseInteger(req.params.id) ?? 0;
-  const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
+router.post('/:id/permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInt(req.params.id);
+  const { domain_id, permission, sub } = req.body as { domain_id: number; permission: 'read' | 'write'; sub?: string };
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
-    sendError(res, 'Team not found');
+    sendError(res, 'Team not found', 404);
     return;
   }
-  if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    sendError(res, 'Only team owner or admin can manage permissions');
+  
+  // Check permission
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
     return;
   }
-  const { domain_id, permission = 'write', sub = '' } = req.body as {
-    domain_id: number; permission?: 'read' | 'write'; sub?: string;
-  };
-  if (!domain_id) {
-    sendError(res, 'domain_id is required');
-    return;
-  }
-  const domain = await db.get('SELECT id FROM domains WHERE id = ?', [domain_id]);
-  if (!domain) {
-    sendError(res, 'Domain not found');
-    return;
-  }
-  const normalizedSub = normalizeSubInput(sub);
-  const existing = await db.get<{ id: number }>(
-    'SELECT id FROM domain_permissions WHERE team_id = ? AND domain_id = ? AND sub = ?',
-    [teamId, domain_id, normalizedSub]
-  );
+  
+  // Check if already exists
+  const existing = await DomainPermissionOperations.getByTeamDomainAndSub(teamId, domain_id, sub || '');
   if (existing) {
-    await db.execute('UPDATE domain_permissions SET permission = ? WHERE id = ?', [permission, existing.id]);
-    sendSuccess(res, { id: existing.id });
+    sendError(res, 'Permission already exists for this domain');
     return;
   }
-  const result = await db.insert(
-    'INSERT INTO domain_permissions (team_id, domain_id, sub, permission) VALUES (?, ?, ?, ?)',
-    [teamId, domain_id, normalizedSub, permission]
-  );
-  sendSuccess(res, { id: result });
-}));
-
-/**
- * @swagger
- * /api/teams/{id}/domain-permissions/{permId}:
- *   delete:
- *     summary: Remove a team domain permission
- *     tags: [Teams]
- *     security:
- *       - bearerAuth: []
- */
-router.delete('/:id/domain-permissions/:permId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const teamId = parseInteger(req.params.id) ?? 0;
-  const permId = parseInteger(req.params.permId) ?? 0;
-  const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
-  if (!team) {
-    sendError(res, 'Team not found');
-    return;
-  }
-  if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    sendError(res, 'Only team owner or admin can manage permissions');
-    return;
-  }
-  await db.execute('DELETE FROM domain_permissions WHERE id = ? AND team_id = ?', [permId, teamId]);
+  
+  await DomainPermissionOperations.create({
+    domain_id,
+    team_id: teamId,
+    permission,
+    sub: sub || '',
+  });
+  
+  await logAuditOperation(userId, 'add_team_domain_permission', team.name, { teamId, domainId: domain_id, permission, sub });
   sendSuccess(res);
 }));
 
 /**
  * @swagger
- * /api/teams/{id}/members/{userId}/domain-permissions:
- *   get:
- *     summary: List domain permissions for a team member
+ * /api/teams/{id}/permissions/{permissionId}:
+ *   put:
+ *     summary: Update team domain permission
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: permissionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [permission]
+ *             properties:
+ *               permission:
+ *                 type: string
+ *                 enum: [read, write]
+ *     responses:
+ *       200:
+ *         description: Permission updated
  */
-router.get('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const teamId = parseInteger(req.params.id) ?? 0;
-  const targetUserId = parseInteger(req.params.userId) ?? 0;
-  const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
+router.put('/:id/permissions/:permissionId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInt(req.params.id);
+  const permissionId = parseInt(req.params.permissionId);
+  const { permission } = req.body as { permission: 'read' | 'write' };
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
-    sendError(res, 'Team not found');
+    sendError(res, 'Team not found', 404);
     return;
   }
-  const targetMember = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]);
-  if (!targetMember) {
-    sendError(res, 'User is not in team');
+  
+  // Check permission
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
     return;
   }
-  const isSelf = req.user!.userId === targetUserId;
-  if (!isSuper(req.user?.role) && member?.role !== 'owner' && !isSelf) {
-    sendError(res, 'Access denied');
-    return;
-  }
-  const list = await db.query(
-    `SELECT dp.*, d.name as domain_name
-     FROM domain_permissions dp
-     INNER JOIN domains d ON d.id = dp.domain_id
-     WHERE dp.user_id = ?
-     ORDER BY d.name`,
-    [targetUserId]
-  );
-  sendSuccess(res, list);
+  
+  await DomainPermissionOperations.updatePermission(permissionId, permission);
+  
+  await logAuditOperation(userId, 'update_team_domain_permission', team.name, { teamId, permissionId, permission });
+  sendSuccess(res);
 }));
 
 /**
  * @swagger
- * /api/teams/{id}/members/{userId}/domain-permissions:
- *   post:
- *     summary: Add or update a domain permission for a team member
- *     tags: [Teams]
- *     security:
- *       - bearerAuth: []
- */
-router.post('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const teamId = parseInteger(req.params.id) ?? 0;
-  const targetUserId = parseInteger(req.params.userId) ?? 0;
-  const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
-  if (!team) {
-    sendError(res, 'Team not found');
-    return;
-  }
-  if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    sendError(res, 'Only team owner or admin can manage permissions');
-    return;
-  }
-  const targetMember = await db.get<TeamMember>('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, targetUserId]);
-  if (!targetMember) {
-    sendError(res, 'User is not in team');
-    return;
-  }
-  const { domain_id, permission = 'write', sub = '' } = req.body as {
-    domain_id: number; permission?: 'read' | 'write'; sub?: string;
-  };
-  if (!domain_id) {
-    sendError(res, 'domain_id is required');
-    return;
-  }
-  const domain = await db.get('SELECT id FROM domains WHERE id = ?', [domain_id]);
-  if (!domain) {
-    sendError(res, 'Domain not found');
-    return;
-  }
-  const normalizedSub = normalizeSubInput(sub);
-  const existing = await db.get<{ id: number }>(
-    'SELECT id FROM domain_permissions WHERE user_id = ? AND domain_id = ? AND sub = ?',
-    [targetUserId, domain_id, normalizedSub]
-  );
-  if (existing) {
-    await db.execute('UPDATE domain_permissions SET permission = ? WHERE id = ?', [permission, existing.id]);
-    sendSuccess(res, { id: existing.id });
-    return;
-  }
-  const result = await db.insert(
-    'INSERT INTO domain_permissions (user_id, domain_id, sub, permission) VALUES (?, ?, ?, ?)',
-    [targetUserId, domain_id, normalizedSub, permission]
-  );
-  sendSuccess(res, { id: result });
-}));
-
-/**
- * @swagger
- * /api/teams/{id}/members/{userId}/domain-permissions/{permId}:
+ * /api/teams/{id}/permissions/{permissionId}:
  *   delete:
- *     summary: Remove a domain permission for a team member
+ *     summary: Remove team domain permission
  *     tags: [Teams]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: permissionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Permission removed
  */
-router.delete('/:id/members/:userId/domain-permissions/:permId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const teamId = parseInteger(req.params.id) ?? 0;
-  const targetUserId = parseInteger(req.params.userId) ?? 0;
-  const permId = parseInteger(req.params.permId) ?? 0;
-  const { team, member } = await getTeamAndMember(teamId, req.user!.userId);
+router.delete('/:id/permissions/:permissionId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInt(req.params.id);
+  const permissionId = parseInt(req.params.permissionId);
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
-    sendError(res, 'Team not found');
+    sendError(res, 'Team not found', 404);
     return;
   }
-  if (!isSuper(req.user?.role) && member?.role !== 'owner') {
-    sendError(res, 'Only team owner or admin can manage permissions');
+  
+  // Check permission
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
     return;
   }
-  await db.execute('DELETE FROM domain_permissions WHERE id = ? AND user_id = ?', [permId, targetUserId]);
+  
+  await DomainPermissionOperations.deleteByTeamAndId(permissionId, teamId);
+  
+  await logAuditOperation(userId, 'remove_team_domain_permission', team.name, { teamId, permissionId });
   sendSuccess(res);
 }));
 

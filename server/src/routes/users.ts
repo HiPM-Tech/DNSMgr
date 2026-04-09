@@ -6,7 +6,7 @@ import { User } from '../types';
 import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, normalizeRole } from '../utils/roles';
 import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { isValidUsername } from '../utils/validation';
-import { query, get, execute, insert, now } from '../db';
+import { UserOperations } from '../db/business-adapter';
 
 const router = Router();
 
@@ -23,7 +23,7 @@ const router = Router();
  *         description: List of users
  */
 router.get('/', authMiddleware, adminOnly, asyncHandler(async (_req: Request, res: Response) => {
-  const users = await query('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users ORDER BY id');
+  const users = await UserOperations.getAll();
   sendSuccess(res, users);
 }));
 
@@ -84,10 +84,14 @@ router.post('/', authMiddleware, adminOnly, asyncHandler(async (req: Request, re
   }
   const roleText = roleLevel >= ROLE_ADMIN ? 'admin' : 'member';
   try {
-    const id = await insert(
-      'INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)',
-      [normalizedUsername, resolvedNickname, email, hash, roleText, roleLevel]
-    );
+    const id = await UserOperations.create({
+      username: normalizedUsername,
+      nickname: resolvedNickname,
+      email,
+      password_hash: hash,
+      role: roleText,
+      role_level: roleLevel,
+    });
     sendSuccess(res, { id });
   } catch {
     sendError(res, 'Username already exists');
@@ -130,8 +134,8 @@ router.post('/', authMiddleware, adminOnly, asyncHandler(async (req: Request, re
  *         description: User updated
  */
 router.put('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
-  const id = parseInteger(req.params.id, { min: 1 });
-  const user = await get('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [id]) as User | undefined;
+  const id = parseInteger(req.params.id, { min: 1 }) ?? 0;
+  const user = await UserOperations.getById(id) as User | undefined;
   if (!user) {
     sendError(res, 'User not found');
     return;
@@ -148,14 +152,13 @@ router.put('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, 
     sendError(res, 'Permission denied');
     return;
   }
-  const updates: string[] = [`updated_at = ${now()}`];
-  const params: unknown[] = [];
+  
+  const updates: { nickname?: string; email?: string; role_level?: number; role?: string; status?: number; password_hash?: string } = {};
+  
   if (nickname !== undefined) {
-    const resolvedNickname = nickname.trim() || user.username;
-    updates.push('nickname = ?');
-    params.push(resolvedNickname);
+    updates.nickname = nickname.trim() || user.username;
   }
-  if (email !== undefined) { updates.push('email = ?'); params.push(email); }
+  if (email !== undefined) { updates.email = email; }
   if (role !== undefined) {
     let roleLevel = normalizeRole(role);
     if (callerRole === ROLE_ADMIN) {
@@ -165,15 +168,13 @@ router.put('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, 
       sendError(res, 'Super admin cannot be created');
       return;
     }
-    updates.push('role_level = ?');
-    params.push(roleLevel);
-    updates.push('role = ?');
-    params.push(roleLevel >= ROLE_ADMIN ? 'admin' : 'member');
+    updates.role_level = roleLevel;
+    updates.role = roleLevel >= ROLE_ADMIN ? 'admin' : 'member';
   }
-  if (status !== undefined) { updates.push('status = ?'); params.push(status); }
-  if (password) { updates.push('password_hash = ?'); params.push(bcrypt.hashSync(password, 10)); }
-  params.push(id);
-  await execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+  if (status !== undefined) { updates.status = status; }
+  if (password) { updates.password_hash = bcrypt.hashSync(password, 10); }
+  
+  await UserOperations.update(id, updates);
   sendSuccess(res);
 }));
 
@@ -201,7 +202,7 @@ router.delete('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Reques
     sendError(res, 'Cannot delete yourself');
     return;
   }
-  const target = await get('SELECT id, role_level as role FROM users WHERE id = ?', [id]) as { id: number; role: number } | undefined;
+  const target = await UserOperations.getById(id) as { id: number; role: number } | undefined;
   if (!target) {
     sendError(res, 'User not found');
     return;
@@ -215,7 +216,7 @@ router.delete('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Reques
     sendError(res, 'Permission denied');
     return;
   }
-  await execute('DELETE FROM users WHERE id = ?', [id]);
+  await UserOperations.delete(id);
   sendSuccess(res);
 }));
 
