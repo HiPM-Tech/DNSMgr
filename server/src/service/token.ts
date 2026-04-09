@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { query, get, execute, insert, now } from '../db';
+import { TokenOperations, DomainOperations } from '../db/business-adapter';
 import { UserToken, UserTokenCreate, UserTokenResponse, TokenPayload } from '../types/token';
 import { isAdmin } from '../utils/roles';
 
@@ -24,21 +24,17 @@ export async function createUserToken(
   const plainToken = generateToken();
   const tokenHash = hashToken(plainToken);
 
-  // Insert into database
-  const id = await insert(
-    `INSERT INTO user_tokens (user_id, name, token_hash, allowed_domains, allowed_services, start_time, end_time, max_role)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      userId,
-      data.name,
-      tokenHash,
-      JSON.stringify(data.allowed_domains),
-      JSON.stringify(data.allowed_services),
-      data.start_time || null,
-      data.end_time || null,
-      data.max_role,
-    ]
-  );
+  // Insert into database using business adapter
+  const id = await TokenOperations.create({
+    user_id: userId,
+    name: data.name,
+    token_hash: tokenHash,
+    allowed_domains: JSON.stringify(data.allowed_domains),
+    allowed_services: JSON.stringify(data.allowed_services),
+    start_time: data.start_time || null,
+    end_time: data.end_time || null,
+    max_role: data.max_role,
+  });
 
   const tokenData: UserTokenResponse = {
     id,
@@ -62,11 +58,8 @@ export async function verifyToken(plainToken: string): Promise<TokenPayload | nu
 
   const tokenHash = hashToken(plainToken);
 
-  const result = await get(
-    `SELECT id, user_id, allowed_domains, allowed_services, start_time, end_time, max_role, is_active
-     FROM user_tokens WHERE token_hash = ?`,
-    [tokenHash]
-  ) as UserToken | undefined;
+  // Use business adapter to get token
+  const result = await TokenOperations.getByTokenHash(tokenHash) as UserToken | undefined;
 
   if (!result || !result.is_active) return null;
 
@@ -75,11 +68,8 @@ export async function verifyToken(plainToken: string): Promise<TokenPayload | nu
   if (result.start_time && new Date(result.start_time) > nowTime) return null;
   if (result.end_time && new Date(result.end_time) < nowTime) return null;
 
-  // Update last used time
-  await execute(
-    `UPDATE user_tokens SET last_used_at = ${now()} WHERE id = ?`,
-    [result.id]
-  );
+  // Update last used time using business adapter
+  await TokenOperations.updateLastUsed(result.id);
 
   return {
     type: 'token',
@@ -93,11 +83,8 @@ export async function verifyToken(plainToken: string): Promise<TokenPayload | nu
 
 // Get all tokens for a user
 export async function getUserTokens(userId: number): Promise<UserTokenResponse[]> {
-  const results = (await query(
-    `SELECT id, name, allowed_domains, allowed_services, start_time, end_time, max_role, is_active, created_at, last_used_at
-     FROM user_tokens WHERE user_id = ? ORDER BY created_at DESC`,
-    [userId]
-  )) as unknown as UserToken[];
+  // Use business adapter to get tokens
+  const results = await TokenOperations.getByUserId(userId) as unknown as UserToken[];
 
   return results.map((t) => ({
     id: t.id,
@@ -115,18 +102,14 @@ export async function getUserTokens(userId: number): Promise<UserTokenResponse[]
 
 // Delete a token
 export async function deleteUserToken(tokenId: number, userId: number): Promise<void> {
-  await execute(
-    'DELETE FROM user_tokens WHERE id = ? AND user_id = ?',
-    [tokenId, userId]
-  );
+  // Use business adapter to delete token
+  await TokenOperations.deleteByUser(tokenId, userId);
 }
 
 // Toggle token active status
 export async function toggleTokenStatus(tokenId: number, userId: number, isActive: boolean): Promise<void> {
-  await execute(
-    `UPDATE user_tokens SET is_active = ? WHERE id = ? AND user_id = ?`,
-    [isActive ? 1 : 0, tokenId, userId]
-  );
+  // Use business adapter to toggle status
+  await TokenOperations.toggleStatusByUser(tokenId, userId, isActive);
 }
 
 // Check if token has permission for a service
@@ -149,18 +132,6 @@ export async function hasDomainPermission(tokenPayload: TokenPayload, domainId: 
     return true;
   }
   
-  try {
-    // Check if user has access to the domain through domain_permissions or is the creator
-    const result = await get(
-      `SELECT d.id FROM domains d
-       JOIN dns_accounts da ON d.account_id = da.id
-       WHERE d.id = ? AND (da.created_by = ? OR d.id IN (
-         SELECT domain_id FROM domain_permissions WHERE user_id = ?
-       ))`,
-      [domainId, tokenPayload.userId, tokenPayload.userId]
-    );
-    return !!result;
-  } catch {
-    return false;
-  }
+  // Use business adapter to check domain access
+  return await DomainOperations.checkUserDomainAccess(domainId, tokenPayload.userId);
 }

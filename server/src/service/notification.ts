@@ -1,4 +1,4 @@
-import { query, get, execute, insert, run, now } from '../db';
+import { SettingsOperations } from '../db/business-adapter';
 import { sendSmtpEmail } from './smtp';
 import { log } from '../lib/logger';
 
@@ -58,10 +58,11 @@ async function withRetry<T>(
 }
 
 export async function getNotificationChannels(): Promise<NotificationChannel[]> {
-  const row = await get('SELECT value FROM system_settings WHERE key = ?', ['notification_channels']) as any;
-  if (!row?.value) return [];
+  // 使用业务适配器获取设置
+  const value = await SettingsOperations.get('notification_channels');
+  if (!value) return [];
   try {
-    return JSON.parse(row.value);
+    return JSON.parse(value);
   } catch {
     return [];
   }

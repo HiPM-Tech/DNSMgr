@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { JwtPayload } from '../types';
 import { isAdmin, normalizeRole } from '../utils/roles';
-import { get, execute, query } from '../db';
+import { SecretOperations } from '../db/business-adapter';
 import { verifyToken, hasServicePermission, hasDomainPermission } from '../service/token';
 import { TokenPayload } from '../types/token';
 import { log } from '../lib/logger';
@@ -36,10 +36,11 @@ async function getRuntimeSecret(): Promise<string> {
   if (runtimeSecretCache) return runtimeSecretCache;
   
   try {
-    const row = await get<{ value: string }>('SELECT value FROM runtime_secrets WHERE key = ?', [RUNTIME_SECRET_KEY]);
-    if (row?.value) {
-      runtimeSecretCache = row.value;
-      return row.value;
+    // 使用业务适配器获取运行时密钥
+    const value = await SecretOperations.getRuntimeSecret(RUNTIME_SECRET_KEY);
+    if (value) {
+      runtimeSecretCache = value;
+      return value;
     }
   } catch {
     // Table might not exist, will create below
@@ -49,18 +50,9 @@ async function getRuntimeSecret(): Promise<string> {
   const generated = crypto.randomBytes(32).toString('hex');
   
   try {
-    // Try to create table and insert
-    await execute(`
-      CREATE TABLE IF NOT EXISTS runtime_secrets (
-        key VARCHAR(255) PRIMARY KEY,
-        value TEXT NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await execute(
-      'INSERT INTO runtime_secrets (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      [RUNTIME_SECRET_KEY, generated]
-    );
+    // 使用业务适配器创建表和插入密钥
+    await SecretOperations.ensureRuntimeSecretsTable();
+    await SecretOperations.setRuntimeSecret(RUNTIME_SECRET_KEY, generated);
   } catch (e) {
     log.error('Auth', 'Error creating runtime_secrets table', { error: e });
   }
