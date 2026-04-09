@@ -7,6 +7,7 @@ import { Pool } from 'pg';
 import { initSchema, initSchemaAsync, rotateRuntimeSecretsAsync } from '../db/schema';
 import { saveEnvConfig, getDbConfig } from '../config/env';
 import { createConnection, isDbInitialized, hasUsers, getDb, getCurrentConnection } from '../db/database';
+import { log } from '../lib/logger';
 
 const router = Router();
 
@@ -256,7 +257,7 @@ router.post('/database', async (req: Request, res: Response) => {
       msg: reset ? 'Database reset successfully' : 'Database initialized successfully',
     });
   } catch (error) {
-    console.error('[Init] Database initialization error:', error);
+    log.error('Init', 'Database initialization error', { error });
     res.status(500).json({
       code: 500,
       msg: error instanceof Error ? error.message : 'Failed to initialize database',

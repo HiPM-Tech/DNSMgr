@@ -5,6 +5,7 @@ import { getLoginLimitConfig, updateLoginLimitConfig, getLoginAttemptStats, unlo
 import { db } from '../db';
 import { getSmtpConfig, updateSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { logAuditOperation } from '../service/audit';
+import { log } from '../lib/logger';
 
 const router = Router();
 type SecurityConfig = { jwtViewEmailNotify: boolean };
@@ -212,7 +213,7 @@ router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: 
       }
     }
   } catch (e) {
-    console.warn('[Security] Failed to send JWT view notification email:', e);
+    log.warn('Security', 'Failed to send JWT view notification email', { error: e });
   }
   res.json({
     code: 0,
