@@ -1,0 +1,476 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Generate Documentation Index
+        run: |
+          cat > docs/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="zh-CN">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>DNSMgr 文档</title>
+              <style>
+                  * {
+                      margin: 0;
+                      padding: 0;
+                      box-sizing: border-box;
+                  }
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                      line-height: 1.6;
+                      color: #333;
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      min-height: 100vh;
+                  }
+                  .container {
+                      max-width: 1200px;
+                      margin: 0 auto;
+                      padding: 40px 20px;
+                  }
+                  header {
+                      text-align: center;
+                      padding: 60px 20px;
+                      color: white;
+                  }
+                  header h1 {
+                      font-size: 3.5rem;
+                      margin-bottom: 20px;
+                      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+                  }
+                  header p {
+                      font-size: 1.3rem;
+                      opacity: 0.9;
+                  }
+                  .grid {
+                      display: grid;
+                      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                      gap: 30px;
+                      margin-top: 40px;
+                  }
+                  .card {
+                      background: white;
+                      border-radius: 16px;
+                      padding: 30px;
+                      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+                      transition: transform 0.3s, box-shadow 0.3s;
+                  }
+                  .card:hover {
+                      transform: translateY(-5px);
+                      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+                  }
+                  .card h2 {
+                      color: #667eea;
+                      margin-bottom: 15px;
+                      font-size: 1.5rem;
+                  }
+                  .card p {
+                      color: #666;
+                      margin-bottom: 20px;
+                  }
+                  .card ul {
+                      list-style: none;
+                  }
+                  .card li {
+                      margin: 10px 0;
+                  }
+                  .card a {
+                      color: #667eea;
+                      text-decoration: none;
+                      display: flex;
+                      align-items: center;
+                      gap: 8px;
+                      padding: 8px 12px;
+                      border-radius: 8px;
+                      transition: background 0.2s;
+                  }
+                  .card a:hover {
+                      background: #f0f4ff;
+                  }
+                  .card a::before {
+                      content: "📄";
+                  }
+                  .badge {
+                      display: inline-block;
+                      padding: 4px 12px;
+                      background: #667eea;
+                      color: white;
+                      border-radius: 20px;
+                      font-size: 0.85rem;
+                      margin-top: 10px;
+                  }
+                  footer {
+                      text-align: center;
+                      padding: 60px 20px;
+                      color: white;
+                      opacity: 0.8;
+                  }
+                  footer a {
+                      color: white;
+                      text-decoration: underline;
+                  }
+                  @media (max-width: 768px) {
+                      header h1 {
+                          font-size: 2.5rem;
+                      }
+                      .grid {
+                          grid-template-columns: 1fr;
+                      }
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <header>
+                      <h1>DNSMgr 文档中心</h1>
+                      <p>现代化的 DNS 聚合管理平台 - 完整的技术文档和开发指南</p>
+                  </header>
+
+                  <div class="grid">
+                      <div class="card">
+                          <h2>📖 项目概述</h2>
+                          <p>了解 DNSMgr 的基本信息、功能特性和技术栈</p>
+                          <ul>
+                              <li><a href="README.html">项目 README</a></li>
+                              <li><a href="README_zh.html">中文 README</a></li>
+                              <li><a href="PHILOSOPHY.html">项目理念</a></li>
+                          </ul>
+                          <span class="badge">入门必读</span>
+                      </div>
+
+                      <div class="card">
+                          <h2>🏗️ 架构文档</h2>
+                          <p>深入了解系统架构设计和技术实现细节</p>
+                          <ul>
+                              <li><a href="architecture/overview.html">架构概览</a></li>
+                              <li><a href="architecture/database-layer.html">数据库层架构</a></li>
+                              <li><a href="architecture/business-adapter.html">业务适配器层</a></li>
+                              <li><a href="architecture/dns-core.html">DNS 核心层</a></li>
+                              <li><a href="architecture/authentication.html">认证与授权</a></li>
+                              <li><a href="architecture/api-routes.html">API 路由</a></li>
+                          </ul>
+                          <span class="badge">架构设计</span>
+                      </div>
+
+                      <div class="card">
+                          <h2>🔄 流程文档</h2>
+                          <p>详细的业务流程和调用链路说明</p>
+                          <ul>
+                              <li><a href="flow/authentication-flow.html">用户认证流程</a></li>
+                              <li><a href="flow/dns-record-flow.html">DNS 记录管理流程</a></li>
+                          </ul>
+                          <span class="badge">业务流程</span>
+                      </div>
+
+                      <div class="card">
+                          <h2>🚀 开发指南</h2>
+                          <p>快速开始开发和部署项目</p>
+                          <ul>
+                              <li><a href="development/quick-start.html">快速开始</a></li>
+                          </ul>
+                          <span class="badge">开发必备</span>
+                      </div>
+
+                      <div class="card">
+                          <h2>🔌 DNS 服务商</h2>
+                          <p>支持的 DNS 服务商列表和配置说明</p>
+                          <ul>
+                              <li><a href="providers/">服务商文档</a></li>
+                          </ul>
+                          <span class="badge">18+ 服务商</span>
+                      </div>
+
+                      <div class="card">
+                          <h2>🔍 代码审查</h2>
+                          <p>AI 代码审查团的审查报告</p>
+                          <ul>
+                              <li><a href="../ai-censorship/root.html">审查根文档</a></li>
+                          </ul>
+                          <span class="badge">质量保证</span>
+                      </div>
+                  </div>
+
+                  <footer>
+                      <p>DNSMgr 是一个开源项目，遵循 MIT 协议</p>
+                      <p>
+                          <a href="https://github.com/HiPM-Tech/DNSMgr">GitHub 仓库</a> |
+                          <a href="https://github.com/HiPM-Tech/DNSMgr/issues">问题反馈</a>
+                      </p>
+                  </footer>
+              </div>
+          </body>
+          </html>
+          EOF
+
+      - name: Convert Markdown to HTML
+        run: |
+          # 安装 markdown-it 和 highlight.js
+          npm install -g markdown-it markdown-it-anchor markdown-it-table-of-contents
+          
+          # 创建转换脚本
+          cat > convert.js << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const MarkdownIt = require('markdown-it');
+
+          const md = new MarkdownIt({
+              html: true,
+              linkify: true,
+              typographer: true,
+              highlight: function (str, lang) {
+                  return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+              }
+          });
+
+          // 添加目录支持
+          md.use(require('markdown-it-anchor'));
+          md.use(require('markdown-it-table-of-contents'));
+
+          function convertFile(inputPath, outputPath) {
+              const content = fs.readFileSync(inputPath, 'utf-8');
+              const html = md.render(content);
+              
+              const template = `<!DOCTYPE html>
+          <html lang="zh-CN">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>${path.basename(inputPath, '.md')} - DNSMgr 文档</title>
+              <style>
+                  * {
+                      margin: 0;
+                      padding: 0;
+                      box-sizing: border-box;
+                  }
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                      line-height: 1.6;
+                      color: #333;
+                      background: #f5f7fa;
+                  }
+                  .container {
+                      max-width: 900px;
+                      margin: 0 auto;
+                      padding: 40px 20px;
+                  }
+                  .nav {
+                      background: white;
+                      padding: 15px 20px;
+                      border-radius: 8px;
+                      margin-bottom: 30px;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                  }
+                  .nav a {
+                      color: #667eea;
+                      text-decoration: none;
+                      margin-right: 20px;
+                  }
+                  .nav a:hover {
+                      text-decoration: underline;
+                  }
+                  .content {
+                      background: white;
+                      padding: 40px;
+                      border-radius: 12px;
+                      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                  }
+                  h1 {
+                      color: #1a1a2e;
+                      font-size: 2.5rem;
+                      margin-bottom: 20px;
+                      padding-bottom: 15px;
+                      border-bottom: 3px solid #667eea;
+                  }
+                  h2 {
+                      color: #16213e;
+                      font-size: 1.8rem;
+                      margin: 40px 0 20px;
+                      padding-bottom: 10px;
+                      border-bottom: 2px solid #e0e0e0;
+                  }
+                  h3 {
+                      color: #0f3460;
+                      font-size: 1.4rem;
+                      margin: 30px 0 15px;
+                  }
+                  p {
+                      margin: 15px 0;
+                      color: #444;
+                  }
+                  code {
+                      background: #f4f4f4;
+                      padding: 2px 6px;
+                      border-radius: 4px;
+                      font-family: 'Consolas', 'Monaco', monospace;
+                      font-size: 0.9em;
+                      color: #e83e8c;
+                  }
+                  pre {
+                      background: #1e1e1e;
+                      color: #d4d4d4;
+                      padding: 20px;
+                      border-radius: 8px;
+                      overflow-x: auto;
+                      margin: 20px 0;
+                  }
+                  pre code {
+                      background: none;
+                      color: inherit;
+                      padding: 0;
+                  }
+                  table {
+                      width: 100%;
+                      border-collapse: collapse;
+                      margin: 20px 0;
+                  }
+                  th, td {
+                      padding: 12px;
+                      text-align: left;
+                      border-bottom: 1px solid #e0e0e0;
+                  }
+                  th {
+                      background: #f8f9fa;
+                      font-weight: 600;
+                      color: #333;
+                  }
+                  tr:hover {
+                      background: #f8f9fa;
+                  }
+                  ul, ol {
+                      margin: 15px 0;
+                      padding-left: 30px;
+                  }
+                  li {
+                      margin: 8px 0;
+                  }
+                  a {
+                      color: #667eea;
+                      text-decoration: none;
+                  }
+                  a:hover {
+                      text-decoration: underline;
+                  }
+                  blockquote {
+                      border-left: 4px solid #667eea;
+                      padding-left: 20px;
+                      margin: 20px 0;
+                      color: #666;
+                      font-style: italic;
+                  }
+                  hr {
+                      border: none;
+                      border-top: 1px solid #e0e0e0;
+                      margin: 40px 0;
+                  }
+                  .toc {
+                      background: #f8f9fa;
+                      padding: 20px;
+                      border-radius: 8px;
+                      margin: 20px 0;
+                  }
+                  .toc ul {
+                      list-style: none;
+                      padding-left: 0;
+                  }
+                  .toc li {
+                      margin: 5px 0;
+                  }
+                  @media (max-width: 768px) {
+                      .content {
+                          padding: 20px;
+                      }
+                      h1 {
+                          font-size: 1.8rem;
+                      }
+                      h2 {
+                          font-size: 1.4rem;
+                      }
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <nav class="nav">
+                      <a href="index.html">🏠 首页</a>
+                      <a href="javascript:history.back()">← 返回</a>
+                  </nav>
+                  <div class="content">
+                      ${html}
+                  </div>
+              </div>
+          </body>
+          </html>`;
+              
+              fs.writeFileSync(outputPath, template);
+              console.log(`Converted: ${inputPath} -> ${outputPath}`);
+          }
+
+          function processDirectory(dir) {
+              const files = fs.readdirSync(dir);
+              
+              files.forEach(file => {
+                  const fullPath = path.join(dir, file);
+                  const stat = fs.statSync(fullPath);
+                  
+                  if (stat.isDirectory()) {
+                      processDirectory(fullPath);
+                  } else if (file.endsWith('.md')) {
+                      const outputPath = fullPath.replace('.md', '.html');
+                      convertFile(fullPath, outputPath);
+                  }
+              });
+          }
+
+          processDirectory('docs');
+          EOF
+          
+          node convert.js
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -23,9 +23,6 @@ server/*.db-wal
 AI-Censorship-Reports/
 AI-Censorship/
 
-# docs
-docs/
-
 # Logs
 *.log
 nohup.out
