@@ -8,6 +8,7 @@ import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
+import { log } from '../lib/logger';
 
 const router = Router();
 
@@ -413,10 +414,10 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
   try {
     // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
     const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
-    console.log('[ProviderList] Account type:', account.type, 'Config keys:', Object.keys(cfg));
+    log.info('ProviderList', 'Fetching domains', { accountType: account.type, configKeys: Object.keys(cfg) });
     const dnsAdapter = createAdapter(account.type, cfg);
     const result = await dnsAdapter.getDomainList();
-    console.log('[ProviderList] Result:', { total: result.total, listCount: result.list.length });
+    log.info('ProviderList', 'Domains fetched', { total: result.total, listCount: result.list.length });
     const domains = result.list.map((d) => ({
       name: normalizeDomainName(d.Domain),
       third_id: d.ThirdId,
@@ -424,7 +425,7 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
     }));
     sendSuccess(res, domains);
   } catch (e) {
-    console.error('[ProviderList] Error:', e);
+    log.error('ProviderList', 'Error fetching domains', e);
     sendError(res, e instanceof Error ? e.message : String(e));
   }
 }));

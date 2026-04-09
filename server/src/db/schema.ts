@@ -4,6 +4,7 @@ import { getDb, SQLiteConnection } from './database';
 import { sqliteSchema as sqliteSchemaNew } from './schemas/sqlite';
 import { mysqlSchema as mysqlSchemaNew } from './schemas/mysql';
 import { postgresqlSchema as postgresqlSchemaNew } from './schemas/postgresql';
+import { log } from '../lib/logger';
 
 // SQLite Schema (legacy - use schemas/sqlite.ts instead)
 const sqliteSchema = {
@@ -641,7 +642,7 @@ function initSQLiteSchema(conn: SQLiteConnection, reset: boolean = false): void 
       try {
         conn.exec(`DROP TABLE IF EXISTS "${table.name}"`);
       } catch (e) {
-        console.warn(`[DB] Failed to drop table ${table.name}:`, e);
+        log.warn('DB', `Failed to drop table ${table.name}`, e);
       }
     }
   }
@@ -701,11 +702,11 @@ async function initMySQLSchema(conn: { execute: (sql: string, params?: unknown[]
         try {
           await conn.execute(`DROP TABLE IF EXISTS \`${tableName}\``);
         } catch (e) {
-          console.warn(`[DB] Failed to drop table ${tableName}:`, e);
+          log.warn('DB', `Failed to drop table ${tableName}`, e);
         }
       }
     } catch (e) {
-      console.warn('[DB] Failed to get tables for reset:', e);
+      log.warn('DB', 'Failed to get tables for reset', e);
     }
   }
 
@@ -731,10 +732,10 @@ async function initPostgreSQLSchema(conn: { execute: (sql: string, params?: unkn
         try {
           await conn.execute(`DROP TABLE IF EXISTS "${tableName}" CASCADE`);
         } catch (e) {
-          console.warn(`[DB] Failed to drop table ${tableName}:`, e);
+          log.warn('DB', `Failed to drop table ${tableName}`, e);
         }
       }
-      
+
       // Also drop functions and triggers
       try {
         await conn.execute(`DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE`);
@@ -742,7 +743,7 @@ async function initPostgreSQLSchema(conn: { execute: (sql: string, params?: unkn
         // Ignore
       }
     } catch (e) {
-      console.warn('[DB] Failed to get tables for reset:', e);
+      log.warn('DB', 'Failed to get tables for reset', e);
     }
   }
 
@@ -753,7 +754,7 @@ async function initPostgreSQLSchema(conn: { execute: (sql: string, params?: unkn
     } catch (e) {
       // Ignore errors for triggers/functions that may already exist
       if (e instanceof Error && !e.message.includes('already exists')) {
-        console.warn('[DB] Warning during schema creation:', e.message);
+        log.warn('DB', 'Warning during schema creation', e);
       }
     }
   }
@@ -772,9 +773,9 @@ export function rotateRuntimeSecrets(): void {
       stmt.run('jwt_runtime', jwtRuntimeSecret);
     }
 
-    console.log('[DB] Runtime secrets rotated');
+    log.info('DB', 'Runtime secrets rotated');
   } catch (e) {
-    console.error('[DB] Error rotating runtime secrets:', e);
+    log.error('DB', 'Error rotating runtime secrets', e);
   }
 }
 
@@ -796,9 +797,9 @@ export async function rotateRuntimeSecretsAsync(conn: { type: string; exec?: (sq
       await (conn as { execute: (sql: string, params?: unknown[]) => Promise<void> }).execute('INSERT INTO runtime_secrets (key, value) VALUES ($1, $2)', ['jwt_runtime', jwtRuntimeSecret]);
     }
 
-    console.log('[DB] Runtime secrets rotated');
+    log.info('DB', 'Runtime secrets rotated');
   } catch (e) {
-    console.error('[DB] Error rotating runtime secrets:', e);
+    log.error('DB', 'Error rotating runtime secrets', e);
   }
 }
 
