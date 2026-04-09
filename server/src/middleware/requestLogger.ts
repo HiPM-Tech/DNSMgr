@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { log } from '../lib/logger';
 
 /**
  * Request logging middleware
@@ -52,11 +53,11 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     }
 
     if (logLevel === 'error') {
-      console.error('[HTTP]', JSON.stringify(logData));
+      log.error('HTTP', 'Request error', logData);
     } else if (logLevel === 'warn') {
-      console.warn('[HTTP]', JSON.stringify(logData));
+      log.warn('HTTP', 'Request warning', logData);
     } else {
-      console.log('[HTTP]', JSON.stringify(logData));
+      log.info('HTTP', 'Request completed', logData);
     }
   };
 

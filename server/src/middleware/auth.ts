@@ -6,6 +6,7 @@ import { isAdmin, normalizeRole } from '../utils/roles';
 import { get, execute, query } from '../db';
 import { verifyToken, hasServicePermission, hasDomainPermission } from '../service/token';
 import { TokenPayload } from '../types/token';
+import { log } from '../lib/logger';
 
 // JWT密钥配置 - 如果没有设置则随机生成
 const BASE_JWT_SECRET = (() => {
@@ -15,17 +16,17 @@ const BASE_JWT_SECRET = (() => {
   if (secret) {
     // 生产环境检查密钥强度
     if (process.env.NODE_ENV === 'production' && secret.length < 32) {
-      console.error('[ERROR] JWT_SECRET must be at least 32 characters long in production!');
+      log.error('Auth', 'JWT_SECRET must be at least 32 characters long in production!');
       process.exit(1);
     }
     return secret;
   }
   
   // 如果没有设置，生成随机密钥（每次重启服务会变化，仅适合开发环境）
-  const generatedSecret = crypto.randomBytes(32).toString('hex');
-  console.warn('[WARN] JWT_SECRET not set, using randomly generated secret.');
-  console.warn('[WARN] For production, please set JWT_SECRET environment variable to ensure token persistence across restarts.');
-  return generatedSecret;
+    const generatedSecret = crypto.randomBytes(32).toString('hex');
+    log.warn('Auth', 'JWT_SECRET not set, using randomly generated secret.');
+    log.warn('Auth', 'For production, please set JWT_SECRET environment variable to ensure token persistence across restarts.');
+    return generatedSecret;
 })();
 
 const RUNTIME_SECRET_KEY = 'jwt_runtime';
@@ -61,7 +62,7 @@ async function getRuntimeSecret(): Promise<string> {
       [RUNTIME_SECRET_KEY, generated]
     );
   } catch (e) {
-    console.error('[Auth] Error creating runtime_secrets table:', e);
+    log.error('Auth', 'Error creating runtime_secrets table', { error: e });
   }
   
   runtimeSecretCache = generated;

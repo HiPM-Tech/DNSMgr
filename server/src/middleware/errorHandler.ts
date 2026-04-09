@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { log } from '../lib/logger';
 
 /**
  * Standard API error response format
@@ -34,12 +35,11 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ): void {
-  console.error('[Error]', {
+  log.error('Error', 'Request error', {
     name: err.name,
     message: err.message,
     path: req.path,
     method: req.method,
-    timestamp: new Date().toISOString(),
   });
 
   if (err instanceof AppError) {
