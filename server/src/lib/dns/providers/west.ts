@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber } from './common';
+import { log } from '../../logger';
 
 interface WestConfig {
   username: string;
@@ -173,7 +174,7 @@ export class WestAdapter extends BaseAdapter implements DnsAdapter {
       };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[West] getDomainList failed:', this.error);
+      log.error('West', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

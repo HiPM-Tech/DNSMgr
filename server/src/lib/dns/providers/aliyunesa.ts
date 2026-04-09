@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid } from './common';
+import { log } from '../../logger';
 
 class AliyunEsaRpcClient {
   constructor(
@@ -114,7 +115,7 @@ export class AliyunesaAdapter extends BaseAdapter {
       return { total: toNumber(data.TotalCount, list.length), list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Aliyunesa] getDomainList failed:', this.error);
+      log.error('Aliyunesa', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

@@ -1,5 +1,6 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { Dict, normalizeRrName, safeString, BaseAdapter, toNumber } from './common';
+import { log } from '../../logger';
 
 interface RainyunConfig {
   apiKey: string;
@@ -120,7 +121,7 @@ export class RainyunAdapter extends BaseAdapter {
       };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Rainyun] getDomainList failed:', this.error);
+      log.error('Rainyun', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

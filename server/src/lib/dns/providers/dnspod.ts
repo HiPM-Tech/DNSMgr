@@ -1,5 +1,6 @@
 import { DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, Dict, normalizeRrName, safeString, TencentCloudAdapter, toNumber, toRecordStatus } from './common';
+import { log } from '../../logger';
 
 export class DnspodAdapter extends TencentCloudAdapter {
   private readonly domain: string;
@@ -95,7 +96,7 @@ export class DnspodAdapter extends TencentCloudAdapter {
       return { total, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Dnspod] getDomainList failed:', this.error);
+      log.error('Dnspod', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

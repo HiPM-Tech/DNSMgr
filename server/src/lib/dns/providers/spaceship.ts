@@ -1,5 +1,6 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { log } from '../../logger';
 
 interface SpaceshipConfig {
   apiKey: string;
@@ -80,7 +81,7 @@ export class SpaceshipAdapter extends BaseAdapter {
       return { total: data.total || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Spaceship] getDomainList failed:', this.error);
+      log.error('Spaceship', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

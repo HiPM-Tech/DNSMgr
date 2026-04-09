@@ -1,5 +1,6 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { log } from '../../logger';
 
 interface DnslaConfig {
   apiid: string;
@@ -92,7 +93,7 @@ export class DnslaAdapter extends BaseAdapter {
       return { total: data.total || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Dnsla] getDomainList failed:', this.error);
+      log.error('Dnsla', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

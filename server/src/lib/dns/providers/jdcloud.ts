@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber, uuid } from './common';
+import { log } from '../../logger';
 
 interface JdcloudConfig {
   AccessKeyId: string;
@@ -170,7 +171,7 @@ export class JdcloudAdapter extends BaseAdapter {
       return { total: data.totalCount || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Jdcloud] getDomainList failed:', this.error);
+      log.error('Jdcloud', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

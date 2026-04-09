@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid } from './common';
+import { log } from '../../logger';
 
 class HuaweiCloudClient {
   constructor(
@@ -106,7 +107,7 @@ class HuaweiCloudClient {
       if (queryStr) url += '?' + queryStr;
     }
 
-    console.log(`[Huawei] Request: ${method} ${url.substring(0, 200)}...`);
+    log.providerRequest('Huawei', method, url);
     const res = await fetch(url, {
       method,
       headers,
@@ -114,12 +115,12 @@ class HuaweiCloudClient {
     });
 
     const data = (await res.json()) as Dict;
-    console.log(`[Huawei] Response: status=${res.status}`);
     if (!res.ok || data.error_msg || data.message || (data.error as Dict)?.error_msg) {
       const err = safeString(data.error_msg) || safeString(data.message) || safeString((data.error as Dict)?.error_msg) || `HuaweiCloud request failed: ${res.status}`;
-      console.error(`[Huawei] Response error:`, data);
+      log.providerError('Huawei', data);
       throw new Error(err);
     }
+    log.providerResponse('Huawei', res.status, true);
 
     return data as T;
   }
@@ -181,7 +182,7 @@ export class HuaweiAdapter extends BaseAdapter {
       return { total: data.metadata?.total_count || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Huawei] getDomainList failed:', this.error);
+      log.error('Huawei', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

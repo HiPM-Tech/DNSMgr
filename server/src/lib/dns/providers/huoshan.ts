@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { log } from '../../logger';
 
 interface HuoshanConfig {
   AccessKeyId: string;
@@ -181,7 +182,7 @@ export class HuoshanAdapter extends BaseAdapter {
       return { total: data.Total || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Huoshan] getDomainList failed:', this.error);
+      log.error('Huoshan', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

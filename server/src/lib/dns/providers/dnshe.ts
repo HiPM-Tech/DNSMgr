@@ -1,5 +1,6 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, Dict, normalizeRrName, safeString, BaseAdapter, toNumber, toRecordStatus } from './common';
+import { log } from '../../logger';
 
 interface DnsheConfig {
   apiKey: string;
@@ -126,7 +127,7 @@ export class DnsheAdapter extends BaseAdapter {
       return { total, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Dnshe] getDomainList failed:', this.error);
+      log.error('Dnshe', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

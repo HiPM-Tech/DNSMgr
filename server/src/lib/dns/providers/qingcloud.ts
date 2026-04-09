@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { log } from '../../logger';
 
 interface QingcloudConfig {
   access_key_id: string;
@@ -95,7 +96,7 @@ export class QingcloudAdapter extends BaseAdapter {
       return { total: data.total_count || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Qingcloud] getDomainList failed:', this.error);
+      log.error('Qingcloud', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

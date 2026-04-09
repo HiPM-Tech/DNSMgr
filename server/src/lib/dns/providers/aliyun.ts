@@ -1,5 +1,6 @@
 import { DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { AliyunRpcAdapter, asArray, Dict, normalizeRrName, safeString, toNumber, toRecordStatus } from './common';
+import { log } from '../../logger';
 
 export class AliyunAdapter extends AliyunRpcAdapter {
   private readonly domain: string;
@@ -71,7 +72,7 @@ export class AliyunAdapter extends AliyunRpcAdapter {
       return { total: toNumber(data.TotalCount, list.length), list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      console.error('[Aliyun] getDomainList failed:', this.error);
+      log.error('Aliyun', 'getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }
