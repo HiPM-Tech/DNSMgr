@@ -4,6 +4,7 @@
  */
 
 import type { DatabaseConnection, Transaction } from '../core/types';
+import { log } from '../../lib/logger';
 
 /** 迁移接口 */
 export interface Migration {
@@ -116,7 +117,7 @@ export class MigrationManager {
 
     const pending = await this.getPendingMigrations();
     if (pending.length === 0) {
-      console.log('[Migration] No pending migrations');
+      log.info('Migration', 'No pending migrations');
       return;
     }
 
@@ -124,10 +125,10 @@ export class MigrationManager {
       ? pending.filter(m => m.version <= targetVersion)
       : pending;
 
-    console.log(`[Migration] Running ${migrationsToRun.length} migration(s)...`);
+    log.info('Migration', `Running ${migrationsToRun.length} migration(s)...`);
 
     for (const migration of migrationsToRun) {
-      console.log(`[Migration] Applying: ${migration.version} - ${migration.name}`);
+      log.info('Migration', `Applying: ${migration.version} - ${migration.name}`);
 
       await this.connection.execute('BEGIN TRANSACTION');
       try {
@@ -140,15 +141,15 @@ export class MigrationManager {
         );
 
         await this.connection.execute('COMMIT');
-        console.log(`[Migration] Applied: ${migration.version} - ${migration.name}`);
+        log.info('Migration', `Applied: ${migration.version} - ${migration.name}`);
       } catch (error) {
         await this.connection.execute('ROLLBACK');
-        console.error(`[Migration] Failed: ${migration.version} - ${migration.name}`, error);
+        log.error('Migration', `Failed: ${migration.version} - ${migration.name}`, { error });
         throw error;
       }
     }
 
-    console.log('[Migration] Migration completed');
+    log.info('Migration', 'Migration completed');
   }
 
   async rollback(steps: number = 1): Promise<void> {
@@ -156,26 +157,26 @@ export class MigrationManager {
 
     const applied = await this.getAppliedMigrations();
     if (applied.length === 0) {
-      console.log('[Migration] No migrations to rollback');
+      log.info('Migration', 'No migrations to rollback');
       return;
     }
 
     const toRollback = applied.slice(-steps);
-    console.log(`[Migration] Rolling back ${toRollback.length} migration(s)...`);
+    log.info('Migration', `Rolling back ${toRollback.length} migration(s)...`);
 
     for (const record of toRollback.reverse()) {
       const migration = this.migrations.find(m => m.version === record.version);
       if (!migration) {
-        console.warn(`[Migration] Migration ${record.version} not found, skipping`);
+        log.warn('Migration', `Migration ${record.version} not found, skipping`);
         continue;
       }
 
       if (!migration.down) {
-        console.warn(`[Migration] Migration ${record.version} has no down method, skipping`);
+        log.warn('Migration', `Migration ${record.version} has no down method, skipping`);
         continue;
       }
 
-      console.log(`[Migration] Rolling back: ${migration.version} - ${migration.name}`);
+      log.info('Migration', `Rolling back: ${migration.version} - ${migration.name}`);
 
       await this.connection.execute('BEGIN TRANSACTION');
       try {
@@ -185,15 +186,15 @@ export class MigrationManager {
           [migration.version]
         );
         await this.connection.execute('COMMIT');
-        console.log(`[Migration] Rolled back: ${migration.version} - ${migration.name}`);
+        log.info('Migration', `Rolled back: ${migration.version} - ${migration.name}`);
       } catch (error) {
         await this.connection.execute('ROLLBACK');
-        console.error(`[Migration] Rollback failed: ${migration.version} - ${migration.name}`, error);
+        log.error('Migration', `Rollback failed: ${migration.version} - ${migration.name}`, { error });
         throw error;
       }
     }
 
-    console.log('[Migration] Rollback completed');
+    log.info('Migration', 'Rollback completed');
   }
 
   async reset(): Promise<void> {

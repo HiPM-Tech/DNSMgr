@@ -7,6 +7,7 @@ import type { Transaction, ColumnType } from '../core/types';
 import type { DriverConfig } from './types';
 import { BaseDriver } from './base';
 import { registerDriver } from './types';
+import { log } from '../../lib/logger';
 
 /** PostgreSQL 配置 */
 export interface PostgreSQLDriverConfig {
@@ -48,26 +49,26 @@ export class PostgreSQLDriver extends BaseDriver {
 
   private setupPoolEvents(): void {
     this.pool.on('error', (err) => {
-      console.error('[PostgreSQL] Unexpected pool error:', err);
+      log.error('PostgreSQL', 'Unexpected pool error', { error: err });
     });
 
     this.pool.on('connect', () => {
       if (this.config.logging) {
-        console.debug('[PostgreSQL] New client connected');
+        log.debug('PostgreSQL', 'New client connected');
       }
     });
 
     this.pool.on('acquire', () => {
       this._stats.acquired++;
       if (this.config.logging) {
-        console.debug(`[PostgreSQL] Client acquired from pool (total: ${this._stats.acquired})`);
+        log.debug('PostgreSQL', 'Client acquired from pool', { total: this._stats.acquired });
       }
     });
 
     this.pool.on('remove', () => {
       this._stats.released++;
       if (this.config.logging) {
-        console.debug(`[PostgreSQL] Client removed from pool (total: ${this._stats.released})`);
+        log.debug('PostgreSQL', 'Client removed from pool', { total: this._stats.released });
       }
     });
   }
@@ -78,7 +79,7 @@ export class PostgreSQLDriver extends BaseDriver {
 
   private logSlowQuery(sql: string, duration: number): void {
     if (this.config.slowQueryThreshold && duration > this.config.slowQueryThreshold) {
-      console.warn(`[PostgreSQL] Slow query (${duration}ms): ${sql.substring(0, 100)}`);
+      log.warn('PostgreSQL', `Slow query (${duration}ms)`, { sql: sql.substring(0, 100) });
     }
   }
 
@@ -92,7 +93,7 @@ export class PostgreSQLDriver extends BaseDriver {
       return result.rows as T[];
     } catch (error) {
       this._stats.errors++;
-      console.error(`[PostgreSQL] Query error: ${sql.substring(0, 100)}`, error);
+      log.error('PostgreSQL', 'Query error', { sql: sql.substring(0, 100), error });
       throw error;
     } finally {
       client.release();
@@ -109,7 +110,7 @@ export class PostgreSQLDriver extends BaseDriver {
       return result.rows.length > 0 ? (result.rows[0] as T) : undefined;
     } catch (error) {
       this._stats.errors++;
-      console.error(`[PostgreSQL] Get error: ${sql.substring(0, 100)}`, error);
+      log.error('PostgreSQL', 'Get error', { sql: sql.substring(0, 100), error });
       throw error;
     } finally {
       client.release();
@@ -125,7 +126,7 @@ export class PostgreSQLDriver extends BaseDriver {
       this.logSlowQuery(sql, Date.now() - startTime);
     } catch (error) {
       this._stats.errors++;
-      console.error(`[PostgreSQL] Execute error: ${sql.substring(0, 100)}`, error);
+      log.error('PostgreSQL', 'Execute error', { sql: sql.substring(0, 100), error });
       throw error;
     } finally {
       client.release();
@@ -194,7 +195,7 @@ export class PostgreSQLDriver extends BaseDriver {
   }
 
   async close(): Promise<void> {
-    console.log(`[PostgreSQL] Closing connection pool (stats: queries=${this._stats.queries}, errors=${this._stats.errors})`);
+    log.info('PostgreSQL', 'Closing connection pool', { stats: this._stats });
     await this.pool.end();
   }
 

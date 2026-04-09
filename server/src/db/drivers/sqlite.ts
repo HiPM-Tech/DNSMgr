@@ -9,6 +9,7 @@ import { BaseDriver } from './base';
 import { registerDriver } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
+import { log } from '../../lib/logger';
 
 /** SQLite 配置 */
 export interface SQLiteDriverConfig {
@@ -64,7 +65,7 @@ export class SQLiteDriver extends BaseDriver {
       return [];
     } catch (error) {
       this._stats.errors++;
-      console.error(`[SQLite] Query error: ${sql.substring(0, 100)}`, error);
+      log.error('SQLite', 'Query error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -76,7 +77,7 @@ export class SQLiteDriver extends BaseDriver {
       return stmt.get(...(params || [])) as T | undefined;
     } catch (error) {
       this._stats.errors++;
-      console.error(`[SQLite] Get error: ${sql.substring(0, 100)}`, error);
+      log.error('SQLite', 'Get error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -88,7 +89,7 @@ export class SQLiteDriver extends BaseDriver {
       stmt.run(...(params || []));
     } catch (error) {
       this._stats.errors++;
-      console.error(`[SQLite] Execute error: ${sql.substring(0, 100)}`, error);
+      log.error('SQLite', 'Execute error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -143,7 +144,7 @@ export class SQLiteDriver extends BaseDriver {
   }
 
   async close(): Promise<void> {
-    console.log(`[SQLite] Closing database (stats: queries=${this._stats.queries}, errors=${this._stats.errors})`);
+    log.info('SQLite', 'Closing database', { stats: this._stats });
     this.db.close();
   }
 

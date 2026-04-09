@@ -8,6 +8,7 @@ import type { Transaction, ColumnType } from '../core/types';
 import type { DriverConfig } from './types';
 import { BaseDriver } from './base';
 import { registerDriver } from './types';
+import { log } from '../../lib/logger';
 
 /** MySQL 配置 */
 export interface MySQLDriverConfig {
@@ -55,19 +56,19 @@ export class MySQLDriver extends BaseDriver {
     this.pool.on('acquire', () => {
       this._stats.acquired++;
       if (this.config.logging) {
-        console.debug(`[MySQL] Connection acquired (total: ${this._stats.acquired})`);
+        log.debug('MySQL', 'Connection acquired', { total: this._stats.acquired });
       }
     });
 
     this.pool.on('release', () => {
       this._stats.released++;
       if (this.config.logging) {
-        console.debug(`[MySQL] Connection released (total: ${this._stats.released})`);
+        log.debug('MySQL', 'Connection released', { total: this._stats.released });
       }
     });
 
     this.pool.on('enqueue', () => {
-      console.warn('[MySQL] Waiting for available connection slot');
+      log.warn('MySQL', 'Waiting for available connection slot');
     });
   }
 
@@ -77,7 +78,7 @@ export class MySQLDriver extends BaseDriver {
 
   private logSlowQuery(sql: string, duration: number): void {
     if (this.config.slowQueryThreshold && duration > this.config.slowQueryThreshold) {
-      console.warn(`[MySQL] Slow query (${duration}ms): ${sql.substring(0, 100)}`);
+      log.warn('MySQL', `Slow query (${duration}ms)`, { sql: sql.substring(0, 100) });
     }
   }
 
@@ -90,7 +91,7 @@ export class MySQLDriver extends BaseDriver {
       return rows as T[];
     } catch (error) {
       this._stats.errors++;
-      console.error(`[MySQL] Query error: ${sql.substring(0, 100)}`, error);
+      log.error('MySQL', 'Query error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -105,7 +106,7 @@ export class MySQLDriver extends BaseDriver {
       return results.length > 0 ? results[0] : undefined;
     } catch (error) {
       this._stats.errors++;
-      console.error(`[MySQL] Get error: ${sql.substring(0, 100)}`, error);
+      log.error('MySQL', 'Get error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -118,7 +119,7 @@ export class MySQLDriver extends BaseDriver {
       this.logSlowQuery(sql, Date.now() - startTime);
     } catch (error) {
       this._stats.errors++;
-      console.error(`[MySQL] Execute error: ${sql.substring(0, 100)}`, error);
+      log.error('MySQL', 'Execute error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -168,7 +169,7 @@ export class MySQLDriver extends BaseDriver {
   }
 
   async close(): Promise<void> {
-    console.log(`[MySQL] Closing connection pool (stats: queries=${this._stats.queries}, errors=${this._stats.errors})`);
+    log.info('MySQL', 'Closing connection pool', { stats: this._stats });
     await this.pool.end();
   }
 
