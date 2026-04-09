@@ -404,19 +404,40 @@ export function isDbConnected(): boolean {
 // ============================================================================
 
 export const UserOperations = {
-  /** 根据ID获取用户 */
+  /** 根据ID获取用户完整信息 */
   async getById(id: number): Promise<QueryResult | undefined> {
-    return getInternal('SELECT * FROM users WHERE id = ?', [id], { operation: 'User.getById', table: 'users' });
+    return getInternal(
+      'SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?',
+      [id],
+      { operation: 'User.getById', table: 'users' }
+    );
   },
 
-  /** 根据用户名获取用户 */
+  /** 根据用户名获取用户完整信息 */
   async getByUsername(username: string): Promise<QueryResult | undefined> {
-    return getInternal('SELECT * FROM users WHERE username = ?', [username], { operation: 'User.getByUsername', table: 'users' });
+    return getInternal(
+      'SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?',
+      [username],
+      { operation: 'User.getByUsername', table: 'users' }
+    );
   },
 
-  /** 根据邮箱获取用户 */
+  /** 根据邮箱获取用户完整信息 */
   async getByEmail(email: string): Promise<QueryResult | undefined> {
-    return getInternal('SELECT * FROM users WHERE email = ?', [email], { operation: 'User.getByEmail', table: 'users' });
+    return getInternal(
+      'SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE email = ?',
+      [email],
+      { operation: 'User.getByEmail', table: 'users' }
+    );
+  },
+
+  /** 根据ID获取用户公开信息（不含密码） */
+  async getPublicById(id: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?',
+      [id],
+      { operation: 'User.getPublicById', table: 'users' }
+    );
   },
 
   /** 获取所有用户 */
@@ -858,6 +879,62 @@ export const DomainExpiryOperations = {
 };
 
 // ============================================================================
+// 2FA 业务操作
+// ============================================================================
+
+export const TwoFAOperations = {
+  /** 获取用户的 2FA 配置 */
+  async getByUserIdAndType(userId: number, type: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, type],
+      { operation: 'TwoFA.getByUserIdAndType', table: 'user_2fa' }
+    );
+  },
+
+  /** 检查是否启用了 WebAuthn */
+  async isWebAuthnEnabled(userId: number): Promise<boolean> {
+    const result = await getInternal<{ enabled: number }>(
+      'SELECT enabled FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, 'webauthn'],
+      { operation: 'TwoFA.isWebAuthnEnabled', table: 'user_2fa' }
+    );
+    return Boolean(result?.enabled);
+  },
+
+  /** 获取 TOTP 密钥 */
+  async getTOTPSecret(userId: number): Promise<string | undefined> {
+    const result = await getInternal<{ secret: string }>(
+      'SELECT secret FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, 'totp'],
+      { operation: 'TwoFA.getTOTPSecret', table: 'user_2fa' }
+    );
+    return result?.secret;
+  },
+
+  /** 创建或更新 2FA 配置 */
+  async upsert(data: { user_id: number; type: string; secret?: string; enabled?: boolean }): Promise<void> {
+    const { sql, params } = buildUpsertSql(
+      'user_2fa',
+      ['user_id', 'type', 'secret', 'enabled', 'updated_at'],
+      [data.user_id, data.type, data.secret ?? null, data.enabled ? 1 : 0, 'NOW()'],
+      'user_id,type',
+      ['secret', 'enabled', 'updated_at']
+    );
+    return executeInternal(sql, params, { operation: 'TwoFA.upsert', table: 'user_2fa' });
+  },
+
+  /** 删除 2FA 配置 */
+  async delete(userId: number, type: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, type],
+      { operation: 'TwoFA.delete', table: 'user_2fa' }
+    );
+  },
+};
+
+// ============================================================================
 // OAuth 用户链接业务操作
 // ============================================================================
 
@@ -868,6 +945,18 @@ export const OAuthOperations = {
       'SELECT * FROM oauth_user_links WHERE provider = ? AND subject = ?',
       [provider, subject],
       { operation: 'OAuth.getByProviderSubject', table: 'oauth_user_links' }
+    );
+  },
+
+  /** 根据 provider 和 subject 获取用户完整信息（包含 JOIN users） */
+  async getUserByProviderSubject(provider: string, subject: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT l.user_id, u.id, u.username, u.nickname, u.email, u.role_level as role, u.status
+       FROM oauth_user_links l
+       INNER JOIN users u ON u.id = l.user_id
+       WHERE l.provider = ? AND l.subject = ?`,
+      [provider, subject],
+      { operation: 'OAuth.getUserByProviderSubject', table: 'oauth_user_links' }
     );
   },
 

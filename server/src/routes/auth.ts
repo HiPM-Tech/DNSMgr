@@ -13,6 +13,7 @@ import { loginLimiter, registerLimiter, emailLimiter } from '../middleware/rateL
 import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/totp';
 import { isValidUsername } from '../utils/validation';
 import { log } from '../lib/logger';
+import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations } from '../db/business-adapter';
 
 
 const router = Router();
@@ -74,11 +75,11 @@ async function getOAuthConfigByProvider(provider: 'custom' | 'logto'): Promise<O
   const key = provider === 'logto' ? 'oauth_logto_config' : 'oauth_config';
   const defaults: OAuthConfig = provider === 'logto'
     ? { ...DEFAULT_OAUTH_CONFIG, template: 'logto', providerName: 'Logto' }
-    : { ...DEFAULT_OAUTH_CONFIG, template: 'generic' };
-  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', [key]);
-  if (!row?.value) return defaults;
+    : { ...DEFAULT_OAUTH_CONFIG, template: 'generic', providerName: 'Custom' };
+  const value = await SettingsOperations.get(key);
+  if (!value) return defaults;
   try {
-    return { ...defaults, ...(JSON.parse(row.value) as Partial<OAuthConfig>) };
+    return { ...defaults, ...(JSON.parse(value) as Partial<OAuthConfig>) };
   } catch {
     return defaults;
   }
@@ -323,10 +324,10 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     let user: User | undefined;
     if (isEmail) {
       // Login with email
-      user = await db.get<User>('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE email = ?', [username]);
+      user = await UserOperations.getByEmail(username) as User | undefined;
     } else {
       // Login with username
-      user = await db.get<User>('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?', [username]);
+      user = await UserOperations.getByUsername(username) as User | undefined;
     }
 
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
@@ -346,9 +347,8 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
 
     // Check 2FA
     const totpStatus = await getTOTPStatus(user.id);
-    const hasWebauthn = await db.get<{ enabled: number }>('SELECT enabled FROM user_2fa WHERE user_id = ? AND type = ?', [user.id, 'webauthn']);
+    const isWebauthnEnabled = await TwoFAOperations.isWebAuthnEnabled(user.id);
     const isTotpEnabled = totpStatus.enabled;
-    const isWebauthnEnabled = Boolean(hasWebauthn?.enabled);
 
     if (isTotpEnabled || isWebauthnEnabled) {
       if (backupCode) {
@@ -358,8 +358,8 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
           return;
         }
       } else if (totpCode && isTotpEnabled) {
-        const secretRow = await db.get<{ secret: string }>('SELECT secret FROM user_2fa WHERE user_id = ? AND type = ?', [user.id, 'totp']);
-        if (!secretRow || !verifyTOTPToken(secretRow.secret, totpCode)) {
+        const secret = await TwoFAOperations.getTOTPSecret(user.id);
+        if (!secret || !verifyTOTPToken(secret, totpCode)) {
           res.json({ code: -1, msg: 'Invalid 2FA code' });
           return;
         }
@@ -670,13 +670,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     // Get provider key for database lookup
     const providerKey = getProviderKey(config);
     
-    const existingLink = await db.get<LoginUserInfo & { user_id: number }>(
-      `SELECT l.user_id, u.id, u.username, u.nickname, u.email, u.role_level as role, u.status
-       FROM oauth_user_links l
-       INNER JOIN users u ON u.id = l.user_id
-       WHERE l.provider = ? AND l.subject = ?`,
-      [providerKey, subject]
-    );
+    const existingLink = await OAuthOperations.getUserByProviderSubject(providerKey, subject);
 
     if (stateEntry.mode === 'bind') {
       const currentUserId = stateEntry.userId;
@@ -692,17 +686,13 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
         res.json({ code: 0, data: { mode: 'bind' }, msg: 'success' });
         return;
       }
-      await db.execute(
-        `INSERT INTO oauth_user_links (user_id, provider, subject, email)
-         VALUES (?, ?, ?, ?)`,
-        [currentUserId, providerKey, subject, normalizedEmail]
-      );
+      await OAuthOperations.create(currentUserId, providerKey, subject, normalizedEmail);
       await logAuditOperation(currentUserId, 'bind_oauth_account', 'system', { provider: providerKey, subject, email: normalizedEmail });
       res.json({ code: 0, data: { mode: 'bind' }, msg: 'success' });
       return;
     }
 
-    const user: LoginUserInfo | undefined = existingLink;
+    const user = existingLink as LoginUserInfo | undefined;
 
     if (!user) {
       res.status(403).json({ code: 403, msg: 'OAuth account is not bound. Please bind it in account settings first.' });
@@ -727,10 +717,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
 
 router.get('/oauth/bindings', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const list = await db.query(
-      'SELECT provider, subject, email, created_at FROM oauth_user_links WHERE user_id = ? ORDER BY id DESC',
-      [req.user!.userId]
-    );
+    const list = await OAuthOperations.getByUserId(req.user!.userId);
     res.json({ code: 0, data: list, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get oauth bindings' });
@@ -744,7 +731,7 @@ router.delete('/oauth/bindings/:provider', authMiddleware, async (req: Request, 
       res.status(400).json({ code: 400, msg: 'provider is required' });
       return;
     }
-    await db.execute('DELETE FROM oauth_user_links WHERE user_id = ? AND provider = ?', [req.user!.userId, provider]);
+    await OAuthOperations.delete(req.user!.userId, provider);
     await logAuditOperation(req.user!.userId, 'unbind_oauth_account', 'system', { provider });
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
@@ -791,8 +778,7 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
   }
 
   try {
-    const countResult = await db.get<{ cnt: number }>('SELECT COUNT(*) as cnt FROM users');
-    const count = countResult?.cnt || 0;
+    const count = await UserOperations.getCount();
 
     const role = count === 0 ? ROLE_SUPER : ROLE_USER;
     const hash = bcrypt.hashSync(password, 10);
@@ -800,10 +786,14 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
 
     const roleText = role >= 2 ? 'admin' : 'member';
 
-    const id = await db.insert(
-      'INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)',
-      [normalizedUsername, resolvedNickname, email, hash, roleText, role]
-    );
+    const id = await UserOperations.create({
+      username: normalizedUsername,
+      nickname: resolvedNickname,
+      email: email,
+      password_hash: hash,
+      role: roleText,
+      role_level: role
+    });
     res.json({ code: 0, data: { id, username: normalizedUsername, nickname: resolvedNickname, role }, msg: 'success' });
   } catch {
     res.json({ code: -1, msg: 'Username already exists' });
@@ -824,7 +814,7 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
  */
 router.get('/me', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const user = await db.get<User>('SELECT id, username, nickname, email, role_level as role, status, created_at FROM users WHERE id = ?', [req.user!.userId]);
+    const user = await UserOperations.getPublicById(req.user!.userId);
 
     if (!user) {
       res.json({ code: -1, msg: 'User not found' });
@@ -868,15 +858,15 @@ router.put('/password', authMiddleware, async (req: Request, res: Response) => {
   }
 
   try {
-    const user = await db.get<User>('SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [req.user!.userId]);
+    const user = await UserOperations.getById(req.user!.userId);
 
-    if (!user || !bcrypt.compareSync(oldPassword, user.password_hash)) {
+    if (!user || !bcrypt.compareSync(oldPassword, user.password_hash as string)) {
       res.json({ code: -1, msg: 'Old password is incorrect' });
       return;
     }
     const hash = bcrypt.hashSync(newPassword, 10);
 
-    await db.execute('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
+    await UserOperations.updatePassword(user.id as number, hash);
 
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
@@ -915,38 +905,33 @@ router.put('/profile', authMiddleware, async (req: Request, res: Response) => {
   }
 
   try {
-    const user = await db.get<User>('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [req.user!.userId]);
+    const user = await UserOperations.getById(req.user!.userId);
 
     if (!user) {
       res.json({ code: -1, msg: 'User not found' });
       return;
     }
 
-    const updates: string[] = [];
-    const params: unknown[] = [];
+    const updates: Record<string, unknown> = {};
 
     if (nickname !== undefined) {
-      const resolvedNickname = nickname.trim() || user.username;
-      updates.push('nickname = ?');
-      params.push(resolvedNickname);
+      updates.nickname = nickname.trim() || user.username;
     }
     if (email !== undefined) {
       const nextEmail = email.trim();
       if (nextEmail !== user.email) {
-        if (!emailCode || !verifyEmailVerificationCode(user.id, nextEmail, emailCode)) {
+        if (!emailCode || !verifyEmailVerificationCode(user.id as number, nextEmail, emailCode)) {
           res.status(400).json({ code: 400, msg: 'Valid email verification code is required' });
           return;
         }
       }
-      updates.push('email = ?');
-      params.push(nextEmail);
+      updates.email = nextEmail;
     }
-    params.push(user.id);
 
-    await db.execute(`UPDATE users SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
-    const updatedResult = await db.get('SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?', [user.id]);
+    await UserOperations.update(user.id as number, updates);
+    const updatedResult = await UserOperations.getPublicById(user.id as number);
     if (email !== undefined && email.trim() !== user.email) {
-      await logAuditOperation(user.id, 'update_profile_email', 'system', { oldEmail: user.email, newEmail: email.trim() });
+      await logAuditOperation(user.id as number, 'update_profile_email', 'system', { oldEmail: user.email, newEmail: email.trim() });
     }
     res.json({ code: 0, data: updatedResult, msg: 'success' });
   } catch (error) {
@@ -987,12 +972,12 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
       res.status(400).json({ code: 400, msg: 'Password reset by email is unavailable: SMTP is not configured' });
       return;
     }
-    const user = await db.get<{ id: number; username: string; email: string }>('SELECT id, username, email FROM users WHERE email = ?', [normalized]);
+    const user = await UserOperations.getByEmail(normalized);
     if (user) {
       const code = String(Math.floor(100000 + Math.random() * 900000));
       resetStore.set(normalized, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
       await sendSmtpEmail(normalized, 'DNSMgr Password Reset Code', `Hi ${user.username},\n\nYour password reset code is: ${code}\nThis code will expire in 10 minutes.`);
-      await logAuditOperation(user.id, 'send_password_reset_code', 'system', { email: normalized });
+      await logAuditOperation(user.id as number, 'send_password_reset_code', 'system', { email: normalized });
     }
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
@@ -1017,15 +1002,15 @@ router.post('/password-reset/confirm', async (req: Request, res: Response) => {
     return;
   }
   try {
-    const user = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', [normalized]);
+    const user = await UserOperations.getByEmail(normalized);
     if (!user) {
       res.status(400).json({ code: 400, msg: 'Email not found' });
       return;
     }
     const hash = bcrypt.hashSync(newPassword, 10);
-    await db.execute('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
+    await UserOperations.updatePassword(user.id as number, hash);
     resetStore.delete(normalized);
-    await logAuditOperation(user.id, 'reset_password_by_email', 'system', { email: normalized });
+    await logAuditOperation(user.id as number, 'reset_password_by_email', 'system', { email: normalized });
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to reset password' });
