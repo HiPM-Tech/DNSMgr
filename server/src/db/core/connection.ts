@@ -13,6 +13,7 @@ import type { DatabaseConfig } from './config';
 import { getDatabaseConfig, validateConfig } from './config';
 import type { DatabaseDriver } from '../drivers/types';
 import { initDriver, getCurrentDriver, closeDriver, DriverManager } from '../drivers';
+import { log } from '../../lib/logger';
 
 /**
  * 驱动包装器
@@ -71,6 +72,11 @@ export class ConnectionManager {
   private static instance: ConnectionManager | null = null;
   private connection: DatabaseConnection | null = null;
   private connectionPromise: Promise<DatabaseConnection> | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 3;
+  private reconnectDelay = 1000; // 初始重连延迟 1秒
+  private isShuttingDown = false;
+  private healthCheckInterval: NodeJS.Timeout | null = null;
 
   private constructor() {}
 
@@ -82,42 +88,129 @@ export class ConnectionManager {
   }
 
   /**
-   * 连接到数据库
+   * 连接到数据库（带重连机制）
    */
   async connect(config?: DatabaseConfig): Promise<DatabaseConnection> {
     const dbConfig = config || getDatabaseConfig();
     validateConfig(dbConfig);
 
+    // 如果正在关闭，拒绝新连接
+    if (this.isShuttingDown) {
+      throw new Error('Connection manager is shutting down');
+    }
+
+    // 如果已有连接，先检查健康状态
     if (this.connection) {
-      console.log(`[ConnectionManager] Returning existing connection: ${this.connection.type}`);
-      return this.connection;
+      const isHealthy = await this.checkHealth();
+      if (isHealthy) {
+        log.info('ConnectionManager', 'Returning existing healthy connection', { type: this.connection.type });
+        return this.connection;
+      }
+      // 连接不健康，尝试重连
+      log.warn('ConnectionManager', 'Existing connection unhealthy, attempting reconnect');
+      await this.disconnect();
     }
 
     if (this.connectionPromise) {
-      console.log('[ConnectionManager] Waiting for existing connection promise');
+      log.info('ConnectionManager', 'Waiting for existing connection promise');
       return this.connectionPromise;
     }
 
-    this.connectionPromise = this.createConnection(dbConfig);
-    this.connection = await this.connectionPromise;
-    this.connectionPromise = null;
-
-    return this.connection;
+    this.connectionPromise = this.createConnectionWithRetry(dbConfig);
+    try {
+      this.connection = await this.connectionPromise;
+      this.reconnectAttempts = 0; // 重置重连计数
+      this.startHealthCheck();
+      return this.connection;
+    } catch (error) {
+      this.connectionPromise = null;
+      throw error;
+    }
   }
 
-  private async createConnection(config: DatabaseConfig): Promise<DatabaseConnection> {
-    console.log(`[ConnectionManager] Creating new ${config.type} connection...`);
+  /**
+   * 创建连接（带重试）
+   */
+  private async createConnectionWithRetry(config: DatabaseConfig): Promise<DatabaseConnection> {
+    while (this.reconnectAttempts < this.maxReconnectAttempts) {
+      try {
+        log.info('ConnectionManager', `Creating new ${config.type} connection...`, {
+          attempt: this.reconnectAttempts + 1,
+          maxAttempts: this.maxReconnectAttempts,
+        });
 
-    const driver = await initDriver({
-      databaseConfig: config,
-      driverConfig: {
-        logging: config.logging,
-        slowQueryThreshold: config.slowQueryThreshold,
-      },
-    });
+        const driver = await initDriver({
+          databaseConfig: config,
+          driverConfig: {
+            logging: config.logging,
+            slowQueryThreshold: config.slowQueryThreshold,
+          },
+        });
 
-    console.log(`[ConnectionManager] ${config.type} driver initialized`);
-    return new DriverConnectionWrapper(driver);
+        log.info('ConnectionManager', `${config.type} driver initialized successfully`);
+        return new DriverConnectionWrapper(driver);
+      } catch (error) {
+        this.reconnectAttempts++;
+        log.error('ConnectionManager', `Connection attempt ${this.reconnectAttempts} failed`, { error });
+
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          log.error('ConnectionManager', 'Max reconnection attempts reached');
+          throw error;
+        }
+
+        // 指数退避
+        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+        log.info('ConnectionManager', `Retrying connection in ${delay}ms...`);
+        await this.sleep(delay);
+      }
+    }
+
+    throw new Error('Failed to establish database connection after max retries');
+  }
+
+  /**
+   * 检查连接健康状态
+   */
+  private async checkHealth(): Promise<boolean> {
+    if (!this.connection) return false;
+
+    try {
+      // 执行简单查询测试连接
+      await this.connection.get('SELECT 1');
+      return true;
+    } catch (error) {
+      log.warn('ConnectionManager', 'Health check failed', { error });
+      return false;
+    }
+  }
+
+  /**
+   * 启动健康检查定时器
+   */
+  private startHealthCheck(): void {
+    // 每30秒检查一次连接健康
+    this.healthCheckInterval = setInterval(async () => {
+      const isHealthy = await this.checkHealth();
+      if (!isHealthy && !this.isShuttingDown) {
+        log.warn('ConnectionManager', 'Health check detected unhealthy connection, attempting reconnect');
+        try {
+          await this.disconnect();
+          await this.connect();
+        } catch (error) {
+          log.error('ConnectionManager', 'Auto-reconnect failed', { error });
+        }
+      }
+    }, 30000);
+  }
+
+  /**
+   * 停止健康检查
+   */
+  private stopHealthCheck(): void {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+    }
   }
 
   /**
@@ -131,14 +224,56 @@ export class ConnectionManager {
   }
 
   /**
-   * 断开连接
+   * 优雅断开连接
    */
   async disconnect(): Promise<void> {
-    if (this.connection) {
-      await closeDriver();
-      this.connection = null;
-      ConnectionManager.instance = null;
+    if (this.isShuttingDown) {
+      log.warn('ConnectionManager', 'Disconnect already in progress');
+      return;
     }
+
+    this.isShuttingDown = true;
+    log.info('ConnectionManager', 'Gracefully shutting down connection...');
+
+    // 停止健康检查
+    this.stopHealthCheck();
+
+    // 等待正在进行的连接完成
+    if (this.connectionPromise) {
+      log.info('ConnectionManager', 'Waiting for pending connection to complete...');
+      try {
+        await Promise.race([
+          this.connectionPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000)),
+        ]);
+      } catch (error) {
+        log.warn('ConnectionManager', 'Pending connection did not complete in time', { error });
+      }
+      this.connectionPromise = null;
+    }
+
+    // 关闭连接
+    if (this.connection) {
+      try {
+        await this.connection.close();
+        log.info('ConnectionManager', 'Connection closed successfully');
+      } catch (error) {
+        log.error('ConnectionManager', 'Error closing connection', { error });
+      }
+      this.connection = null;
+    }
+
+    // 关闭驱动
+    try {
+      await closeDriver();
+      log.info('ConnectionManager', 'Driver closed successfully');
+    } catch (error) {
+      log.error('ConnectionManager', 'Error closing driver', { error });
+    }
+
+    this.isShuttingDown = false;
+    this.reconnectAttempts = 0;
+    ConnectionManager.instance = null;
   }
 
   /**
@@ -165,6 +300,13 @@ export class ConnectionManager {
       await trx.execute('ROLLBACK');
       throw error;
     }
+  }
+
+  /**
+   * 辅助方法：延迟
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
