@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
 import { getLoginLimitConfig, updateLoginLimitConfig, getLoginAttemptStats, unlockAccount } from '../service/loginLimit';
-import { db } from '../db';
+import { SettingsOperations, NotificationOperations, AuditRuleOperations, DomainExpiryOperations, UserOperations } from '../db/business-adapter';
 import { getSmtpConfig, updateSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { logAuditOperation } from '../service/audit';
 import { log } from '../lib/logger';
@@ -82,10 +82,10 @@ function applyOAuthTemplate(input: OAuthConfig): OAuthConfig {
 }
 
 async function getSecurityConfig(): Promise<SecurityConfig> {
-  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['security_config']);
-  if (!row?.value) return DEFAULT_SECURITY_CONFIG;
+  const value = await SettingsOperations.get('security_config');
+  if (!value) return DEFAULT_SECURITY_CONFIG;
   try {
-    const parsed = JSON.parse(row.value) as Partial<SecurityConfig>;
+    const parsed = JSON.parse(value) as Partial<SecurityConfig>;
     return { ...DEFAULT_SECURITY_CONFIG, ...parsed };
   } catch {
     return DEFAULT_SECURITY_CONFIG;
@@ -94,19 +94,15 @@ async function getSecurityConfig(): Promise<SecurityConfig> {
 
 async function updateSecurityConfig(input: Partial<SecurityConfig>): Promise<SecurityConfig> {
   const next = { ...(await getSecurityConfig()), ...input };
-  const payload = ['security_config', JSON.stringify(next)];
-  await db.execute(
-    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
-    payload
-  );
+  await SettingsOperations.set('security_config', JSON.stringify(next));
   return next;
 }
 
 async function getOAuthConfig(): Promise<OAuthConfig> {
-  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['oauth_config']);
-  if (!row?.value) return DEFAULT_OAUTH_CONFIG;
+  const value = await SettingsOperations.get('oauth_config');
+  if (!value) return DEFAULT_OAUTH_CONFIG;
   try {
-    const parsed = JSON.parse(row.value) as Partial<OAuthConfig>;
+    const parsed = JSON.parse(value) as Partial<OAuthConfig>;
     return { ...DEFAULT_OAUTH_CONFIG, ...parsed };
   } catch {
     return DEFAULT_OAUTH_CONFIG;
@@ -114,10 +110,10 @@ async function getOAuthConfig(): Promise<OAuthConfig> {
 }
 
 async function getLogtoOAuthConfig(): Promise<OAuthConfig> {
-  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['oauth_logto_config']);
-  if (!row?.value) return DEFAULT_LOGTO_OAUTH_CONFIG;
+  const value = await SettingsOperations.get('oauth_logto_config');
+  if (!value) return DEFAULT_LOGTO_OAUTH_CONFIG;
   try {
-    const parsed = JSON.parse(row.value) as Partial<OAuthConfig>;
+    const parsed = JSON.parse(value) as Partial<OAuthConfig>;
     return { ...DEFAULT_LOGTO_OAUTH_CONFIG, ...parsed, template: 'logto' };
   } catch {
     return DEFAULT_LOGTO_OAUTH_CONFIG;
@@ -133,11 +129,7 @@ async function updateOAuthConfig(input: Partial<OAuthConfig>): Promise<OAuthConf
     }
     if (!String(next.subjectKey || '').trim()) throw new Error('subjectKey is required');
   }
-  const payload = ['oauth_config', JSON.stringify(next)];
-  await db.execute(
-    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
-    payload
-  );
+  await SettingsOperations.set('oauth_config', JSON.stringify(next));
   return next;
 }
 
@@ -149,11 +141,7 @@ async function updateLogtoOAuthConfig(input: Partial<OAuthConfig>): Promise<OAut
       if (!String(next[k] || '').trim()) throw new Error(`${k} is required`);
     }
   }
-  const payload = ['oauth_logto_config', JSON.stringify(next)];
-  await db.execute(
-    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
-    payload
-  );
+  await SettingsOperations.set('oauth_logto_config', JSON.stringify(next));
   return next;
 }
 
@@ -186,13 +174,14 @@ router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: 
     return;
   }
 
-  const currentUser = await db.get<{ id: number; password_hash: string }>('SELECT id, password_hash FROM users WHERE id = ?', [req.user!.userId]);
-  if (!currentUser || !bcrypt.compareSync(password, currentUser.password_hash)) {
+  const currentUser = await UserOperations.getById(req.user!.userId);
+  if (!currentUser || !bcrypt.compareSync(password, currentUser.password_hash as string)) {
     res.status(401).json({ code: 401, msg: 'Invalid admin password' });
     return;
   }
 
-  const initialSuper = await db.get<{ id: number }>('SELECT id FROM users WHERE role_level = 3 ORDER BY id ASC LIMIT 1');
+  const allUsers = await UserOperations.getAll();
+  const initialSuper = allUsers.find(u => u.role_level === 3);
   if (!initialSuper || initialSuper.id !== req.user!.userId) {
     res.status(403).json({ code: 403, msg: 'Only the initial super admin can view JWT secret' });
     return;
@@ -203,10 +192,10 @@ router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: 
   try {
     const secCfg = await getSecurityConfig();
     if (secCfg.jwtViewEmailNotify) {
-      const superInfo = await db.get<{ email: string; username: string }>('SELECT email, username FROM users WHERE id = ?', [initialSuper.id]);
+      const superInfo = await UserOperations.getById(initialSuper.id);
       if (superInfo?.email) {
         await sendSmtpEmail(
-          superInfo.email,
+          superInfo.email as string,
           'DNSMgr Security Notice: JWT Secret Viewed',
           `Hello ${superInfo.username || 'admin'},\n\nYour JWT secret was viewed at ${new Date().toISOString()} by user ID ${req.user!.userId}.`
         );
@@ -223,13 +212,13 @@ router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: 
 });
 
 router.get('/notifications', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
-  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['notification_channels']);
-  if (!row?.value) {
+  const value = await NotificationOperations.getChannels();
+  if (!value) {
     res.json({ code: 0, data: [], msg: 'success' });
     return;
   }
   try {
-    const channels = JSON.parse(row.value);
+    const channels = JSON.parse(value);
     res.json({ code: 0, data: channels, msg: 'success' });
   } catch {
     res.json({ code: 0, data: [], msg: 'success' });
@@ -240,16 +229,12 @@ router.put('/notifications', authMiddleware, adminOnly, async (req: Request, res
   const channels = req.body.channels;
   if (!Array.isArray(channels)) return res.status(400).json({ code: -1, msg: 'Invalid channels array' });
   
-  const payload = ['notification_channels', JSON.stringify(channels)];
-  await db.execute(
-    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
-    payload
-  );
+  await NotificationOperations.saveChannels(JSON.stringify(channels));
   res.json({ code: 0, msg: 'success' });
 });
 
 router.get('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: Response) => {
-  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['audit_rules']);
+  const value = await AuditRuleOperations.getRules();
   const defaultRules = {
     enabled: true,
     maxDeletionsPerHour: 10,
@@ -257,12 +242,12 @@ router.get('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: 
     offHoursStart: '22:00',
     offHoursEnd: '06:00'
   };
-  if (!row?.value) {
+  if (!value) {
     res.json({ code: 0, data: defaultRules, msg: 'success' });
     return;
   }
   try {
-    const rules = JSON.parse(row.value);
+    const rules = JSON.parse(value);
     res.json({ code: 0, data: { ...defaultRules, ...rules }, msg: 'success' });
   } catch {
     res.json({ code: 0, data: defaultRules, msg: 'success' });
@@ -273,33 +258,29 @@ router.put('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: 
   const rules = req.body.rules;
   if (!rules) return res.status(400).json({ code: -1, msg: 'Rules required' });
   
-  const payload = ['audit_rules', JSON.stringify(rules)];
-  await db.execute(
-    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
-    payload
-  );
+  await AuditRuleOperations.saveRules(JSON.stringify(rules));
   res.json({ code: 0, msg: 'success' });
 });
 
 router.get('/security', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
-  const row = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['security_config']);
+  const value = await SettingsOperations.get('security_config');
   
-  const expiryNotifyRow = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_notification']);
-  const expiryDaysRow = await db.get<{ value: string }>('SELECT value FROM system_settings WHERE key = ?', ['domain_expiry_days']);
+  const expiryNotifyValue = await DomainExpiryOperations.getNotification();
+  const expiryDaysValue = await DomainExpiryOperations.getDays();
 
-  const defaultConf = { 
+  const defaultConf = {
     jwtViewEmailNotify: false,
-    domainExpiryNotify: expiryNotifyRow ? (expiryNotifyRow.value === '1' || expiryNotifyRow.value === 'true') : false,
-    domainExpiryDays: expiryDaysRow ? parseInt(expiryDaysRow.value) : 30
+    domainExpiryNotify: expiryNotifyValue ? (expiryNotifyValue === '1' || expiryNotifyValue === 'true') : false,
+    domainExpiryDays: expiryDaysValue ? parseInt(expiryDaysValue) : 30
   };
   
-  if (!row?.value) {
+  if (!value) {
     res.json({ code: 0, data: defaultConf, msg: 'success' });
     return;
   }
-  
+
   try {
-    const config = JSON.parse(row.value);
+    const config = JSON.parse(value);
     res.json({ code: 0, data: { ...defaultConf, ...config }, msg: 'success' });
   } catch {
     res.json({ code: 0, data: defaultConf, msg: 'success' });
@@ -309,25 +290,15 @@ router.get('/security', authMiddleware, adminOnly, async (_req: Request, res: Re
 router.put('/security', authMiddleware, adminOnly, async (req: Request, res: Response) => {
   const { jwtViewEmailNotify, domainExpiryNotify, domainExpiryDays } = req.body;
   const config = { jwtViewEmailNotify: !!jwtViewEmailNotify };
-  
-  const payload = ['security_config', JSON.stringify(config)];
-  await db.execute(
-    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
-    payload
-  );
+
+  await SettingsOperations.set('security_config', JSON.stringify(config));
   if (domainExpiryNotify !== undefined) {
-    await db.execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
-      ['domain_expiry_notification', domainExpiryNotify ? '1' : '0']
-    );
+    await DomainExpiryOperations.saveNotification(domainExpiryNotify ? '1' : '0');
   }
   if (domainExpiryDays !== undefined) {
-    await db.execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP',
-      ['domain_expiry_days', String(domainExpiryDays)]
-    );
+    await DomainExpiryOperations.saveDays(String(domainExpiryDays));
   }
-  
+
   res.json({ code: 0, msg: 'success' });
 });
 
@@ -353,8 +324,8 @@ router.put('/smtp', authMiddleware, adminOnly, async (req: Request, res: Respons
 router.post('/smtp/test', authMiddleware, adminOnly, async (req: Request, res: Response) => {
   const { to } = req.body as { to?: string };
   try {
-    const me = await db.get<{ email: string }>('SELECT email FROM users WHERE id = ?', [req.user!.userId]);
-    const target = (to || me?.email || '').trim();
+    const me = await UserOperations.getById(req.user!.userId);
+    const target = (to || (me?.email as string) || '').trim();
     if (!target) {
       res.status(400).json({ code: 400, msg: 'Target email is required' });
       return;

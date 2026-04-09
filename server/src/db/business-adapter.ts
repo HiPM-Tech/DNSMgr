@@ -72,12 +72,12 @@ interface OperationContext {
 /**
  * 生成 UPSERT SQL 语句（兼容 MySQL/PostgreSQL/SQLite）
  * @param table 表名
- * @param columns 列名数组
+ * @param columns 列名数组（不含 updated_at）
  * @param values 值数组
  * @param conflictKey 冲突键
- * @param updateColumns 需要更新的列
+ * @param updateColumns 需要更新的列（不含 updated_at）
  */
-export function buildUpsertSql(
+function buildUpsertSql(
   table: string,
   columns: string[],
   values: unknown[],
@@ -85,47 +85,41 @@ export function buildUpsertSql(
   updateColumns: string[]
 ): { sql: string; params: unknown[] } {
   const dbType = getDbType();
-  const columnList = columns.join(', ');
   
-  // 转义关键字
-  const escapeColumn = (col: string) => {
-    if (dbType === 'mysql') {
-      return ['key', 'value'].includes(col.toLowerCase()) ? `\`${col}\`` : col;
-    }
-    return col;
-  };
-  
-  const escapedColumns = columns.map(escapeColumn).join(', ');
-  const escapedTable = table;
+  // 添加 updated_at 列
+  const allColumns = [...columns, 'updated_at'];
   
   if (dbType === 'mysql') {
     // MySQL: INSERT ... ON DUPLICATE KEY UPDATE
-    const placeholders = columns.map(() => '?').join(', ');
+    const columnList = allColumns.map(col => col === 'key' || col === 'value' ? `\`${col}\`` : col).join(', ');
+    const placeholders = allColumns.map(() => '?').join(', ');
     const updates = updateColumns.map(col => {
-      const escaped = escapeColumn(col);
+      const escaped = col === 'key' || col === 'value' ? `\`${col}\`` : col;
       return `${escaped} = VALUES(${escaped})`;
     }).join(', ');
     
-    const sql = `INSERT INTO ${escapedTable} (${escapedColumns}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
-    return { sql, params: values };
+    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}, updated_at = NOW()`;
+    return { sql, params: [...values, 'NOW()'] };
   } else if (dbType === 'postgresql') {
     // PostgreSQL: INSERT ... ON CONFLICT DO UPDATE
-    const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
+    const columnList = allColumns.join(', ');
+    const placeholders = allColumns.map((_, i) => `$${i + 1}`).join(', ');
     const updates = updateColumns.map(col => {
       return `${col} = EXCLUDED.${col}`;
     }).join(', ');
     
-    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}`;
-    return { sql, params: values };
+    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = NOW()`;
+    return { sql, params: [...values, 'NOW()'] };
   } else {
     // SQLite: INSERT ... ON CONFLICT DO UPDATE
-    const placeholders = columns.map(() => '?').join(', ');
+    const columnList = allColumns.join(', ');
+    const placeholders = allColumns.map(() => '?').join(', ');
     const updates = updateColumns.map(col => {
       return `${col} = excluded.${col}`;
     }).join(', ');
     
-    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}`;
-    return { sql, params: values };
+    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = CURRENT_TIMESTAMP`;
+    return { sql, params: [...values, 'CURRENT_TIMESTAMP'] };
   }
 }
 
@@ -724,16 +718,13 @@ export const SettingsOperations = {
   async set(key: string, value: string): Promise<void> {
     const { sql, params } = buildUpsertSql(
       'system_settings',
-      ['key', 'value', 'updated_at'],
-      [key, value, 'CURRENT_TIMESTAMP'],
+      ['key', 'value'],
+      [key, value],
       'key',
-      ['value', 'updated_at']
+      ['value']
     );
     
-    // 替换 CURRENT_TIMESTAMP 为实际函数调用
-    const finalSql = sql.replace(/'CURRENT_TIMESTAMP'/g, 'CURRENT_TIMESTAMP');
-    
-    return executeInternal(finalSql, [key, value], { operation: 'Settings.set', table: 'system_settings' });
+    return executeInternal(sql, params, { operation: 'Settings.set', table: 'system_settings' });
   },
 
   /** 获取JSON设置 */
@@ -805,6 +796,64 @@ export const AuditOperations = {
     }
     
     return queryInternal(sql, params, { operation: 'Audit.getLogs', table: 'audit_logs' });
+  },
+};
+
+// ============================================================================
+// 通知渠道业务操作
+// ============================================================================
+
+export const NotificationOperations = {
+  /** 获取通知渠道配置 */
+  async getChannels(): Promise<string | undefined> {
+    return SettingsOperations.get('notification_channels');
+  },
+
+  /** 保存通知渠道配置 */
+  async saveChannels(config: string): Promise<void> {
+    return SettingsOperations.set('notification_channels', config);
+  },
+};
+
+// ============================================================================
+// 审计规则业务操作
+// ============================================================================
+
+export const AuditRuleOperations = {
+  /** 获取审计规则 */
+  async getRules(): Promise<string | undefined> {
+    return SettingsOperations.get('audit_rules');
+  },
+
+  /** 保存审计规则 */
+  async saveRules(rules: string): Promise<void> {
+    return SettingsOperations.set('audit_rules', rules);
+  },
+};
+
+// ============================================================================
+// 域名过期通知业务操作
+// ============================================================================
+
+export const DomainExpiryOperations = {
+  /** 获取过期通知配置 */
+  async getNotification(): Promise<string | undefined> {
+    return SettingsOperations.get('domain_expiry_notification');
+  },
+
+  /** 保存过期通知配置 */
+  async saveNotification(config: string): Promise<void> {
+    return SettingsOperations.set('domain_expiry_notification', config);
+  },
+
+  /** 获取过期天数 */
+  async getDays(): Promise<string | undefined> {
+    return SettingsOperations.get('domain_expiry_days');
+  },
+
+  /** 保存过期天数 */
+  async saveDays(days: string): Promise<void> {
+    return SettingsOperations.set('domain_expiry_days', days);
   },
 };
 
