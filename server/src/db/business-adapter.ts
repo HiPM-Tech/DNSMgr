@@ -66,6 +66,70 @@ interface OperationContext {
 }
 
 // ============================================================================
+// SQL 兼容性辅助函数
+// ============================================================================
+
+/**
+ * 生成 UPSERT SQL 语句（兼容 MySQL/PostgreSQL/SQLite）
+ * @param table 表名
+ * @param columns 列名数组
+ * @param values 值数组
+ * @param conflictKey 冲突键
+ * @param updateColumns 需要更新的列
+ */
+export function buildUpsertSql(
+  table: string,
+  columns: string[],
+  values: unknown[],
+  conflictKey: string,
+  updateColumns: string[]
+): { sql: string; params: unknown[] } {
+  const dbType = getDbType();
+  const columnList = columns.join(', ');
+  
+  // 转义关键字
+  const escapeColumn = (col: string) => {
+    if (dbType === 'mysql') {
+      return ['key', 'value'].includes(col.toLowerCase()) ? `\`${col}\`` : col;
+    }
+    return col;
+  };
+  
+  const escapedColumns = columns.map(escapeColumn).join(', ');
+  const escapedTable = table;
+  
+  if (dbType === 'mysql') {
+    // MySQL: INSERT ... ON DUPLICATE KEY UPDATE
+    const placeholders = columns.map(() => '?').join(', ');
+    const updates = updateColumns.map(col => {
+      const escaped = escapeColumn(col);
+      return `${escaped} = VALUES(${escaped})`;
+    }).join(', ');
+    
+    const sql = `INSERT INTO ${escapedTable} (${escapedColumns}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
+    return { sql, params: values };
+  } else if (dbType === 'postgresql') {
+    // PostgreSQL: INSERT ... ON CONFLICT DO UPDATE
+    const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
+    const updates = updateColumns.map(col => {
+      return `${col} = EXCLUDED.${col}`;
+    }).join(', ');
+    
+    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}`;
+    return { sql, params: values };
+  } else {
+    // SQLite: INSERT ... ON CONFLICT DO UPDATE
+    const placeholders = columns.map(() => '?').join(', ');
+    const updates = updateColumns.map(col => {
+      return `${col} = excluded.${col}`;
+    }).join(', ');
+    
+    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}`;
+    return { sql, params: values };
+  }
+}
+
+// ============================================================================
 // 日志系统 - 使用统一日志模块
 // ============================================================================
 
@@ -94,10 +158,23 @@ function processSql(sql: string, dbType: string): string {
     sql = sql.replace(/\?/g, () => `$${++index}`);
   }
 
-  // MySQL 保留关键字转义（仅转义作为标识符的关键字，不转义 SQL 关键字如 ORDER BY）
+  // MySQL 兼容性处理
   if (dbType === 'mysql') {
-    // 只转义在特定上下文中的关键字（如列名、表名别名等）
-    // 避免转义 SQL 关键字如 ORDER BY, GROUP BY 等
+    // 1. 将 ON CONFLICT 转换为 ON DUPLICATE KEY UPDATE
+    // 匹配: ON CONFLICT(...) DO UPDATE SET col = excluded.col, ...
+    sql = sql.replace(
+      /ON\s+CONFLICT\s*\(\s*([^)]+)\s*\)\s*DO\s+UPDATE\s+SET\s+(.+?)(?:\s*$|\s+(?=RETURNING|WHERE|ORDER|LIMIT|OFFSET))/i,
+      (match, conflictKey, updateClause) => {
+        // 转换 excluded.col 为 VALUES(col)
+        const mysqlUpdateClause = updateClause.replace(
+          /excluded\.([a-zA-Z_][a-zA-Z0-9_]*)/gi,
+          'VALUES($1)'
+        );
+        return `ON DUPLICATE KEY UPDATE ${mysqlUpdateClause}`;
+      }
+    );
+
+    // 2. 转义保留关键字（仅转义作为标识符的关键字）
     const keywords = ['key', 'value'];
     keywords.forEach(keyword => {
       // 只匹配作为独立标识符的关键字，后面不跟 BY 等 SQL 关键字
@@ -630,21 +707,18 @@ export const SettingsOperations = {
 
   /** 设置值 */
   async set(key: string, value: string): Promise<void> {
-    const dbType = getDbType();
-    let sql: string;
+    const { sql, params } = buildUpsertSql(
+      'system_settings',
+      ['key', 'value', 'updated_at'],
+      [key, value, 'CURRENT_TIMESTAMP'],
+      'key',
+      ['value', 'updated_at']
+    );
     
-    if (dbType === 'mysql') {
-      // MySQL 使用 ON DUPLICATE KEY UPDATE
-      sql = 'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = CURRENT_TIMESTAMP';
-    } else if (dbType === 'postgresql') {
-      // PostgreSQL 使用 ON CONFLICT
-      sql = 'INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP';
-    } else {
-      // SQLite 使用 ON CONFLICT
-      sql = 'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP';
-    }
+    // 替换 CURRENT_TIMESTAMP 为实际函数调用
+    const finalSql = sql.replace(/'CURRENT_TIMESTAMP'/g, 'CURRENT_TIMESTAMP');
     
-    return executeInternal(sql, [key, value], { operation: 'Settings.set', table: 'system_settings' });
+    return executeInternal(finalSql, [key, value], { operation: 'Settings.set', table: 'system_settings' });
   },
 
   /** 获取JSON设置 */
