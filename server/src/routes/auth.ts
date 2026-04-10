@@ -524,11 +524,13 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
     config.redirectUri = `${baseUrl}/oauth/callback`;
     
     const state = randomHex(24);
+    const expiresAt = Date.now() + 10 * 60 * 1000;
     oauthStateStore.set(state, {
       mode: 'login',
       provider: desired,
-      expiresAt: Date.now() + 10 * 60 * 1000,
+      expiresAt,
     });
+    log.debug('OAuth', 'State created for login', { state: state.substring(0, 10) + '...', provider: desired, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
     res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth flow' });
@@ -574,12 +576,14 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
     config.redirectUri = `${baseUrl}/oauth/callback`;
     
     const state = randomHex(24);
+    const expiresAt = Date.now() + 10 * 60 * 1000;
     oauthStateStore.set(state, {
       mode: 'bind',
       provider: desired,
       userId: req.user!.userId,
-      expiresAt: Date.now() + 10 * 60 * 1000,
+      expiresAt,
     });
+    log.debug('OAuth', 'State created for bind', { state: state.substring(0, 10) + '...', provider: desired, userId: req.user!.userId, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
     res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth bind flow' });
