@@ -637,16 +637,32 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
  */
 router.post('/oauth/callback', async (req: Request, res: Response) => {
   const { code, state } = req.body as { code?: string; state?: string };
+  log.debug('OAuth', 'Callback received', { code: code?.substring(0, 10) + '...', state: state?.substring(0, 10) + '...' });
+  
   if (!code || !state) {
+    log.warn('OAuth', 'Missing code or state', { hasCode: !!code, hasState: !!state });
     res.status(400).json({ code: 400, msg: 'code and state are required' });
     return;
   }
+  
+  log.debug('OAuth', 'State store size', { size: oauthStateStore.size, keys: Array.from(oauthStateStore.keys()).map(k => k.substring(0, 10) + '...') });
+  
   const stateEntry = oauthStateStore.get(state);
   oauthStateStore.delete(state);
-  if (!stateEntry || Date.now() > stateEntry.expiresAt) {
-    res.status(400).json({ code: 400, msg: 'Invalid or expired oauth state' });
+  
+  if (!stateEntry) {
+    log.warn('OAuth', 'State not found in store', { state: state.substring(0, 10) + '...' });
+    res.status(400).json({ code: 400, msg: 'Invalid oauth state - state not found. Server may have restarted.' });
     return;
   }
+  
+  if (Date.now() > stateEntry.expiresAt) {
+    log.warn('OAuth', 'State expired', { state: state.substring(0, 10) + '...', expiredAt: new Date(stateEntry.expiresAt).toISOString() });
+    res.status(400).json({ code: 400, msg: 'Expired oauth state' });
+    return;
+  }
+  
+  log.debug('OAuth', 'State validated', { mode: stateEntry.mode, provider: stateEntry.provider });
 
   try {
     const config = await getOAuthConfigByProvider(stateEntry.provider);
