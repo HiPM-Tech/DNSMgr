@@ -93,7 +93,7 @@ export const sqliteSchema: SchemaDefinition = {
       mode TEXT NOT NULL CHECK(mode IN ('login', 'bind')),
       provider TEXT NOT NULL,
       user_id INTEGER,
-      expires_at TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE INDEX IF NOT EXISTS idx_oauth_state_expires ON oauth_states(expires_at)`,

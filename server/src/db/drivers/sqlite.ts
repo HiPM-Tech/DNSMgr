@@ -20,6 +20,11 @@ export interface SQLiteDriverConfig {
   foreignKeys?: boolean;
 }
 
+/** 将参数中的 Date 对象转换为 Unix 时间戳（秒） */
+function serializeParams(params: unknown[]): unknown[] {
+  return params.map(p => p instanceof Date ? Math.floor(p.getTime() / 1000) : p);
+}
+
 /** SQLite 驱动实现 */
 export class SQLiteDriver extends BaseDriver {
   readonly type = 'sqlite' as const;
@@ -59,9 +64,9 @@ export class SQLiteDriver extends BaseDriver {
     try {
       const stmt = this.db.prepare(sql);
       if (sql.trim().toLowerCase().startsWith('select')) {
-        return stmt.all(...(params || [])) as T[];
+        return stmt.all(...serializeParams(params || [])) as T[];
       }
-      stmt.run(...(params || []));
+      stmt.run(...serializeParams(params || []));
       return [];
     } catch (error) {
       this._stats.errors++;
@@ -74,7 +79,7 @@ export class SQLiteDriver extends BaseDriver {
     this._stats.queries++;
     try {
       const stmt = this.db.prepare(sql);
-      return stmt.get(...(params || [])) as T | undefined;
+      return stmt.get(...serializeParams(params || [])) as T | undefined;
     } catch (error) {
       this._stats.errors++;
       log.error('SQLite', 'Get error', { sql: sql.substring(0, 100), error });
@@ -86,7 +91,7 @@ export class SQLiteDriver extends BaseDriver {
     this._stats.queries++;
     try {
       const stmt = this.db.prepare(sql);
-      stmt.run(...(params || []));
+      stmt.run(...serializeParams(params || []));
     } catch (error) {
       this._stats.errors++;
       log.error('SQLite', 'Execute error', { sql: sql.substring(0, 100), error });
@@ -96,13 +101,13 @@ export class SQLiteDriver extends BaseDriver {
 
   async insert(sql: string, params?: unknown[]): Promise<number> {
     const stmt = this.db.prepare(sql);
-    const result = stmt.run(...(params || []));
+    const result = stmt.run(...serializeParams(params || []));
     return Number(result.lastInsertRowid);
   }
 
   async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
     const stmt = this.db.prepare(sql);
-    const result = stmt.run(...(params || []));
+    const result = stmt.run(...serializeParams(params || []));
     return { changes: result.changes };
   }
 
@@ -113,27 +118,27 @@ export class SQLiteDriver extends BaseDriver {
       query: async <T = unknown>(sql: string, params?: unknown[]): Promise<T[]> => {
         const stmt = this.db.prepare(sql);
         if (sql.trim().toLowerCase().startsWith('select')) {
-          return stmt.all(...(params || [])) as T[];
+          return stmt.all(...serializeParams(params || [])) as T[];
         }
-        stmt.run(...(params || []));
+        stmt.run(...serializeParams(params || []));
         return [];
       },
       get: async <T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> => {
         const stmt = this.db.prepare(sql);
-        return stmt.get(...(params || [])) as T | undefined;
+        return stmt.get(...serializeParams(params || [])) as T | undefined;
       },
       execute: async (sql: string, params?: unknown[]): Promise<void> => {
         const stmt = this.db.prepare(sql);
-        stmt.run(...(params || []));
+        stmt.run(...serializeParams(params || []));
       },
       insert: async (sql: string, params?: unknown[]): Promise<number> => {
         const stmt = this.db.prepare(sql);
-        const result = stmt.run(...(params || []));
+        const result = stmt.run(...serializeParams(params || []));
         return Number(result.lastInsertRowid);
       },
       run: async (sql: string, params?: unknown[]): Promise<{ changes: number }> => {
         const stmt = this.db.prepare(sql);
-        const result = stmt.run(...(params || []));
+        const result = stmt.run(...serializeParams(params || []));
         return { changes: result.changes };
       },
     };

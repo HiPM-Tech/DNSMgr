@@ -1173,7 +1173,7 @@ export const OAuthOperations = {
 
   /** 获取并删除 OAuth state（一次性使用） */
   async getAndDeleteState(state: string): Promise<{ mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId: number | null; expiresAt: Date } | undefined> {
-    const result = await getInternal<{ mode: string; provider: string; user_id: number | null; expires_at: string }>(
+    const result = await getInternal<{ mode: string; provider: string; user_id: number | null; expires_at: number }>(
       'SELECT mode, provider, user_id, expires_at FROM oauth_states WHERE state = ?',
       [state],
       { operation: 'OAuth.getState', table: 'oauth_states' }
@@ -1191,7 +1191,7 @@ export const OAuthOperations = {
       mode: result.mode as 'login' | 'bind',
       provider: result.provider as 'custom' | 'logto',
       userId: result.user_id,
-      expiresAt: new Date(result.expires_at),
+      expiresAt: new Date(result.expires_at * 1000),
     };
   },
 
@@ -1199,7 +1199,7 @@ export const OAuthOperations = {
   async cleanupExpiredStates(): Promise<number> {
     const result = await runInternal(
       'DELETE FROM oauth_states WHERE expires_at < ?',
-      [new Date()],
+      [Math.floor(Date.now() / 1000)],
       { operation: 'OAuth.cleanupExpiredStates', table: 'oauth_states' }
     );
     return result.changes || 0;
