@@ -47,29 +47,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine Docker tags
-        id: docker-tags
-        run: |
-          # Get short commit SHA
-          COMMIT_SHA_SHORT="${GITHUB_SHA:0:7}"
-          
-          # Format: nightly-YYYYMMDD-COMMIT_SHA and nightly
-          DATE=$(date +'%Y%m%d')
-          echo "TAGS<<EOF" >> $GITHUB_OUTPUT
-          echo "type=raw,value=nightly-$DATE-$COMMIT_SHA_SHORT" >> $GITHUB_OUTPUT
-          echo "type=raw,value=nightly" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
-          echo "Commit SHA: $COMMIT_SHA_SHORT"
-          echo "GitHub Ref: $GITHUB_REF"
-          echo "Date: $DATE"
+      - name: Set up build date
+        run: echo "BUILD_DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: ${{ steps.docker-tags.outputs.TAGS }}
+          tags: |
+            type=raw,value=nightly-${{ env.BUILD_DATE }}-${{ github.sha }}
+            type=raw,value=nightly
           labels: |
             org.opencontainers.image.title=DNS Manager
             org.opencontainers.image.description=A modern DNS management system
