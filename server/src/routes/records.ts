@@ -191,7 +191,11 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
-    const recordId = await dnsAdapter.addDomainRecord(name, type, value, line, ttl, mx, weight, remark);
+    // 对于 Cloudflare，使用 cloudflare.proxied 决定 line 值
+    const effectiveLine = cloudflare?.proxied !== undefined
+      ? (cloudflare.proxied ? '1' : '0')
+      : line;
+    const recordId = await dnsAdapter.addDomainRecord(name, type, value, effectiveLine, ttl, mx, weight, remark);
     if (!recordId) {
       sendError(res, 'Failed to add record');
       return;
@@ -308,7 +312,11 @@ router.put('/:recordId', authMiddleware, asyncHandler(async (req: Request, res: 
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
-    const success = await dnsAdapter.updateDomainRecord(recordId, name, type, value, line, ttl, mx, weight, remark);
+    // 对于 Cloudflare，使用 cloudflare.proxied 决定 line 值
+    const effectiveLine = cloudflare?.proxied !== undefined
+      ? (cloudflare.proxied ? '1' : '0')
+      : line;
+    const success = await dnsAdapter.updateDomainRecord(recordId, name, type, value, effectiveLine, ttl, mx, weight, remark);
     if (!success) {
       sendError(res, 'Failed to update record');
       return;
