@@ -185,6 +185,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       return;
     }
 
+    // 构建提交数据
+    const lineValue = canSelectProxy ? form.line : undefined;
     const payload: Partial<DnsRecord> = {
       ...form,
       name: form.name?.toString().trim(),
@@ -192,8 +194,9 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       ttl: Number(form.ttl ?? 600),
       mx: currentType === 'MX' || currentType === 'SRV' ? Number(form.mx ?? 0) : undefined,
       weight: currentType === 'SRV' ? Number(form.weight ?? 0) : undefined,
-      cloudflare: (isCloudflare && canSelectProxy && form.line !== undefined) ? { proxied: form.line === '1' } : undefined,
-      line: (!isCloudflare && canSelectProxy) ? form.line : undefined,
+      // Cloudflare: 同时发送 line 和 cloudflare.proxied，确保兼容性
+      line: lineValue,
+      cloudflare: (isCloudflare && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
       remark: form.remark?.toString() ?? '',
     };
 
