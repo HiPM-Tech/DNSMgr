@@ -530,7 +530,7 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
       provider: desired,
       expiresAt,
     });
-    log.debug('OAuth', 'State created for login', { state: state.substring(0, 10) + '...', provider: desired, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
+    log.info('OAuth', 'State created for login', { state: state.substring(0, 10) + '...', provider: desired, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
     res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth flow' });
@@ -583,7 +583,7 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
       userId: req.user!.userId,
       expiresAt,
     });
-    log.debug('OAuth', 'State created for bind', { state: state.substring(0, 10) + '...', provider: desired, userId: req.user!.userId, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
+    log.info('OAuth', 'State created for bind', { state: state.substring(0, 10) + '...', provider: desired, userId: req.user!.userId, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
     res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth bind flow' });
@@ -641,7 +641,7 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
  */
 router.post('/oauth/callback', async (req: Request, res: Response) => {
   const { code, state } = req.body as { code?: string; state?: string };
-  log.debug('OAuth', 'Callback received', { code: code?.substring(0, 10) + '...', state: state?.substring(0, 10) + '...' });
+  log.info('OAuth', 'Callback received', { code: code?.substring(0, 10) + '...', state: state?.substring(0, 10) + '...' });
   
   if (!code || !state) {
     log.warn('OAuth', 'Missing code or state', { hasCode: !!code, hasState: !!state });
@@ -666,7 +666,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     return;
   }
   
-  log.debug('OAuth', 'State validated', { mode: stateEntry.mode, provider: stateEntry.provider });
+  log.info('OAuth', 'State validated', { mode: stateEntry.mode, provider: stateEntry.provider, userId: stateEntry.userId });
 
   try {
     const config = await getOAuthConfigByProvider(stateEntry.provider);
