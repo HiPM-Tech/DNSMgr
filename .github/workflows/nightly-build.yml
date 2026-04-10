@@ -1,0 +1,146 @@
+name: Nightly Docker Build
+
+# Trigger on every push to the main branch
+on:
+  push:
+    branches:
+      - main
+  
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      push:
+        description: 'Push to registry'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  REGISTRY: ghcr.io
+  # Dynamically get repository name from GitHub context
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-nightly:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Docker tags
+        id: docker-tags
+        run: |
+          # Get short commit SHA
+          COMMIT_SHA_SHORT="${GITHUB_SHA:0:7}"
+          
+          # Format: nightly-YYYYMMDD-COMMIT_SHA and nightly
+          DATE=$(date +'%Y%m%d')
+          echo "TAGS=nightly-$DATE-$COMMIT_SHA_SHORT,nightly" >> $GITHUB_OUTPUT
+          
+          echo "Commit SHA: $COMMIT_SHA_SHORT"
+          echo "GitHub Ref: $GITHUB_REF"
+          echo "Date: $DATE"
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.docker-tags.outputs.TAGS }}
+          labels: |
+            org.opencontainers.image.title=DNS Manager
+            org.opencontainers.image.description=A modern DNS management system
+            org.opencontainers.image.url=https://github.com/${{ github.repository }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.created=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            COMMIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+
+      - name: Output build information
+        run: |
+          echo "========================================"
+          echo "Nightly Docker Build Completed"
+          echo "========================================"
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit SHA: ${{ github.sha }}"
+          echo "Commit SHA (short): ${GITHUB_SHA:0:7}"
+          echo "Triggered by: ${{ github.event_name }}"
+          echo ""
+          echo "Docker Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+          echo ""
+          echo "Build time: $(date)"
+          echo "========================================"
+
+  # Optional: Add a job to verify the built image
+  verify-image:
+    runs-on: ubuntu-latest
+    needs: build-nightly
+    permissions:
+      contents: read
+      packages: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and verify Docker image
+        run: |
+          # Pull the nightly image
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly
+          
+          # Verify the image exists and has correct labels
+          echo "Verifying Docker image labels:"
+          docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly --format='{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}'
+          
+          # Check image size
+          echo ""
+          echo "Image size:"
+          docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+          
+          echo ""
+          echo "Image verification completed successfully!"
