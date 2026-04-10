@@ -565,6 +565,8 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
  *         description: Unauthorized
  */
 router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Response) => {
+  // 最早期日志，确认请求到达
+  log.debug('OAuth', '>>> /oauth/start-bind ENTRY', { userId: req.user?.userId, body: req.body });
   try {
     const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
     log.debug('OAuth', 'Start bind request received', { provider: desired, userId: req.user!.userId });
