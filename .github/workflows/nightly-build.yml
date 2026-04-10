@@ -38,30 +38,30 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up date tag
-        id: date-tag
-        run: echo "DATE_TAG=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+        run: echo "DATE_TAG=$(date +%Y%m%d)" >> $GITHUB_ENV
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
+        if: github.event.inputs.push != 'false'
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-${{ steps.date-tag.outputs.DATE_TAG }}-${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly
+            ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly-${{ env.DATE_TAG }}-${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             COMMIT_SHA=${{ github.sha }}
-            BUILD_DATE=${{ steps.date-tag.outputs.DATE_TAG }}
+            BUILD_DATE=${{ env.DATE_TAG }}
 
       - name: Output build information
         run: |
@@ -86,7 +86,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -94,11 +94,11 @@ jobs:
 
       - name: Pull and verify Docker image
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly
+          docker pull ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly
           echo "Verifying Docker image labels:"
-          docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly --format='{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}'
+          docker inspect ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly --format='{{json .Config.Labels}}'
           echo ""
           echo "Image size:"
-          docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+          docker images ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
           echo ""
           echo "Image verification completed successfully!"
