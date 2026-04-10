@@ -13,14 +13,12 @@ import {
 import { log } from '../../logger';
 
 export class TencenteoAdapter extends TencentCloudAdapter {
-  private readonly zoneId: string;
-  private readonly domain: string;
+  private zoneId: string = '';
+  private domain: string = '';
   private readonly siteType: string;
 
   constructor(config: Record<string, string>) {
     super(config);
-    this.zoneId = safeString(config.zoneId);
-    this.domain = safeString(config.domain);
     this.siteType = safeString(config.site_type).toLowerCase();
   }
 
@@ -34,6 +32,15 @@ export class TencenteoAdapter extends TencentCloudAdapter {
 
   protected version(): string {
     return '2022-09-01';
+  }
+
+  /**
+   * 设置当前操作的 Zone ID 和域名
+   * 在获取记录、添加记录等操作前调用
+   */
+  setZoneInfo(zoneId: string, domain: string): void {
+    this.zoneId = zoneId;
+    this.domain = domain;
   }
 
   private fqdn(name: string): string {
@@ -115,6 +122,10 @@ export class TencenteoAdapter extends TencentCloudAdapter {
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
+      if (!this.zoneId) {
+        this.error = 'Zone ID not set';
+        return { total: 0, list: [] };
+      }
       const offset = (page - 1) * pageSize;
       const filters: Array<{ Name: string; Values: string[]; Fuzzy?: boolean }> = [];
       if (subdomain) filters.push({ Name: 'name', Values: [this.fqdn(subdomain)] });
@@ -138,6 +149,10 @@ export class TencenteoAdapter extends TencentCloudAdapter {
 
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
+      if (!this.zoneId) {
+        this.error = 'Zone ID not set';
+        return null;
+      }
       const data = await this.call<Dict>('DescribeDnsRecords', {
         ZoneId: this.zoneId,
         Filters: [{ Name: 'id', Values: [recordId] }],
@@ -152,6 +167,10 @@ export class TencenteoAdapter extends TencentCloudAdapter {
 
   async addDomainRecord(name: string, type: string, value: string, line?: string, ttl = 600, mx = 1, weight?: number, _remark?: string): Promise<string | null> {
     try {
+      if (!this.zoneId) {
+        this.error = 'Zone ID not set';
+        return null;
+      }
       const srv = parseSrvValue(value);
       const data = await this.call<Dict>('CreateDnsRecord', {
         ZoneId: this.zoneId,
@@ -183,6 +202,10 @@ export class TencenteoAdapter extends TencentCloudAdapter {
     _remark?: string
   ): Promise<boolean> {
     try {
+      if (!this.zoneId) {
+        this.error = 'Zone ID not set';
+        return false;
+      }
       const srv = parseSrvValue(value);
       await this.call('ModifyDnsRecord', {
         ZoneId: this.zoneId,
@@ -205,6 +228,10 @@ export class TencenteoAdapter extends TencentCloudAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
+      if (!this.zoneId) {
+        this.error = 'Zone ID not set';
+        return false;
+      }
       await this.call('DeleteDnsRecords', {
         ZoneId: this.zoneId,
         RecordIds: [recordId],
@@ -218,6 +245,10 @@ export class TencenteoAdapter extends TencentCloudAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
+      if (!this.zoneId) {
+        this.error = 'Zone ID not set';
+        return false;
+      }
       await this.call('ModifyDnsRecordsStatus', {
         ZoneId: this.zoneId,
         RecordsToEnable: status === 1 ? [recordId] : undefined,

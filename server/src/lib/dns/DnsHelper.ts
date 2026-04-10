@@ -1,4 +1,5 @@
 import { DnsAdapter } from './DnsInterface';
+import { TencenteoAdapter } from './providers/tencenteo';
 import {
   ProviderCapabilities,
   ProviderConfigField,
@@ -35,6 +36,14 @@ export function createAdapter(type: string, config: Record<string, string>, doma
     throw new Error(`Unknown provider type: ${type}`);
   }
 
-  const cfg = { ...config, domain: domain ?? '', zoneId: zoneId ?? '' };
-  return definition.adapterFactory(cfg);
+  const adapter = definition.adapterFactory(config);
+
+  // 对于腾讯 EO 适配器，设置 Zone ID 和域名
+  if (type === 'tencenteo' && adapter instanceof TencenteoAdapter) {
+    if (zoneId && domain) {
+      adapter.setZoneInfo(zoneId, domain);
+    }
+  }
+
+  return adapter;
 }
