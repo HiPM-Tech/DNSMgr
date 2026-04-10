@@ -91,18 +91,18 @@ function canWriteSubdomain(writeSubs: string[] | null, fullName: string, domainN
 }
 
 async function getAdapterForDomain(domain: Domain) {
-  log.debug('Records', 'Getting adapter for domain', { domainId: domain.id, domainName: domain.name, accountId: domain.account_id, thirdId: domain.third_id });
+  log.info('Records', 'Getting adapter for domain', { domainId: domain.id, domainName: domain.name, accountId: domain.account_id, thirdId: domain.third_id });
   const account = await DnsAccountOperations.getById(domain.account_id) as DnsAccount | undefined;
   if (!account) {
     log.error('Records', 'Account not found', { accountId: domain.account_id });
     throw new Error('Account not found');
   }
-  log.debug('Records', 'Found account', { accountType: account.type, accountName: account.name });
+  log.info('Records', 'Found account', { accountType: account.type, accountName: account.name });
   // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
   const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
-  log.debug('Records', 'Creating adapter', { type: account.type, domain: domain.name, thirdId: domain.third_id });
+  log.info('Records', 'Creating adapter', { type: account.type, domain: domain.name, thirdId: domain.third_id });
   const adapter = createAdapter(account.type, cfg, domain.name, domain.third_id);
-  log.debug('Records', 'Adapter created');
+  log.info('Records', 'Adapter created');
   return adapter;
 }
 
@@ -149,14 +149,14 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   }
   const { page = '1', pageSize = '100', keyword, subdomain, value, type, line, status } = req.query as Record<string, string>;
   try {
-    log.debug('Records', 'Fetching records', { domainId: access.domain.id, page, pageSize, keyword, subdomain, value, type, line, status });
+    log.info('Records', 'Fetching records', { domainId: access.domain.id, page, pageSize, keyword, subdomain, value, type, line, status });
     const dnsAdapter = await getAdapterForDomain(access.domain);
-    log.debug('Records', 'Got adapter, calling getDomainRecords');
+    log.info('Records', 'Got adapter, calling getDomainRecords');
     const result = await dnsAdapter.getDomainRecords(
       parseInt(page), parseInt(pageSize), keyword, subdomain, value, type, line,
       status !== undefined ? parseInt(status) : undefined
     );
-    log.debug('Records', 'Got records result', { total: result.total, count: result.list.length });
+    log.info('Records', 'Got records result', { total: result.total, count: result.list.length });
     await updateDomainRecordCount(access.domain.id, result.total);
     sendSuccess(res, { total: result.total, list: result.list.map(toApiRecord) });
   } catch (e) {
