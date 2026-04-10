@@ -15,9 +15,10 @@
       "driverVersion": "ドライバーのバージョン",
       "language": "現在の言語",
       "subtitle": "システム情報とバージョン",
+      "systemVersion": "システムバージョン",
+      "frontendVersion": "フロントエンドバージョン",
       "timezone": "タイムゾーン",
-      "title": "概要",
-      "version": "バージョン"
+      "title": "概要"
     },
     "accounts": {
       "accountName": "アカウント名 *",

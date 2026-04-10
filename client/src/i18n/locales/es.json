@@ -15,9 +15,10 @@
       "driverVersion": "Versión del controlador",
       "language": "Idioma actual",
       "subtitle": "Información del sistema y versión",
+      "systemVersion": "Versión del sistema",
+      "frontendVersion": "Versión del frontend",
       "timezone": "Zona horaria",
-      "title": "Acerca de",
-      "version": "Versión"
+      "title": "Acerca de"
     },
     "accounts": {
       "accountName": "Nombre de cuenta *",

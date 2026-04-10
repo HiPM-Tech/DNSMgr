@@ -15,9 +15,10 @@
       "driverVersion": "驱动版本",
       "language": "当前语言",
       "subtitle": "系统信息和版本",
+      "systemVersion": "系统版本",
+      "frontendVersion": "前端版本",
       "timezone": "系统时区",
-      "title": "关于",
-      "version": "项目版本"
+      "title": "关于"
     },
     "accounts": {
       "accountName": "账号名称 *",

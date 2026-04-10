@@ -274,7 +274,8 @@
     "about": {
       "title": "About",
       "subtitle": "System information and version",
-      "version": "Version",
+      "systemVersion": "System Version",
+      "frontendVersion": "Frontend Version",
       "databaseType": "Database Type",
       "databaseVersion": "Database Version",
       "driverVersion": "Driver Version",

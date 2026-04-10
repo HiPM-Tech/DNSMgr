@@ -25,13 +25,23 @@ export function About() {
     return () => clearInterval(timer);
   }, []);
 
+  // Get frontend version from package.json
+  const frontendVersion = import.meta.env.VITE_APP_VERSION || '1.0.0 Open';
+
   const infoItems = [
     {
       icon: Package,
       iconColor: 'text-blue-500',
       iconBg: 'bg-blue-100 dark:bg-blue-900/30',
-      label: t('about.version'),
-      value: systemInfo?.version || '0.1-beta',
+      label: t('about.systemVersion'),
+      value: systemInfo?.version || '1.0.0 Open',
+    },
+    {
+      icon: Package,
+      iconColor: 'text-blue-400',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/30',
+      label: t('about.frontendVersion'),
+      value: frontendVersion,
     },
     {
       icon: Database,

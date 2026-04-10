@@ -9,13 +9,13 @@ router.get('/info', async (req: Request, res: Response) => {
     // Get database info from business adapter
     const dbInfo = await SystemOperations.getDatabaseInfo();
     
-    // Get server package version
+    // Get server package version from root package.json
     const serverVersion = require('../../package.json').version;
     
     res.json({
       code: 0,
       data: {
-        version: '0.1-beta',
+        version: serverVersion, // System version uses backend package.json version
         serverVersion,
         database: dbInfo,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
