@@ -8,6 +8,7 @@ import {
   getProviderInfoList,
   providerDefinitionMap,
 } from './providers/registry';
+import { log } from '../logger';
 
 export type { ProviderCapabilities, ProviderConfigField, ProviderInfo };
 
@@ -40,8 +41,12 @@ export function createAdapter(type: string, config: Record<string, string>, doma
 
   // 对于腾讯 EO 适配器，设置 Zone ID 和域名
   if (type === 'tencenteo' && adapter instanceof TencenteoAdapter) {
+    log.debug('DnsHelper', 'Creating TencentEO adapter', { domain, zoneId, hasZoneId: !!zoneId, hasDomain: !!domain });
     if (zoneId && domain) {
       adapter.setZoneInfo(zoneId, domain);
+      log.debug('DnsHelper', 'TencentEO adapter ZoneInfo set', { zoneId, domain });
+    } else {
+      log.warn('DnsHelper', 'TencentEO adapter missing zoneId or domain', { zoneId, domain });
     }
   }
 

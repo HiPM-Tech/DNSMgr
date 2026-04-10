@@ -41,6 +41,7 @@ export class TencenteoAdapter extends TencentCloudAdapter {
   setZoneInfo(zoneId: string, domain: string): void {
     this.zoneId = zoneId;
     this.domain = domain;
+    log.debug('TencenteoAdapter', 'ZoneInfo set', { zoneId, domain });
   }
 
   private fqdn(name: string): string {
@@ -122,8 +123,10 @@ export class TencenteoAdapter extends TencentCloudAdapter {
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
+      log.debug('TencenteoAdapter', 'getDomainRecords called', { zoneId: this.zoneId, domain: this.domain, page, pageSize });
       if (!this.zoneId) {
         this.error = 'Zone ID not set';
+        log.warn('TencenteoAdapter', 'Zone ID not set when getting domain records', { domain: this.domain });
         return { total: 0, list: [] };
       }
       const offset = (page - 1) * pageSize;
