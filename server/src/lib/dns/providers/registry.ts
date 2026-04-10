@@ -73,7 +73,6 @@ const providerDefinitions: ProviderDefinition[] = [
     configFields: [
       { key: 'SecretId', label: 'SecretId', type: 'text', required: true },
       { key: 'SecretKey', label: 'SecretKey', type: 'password', required: true },
-      { key: 'site_type', label: 'Site Type (intl)', type: 'text', required: false },
     ],
     adapterFactory: (config) => new DnspodAdapter(config),
   },
