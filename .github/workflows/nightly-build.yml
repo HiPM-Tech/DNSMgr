@@ -44,6 +44,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up date tag
+        id: date-tag
+        run: echo "DATE_TAG=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -51,13 +55,13 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-$(date +%Y%m%d)-${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-${{ steps.date-tag.outputs.DATE_TAG }}-${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             COMMIT_SHA=${{ github.sha }}
-            BUILD_DATE=$(date +%Y-%m-%d)
+            BUILD_DATE=${{ steps.date-tag.outputs.DATE_TAG }}
 
       - name: Output build information
         run: |
