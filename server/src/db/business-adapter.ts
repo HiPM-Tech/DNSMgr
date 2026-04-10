@@ -92,35 +92,38 @@ function buildUpsertSql(
   
   if (dbType === 'mysql') {
     // MySQL: INSERT ... ON DUPLICATE KEY UPDATE
-    const columnList = allColumns.map(col => col === 'key' || col === 'value' ? `\`${col}\`` : col).join(', ');
-    const placeholders = allColumns.map(() => '?').join(', ');
+    // updated_at 不在 INSERT 的列中，只在 UPDATE 部分使用 NOW()
+    const insertColumns = columns.map(col => col === 'key' || col === 'value' ? `\`${col}\`` : col).join(', ');
+    const placeholders = columns.map(() => '?').join(', ');
     const updates = updateColumns.map(col => {
       const escaped = col === 'key' || col === 'value' ? `\`${col}\`` : col;
       return `${escaped} = VALUES(${escaped})`;
     }).join(', ');
     
-    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}, updated_at = NOW()`;
-    return { sql, params: [...values, 'NOW()'] };
+    const sql = `INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}, updated_at = NOW()`;
+    return { sql, params: values };
   } else if (dbType === 'postgresql') {
     // PostgreSQL: INSERT ... ON CONFLICT DO UPDATE
-    const columnList = allColumns.join(', ');
-    const placeholders = allColumns.map((_, i) => `$${i + 1}`).join(', ');
+    // updated_at 不在 INSERT 的列中，只在 UPDATE 部分使用 NOW()
+    const insertColumns = columns.join(', ');
+    const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
     const updates = updateColumns.map(col => {
       return `${col} = EXCLUDED.${col}`;
     }).join(', ');
     
-    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = NOW()`;
-    return { sql, params: [...values, 'NOW()'] };
+    const sql = `INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = NOW()`;
+    return { sql, params: values };
   } else {
     // SQLite: INSERT ... ON CONFLICT DO UPDATE
-    const columnList = allColumns.join(', ');
-    const placeholders = allColumns.map(() => '?').join(', ');
+    // updated_at 不在 INSERT 的列中，只在 UPDATE 部分使用 CURRENT_TIMESTAMP
+    const insertColumns = columns.join(', ');
+    const placeholders = columns.map(() => '?').join(', ');
     const updates = updateColumns.map(col => {
       return `${col} = excluded.${col}`;
     }).join(', ');
     
-    const sql = `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = CURRENT_TIMESTAMP`;
-    return { sql, params: [...values, 'CURRENT_TIMESTAMP'] };
+    const sql = `INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = CURRENT_TIMESTAMP`;
+    return { sql, params: values };
   }
 }
 
