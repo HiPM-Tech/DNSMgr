@@ -182,7 +182,11 @@
       "type": "类型",
       "unknown": "未知",
       "users": "用户",
-      "value": "值"
+      "value": "值",
+      "total": "共",
+      "items": "条",
+      "page": "页",
+      "perPage": "条/页"
     },
     "dashboard": {
       "activeUsers": "活跃用户",

@@ -56,7 +56,11 @@
       "mail": "Mail",
       "refresh": "Refresh",
       "desc": "Description",
-      "redirecting": "Redirecting..."
+      "redirecting": "Redirecting...",
+      "total": "Total",
+      "items": "items",
+      "page": "page",
+      "perPage": "per page"
     },
     "mail": {
       "title": "Email Setup",

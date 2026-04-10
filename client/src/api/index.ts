@@ -240,8 +240,15 @@ export const domainsApi = {
 
 // ─── Records ──────────────────────────────────────────────────────────────────
 
+export interface RecordListParams {
+  type?: string;
+  keyword?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 export const recordsApi = {
-  list: (domainId: number, params?: { type?: string; keyword?: string }) =>
+  list: (domainId: number, params?: RecordListParams) =>
     api.get<ApiResponse<{ total: number; list: DnsRecord[] }>>(`/domains/${domainId}/records`, { params }),
   create: (domainId: number, data: Partial<DnsRecord>) =>
     api.post<ApiResponse<{ id: string }>>(`/domains/${domainId}/records`, data),

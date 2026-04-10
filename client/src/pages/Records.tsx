@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { recordsApi, domainsApi, accountsApi } from '../api';
 import type { DnsRecord } from '../api';
 import { Table } from '../components/Table';
@@ -37,6 +37,11 @@ export function Records() {
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState<'records' | 'tunnels'>('records');
   const [showTunnels] = useLocalStorage('showTunnels', false);
+  
+  // 分页状态
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
 
   const { data: domain } = useQuery({
     queryKey: ['domain', domainId],
@@ -71,13 +76,23 @@ export function Records() {
     }
   }, [providerRecordTypes, typeFilter]);
 
-  const { data: records = [], isLoading } = useQuery({
-    queryKey: ['records', domainId, typeFilter, keyword],
+  const { data: recordsData, isLoading } = useQuery({
+    queryKey: ['records', domainId, typeFilter, keyword, page, pageSize],
     queryFn: () => recordsApi.list(domainId, {
       type: typeFilter || undefined,
       keyword: keyword || undefined,
-    }).then((r) => r.data.data?.list ?? []),
+      page,
+      pageSize,
+    }).then((r) => {
+      setTotal(r.data.data?.total ?? 0);
+      return r.data.data ?? { total: 0, list: [] };
+    }),
   });
+  
+  const records = recordsData?.list ?? [];
+  
+  // 计算总页数
+  const totalPages = Math.ceil(total / pageSize);
 
   const { data: lines = [] } = useQuery({
     queryKey: ['lines', domainId],
@@ -259,6 +274,80 @@ export function Records() {
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
             <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} />
           </div>
+          
+          {/* 分页控件 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {t('common.total')} {total} {t('common.items')}, {page} / {totalPages} {t('common.page')}
+                </span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="ml-2 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('common.perPage')}</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                
+                {/* 页码按钮 */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    // 显示当前页附近的页码
+                    let pageNum = i + 1;
+                    if (totalPages > 5) {
+                      if (page > 3) {
+                        pageNum = page - 3 + i;
+                      }
+                      if (pageNum > totalPages - 4 && page > totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      }
+                    }
+                    if (pageNum < 1 || pageNum > totalPages) return null;
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setPage(pageNum)}
+                        className={`min-w-[2rem] px-2 py-1 text-sm rounded-lg ${
+                          page === pageNum
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
