@@ -717,6 +717,20 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
         return;
       }
       
+      // 可能正在处理中，等待一小段时间后重试
+      log.info('OAuth', 'State not found but may be processing, waiting...', { state: state.substring(0, 16) + '...' });
+      
+      // 等待1秒，让第一个请求有机会完成
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 再次检查是否已经被处理
+      if (processedCodes.has(code)) {
+        log.info('OAuth', 'Code processed after waiting, returning success', { code: code?.substring(0, 16) + '...' });
+        addProcessedCode(code);
+        res.json({ code: 0, data: { mode: 'login' }, msg: 'OAuth flow completed after retry' });
+        return;
+      }
+      
       res.status(400).json({ code: 400, msg: 'Invalid oauth state - state not found. Server may have restarted or callback was already processed.' });
       return;
     }
