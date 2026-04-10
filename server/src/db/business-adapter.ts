@@ -174,7 +174,8 @@ function processSql(sql: string, dbType: string): string {
     const keywords = ['key', 'value'];
     keywords.forEach(keyword => {
       // 匹配未转义的关键字：前面不是反引号，后面也不是反引号
-      const regex = new RegExp(`(?<!")\\b${keyword}\\b(?!")`, 'gi');
+      // 使用 lookbehind 和 lookahead 来确保关键字没有被反引号包围
+      const regex = new RegExp(`(?<!\\\\)\\b${keyword}\\b(?!\\\)`, 'gi');
       sql = sql.replace(regex, (match, offset) => {
         const upperSql = sql.toUpperCase();
         const beforeContext = sql.substring(Math.max(0, offset - 20), offset).toUpperCase();
