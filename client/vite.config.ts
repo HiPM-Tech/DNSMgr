@@ -4,8 +4,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 export default defineConfig(({ mode }) => {
-  // Load env file based on mode
-  const env = loadEnv(mode, process.cwd(), '');
+  // Load env file based on mode (for future use)
+  loadEnv(mode, process.cwd(), '');
   
   // Read frontend package.json version
   const packageJsonPath = join(process.cwd(), 'package.json');
