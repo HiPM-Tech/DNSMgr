@@ -20,6 +20,9 @@ const resetStore = new Map<string, { code: string; expiresAt: number }>();
 // OAuth state 现在存储在数据库中，不再使用内存 Map
 // const oauthStateStore = new Map<string, { mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId?: number; expiresAt: number }>();
 const processingCallbacks = new Set<string>();
+// 记录已成功处理的code，避免重复处理（最多保留1000个，避免内存泄漏）
+const processedCodes = new Set<string>();
+const MAX_PROCESSED_CODES = 1000;
 
 type OAuthConfig = {
   enabled: boolean;
@@ -70,6 +73,18 @@ type LoginUserInfo = {
 
 function randomHex(size: number): string {
   return crypto.randomBytes(size).toString('hex');
+}
+
+function addProcessedCode(code: string): void {
+  // 限制集合大小，避免内存泄漏
+  if (processedCodes.size >= MAX_PROCESSED_CODES) {
+    // 删除一些元素（Set没有顺序，所以转换为数组后删除前几个）
+    const codesArray = Array.from(processedCodes);
+    for (let i = 0; i < 10 && i < codesArray.length; i++) {
+      processedCodes.delete(codesArray[i]);
+    }
+  }
+  processedCodes.add(code);
 }
 
 function sanitizeConfigValue(value: string): string {
@@ -689,7 +704,18 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     const stateEntry = await OAuthOperations.getAndDeleteState(state);
 
     if (!stateEntry) {
-      log.warn('OAuth', 'State not found in store', { state: state.substring(0, 16) + '...' });
+      log.warn('OAuth', 'State not found in store', { state: state.substring(0, 16) + '...', code: code?.substring(0, 16) + '...' });
+      
+      // 检查这个code是否已经被处理过
+      if (processedCodes.has(code)) {
+        log.info('OAuth', 'Code already processed, returning success', { code: code?.substring(0, 16) + '...' });
+        // 如果已经处理过，返回成功（幂等性）
+        // 对于绑定模式，返回成功
+        // 对于登录模式，需要检查用户是否已经登录，但这里简单返回成功
+        res.json({ code: 0, data: { mode: 'login' }, msg: 'OAuth flow already completed' });
+        return;
+      }
+      
       res.status(400).json({ code: 400, msg: 'Invalid oauth state - state not found. Server may have restarted or callback was already processed.' });
       return;
     }
@@ -748,11 +774,13 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
         return;
       }
       if (existingLink && existingLink.id === currentUserId) {
+        addProcessedCode(code);
         res.json({ code: 0, data: { mode: 'bind' }, msg: 'success' });
         return;
       }
       await OAuthOperations.create(currentUserId, providerKey, subject, normalizedEmail);
       await logAuditOperation(currentUserId, 'bind_oauth_account', 'system', { provider: providerKey, subject, email: normalizedEmail });
+      addProcessedCode(code);
       res.json({ code: 0, data: { mode: 'bind' }, msg: 'success' });
       return;
     }
@@ -770,6 +798,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
 
     const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
     await logAuditOperation(user.id, 'oauth_login', 'system', { provider: providerKey });
+    addProcessedCode(code);
     res.json({
       code: 0,
       data: { mode: 'login', token, user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },

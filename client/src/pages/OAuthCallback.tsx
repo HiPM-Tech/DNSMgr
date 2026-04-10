@@ -48,8 +48,22 @@ export function OAuthCallback() {
 
         navigate('/settings');
       })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : t('login.oauthFailed'));
+      .catch((err: any) => {
+        // 处理Axios错误，提取服务器返回的错误消息
+        let errorMessage = t('login.oauthFailed');
+        
+        if (err.response?.data?.msg) {
+          errorMessage = err.response.data.msg;
+        } else if (err.response?.status === 400) {
+          errorMessage = 'OAuth state invalid or expired. Please try again.';
+        } else if (err.response?.status === 429) {
+          errorMessage = 'Request is being processed, please wait.';
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
+        
+        setError(errorMessage);
+        console.error('OAuth callback failed:', err);
       })
       .finally(() => {
         setProcessing(false);

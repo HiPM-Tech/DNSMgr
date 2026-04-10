@@ -1164,9 +1164,19 @@ export const OAuthOperations = {
 
   /** 创建 OAuth state */
   async createState(state: string, mode: 'login' | 'bind', provider: string, userId: number | null, expiresAt: Date): Promise<void> {
+    // 将Date转换为Unix时间戳（秒）
+    const expiresTimestamp = Math.floor(expiresAt.getTime() / 1000);
+    log.debug('OAuth', 'Creating state', { 
+      state: state.substring(0, 16) + '...', 
+      mode, 
+      provider, 
+      userId, 
+      expiresAt: expiresAt.toISOString(),
+      expiresTimestamp 
+    });
     return executeInternal(
       'INSERT INTO oauth_states (state, mode, provider, user_id, expires_at) VALUES (?, ?, ?, ?, ?)',
-      [state, mode, provider, userId, expiresAt],
+      [state, mode, provider, userId, expiresTimestamp],
       { operation: 'OAuth.createState', table: 'oauth_states' }
     );
   },
@@ -1178,6 +1188,13 @@ export const OAuthOperations = {
       [state],
       { operation: 'OAuth.getState', table: 'oauth_states' }
     );
+    
+    log.debug('OAuth', 'Getting state', { 
+      state: state.substring(0, 16) + '...', 
+      found: !!result,
+      result 
+    });
+    
     if (!result) return undefined;
 
     // 删除已使用的 state
