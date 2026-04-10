@@ -113,15 +113,16 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const currentType = form.type ?? 'A';
   const isSrv = currentType === 'SRV';
   const isCloudflare = provider?.type === 'cloudflare';
-  const canSelectProxy = lines.length > 0 && (
-    isCloudflare
-      ? (initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
-        ? Boolean(initial.cloudflare.proxiable)
-        : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
-          ? Boolean(initial.proxiable)
-        : PROXIABLE_RECORD_TYPES.has(currentType))
-      : provider?.capabilities?.line
-  );
+  
+  // Cloudflare 使用代理模式，不依赖 lines 数组
+  // 其他提供商需要 lines 数组支持
+  const canSelectProxy = isCloudflare
+    ? (initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
+      ? Boolean(initial.cloudflare.proxiable)
+      : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
+        ? Boolean(initial.proxiable)
+      : PROXIABLE_RECORD_TYPES.has(currentType))
+    : (lines.length > 0 && provider?.capabilities?.line);
 
   const normalizedSrvValue = useMemo(() => {
     const port = srv.port.trim();
@@ -346,9 +347,22 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         )}
         {canSelectProxy && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.lineLabel')}</label>
-            <select value={form.line ?? ''} onChange={(e) => set('line', e.target.value)} className={inputClass}>
-              {lines.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              {isCloudflare ? t('records.proxy') : t('records.lineLabel')}
+            </label>
+            <select 
+              value={form.line ?? (isCloudflare ? '0' : '')} 
+              onChange={(e) => set('line', e.target.value)} 
+              className={inputClass}
+            >
+              {isCloudflare ? (
+                <>
+                  <option value="0">{t('records.dnsOnly')}</option>
+                  <option value="1">{t('records.proxied')}</option>
+                </>
+              ) : (
+                lines.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)
+              )}
             </select>
           </div>
         )}
