@@ -45,7 +45,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up date tag
-        run: echo "DATE_TAG=$(date +%Y%m%d)" >> $GITHUB_ENV
+        run: |
+          echo "DATE_TAG=$(date +%Y%m%d)" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -55,8 +57,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly-${{ env.DATE_TAG }}-${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly-${{ env.DATE_TAG }}-${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -92,13 +94,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up image name
+        run: |
+          echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Pull and verify Docker image
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly
           echo "Verifying Docker image labels:"
-          docker inspect ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly --format='{{json .Config.Labels}}'
+          docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly --format='{{json .Config.Labels}}'
           echo ""
           echo "Image size:"
-          docker images ${{ env.REGISTRY }}/${{ toLowerCase(github.repository) }}:nightly --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+          docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
           echo ""
           echo "Image verification completed successfully!"
