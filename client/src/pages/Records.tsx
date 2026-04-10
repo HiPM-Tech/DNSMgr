@@ -146,6 +146,8 @@ export function Records() {
 
   const lineMap = Object.fromEntries(lines.map((l) => [l.id, l.name]));
 
+  const isCloudflare = account?.type === 'cloudflare';
+
   const columns = [
     { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">{r.name}</span> },
     {
@@ -161,12 +163,22 @@ export function Records() {
       ),
     },
     {
-      key: 'line', label: t('common.line'),
+      key: 'line', label: isCloudflare ? t('records.proxy') : t('common.line'),
       render: (r: DnsRecord) => {
-        const proxiable = r.cloudflare?.proxiable ?? r.proxiable;
-        const proxied = r.cloudflare?.proxied;
-        const effectiveLine = proxied === undefined ? r.line : (proxied ? '1' : '0');
-        return <span className="text-gray-500 text-xs">{proxiable === false ? '-' : (effectiveLine ? (lineMap[effectiveLine] ?? effectiveLine) : '-')}</span>;
+        // Cloudflare: 显示代理状态（是/否）
+        if (isCloudflare) {
+          const proxiable = r.cloudflare?.proxiable ?? r.proxiable;
+          const proxied = r.cloudflare?.proxied ?? (r.line === '1');
+          if (proxiable === false) return <span className="text-gray-400 text-xs">-</span>;
+          return (
+            <span className={`text-xs font-medium ${proxied ? 'text-orange-500' : 'text-gray-500'}`}>
+              {proxied ? t('records.proxied') : t('records.dnsOnly')}
+            </span>
+          );
+        }
+        // 其他提供商: 显示线路
+        const effectiveLine = r.line;
+        return <span className="text-gray-500 text-xs">{effectiveLine ? (lineMap[effectiveLine] ?? effectiveLine) : '-'}</span>;
       },
     },
     { key: 'ttl', label: t('common.ttl'), render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.ttl ?? '-'}</span> },
