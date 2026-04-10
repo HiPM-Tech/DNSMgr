@@ -20,6 +20,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     const logData: Record<string, unknown> = {
       method: req.method,
       path: req.path,
+      originalUrl: req.originalUrl,
       status: statusCode,
       duration: `${duration}ms`,
       ip: req.ip,

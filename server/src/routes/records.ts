@@ -141,8 +141,11 @@ async function updateDomainRecordCount(domainId: number, count: number): Promise
  *         description: List of DNS records
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  log.info('Records', '=== GET /records route entered ===', { domainId: req.params.domainId, path: req.path, originalUrl: req.originalUrl });
   const domainId = parseInteger(req.params.domainId) ?? 0;
+  log.info('Records', 'Parsed domainId', { domainId });
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  log.info('Records', 'Got domain access', { hasDomain: !!access.domain, canRead: access.canRead });
   if (!access.domain || !access.canRead) {
     sendError(res, 'Domain not found');
     return;
