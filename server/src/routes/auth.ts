@@ -117,21 +117,26 @@ async function exchangeOauthCode(config: OAuthConfig, code: string): Promise<{ a
     redirect_uri: config.redirectUri,
   });
   log.debug('OAuth', 'Token request', { endpoint: config.tokenEndpoint, body: body.toString() });
-  const response = await fetch(config.tokenEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-  log.debug('OAuth', 'Token response', { status: response.status });
-  const tokenPayload = await response.json() as { access_token?: string; id_token?: string; error?: string; error_description?: string };
-  log.debug('OAuth', 'Token response payload', { payload: tokenPayload });
-  if (!response.ok) {
-    throw new Error(`OAuth token exchange failed: HTTP ${response.status}${tokenPayload.error_description ? ' - ' + tokenPayload.error_description : ''}`);
+  try {
+    const response = await fetch(config.tokenEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    log.debug('OAuth', 'Token response', { status: response.status });
+    const tokenPayload = await response.json() as { access_token?: string; id_token?: string; error?: string; error_description?: string };
+    log.debug('OAuth', 'Token response payload', { payload: tokenPayload });
+    if (!response.ok) {
+      throw new Error(`OAuth token exchange failed: HTTP ${response.status}${tokenPayload.error_description ? ' - ' + tokenPayload.error_description : ''}`);
+    }
+    if (!tokenPayload.access_token) {
+      throw new Error('OAuth token exchange failed: access_token missing');
+    }
+    return { accessToken: tokenPayload.access_token, idToken: tokenPayload.id_token || '' };
+  } catch (error) {
+    log.error('OAuth', 'Token request failed', { error: error instanceof Error ? error.message : String(error), endpoint: config.tokenEndpoint });
+    throw error;
   }
-  if (!tokenPayload.access_token) {
-    throw new Error('OAuth token exchange failed: access_token missing');
-  }
-  return { accessToken: tokenPayload.access_token, idToken: tokenPayload.id_token || '' };
 }
 
 async function fetchOAuthProfile(config: OAuthConfig, accessToken: string): Promise<OAuthUserProfile> {
