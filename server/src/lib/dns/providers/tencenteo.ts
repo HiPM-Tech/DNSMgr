@@ -231,7 +231,12 @@ export class TencenteoAdapter extends TencentCloudAdapter {
   }
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    return [{ id: 'Default', name: '默认' }];
+    // 腾讯 EO 支持大陆/非大陆线路
+    return [
+      { id: 'Default', name: '默认' },
+      { id: 'Mainland', name: '中国大陆' },
+      { id: 'Overseas', name: '非中国大陆' },
+    ];
   }
 
   async getMinTTL(): Promise<number> {

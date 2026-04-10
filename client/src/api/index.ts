@@ -60,11 +60,17 @@ export interface Provider {
   isStub?: boolean;
 }
 
+export interface ProviderFieldOption {
+  value: string;
+  label: string;
+}
+
 export interface ProviderField {
   key: string;
   label: string;
   type?: string;
   required?: boolean;
+  options?: ProviderFieldOption[];
 }
 
 export interface DnsAccount {

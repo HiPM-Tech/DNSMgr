@@ -71,14 +71,28 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             {field.label}{field.required !== false && ' *'}
           </label>
-          <input
-            type={field.type === 'password' ? 'password' : 'text'}
-            required={field.required !== false}
-            value={config[field.key] ?? ''}
-            onChange={(e) => setConfig((c) => ({ ...c, [field.key]: e.target.value }))}
-            placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
-            className={inputClass}
-          />
+          {field.type === 'select' && field.options ? (
+            <select
+              required={field.required !== false}
+              value={config[field.key] ?? ''}
+              onChange={(e) => setConfig((c) => ({ ...c, [field.key]: e.target.value }))}
+              className={inputClass}
+            >
+              <option value="">{t('common.pleaseSelect')}</option>
+              {field.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={field.type === 'password' ? 'password' : 'text'}
+              required={field.required !== false}
+              value={config[field.key] ?? ''}
+              onChange={(e) => setConfig((c) => ({ ...c, [field.key]: e.target.value }))}
+              placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
+              className={inputClass}
+            />
+          )}
         </div>
       ))}
       <div>

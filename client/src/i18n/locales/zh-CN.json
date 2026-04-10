@@ -186,7 +186,8 @@
       "total": "共",
       "items": "条",
       "page": "页",
-      "perPage": "条/页"
+      "perPage": "条/页",
+      "pleaseSelect": "请选择"
     },
     "dashboard": {
       "activeUsers": "活跃用户",

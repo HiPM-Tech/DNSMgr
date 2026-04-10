@@ -30,12 +30,18 @@ export interface ProviderCapabilities {
   cnameFlattening: boolean;
 }
 
+export interface ProviderConfigFieldOption {
+  value: string;
+  label: string;
+}
+
 export interface ProviderConfigField {
   key: string;
   label: string;
-  type: 'text' | 'password';
+  type: 'text' | 'password' | 'select';
   required: boolean;
   group?: string;
+  options?: ProviderConfigFieldOption[];
 }
 
 export interface ProviderDefinition {
@@ -209,6 +215,12 @@ const providerDefinitions: ProviderDefinition[] = [
     configFields: [
       { key: 'SecretId', label: 'SecretId', type: 'text', required: true },
       { key: 'SecretKey', label: 'SecretKey', type: 'password', required: true },
+      { key: 'zoneId', label: 'Zone ID', type: 'text', required: true },
+      { key: 'domain', label: '域名', type: 'text', required: true },
+      { key: 'site_type', label: '站点类型', type: 'select', required: true, options: [
+        { value: 'mainland', label: '中国大陆' },
+        { value: 'intl', label: '国际站' },
+      ]},
     ],
     adapterFactory: (config) => new TencenteoAdapter(config),
   },

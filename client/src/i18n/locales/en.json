@@ -60,7 +60,8 @@
       "total": "Total",
       "items": "items",
       "page": "page",
-      "perPage": "per page"
+      "perPage": "per page",
+      "pleaseSelect": "Please select"
     },
     "mail": {
       "title": "Email Setup",
