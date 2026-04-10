@@ -1162,39 +1162,51 @@ export const OAuthOperations = {
   // OAuth State 管理（用于回调验证）
   // ============================================================================
 
+  /**
+   * 将日期格式化为数据库兼容的格式 (YYYY-MM-DD HH:mm:ss)
+   */
+  formatDateForDB(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  },
+
   /** 创建 OAuth state */
   async createState(state: string, mode: 'login' | 'bind', provider: string, userId: number | null, expiresAt: Date): Promise<void> {
-    // 将Date转换为Unix时间戳（秒）
-    const expiresTimestamp = Math.floor(expiresAt.getTime() / 1000);
-    log.debug('OAuth', 'Creating state', { 
-      state: state.substring(0, 16) + '...', 
-      mode, 
-      provider, 
-      userId, 
-      expiresAt: expiresAt.toISOString(),
-      expiresTimestamp 
+    // 使用数据库兼容的日期格式
+    const expiresStr = this.formatDateForDB(expiresAt);
+    log.debug('OAuth', 'Creating state', {
+      state: state.substring(0, 16) + '...',
+      mode,
+      provider,
+      userId,
+      expiresAt: expiresStr
     });
     return executeInternal(
       'INSERT INTO oauth_states (state, mode, provider, user_id, expires_at) VALUES (?, ?, ?, ?, ?)',
-      [state, mode, provider, userId, expiresTimestamp],
+      [state, mode, provider, userId, expiresStr],
       { operation: 'OAuth.createState', table: 'oauth_states' }
     );
   },
 
   /** 获取并删除 OAuth state（一次性使用） */
   async getAndDeleteState(state: string): Promise<{ mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId: number | null; expiresAt: Date } | undefined> {
-    const result = await getInternal<{ mode: string; provider: string; user_id: number | null; expires_at: number }>(
+    const result = await getInternal<{ mode: string; provider: string; user_id: number | null; expires_at: string }>(
       'SELECT mode, provider, user_id, expires_at FROM oauth_states WHERE state = ?',
       [state],
       { operation: 'OAuth.getState', table: 'oauth_states' }
     );
-    
-    log.debug('OAuth', 'Getting state', { 
-      state: state.substring(0, 16) + '...', 
+
+    log.debug('OAuth', 'Getting state', {
+      state: state.substring(0, 16) + '...',
       found: !!result,
-      result 
+      result
     });
-    
+
     if (!result) return undefined;
 
     // 删除已使用的 state
@@ -1208,15 +1220,16 @@ export const OAuthOperations = {
       mode: result.mode as 'login' | 'bind',
       provider: result.provider as 'custom' | 'logto',
       userId: result.user_id,
-      expiresAt: new Date(result.expires_at * 1000),
+      expiresAt: new Date(result.expires_at),
     };
   },
 
   /** 清理过期的 OAuth states */
   async cleanupExpiredStates(): Promise<number> {
+    const expiresStr = this.formatDateForDB(new Date());
     const result = await runInternal(
       'DELETE FROM oauth_states WHERE expires_at < ?',
-      [Math.floor(Date.now() / 1000)],
+      [expiresStr],
       { operation: 'OAuth.cleanupExpiredStates', table: 'oauth_states' }
     );
     return result.changes || 0;

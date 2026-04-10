@@ -4,6 +4,19 @@ import { query, get, execute, insert, run, now, getDbType } from '../db';
  * 用户会话管理服务
  */
 
+/**
+ * 将日期格式化为数据库兼容的格式 (YYYY-MM-DD HH:mm:ss)
+ */
+function formatDateForDB(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 export interface Session {
   id: string;
   userId: number;
@@ -54,7 +67,7 @@ export async function createSession(
  * 获取用户的所有活跃会话
  */
 export async function getActiveSessions(userId: number): Promise<Session[]> {
-  const nowTime = new Date().toISOString();
+  const nowTime = formatDateForDB(new Date());
   const dbType = getDbType();
   const sql = dbType === 'postgresql'
     ? `SELECT id, user_id, token, ip_address, user_agent, created_at, last_activity_at, expires_at
@@ -110,7 +123,7 @@ export async function deleteAllSessions(userId: number): Promise<void> {
  * 清理过期会话
  */
 export async function cleanupExpiredSessions(): Promise<number> {
-  const nowTime = new Date().toISOString();
+  const nowTime = formatDateForDB(new Date());
   const dbType = getDbType();
   const sql = dbType === 'postgresql'
     ? `DELETE FROM user_sessions WHERE expires_at < $1`
@@ -133,7 +146,7 @@ function generateSessionId(): string {
  * 获取会话信息（通过 token）
  */
 export async function getSessionByToken(token: string): Promise<Session | null> {
-  const nowTime = new Date().toISOString();
+  const nowTime = formatDateForDB(new Date());
   const dbType = getDbType();
   const sql = dbType === 'postgresql'
     ? `SELECT id, user_id, token, ip_address, user_agent, created_at, last_activity_at, expires_at
