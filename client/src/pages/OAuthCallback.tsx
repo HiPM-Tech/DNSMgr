@@ -24,50 +24,67 @@ export function OAuthCallback() {
       return;
     }
 
-    setProcessing(true);
-    authApi.oauthCallback(code, state)
-      .then((res) => {
-        if (res.data.code !== 0) {
-          setError(res.data.msg || t('login.oauthFailed'));
-          return;
-        }
+    const processCallback = (retryCount = 0) => {
+      setProcessing(true);
+      authApi.oauthCallback(code, state)
+        .then((res) => {
+          if (res.data.code !== 0) {
+            setError(res.data.msg || t('login.oauthFailed'));
+            return;
+          }
 
-        const { token, user, mode } = res.data.data;
-        
-        if (mode === 'bind') {
-          toast.success(t('settings.oauthBindSuccess'));
+          const { token, user, mode } = res.data.data;
+          
+          if (mode === 'bind') {
+            toast.success(t('settings.oauthBindSuccess'));
+            navigate('/settings');
+            return;
+          }
+
+          if (token && user) {
+            loginWithToken(token, user);
+            navigate('/');
+            return;
+          }
+
           navigate('/settings');
-          return;
-        }
+        })
+        .catch((err: any) => {
+          // 处理Axios错误，提取服务器返回的错误消息
+          let errorMessage = t('login.oauthFailed');
+          
+          if (err.response?.data?.msg) {
+            errorMessage = err.response.data.msg;
+          } else if (err.response?.status === 400) {
+            errorMessage = 'OAuth state invalid or expired. Please try again.';
+          } else if (err.response?.status === 429) {
+            // 429错误：请求正在处理中，等待后重试（最多重试3次）
+            if (retryCount < 3) {
+              const nextRetryCount = retryCount + 1;
+              errorMessage = `Request is being processed, retrying in 2 seconds... (${nextRetryCount}/3)`;
+              setError(errorMessage);
+              setTimeout(() => {
+                processCallback(nextRetryCount);
+              }, 2000);
+              return;
+            } else {
+              errorMessage = 'Request is still being processed. Please try again later.';
+            }
+          } else if (err.message) {
+            errorMessage = err.message;
+          }
+          
+          setError(errorMessage);
+          console.error('OAuth callback failed:', err);
+        })
+        .finally(() => {
+          if (retryCount === 0) {
+            setProcessing(false);
+          }
+        });
+    };
 
-        if (token && user) {
-          loginWithToken(token, user);
-          navigate('/');
-          return;
-        }
-
-        navigate('/settings');
-      })
-      .catch((err: any) => {
-        // 处理Axios错误，提取服务器返回的错误消息
-        let errorMessage = t('login.oauthFailed');
-        
-        if (err.response?.data?.msg) {
-          errorMessage = err.response.data.msg;
-        } else if (err.response?.status === 400) {
-          errorMessage = 'OAuth state invalid or expired. Please try again.';
-        } else if (err.response?.status === 429) {
-          errorMessage = 'Request is being processed, please wait.';
-        } else if (err.message) {
-          errorMessage = err.message;
-        }
-        
-        setError(errorMessage);
-        console.error('OAuth callback failed:', err);
-      })
-      .finally(() => {
-        setProcessing(false);
-      });
+    processCallback();
   }, [loginWithToken, navigate, searchParams, t, toast]);
 
   if (error) {

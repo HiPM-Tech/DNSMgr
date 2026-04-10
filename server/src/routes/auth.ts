@@ -712,6 +712,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
         // 如果已经处理过，返回成功（幂等性）
         // 对于绑定模式，返回成功
         // 对于登录模式，需要检查用户是否已经登录，但这里简单返回成功
+        addProcessedCode(code); // 确保记录code（虽然已经存在，但更新访问时间）
         res.json({ code: 0, data: { mode: 'login' }, msg: 'OAuth flow already completed' });
         return;
       }
