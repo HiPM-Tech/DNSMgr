@@ -1,12 +1,10 @@
 name: Nightly Docker Build
 
-# Trigger on every push to the main branch
 on:
   push:
     branches:
       - main
   
-  # Allow manual triggering
   workflow_dispatch:
     inputs:
       push:
@@ -20,7 +18,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Dynamically get repository name from GitHub context
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
@@ -47,40 +44,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up build date
-        run: echo "BUILD_DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
-
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=nightly-${{ env.BUILD_DATE }}-${{ github.sha }}
-            type=raw,value=nightly
-          labels: |
-            org.opencontainers.image.title=DNS Manager
-            org.opencontainers.image.description=A modern DNS management system
-            org.opencontainers.image.url=https://github.com/${{ github.repository }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.version=${{ github.ref_name }}
-            org.opencontainers.image.created=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.licenses=MIT
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-$(date +%Y%m%d)-${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             COMMIT_SHA=${{ github.sha }}
-            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            BUILD_DATE=$(date +%Y-%m-%d)
 
       - name: Output build information
         run: |
@@ -90,16 +67,9 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Branch: ${{ github.ref }}"
           echo "Commit SHA: ${{ github.sha }}"
-          echo "Commit SHA (short): ${GITHUB_SHA:0:7}"
           echo "Triggered by: ${{ github.event_name }}"
-          echo ""
-          echo "Docker Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          echo "Tags: ${{ steps.meta.outputs.tags }}"
-          echo ""
-          echo "Build time: $(date)"
           echo "========================================"
 
-  # Optional: Add a job to verify the built image
   verify-image:
     runs-on: ubuntu-latest
     needs: build-nightly
@@ -120,17 +90,11 @@ jobs:
 
       - name: Pull and verify Docker image
         run: |
-          # Pull the nightly image
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly
-          
-          # Verify the image exists and has correct labels
           echo "Verifying Docker image labels:"
           docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly --format='{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}'
-          
-          # Check image size
           echo ""
           echo "Image size:"
           docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
-          
           echo ""
           echo "Image verification completed successfully!"
