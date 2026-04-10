@@ -4,6 +4,19 @@ import { query, get, execute, insert, run, now, getDbType } from '../db';
  * 审计日志导出服务
  */
 
+/**
+ * 将日期格式化为数据库兼容的格式 (YYYY-MM-DD HH:mm:ss)
+ */
+function formatDateForDB(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 export interface AuditLogEntry {
   id: number;
   userId: number;
@@ -169,7 +182,7 @@ export async function detectAnomalies(userId: number, timeWindowMinutes: number 
     : `SELECT COUNT(*) as cnt FROM operation_logs 
        WHERE user_id = ? AND action LIKE '%delete%' AND created_at > ?`;
 
-  const deleteResult = await get(deleteSql, [userId, timeWindow.toISOString()]);
+  const deleteResult = await get(deleteSql, [userId, formatDateForDB(timeWindow)]);
   const deleteCount = (deleteResult as { cnt: number })?.cnt || 0;
 
   if (deleteCount > 10) {
@@ -178,12 +191,12 @@ export async function detectAnomalies(userId: number, timeWindowMinutes: number 
 
   // 检查：短时间内大量创建记录
   const createSql = dbType === 'postgresql'
-    ? `SELECT COUNT(*) as cnt FROM operation_logs 
+    ? `SELECT COUNT(*) as cnt FROM operation_logs
        WHERE user_id = $1 AND action LIKE '%create%' AND created_at > $2`
-    : `SELECT COUNT(*) as cnt FROM operation_logs 
+    : `SELECT COUNT(*) as cnt FROM operation_logs
        WHERE user_id = ? AND action LIKE '%create%' AND created_at > ?`;
 
-  const createResult = await get(createSql, [userId, timeWindow.toISOString()]);
+  const createResult = await get(createSql, [userId, formatDateForDB(timeWindow)]);
   const createCount = (createResult as { cnt: number })?.cnt || 0;
 
   if (createCount > 50) {
@@ -192,12 +205,12 @@ export async function detectAnomalies(userId: number, timeWindowMinutes: number 
 
   // 检查：多个不同域名的操作
   const domainSql = dbType === 'postgresql'
-    ? `SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs 
+    ? `SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs
        WHERE user_id = $1 AND created_at > $2`
-    : `SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs 
+    : `SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs
        WHERE user_id = ? AND created_at > ?`;
 
-  const domainResult = await get(domainSql, [userId, timeWindow.toISOString()]);
+  const domainResult = await get(domainSql, [userId, formatDateForDB(timeWindow)]);
   const domainCount = (domainResult as { cnt: number })?.cnt || 0;
 
   if (domainCount > 20) {
@@ -225,7 +238,7 @@ export async function getUserActionStats(userId: number, days: number = 7): Prom
        GROUP BY action
        ORDER BY count DESC`;
 
-  const results = await query(sql, [userId, startDate.toISOString()]);
+  const results = await query(sql, [userId, formatDateForDB(startDate)]);
 
   const stats: Record<string, number> = {};
   for (const row of results) {
@@ -244,16 +257,16 @@ export async function getActionTimeDistribution(userId: number, days: number = 7
   const dbType = getDbType();
 
   const sql = dbType === 'postgresql'
-    ? `SELECT EXTRACT(HOUR FROM created_at) as hour, COUNT(*) as count FROM operation_logs 
+    ? `SELECT EXTRACT(HOUR FROM created_at) as hour, COUNT(*) as count FROM operation_logs
        WHERE user_id = $1 AND created_at > $2
        GROUP BY EXTRACT(HOUR FROM created_at)
        ORDER BY hour`
-    : `SELECT STRFTIME('%H', created_at) as hour, COUNT(*) as count FROM operation_logs 
+    : `SELECT STRFTIME('%H', created_at) as hour, COUNT(*) as count FROM operation_logs
        WHERE user_id = ? AND created_at > ?
        GROUP BY STRFTIME('%H', created_at)
        ORDER BY hour`;
 
-  const results = await query(sql, [userId, startDate.toISOString()]);
+  const results = await query(sql, [userId, formatDateForDB(startDate)]);
 
   const distribution: Record<string, number> = {};
   for (let i = 0; i < 24; i++) {

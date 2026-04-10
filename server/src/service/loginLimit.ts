@@ -2,6 +2,19 @@ import { query, get, execute, insert, run, now, getDbType } from '../db';
 import { checkAuditRules } from './auditRules';
 import { log } from '../lib/logger';
 
+/**
+ * 将日期格式化为数据库兼容的格式 (YYYY-MM-DD HH:mm:ss)
+ */
+function formatDateForDB(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 // Default configuration
 const DEFAULT_CONFIG = {
   enabled: true,
@@ -145,7 +158,7 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
         
         await execute(
           'UPDATE login_attempts SET attempt_count = ?, last_attempt_at = ' + now() + ', locked_until = ? WHERE id = ?',
-          [newCount, lockedUntil.toISOString(), attempt.id]
+          [newCount, formatDateForDB(lockedUntil), attempt.id]
         );
         
         checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => log.error('LoginLimit', 'Audit rule check failed', { error: e }));
