@@ -72,6 +72,11 @@ function randomHex(size: number): string {
   return crypto.randomBytes(size).toString('hex');
 }
 
+function sanitizeConfigValue(value: string): string {
+  // 去除 Markdown 反引号和多余空格
+  return value.replace(/^`+|`+$/g, '').trim();
+}
+
 async function getOAuthConfigByProvider(provider: 'custom' | 'logto'): Promise<OAuthConfig> {
   const key = provider === 'logto' ? 'oauth_logto_config' : 'oauth_config';
   const defaults: OAuthConfig = provider === 'logto'
@@ -80,7 +85,17 @@ async function getOAuthConfigByProvider(provider: 'custom' | 'logto'): Promise<O
   const value = await SettingsOperations.get(key);
   if (!value) return defaults;
   try {
-    return { ...defaults, ...(JSON.parse(value) as Partial<OAuthConfig>) };
+    const parsed = JSON.parse(value) as Partial<OAuthConfig>;
+    // 清洗 URL 字段，去除可能的 Markdown 反引号
+    const sanitized: Partial<OAuthConfig> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string' && (k.includes('Endpoint') || k.includes('Uri') || k === 'issuer')) {
+        sanitized[k as keyof OAuthConfig] = sanitizeConfigValue(v) as never;
+      } else {
+        sanitized[k as keyof OAuthConfig] = v as never;
+      }
+    }
+    return { ...defaults, ...sanitized };
   } catch {
     return defaults;
   }
@@ -704,7 +719,15 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     
     const tokenResult = await exchangeOauthCode(config, code);
     const profile = await fetchOAuthProfile(config, tokenResult.accessToken);
-    const idTokenClaims = tokenResult.idToken ? await verifyIdToken(tokenResult.idToken, config) : {};
+    // ID Token 验证（可选，失败不阻断流程）
+    let idTokenClaims: OAuthUserProfile = {};
+    if (tokenResult.idToken) {
+      try {
+        idTokenClaims = await verifyIdToken(tokenResult.idToken, config);
+      } catch (idTokenError) {
+        log.warn('OAuth', 'ID Token verification failed, continuing with profile only', { error: idTokenError instanceof Error ? idTokenError.message : String(idTokenError) });
+      }
+    }
     const mergedProfile = { ...idTokenClaims, ...profile };
     const subject = resolveOAuthSubject(config, mergedProfile);
     const normalizedEmail = resolveOAuthEmail(config, mergedProfile);
