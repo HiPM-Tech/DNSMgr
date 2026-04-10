@@ -16,9 +16,12 @@
 - [DNS 核心层](architecture/dns-core.md) - DNS 服务商适配器架构
 - [认证与授权](architecture/authentication.md) - 安全认证体系
 - [API 路由](architecture/api-routes.md) - RESTful API 设计
+- [API Token (SOK)](architecture/api-token.md) - API 访问令牌系统
 
 ### 🔄 流程文档
 - [用户认证流程](flow/authentication-flow.md) - 登录认证完整流程
+- [OAuth 登录流程](flow/oauth-flow.md) - OAuth 登录完整流程
+- [OAuth 绑定流程](flow/oauth-bind-flow.md) - OAuth 账号绑定流程
 - [DNS 记录管理流程](flow/dns-record-flow.md) - 记录操作业务流程
 
 ### 🚀 开发指南

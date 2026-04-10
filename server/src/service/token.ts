@@ -71,13 +71,25 @@ export async function verifyToken(plainToken: string): Promise<TokenPayload | nu
   // Update last used time using business adapter
   await TokenOperations.updateLastUsed(result.id);
 
+  // 安全解析 JSON 字段
+  const parseJson = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  };
+
   return {
     type: 'token',
     tokenId: result.id,
     userId: result.user_id,
     maxRole: result.max_role,
-    allowedDomains: JSON.parse(result.allowed_domains),
-    allowedServices: JSON.parse(result.allowed_services),
+    allowedDomains: parseJson(result.allowed_domains) as number[],
+    allowedServices: parseJson(result.allowed_services) as string[],
   };
 }
 
@@ -86,18 +98,32 @@ export async function getUserTokens(userId: number): Promise<UserTokenResponse[]
   // Use business adapter to get tokens
   const results = await TokenOperations.getByUserId(userId) as unknown as UserToken[];
 
-  return results.map((t) => ({
-    id: t.id,
-    name: t.name,
-    allowed_domains: JSON.parse(t.allowed_domains),
-    allowed_services: JSON.parse(t.allowed_services),
-    start_time: t.start_time,
-    end_time: t.end_time,
-    max_role: t.max_role,
-    is_active: !!t.is_active,
-    created_at: t.created_at,
-    last_used_at: t.last_used_at,
-  }));
+  return results.map((t) => {
+    // 安全解析 JSON 字段，处理已经是对象的情况
+    const parseJson = (value: unknown): unknown => {
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
+        }
+      }
+      return value;
+    };
+
+    return {
+      id: t.id,
+      name: t.name,
+      allowed_domains: parseJson(t.allowed_domains) as number[],
+      allowed_services: parseJson(t.allowed_services) as string[],
+      start_time: t.start_time,
+      end_time: t.end_time,
+      max_role: t.max_role,
+      is_active: !!t.is_active,
+      created_at: t.created_at,
+      last_used_at: t.last_used_at,
+    };
+  });
 }
 
 // Delete a token
