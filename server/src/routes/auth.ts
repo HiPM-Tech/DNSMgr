@@ -651,9 +651,6 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
  *       403:
  *         description: Account not bound or disabled
  */
-// 用于防止重复回调处理的简单锁机制
-const processingCallbacks = new Set<string>();
-
 router.post('/oauth/callback', async (req: Request, res: Response) => {
   const { code, state } = req.body as { code?: string; state?: string };
   log.debug('OAuth', 'Callback received', { code: code?.substring(0, 16) + '...', state: state?.substring(0, 16) + '...' });

@@ -185,14 +185,18 @@ class Logger {
 
   logProviderResponse(provider: string, status: number, success: boolean, data?: unknown): void {
     // DNS 响应日志降级为 debug，错误响应使用 warn
-    const level = !success || status >= 400 ? 'warn' : 'debug';
-    this[level](`DNS:${provider}`, `Response: status=${status}, success=${success}`, {
+    const logData = {
       operationType: 'DNS_RESPONSE',
       provider,
       status,
       success,
       data,
-    });
+    };
+    if (!success || status >= 400) {
+      this.warn(`DNS:${provider}`, `Response: status=${status}, success=${success}`, logData);
+    } else {
+      this.debug(`DNS:${provider}`, `Response: status=${status}, success=${success}`, logData);
+    }
   }
 
   logProviderError(provider: string, error: unknown): void {
@@ -234,14 +238,18 @@ class Logger {
   logHttpResponse(method: string, path: string, status: number, duration: number): void {
     // HTTP 响应日志降级为 debug，避免生产环境日志过多
     // 错误响应（>=400）仍使用 warn 级别
-    const level = status >= 400 ? 'warn' : 'debug';
-    this[level]('HTTP', `Response: ${method} ${path} - ${status} (${duration}ms)`, {
+    const logData = {
       operationType: 'HTTP_RESPONSE',
       method,
       path,
       status,
       duration,
-    });
+    };
+    if (status >= 400) {
+      this.warn('HTTP', `Response: ${method} ${path} - ${status} (${duration}ms)`, logData);
+    } else {
+      this.debug('HTTP', `Response: ${method} ${path} - ${status} (${duration}ms)`, logData);
+    }
   }
 
   // 业务操作日志
