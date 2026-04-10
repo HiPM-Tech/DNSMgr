@@ -55,7 +55,10 @@ jobs:
           
           # Format: nightly-YYYYMMDD-COMMIT_SHA and nightly
           DATE=$(date +'%Y%m%d')
-          echo "TAGS=nightly-$DATE-$COMMIT_SHA_SHORT,nightly" >> $GITHUB_OUTPUT
+          echo "TAGS<<EOF" >> $GITHUB_OUTPUT
+          echo "type=raw,value=nightly-$DATE-$COMMIT_SHA_SHORT" >> $GITHUB_OUTPUT
+          echo "type=raw,value=nightly" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           echo "Commit SHA: $COMMIT_SHA_SHORT"
           echo "GitHub Ref: $GITHUB_REF"
@@ -66,8 +69,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ steps.docker-tags.outputs.TAGS }}
+          tags: ${{ steps.docker-tags.outputs.TAGS }}
           labels: |
             org.opencontainers.image.title=DNS Manager
             org.opencontainers.image.description=A modern DNS management system
