@@ -88,14 +88,64 @@ async function initSQLiteSchema(conn: DbConnection): Promise<void> {
 }
 
 async function initMySQLSchema(conn: DbConnection): Promise<void> {
-  // 创建表
+  // 创建表（IF NOT EXISTS 会自动跳过已存在的表）
   for (const sql of mysqlSchema.createTables) {
     await conn.execute(sql);
   }
 
   // 创建索引
   for (const sql of mysqlSchema.createIndexes) {
-    await conn.execute(sql);
+    try {
+      await conn.execute(sql);
+    } catch (e) {
+      // 忽略已存在的索引错误
+      if (e instanceof Error && 
+          (e.message.includes('Duplicate') || e.message.includes('already exists'))) {
+        continue;
+      }
+      throw e;
+    }
+  }
+
+  // 自动检测并补全缺失的列
+  await syncMySQLColumns(conn);
+}
+
+async function syncMySQLColumns(conn: DbConnection): Promise<void> {
+  // 定义表结构（表名 -> 列定义）
+  const tableColumns: Record<string, Array<{ name: string; type: string; after?: string }>> = {
+    users: [
+      { name: 'nickname', type: "VARCHAR(255) NOT NULL DEFAULT ''", after: 'username' },
+      { name: 'role_level', type: 'INT NOT NULL DEFAULT 1', after: 'role' },
+    ],
+    domains: [
+      { name: 'expires_at', type: 'DATETIME', after: 'updated_at' },
+    ],
+    domain_permissions: [
+      { name: 'permission', type: "VARCHAR(50) NOT NULL DEFAULT 'write'", after: 'domain_id' },
+    ],
+  };
+
+  for (const [table, columns] of Object.entries(tableColumns)) {
+    try {
+      // 获取表的现有列
+      const existingColumns = await conn.query(`SHOW COLUMNS FROM ${table}`) as Array<{ Field: string }>;
+      const existingNames = new Set(existingColumns.map(c => c.Field));
+
+      for (const col of columns) {
+        if (!existingNames.has(col.name)) {
+          log.info('DB', `Adding missing column: ${table}.${col.name}`);
+          const afterClause = col.after ? ` AFTER ${col.after}` : '';
+          await conn.execute(`ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.type}${afterClause}`);
+        }
+      }
+    } catch (e) {
+      // 表可能不存在，忽略错误
+      if (e instanceof Error && (e.message.includes("doesn't exist") || e.message.includes('Unknown table'))) {
+        continue;
+      }
+      log.warn('DB', `Failed to sync columns for ${table}`, { error: e });
+    }
   }
 }
 
