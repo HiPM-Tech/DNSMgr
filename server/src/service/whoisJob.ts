@@ -76,13 +76,28 @@ export async function checkWhoisForDomain(domainName: string): Promise<Date | nu
   return null;
 }
 
+/**
+ * 将日期格式化为 MySQL 兼容的格式 (YYYY-MM-DD HH:mm:ss)
+ */
+function formatDateForMySQL(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 export async function syncAllDomainsWhois() {
   const domains = await query('SELECT id, name FROM domains') as unknown as Domain[];
   for (const d of domains) {
     const expiresAt = await checkWhoisForDomain(d.name);
     if (expiresAt) {
+      // 使用 MySQL 兼容的日期格式
+      const formattedDate = formatDateForMySQL(expiresAt);
       await query('UPDATE domains SET expires_at = ? WHERE id = ?', [
-        expiresAt.toISOString(),
+        formattedDate,
         d.id
       ]);
 
