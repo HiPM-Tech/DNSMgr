@@ -108,7 +108,7 @@ export class CloudflareAdapter implements DnsAdapter {
       return { total: 0, list: [] };
     }
     const total = res.result_info?.total_count ?? res.result.length;
-    log.info('Cloudflare', `getDomainList success: total=${total}, returned=${res.result.length}`);
+    log.debug('Cloudflare', `getDomainList success: total=${total}, returned=${res.result.length}`);
     return {
       total,
       list: res.result.map((z) => ({

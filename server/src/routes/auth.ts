@@ -531,7 +531,7 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
       provider: desired,
       expiresAt,
     });
-    log.info('OAuth', 'State created for login', { state: state.substring(0, 10) + '...', provider: desired, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
+    log.debug('OAuth', 'State created for login', { state: state.substring(0, 10) + '...', provider: desired, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
     res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth flow' });
@@ -567,7 +567,7 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
 router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Response) => {
   try {
     const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
-    log.info('OAuth', 'Start bind request received', { provider: desired, userId: req.user!.userId });
+    log.debug('OAuth', 'Start bind request received', { provider: desired, userId: req.user!.userId });
     
     const config = await getOAuthConfigByProvider(desired);
     assertOAuthEnabled(config);
@@ -587,7 +587,7 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
       expiresAt,
     };
     oauthStateStore.set(state, stateData);
-    log.info('OAuth', 'State created for bind', { 
+    log.debug('OAuth', 'State created for bind', { 
       state: state.substring(0, 16) + '...', 
       provider: desired, 
       userId: req.user!.userId, 
@@ -656,7 +656,7 @@ const processingCallbacks = new Set<string>();
 
 router.post('/oauth/callback', async (req: Request, res: Response) => {
   const { code, state } = req.body as { code?: string; state?: string };
-  log.info('OAuth', 'Callback received', { code: code?.substring(0, 16) + '...', state: state?.substring(0, 16) + '...' });
+  log.debug('OAuth', 'Callback received', { code: code?.substring(0, 16) + '...', state: state?.substring(0, 16) + '...' });
   
   if (!code || !state) {
     log.warn('OAuth', 'Missing code or state', { hasCode: !!code, hasState: !!state });
@@ -675,7 +675,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
   processingCallbacks.add(callbackKey);
   
   try {
-    log.info('OAuth', 'State store lookup', { 
+    log.debug('OAuth', 'State store lookup', { 
       size: oauthStateStore.size, 
       keys: Array.from(oauthStateStore.keys()).map(k => k.substring(0, 16) + '...'),
       lookingFor: state.substring(0, 16) + '...'
@@ -691,7 +691,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     
     // 找到后删除state（一次性使用）
     oauthStateStore.delete(state);
-    log.info('OAuth', 'State found and removed', { state: state.substring(0, 16) + '...', remainingSize: oauthStateStore.size });
+    log.debug('OAuth', 'State found and removed', { state: state.substring(0, 16) + '...', remainingSize: oauthStateStore.size });
     
     if (Date.now() > stateEntry.expiresAt) {
       log.warn('OAuth', 'State expired', { state: state.substring(0, 16) + '...', expiredAt: new Date(stateEntry.expiresAt).toISOString() });
@@ -699,7 +699,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
       return;
     }
     
-    log.info('OAuth', 'State validated', { mode: stateEntry.mode, provider: stateEntry.provider, userId: stateEntry.userId });
+    log.debug('OAuth', 'State validated', { mode: stateEntry.mode, provider: stateEntry.provider, userId: stateEntry.userId });
 
     // 处理成功后立即清理标记（后续代码可能耗时较长）
     processingCallbacks.delete(callbackKey);

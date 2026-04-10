@@ -52,12 +52,15 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
       }
     }
 
+    // 根据状态码选择日志级别
+    // 错误(>=500)用 error，警告(>=400)用 warn，其他用 debug（避免生产环境日志过多）
     if (logLevel === 'error') {
       log.error('HTTP', 'Request error', logData);
     } else if (logLevel === 'warn') {
       log.warn('HTTP', 'Request warning', logData);
     } else {
-      log.info('HTTP', 'Request completed', logData);
+      // 正常请求使用 debug 级别，可通过 DNSMGR_LOG_LEVEL=debug 开启详细日志
+      log.debug('HTTP', 'Request completed', logData);
     }
   };
 

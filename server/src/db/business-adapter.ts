@@ -136,7 +136,7 @@ function createOperationLogger(context: OperationContext) {
   return {
     start: () => log.debug('BusinessAdapter', `Starting ${context.operation}`, { table: context.table, userId: context.userId }),
     success: (duration: number, meta?: Record<string, unknown>) => 
-      log.info('BusinessAdapter', `${context.operation} completed`, { ...meta, duration: `${duration}ms`, table: context.table }),
+      log.debug('BusinessAdapter', `${context.operation} completed`, { ...meta, duration: `${duration}ms`, table: context.table }),
     error: (error: unknown, duration: number) => 
       log.error('BusinessAdapter', `${context.operation} failed`, { error, duration: `${duration}ms`, table: context.table }),
   };
@@ -221,7 +221,7 @@ async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], c
   try {
     const results = await db.query<T>(processedSql, params);
     const duration = Date.now() - startTime;
-    log.info('BusinessAdapter', `Query executed`, { 
+    log.debug('BusinessAdapter', `Query executed`, { 
       sql: processedSql.substring(0, 100), 
       rowCount: results.length,
       duration: `${duration}ms`,
@@ -251,7 +251,7 @@ async function getInternal<T = QueryResult>(sql: string, params?: unknown[], con
   try {
     const result = await db.get<T>(processedSql, params);
     const duration = Date.now() - startTime;
-    log.info('BusinessAdapter', `Get executed`, { 
+    log.debug('BusinessAdapter', `Get executed`, { 
       sql: processedSql.substring(0, 100), 
       found: result !== undefined,
       duration: `${duration}ms`,

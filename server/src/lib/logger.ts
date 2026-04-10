@@ -38,9 +38,17 @@ interface ErrorDetails {
 
 class Logger {
   private static instance: Logger;
-  private logLevel: LogLevel = 'info';
+  private logLevel: LogLevel;
 
-  private constructor() {}
+  private constructor() {
+    // 从独立的环境变量 DNSMGR_LOG_LEVEL 读取日志级别，默认为 'info'
+    const envLevel = (typeof process !== 'undefined' && process.env?.DNSMGR_LOG_LEVEL) as LogLevel | undefined;
+    const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+    this.logLevel = envLevel && validLevels.includes(envLevel) ? envLevel : 'info';
+    
+    // 初始化时记录日志级别
+    console.info(`[Logger] Log level set to: ${this.logLevel}`);
+  }
 
   static getInstance(): Logger {
     if (!Logger.instance) {
@@ -165,7 +173,8 @@ class Logger {
 
   // DNS Provider 专用日志方法
   logProviderRequest(provider: string, method: string, url: string, params?: unknown): void {
-    this.info(`DNS:${provider}`, `Request: ${method} ${url.substring(0, 200)}`, {
+    // DNS 请求日志降级为 debug，避免生产环境日志过多
+    this.debug(`DNS:${provider}`, `Request: ${method} ${url.substring(0, 200)}`, {
       operationType: 'DNS_REQUEST',
       provider,
       method,
@@ -175,7 +184,9 @@ class Logger {
   }
 
   logProviderResponse(provider: string, status: number, success: boolean, data?: unknown): void {
-    this.info(`DNS:${provider}`, `Response: status=${status}, success=${success}`, {
+    // DNS 响应日志降级为 debug，错误响应使用 warn
+    const level = !success || status >= 400 ? 'warn' : 'debug';
+    this[level](`DNS:${provider}`, `Response: status=${status}, success=${success}`, {
       operationType: 'DNS_RESPONSE',
       provider,
       status,
@@ -221,7 +232,10 @@ class Logger {
   }
 
   logHttpResponse(method: string, path: string, status: number, duration: number): void {
-    this.info('HTTP', `Response: ${method} ${path} - ${status} (${duration}ms)`, {
+    // HTTP 响应日志降级为 debug，避免生产环境日志过多
+    // 错误响应（>=400）仍使用 warn 级别
+    const level = status >= 400 ? 'warn' : 'debug';
+    this[level]('HTTP', `Response: ${method} ${path} - ${status} (${duration}ms)`, {
       operationType: 'HTTP_RESPONSE',
       method,
       path,
