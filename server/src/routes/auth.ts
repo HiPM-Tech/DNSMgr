@@ -18,6 +18,7 @@ import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations } 
 const router = Router();
 const resetStore = new Map<string, { code: string; expiresAt: number }>();
 const oauthStateStore = new Map<string, { mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId?: number; expiresAt: number }>();
+const processingCallbacks = new Set<string>();
 
 type OAuthConfig = {
   enabled: boolean;
@@ -566,6 +567,8 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
 router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Response) => {
   try {
     const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
+    log.info('OAuth', 'Start bind request received', { provider: desired, userId: req.user!.userId });
+    
     const config = await getOAuthConfigByProvider(desired);
     assertOAuthEnabled(config);
     
@@ -577,15 +580,24 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
     
     const state = randomHex(24);
     const expiresAt = Date.now() + 10 * 60 * 1000;
-    oauthStateStore.set(state, {
-      mode: 'bind',
+    const stateData = {
+      mode: 'bind' as const,
       provider: desired,
       userId: req.user!.userId,
       expiresAt,
+    };
+    oauthStateStore.set(state, stateData);
+    log.info('OAuth', 'State created for bind', { 
+      state: state.substring(0, 16) + '...', 
+      provider: desired, 
+      userId: req.user!.userId, 
+      expiresAt: new Date(expiresAt).toISOString(), 
+      storeSize: oauthStateStore.size,
+      allStates: Array.from(oauthStateStore.keys()).map(k => k.substring(0, 16) + '...')
     });
-    log.info('OAuth', 'State created for bind', { state: state.substring(0, 10) + '...', provider: desired, userId: req.user!.userId, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
+    log.error('OAuth', 'Failed to start bind', { error: error instanceof Error ? error.message : String(error) });
     res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth bind flow' });
   }
 });
@@ -639,9 +651,12 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
  *       403:
  *         description: Account not bound or disabled
  */
+// 用于防止重复回调处理的简单锁机制
+const processingCallbacks = new Set<string>();
+
 router.post('/oauth/callback', async (req: Request, res: Response) => {
   const { code, state } = req.body as { code?: string; state?: string };
-  log.info('OAuth', 'Callback received', { code: code?.substring(0, 10) + '...', state: state?.substring(0, 10) + '...' });
+  log.info('OAuth', 'Callback received', { code: code?.substring(0, 16) + '...', state: state?.substring(0, 16) + '...' });
   
   if (!code || !state) {
     log.warn('OAuth', 'Missing code or state', { hasCode: !!code, hasState: !!state });
@@ -649,26 +664,46 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     return;
   }
   
-  log.debug('OAuth', 'State store size', { size: oauthStateStore.size, keys: Array.from(oauthStateStore.keys()).map(k => k.substring(0, 10) + '...') });
-  
-  const stateEntry = oauthStateStore.get(state);
-  oauthStateStore.delete(state);
-  
-  if (!stateEntry) {
-    log.warn('OAuth', 'State not found in store', { state: state.substring(0, 10) + '...' });
-    res.status(400).json({ code: 400, msg: 'Invalid oauth state - state not found. Server may have restarted.' });
+  // 检查是否正在处理相同的回调（防止重复请求）
+  const callbackKey = `${code}:${state}`;
+  if (processingCallbacks.has(callbackKey)) {
+    log.warn('OAuth', 'Duplicate callback detected, ignoring', { state: state.substring(0, 16) + '...' });
+    res.status(429).json({ code: 429, msg: 'Callback is being processed, please wait' });
     return;
   }
   
-  if (Date.now() > stateEntry.expiresAt) {
-    log.warn('OAuth', 'State expired', { state: state.substring(0, 10) + '...', expiredAt: new Date(stateEntry.expiresAt).toISOString() });
-    res.status(400).json({ code: 400, msg: 'Expired oauth state' });
-    return;
-  }
+  processingCallbacks.add(callbackKey);
   
-  log.info('OAuth', 'State validated', { mode: stateEntry.mode, provider: stateEntry.provider, userId: stateEntry.userId });
-
   try {
+    log.info('OAuth', 'State store lookup', { 
+      size: oauthStateStore.size, 
+      keys: Array.from(oauthStateStore.keys()).map(k => k.substring(0, 16) + '...'),
+      lookingFor: state.substring(0, 16) + '...'
+    });
+    
+    const stateEntry = oauthStateStore.get(state);
+    
+    if (!stateEntry) {
+      log.warn('OAuth', 'State not found in store', { state: state.substring(0, 16) + '...', storeSize: oauthStateStore.size });
+      res.status(400).json({ code: 400, msg: 'Invalid oauth state - state not found. Server may have restarted or callback was already processed.' });
+      return;
+    }
+    
+    // 找到后删除state（一次性使用）
+    oauthStateStore.delete(state);
+    log.info('OAuth', 'State found and removed', { state: state.substring(0, 16) + '...', remainingSize: oauthStateStore.size });
+    
+    if (Date.now() > stateEntry.expiresAt) {
+      log.warn('OAuth', 'State expired', { state: state.substring(0, 16) + '...', expiredAt: new Date(stateEntry.expiresAt).toISOString() });
+      res.status(400).json({ code: 400, msg: 'Expired oauth state' });
+      return;
+    }
+    
+    log.info('OAuth', 'State validated', { mode: stateEntry.mode, provider: stateEntry.provider, userId: stateEntry.userId });
+
+    // 处理成功后立即清理标记（后续代码可能耗时较长）
+    processingCallbacks.delete(callbackKey);
+
     const config = await getOAuthConfigByProvider(stateEntry.provider);
     assertOAuthEnabled(config);
     const provider = stateEntry.provider;
@@ -730,7 +765,11 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
       msg: 'success',
     });
   } catch (error) {
+    log.error('OAuth', 'Callback processing failed', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'OAuth callback failed' });
+  } finally {
+    // 清理处理标记
+    processingCallbacks.delete(`${code}:${state}`);
   }
 });
 
