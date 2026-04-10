@@ -110,6 +110,15 @@ export const mysqlSchema: SchemaDefinition = {
       UNIQUE KEY unique_user_provider (user_id, provider),
       INDEX idx_oauth_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS oauth_states (
+      state VARCHAR(255) PRIMARY KEY,
+      mode VARCHAR(20) NOT NULL CHECK(mode IN ('login', 'bind')),
+      provider VARCHAR(100) NOT NULL,
+      user_id INT,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_oauth_state_expires (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 `CREATE TABLE IF NOT EXISTS runtime_secrets (
       \`key\` VARCHAR(255) PRIMARY KEY,
       \`value\` TEXT NOT NULL,

@@ -110,6 +110,15 @@ export const postgresqlSchema: SchemaDefinition = {
       UNIQUE(user_id, provider)
     )`,
     `CREATE INDEX IF NOT EXISTS idx_oauth_user_links_user_id ON oauth_user_links(user_id)`,
+    `CREATE TABLE IF NOT EXISTS oauth_states (
+      state VARCHAR(255) PRIMARY KEY,
+      mode VARCHAR(20) NOT NULL CHECK(mode IN ('login', 'bind')),
+      provider VARCHAR(100) NOT NULL,
+      user_id INTEGER,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_oauth_state_expires ON oauth_states(expires_at)`,
 `CREATE TABLE IF NOT EXISTS runtime_secrets (
       "key" VARCHAR(255) PRIMARY KEY,
       "value" TEXT NOT NULL,

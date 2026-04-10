@@ -17,7 +17,8 @@ import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations } 
 
 const router = Router();
 const resetStore = new Map<string, { code: string; expiresAt: number }>();
-const oauthStateStore = new Map<string, { mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId?: number; expiresAt: number }>();
+// OAuth state 现在存储在数据库中，不再使用内存 Map
+// const oauthStateStore = new Map<string, { mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId?: number; expiresAt: number }>();
 const processingCallbacks = new Set<string>();
 
 type OAuthConfig = {
@@ -517,21 +518,17 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
     const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
     const config = await getOAuthConfigByProvider(desired);
     assertOAuthEnabled(config);
-    
+
     // Force redirectUri to use the fixed callback endpoint
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const baseUrl = `${protocol}://${host}`;
     config.redirectUri = `${baseUrl}/oauth/callback`;
-    
+
     const state = randomHex(24);
-    const expiresAt = Date.now() + 10 * 60 * 1000;
-    oauthStateStore.set(state, {
-      mode: 'login',
-      provider: desired,
-      expiresAt,
-    });
-    log.debug('OAuth', 'State created for login', { state: state.substring(0, 10) + '...', provider: desired, expiresAt: new Date(expiresAt).toISOString(), storeSize: oauthStateStore.size });
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await OAuthOperations.createState(state, 'login', desired, null, expiresAt);
+    log.debug('OAuth', 'State created for login', { state: state.substring(0, 10) + '...', provider: desired, expiresAt: expiresAt.toISOString() });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
     res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth flow' });
@@ -570,32 +567,24 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
   try {
     const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
     log.debug('OAuth', 'Start bind request received', { provider: desired, userId: req.user!.userId });
-    
+
     const config = await getOAuthConfigByProvider(desired);
     assertOAuthEnabled(config);
-    
+
     // Force redirectUri to use the fixed callback endpoint
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const baseUrl = `${protocol}://${host}`;
     config.redirectUri = `${baseUrl}/oauth/callback`;
-    
+
     const state = randomHex(24);
-    const expiresAt = Date.now() + 10 * 60 * 1000;
-    const stateData = {
-      mode: 'bind' as const,
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await OAuthOperations.createState(state, 'bind', desired, req.user!.userId, expiresAt);
+    log.debug('OAuth', 'State created for bind', {
+      state: state.substring(0, 16) + '...',
       provider: desired,
       userId: req.user!.userId,
-      expiresAt,
-    };
-    oauthStateStore.set(state, stateData);
-    log.debug('OAuth', 'State created for bind', { 
-      state: state.substring(0, 16) + '...', 
-      provider: desired, 
-      userId: req.user!.userId, 
-      expiresAt: new Date(expiresAt).toISOString(), 
-      storeSize: oauthStateStore.size,
-      allStates: Array.from(oauthStateStore.keys()).map(k => k.substring(0, 16) + '...')
+      expiresAt: expiresAt.toISOString()
     });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
@@ -670,34 +659,29 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     res.status(429).json({ code: 429, msg: 'Callback is being processed, please wait' });
     return;
   }
-  
+
   processingCallbacks.add(callbackKey);
-  
+
   try {
-    log.debug('OAuth', 'State store lookup', { 
-      size: oauthStateStore.size, 
-      keys: Array.from(oauthStateStore.keys()).map(k => k.substring(0, 16) + '...'),
-      lookingFor: state.substring(0, 16) + '...'
-    });
-    
-    const stateEntry = oauthStateStore.get(state);
-    
+    log.debug('OAuth', 'State store lookup', { lookingFor: state.substring(0, 16) + '...' });
+
+    // 从数据库获取并删除 state（一次性使用）
+    const stateEntry = await OAuthOperations.getAndDeleteState(state);
+
     if (!stateEntry) {
-      log.warn('OAuth', 'State not found in store', { state: state.substring(0, 16) + '...', storeSize: oauthStateStore.size });
+      log.warn('OAuth', 'State not found in store', { state: state.substring(0, 16) + '...' });
       res.status(400).json({ code: 400, msg: 'Invalid oauth state - state not found. Server may have restarted or callback was already processed.' });
       return;
     }
-    
-    // 找到后删除state（一次性使用）
-    oauthStateStore.delete(state);
-    log.debug('OAuth', 'State found and removed', { state: state.substring(0, 16) + '...', remainingSize: oauthStateStore.size });
-    
-    if (Date.now() > stateEntry.expiresAt) {
-      log.warn('OAuth', 'State expired', { state: state.substring(0, 16) + '...', expiredAt: new Date(stateEntry.expiresAt).toISOString() });
+
+    log.debug('OAuth', 'State found and removed', { state: state.substring(0, 16) + '...' });
+
+    if (new Date() > stateEntry.expiresAt) {
+      log.warn('OAuth', 'State expired', { state: state.substring(0, 16) + '...', expiredAt: stateEntry.expiresAt.toISOString() });
       res.status(400).json({ code: 400, msg: 'Expired oauth state' });
       return;
     }
-    
+
     log.debug('OAuth', 'State validated', { mode: stateEntry.mode, provider: stateEntry.provider, userId: stateEntry.userId });
 
     // 处理成功后立即清理标记（后续代码可能耗时较长）

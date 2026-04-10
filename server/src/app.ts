@@ -36,6 +36,7 @@ loadEnv();
 import { startFailoverJob } from './service/failoverJob';
 import { startWhoisJob } from './service/whoisJob';
 import { log } from './lib/logger';
+import { OAuthOperations } from './db/business-adapter';
 
 const app = express();
 
@@ -293,9 +294,22 @@ async function initializeApp() {
       }
     }, 5000);
 
+    // 定期清理过期的 OAuth states (每 10 分钟)
+    const oauthStateCleanupInterval = setInterval(async () => {
+      try {
+        const deletedCount = await OAuthOperations.cleanupExpiredStates();
+        if (deletedCount > 0) {
+          log.debug('OAuth', `Cleaned up ${deletedCount} expired states`);
+        }
+      } catch (err) {
+        log.error('OAuth', 'Failed to cleanup expired states', { error: err });
+      }
+    }, 10 * 60 * 1000);
+
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       clearInterval(initCheckInterval);
+      clearInterval(oauthStateCleanupInterval);
       log.info('Server', 'SIGTERM received, starting graceful shutdown...');
       try {
         await disconnect();
@@ -311,6 +325,7 @@ async function initializeApp() {
 
     process.on('SIGINT', async () => {
       clearInterval(initCheckInterval);
+      clearInterval(oauthStateCleanupInterval);
       log.info('Server', 'SIGINT received, starting graceful shutdown...');
       try {
         await disconnect();

@@ -88,6 +88,15 @@ export const sqliteSchema: SchemaDefinition = {
       UNIQUE(provider, subject),
       UNIQUE(user_id, provider)
     )`,
+    `CREATE TABLE IF NOT EXISTS oauth_states (
+      state TEXT PRIMARY KEY,
+      mode TEXT NOT NULL CHECK(mode IN ('login', 'bind')),
+      provider TEXT NOT NULL,
+      user_id INTEGER,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_oauth_state_expires ON oauth_states(expires_at)`,
 `CREATE TABLE IF NOT EXISTS runtime_secrets (
       "key" TEXT PRIMARY KEY,
       "value" TEXT NOT NULL,
