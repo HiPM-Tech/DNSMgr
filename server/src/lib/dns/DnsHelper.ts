@@ -37,7 +37,12 @@ export function createAdapter(type: string, config: Record<string, string>, doma
     throw new Error(`Unknown provider type: ${type}`);
   }
 
-  const adapter = definition.adapterFactory(config);
+  // 将 domain 和 zoneId 添加到 config 中，供需要它们的提供商使用（如 Cloudflare）
+  const enhancedConfig = { ...config };
+  if (domain) enhancedConfig.domain = domain;
+  if (zoneId) enhancedConfig.zoneId = zoneId;
+
+  const adapter = definition.adapterFactory(enhancedConfig);
 
   // 对于腾讯 EO 适配器，设置 Zone ID 和域名
   if (type === 'tencenteo' && adapter instanceof TencenteoAdapter) {
