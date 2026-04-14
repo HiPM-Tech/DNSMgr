@@ -1867,111 +1867,6 @@ export const SecretOperations = {
 };
 
 // ============================================================================
-// SSL 证书业务操作
-// ============================================================================
-
-export const CertificateOperations = {
-  /** 获取所有证书 */
-  async getAll(): Promise<QueryResult[]> {
-    return queryInternal(
-      'SELECT * FROM ssl_certificates ORDER BY id DESC',
-      [],
-      { operation: 'Certificate.getAll', table: 'ssl_certificates' }
-    );
-  },
-
-  /** 获取用户的证书 */
-  async getByUserId(userId: number): Promise<QueryResult[]> {
-    return queryInternal(
-      'SELECT * FROM ssl_certificates WHERE created_by = ? ORDER BY id DESC',
-      [userId],
-      { operation: 'Certificate.getByUserId', table: 'ssl_certificates' }
-    );
-  },
-
-  /** 根据ID获取证书 */
-  async getById(id: number): Promise<QueryResult | undefined> {
-    return getInternal(
-      'SELECT * FROM ssl_certificates WHERE id = ?',
-      [id],
-      { operation: 'Certificate.getById', table: 'ssl_certificates' }
-    );
-  },
-
-  /** 创建证书记录 */
-  async create(data: {
-    domain: string;
-    domain_id: number;
-    account_id: number;
-    status: string;
-    created_by: number;
-    auto_renew?: number;
-  }): Promise<number> {
-    return insertInternal(
-      'INSERT INTO ssl_certificates (domain, domain_id, account_id, status, auto_renew, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-      [data.domain, data.domain_id, data.account_id, data.status, data.auto_renew ?? 1, data.created_by],
-      { operation: 'Certificate.create', table: 'ssl_certificates' }
-    );
-  },
-
-  /** 更新证书数据 */
-  async update(id: number, updates: Record<string, unknown>): Promise<void> {
-    const fields = Object.keys(updates);
-    if (fields.length === 0) return;
-
-    const setClause = fields.map(f => `${f} = ?`).join(', ');
-    const values = Object.values(updates);
-
-    return executeInternal(
-      `UPDATE ssl_certificates SET ${setClause} WHERE id = ?`,
-      [...values, id],
-      { operation: 'Certificate.update', table: 'ssl_certificates' }
-    );
-  },
-
-  /** 删除证书 */
-  async delete(id: number): Promise<void> {
-    return executeInternal(
-      'DELETE FROM ssl_certificates WHERE id = ?',
-      [id],
-      { operation: 'Certificate.delete', table: 'ssl_certificates' }
-    );
-  },
-
-  /** 获取需要续期的证书 (有效且开启自动续期且即将到期) */
-  async getRenewable(daysBeforeExpiry: number = 30): Promise<QueryResult[]> {
-    const dbType = getDbType();
-    let sql: string;
-
-    if (dbType === 'sqlite') {
-      sql = `SELECT * FROM ssl_certificates 
-             WHERE auto_renew = 1 AND status = 'valid' 
-             AND not_after IS NOT NULL 
-             AND datetime(not_after) <= datetime('now', '+' || ? || ' days')
-             ORDER BY not_after ASC`;
-    } else if (dbType === 'mysql') {
-      sql = `SELECT * FROM ssl_certificates 
-             WHERE auto_renew = 1 AND status = 'valid' 
-             AND not_after IS NOT NULL 
-             AND not_after <= DATE_ADD(NOW(), INTERVAL ? DAY)
-             ORDER BY not_after ASC`;
-    } else {
-      sql = `SELECT * FROM ssl_certificates 
-             WHERE auto_renew = 1 AND status = 'valid' 
-             AND not_after IS NOT NULL 
-             AND not_after <= NOW() + INTERVAL '1 day' * ?
-             ORDER BY not_after ASC`;
-    }
-
-    return queryInternal(
-      sql,
-      [daysBeforeExpiry],
-      { operation: 'Certificate.getRenewable', table: 'ssl_certificates' }
-    );
-  },
-};
-
-// ============================================================================
 // 导出默认对象（兼容旧代码）
 // ============================================================================
 
@@ -2006,5 +1901,4 @@ export default {
   Audit: AuditOperations,
   Token: TokenOperations,
   Secret: SecretOperations,
-  Certificate: CertificateOperations,
 };
