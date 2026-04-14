@@ -5,6 +5,7 @@
 
 import crypto from 'crypto';
 import { query, get, execute } from '../db';
+import { run } from '../db/business-adapter';
 import { log } from '../lib/logger';
 import { getSecurityPolicy } from './securityPolicy';
 
@@ -189,12 +190,12 @@ export async function getUserTrustedDevices(userId: number): Promise<TrustedDevi
  * 删除受信任设备
  */
 export async function removeTrustedDevice(userId: number, deviceId: string): Promise<boolean> {
-  const result = await execute(
+  const result = await run(
     'DELETE FROM trusted_devices WHERE id = ? AND user_id = ?',
     [deviceId, userId]
   );
   
-  if (result > 0) {
+  if (result.changes && result.changes > 0) {
     log.info('DeviceTrust', `Removed trusted device ${deviceId} for user ${userId}`);
     return true;
   }
@@ -214,15 +215,16 @@ export async function removeAllUserTrustedDevices(userId: number): Promise<void>
  * 清理所有过期设备
  */
 export async function cleanupExpiredDevices(): Promise<number> {
-  const result = await execute(
+  const result = await run(
     'DELETE FROM trusted_devices WHERE expires_at < CURRENT_TIMESTAMP'
   );
   
-  if (result > 0) {
-    log.info('DeviceTrust', `Cleaned up ${result} expired devices`);
+  const count = result.changes || 0;
+  if (count > 0) {
+    log.info('DeviceTrust', `Cleaned up ${count} expired devices`);
   }
   
-  return result;
+  return count;
 }
 
 /**
