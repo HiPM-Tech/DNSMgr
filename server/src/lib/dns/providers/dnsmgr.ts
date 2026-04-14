@@ -1,0 +1,335 @@
+import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
+import { log } from '../../logger';
+
+interface DnsMgrConfig {
+  baseUrl: string;
+  apiToken: string;
+  domain?: string;
+  domainId?: string;
+}
+
+interface DnsMgrApiResponse<T> {
+  code: number;
+  data: T;
+  msg: string;
+}
+
+interface DnsMgrDomain {
+  id: number;
+  name: string;
+  account_id: number;
+  third_id: string;
+  record_count: number;
+}
+
+interface DnsMgrRecord {
+  id: string;
+  name: string;
+  type: string;
+  value: string;
+  line: string;
+  ttl: number;
+  mx: number;
+  weight: number;
+  status: number;
+  remark: string | null;
+  updated_at: string | null;
+  proxiable: boolean | null;
+  cloudflare: {
+    proxied: boolean;
+    proxiable: boolean;
+  } | null;
+}
+
+export class DnsMgrAdapter implements DnsAdapter {
+  private config: DnsMgrConfig;
+  private error: string = '';
+
+  constructor(config: Record<string, string>) {
+    this.config = {
+      baseUrl: config.baseUrl || '',
+      apiToken: config.apiToken || '',
+      domain: config.domain,
+      domainId: config.domainId,
+    };
+  }
+
+  private getHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.config.apiToken}`,
+    };
+  }
+
+  private async request<T>(method: string, path: string, body?: unknown): Promise<DnsMgrApiResponse<T>> {
+    const url = `${this.config.baseUrl}/api${path}`;
+    log.providerRequest('DnsMgr', method, url, body);
+    
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: this.getHeaders(),
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      
+      const data = (await res.json()) as DnsMgrApiResponse<T>;
+      log.providerResponse('DnsMgr', res.status, data.code === 0, { resultCount: data.data && typeof data.data === 'object' && 'list' in data.data ? (data.data as any).list?.length : 0 });
+      
+      if (data.code !== 0) {
+        this.error = data.msg || 'API error';
+        log.providerError('DnsMgr', [{ message: this.error }]);
+      }
+      
+      return data;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      log.providerError('DnsMgr', [{ message: this.error }]);
+      return { code: -1, data: {} as T, msg: this.error };
+    }
+  }
+
+  async check(): Promise<boolean> {
+    try {
+      // 尝试获取域名列表来验证连接
+      const res = await this.request<{ total: number; list: DnsMgrDomain[] }>('GET', '/domains?page=1&pageSize=1');
+      return res.code === 0;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
+  getError(): string {
+    return this.error;
+  }
+
+  async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
+    try {
+      let path = `/domains?page=${page}&pageSize=${pageSize}`;
+      if (keyword) {
+        path += `&keyword=${encodeURIComponent(keyword)}`;
+      }
+      
+      const res = await this.request<{ total: number; list: DnsMgrDomain[] }>('GET', path);
+      
+      if (res.code !== 0) {
+        return { total: 0, list: [] };
+      }
+
+      return {
+        total: res.data.total,
+        list: res.data.list.map((d) => ({
+          Domain: d.name,
+          ThirdId: String(d.id),
+          RecordCount: d.record_count,
+        })),
+      };
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return { total: 0, list: [] };
+    }
+  }
+
+  async getDomainRecords(
+    page = 1,
+    pageSize = 100,
+    keyword?: string,
+    subdomain?: string,
+    value?: string,
+    type?: string,
+    _line?: string,
+    status?: number
+  ): Promise<PageResult<DnsRecord>> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return { total: 0, list: [] };
+      }
+
+      let path = `/domains/${this.config.domainId}/records?page=${page}&pageSize=${pageSize}`;
+      if (keyword) path += `&keyword=${encodeURIComponent(keyword)}`;
+      if (subdomain) path += `&subdomain=${encodeURIComponent(subdomain)}`;
+      if (value) path += `&value=${encodeURIComponent(value)}`;
+      if (type) path += `&type=${encodeURIComponent(type)}`;
+      if (status !== undefined) path += `&status=${status}`;
+
+      const res = await this.request<{ total: number; list: DnsMgrRecord[] }>('GET', path);
+
+      if (res.code !== 0) {
+        return { total: 0, list: [] };
+      }
+
+      return {
+        total: res.data.total,
+        list: res.data.list.map((r) => this.mapRecord(r)),
+      };
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return { total: 0, list: [] };
+    }
+  }
+
+  private mapRecord(r: DnsMgrRecord): DnsRecord {
+    return {
+      RecordId: r.id,
+      Domain: this.config.domain || '',
+      Name: r.name,
+      Type: r.type,
+      Value: r.value,
+      Line: r.line,
+      TTL: r.ttl,
+      MX: r.mx,
+      Status: r.status,
+      Weight: r.weight,
+      Remark: r.remark || undefined,
+      UpdateTime: r.updated_at || undefined,
+      Proxiable: r.proxiable ?? undefined,
+      Cloudflare: r.cloudflare || undefined,
+    };
+  }
+
+  async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return null;
+      }
+
+      // DnsMgr API 没有单独的获取单条记录接口，从列表中查找
+      const res = await this.request<{ total: number; list: DnsMgrRecord[] }>('GET', `/domains/${this.config.domainId}/records?page=1&pageSize=1000`);
+      
+      if (res.code !== 0) {
+        return null;
+      }
+
+      const record = res.data.list.find((r) => r.id === recordId);
+      return record ? this.mapRecord(record) : null;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
+  async addDomainRecord(
+    name: string,
+    type: string,
+    value: string,
+    line?: string,
+    ttl = 600,
+    mx = 1,
+    weight?: number,
+    remark?: string
+  ): Promise<string | null> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return null;
+      }
+
+      const body: Record<string, unknown> = {
+        name,
+        type,
+        value,
+        ttl,
+      };
+      if (line) body.line = line;
+      if (type === 'MX') body.mx = mx;
+      if (weight !== undefined) body.weight = weight;
+      if (remark) body.remark = remark;
+
+      const res = await this.request<{ id: string }>('POST', `/domains/${this.config.domainId}/records`, body);
+
+      if (res.code !== 0) {
+        return null;
+      }
+
+      return res.data.id;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
+  async updateDomainRecord(
+    recordId: string,
+    name: string,
+    type: string,
+    value: string,
+    line?: string,
+    ttl = 600,
+    mx = 1,
+    weight?: number,
+    remark?: string
+  ): Promise<boolean> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return false;
+      }
+
+      const body: Record<string, unknown> = {
+        name,
+        type,
+        value,
+        ttl,
+      };
+      if (line) body.line = line;
+      if (type === 'MX') body.mx = mx;
+      if (weight !== undefined) body.weight = weight;
+      if (remark) body.remark = remark;
+
+      const res = await this.request<null>('PUT', `/domains/${this.config.domainId}/records/${recordId}`, body);
+      return res.code === 0;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
+  async deleteDomainRecord(recordId: string): Promise<boolean> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return false;
+      }
+
+      const res = await this.request<null>('DELETE', `/domains/${this.config.domainId}/records/${recordId}`);
+      return res.code === 0;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
+  async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return false;
+      }
+
+      const res = await this.request<null>('PUT', `/domains/${this.config.domainId}/records/${recordId}/status`, { status });
+      return res.code === 0;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
+  async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
+    // DnsMgr 默认线路
+    return [
+      { id: '0', name: '默认' },
+    ];
+  }
+
+  async getMinTTL(): Promise<number> {
+    return 60;
+  }
+
+  async addDomain(domain: string): Promise<boolean> {
+    // DnsMgr 作为提供商，不支持通过 API 添加域名到对方系统
+    this.error = 'Adding domains is not supported for DnsMgr provider';
+    return false;
+  }
+}
