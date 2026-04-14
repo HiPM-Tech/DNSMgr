@@ -122,7 +122,7 @@ export function Certificates() {
         toast.error(res.data.msg);
       }
     } catch {
-      toast.error(t('certificates.applyFailed'));
+      toast.error(t('certificates.downloadFailed'));
     }
     setShowDownloadMenu(null);
   };

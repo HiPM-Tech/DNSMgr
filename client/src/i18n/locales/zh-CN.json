@@ -868,7 +868,8 @@
       "copyFailed": "复制失败",
       "lastError": "最新错误",
       "noDomains": "暂无可用域名，请先添加域名。",
-      "wildcardTip": "前缀添加 *. 申请泛域名证书"
+      "wildcardTip": "前缀添加 *. 申请泛域名证书",
+      "downloadFailed": "下载证书失败"
     }
   }
 }

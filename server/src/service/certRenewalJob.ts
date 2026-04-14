@@ -12,14 +12,28 @@ import { log } from '../lib/logger';
 const RENEWAL_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // Check every 6 hours
 const DAYS_BEFORE_EXPIRY = 30; // Renew 30 days before expiration
 
+let renewalTimeout: ReturnType<typeof setTimeout> | null = null;
+let renewalInterval: ReturnType<typeof setInterval> | null = null;
+
 export function startCertRenewalJob() {
   log.info('CertRenewal', 'Starting SSL certificate renewal job');
 
   // Initial check after 60 seconds
-  setTimeout(() => checkAndRenew(), 60000);
+  renewalTimeout = setTimeout(() => checkAndRenew(), 60000);
 
   // Then check periodically
-  setInterval(() => checkAndRenew(), RENEWAL_CHECK_INTERVAL);
+  renewalInterval = setInterval(() => checkAndRenew(), RENEWAL_CHECK_INTERVAL);
+}
+
+export function stopCertRenewalJob() {
+  if (renewalTimeout) {
+    clearTimeout(renewalTimeout);
+    renewalTimeout = null;
+  }
+  if (renewalInterval) {
+    clearInterval(renewalInterval);
+    renewalInterval = null;
+  }
 }
 
 async function checkAndRenew() {

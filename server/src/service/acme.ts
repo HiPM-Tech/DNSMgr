@@ -189,22 +189,31 @@ function splitCertificates(fullChain: string): { cert: string; ca: string } {
 }
 
 /**
- * Parse basic certificate information from PEM
+ * Parse basic certificate information from PEM using X.509 parsing
  */
 function parseCertificateInfo(certPem: string): { notBefore: string; notAfter: string; issuer: string } {
-  // Use acme-client's built-in forge for parsing if available
-  // For simplicity, use regex to extract dates from the first cert
-  // The ACME client returns the certificate in PEM format
-  // We'll estimate dates: not_before = now, not_after = now + 90 days (Let's Encrypt default)
-  const now = new Date();
-  const notAfter = new Date(now);
-  notAfter.setDate(notAfter.getDate() + 90);
+  try {
+    // Use Node.js crypto to parse X.509 certificate
+    const crypto = require('crypto');
+    const x509 = new crypto.X509Certificate(certPem);
+    
+    return {
+      notBefore: new Date(x509.validFrom).toISOString(),
+      notAfter: new Date(x509.validTo).toISOString(),
+      issuer: x509.issuer || "Let's Encrypt",
+    };
+  } catch {
+    // Fallback: estimate dates (Let's Encrypt certs are valid for 90 days)
+    const now = new Date();
+    const notAfter = new Date(now);
+    notAfter.setDate(notAfter.getDate() + 90);
 
-  return {
-    notBefore: now.toISOString(),
-    notAfter: notAfter.toISOString(),
-    issuer: "Let's Encrypt",
-  };
+    return {
+      notBefore: now.toISOString(),
+      notAfter: notAfter.toISOString(),
+      issuer: "Let's Encrypt",
+    };
+  }
 }
 
 function sleep(ms: number): Promise<void> {

@@ -8,6 +8,27 @@ const router = Router();
 
 /**
  * @swagger
+ * /api/certificates/domains:
+ *   get:
+ *     summary: Get available domains for certificate application
+ *     tags: [Certificates]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of available domains
+ */
+router.get('/domains', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const domains = await DomainOperations.getUserAccessibleDomains(req.user!.userId);
+    res.json({ code: 0, data: domains, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get domains' });
+  }
+});
+
+/**
+ * @swagger
  * /api/certificates:
  *   get:
  *     summary: Get all SSL certificates for current user
@@ -363,27 +384,6 @@ router.get('/:id/download', authMiddleware, async (req: Request, res: Response) 
     res.json({ code: 0, data: { content, filename }, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to download certificate' });
-  }
-});
-
-/**
- * @swagger
- * /api/certificates/domains:
- *   get:
- *     summary: Get available domains for certificate application
- *     tags: [Certificates]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of available domains
- */
-router.get('/domains', authMiddleware, async (req: Request, res: Response) => {
-  try {
-    const domains = await DomainOperations.getUserAccessibleDomains(req.user!.userId);
-    res.json({ code: 0, data: domains, msg: 'success' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get domains' });
   }
 });
 
