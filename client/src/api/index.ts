@@ -463,34 +463,3 @@ export const tokensApi = {
     api.patch<ApiResponse<null>>(`/tokens/${id}/status`, { is_active }),
   getDomains: () => api.get<ApiResponse<{ id: number; name: string; account_name: string }[]>>('/tokens/domains'),
 };
-
-// ─── Certificates ─────────────────────────────────────────────────────────────
-
-export interface Certificate {
-  id: number;
-  domain: string;
-  domain_id: number;
-  account_id: number;
-  status: 'pending' | 'issuing' | 'valid' | 'expired' | 'failed';
-  issuer: string;
-  not_before: string | null;
-  not_after: string | null;
-  auto_renew: boolean;
-  last_error: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export const certificatesApi = {
-  getAll: () => api.get<ApiResponse<Certificate[]>>('/certificates'),
-  get: (id: number) => api.get<ApiResponse<Certificate>>(`/certificates/${id}`),
-  apply: (data: { domain: string; domain_id: number; auto_renew?: boolean }) =>
-    api.post<ApiResponse<{ id: number }>>('/certificates', data),
-  delete: (id: number) => api.delete<ApiResponse<null>>(`/certificates/${id}`),
-  renew: (id: number) => api.post<ApiResponse<null>>(`/certificates/${id}/renew`),
-  toggleAutoRenew: (id: number, auto_renew: boolean) =>
-    api.patch<ApiResponse<null>>(`/certificates/${id}/auto-renew`, { auto_renew }),
-  download: (id: number, type: 'certificate' | 'private_key' | 'ca_certificate' | 'fullchain') =>
-    api.get<ApiResponse<{ content: string; filename: string }>>(`/certificates/${id}/download`, { params: { type } }),
-  getDomains: () => api.get<ApiResponse<{ id: number; name: string; account_name: string }[]>>('/certificates/domains'),
-};

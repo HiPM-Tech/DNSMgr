@@ -236,30 +236,7 @@ export const postgresqlSchema: SchemaDefinition = {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_failover_status_config_id ON failover_status(config_id)`,
-    `CREATE TABLE IF NOT EXISTS ssl_certificates (
-      id SERIAL PRIMARY KEY,
-      domain VARCHAR(255) NOT NULL,
-      domain_id INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
-      account_id INTEGER NOT NULL REFERENCES dns_accounts(id) ON DELETE CASCADE,
-      status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'issuing', 'valid', 'expired', 'failed')),
-      acme_account_url VARCHAR(512),
-      acme_account_key TEXT,
-      private_key TEXT,
-      certificate TEXT,
-      ca_certificate TEXT,
-      csr TEXT,
-      issuer VARCHAR(255) NOT NULL DEFAULT '',
-      not_before TIMESTAMP,
-      not_after TIMESTAMP,
-      auto_renew SMALLINT NOT NULL DEFAULT 1,
-      last_error TEXT,
-      created_by INTEGER NOT NULL REFERENCES users(id),
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_ssl_certificates_domain_id ON ssl_certificates(domain_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_ssl_certificates_status ON ssl_certificates(status)`
+    `CREATE INDEX IF NOT EXISTS idx_failover_status_config_id ON failover_status(config_id)`
   ],
   createIndexes: [
     // 索引已在 CREATE TABLE 中定义

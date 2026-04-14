@@ -97,7 +97,6 @@ export {
   TeamOperations,
   SettingsOperations,
   AuditOperations,
-  CertificateOperations,
   
   // 类型
   type QueryResult,

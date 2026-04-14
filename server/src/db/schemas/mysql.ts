@@ -248,32 +248,6 @@ export const mysqlSchema: SchemaDefinition = {
       FOREIGN KEY (config_id) REFERENCES failover_configs(id) ON DELETE CASCADE,
       UNIQUE KEY unique_config (config_id),
       INDEX idx_config_id (config_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-    `CREATE TABLE IF NOT EXISTS ssl_certificates (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      domain VARCHAR(255) NOT NULL,
-      domain_id INT NOT NULL,
-      account_id INT NOT NULL,
-      status ENUM('pending', 'issuing', 'valid', 'expired', 'failed') NOT NULL DEFAULT 'pending',
-      acme_account_url VARCHAR(512),
-      acme_account_key TEXT,
-      private_key TEXT,
-      certificate TEXT,
-      ca_certificate TEXT,
-      csr TEXT,
-      issuer VARCHAR(255) NOT NULL DEFAULT '',
-      not_before DATETIME,
-      not_after DATETIME,
-      auto_renew TINYINT NOT NULL DEFAULT 1,
-      last_error TEXT,
-      created_by INT NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
-      FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE,
-      FOREIGN KEY (created_by) REFERENCES users(id),
-      INDEX idx_domain_id (domain_id),
-      INDEX idx_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ],
   createIndexes: [
