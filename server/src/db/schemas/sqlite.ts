@@ -213,6 +213,30 @@ export const sqliteSchema: SchemaDefinition = {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (config_id) REFERENCES failover_configs(id) ON DELETE CASCADE,
       UNIQUE(config_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS ssl_certificates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      domain TEXT NOT NULL,
+      domain_id INTEGER NOT NULL,
+      account_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'issuing', 'valid', 'expired', 'failed')),
+      acme_account_url TEXT,
+      acme_account_key TEXT,
+      private_key TEXT,
+      certificate TEXT,
+      ca_certificate TEXT,
+      csr TEXT,
+      issuer TEXT NOT NULL DEFAULT '',
+      not_before TEXT,
+      not_after TEXT,
+      auto_renew INTEGER NOT NULL DEFAULT 1,
+      last_error TEXT,
+      created_by INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+      FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id)
     )`
   ],
   createIndexes: [
@@ -223,6 +247,8 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_failover_configs_domain_id ON failover_configs(domain_id)`,
     `CREATE INDEX IF NOT EXISTS idx_failover_configs_enabled ON failover_configs(enabled)`,
     `CREATE INDEX IF NOT EXISTS idx_failover_status_config_id ON failover_status(config_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ssl_certificates_domain_id ON ssl_certificates(domain_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ssl_certificates_status ON ssl_certificates(status)`,
   ],
   alterTables: [
     // SQLite 不支持 ALTER TABLE ADD COLUMN 的复杂操作，需要在初始化时处理

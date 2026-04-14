@@ -27,6 +27,7 @@ import emailTemplatesRouter from './routes/emailTemplates';
 import tunnelsRouter from './routes/tunnels';
 import webauthnRouter from './routes/webauthn';
 import tokensRouter from './routes/tokens';
+import certificatesRouter from './routes/certificates';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
@@ -35,6 +36,7 @@ loadEnv();
 
 import { startFailoverJob } from './service/failoverJob';
 import { startWhoisJob } from './service/whoisJob';
+import { startCertRenewalJob } from './service/certRenewalJob';
 import { log } from './lib/logger';
 import { OAuthOperations } from './db/business-adapter';
 
@@ -138,7 +140,7 @@ function initCheckMiddleware(req: Request, res: Response, next: NextFunction) {
 }
 
 // Apply initialization check middleware to protected paths
-const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings', '/api/tokens'];
+const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings', '/api/tokens', '/api/certificates'];
 protectedPaths.forEach(path => {
   app.use(path, initCheckMiddleware);
 });
@@ -158,6 +160,7 @@ app.use('/api/email-templates', emailTemplatesRouter);
 app.use('/api/tunnels', tunnelsRouter);
 app.use('/api/auth/webauthn', webauthnRouter);
 app.use('/api/tokens', tokensRouter);
+app.use('/api/certificates', certificatesRouter);
 
 // Logs route
 /**
@@ -267,6 +270,7 @@ async function initializeApp() {
       log.info('Server', 'System initialized. Running in normal mode.');
       startFailoverJob();
       startWhoisJob();
+      startCertRenewalJob();
     } else {
       log.info('Server', 'System not initialized. Running in initialization mode.');
       log.info('Server', 'Please access the setup wizard to configure the system.');
@@ -291,6 +295,7 @@ async function initializeApp() {
         log.info('Server', 'You may need to refresh the page.');
         startFailoverJob();
         startWhoisJob();
+        startCertRenewalJob();
       }
     }, 5000);
 
@@ -361,6 +366,7 @@ async function initializeApp() {
           clearInterval(initCheckInterval);
           startFailoverJob();
           startWhoisJob();
+          startCertRenewalJob();
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');
           log.info('Server', 'You may need to refresh the page.');
         }
