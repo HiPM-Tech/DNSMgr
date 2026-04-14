@@ -9,19 +9,6 @@ import { log } from '../lib/logger';
 // zxcvbn 是 CommonJS 模块，需要这样导入
 import zxcvbn from 'zxcvbn';
 
-// 声明 zxcvbn 模块类型
-declare module 'zxcvbn' {
-  interface ZXCVBNResult {
-    score: number;
-    feedback: {
-      warning: string;
-      suggestions: string[];
-    };
-  }
-  function zxcvbn(password: string, userInputs?: string[]): ZXCVBNResult;
-  export = zxcvbn;
-}
-
 export interface SecurityPolicy {
   id?: number;
   // 全局强制 2FA
