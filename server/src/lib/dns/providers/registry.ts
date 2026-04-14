@@ -18,6 +18,7 @@ import {
   TencenteoAdapter,
   DnsheAdapter,
   RainyunAdapter,
+  DnsMgrAdapter,
 } from './index';
 
 export interface ProviderCapabilities {
@@ -237,6 +238,16 @@ const providerDefinitions: ProviderDefinition[] = [
     capabilities: { remark: false, status: false, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
     configFields: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
     adapterFactory: (config) => new RainyunAdapter(config),
+  },
+  {
+    type: 'dnsmgr',
+    name: 'DnsMgr',
+    capabilities: { remark: true, status: true, redirect: false, log: false, weight: true, line: false, cnameFlattening: false },
+    configFields: [
+      { key: 'baseUrl', label: 'DnsMgr URL', type: 'text', required: true },
+      { key: 'apiToken', label: 'API Token', type: 'password', required: true },
+    ],
+    adapterFactory: (config) => new DnsMgrAdapter(config),
   },
 ];
 
