@@ -122,7 +122,7 @@ const providerDefinitions: ProviderDefinition[] = [
     capabilities: { remark: true, status: false, redirect: true, log: false, weight: true , line: true, cnameFlattening: true },
     configFields: [
       { key: 'accountId', label: 'Account ID (for Tunnels)', type: 'text', required: false, group: 'token' },
-      { key: 'apiToken', label: 'API Token', type: 'password', required: false, group: 'token' },
+      { key: 'apiToken', label: 'API Token', type: 'password', required: true, group: 'token' },
       { key: 'email', label: 'Email', type: 'text', required: false, group: 'key' },
       { key: 'apiKey', label: 'Global API Key', type: 'password', required: false, group: 'key' },
     ],
