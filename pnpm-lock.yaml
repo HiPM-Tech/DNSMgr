@@ -129,6 +129,9 @@ importers:
       whoiser:
         specifier: ^2.0.0-beta.10
         version: 2.0.0-beta.10
+      zxcvbn:
+        specifier: ^4.4.2
+        version: 4.4.2
     devDependencies:
       '@types/bcryptjs':
         specifier: ^2.4.6
@@ -2401,6 +2404,9 @@ packages:
 
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
+  zxcvbn@4.4.2:
+    resolution: {integrity: sha512-Bq0B+ixT/DMyG8kgX2xWcI5jUvCwqrMxSFam7m0lAf78nf04hv6lNCsyLYdyYTrCVMqNDY/206K7eExYCeSyUQ==}
 
 snapshots:
 
@@ -4693,3 +4699,5 @@ snapshots:
       zod: 4.3.6
 
   zod@4.3.6: {}
+
+  zxcvbn@4.4.2: {}

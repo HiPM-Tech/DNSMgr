@@ -9,6 +9,7 @@ import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { log } from '../lib/logger';
 import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations } from '../db/business-adapter';
+import { syncDomainWhois } from '../service/whoisJob';
 
 const router = Router();
 
@@ -627,6 +628,43 @@ router.delete('/:id/failover', authMiddleware, asyncHandler(async (req: Request,
   }
   await deleteFailoverConfig(existing.id);
   sendSuccess(res);
+}));
+
+/**
+ * @swagger
+ * /api/domains/{id}/whois:
+ *   post:
+ *     summary: Refresh WHOIS info for domain
+ *     tags: [Domains]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: WHOIS refreshed
+ */
+router.post('/:id/whois', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
+  const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
+    sendError(res, 'Domain not found');
+    return;
+  }
+  
+  const result = await syncDomainWhois(id);
+  
+  if (result.success) {
+    sendSuccess(res, { 
+      expires_at: result.expiresAt?.toISOString() 
+    }, 'WHOIS info refreshed successfully');
+  } else {
+    sendError(res, result.message || 'Failed to refresh WHOIS info');
+  }
 }));
 
 export { canAccessDomain, getAccountForUser };

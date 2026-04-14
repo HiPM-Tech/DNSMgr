@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap, FileText, Info, Cpu, Sun, Moon, Monitor, Key,
+  LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap, FileText, Info, Cpu, Sun, Moon, Monitor, Key, X, Menu,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { roleLabelKey } from '../utils/roles';
@@ -23,7 +23,13 @@ const adminItems = [
   { to: '/system', icon: Cpu, key: 'common.system' },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  isMobile?: boolean;
+}
+
+export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
   const { user, logout, isAdmin } = useAuth();
   const { t } = useI18n();
   const { theme, setTheme } = useTheme();
@@ -44,8 +50,8 @@ export function Sidebar() {
 
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
 
-  return (
-    <aside className="fixed left-0 top-0 h-full w-[220px] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col z-30">
+  const sidebarContent = (
+    <>
       <div className="px-5 py-5 border-b border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -54,13 +60,23 @@ export function Sidebar() {
             </div>
             <span className="font-bold text-gray-900 dark:text-white text-base">DNSMgr</span>
           </div>
-          <button
-            onClick={cycleTheme}
-            title={theme === 'auto' ? 'Auto (system)' : theme === 'light' ? 'Light' : 'Dark'}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            <ThemeIcon className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={cycleTheme}
+              title={theme === 'auto' ? 'Auto (system)' : theme === 'light' ? 'Light' : 'Dark'}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <ThemeIcon className="w-4 h-4" />
+            </button>
+            {isMobile && (
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -71,6 +87,7 @@ export function Sidebar() {
               key={to}
               to={to}
               end={to === '/'}
+              onClick={isMobile ? onClose : undefined}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
@@ -87,6 +104,7 @@ export function Sidebar() {
           {showTunnels && (
             <NavLink
               to="/tunnels"
+              onClick={isMobile ? onClose : undefined}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
@@ -109,6 +127,7 @@ export function Sidebar() {
                 <NavLink
                   key={to}
                   to={to}
+                  onClick={isMobile ? onClose : undefined}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                       isActive
@@ -129,6 +148,7 @@ export function Sidebar() {
           </div>
           <NavLink
             to="/settings"
+            onClick={isMobile ? onClose : undefined}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
@@ -142,6 +162,7 @@ export function Sidebar() {
           </NavLink>
           <NavLink
             to="/about"
+            onClick={isMobile ? onClose : undefined}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
@@ -172,6 +193,47 @@ export function Sidebar() {
           </button>
         </div>
       </div>
+    </>
+  );
+
+  // 移动端抽屉
+  if (isMobile) {
+    return (
+      <>
+        {/* 遮罩层 */}
+        {isOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={onClose}
+          />
+        )}
+        {/* 抽屉 */}
+        <aside
+          className={`fixed left-0 top-0 h-full w-[220px] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col z-50 transform transition-transform duration-300 lg:hidden ${
+            isOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          {sidebarContent}
+        </aside>
+      </>
+    );
+  }
+
+  // 桌面端固定侧边栏
+  return (
+    <aside className="hidden lg:flex fixed left-0 top-0 h-full w-[220px] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-col z-30">
+      {sidebarContent}
     </aside>
+  );
+}
+
+export function MobileMenuButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="lg:hidden p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+    >
+      <Menu className="w-5 h-5" />
+    </button>
   );
 }

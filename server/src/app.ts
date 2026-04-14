@@ -22,6 +22,7 @@ import initRouter from './routes/init';
 import systemRouter from './routes/system';
 import settingsRouter from './routes/settings';
 import securityRouter from './routes/security';
+import securityPolicyRouter from './routes/securityPolicy';
 import auditRouter from './routes/audit';
 import emailTemplatesRouter from './routes/emailTemplates';
 import tunnelsRouter from './routes/tunnels';
@@ -35,6 +36,8 @@ loadEnv();
 
 import { startFailoverJob } from './service/failoverJob';
 import { startWhoisJob } from './service/whoisJob';
+import { initSecurityPolicyTable } from './service/securityPolicy';
+import { initTrustedDevicesTable } from './service/deviceTrust';
 import { log } from './lib/logger';
 import { OAuthOperations } from './db/business-adapter';
 
@@ -153,6 +156,7 @@ app.use('/api/domains/:domainId/records', recordsRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/security', securityRouter);
+app.use('/api/security-policy', securityPolicyRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/email-templates', emailTemplatesRouter);
 app.use('/api/tunnels', tunnelsRouter);
@@ -265,6 +269,9 @@ async function initializeApp() {
 
     if (isInitialized) {
       log.info('Server', 'System initialized. Running in normal mode.');
+      // 初始化安全相关表
+      await initSecurityPolicyTable();
+      await initTrustedDevicesTable();
       startFailoverJob();
       startWhoisJob();
     } else {
@@ -284,14 +291,17 @@ async function initializeApp() {
     // Re-check initialization status periodically (every 5 seconds)
     const initCheckInterval = setInterval(async () => {
       const newState = await checkInitialization();
-      if (!isInitialized && newState) {
-        // System just got initialized
-        isInitialized = true;
-        log.info('Server', 'System initialized detected. Normal routes are now enabled.');
-        log.info('Server', 'You may need to refresh the page.');
-        startFailoverJob();
-        startWhoisJob();
-      }
+        if (!isInitialized && newState) {
+          // System just got initialized
+          isInitialized = true;
+          log.info('Server', 'System initialized detected. Normal routes are now enabled.');
+          log.info('Server', 'You may need to refresh the page.');
+          // 初始化安全相关表
+          await initSecurityPolicyTable();
+          await initTrustedDevicesTable();
+          startFailoverJob();
+          startWhoisJob();
+        }
     }, 5000);
 
     // 定期清理过期的 OAuth states (每 10 分钟)
@@ -359,6 +369,9 @@ async function initializeApp() {
         if (newState) {
           isInitialized = true;
           clearInterval(initCheckInterval);
+          // 初始化安全相关表
+          await initSecurityPolicyTable();
+          await initTrustedDevicesTable();
           startFailoverJob();
           startWhoisJob();
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');

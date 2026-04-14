@@ -13,6 +13,8 @@ import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/tot
 import { isValidUsername } from '../utils/validation';
 import { log } from '../lib/logger';
 import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations } from '../db/business-adapter';
+import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, SecurityPolicy } from '../service/securityPolicy';
+import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/deviceTrust';
 
 
 const router = Router();
@@ -336,7 +338,14 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
  *         description: JWT token returned
  */
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
-  const { username, password, totpCode, backupCode, webauthnResponse } = req.body as { username: string; password: string; totpCode?: string; backupCode?: string; webauthnResponse?: any };
+  const { username, password, totpCode, backupCode, webauthnResponse, trustDevice } = req.body as { 
+    username: string; 
+    password: string; 
+    totpCode?: string; 
+    backupCode?: string; 
+    webauthnResponse?: any;
+    trustDevice?: boolean;
+  };
   if (!username || !password) {
     res.json({ code: -1, msg: 'Username/email and password are required' });
     return;
@@ -385,8 +394,23 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     const totpStatus = await getTOTPStatus(user.id);
     const isWebauthnEnabled = await TwoFAOperations.isWebAuthnEnabled(user.id);
     const isTotpEnabled = totpStatus.enabled;
+    const has2FA = isTotpEnabled || isWebauthnEnabled;
+    
+    // 检查是否需要强制 2FA
+    const force2FA = await requires2FA(user.id);
+    const userHas2FA = await has2FAEnabled(user.id);
+    
+    // 如果强制 2FA 但用户未设置，要求先设置 2FA
+    if (force2FA && !userHas2FA) {
+      res.json({ 
+        code: -3, 
+        msg: '2FA setup required', 
+        data: { require2FASetup: true } 
+      });
+      return;
+    }
 
-    if (isTotpEnabled || isWebauthnEnabled) {
+    if (has2FA) {
       if (backupCode) {
         const isValid = await verifyBackupCode(user.id, backupCode);
         if (!isValid) {
@@ -453,10 +477,25 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     // Clear login attempts on successful login
     await clearLoginAttempts(loginIdentifier);
     
+    // 如果用户选择信任设备，添加设备信任
+    let deviceId: string | undefined;
+    if (trustDevice && has2FA) {
+      const deviceInfo: DeviceInfo = {
+        userAgent: req.headers['user-agent'] || '',
+        ipAddress: req.ip || req.socket.remoteAddress || '',
+      };
+      deviceId = await addTrustedDevice(user.id, deviceInfo);
+    }
+    
     const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
     res.json({
       code: 0,
-      data: { token, user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },
+      data: { 
+        token, 
+        user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role },
+        deviceId,
+        require2FASetup: force2FA && !userHas2FA,
+      },
       msg: 'success',
     });
   } catch (error) {
@@ -890,6 +929,13 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
     return;
   }
 
+  // 验证密码强度
+  const passwordCheck = await validatePassword(password);
+  if (!passwordCheck.valid) {
+    res.json({ code: -1, msg: passwordCheck.message });
+    return;
+  }
+
   try {
     const count = await UserOperations.getCount();
 
@@ -977,9 +1023,21 @@ router.put('/password', authMiddleware, async (req: Request, res: Response) => {
       res.json({ code: -1, msg: 'Old password is incorrect' });
       return;
     }
+    
+    // 验证新密码强度
+    const passwordCheck = await validatePassword(newPassword);
+    if (!passwordCheck.valid) {
+      res.json({ code: -1, msg: passwordCheck.message });
+      return;
+    }
+    
     const hash = bcrypt.hashSync(newPassword, 10);
 
     await UserOperations.updatePassword(user.id as number, hash);
+    
+    // 修改密码后清除所有受信任设备
+    const { removeAllUserTrustedDevices } = require('../service/deviceTrust');
+    await removeAllUserTrustedDevices(user.id as number);
 
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
