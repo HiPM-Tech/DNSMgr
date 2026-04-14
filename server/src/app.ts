@@ -156,7 +156,7 @@ app.use('/api/domains/:domainId/records', recordsRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/security', securityRouter);
-app.use('/api/security-policy', securityPolicyRouter);
+app.use('/api/security', securityPolicyRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/email-templates', emailTemplatesRouter);
 app.use('/api/tunnels', tunnelsRouter);
