@@ -1,6 +1,7 @@
 import net from 'net';
 import tls from 'tls';
 import { query, get, execute, insert, run, now, getDbType } from '../db';
+import { log } from '../lib/logger';
 
 export interface SmtpConfig {
   enabled: boolean;
@@ -46,17 +47,25 @@ function parseConfig(raw: unknown): SmtpConfig {
 export async function getSmtpConfig(): Promise<SmtpConfig> {
   const row = await get('SELECT value FROM system_settings WHERE key = ?', ['smtp_config']) as { value: string } | undefined;
   if (!row?.value) return DEFAULT_SMTP_CONFIG;
-  return parseConfig(row.value);
+  const config = parseConfig(row.value);
+  // 自动判断加密：465端口强制使用SSL
+  if (config.port === 465) {
+    config.secure = true;
+  }
+  return config;
 }
 
 export async function updateSmtpConfig(input: Partial<SmtpConfig>): Promise<SmtpConfig> {
   const current = await getSmtpConfig();
+  const port = Number(input.port ?? current.port);
+  // 自动判断加密：465端口强制使用SSL，其他端口根据用户设置
+  const secure = port === 465 ? true : (input.secure ?? current.secure);
   const next: SmtpConfig = {
     ...current,
     ...input,
-    port: Number(input.port ?? current.port),
+    port,
     enabled: input.enabled ?? current.enabled,
-    secure: input.secure ?? current.secure,
+    secure,
   };
 
   const payload = ['smtp_config', JSON.stringify(next)];
@@ -84,9 +93,26 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
 
   const timeoutMs = Number(process.env.SMTP_TIMEOUT_MS || 15000);
   const useImplicitTls = config.secure || config.port === 465;
-  let socket: net.Socket | tls.TLSSocket = useImplicitTls
-    ? tls.connect({ host: config.host, port: config.port, servername: config.host })
-    : net.connect({ host: config.host, port: config.port });
+  
+  log.info('SMTP', 'Connecting to SMTP server', { 
+    host: config.host, 
+    port: config.port, 
+    secure: config.secure, 
+    useImplicitTls,
+    username: config.username,
+    fromEmail: config.fromEmail
+  });
+  
+  let socket: net.Socket | tls.TLSSocket;
+  try {
+    socket = useImplicitTls
+      ? tls.connect({ host: config.host, port: config.port, servername: config.host })
+      : net.connect({ host: config.host, port: config.port });
+    log.info('SMTP', 'Socket created');
+  } catch (e) {
+    log.error('SMTP', 'Failed to create socket', { error: e instanceof Error ? e.message : String(e) });
+    throw e;
+  }
 
   const waitForCode = async (expectedPrefix?: string | string[]): Promise<string> => {
     return await new Promise<string>((resolve, reject) => {
@@ -145,32 +171,51 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
   };
 
   const sendCmd = async (command: string, expectedPrefix?: string | string[]): Promise<string> => {
+    log.debug('SMTP', 'Sending command', { command: command.substring(0, 50) });
     socket.write(command + '\r\n');
-    return await waitForCode(expectedPrefix);
+    const response = await waitForCode(expectedPrefix);
+    log.debug('SMTP', 'Got response', { response: response.substring(0, 100) });
+    return response;
   };
 
-  await waitForCode('220');
-  let ehloResp = await sendCmd('EHLO dnsmgr.local', '250');
+  try {
+    log.info('SMTP', 'Waiting for 220 greeting...');
+    await waitForCode('220');
+    log.info('SMTP', 'Got 220 greeting');
+    
+    let ehloResp = await sendCmd('EHLO dnsmgr.local', '250');
+    log.info('SMTP', 'EHLO response received');
 
-  // If server supports STARTTLS, upgrade plaintext connection before AUTH/MAIL.
-  if (!useImplicitTls && /(^|\r?\n)250[ -].*STARTTLS/i.test(ehloResp)) {
-    await sendCmd('STARTTLS', '220');
-    socket = await new Promise<tls.TLSSocket>((resolve, reject) => {
-      const tlsSocket = tls.connect({ socket, servername: config.host }, () => resolve(tlsSocket));
-      tlsSocket.once('error', reject);
-    });
-    ehloResp = await sendCmd('EHLO dnsmgr.local', '250');
+    // If server supports STARTTLS, upgrade plaintext connection before AUTH/MAIL.
+    if (!useImplicitTls && /(^|\r?\n)250[ -].*STARTTLS/i.test(ehloResp)) {
+      log.info('SMTP', 'Server supports STARTTLS, upgrading connection...');
+      await sendCmd('STARTTLS', '220');
+      socket = await new Promise<tls.TLSSocket>((resolve, reject) => {
+        const tlsSocket = tls.connect({ socket, servername: config.host }, () => resolve(tlsSocket));
+        tlsSocket.once('error', reject);
+      });
+      log.info('SMTP', 'STARTTLS upgrade complete');
+      ehloResp = await sendCmd('EHLO dnsmgr.local', '250');
+    }
+
+    if (config.username && config.password) {
+      log.info('SMTP', 'Authenticating...');
+      await sendCmd('AUTH LOGIN', '334');
+      await sendCmd(Buffer.from(config.username).toString('base64'), '334');
+      await sendCmd(Buffer.from(config.password).toString('base64'), '235');
+      log.info('SMTP', 'Authentication successful');
+    }
+
+    log.info('SMTP', 'Sending MAIL FROM...');
+    await sendCmd(`MAIL FROM:<${config.fromEmail}>`, '250');
+    log.info('SMTP', 'Sending RCPT TO...');
+    await sendCmd(`RCPT TO:<${to}>`, ['250', '251']);
+    log.info('SMTP', 'Sending DATA...');
+    await sendCmd('DATA', '354');
+  } catch (e) {
+    log.error('SMTP', 'SMTP command failed', { error: e instanceof Error ? e.message : String(e) });
+    throw e;
   }
-
-  if (config.username && config.password) {
-    await sendCmd('AUTH LOGIN', '334');
-    await sendCmd(Buffer.from(config.username).toString('base64'), '334');
-    await sendCmd(Buffer.from(config.password).toString('base64'), '235');
-  }
-
-  await sendCmd(`MAIL FROM:<${config.fromEmail}>`, '250');
-  await sendCmd(`RCPT TO:<${to}>`, ['250', '251']);
-  await sendCmd('DATA', '354');
 
   const fromDisplay = config.fromName ? `"${config.fromName}" <${config.fromEmail}>` : config.fromEmail;
   const content =
