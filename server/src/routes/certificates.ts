@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
+import { asyncHandler } from '../middleware/errorHandler';
 import { CertificateOperations, DomainOperations, DnsAccountOperations } from '../db/business-adapter';
 import { issueCertificate } from '../service/acme';
+import { parseInteger, getString, sendSuccess, sendError } from '../utils/http';
 import { log } from '../lib/logger';
 
 const router = Router();
@@ -18,14 +20,10 @@ const router = Router();
  *       200:
  *         description: List of available domains
  */
-router.get('/domains', authMiddleware, async (req: Request, res: Response) => {
-  try {
-    const domains = await DomainOperations.getUserAccessibleDomains(req.user!.userId);
-    res.json({ code: 0, data: domains, msg: 'success' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get domains' });
-  }
-});
+router.get('/domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domains = await DomainOperations.getUserAccessibleDomains(req.user!.userId);
+  sendSuccess(res, domains);
+}));
 
 /**
  * @swagger
@@ -39,15 +37,11 @@ router.get('/domains', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: List of certificates
  */
-router.get('/', authMiddleware, async (req: Request, res: Response) => {
-  try {
-    const certs = await CertificateOperations.getByUserId(req.user!.userId);
-    const list = certs.map(formatCertificate);
-    res.json({ code: 0, data: list, msg: 'success' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get certificates' });
-  }
-});
+router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const certs = await CertificateOperations.getByUserId(req.user!.userId);
+  const list = certs.map(formatCertificate);
+  sendSuccess(res, list);
+}));
 
 /**
  * @swagger
@@ -67,25 +61,21 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Certificate details
  */
-router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const certId = parseInt(req.params.id);
-  if (isNaN(certId)) {
-    res.status(400).json({ code: 400, msg: 'Invalid certificate ID' });
+router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const certId = parseInteger(req.params.id) ?? 0;
+  if (!certId) {
+    sendError(res, 'Invalid certificate ID', 400);
     return;
   }
 
-  try {
-    const cert = await CertificateOperations.getById(certId);
-    if (!cert || cert.created_by !== req.user!.userId) {
-      res.status(404).json({ code: 404, msg: 'Certificate not found' });
-      return;
-    }
-
-    res.json({ code: 0, data: formatCertificate(cert), msg: 'success' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get certificate' });
+  const cert = await CertificateOperations.getById(certId);
+  if (!cert || cert.created_by !== req.user!.userId) {
+    sendError(res, 'Certificate not found', 404);
+    return;
   }
-});
+
+  sendSuccess(res, formatCertificate(cert));
+}));
 
 /**
  * @swagger
@@ -118,49 +108,45 @@ router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Certificate applied successfully
  */
-router.post('/', authMiddleware, async (req: Request, res: Response) => {
+router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const { domain, domain_id, auto_renew } = req.body;
 
   if (!domain || !domain_id) {
-    res.status(400).json({ code: 400, msg: 'Missing required fields: domain, domain_id' });
+    sendError(res, 'Missing required fields: domain, domain_id', 400);
     return;
   }
 
-  try {
-    // Get domain info
-    const domainRecord = await DomainOperations.getById(domain_id);
-    if (!domainRecord) {
-      res.status(404).json({ code: 404, msg: 'Domain not found' });
-      return;
-    }
-
-    const accountId = domainRecord.account_id as number;
-
-    // Get DNS account
-    const account = await DnsAccountOperations.getById(accountId);
-    if (!account) {
-      res.status(404).json({ code: 404, msg: 'DNS account not found' });
-      return;
-    }
-
-    // Create certificate record
-    const certId = await CertificateOperations.create({
-      domain,
-      domain_id,
-      account_id: accountId,
-      status: 'issuing',
-      auto_renew: auto_renew === false ? 0 : 1,
-      created_by: req.user!.userId,
-    });
-
-    // Issue certificate asynchronously
-    issueAsync(certId, domain, domainRecord, account);
-
-    res.json({ code: 0, data: { id: certId }, msg: 'Certificate issuance started' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to apply for certificate' });
+  // Get domain info
+  const domainRecord = await DomainOperations.getById(domain_id);
+  if (!domainRecord) {
+    sendError(res, 'Domain not found', 404);
+    return;
   }
-});
+
+  const accountId = domainRecord.account_id as number;
+
+  // Get DNS account
+  const account = await DnsAccountOperations.getById(accountId);
+  if (!account) {
+    sendError(res, 'DNS account not found', 404);
+    return;
+  }
+
+  // Create certificate record
+  const certId = await CertificateOperations.create({
+    domain,
+    domain_id,
+    account_id: accountId,
+    status: 'issuing',
+    auto_renew: auto_renew === false ? 0 : 1,
+    created_by: req.user!.userId,
+  });
+
+  // Issue certificate asynchronously
+  issueAsync(certId, domain, domainRecord, account);
+
+  sendSuccess(res, { id: certId }, 'Certificate issuance started');
+}));
 
 /**
  * @swagger
@@ -180,26 +166,22 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Certificate deleted
  */
-router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
-  const certId = parseInt(req.params.id);
-  if (isNaN(certId)) {
-    res.status(400).json({ code: 400, msg: 'Invalid certificate ID' });
+router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const certId = parseInteger(req.params.id) ?? 0;
+  if (!certId) {
+    sendError(res, 'Invalid certificate ID', 400);
     return;
   }
 
-  try {
-    const cert = await CertificateOperations.getById(certId);
-    if (!cert || cert.created_by !== req.user!.userId) {
-      res.status(404).json({ code: 404, msg: 'Certificate not found' });
-      return;
-    }
-
-    await CertificateOperations.delete(certId);
-    res.json({ code: 0, msg: 'Certificate deleted' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to delete certificate' });
+  const cert = await CertificateOperations.getById(certId);
+  if (!cert || cert.created_by !== req.user!.userId) {
+    sendError(res, 'Certificate not found', 404);
+    return;
   }
-});
+
+  await CertificateOperations.delete(certId);
+  sendSuccess(res, undefined, 'Certificate deleted');
+}));
 
 /**
  * @swagger
@@ -219,42 +201,38 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       200:
  *         description: Renewal started
  */
-router.post('/:id/renew', authMiddleware, async (req: Request, res: Response) => {
-  const certId = parseInt(req.params.id);
-  if (isNaN(certId)) {
-    res.status(400).json({ code: 400, msg: 'Invalid certificate ID' });
+router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const certId = parseInteger(req.params.id) ?? 0;
+  if (!certId) {
+    sendError(res, 'Invalid certificate ID', 400);
     return;
   }
 
-  try {
-    const cert = await CertificateOperations.getById(certId);
-    if (!cert || cert.created_by !== req.user!.userId) {
-      res.status(404).json({ code: 404, msg: 'Certificate not found' });
-      return;
-    }
-
-    const domainRecord = await DomainOperations.getById(cert.domain_id as number);
-    if (!domainRecord) {
-      res.status(404).json({ code: 404, msg: 'Domain not found' });
-      return;
-    }
-
-    const account = await DnsAccountOperations.getById(cert.account_id as number);
-    if (!account) {
-      res.status(404).json({ code: 404, msg: 'DNS account not found' });
-      return;
-    }
-
-    await CertificateOperations.update(certId, { status: 'issuing', last_error: null });
-
-    // Issue certificate asynchronously
-    issueAsync(certId, cert.domain as string, domainRecord, account);
-
-    res.json({ code: 0, msg: 'Certificate renewal started' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to renew certificate' });
+  const cert = await CertificateOperations.getById(certId);
+  if (!cert || cert.created_by !== req.user!.userId) {
+    sendError(res, 'Certificate not found', 404);
+    return;
   }
-});
+
+  const domainRecord = await DomainOperations.getById(cert.domain_id as number);
+  if (!domainRecord) {
+    sendError(res, 'Domain not found', 404);
+    return;
+  }
+
+  const account = await DnsAccountOperations.getById(cert.account_id as number);
+  if (!account) {
+    sendError(res, 'DNS account not found', 404);
+    return;
+  }
+
+  await CertificateOperations.update(certId, { status: 'issuing', last_error: null });
+
+  // Issue certificate asynchronously
+  issueAsync(certId, cert.domain as string, domainRecord, account);
+
+  sendSuccess(res, undefined, 'Certificate renewal started');
+}));
 
 /**
  * @swagger
@@ -285,28 +263,24 @@ router.post('/:id/renew', authMiddleware, async (req: Request, res: Response) =>
  *       200:
  *         description: Auto-renewal updated
  */
-router.patch('/:id/auto-renew', authMiddleware, async (req: Request, res: Response) => {
-  const certId = parseInt(req.params.id);
+router.patch('/:id/auto-renew', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const certId = parseInteger(req.params.id) ?? 0;
   const { auto_renew } = req.body;
 
-  if (isNaN(certId) || typeof auto_renew !== 'boolean') {
-    res.status(400).json({ code: 400, msg: 'Invalid parameters' });
+  if (!certId || typeof auto_renew !== 'boolean') {
+    sendError(res, 'Invalid parameters', 400);
     return;
   }
 
-  try {
-    const cert = await CertificateOperations.getById(certId);
-    if (!cert || cert.created_by !== req.user!.userId) {
-      res.status(404).json({ code: 404, msg: 'Certificate not found' });
-      return;
-    }
-
-    await CertificateOperations.update(certId, { auto_renew: auto_renew ? 1 : 0 });
-    res.json({ code: 0, msg: 'Auto-renewal updated' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update auto-renewal' });
+  const cert = await CertificateOperations.getById(certId);
+  if (!cert || cert.created_by !== req.user!.userId) {
+    sendError(res, 'Certificate not found', 404);
+    return;
   }
-});
+
+  await CertificateOperations.update(certId, { auto_renew: auto_renew ? 1 : 0 });
+  sendSuccess(res, undefined, 'Auto-renewal updated');
+}));
 
 /**
  * @swagger
@@ -331,61 +305,57 @@ router.patch('/:id/auto-renew', authMiddleware, async (req: Request, res: Respon
  *       200:
  *         description: Certificate file content
  */
-router.get('/:id/download', authMiddleware, async (req: Request, res: Response) => {
-  const certId = parseInt(req.params.id);
-  const fileType = req.query.type as string || 'certificate';
+router.get('/:id/download', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const certId = parseInteger(req.params.id) ?? 0;
+  const fileType = getString(req.query.type) || 'certificate';
 
-  if (isNaN(certId)) {
-    res.status(400).json({ code: 400, msg: 'Invalid certificate ID' });
+  if (!certId) {
+    sendError(res, 'Invalid certificate ID', 400);
     return;
   }
 
-  try {
-    const cert = await CertificateOperations.getById(certId);
-    if (!cert || cert.created_by !== req.user!.userId) {
-      res.status(404).json({ code: 404, msg: 'Certificate not found' });
-      return;
-    }
-
-    if (cert.status !== 'valid') {
-      res.status(400).json({ code: 400, msg: 'Certificate is not valid' });
-      return;
-    }
-
-    let content: string;
-    let filename: string;
-    const domain = (cert.domain as string).replace('*.', 'wildcard.');
-
-    switch (fileType) {
-      case 'private_key':
-        content = cert.private_key as string;
-        filename = `${domain}.key`;
-        break;
-      case 'ca_certificate':
-        content = cert.ca_certificate as string;
-        filename = `${domain}.ca.pem`;
-        break;
-      case 'fullchain':
-        content = `${cert.certificate}\n${cert.ca_certificate}`;
-        filename = `${domain}.fullchain.pem`;
-        break;
-      case 'certificate':
-      default:
-        content = cert.certificate as string;
-        filename = `${domain}.pem`;
-        break;
-    }
-
-    if (!content) {
-      res.status(404).json({ code: 404, msg: 'File not available' });
-      return;
-    }
-
-    res.json({ code: 0, data: { content, filename }, msg: 'success' });
-  } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to download certificate' });
+  const cert = await CertificateOperations.getById(certId);
+  if (!cert || cert.created_by !== req.user!.userId) {
+    sendError(res, 'Certificate not found', 404);
+    return;
   }
-});
+
+  if (cert.status !== 'valid') {
+    sendError(res, 'Certificate is not valid', 400);
+    return;
+  }
+
+  let content: string;
+  let filename: string;
+  const domain = (cert.domain as string).replace('*.', 'wildcard.');
+
+  switch (fileType) {
+    case 'private_key':
+      content = cert.private_key as string;
+      filename = `${domain}.key`;
+      break;
+    case 'ca_certificate':
+      content = cert.ca_certificate as string;
+      filename = `${domain}.ca.pem`;
+      break;
+    case 'fullchain':
+      content = `${cert.certificate}\n${cert.ca_certificate}`;
+      filename = `${domain}.fullchain.pem`;
+      break;
+    case 'certificate':
+    default:
+      content = cert.certificate as string;
+      filename = `${domain}.pem`;
+      break;
+  }
+
+  if (!content) {
+    sendError(res, 'File not available', 404);
+    return;
+  }
+
+  sendSuccess(res, { content, filename });
+}));
 
 // Helper: Format certificate for API response (exclude sensitive data from list view)
 function formatCertificate(cert: Record<string, unknown>) {
