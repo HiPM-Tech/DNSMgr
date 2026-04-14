@@ -226,7 +226,11 @@
       "updateFailed": "Failed to update user",
       "deleteFailed": "Failed to delete user",
       "you": "You",
-      "deleteConfirm": "Delete user \"{name}\"? This action cannot be undone."
+      "deleteConfirm": "Delete user \"{name}\"? This action cannot be undone.",
+      "require2FA": "Require 2FA",
+      "require2FADesc": "When enabled, this user must set up two-factor authentication to log in",
+      "user2FAUpdated": "User 2FA setting updated",
+      "user2FAUpdateFailed": "Failed to update user 2FA setting"
     },
     "settings": {
       "profile": "Profile",
@@ -459,6 +463,10 @@
       "smtpTestFailed": "Failed to send SMTP test email",
       "jwtViewNotify": "Notify by email when JWT secret is viewed",
       "jwtViewNotifyDesc": "Send notification to the initial super admin email after successful JWT secret viewing",
+      "require2FAGlobal": "Require 2FA Globally",
+      "require2FAGlobalDesc": "When enabled, all users must set up two-factor authentication to log in",
+      "securityPolicy": "Security Policy",
+      "securityPolicyDesc": "Configure system-level security policy settings",
       "securitySaved": "Security settings saved",
       "securitySaveFailed": "Failed to save security settings",
       "oauthConfig": "OAuth2 / OIDC Configuration",

@@ -214,4 +214,104 @@ router.post('/check-device', authMiddleware, asyncHandler(async (req: Request, r
   sendSuccess(res, result);
 }));
 
+/**
+ * @swagger
+ * /api/security/users/{userId}/require-2fa:
+ *   get:
+ *     summary: Get user's 2FA requirement status (admin only)
+ *     tags: [Security]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User 2FA requirement status
+ */
+router.get('/users/:userId/require-2fa', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (isNaN(userId)) {
+    sendError(res, 'Invalid user ID');
+    return;
+  }
+  
+  const userSetting = await get(
+    'SELECT require_2fa FROM user_security_settings WHERE user_id = ?',
+    [userId]
+  ) as any;
+  
+  sendSuccess(res, { require2FA: userSetting?.require_2fa === 1 });
+}));
+
+/**
+ * @swagger
+ * /api/security/users/{userId}/require-2fa:
+ *   put:
+ *     summary: Set user's 2FA requirement (admin only)
+ *     tags: [Security]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               require2FA:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: User 2FA requirement updated
+ */
+router.put('/users/:userId/require-2fa', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (isNaN(userId)) {
+    sendError(res, 'Invalid user ID');
+    return;
+  }
+  
+  const { require2FA } = req.body as { require2FA: boolean };
+  
+  // Check if user exists
+  const user = await get('SELECT id FROM users WHERE id = ?', [userId]);
+  if (!user) {
+    sendError(res, 'User not found');
+    return;
+  }
+  
+  // Insert or update user security settings
+  const existing = await get(
+    'SELECT id FROM user_security_settings WHERE user_id = ?',
+    [userId]
+  );
+  
+  if (existing) {
+    await query(
+      'UPDATE user_security_settings SET require_2fa = ? WHERE user_id = ?',
+      [require2FA ? 1 : 0, userId]
+    );
+  } else {
+    await query(
+      'INSERT INTO user_security_settings (user_id, require_2fa) VALUES (?, ?)',
+      [userId, require2FA ? 1 : 0]
+    );
+  }
+  
+  log.info('SecurityPolicy', `User ${userId} 2FA requirement set to ${require2FA}`);
+  sendSuccess(res, { require2FA });
+}));
+
+import { get, query } from '../db';
+
 export default router;
