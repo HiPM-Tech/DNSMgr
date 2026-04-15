@@ -1,8 +1,8 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Shield, XCircle, Lock, Unlock, Users, Eye, EyeOff, Copy, Server } from 'lucide-react';
-import { settingsApi } from '../../api';
+import { Settings, Shield, XCircle, Lock, Unlock, Users, Eye, EyeOff, Copy, Server, Smartphone } from 'lucide-react';
+import { settingsApi, securityApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -139,6 +139,26 @@ export function SecurityTab() {
       const res = await settingsApi.getLoginAttemptStats();
       if (res.data.code === 0) return res.data.data;
       throw new Error(res.data.msg);
+    },
+  });
+
+  const { data: securityPolicy } = useQuery({
+    queryKey: ['security-policy'],
+    queryFn: async () => {
+      const res = await securityApi.getPolicy();
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
+    },
+  });
+
+  const updateSecurityPolicyMutation = useMutation({
+    mutationFn: (data: Parameters<typeof securityApi.updatePolicy>[0]) => securityApi.updatePolicy(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['security-policy'] });
+      toast.success(t('system.configUpdated'));
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t('system.configUpdateFailed'));
     },
   });
 
@@ -780,6 +800,32 @@ export function SecurityTab() {
                   <button onClick={() => updateLogtoOauthMutation.mutate()} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">{t('system.oauthSave')}</button>
                 </div>
               </div>
+              <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                    <Smartphone className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.securityPolicy')}</h3>
+                    <p className="text-sm text-gray-500">{t('system.securityPolicyDesc')}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.require2FAGlobal')}</p>
+                    <p className="text-xs text-gray-500">{t('system.require2FAGlobalDesc')}</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={securityPolicy?.require2FAGlobal ?? false}
+                      onChange={(e) => updateSecurityPolicyMutation.mutate({ require2FAGlobal: e.target.checked })}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
               <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
                 <div className="mb-4 flex items-center gap-3">
                   <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
@@ -791,25 +837,15 @@ export function SecurityTab() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.forceHttps')}</p>
-                  <p className="text-xs text-gray-500">{t('system.forceHttpsDesc')}</p>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.forceHttps')}</p>
+                    <p className="text-xs text-gray-500">{t('system.forceHttpsDesc')}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <XCircle className="w-5 h-5 text-gray-400" />
+                    <span className="text-sm text-gray-500">{t('system.comingSoon')}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <XCircle className="w-5 h-5 text-gray-400" />
-                  <span className="text-sm text-gray-500">{t('system.comingSoon')}</span>
-                </div>
-              </div>
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.twoFactorAuth')}</p>
-                  <p className="text-xs text-gray-500">{t('system.twoFactorAuthDesc')}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <XCircle className="w-5 h-5 text-gray-400" />
-                  <span className="text-sm text-gray-500">{t('system.comingSoon')}</span>
-                </div>
-              </div>
               </div>
             </div>
           </div>

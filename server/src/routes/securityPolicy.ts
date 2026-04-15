@@ -124,17 +124,17 @@ router.post('/password-strength', asyncHandler(async (req: Request, res: Respons
 
 /**
  * @swagger
- * /api/security/2fa/status:
+ * /api/security/2fa/requirement:
  *   get:
- *     summary: Get current user's 2FA status
+ *     summary: Get current user's 2FA requirement status
  *     tags: [Security]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: 2FA status
+ *         description: 2FA requirement status
  */
-router.get('/2fa/status', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.get('/2fa/requirement', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   const forceRequired = await requires2FA(userId);
   const enabled = await has2FAEnabled(userId);

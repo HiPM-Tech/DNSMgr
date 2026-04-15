@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, Shield } from 'lucide-react';
-import { usersApi } from '../api';
+import { Plus, Edit2, Trash2, Shield, Smartphone } from 'lucide-react';
+import { usersApi, securityApi } from '../api';
 import type { User } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
@@ -199,60 +199,15 @@ export function Users() {
       )}
 
       {editing && canEditTarget(editing) && (
-        <Modal title={t('users.editUser')} onClose={() => setEditing(null)} size="sm">
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            const fd = new FormData(e.target as HTMLFormElement);
-            const data: Parameters<typeof usersApi.update>[1] = {
-              nickname: fd.get('nickname') as string,
-              email: fd.get('email') as string,
-              role: Number(fd.get('role')),
-              status: Number(fd.get('status')),
-            };
-            const pwd = fd.get('password') as string;
-            if (pwd) data.password = pwd;
-            updateMutation.mutate({ id: editing.id, data });
-          }} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.nickname')}</label>
-              <input name="nickname" required defaultValue={editing.nickname || editing.username} className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.username')}</label>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{editing.username}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.email')}</label>
-              <input name="email" type="email" defaultValue={editing.email} className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.newPassword')}</label>
-              <input name="password" type="password" className={inputClass} placeholder={t('users.newPasswordPlaceholder')} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.role')}</label>
-              <select name="role" defaultValue={editing.role} className={inputClass}>
-                {roleOptions.map((role) => (
-                  <option key={role} value={role}>{t(roleLabelKey(role))}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.status')}</label>
-              <select name="status" defaultValue={editing.status} className={inputClass}>
-                <option value={1}>{t('users.active')}</option>
-                <option value={0}>{t('users.disabled')}</option>
-              </select>
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="submit" disabled={updateMutation.isPending}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
-                {updateMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                {t('common.saveChanges')}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        <UserEditModal
+          user={editing}
+          onClose={() => setEditing(null)}
+          onSubmit={(data) => updateMutation.mutate({ id: editing.id, data })}
+          isPending={updateMutation.isPending}
+          inputClass={inputClass}
+          roleOptions={roleOptions}
+          t={t}
+        />
       )}
 
       {deleting && (
@@ -264,5 +219,143 @@ export function Users() {
         />
       )}
     </div>
+  );
+}
+
+// 用户编辑模态框组件（包含2FA强制设置）
+interface UserEditModalProps {
+  user: User;
+  onClose: () => void;
+  onSubmit: (data: Parameters<typeof usersApi.update>[1]) => void;
+  isPending: boolean;
+  inputClass: string;
+  roleOptions: number[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}
+
+function UserEditModal({ user, onClose, onSubmit, isPending, inputClass, roleOptions, t }: UserEditModalProps) {
+  const [require2FA, setRequire2FA] = useState(false);
+  const [isLoading2FA, setIsLoading2FA] = useState(true);
+  const toast = useToast();
+  const qc = useQueryClient();
+
+  // 加载用户的2FA要求状态
+  useEffect(() => {
+    const load2FAStatus = async () => {
+      try {
+        const res = await securityApi.getUser2FARequirement(user.id);
+        if (res.data.code === 0) {
+          setRequire2FA(res.data.data.require2FA);
+        }
+      } catch (error) {
+        console.error('Failed to load 2FA requirement:', error);
+      } finally {
+        setIsLoading2FA(false);
+      }
+    };
+    load2FAStatus();
+  }, [user.id]);
+
+  const setUser2FAMutation = useMutation({
+    mutationFn: ({ userId, require2FA }: { userId: number; require2FA: boolean }) =>
+      securityApi.setUser2FARequirement(userId, require2FA),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['user-2fa-requirement', user.id] });
+      toast.success(t('users.user2FAUpdated'));
+    },
+    onError: () => {
+      toast.error(t('users.user2FAUpdateFailed'));
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.target as HTMLFormElement);
+    const data: Parameters<typeof usersApi.update>[1] = {
+      nickname: fd.get('nickname') as string,
+      email: fd.get('email') as string,
+      role: Number(fd.get('role')),
+      status: Number(fd.get('status')),
+    };
+    const pwd = fd.get('password') as string;
+    if (pwd) data.password = pwd;
+    onSubmit(data);
+  };
+
+  const handle2FAToggle = (checked: boolean) => {
+    setRequire2FA(checked);
+    setUser2FAMutation.mutate({ userId: user.id, require2FA: checked });
+  };
+
+  return (
+    <Modal title={t('users.editUser')} onClose={onClose} size="sm">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.nickname')}</label>
+          <input name="nickname" required defaultValue={user.nickname || user.username} className={inputClass} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.username')}</label>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{user.username}</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.email')}</label>
+          <input name="email" type="email" defaultValue={user.email} className={inputClass} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.newPassword')}</label>
+          <input name="password" type="password" className={inputClass} placeholder={t('users.newPasswordPlaceholder')} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.role')}</label>
+          <select name="role" defaultValue={user.role} className={inputClass}>
+            {roleOptions.map((role) => (
+              <option key={role} value={role}>{t(roleLabelKey(role))}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('users.status')}</label>
+          <select name="status" defaultValue={user.status} className={inputClass}>
+            <option value={1}>{t('users.active')}</option>
+            <option value={0}>{t('users.disabled')}</option>
+          </select>
+        </div>
+
+        {/* 2FA强制设置 */}
+        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-amber-600" />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('users.require2FA')}</label>
+                <p className="text-xs text-gray-500">{t('users.require2FADesc')}</p>
+              </div>
+            </div>
+            {isLoading2FA ? (
+              <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+            ) : (
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={require2FA}
+                  onChange={(e) => handle2FAToggle(e.target.checked)}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="submit" disabled={isPending}
+            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
+            {isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            {t('common.saveChanges')}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

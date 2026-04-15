@@ -76,8 +76,20 @@ export async function initSecurityPolicyTable(): Promise<void> {
     )
   `;
   
+  const userSecuritySql = `
+    CREATE TABLE IF NOT EXISTS user_security_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      require_2fa BOOLEAN DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `;
+  
   try {
     await execute(sql);
+    await execute(userSecuritySql);
     
     // 检查是否已有策略记录
     const existing = await get('SELECT id FROM security_policies LIMIT 1');

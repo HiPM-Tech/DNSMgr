@@ -450,6 +450,29 @@ export interface UserToken {
   last_used_at: string | null;
 }
 
+export interface SecurityPolicy {
+  id?: number;
+  require2FAGlobal: boolean;
+  minPasswordLength: number;
+  minPasswordStrength: number;
+  sessionTimeoutHours: number;
+  maxLoginAttempts: number;
+  lockoutDurationMinutes: number;
+  allowRememberDevice: boolean;
+  trustedDeviceDays: number;
+  requirePasswordChangeOnFirstLogin: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const securityApi = {
+  getPolicy: () => api.get<ApiResponse<SecurityPolicy>>('/security/policy'),
+  updatePolicy: (data: Partial<SecurityPolicy>) => api.put<ApiResponse<SecurityPolicy>>('/security/policy', data),
+  getUser2FARequirement: (userId: number) => api.get<ApiResponse<{ require2FA: boolean }>>(`/security/users/${userId}/require-2fa`),
+  setUser2FARequirement: (userId: number, require2FA: boolean) =>
+    api.put<ApiResponse<{ require2FA: boolean }>>(`/security/users/${userId}/require-2fa`, { require2FA }),
+};
+
 export const tokensApi = {
   getAll: () => api.get<ApiResponse<UserToken[]>>('/tokens'),
   create: (data: {

@@ -547,6 +547,10 @@
       "jwtSecretVerifyFailed": "密码验证失败",
       "jwtViewNotify": "查看 JWT 密钥后邮件通知",
       "jwtViewNotifyDesc": "查看成功后向初始化超管邮箱发送通知",
+      "require2FAGlobal": "强制全局双因素认证",
+      "require2FAGlobalDesc": "开启后，所有用户必须设置双因素认证才能登录",
+      "securityPolicy": "安全策略",
+      "securityPolicyDesc": "配置系统级安全策略设置",
       "lockedAccounts": "已锁定账户",
       "lockoutDuration": "锁定时长",
       "lockoutDurationDesc": "账户锁定后自动解锁的时间",
@@ -817,7 +821,11 @@
       "usernameInvalid": "用户名只能包含字母、数字、下划线或短横线",
       "usernamePlaceholder": "请输入用户名",
       "usernameRequired": "用户名 *",
-      "you": "你"
+      "you": "你",
+      "require2FA": "强制双因素认证",
+      "require2FADesc": "开启后，该用户必须设置双因素认证才能登录",
+      "user2FAUpdated": "用户2FA设置已更新",
+      "user2FAUpdateFailed": "更新用户2FA设置失败"
     }
   }
 }
