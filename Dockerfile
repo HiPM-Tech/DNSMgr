@@ -17,7 +17,7 @@ COPY server/package.json server/.npmrc ./server/
 COPY client/package.json ./client/
 
 # Install all dependencies (including devDependencies for build)
-RUN pnpm install
+RUN pnpm install --no-frozen-lockfile
 
 # Copy source code
 COPY . .
@@ -44,7 +44,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY server/package.json server/.npmrc ./server/
 
 # Install production dependencies only
-RUN pnpm install --prod
+RUN pnpm install --no-frozen-lockfile --prod
 
 # Copy built server files from builder
 COPY --from=builder /app/server/dist ./server/dist
