@@ -96,7 +96,7 @@ jobs:
           Copy-Item -Path "client/dist" -Destination "dist/client" -Recurse -Force
           
           # Create README for EXE
-          @"
+          $readme = @"
 DNSMgr Server v$VERSION
 ========================
 
@@ -113,7 +113,8 @@ Configuration:
 - Data directory: ./data
 
 For more information, visit: https://github.com/${{ github.repository }}
-"@ | Out-File -FilePath "dist/README.txt" -Encoding UTF8
+"@
+          $readme | Out-File -FilePath "dist/README.txt" -Encoding UTF8
 
       - name: Create ZIP archive
         shell: pwsh
