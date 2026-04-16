@@ -86,14 +86,18 @@ jobs:
           # Create dist directory
           New-Item -ItemType Directory -Force -Path "dist"
           
-          # Package server with pkg
+          # Package server with pkg (use node18 as node20 is not available in pkg@5)
           pkg server/dist/app.js `
-            --targets node20-win-x64 `
+            --targets node18-win-x64 `
             --output "dist/DNSMgr-Server-v$VERSION.exe" `
             --config server/package.json
           
           # Copy client build to dist
-          Copy-Item -Path "client/dist" -Destination "dist/client" -Recurse -Force
+          if (Test-Path "client/dist") {
+            Copy-Item -Path "client/dist" -Destination "dist/client" -Recurse -Force
+          } else {
+            Write-Warning "client/dist not found, skipping client copy"
+          }
           
           # Create README for EXE
           $lines = @(

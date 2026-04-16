@@ -12,9 +12,9 @@
       "../client/dist/**/*"
     ],
     "targets": [
-      "node20-win-x64",
-      "node20-linux-x64",
-      "node20-macos-x64"
+      "node18-win-x64",
+      "node18-linux-x64",
+      "node18-macos-x64"
     ],
     "outputPath": "dist/pkg"
   },
@@ -23,9 +23,9 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "test": "node --require ts-node/register --test src/**/*.test.ts",
-    "pkg:win": "pkg . --targets node20-win-x64 --output dist/pkg/DNSMgr-Server-win.exe",
-    "pkg:linux": "pkg . --targets node20-linux-x64 --output dist/pkg/DNSMgr-Server-linux",
-    "pkg:macos": "pkg . --targets node20-macos-x64 --output dist/pkg/DNSMgr-Server-macos",
+    "pkg:win": "pkg . --targets node18-win-x64 --output dist/pkg/DNSMgr-Server-win.exe",
+    "pkg:linux": "pkg . --targets node18-linux-x64 --output dist/pkg/DNSMgr-Server-linux",
+    "pkg:macos": "pkg . --targets node18-macos-x64 --output dist/pkg/DNSMgr-Server-macos",
     "pkg:all": "npm run pkg:win && npm run pkg:linux && npm run pkg:macos"
   },
   "dependencies": {
