@@ -125,6 +125,13 @@ jobs:
           # Note: Client files are now bundled inside the EXE via pkg assets
           # No need to copy client/dist separately
           
+          # Copy native modules that cannot be bundled
+          # better-sqlite3 needs to be in node_modules next to the EXE
+          New-Item -ItemType Directory -Force -Path "release-dist/node_modules/better-sqlite3"
+          Copy-Item -Path "server/node_modules/better-sqlite3/build" -Destination "release-dist/node_modules/better-sqlite3/" -Recurse -Force
+          Copy-Item -Path "server/node_modules/better-sqlite3/lib" -Destination "release-dist/node_modules/better-sqlite3/" -Recurse -Force
+          Copy-Item -Path "server/node_modules/better-sqlite3/package.json" -Destination "release-dist/node_modules/better-sqlite3/" -Force
+          
           # List release-dist contents
           Write-Host "📁 Release-dist directory contents:"
           Get-ChildItem "release-dist" | Select-Object -First 20

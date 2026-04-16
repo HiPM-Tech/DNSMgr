@@ -9,16 +9,17 @@
       "dist/**/*.js"
     ],
     "assets": [
-      "../client/dist/**/*",
-      "node_modules/better-sqlite3/build/Release/better_sqlite3.node",
-      "node_modules/better-sqlite3/lib/binding/**/*"
+      "../client/dist/**/*"
     ],
     "targets": [
       "node18-win-x64",
       "node18-linux-x64",
       "node18-macos-x64"
     ],
-    "outputPath": "dist/pkg"
+    "outputPath": "dist/pkg",
+    "externals": [
+      "better-sqlite3"
+    ]
   },
   "scripts": {
     "dev": "ts-node src/app.ts",
