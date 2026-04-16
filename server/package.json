@@ -9,7 +9,9 @@
       "dist/**/*.js"
     ],
     "assets": [
-      "../client/dist/**/*"
+      "../client/dist/**/*",
+      "node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+      "node_modules/better-sqlite3/lib/binding/**/*"
     ],
     "targets": [
       "node18-win-x64",
