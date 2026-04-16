@@ -51,34 +51,49 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
+    /* API Tests - no browser needed */
+    {
+      name: 'api',
+      testMatch: /api\/.*\.spec\.ts$/,
+    },
+    /* UI Tests - use system Chrome if available */
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      testMatch: /ui\/.*\.spec\.ts$/,
+      use: { 
+        ...devices['Desktop Chrome'],
+        // Use system Chrome if Playwright browsers not installed
+        channel: process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD ? 'chrome' : undefined,
+      },
     },
     {
       name: 'firefox',
+      testMatch: /ui\/.*\.spec\.ts$/,
       use: { ...devices['Desktop Firefox'] },
     },
     {
       name: 'webkit',
+      testMatch: /ui\/.*\.spec\.ts$/,
       use: { ...devices['Desktop Safari'] },
     },
     /* Test against mobile viewports */
     {
       name: 'Mobile Chrome',
+      testMatch: /ui\/.*\.spec\.ts$/,
       use: { ...devices['Pixel 5'] },
     },
     {
       name: 'Mobile Safari',
+      testMatch: /ui\/.*\.spec\.ts$/,
       use: { ...devices['iPhone 12'] },
     },
   ],
 
-  /* Run local dev server before starting the tests */
-  webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  /* Run local dev server before starting the tests (disabled for local testing) */
+  // webServer: {
+  //   command: 'pnpm dev',
+  //   url: 'http://localhost:3000',
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 120000,
+  // },
 });
