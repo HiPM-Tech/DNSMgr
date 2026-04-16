@@ -1,4 +1,4 @@
-import { query, get, execute, getDbType } from '../db';
+import { FailoverOperations, getDbType } from '../db/business-adapter';
 import { getFailoverConfig, getFailoverStatus, performHealthCheck, performFailover, FailoverConfig } from './failover';
 import { log } from '../lib/logger';
 
@@ -7,17 +7,14 @@ export function startFailoverJob() {
     try {
       const dbType = getDbType();
       const enabledValue = dbType === 'postgresql' ? true : 1;
-      const configs = await query<{ id: number }>(
-        'SELECT id FROM failover_configs WHERE enabled = ?',
-        [enabledValue]
-      );
-      
+      const configs = await FailoverOperations.getAllEnabled() as { id: number }[];
+
       for (const { id } of configs) {
         const config = await getFailoverConfig(id);
         if (!config) continue;
 
         const status = await getFailoverStatus(id);
-        
+
         // Check if it's time to run
         if (status) {
            const lastCheckTime = new Date(status.lastCheckTime).getTime();
@@ -28,7 +25,7 @@ export function startFailoverJob() {
         }
 
         const { available: isHealthy } = await performHealthCheck(config, status!);
-        
+
         // Decide what to do based on health and current status
         const isCurrentlyPrimary = status ? status.isPrimary : true;
         const currentIp = status ? status.currentIp : config.primaryIp;
@@ -63,30 +60,10 @@ async function updateCheckStatus(configId: number, isHealthy: boolean, isPrimary
   const isPrimaryInt = isPrimary ? 1 : 0;
 
   if (dbType === 'sqlite') {
-    await execute(`
-      INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, switch_count)
-      VALUES (?, ?, ?, datetime('now'), ?, 0)
-      ON CONFLICT(config_id) DO UPDATE SET
-        last_check_time = datetime('now'),
-        last_check_result = excluded.last_check_result
-    `, [configId, currentIp, isPrimaryInt, isHealthyInt]);
+    await FailoverOperations.updateCheckStatusSQLite(configId, currentIp, isPrimaryInt, isHealthyInt);
   } else if (dbType === 'mysql') {
-    await execute(
-      `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, switch_count)
-       VALUES (?, ?, ?, NOW(), ?, 0)
-       ON DUPLICATE KEY UPDATE
-       last_check_time = NOW(),
-       last_check_result = VALUES(last_check_result)`,
-      [configId, currentIp, isPrimaryInt, isHealthyInt]
-    );
+    await FailoverOperations.updateCheckStatusMySQL(configId, currentIp, isPrimaryInt, isHealthyInt);
   } else {
-    await execute(
-      `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, switch_count)
-       VALUES ($1, $2, $3, NOW(), $4, 0)
-       ON CONFLICT(config_id) DO UPDATE SET
-       last_check_time = NOW(),
-       last_check_result = EXCLUDED.last_check_result`,
-      [configId, currentIp, isPrimaryInt, isHealthyInt]
-    );
+    await FailoverOperations.updateCheckStatusPostgreSQL(configId, currentIp, isPrimaryInt, isHealthyInt);
   }
 }

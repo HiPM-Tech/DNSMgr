@@ -1,6 +1,6 @@
 import net from 'net';
 import tls from 'tls';
-import { query, get, execute, insert, run, now, getDbType } from '../db';
+import { SmtpOperations, getDbType } from '../db/business-adapter';
 import { log } from '../lib/logger';
 
 export interface SmtpConfig {
@@ -45,7 +45,7 @@ function parseConfig(raw: unknown): SmtpConfig {
 }
 
 export async function getSmtpConfig(): Promise<SmtpConfig> {
-  const row = await get('SELECT value FROM system_settings WHERE key = ?', ['smtp_config']) as { value: string } | undefined;
+  const row = await SmtpOperations.getConfig() as { value: string } | undefined;
   if (!row?.value) return DEFAULT_SMTP_CONFIG;
   const config = parseConfig(row.value);
   // 自动判断加密：465端口强制使用SSL
@@ -68,18 +68,12 @@ export async function updateSmtpConfig(input: Partial<SmtpConfig>): Promise<Smtp
     secure,
   };
 
-  const payload = ['smtp_config', JSON.stringify(next)];
+  const configJson = JSON.stringify(next);
   const dbType = getDbType();
   if (dbType === 'mysql') {
-    await execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + now(),
-      payload
-    );
+    await SmtpOperations.updateConfigMySQL(configJson);
   } else {
-    await execute(
-      'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + now(),
-      payload
-    );
+    await SmtpOperations.updateConfig(configJson);
   }
   return next;
 }
@@ -93,16 +87,16 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
 
   const timeoutMs = Number(process.env.SMTP_TIMEOUT_MS || 15000);
   const useImplicitTls = config.secure || config.port === 465;
-  
-  log.info('SMTP', 'Connecting to SMTP server', { 
-    host: config.host, 
-    port: config.port, 
-    secure: config.secure, 
+
+  log.info('SMTP', 'Connecting to SMTP server', {
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
     useImplicitTls,
     username: config.username,
     fromEmail: config.fromEmail
   });
-  
+
   let socket: net.Socket | tls.TLSSocket;
   try {
     socket = useImplicitTls
@@ -182,7 +176,7 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
     log.info('SMTP', 'Waiting for 220 greeting...');
     await waitForCode('220');
     log.info('SMTP', 'Got 220 greeting');
-    
+
     let ehloResp = await sendCmd('EHLO dnsmgr.local', '250');
     log.info('SMTP', 'EHLO response received');
 

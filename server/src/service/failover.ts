@@ -1,4 +1,4 @@
-import { query, get, execute, insert, run, withTransaction } from '../db';
+import { FailoverOperations, DomainOperations, withTransaction, TransactionOperations } from '../db/business-adapter';
 import { logAuditOperation } from './audit';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { sendNotification } from './notification';
@@ -57,26 +57,24 @@ export async function updateFailoverConfig(
   domainId: number,
   config: Partial<Omit<FailoverConfig, 'id' | 'domainId' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
-  const existing = await get('SELECT id FROM failover_configs WHERE domain_id = ?', [domainId]) as any;
+  const existing = await FailoverOperations.getByDomain(domainId) as any;
   if (!existing) {
     throw new Error('Failover config not found');
   }
-  
-  const fields: string[] = [];
-  const values: unknown[] = [];
-  
-  if (config.primaryIp !== undefined) { fields.push('primary_ip = ?'); values.push(config.primaryIp); }
-  if (config.backupIps !== undefined) { fields.push('backup_ips = ?'); values.push(JSON.stringify(config.backupIps)); }
-  if (config.checkMethod !== undefined) { fields.push('check_method = ?'); values.push(config.checkMethod); }
-  if (config.checkInterval !== undefined) { fields.push('check_interval = ?'); values.push(config.checkInterval); }
-  if (config.checkPort !== undefined) { fields.push('check_port = ?'); values.push(config.checkPort); }
-  if (config.checkPath !== undefined) { fields.push('check_path = ?'); values.push(config.checkPath); }
-  if (config.autoSwitchBack !== undefined) { fields.push('auto_switch_back = ?'); values.push(config.autoSwitchBack ? 1 : 0); }
-  if (config.enabled !== undefined) { fields.push('enabled = ?'); values.push(config.enabled ? 1 : 0); }
-  
-  if (fields.length > 0) {
-    values.push(existing.id);
-    await execute(`UPDATE failover_configs SET ${fields.join(', ')} WHERE id = ?`, values);
+
+  const updates: Record<string, unknown> = {};
+
+  if (config.primaryIp !== undefined) { updates.primary_ip = config.primaryIp; }
+  if (config.backupIps !== undefined) { updates.backup_ips = JSON.stringify(config.backupIps); }
+  if (config.checkMethod !== undefined) { updates.check_method = config.checkMethod; }
+  if (config.checkInterval !== undefined) { updates.check_interval = config.checkInterval; }
+  if (config.checkPort !== undefined) { updates.check_port = config.checkPort; }
+  if (config.checkPath !== undefined) { updates.check_path = config.checkPath; }
+  if (config.autoSwitchBack !== undefined) { updates.auto_switch_back = config.autoSwitchBack ? 1 : 0; }
+  if (config.enabled !== undefined) { updates.enabled = config.enabled ? 1 : 0; }
+
+  if (Object.keys(updates).length > 0) {
+    await FailoverOperations.update(existing.id, updates);
   }
 }
 
@@ -102,7 +100,7 @@ export async function performHealthCheck(
  * 获取容灾配置
  */
 export async function getFailoverConfig(domainId: number): Promise<FailoverConfig | null> {
-  const row = await get('SELECT * FROM failover_configs WHERE domain_id = ?', [domainId]) as any;
+  const row = await FailoverOperations.getByDomain(domainId) as any;
   if (!row) return null;
 
   return {
@@ -125,7 +123,7 @@ export async function getFailoverConfig(domainId: number): Promise<FailoverConfi
  * 获取容灾状态
  */
 export async function getFailoverStatus(configId: number): Promise<FailoverStatus | null> {
-  const row = await get('SELECT * FROM failover_status WHERE config_id = ?', [configId]) as any;
+  const row = await FailoverOperations.getStatus(configId) as any;
   if (!row) return null;
 
   return {
@@ -148,7 +146,7 @@ export async function saveFailoverConfig(
   domainId: number,
   config: Omit<FailoverConfig, 'id' | 'domainId' | 'createdAt' | 'updatedAt'>
 ): Promise<number> {
-  const existing = await get('SELECT id FROM failover_configs WHERE domain_id = ?', [domainId]) as any;
+  const existing = await FailoverOperations.getByDomain(domainId) as any;
 
   const data = {
     domain_id: domainId,
@@ -163,20 +161,13 @@ export async function saveFailoverConfig(
   };
 
   if (existing) {
-    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
-    const values = Object.values(data);
-    await execute(`UPDATE failover_configs SET ${fields} WHERE id = ?`, [...values, existing.id]);
+    await FailoverOperations.update(existing.id, data);
     return existing.id;
   } else {
-    const fields = Object.keys(data).join(', ');
-    const placeholders = Object.keys(data).map(() => '?').join(', ');
-    const id = await insert(`INSERT INTO failover_configs (${fields}) VALUES (${placeholders})`, Object.values(data));
+    const id = await FailoverOperations.create(data);
 
     // 初始化状态记录
-    await execute(
-      'INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, fail_count, switch_count) VALUES (?, ?, ?, datetime("now"), ?, ?, ?)',
-      [id, config.primaryIp, 1, 1, 0, 0]
-    );
+    await FailoverOperations.initStatus(id, config.primaryIp);
 
     return id;
   }
@@ -186,10 +177,9 @@ export async function saveFailoverConfig(
  * 删除容灾配置
  */
 export async function deleteFailoverConfig(domainId: number): Promise<void> {
-  const config = await get('SELECT id FROM failover_configs WHERE domain_id = ?', [domainId]) as any;
+  const config = await FailoverOperations.getByDomain(domainId) as any;
   if (config) {
-    await execute('DELETE FROM failover_status WHERE config_id = ?', [config.id]);
-    await execute('DELETE FROM failover_configs WHERE id = ?', [config.id]);
+    await FailoverOperations.delete(config.id);
   }
 }
 
@@ -255,7 +245,7 @@ export async function performFailover(
   const currentIp = status?.currentIp || config.primaryIp;
 
   // 使用事务保护容灾切换操作
-  await withTransaction(async (txDb) => {
+  await withTransaction(async (txDb: TransactionOperations) => {
     // 更新 DNS 记录
     const domainRow = await txDb.get('SELECT * FROM domains WHERE id = ?', [config.domainId]) as any;
     if (!domainRow) {
@@ -319,7 +309,7 @@ export async function performFailover(
  * 获取所有启用的容灾配置
  */
 export async function getAllEnabledFailoverConfigs(): Promise<FailoverConfig[]> {
-  const rows = await query('SELECT * FROM failover_configs WHERE enabled = 1') as any[];
+  const rows = await FailoverOperations.getAllEnabled() as any[];
   return rows.map(row => ({
     id: row.id,
     domainId: row.domain_id,
@@ -343,32 +333,25 @@ export async function updateFailoverStatus(
   configId: number,
   updates: Partial<Omit<FailoverStatus, 'id' | 'configId'>>
 ): Promise<void> {
-  const fields: string[] = [];
-  const values: unknown[] = [];
+  const data: Record<string, unknown> = {};
 
   if (updates.currentIp !== undefined) {
-    fields.push('current_ip = ?');
-    values.push(updates.currentIp);
+    data.current_ip = updates.currentIp;
   }
   if (updates.isPrimary !== undefined) {
-    fields.push('is_primary = ?');
-    values.push(updates.isPrimary ? 1 : 0);
+    data.is_primary = updates.isPrimary ? 1 : 0;
   }
   if (updates.lastCheckTime !== undefined) {
-    fields.push('last_check_time = ?');
-    values.push(updates.lastCheckTime);
+    data.last_check_time = updates.lastCheckTime;
   }
   if (updates.lastCheckResult !== undefined) {
-    fields.push('last_check_result = ?');
-    values.push(updates.lastCheckResult ? 1 : 0);
+    data.last_check_result = updates.lastCheckResult ? 1 : 0;
   }
   if (updates.failCount !== undefined) {
-    fields.push('fail_count = ?');
-    values.push(updates.failCount);
+    data.fail_count = updates.failCount;
   }
 
-  if (fields.length > 0) {
-    values.push(configId);
-    await execute(`UPDATE failover_status SET ${fields.join(', ')} WHERE config_id = ?`, values);
+  if (Object.keys(data).length > 0) {
+    await FailoverOperations.updateStatus(configId, data);
   }
 }
