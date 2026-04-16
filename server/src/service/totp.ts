@@ -1,7 +1,7 @@
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
-import { query, get, execute, insert, run, now, getDbType } from '../db';
+import { TOTPOperations, getDbType } from '../db/business-adapter';
 
 /**
  * TOTP (Time-based One-Time Password) 2FA 服务
@@ -23,14 +23,14 @@ export interface TOTPStatus {
  */
 export async function generateTOTPSecret(userId: number, email: string): Promise<TOTPSetup> {
   const secret = authenticator.generateSecret();
-  
+
   // 生成二维码
   const otpauth_url = authenticator.keyuri(email, 'DNSMgr', secret);
   const qrCode = await QRCode.toDataURL(otpauth_url);
-  
+
   // 生成 10 个备用恢复码
   const backupCodes = generateBackupCodes(10);
-  
+
   return {
     secret,
     qrCode,
@@ -58,58 +58,27 @@ export async function enableTOTP(userId: number, secret: string, backupCodes: st
 
   const dbType = getDbType();
   if (dbType === 'sqlite') {
-    const stmt = (global as any).db?.prepare?.(`
-      INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
-      VALUES (?, ?, ?, ?, ?, datetime('now'))
-      ON CONFLICT(user_id, type) DO UPDATE SET
-        secret = excluded.secret,
-        backup_codes = excluded.backup_codes,
-        enabled = 1,
-        updated_at = datetime('now')
-    `);
-    if (stmt) {
-      stmt.run(userId, 'totp', secret, JSON.stringify(encryptedCodes));
-      return;
-    }
+    await TOTPOperations.enableSQLite(userId, secret, JSON.stringify(encryptedCodes));
+  } else if (dbType === 'mysql') {
+    await TOTPOperations.enableMySQL(userId, secret, JSON.stringify(encryptedCodes));
+  } else {
+    await TOTPOperations.enablePostgreSQL(userId, secret, JSON.stringify(encryptedCodes));
   }
-  
-  const sql = dbType === 'mysql'
-    ? `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
-       VALUES (?, ?, ?, ?, 1, NOW())
-       ON DUPLICATE KEY UPDATE
-       secret = VALUES(secret),
-       backup_codes = VALUES(backup_codes),
-       enabled = 1,
-       updated_at = NOW()`
-    : `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
-       VALUES ($1, $2, $3, $4, true, NOW())
-       ON CONFLICT(user_id, type) DO UPDATE SET
-       secret = EXCLUDED.secret,
-       backup_codes = EXCLUDED.backup_codes,
-       enabled = true,
-       updated_at = NOW()`;
-  
-  await execute(sql, [userId, 'totp', secret, JSON.stringify(encryptedCodes)]);
 }
 
 /**
  * 禁用 TOTP 2FA
  */
 export async function disableTOTP(userId: number): Promise<void> {
-  await execute(
-    'UPDATE user_2fa SET enabled = ? WHERE user_id = ? AND type = ?',
-    [getDbType() === 'sqlite' ? 0 : false, userId, 'totp']
-  );
+  const enabledValue = getDbType() === 'sqlite' ? 0 : false;
+  await TOTPOperations.disable(userId, enabledValue);
 }
 
 /**
  * 获取 TOTP 状态
  */
 export async function getTOTPStatus(userId: number): Promise<TOTPStatus> {
-  const result = await get(
-    'SELECT enabled, backup_codes FROM user_2fa WHERE user_id = ? AND type = ?',
-    [userId, 'totp']
-  );
+  const result = await TOTPOperations.getByUser(userId);
 
   if (!result) {
     return { enabled: false, backupCodesRemaining: 0 };
@@ -126,10 +95,8 @@ export async function getTOTPStatus(userId: number): Promise<TOTPStatus> {
  * 使用备用码验证
  */
 export async function verifyBackupCode(userId: number, code: string): Promise<boolean> {
-  const result = await get(
-    'SELECT backup_codes FROM user_2fa WHERE user_id = ? AND type = ? AND enabled = ?',
-    [userId, 'totp', getDbType() === 'sqlite' ? 1 : true]
-  );
+  const enabledValue = getDbType() === 'sqlite' ? 1 : true;
+  const result = await TOTPOperations.verifyBackupCode(userId, enabledValue);
 
   if (!result) return false;
 
@@ -141,10 +108,7 @@ export async function verifyBackupCode(userId: number, code: string): Promise<bo
 
   // 移除已使用的备用码
   backupCodes.splice(index, 1);
-  await execute(
-    'UPDATE user_2fa SET backup_codes = ? WHERE user_id = ? AND type = ?',
-    [JSON.stringify(backupCodes), userId, 'totp']
-  );
+  await TOTPOperations.updateBackupCodes(userId, JSON.stringify(backupCodes));
 
   return true;
 }

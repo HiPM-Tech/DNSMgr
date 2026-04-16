@@ -1,4 +1,4 @@
-import { query, get, execute, insert, run, now, getDbType } from '../db';
+import { LoginLimitOperations, getDbType } from '../db/business-adapter';
 import { checkAuditRules } from './auditRules';
 import { log } from '../lib/logger';
 
@@ -40,7 +40,7 @@ interface LoginAttempt {
 // Get login limit configuration
 export async function getLoginLimitConfig(): Promise<LoginLimitConfig> {
   try {
-    const result = await get('SELECT value FROM system_settings WHERE key = ?', ['login_limit_config']);
+    const result = await LoginLimitOperations.getConfig();
     if (result) {
       return { ...DEFAULT_CONFIG, ...JSON.parse((result as { value: string }).value) };
     }
@@ -54,44 +54,27 @@ export async function getLoginLimitConfig(): Promise<LoginLimitConfig> {
 export async function updateLoginLimitConfig(config: Partial<LoginLimitConfig>): Promise<void> {
   const currentConfig = await getLoginLimitConfig();
   const newConfig = { ...currentConfig, ...config };
-
-  const payload = ['login_limit_config', JSON.stringify(newConfig)];
-  const dbType = getDbType();
-  if (dbType === 'mysql') {
-    await execute(
-      'INSERT INTO system_settings (`key`, `value`, updated_at) VALUES (?, ?, ' + now() + ') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = ' + now(),
-      payload
-    );
-    return;
-  }
-
-  await execute(
-    'INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ' + now() + ') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ' + now(),
-    payload
-  );
+  await LoginLimitOperations.updateConfig(JSON.stringify(newConfig));
 }
 
 // Check if login is allowed for identifier (username or email)
 export async function checkLoginAllowed(identifier: string, ipAddress: string = ''): Promise<{ allowed: boolean; message?: string; remainingAttempts?: number }> {
   const config = await getLoginLimitConfig();
-  
+
   if (!config.enabled) {
     return { allowed: true };
   }
 
   try {
     // Check existing attempt record
-    const result = await get(
-      'SELECT * FROM login_attempts WHERE identifier = ? ORDER BY created_at DESC LIMIT 1',
-      [identifier.toLowerCase()]
-    );
-    
+    const result = await LoginLimitOperations.getAttempt(identifier);
+
     const attempt = result as LoginAttempt | undefined;
 
     if (attempt && attempt.locked_until) {
       const lockedUntil = new Date(attempt.locked_until);
       const nowTime = new Date();
-      
+
       if (lockedUntil > nowTime) {
         const minutesLeft = Math.ceil((lockedUntil.getTime() - nowTime.getTime()) / (1000 * 60));
         return {
@@ -118,20 +101,17 @@ export async function checkLoginAllowed(identifier: string, ipAddress: string = 
 // Record failed login attempt
 export async function recordFailedAttempt(identifier: string, ipAddress: string = ''): Promise<{ locked: boolean; message?: string }> {
   const config = await getLoginLimitConfig();
-  
+
   if (!config.enabled) {
     return { locked: false };
   }
 
   try {
     const normalizedIdentifier = identifier.toLowerCase();
-    
+
     // Get existing record
-    const result = await get(
-      'SELECT * FROM login_attempts WHERE identifier = ? ORDER BY created_at DESC LIMIT 1',
-      [normalizedIdentifier]
-    );
-    
+    const result = await LoginLimitOperations.getAttempt(identifier);
+
     const attempt = result as LoginAttempt | undefined;
     const nowTime = new Date();
 
@@ -150,19 +130,16 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
 
       // Increment attempt count
       const newCount = attempt.attempt_count + 1;
-      
+
       // Check if should lock
       if (newCount >= config.maxAttempts) {
         const lockoutMinutes = config.lockoutDuration;
         const lockedUntil = new Date(nowTime.getTime() + lockoutMinutes * 60 * 1000);
-        
-        await execute(
-          'UPDATE login_attempts SET attempt_count = ?, last_attempt_at = ' + now() + ', locked_until = ? WHERE id = ?',
-          [newCount, formatDateForDB(lockedUntil), attempt.id]
-        );
-        
+
+        await LoginLimitOperations.updateAttempt(attempt.id, newCount, formatDateForDB(lockedUntil));
+
         checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => log.error('LoginLimit', 'Audit rule check failed', { error: e }));
-        
+
         return {
           locked: true,
           message: `Too many failed attempts. Account locked for ${lockoutMinutes} minute(s).`,
@@ -170,11 +147,8 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
       }
 
       // Update attempt count
-      await execute(
-        'UPDATE login_attempts SET attempt_count = ?, last_attempt_at = ' + now() + ', locked_until = NULL WHERE id = ?',
-        [newCount, attempt.id]
-      );
-      
+      await LoginLimitOperations.updateAttempt(attempt.id, newCount, null);
+
       checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => log.error('LoginLimit', 'Audit rule check failed', { error: e }));
 
       const remainingAttempts = config.maxAttempts - newCount;
@@ -184,10 +158,7 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
       };
     } else {
       // Create new record
-      await execute(
-        'INSERT INTO login_attempts (identifier, ip_address, attempt_count, last_attempt_at) VALUES (?, ?, 1, ' + now() + ')',
-        [normalizedIdentifier, ipAddress]
-      );
+      await LoginLimitOperations.createAttempt(normalizedIdentifier, ipAddress);
 
       const remainingAttempts = config.maxAttempts - 1;
       return {
@@ -204,10 +175,7 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
 // Clear login attempts on successful login
 export async function clearLoginAttempts(identifier: string): Promise<void> {
   try {
-    await execute(
-      'DELETE FROM login_attempts WHERE identifier = ?',
-      [identifier.toLowerCase()]
-    );
+    await LoginLimitOperations.clearAttempts(identifier);
   } catch (e) {
     log.error('LoginLimit', 'Failed to clear attempts', { error: e });
   }
@@ -222,24 +190,16 @@ export async function getLoginAttemptStats(): Promise<{
   try {
     const dbType = getDbType();
     const nowExpr = dbType === 'sqlite' ? "datetime('now')" : dbType === 'mysql' ? 'NOW()' : 'NOW()';
-    const yesterdayExpr = dbType === 'sqlite' ? "datetime('now', '-1 day')" : dbType === 'mysql' ? 'NOW() - INTERVAL 1 DAY' : 'NOW() - INTERVAL \'1 day\'';
+    const yesterdayExpr = dbType === 'sqlite' ? "datetime('now', '-1 day')" : dbType === 'mysql' ? 'NOW() - INTERVAL 1 DAY' : "NOW() - INTERVAL '1 day'";
 
     // Get total locked accounts
-    const lockedResult = await get(
-      `SELECT COUNT(*) as cnt FROM login_attempts WHERE locked_until > ${nowExpr}`
-    );
-    const totalLocked = (lockedResult as { cnt: number })?.cnt || 0;
+    const totalLocked = await LoginLimitOperations.getLockedCount(nowExpr);
 
     // Get recent attempts (last 24 hours)
-    const recentResult = await get(
-      `SELECT COUNT(*) as cnt FROM login_attempts WHERE last_attempt_at > ${yesterdayExpr}`
-    );
-    const recentAttempts = (recentResult as { cnt: number })?.cnt || 0;
+    const recentAttempts = await LoginLimitOperations.getRecentCount(yesterdayExpr);
 
     // Get top identifiers with failed attempts
-    const topResult = await query(
-      'SELECT identifier, attempt_count as attempts FROM login_attempts ORDER BY attempt_count DESC LIMIT 10'
-    );
+    const topResult = await LoginLimitOperations.getTopIdentifiers();
     const topIdentifiers = (topResult as { identifier: string; attempts: number }[]) || [];
 
     return {
@@ -255,8 +215,5 @@ export async function getLoginAttemptStats(): Promise<{
 
 // Manually unlock an account (for admin)
 export async function unlockAccount(identifier: string): Promise<void> {
-  await execute(
-    'DELETE FROM login_attempts WHERE identifier = ?',
-    [identifier.toLowerCase()]
-  );
+  await LoginLimitOperations.clearAttempts(identifier);
 }

@@ -1,4 +1,4 @@
-import { query, get, execute, insert, run, now } from '../db';
+import { WebAuthnOperations, getDbType } from '../db/business-adapter';
 
 export interface WebAuthnCredential {
   id: string;
@@ -14,7 +14,7 @@ export interface WebAuthnCredential {
 }
 
 export async function getUserWebAuthnCredentials(userId: number): Promise<WebAuthnCredential[]> {
-  const rows = await query('SELECT * FROM webauthn_credentials WHERE user_id = ?', [userId]) as any[];
+  const rows = await WebAuthnOperations.getByUser(userId) as any[];
   return rows.map(r => ({
     id: r.id,
     user_id: r.user_id,
@@ -30,41 +30,35 @@ export async function getUserWebAuthnCredentials(userId: number): Promise<WebAut
 }
 
 export async function addWebAuthnCredential(cred: Omit<WebAuthnCredential, 'created_at' | 'last_used_at'>) {
-  await query(
-    'INSERT INTO webauthn_credentials (id, user_id, public_key, counter, device_type, backed_up, transports, name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [
-      cred.id, cred.user_id, cred.public_key, cred.counter, cred.device_type, 
-      cred.backed_up ? 1 : 0, JSON.stringify(cred.transports), cred.name
-    ]
-  );
+  await WebAuthnOperations.add({
+    id: cred.id,
+    user_id: cred.user_id,
+    public_key: cred.public_key,
+    counter: cred.counter,
+    device_type: cred.device_type,
+    backed_up: cred.backed_up ? 1 : 0,
+    transports: JSON.stringify(cred.transports),
+    name: cred.name
+  });
   // Ensure user has webauthn enabled in user_2fa
-  const existing = await get('SELECT * FROM user_2fa WHERE user_id = ? AND type = ?', [cred.user_id, 'webauthn']);
+  const existing = await WebAuthnOperations.exists(cred.user_id);
   if (!existing) {
-    await query(
-      'INSERT INTO user_2fa (user_id, type, secret, enabled) VALUES (?, ?, ?, ?)',
-      [cred.user_id, 'webauthn', 'webauthn', 1]
-    );
+    await WebAuthnOperations.createConfig(cred.user_id);
   } else {
-    await query(
-      'UPDATE user_2fa SET enabled = 1 WHERE user_id = ? AND type = ?',
-      [cred.user_id, 'webauthn']
-    );
+    await WebAuthnOperations.enable(cred.user_id);
   }
 }
 
 export async function updateWebAuthnCredentialCounter(id: string, counter: number) {
-  await execute(
-    `UPDATE webauthn_credentials SET counter = ?, last_used_at = ${now()} WHERE id = ?`,
-    [counter, id]
-  );
+  await WebAuthnOperations.updateCounter(id, counter);
 }
 
 export async function deleteWebAuthnCredential(userId: number, id: string) {
-  await query('DELETE FROM webauthn_credentials WHERE user_id = ? AND id = ?', [userId, id]);
-  
+  await WebAuthnOperations.delete(userId, id);
+
   // Disable webauthn if no credentials left
   const remaining = await getUserWebAuthnCredentials(userId);
   if (remaining.length === 0) {
-    await query('UPDATE user_2fa SET enabled = 0 WHERE user_id = ? AND type = ?', [userId, 'webauthn']);
+    await WebAuthnOperations.disable(userId);
   }
 }
