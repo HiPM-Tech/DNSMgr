@@ -121,6 +121,7 @@ async function initMySQLSchema(conn: DbConnection): Promise<void> {
 
 async function syncMySQLColumns(conn: DbConnection): Promise<void> {
   // 定义表结构（表名 -> 列定义）
+  // 注意：这些列是在旧版本数据库中缺失的，新版本 schema 已包含这些列
   const tableColumns: Record<string, Array<{ name: string; type: string; after?: string }>> = {
     users: [
       { name: 'nickname', type: "VARCHAR(255) NOT NULL DEFAULT ''", after: 'username' },
@@ -130,7 +131,8 @@ async function syncMySQLColumns(conn: DbConnection): Promise<void> {
       { name: 'expires_at', type: 'DATETIME', after: 'updated_at' },
     ],
     domain_permissions: [
-      { name: 'permission', type: "VARCHAR(50) NOT NULL DEFAULT 'write'", after: 'domain_id' },
+      // MySQL schema 中使用 ENUM 类型，保持一致
+      { name: 'permission', type: "ENUM('read', 'write') NOT NULL DEFAULT 'write'", after: 'domain_id' },
     ],
     user_preferences: [
       { name: 'background_image', type: 'TEXT', after: 'updated_at' },
@@ -189,6 +191,7 @@ async function initPostgreSQLSchema(conn: DbConnection): Promise<void> {
 
 async function syncPostgreSQLColumns(conn: DbConnection): Promise<void> {
   // 定义表结构（表名 -> 列定义）
+  // 注意：这些列是在旧版本数据库中缺失的，新版本 schema 已包含这些列
   const tableColumns: Record<string, Array<{ name: string; type: string }>> = {
     users: [
       { name: 'nickname', type: "VARCHAR(255) NOT NULL DEFAULT ''" },
@@ -198,7 +201,8 @@ async function syncPostgreSQLColumns(conn: DbConnection): Promise<void> {
       { name: 'expires_at', type: 'TIMESTAMP' },
     ],
     domain_permissions: [
-      { name: 'permission', type: "VARCHAR(50) NOT NULL DEFAULT 'write'" },
+      // PostgreSQL schema 中使用 VARCHAR(20) 带 CHECK 约束，保持一致
+      { name: 'permission', type: "VARCHAR(20) NOT NULL DEFAULT 'write' CHECK (permission IN ('read', 'write'))" },
     ],
     user_preferences: [
       { name: 'background_image', type: 'TEXT' },
