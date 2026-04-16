@@ -1,5 +1,6 @@
-import { query, get, execute, insert, run, now, getDbType } from '../db';
+import { AuditRulesOperations } from '../db/business-adapter';
 import { sendNotification } from './notification';
+import { getDbType } from '../db/business-adapter';
 
 interface AuditRuleConfig {
   enabled: boolean;
@@ -10,7 +11,7 @@ interface AuditRuleConfig {
 }
 
 export async function getAuditRuleConfig(): Promise<AuditRuleConfig> {
-  const row = await get("SELECT value FROM system_settings WHERE key = 'audit_rules'") as any;
+  const row = await AuditRulesOperations.getConfig() as any;
   if (!row?.value) return getDefaultConfig();
   try {
     return { ...getDefaultConfig(), ...JSON.parse(row.value) };
@@ -33,7 +34,7 @@ export async function checkAuditRules(userId: number, action: string, domain: st
   const config = await getAuditRuleConfig();
   if (!config.enabled) return;
 
-  const user = await get('SELECT username FROM users WHERE id = ?', [userId]) as any;
+  const user = await AuditRulesOperations.getUsername(userId) as any;
   const username = user?.username || `User#${userId}`;
 
   const timeStr = new Date().toLocaleString();
@@ -43,10 +44,10 @@ export async function checkAuditRules(userId: number, action: string, domain: st
     const currentHour = new Date().getHours();
     const currentMin = new Date().getMinutes();
     const currentVal = currentHour + currentMin / 60;
-    
+
     const [startH, startM] = config.offHoursStart.split(':').map(Number);
     const startVal = startH + startM / 60;
-    
+
     const [endH, endM] = config.offHoursEnd.split(':').map(Number);
     const endVal = endH + endM / 60;
 
@@ -68,15 +69,14 @@ export async function checkAuditRules(userId: number, action: string, domain: st
   // 2. High-frequency deletion check
   if (action === 'delete_record' || action === 'delete_domain') {
     const dbType = getDbType();
-    const timeQuery = dbType === 'sqlite' 
-      ? "datetime('now', '-1 hour')" 
-      : dbType === 'mysql' 
-        ? "NOW() - INTERVAL 1 HOUR"
-        : "NOW() - INTERVAL '1 hour'";
-    const recentDeletions = await get(
-      `SELECT COUNT(*) as count FROM operation_logs WHERE user_id = ? AND action IN ('delete_record', 'delete_domain') AND created_at >= ${timeQuery}`,
-      [userId]
-    ) as any;
+    let recentDeletions: any;
+    if (dbType === 'sqlite') {
+      recentDeletions = await AuditRulesOperations.getRecentDeletionsSQLite(userId);
+    } else if (dbType === 'mysql') {
+      recentDeletions = await AuditRulesOperations.getRecentDeletionsMySQL(userId);
+    } else {
+      recentDeletions = await AuditRulesOperations.getRecentDeletionsPostgreSQL(userId);
+    }
 
     if (recentDeletions && recentDeletions.count >= config.maxDeletionsPerHour) {
       await sendNotification(

@@ -1,4 +1,4 @@
-import { query, get, execute, insert, run, now, getDbType } from '../db';
+import { AuditExportOperations, getDbType } from '../db/business-adapter';
 
 /**
  * 审计日志导出服务
@@ -74,34 +74,10 @@ export async function getAuditLogs(
   const offset = (pageNum - 1) * pageSizeNum;
 
   // 获取总数
-  const countSql = `SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`;
-
-  const countResult = await get(countSql, params);
-  const total = (countResult as { cnt: number })?.cnt || 0;
+  const total = await AuditExportOperations.getCount(where, params);
 
   // 获取日志
-  const dbType = getDbType();
-  const listSql = dbType === 'postgresql'
-    ? `SELECT l.*, u.username, u.nickname
-       FROM operation_logs l
-       LEFT JOIN users u ON u.id = l.user_id
-       WHERE ${where}
-       ORDER BY l.id DESC
-       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
-    : `SELECT l.*, u.username, u.nickname
-       FROM operation_logs l
-       LEFT JOIN users u ON u.id = l.user_id
-       WHERE ${where}
-       ORDER BY l.id DESC
-       LIMIT ? OFFSET ?`;
-
-  // MySQL 的 LIMIT/OFFSET 需要直接嵌入数值，不能使用参数化查询
-  const finalSql = dbType === 'mysql'
-    ? listSql.replace('LIMIT ? OFFSET ?', `LIMIT ${pageSizeNum} OFFSET ${offset}`)
-    : listSql;
-  const finalParams = dbType === 'mysql' ? params : [...params, pageSizeNum, offset];
-  
-  const logs = await query(finalSql, finalParams);
+  const logs = await AuditExportOperations.getLogs(where, params, pageSizeNum, offset);
 
   return {
     total,
@@ -172,46 +148,24 @@ export async function exportAuditLogsAsJSON(
 export async function detectAnomalies(userId: number, timeWindowMinutes: number = 60): Promise<string[]> {
   const anomalies: string[] = [];
   const nowTime = new Date();
-  const timeWindow = new Date(nowTime.getTime() - timeWindowMinutes * 60 * 1000);
-  const dbType = getDbType();
+  const timeWindow = formatDateForDB(new Date(nowTime.getTime() - timeWindowMinutes * 60 * 1000));
 
   // 检查：短时间内大量删除记录
-  const deleteSql = dbType === 'postgresql'
-    ? `SELECT COUNT(*) as cnt FROM operation_logs 
-       WHERE user_id = $1 AND action LIKE '%delete%' AND created_at > $2`
-    : `SELECT COUNT(*) as cnt FROM operation_logs 
-       WHERE user_id = ? AND action LIKE '%delete%' AND created_at > ?`;
-
-  const deleteResult = await get(deleteSql, [userId, formatDateForDB(timeWindow)]);
-  const deleteCount = (deleteResult as { cnt: number })?.cnt || 0;
+  const deleteCount = await AuditExportOperations.getDeleteCount(userId, timeWindow);
 
   if (deleteCount > 10) {
     anomalies.push(`Unusual number of delete operations: ${deleteCount} in ${timeWindowMinutes} minutes`);
   }
 
   // 检查：短时间内大量创建记录
-  const createSql = dbType === 'postgresql'
-    ? `SELECT COUNT(*) as cnt FROM operation_logs
-       WHERE user_id = $1 AND action LIKE '%create%' AND created_at > $2`
-    : `SELECT COUNT(*) as cnt FROM operation_logs
-       WHERE user_id = ? AND action LIKE '%create%' AND created_at > ?`;
-
-  const createResult = await get(createSql, [userId, formatDateForDB(timeWindow)]);
-  const createCount = (createResult as { cnt: number })?.cnt || 0;
+  const createCount = await AuditExportOperations.getCreateCount(userId, timeWindow);
 
   if (createCount > 50) {
     anomalies.push(`Unusual number of create operations: ${createCount} in ${timeWindowMinutes} minutes`);
   }
 
   // 检查：多个不同域名的操作
-  const domainSql = dbType === 'postgresql'
-    ? `SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs
-       WHERE user_id = $1 AND created_at > $2`
-    : `SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs
-       WHERE user_id = ? AND created_at > ?`;
-
-  const domainResult = await get(domainSql, [userId, formatDateForDB(timeWindow)]);
-  const domainCount = (domainResult as { cnt: number })?.cnt || 0;
+  const domainCount = await AuditExportOperations.getDomainCount(userId, timeWindow);
 
   if (domainCount > 20) {
     anomalies.push(`Unusual number of different domains accessed: ${domainCount} in ${timeWindowMinutes} minutes`);
@@ -226,19 +180,8 @@ export async function detectAnomalies(userId: number, timeWindowMinutes: number 
 export async function getUserActionStats(userId: number, days: number = 7): Promise<Record<string, number>> {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  const dbType = getDbType();
 
-  const sql = dbType === 'postgresql'
-    ? `SELECT action, COUNT(*) as count FROM operation_logs 
-       WHERE user_id = $1 AND created_at > $2
-       GROUP BY action
-       ORDER BY count DESC`
-    : `SELECT action, COUNT(*) as count FROM operation_logs 
-       WHERE user_id = ? AND created_at > ?
-       GROUP BY action
-       ORDER BY count DESC`;
-
-  const results = await query(sql, [userId, formatDateForDB(startDate)]);
+  const results = await AuditExportOperations.getUserActionStats(userId, formatDateForDB(startDate));
 
   const stats: Record<string, number> = {};
   for (const row of results) {
@@ -256,17 +199,12 @@ export async function getActionTimeDistribution(userId: number, days: number = 7
   startDate.setDate(startDate.getDate() - days);
   const dbType = getDbType();
 
-  const sql = dbType === 'postgresql'
-    ? `SELECT EXTRACT(HOUR FROM created_at) as hour, COUNT(*) as count FROM operation_logs
-       WHERE user_id = $1 AND created_at > $2
-       GROUP BY EXTRACT(HOUR FROM created_at)
-       ORDER BY hour`
-    : `SELECT STRFTIME('%H', created_at) as hour, COUNT(*) as count FROM operation_logs
-       WHERE user_id = ? AND created_at > ?
-       GROUP BY STRFTIME('%H', created_at)
-       ORDER BY hour`;
-
-  const results = await query(sql, [userId, formatDateForDB(startDate)]);
+  let results: any[];
+  if (dbType === 'postgresql') {
+    results = await AuditExportOperations.getTimeDistributionPostgreSQL(userId, formatDateForDB(startDate));
+  } else {
+    results = await AuditExportOperations.getTimeDistributionSQLite(userId, formatDateForDB(startDate));
+  }
 
   const distribution: Record<string, number> = {};
   for (let i = 0; i < 24; i++) {
