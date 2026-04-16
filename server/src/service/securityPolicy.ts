@@ -3,7 +3,7 @@
  * 管理系统级安全策略和用户级安全设置
  */
 
-import { query, get, execute } from '../db';
+import { query, get, execute, getDbType } from '../db';
 import { log } from '../lib/logger';
 
 // zxcvbn 是 CommonJS 模块，需要这样导入
@@ -59,30 +59,39 @@ const DEFAULT_POLICY: SecurityPolicy = {
  * 初始化安全策略表
  */
 export async function initSecurityPolicyTable(): Promise<void> {
+  const dbType = getDbType();
+  
+  // 根据数据库类型使用不同的 SQL 语法
+  const autoIncrement = dbType === 'mysql' ? 'AUTO_INCREMENT' : 'AUTOINCREMENT';
+  const booleanType = dbType === 'mysql' ? 'TINYINT' : 'BOOLEAN';
+  const datetimeDefault = dbType === 'mysql' 
+    ? 'DATETIME DEFAULT CURRENT_TIMESTAMP' 
+    : 'DATETIME DEFAULT CURRENT_TIMESTAMP';
+  
   const sql = `
     CREATE TABLE IF NOT EXISTS security_policies (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      require_2fa_global BOOLEAN DEFAULT 0,
+      id INTEGER PRIMARY KEY ${autoIncrement},
+      require_2fa_global ${booleanType} DEFAULT 0,
       min_password_length INTEGER DEFAULT 8,
       min_password_strength INTEGER DEFAULT 2,
       session_timeout_hours INTEGER DEFAULT 24,
       max_login_attempts INTEGER DEFAULT 5,
       lockout_duration_minutes INTEGER DEFAULT 30,
-      allow_remember_device BOOLEAN DEFAULT 1,
+      allow_remember_device ${booleanType} DEFAULT 1,
       trusted_device_days INTEGER DEFAULT 30,
-      require_password_change_on_first_login BOOLEAN DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      require_password_change_on_first_login ${booleanType} DEFAULT 0,
+      created_at ${datetimeDefault},
+      updated_at ${datetimeDefault}
     )
   `;
   
   const userSecuritySql = `
     CREATE TABLE IF NOT EXISTS user_security_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id INTEGER PRIMARY KEY ${autoIncrement},
       user_id INTEGER NOT NULL UNIQUE,
-      require_2fa BOOLEAN DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      require_2fa ${booleanType} DEFAULT 0,
+      created_at ${datetimeDefault},
+      updated_at ${datetimeDefault},
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `;
