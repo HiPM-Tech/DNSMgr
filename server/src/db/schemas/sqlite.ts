@@ -214,6 +214,59 @@ export const sqliteSchema: SchemaDefinition = {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (config_id) REFERENCES failover_configs(id) ON DELETE CASCADE,
       UNIQUE(config_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS security_policies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      require_2fa_global INTEGER NOT NULL DEFAULT 0,
+      min_password_length INTEGER NOT NULL DEFAULT 8,
+      min_password_strength INTEGER NOT NULL DEFAULT 2,
+      session_timeout_hours INTEGER NOT NULL DEFAULT 24,
+      max_login_attempts INTEGER NOT NULL DEFAULT 5,
+      lockout_duration_minutes INTEGER NOT NULL DEFAULT 30,
+      allow_remember_device INTEGER NOT NULL DEFAULT 1,
+      trusted_device_days INTEGER NOT NULL DEFAULT 30,
+      require_password_change_on_first_login INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_security_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      require_2fa INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_totp (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      secret TEXT NOT NULL,
+      backup_codes TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_webauthn_credentials (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      credential_id TEXT NOT NULL,
+      public_key TEXT NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS trusted_devices (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      device_name TEXT NOT NULL,
+      device_fingerprint TEXT NOT NULL,
+      user_agent TEXT,
+      ip_address TEXT,
+      last_used_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`
   ],
   createIndexes: [
@@ -224,6 +277,11 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_failover_configs_domain_id ON failover_configs(domain_id)`,
     `CREATE INDEX IF NOT EXISTS idx_failover_configs_enabled ON failover_configs(enabled)`,
     `CREATE INDEX IF NOT EXISTS idx_failover_status_config_id ON failover_status(config_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_user_security_settings_user_id ON user_security_settings(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_user_totp_user_id ON user_totp(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_user_webauthn_credentials_user_id ON user_webauthn_credentials(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_id ON trusted_devices(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_trusted_devices_fingerprint ON trusted_devices(device_fingerprint)`,
   ],
   alterTables: [
     // SQLite 不支持 ALTER TABLE ADD COLUMN 的复杂操作，需要在初始化时处理

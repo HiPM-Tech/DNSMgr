@@ -237,7 +237,61 @@ export const postgresqlSchema: SchemaDefinition = {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_failover_status_config_id ON failover_status(config_id)`
+    `CREATE INDEX IF NOT EXISTS idx_failover_status_config_id ON failover_status(config_id)`,
+    `CREATE TABLE IF NOT EXISTS security_policies (
+      id SERIAL PRIMARY KEY,
+      require_2fa_global BOOLEAN NOT NULL DEFAULT false,
+      min_password_length INTEGER NOT NULL DEFAULT 8,
+      min_password_strength INTEGER NOT NULL DEFAULT 2,
+      session_timeout_hours INTEGER NOT NULL DEFAULT 24,
+      max_login_attempts INTEGER NOT NULL DEFAULT 5,
+      lockout_duration_minutes INTEGER NOT NULL DEFAULT 30,
+      allow_remember_device BOOLEAN NOT NULL DEFAULT true,
+      trusted_device_days INTEGER NOT NULL DEFAULT 30,
+      require_password_change_on_first_login BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_security_settings (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      require_2fa BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_user_security_settings_user_id ON user_security_settings(user_id)`,
+    `CREATE TABLE IF NOT EXISTS user_totp (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      secret TEXT NOT NULL,
+      backup_codes TEXT NOT NULL DEFAULT '[]',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_user_totp_user_id ON user_totp(user_id)`,
+    `CREATE TABLE IF NOT EXISTS user_webauthn_credentials (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      credential_id TEXT NOT NULL,
+      public_key TEXT NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_user_webauthn_credentials_user_id ON user_webauthn_credentials(user_id)`,
+    `CREATE TABLE IF NOT EXISTS trusted_devices (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device_name TEXT NOT NULL,
+      device_fingerprint TEXT NOT NULL,
+      user_agent TEXT,
+      ip_address TEXT,
+      last_used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_id ON trusted_devices(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_trusted_devices_fingerprint ON trusted_devices(device_fingerprint)`
   ],
   createIndexes: [
     // 索引已在 CREATE TABLE 中定义
