@@ -220,10 +220,10 @@ export function startWhoisJob() {
     syncAllDomainsWhois().catch(err => log.error('WhoisJob', 'Initial sync error:', { error: err }));
   }, 30 * 1000);
 
-  // 每 24 小时运行一次
+  // 每小时运行一次
   setInterval(() => {
     syncAllDomainsWhois().catch(err => log.error('WhoisJob', 'Scheduled sync error:', { error: err }));
-  }, 24 * 60 * 60 * 1000);
+  }, 60 * 60 * 1000);
 
-  log.info('WhoisJob', 'WHOIS job scheduler started');
+  log.info('WhoisJob', 'WHOIS job scheduler started (every 1 hour)');
 }

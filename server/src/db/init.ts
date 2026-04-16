@@ -73,6 +73,14 @@ async function initSQLiteSchema(conn: DbConnection): Promise<void> {
     sqliteConn.exec("ALTER TABLE domain_permissions ADD COLUMN permission TEXT NOT NULL DEFAULT 'write'");
   }
 
+  // 检查并添加 user_preferences 表的 background_image 字段
+  const userPrefsColumns = sqliteConn.prepare("PRAGMA table_info(user_preferences)").all() as { name: string }[];
+  const hasBackgroundImage = userPrefsColumns.some((col) => col.name === 'background_image');
+  if (!hasBackgroundImage) {
+    sqliteConn.exec("ALTER TABLE user_preferences ADD COLUMN background_image TEXT");
+    log.info('DB', 'Added missing column: user_preferences.background_image');
+  }
+
   // 规范化历史重复域名
   sqliteConn.exec(`
     DELETE FROM domains
@@ -124,6 +132,9 @@ async function syncMySQLColumns(conn: DbConnection): Promise<void> {
     domain_permissions: [
       { name: 'permission', type: "VARCHAR(50) NOT NULL DEFAULT 'write'", after: 'domain_id' },
     ],
+    user_preferences: [
+      { name: 'background_image', type: 'TEXT', after: 'updated_at' },
+    ],
   };
 
   for (const [table, columns] of Object.entries(tableColumns)) {
@@ -159,6 +170,52 @@ async function initPostgreSQLSchema(conn: DbConnection): Promise<void> {
       if (!(e instanceof Error && e.message.includes('already exists'))) {
         throw e;
       }
+    }
+  }
+
+  // 自动检测并补全缺失的列
+  await syncPostgreSQLColumns(conn);
+}
+
+async function syncPostgreSQLColumns(conn: DbConnection): Promise<void> {
+  // 定义表结构（表名 -> 列定义）
+  const tableColumns: Record<string, Array<{ name: string; type: string }>> = {
+    users: [
+      { name: 'nickname', type: "VARCHAR(255) NOT NULL DEFAULT ''" },
+      { name: 'role_level', type: 'INTEGER NOT NULL DEFAULT 1' },
+    ],
+    domains: [
+      { name: 'expires_at', type: 'TIMESTAMP' },
+    ],
+    domain_permissions: [
+      { name: 'permission', type: "VARCHAR(50) NOT NULL DEFAULT 'write'" },
+    ],
+    user_preferences: [
+      { name: 'background_image', type: 'TEXT' },
+    ],
+  };
+
+  for (const [table, columns] of Object.entries(tableColumns)) {
+    try {
+      // 获取表的现有列
+      const existingColumns = await conn.query(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = $1`,
+        [table]
+      ) as Array<{ column_name: string }>;
+      const existingNames = new Set(existingColumns.map(c => c.column_name));
+
+      for (const col of columns) {
+        if (!existingNames.has(col.name)) {
+          log.info('DB', `Adding missing column: ${table}.${col.name}`);
+          await conn.execute(`ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.type}`);
+        }
+      }
+    } catch (e) {
+      // 表可能不存在，忽略错误
+      if (e instanceof Error && (e.message.includes('does not exist') || e.message.includes('Undefined table'))) {
+        continue;
+      }
+      log.warn('DB', `Failed to sync columns for ${table}`, { error: e });
     }
   }
 }

@@ -274,6 +274,11 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       if (firstId === null) firstId = id;
       added++;
       addedDomains.push(item.name);
+      
+      // 异步获取 WHOIS 信息（不阻塞响应）
+      syncDomainWhois(id).catch(err => {
+        log.warn('Domains', `Failed to sync WHOIS for ${item.name}:`, { error: err });
+      });
     } catch (error) {
       if (error instanceof Error && error.message.toLowerCase().includes('unique')) {
         duplicates.push(item.name);
@@ -339,7 +344,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
       const normalizedName = normalizeDomainName(d.Domain);
       const existing = await DomainOperations.getByAccountIdAndName(account_id, normalizedName);
       if (!existing) {
-        await DomainOperations.create({
+        const id = await DomainOperations.create({
           account_id,
           name: normalizedName,
           third_id: d.ThirdId,
@@ -347,6 +352,11 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
         });
         added++;
         await logAuditOperation(req.user!.userId, 'sync_add_domain', normalizedName, { accountId: account_id });
+        
+        // 异步获取 WHOIS 信息（不阻塞响应）
+        syncDomainWhois(id).catch(err => {
+          log.warn('Domains', `Failed to sync WHOIS for ${normalizedName}:`, { error: err });
+        });
       } else {
         await DomainOperations.updateThirdIdAndRecordCount(existing.id as number, d.ThirdId || '', d.RecordCount ?? 0);
       }
