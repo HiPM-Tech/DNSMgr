@@ -239,21 +239,28 @@ app.get('/api/logs', authMiddleware, adminOnly, async (req: Request, res: Respon
 
 // Serve static files from client build directory
 // Support both development and pkg packaged executable
+// In pkg, assets are accessed via __dirname (virtual filesystem)
 const possiblePaths = [
-  // Packaged EXE: client folder next to executable
-  path.join(process.cwd(), 'client'),
+  // Packaged EXE: assets are in pkg virtual filesystem at snapshot/client/dist
+  path.join(__dirname, 'client/dist'),
   // Development: client/dist from server/src
   path.join(__dirname, '../../client/dist'),
   // Alternative: from server/dist
   path.join(__dirname, '../client/dist'),
+  // Fallback: client folder next to executable
+  path.join(process.cwd(), 'client'),
 ];
 
 let clientBuildPath = '';
 for (const p of possiblePaths) {
-  if (require('fs').existsSync(p)) {
-    clientBuildPath = p;
-    console.log('Serving static files from:', p);
-    break;
+  try {
+    if (require('fs').existsSync(p)) {
+      clientBuildPath = p;
+      console.log('✅ Serving static files from:', p);
+      break;
+    }
+  } catch (e) {
+    // Path might not be accessible in pkg snapshot
   }
 }
 
@@ -266,10 +273,15 @@ if (clientBuildPath) {
     if (req.path.startsWith('/api/')) {
       return res.status(404).json({ code: 404, msg: 'API endpoint not found' });
     }
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
+    const indexPath = path.join(clientBuildPath, 'index.html');
+    if (require('fs').existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('index.html not found');
+    }
   });
 } else {
-  console.warn('Client build directory not found. API-only mode.');
+  console.warn('⚠️ Client build directory not found. API-only mode.');
 }
 
 // Global error handler (must be last)

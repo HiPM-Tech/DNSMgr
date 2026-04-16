@@ -111,7 +111,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path "release-dist"
           
           # Package server with pkg from server directory
-          # pkg will read package.json and include all dependencies
+          # pkg will read package.json and include:
+          # - All dependencies (node_modules)
+          # - Client files (from pkg.assets: ../client/dist/**/*)
+          # - Node.js runtime
           cd server
           pkg . `
             --targets node18-win-x64 `
@@ -119,17 +122,12 @@ jobs:
             --options "max-old-space-size=4096"
           cd ..
           
-          # Copy client build to release-dist
-          if (Test-Path "client/dist") {
-            Copy-Item -Path "client/dist" -Destination "release-dist/client" -Recurse -Force
-            Write-Host "✅ Client files copied to release-dist/client"
-          } else {
-            Write-Warning "⚠️ client/dist not found, skipping client copy"
-          }
+          # Note: Client files are now bundled inside the EXE via pkg assets
+          # No need to copy client/dist separately
           
           # List release-dist contents
           Write-Host "📁 Release-dist directory contents:"
-          Get-ChildItem "release-dist" -Recurse | Select-Object -First 20
+          Get-ChildItem "release-dist" | Select-Object -First 20
           
           # Create README for EXE
           $lines = @(
@@ -137,6 +135,7 @@ jobs:
             "========================",
             "",
             "This is a standalone Windows executable for DNSMgr Server.",
+            "The frontend is bundled inside this EXE file.",
             "",
             "Usage:",
             "1. Run DNSMgr-Server-v$VERSION.exe",
