@@ -279,26 +279,32 @@ export async function createConnection(): Promise<DbConnection> {
     const config = getDbConfig();
     log.info('Database', 'Config type', { type: config.type });
 
-    switch (config.type) {
-      case 'mysql':
-        log.info('Database', 'Creating MySQL connection...');
-        connection = new MySQLConnection(config.mysql);
-        break;
+    try {
+      switch (config.type) {
+        case 'mysql':
+          log.info('Database', 'Creating MySQL connection...');
+          connection = new MySQLConnection(config.mysql);
+          break;
 
-      case 'postgresql':
-        log.info('Database', 'Creating PostgreSQL connection...');
-        connection = new PostgreSQLConnection(config.postgresql);
-        break;
+        case 'postgresql':
+          log.info('Database', 'Creating PostgreSQL connection...');
+          connection = new PostgreSQLConnection(config.postgresql);
+          break;
 
-      case 'sqlite':
-      default:
-        log.info('Database', 'Creating SQLite connection...');
-        connection = new SQLiteConnection(config.sqlite.path);
-        break;
+        case 'sqlite':
+        default:
+          log.info('Database', 'Creating SQLite connection...');
+          connection = new SQLiteConnection(config.sqlite.path);
+          break;
+      }
+
+      log.info('Database', 'Connected', { type: config.type });
+      return connection;
+    } catch (error) {
+      // 连接失败时重置 promise，允许下次重试
+      connectionPromise = null;
+      throw error;
     }
-
-    log.info('Database', 'Connected', { type: config.type });
-    return connection;
   })();
 
   return connectionPromise;
