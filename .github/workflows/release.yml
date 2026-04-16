@@ -46,12 +46,25 @@ jobs:
         uses: pnpm/action-setup@v2
         with:
           version: 9
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: pwsh
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $env:GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
 
       - name: Get version
         id: get_version
@@ -73,7 +86,18 @@ jobs:
         run: pnpm --filter dnsmgr-server build
 
       - name: Build client
-        run: pnpm --filter client build
+        run: pnpm --filter dnsmgr-client build
+
+      - name: Verify client build
+        shell: pwsh
+        run: |
+          if (Test-Path "client/dist") {
+            Write-Host "✅ client/dist exists"
+            Get-ChildItem "client/dist" -Recurse | Select-Object -First 10
+          } else {
+            Write-Error "❌ client/dist not found!"
+            exit 1
+          }
 
       - name: Install pkg
         run: npm install -g pkg
@@ -87,17 +111,23 @@ jobs:
           New-Item -ItemType Directory -Force -Path "dist"
           
           # Package server with pkg (use node18 as node20 is not available in pkg@5)
-          pkg server/dist/app.js `
+          # Note: pkg doesn't support --config flag properly, use inline options
+          pkg . `
             --targets node18-win-x64 `
             --output "dist/DNSMgr-Server-v$VERSION.exe" `
-            --config server/package.json
+            --options "max-old-space-size=4096"
           
           # Copy client build to dist
           if (Test-Path "client/dist") {
             Copy-Item -Path "client/dist" -Destination "dist/client" -Recurse -Force
+            Write-Host "✅ Client files copied to dist/client"
           } else {
-            Write-Warning "client/dist not found, skipping client copy"
+            Write-Warning "⚠️ client/dist not found, skipping client copy"
           }
+          
+          # List dist contents
+          Write-Host "📁 Dist directory contents:"
+          Get-ChildItem "dist" -Recurse | Select-Object -First 20
           
           # Create README for EXE
           $lines = @(
