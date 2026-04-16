@@ -96,14 +96,14 @@ jobs:
           Copy-Item -Path "client/dist" -Destination "dist/client" -Recurse -Force
           
           # Create README for EXE
-          $readme = @"
-DNSMgr Server v$VERSION
+          $readmeContent = @'
+DNSMgr Server v{VERSION}
 ========================
 
 This is a standalone Windows executable for DNSMgr Server.
 
 Usage:
-1. Run DNSMgr-Server-v$VERSION.exe
+1. Run DNSMgr-Server-v{VERSION}.exe
 2. Open http://localhost:3000 in your browser
 3. Follow the setup wizard on first run
 
@@ -112,9 +112,10 @@ Configuration:
 - Port: 3000 (default)
 - Data directory: ./data
 
-For more information, visit: https://github.com/${{ github.repository }}
-"@
-          $readme | Out-File -FilePath "dist/README.txt" -Encoding UTF8
+For more information, visit: https://github.com/{REPO}
+'@
+          $readmeContent = $readmeContent -replace '{VERSION}', $VERSION -replace '{REPO}', '${{ github.repository }}'
+          $readmeContent | Out-File -FilePath "dist/README.txt" -Encoding UTF8
 
       - name: Create ZIP archive
         shell: pwsh
