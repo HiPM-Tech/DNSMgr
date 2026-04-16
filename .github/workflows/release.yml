@@ -107,27 +107,29 @@ jobs:
         run: |
           $VERSION = "${{ steps.get_version.outputs.version }}"
           
-          # Create dist directory
-          New-Item -ItemType Directory -Force -Path "dist"
+          # Create release dist directory at root
+          New-Item -ItemType Directory -Force -Path "release-dist"
           
-          # Package server with pkg (use node18 as node20 is not available in pkg@5)
-          # Note: pkg doesn't support --config flag properly, use inline options
+          # Package server with pkg from server directory
+          # pkg will read package.json and include all dependencies
+          cd server
           pkg . `
             --targets node18-win-x64 `
-            --output "dist/DNSMgr-Server-v$VERSION.exe" `
+            --output "../release-dist/DNSMgr-Server-v$VERSION.exe" `
             --options "max-old-space-size=4096"
+          cd ..
           
-          # Copy client build to dist
+          # Copy client build to release-dist
           if (Test-Path "client/dist") {
-            Copy-Item -Path "client/dist" -Destination "dist/client" -Recurse -Force
-            Write-Host "✅ Client files copied to dist/client"
+            Copy-Item -Path "client/dist" -Destination "release-dist/client" -Recurse -Force
+            Write-Host "✅ Client files copied to release-dist/client"
           } else {
             Write-Warning "⚠️ client/dist not found, skipping client copy"
           }
           
-          # List dist contents
-          Write-Host "📁 Dist directory contents:"
-          Get-ChildItem "dist" -Recurse | Select-Object -First 20
+          # List release-dist contents
+          Write-Host "📁 Release-dist directory contents:"
+          Get-ChildItem "release-dist" -Recurse | Select-Object -First 20
           
           # Create README for EXE
           $lines = @(
@@ -148,13 +150,13 @@ jobs:
             "",
             "For more information, visit: https://github.com/${{ github.repository }}"
           )
-          $lines | Out-File -FilePath "dist/README.txt" -Encoding UTF8
+          $lines | Out-File -FilePath "release-dist/README.txt" -Encoding UTF8
 
       - name: Create ZIP archive
         shell: pwsh
         run: |
           $VERSION = "${{ steps.get_version.outputs.version }}"
-          Compress-Archive -Path "dist/*" -DestinationPath "DNSMgr-Windows-v$VERSION.zip" -Force
+          Compress-Archive -Path "release-dist/*" -DestinationPath "DNSMgr-Windows-v$VERSION.zip" -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
