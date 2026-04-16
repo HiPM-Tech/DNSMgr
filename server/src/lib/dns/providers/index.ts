@@ -17,3 +17,4 @@ export { PowerdnsAdapter } from './powerdns';
 export { QingcloudAdapter } from './qingcloud';
 export { SpaceshipAdapter } from './spaceship';
 export { DnsMgrAdapter } from './dnsmgr';
+export { CaihongDnsAdapter } from './caihongdns';

@@ -19,6 +19,7 @@ import {
   DnsheAdapter,
   RainyunAdapter,
   DnsMgrAdapter,
+  CaihongDnsAdapter,
 } from './index';
 
 export interface ProviderCapabilities {
@@ -248,6 +249,17 @@ const providerDefinitions: ProviderDefinition[] = [
       { key: 'apiToken', label: 'API Token', type: 'password', required: true },
     ],
     adapterFactory: (config) => new DnsMgrAdapter(config),
+  },
+  {
+    type: 'caihongdns',
+    name: '彩虹DNS聚合',
+    capabilities: { remark: true, status: true, redirect: false, log: false, weight: true, line: true, cnameFlattening: false },
+    configFields: [
+      { key: 'baseUrl', label: '彩虹DNS URL', type: 'text', required: true },
+      { key: 'uid', label: '用户ID', type: 'text', required: true },
+      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    ],
+    adapterFactory: (config) => new CaihongDnsAdapter(config),
   },
 ];
 

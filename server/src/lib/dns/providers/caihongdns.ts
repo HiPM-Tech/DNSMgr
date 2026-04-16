@@ -1,0 +1,406 @@
+import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
+import { log } from '../../logger';
+import crypto from 'crypto';
+
+interface CaihongDnsConfig {
+  baseUrl: string;
+  uid: string;
+  apiKey: string;
+  domain?: string;
+  domainId?: string;
+}
+
+interface CaihongDnsResponse<T> {
+  code: number;
+  data?: T;
+  msg?: string;
+  total?: number;
+  rows?: T[];
+}
+
+interface CaihongDnsDomain {
+  id: number;
+  name: string;
+  thirdid?: string;
+  recordcount?: number;
+  type?: string;
+  typename?: string;
+}
+
+interface CaihongDnsRecord {
+  RecordId: string;
+  Name: string;
+  Type: string;
+  Value: string;
+  Line: string;
+  TTL: number;
+  MX: number;
+  Weight: number;
+  Status: number;
+  Remark: string | null;
+  UpdateTime: string | null;
+}
+
+export class CaihongDnsAdapter implements DnsAdapter {
+  private config: CaihongDnsConfig;
+  private error: string = '';
+
+  constructor(config: Record<string, string>) {
+    this.config = {
+      baseUrl: config.baseUrl || '',
+      uid: config.uid || '',
+      apiKey: config.apiKey || '',
+      domain: config.domain,
+      domainId: config.domainId,
+    };
+  }
+
+  /**
+   * 生成API签名
+   * sign = md5(uid + timestamp + apikey)
+   */
+  private generateSign(timestamp: number): string {
+    return crypto.createHash('md5').update(`${this.config.uid}${timestamp}${this.config.apiKey}`).digest('hex');
+  }
+
+  /**
+   * 获取认证参数
+   */
+  private getAuthParams(): Record<string, string | number> {
+    const timestamp = Math.floor(Date.now() / 1000);
+    return {
+      uid: parseInt(this.config.uid),
+      timestamp,
+      sign: this.generateSign(timestamp),
+    };
+  }
+
+  private async request<T>(method: string, path: string, body?: Record<string, unknown>): Promise<CaihongDnsResponse<T>> {
+    const url = `${this.config.baseUrl}${path}`;
+    const authParams = this.getAuthParams();
+    
+    log.providerRequest('CaihongDns', method, url, { ...body, ...authParams, sign: '***' });
+    
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+
+      let requestBody: string;
+      if (method === 'GET') {
+        const params = new URLSearchParams();
+        Object.entries({ ...authParams, ...body }).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            params.append(key, String(value));
+          }
+        });
+        requestBody = params.toString();
+      } else {
+        const params = new URLSearchParams();
+        Object.entries(authParams).forEach(([key, value]) => {
+          params.append(key, String(value));
+        });
+        if (body) {
+          Object.entries(body).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+              params.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+            }
+          });
+        }
+        requestBody = params.toString();
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers,
+        body: requestBody,
+      });
+      
+      const data = (await res.json()) as CaihongDnsResponse<T>;
+      log.providerResponse('CaihongDns', res.status, data.code === 0, { code: data.code, msg: data.msg });
+      
+      if (data.code !== 0) {
+        this.error = data.msg || 'API error';
+        log.providerError('CaihongDns', [{ message: this.error }]);
+      }
+      
+      return data;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      log.providerError('CaihongDns', [{ message: this.error }]);
+      return { code: -1, msg: this.error };
+    }
+  }
+
+  async check(): Promise<boolean> {
+    try {
+      // 尝试获取域名列表来验证连接
+      const res = await this.request<{ total: number; rows: CaihongDnsDomain[] }>('POST', '/domain_list', { offset: 0, limit: 1 });
+      return res.code === 0;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
+  getError(): string {
+    return this.error;
+  }
+
+  async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
+    try {
+      const offset = (page - 1) * pageSize;
+      const body: Record<string, unknown> = { offset, limit: pageSize };
+      if (keyword) body.kw = keyword;
+      
+      const res = await this.request<{ total: number; rows: CaihongDnsDomain[] }>('POST', '/domain_list', body);
+      
+      if (res.code !== 0 || !res.rows || res.rows.length === 0) {
+        return { total: 0, list: [] };
+      }
+
+      const rows = res.rows;
+      return {
+        total: res.total || 0,
+        list: rows.map((d) => ({
+          Domain: d.name,
+          ThirdId: String(d.id),
+          RecordCount: d.recordcount || 0,
+        })),
+      };
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return { total: 0, list: [] };
+    }
+  }
+
+  async getDomainRecords(
+    page = 1,
+    pageSize = 100,
+    keyword?: string,
+    subdomain?: string,
+    value?: string,
+    type?: string,
+    _line?: string,
+    status?: number
+  ): Promise<PageResult<DnsRecord>> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return { total: 0, list: [] };
+      }
+
+      const offset = (page - 1) * pageSize;
+      const body: Record<string, unknown> = { 
+        id: parseInt(this.config.domainId),
+        offset, 
+        limit: pageSize 
+      };
+      if (keyword) body.kw = keyword;
+      if (subdomain) body.subdomain = subdomain;
+      if (value) body.value = value;
+      if (type) body.type = type;
+      if (status !== undefined) body.status = status;
+
+      const res = await this.request<{ total: number; rows: CaihongDnsRecord[] }>('POST', '/record_list', body);
+
+      if (res.code !== 0 || !res.rows || res.rows.length === 0) {
+        return { total: 0, list: [] };
+      }
+
+      const rows = res.rows;
+      return {
+        total: res.total || 0,
+        list: rows.map((r) => this.mapRecord(r)),
+      };
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return { total: 0, list: [] };
+    }
+  }
+
+  private mapRecord(r: CaihongDnsRecord): DnsRecord {
+    return {
+      RecordId: r.RecordId,
+      Domain: this.config.domain || '',
+      Name: r.Name,
+      Type: r.Type,
+      Value: r.Value,
+      Line: r.Line,
+      TTL: r.TTL,
+      MX: r.MX,
+      Status: r.Status,
+      Weight: r.Weight,
+      Remark: r.Remark || undefined,
+      UpdateTime: r.UpdateTime || undefined,
+    };
+  }
+
+  async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return null;
+      }
+
+      // 从列表中查找
+      const res = await this.request<{ total: number; rows: CaihongDnsRecord[] }>('POST', '/record_list', {
+        id: parseInt(this.config.domainId),
+        offset: 0,
+        limit: 1000,
+      });
+
+      if (res.code !== 0 || !res.rows || res.rows.length === 0) {
+        return null;
+      }
+
+      const rows = res.rows;
+      const record = rows.find((r) => r.RecordId === recordId);
+      return record ? this.mapRecord(record) : null;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
+  async addDomainRecord(
+    name: string,
+    type: string,
+    value: string,
+    line?: string,
+    ttl = 600,
+    mx = 1,
+    weight?: number,
+    remark?: string
+  ): Promise<string | null> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return null;
+      }
+
+      const body: Record<string, unknown> = {
+        id: parseInt(this.config.domainId),
+        name,
+        type,
+        value,
+        ttl,
+      };
+      if (line) body.line = line;
+      if (type === 'MX') body.mx = mx;
+      if (weight !== undefined) body.weight = weight;
+      if (remark) body.remark = remark;
+
+      const res = await this.request<null>('POST', '/record_add', body);
+
+      if (res.code !== 0) {
+        return null;
+      }
+
+      // 彩虹DNS聚合不返回记录ID，需要查询获取
+      const records = await this.getDomainRecords(1, 100, undefined, name, value, type);
+      const record = records.list.find((r) => r.Name === name && r.Type === type && r.Value === value);
+      return record?.RecordId || null;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
+  async updateDomainRecord(
+    recordId: string,
+    name: string,
+    type: string,
+    value: string,
+    line?: string,
+    ttl = 600,
+    mx = 1,
+    weight?: number,
+    remark?: string
+  ): Promise<boolean> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return false;
+      }
+
+      const body: Record<string, unknown> = {
+        id: parseInt(this.config.domainId),
+        recordid: recordId,
+        name,
+        type,
+        value,
+        ttl,
+      };
+      if (line) body.line = line;
+      if (type === 'MX') body.mx = mx;
+      if (weight !== undefined) body.weight = weight;
+      if (remark) body.remark = remark;
+
+      const res = await this.request<null>('POST', '/record_update', body);
+      return res.code === 0;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
+  async deleteDomainRecord(recordId: string): Promise<boolean> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return false;
+      }
+
+      const res = await this.request<null>('POST', '/record_delete', {
+        id: parseInt(this.config.domainId),
+        recordid: recordId,
+      });
+      return res.code === 0;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
+  async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
+    try {
+      if (!this.config.domainId) {
+        this.error = 'Domain ID not set';
+        return false;
+      }
+
+      const res = await this.request<null>('POST', '/record_status', {
+        id: parseInt(this.config.domainId),
+        recordid: recordId,
+        status: status === 1 ? '1' : '0',
+      });
+      return res.code === 0;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
+  async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
+    // 彩虹DNS聚合的线路列表
+    return [
+      { id: '默认', name: '默认' },
+      { id: '电信', name: '电信' },
+      { id: '联通', name: '联通' },
+      { id: '移动', name: '移动' },
+      { id: '教育网', name: '教育网' },
+      { id: '境外', name: '境外' },
+    ];
+  }
+
+  async getMinTTL(): Promise<number> {
+    return 60;
+  }
+
+  async addDomain(domain: string): Promise<boolean> {
+    // 彩虹DNS聚合作为提供商，不支持通过 API 添加域名到对方系统
+    this.error = 'Adding domains is not supported for CaihongDns provider';
+    return false;
+  }
+}
