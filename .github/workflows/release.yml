@@ -36,28 +36,28 @@ env:
 jobs:
   # 构建 Windows EXE
   build-exe:
-    if: ${{ github.event.inputs.build_exe == 'true' }}
+    if: inputs.build_exe == true
     runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 9
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
       - name: Get version
         id: get_version
         shell: pwsh
         run: |
-          $VERSION = "${{ github.event.inputs.version }}"
+          $VERSION = "${{ inputs.version }}"
           if ($VERSION -eq "") {
             $VERSION = (Get-Content package.json | ConvertFrom-Json).version
           }
@@ -130,7 +130,7 @@ For more information, visit: https://github.com/${{ github.repository }}
 
   # 构建 Docker 镜像
   build-docker:
-    if: ${{ github.event.inputs.build_docker == 'true' }}
+    if: inputs.build_docker == true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -144,7 +144,7 @@ For more information, visit: https://github.com/${{ github.repository }}
       - name: Get version
         id: get_version
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then
             VERSION=$(node -p "require('./package.json').version")
           fi
@@ -173,7 +173,7 @@ For more information, visit: https://github.com/${{ github.repository }}
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.get_version.outputs.version }}
-            type=raw,value=latest,enable=${{ github.event.inputs.prerelease != 'true' }}
+            type=raw,value=latest,enable=${{ inputs.prerelease == false }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -209,7 +209,7 @@ For more information, visit: https://github.com/${{ github.repository }}
       - name: Get version
         id: get_version
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then
             VERSION=$(node -p "require('./package.json').version")
           fi
@@ -220,7 +220,7 @@ For more information, visit: https://github.com/${{ github.repository }}
           echo "Version: $VERSION"
 
       - name: Download EXE artifact
-        if: ${{ github.event.inputs.build_exe == 'true' }}
+        if: inputs.build_exe == true
         uses: actions/download-artifact@v4
         with:
           name: windows-exe
@@ -256,8 +256,8 @@ For more information, visit: https://github.com/${{ github.repository }}
           tag_name: v${{ steps.get_version.outputs.version }}
           name: DNSMgr v${{ steps.get_version.outputs.version }}
           body_path: RELEASE_NOTES.md
-          draft: ${{ github.event.inputs.draft }}
-          prerelease: ${{ github.event.inputs.prerelease }}
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
           files: |
             ./artifacts/*.zip
           generate_release_notes: true
@@ -271,8 +271,8 @@ For more information, visit: https://github.com/${{ github.repository }}
           echo "========================================"
           echo "Version: v${{ steps.get_version.outputs.version }}"
           echo "Release URL: ${{ steps.create_release.outputs.url }}"
-          echo "Is Draft: ${{ github.event.inputs.draft }}"
-          echo "Is Prerelease: ${{ github.event.inputs.prerelease }}"
+          echo "Is Draft: ${{ inputs.draft }}"
+          echo "Is Prerelease: ${{ inputs.prerelease }}"
           echo "========================================"
 
   # 发送通知
@@ -284,7 +284,7 @@ For more information, visit: https://github.com/${{ github.repository }}
       - name: Get version
         id: get_version
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then
             VERSION=$(node -p "require('./package.json').version")
           fi
@@ -292,7 +292,7 @@ For more information, visit: https://github.com/${{ github.repository }}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Notify success
-        if: ${{ needs.build-exe.result == 'success' && needs.build-docker.result == 'success' && needs.create-release.result == 'success' }}
+        if: needs.build-exe.result == 'success' && needs.build-docker.result == 'success' && needs.create-release.result == 'success'
         run: |
           echo "✅ Release v${{ steps.get_version.outputs.version }} built successfully!"
           echo ""
@@ -303,7 +303,7 @@ For more information, visit: https://github.com/${{ github.repository }}
           echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_version.outputs.version }}"
 
       - name: Notify failure
-        if: ${{ failure() }}
+        if: failure()
         run: |
           echo "❌ Release v${{ steps.get_version.outputs.version }} build failed!"
           echo ""
