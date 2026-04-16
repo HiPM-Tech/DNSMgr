@@ -1,0 +1,310 @@
+name: Release Build
+
+# 手动触发发布工作流
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.1.0)'
+        required: true
+        default: ''
+      prerelease:
+        description: 'Is this a pre-release?'
+        required: false
+        default: false
+        type: boolean
+      build_exe:
+        description: 'Build Windows EXE?'
+        required: false
+        default: true
+        type: boolean
+      build_docker:
+        description: 'Build Docker image?'
+        required: false
+        default: true
+        type: boolean
+      draft:
+        description: 'Create as draft release?'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # 构建 Windows EXE
+  build-exe:
+    if: ${{ github.event.inputs.build_exe == 'true' }}
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Get version
+        id: get_version
+        shell: pwsh
+        run: |
+          $VERSION = "${{ github.event.inputs.version }}"
+          if ($VERSION -eq "") {
+            $VERSION = (Get-Content package.json | ConvertFrom-Json).version
+          }
+          # Remove 'v' prefix if present
+          $VERSION = $VERSION -replace '^v', ''
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build server
+        run: pnpm --filter dnsmgr-server build
+
+      - name: Build client
+        run: pnpm --filter client build
+
+      - name: Install pkg
+        run: npm install -g pkg
+
+      - name: Package server to EXE
+        shell: pwsh
+        run: |
+          $VERSION = "${{ steps.get_version.outputs.version }}"
+          
+          # Create dist directory
+          New-Item -ItemType Directory -Force -Path "dist"
+          
+          # Package server with pkg
+          pkg server/dist/app.js `
+            --targets node20-win-x64 `
+            --output "dist/DNSMgr-Server-v$VERSION.exe" `
+            --config server/package.json
+          
+          # Copy client build to dist
+          Copy-Item -Path "client/dist" -Destination "dist/client" -Recurse -Force
+          
+          # Create README for EXE
+          @"
+DNSMgr Server v$VERSION
+========================
+
+This is a standalone Windows executable for DNSMgr Server.
+
+Usage:
+1. Run DNSMgr-Server-v$VERSION.exe
+2. Open http://localhost:3000 in your browser
+3. Follow the setup wizard on first run
+
+Configuration:
+- Database: SQLite (default), MySQL, or PostgreSQL
+- Port: 3000 (default)
+- Data directory: ./data
+
+For more information, visit: https://github.com/${{ github.repository }}
+"@ | Out-File -FilePath "dist/README.txt" -Encoding UTF8
+
+      - name: Create ZIP archive
+        shell: pwsh
+        run: |
+          $VERSION = "${{ steps.get_version.outputs.version }}"
+          Compress-Archive -Path "dist/*" -DestinationPath "DNSMgr-Windows-v$VERSION.zip" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: DNSMgr-Windows-*.zip
+          retention-days: 7
+
+  # 构建 Docker 镜像
+  build-docker:
+    if: ${{ github.event.inputs.build_docker == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          # Remove 'v' prefix if present
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.get_version.outputs.version }}
+            type=raw,value=latest,enable=${{ github.event.inputs.prerelease != 'true' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.get_version.outputs.version }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+
+      - name: Output image info
+        run: |
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+
+  # 创建 GitHub Release
+  create-release:
+    needs: [build-exe, build-docker]
+    if: always() && (needs.build-exe.result == 'success' || needs.build-docker.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          # Remove 'v' prefix if present
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Version: $VERSION"
+
+      - name: Download EXE artifact
+        if: ${{ github.event.inputs.build_exe == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: ./artifacts
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          
+          # Extract changelog for this version
+          if [ -f docs/CHANGELOG.md ]; then
+            # Try to extract section for this version
+            CHANGELOG=$(sed -n "/## \[$VERSION\]/,/## \[/p" docs/CHANGELOG.md | sed '$d' | head -100)
+            if [ -z "$CHANGELOG" ]; then
+              CHANGELOG="See [CHANGELOG.md](docs/CHANGELOG.md) for full release notes."
+            fi
+          else
+            CHANGELOG="Release v$VERSION"
+          fi
+          
+          # Write to file for release body
+          echo "$CHANGELOG" > RELEASE_NOTES.md
+          
+          # Also output for debugging
+          echo "Changelog:"
+          cat RELEASE_NOTES.md
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: DNSMgr v${{ steps.get_version.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          draft: ${{ github.event.inputs.draft }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: |
+            ./artifacts/*.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Output release info
+        run: |
+          echo "========================================"
+          echo "Release Created Successfully!"
+          echo "========================================"
+          echo "Version: v${{ steps.get_version.outputs.version }}"
+          echo "Release URL: ${{ steps.create_release.outputs.url }}"
+          echo "Is Draft: ${{ github.event.inputs.draft }}"
+          echo "Is Prerelease: ${{ github.event.inputs.prerelease }}"
+          echo "========================================"
+
+  # 发送通知
+  notify:
+    needs: [build-exe, build-docker, create-release]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Notify success
+        if: ${{ needs.build-exe.result == 'success' && needs.build-docker.result == 'success' && needs.create-release.result == 'success' }}
+        run: |
+          echo "✅ Release v${{ steps.get_version.outputs.version }} built successfully!"
+          echo ""
+          echo "Artifacts:"
+          echo "  - Windows EXE (with embedded client)"
+          echo "  - Docker image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get_version.outputs.version }}"
+          echo ""
+          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_version.outputs.version }}"
+
+      - name: Notify failure
+        if: ${{ failure() }}
+        run: |
+          echo "❌ Release v${{ steps.get_version.outputs.version }} build failed!"
+          echo ""
+          echo "Please check the workflow logs for details."
