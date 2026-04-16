@@ -228,10 +228,10 @@
       "deleteFailed": "Не удалось удалить пользователя",
       "you": "Вы",
       "deleteConfirm": "Удалить пользователя \"{name}\"? Это действие нельзя отменить.",
-      "require2FA": "Require 2FA",
-      "require2FADesc": "When enabled, this user must set up two-factor authentication to log in",
-      "user2FAUpdated": "User 2FA setting updated",
-      "user2FAUpdateFailed": "Failed to update user 2FA setting"
+      "require2FA": "Требовать 2FA",
+      "require2FADesc": "Когда включено, этот пользователь должен настроить двухфакторную аутентификацию для входа",
+      "user2FAUpdated": "Настройка 2FA пользователя обновлена",
+      "user2FAUpdateFailed": "Не удалось обновить настройку 2FA пользователя"
     },
     "settings": {
       "profile": "Профиль",
@@ -275,13 +275,13 @@
       "cloudflareTunnels": "Туннели Cloudflare",
       "showTunnels": "Показывать туннели в боковой панели",
       "showTunnelsDesc": "Включите это, чтобы просматривать и управлять туннелями Cloudflare из боковой панели.",
-      "backgroundImage": "Custom Background Image",
-      "backgroundImageUrl": "Background Image URL",
-      "backgroundImagePlaceholder": "Enter image URL (supports jpg/png/gif/webp)",
-      "backgroundImageHint": "Supports any image URL, leave empty to use default background",
-      "backgroundImageUpdated": "Background image updated",
-      "backgroundImageUpdateFailed": "Failed to update background image",
-      "updateBackgroundImage": "Update Background Image"
+      "backgroundImage": "Пользовательское фоновое изображение",
+      "backgroundImageUrl": "URL фонового изображения",
+      "backgroundImagePlaceholder": "Введите URL изображения (поддерживается jpg/png/gif/webp)",
+      "backgroundImageHint": "Поддерживает любой URL изображения, оставьте пустым для использования фона по умолчанию",
+      "backgroundImageUpdated": "Фоновое изображение обновлено",
+      "backgroundImageUpdateFailed": "Не удалось обновить фоновое изображение",
+      "updateBackgroundImage": "Обновить фоновое изображение"
     },
     "about": {
       "title": "О системе",
@@ -501,10 +501,10 @@
       "oidcAutoDiscover": "Автополучение через OIDC",
       "oidcDiscoverSuccess": "Конфигурация OIDC получена",
       "oidcDiscoverFailed": "Не удалось получить конфигурацию OIDC",
-      "require2FAGlobal": "Require 2FA Globally",
-      "require2FAGlobalDesc": "When enabled, all users must set up two-factor authentication to log in",
-      "securityPolicy": "Security Policy",
-      "securityPolicyDesc": "Configure system-level security policy settings"
+      "require2FAGlobal": "Требовать 2FA глобально",
+      "require2FAGlobalDesc": "Когда включено, все пользователи должны настроить двухфакторную аутентификацию для входа",
+      "securityPolicy": "Политика безопасности",
+      "securityPolicyDesc": "Настроить параметры политики безопасности на уровне системы"
     },
     "domains": {
       "title": "Домены",

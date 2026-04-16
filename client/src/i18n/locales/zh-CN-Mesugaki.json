@@ -590,6 +590,10 @@
       "oidcAutoDiscover": "通过 OIDC 自动获取",
       "oidcDiscoverFailed": "OIDC 配置获取失败",
       "oidcDiscoverSuccess": "OIDC 配置获取成功",
+      "require2FAGlobal": "全局强制 2FA",
+      "require2FAGlobalDesc": "开了这个，所有杂鱼用户都必须设置双因素认证才能登录",
+      "securityPolicy": "安全策略",
+      "securityPolicyDesc": "配置系统级的安全策略设置",
       "quickActions": "快捷操作",
       "quickActionsDesc": "常用系统操作",
       "recentFailedAttempts": "最近失败尝试",
@@ -792,7 +796,11 @@
       "usernameInvalid": "用户名格式不对，笨蛋",
       "usernamePlaceholder": "输入用户名啦",
       "usernameRequired": "用户名 *",
-      "you": "你"
+      "you": "你",
+      "require2FA": "强制开 2FA",
+      "require2FADesc": "开了这个，这个杂鱼用户必须设置双因素认证才能登录",
+      "user2FAUpdated": "用户的 2FA 设置更新好啦",
+      "user2FAUpdateFailed": "更新用户的 2FA 设置失败，真是个废物"
     }
   }
 }

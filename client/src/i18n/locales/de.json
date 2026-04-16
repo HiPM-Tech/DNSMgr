@@ -228,10 +228,10 @@
       "deleteFailed": "Fehler beim Löschen des Benutzers",
       "you": "Sie",
       "deleteConfirm": "Benutzer \"{name}\" löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-      "require2FA": "Require 2FA",
-      "require2FADesc": "When enabled, this user must set up two-factor authentication to log in",
-      "user2FAUpdated": "User 2FA setting updated",
-      "user2FAUpdateFailed": "Failed to update user 2FA setting"
+      "require2FA": "2FA erforderlich",
+      "require2FADesc": "Wenn aktiviert, muss dieser Benutzer die Zwei-Faktor-Authentifizierung einrichten, um sich anzumelden",
+      "user2FAUpdated": "Benutzer-2FA-Einstellung aktualisiert",
+      "user2FAUpdateFailed": "Fehler beim Aktualisieren der Benutzer-2FA-Einstellung"
     },
     "settings": {
       "profile": "Profil",
@@ -275,13 +275,13 @@
       "cloudflareTunnels": "Cloudflare-Tunnel",
       "showTunnels": "Tunnel in der Seitenleiste anzeigen",
       "showTunnelsDesc": "Aktivieren Sie dies, um Cloudflare-Tunnel in der Seitenleiste anzuzeigen und zu verwalten.",
-      "backgroundImage": "Custom Background Image",
-      "backgroundImageUrl": "Background Image URL",
-      "backgroundImagePlaceholder": "Enter image URL (supports jpg/png/gif/webp)",
-      "backgroundImageHint": "Supports any image URL, leave empty to use default background",
-      "backgroundImageUpdated": "Background image updated",
-      "backgroundImageUpdateFailed": "Failed to update background image",
-      "updateBackgroundImage": "Update Background Image"
+      "backgroundImage": "Benutzerdefiniertes Hintergrundbild",
+      "backgroundImageUrl": "Hintergrundbild-URL",
+      "backgroundImagePlaceholder": "Bild-URL eingeben (jpg/png/gif/webp werden unterstützt)",
+      "backgroundImageHint": "Unterstützt jede Bild-URL, leer lassen, um den Standardhintergrund zu verwenden",
+      "backgroundImageUpdated": "Hintergrundbild aktualisiert",
+      "backgroundImageUpdateFailed": "Fehler beim Aktualisieren des Hintergrundbilds",
+      "updateBackgroundImage": "Hintergrundbild aktualisieren"
     },
     "about": {
       "title": "Über",
@@ -501,10 +501,10 @@
       "oidcAutoDiscover": "Automatisch abrufen via OIDC",
       "oidcDiscoverSuccess": "OIDC-Konfiguration abgerufen",
       "oidcDiscoverFailed": "Fehler beim Abrufen der OIDC-Konfiguration",
-      "require2FAGlobal": "Require 2FA Globally",
-      "require2FAGlobalDesc": "When enabled, all users must set up two-factor authentication to log in",
-      "securityPolicy": "Security Policy",
-      "securityPolicyDesc": "Configure system-level security policy settings"
+      "require2FAGlobal": "Globale 2FA erforderlich",
+      "require2FAGlobalDesc": "Wenn aktiviert, müssen alle Benutzer die Zwei-Faktor-Authentifizierung einrichten, um sich anzumelden",
+      "securityPolicy": "Sicherheitsrichtlinie",
+      "securityPolicyDesc": "Systemweite Sicherheitsrichtlinieneinstellungen konfigurieren"
     },
     "domains": {
       "title": "Domains",

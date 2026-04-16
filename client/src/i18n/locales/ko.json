@@ -228,10 +228,10 @@
       "deleteFailed": "사용자 삭제 실패",
       "you": "나",
       "deleteConfirm": "사용자 \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
-      "require2FA": "Require 2FA",
-      "require2FADesc": "When enabled, this user must set up two-factor authentication to log in",
-      "user2FAUpdated": "User 2FA setting updated",
-      "user2FAUpdateFailed": "Failed to update user 2FA setting"
+      "require2FA": "2FA 필수",
+      "require2FADesc": "활성화하면 이 사용자는 로그인하기 위해 이단계 인증을 설정해야 합니다",
+      "user2FAUpdated": "사용자 2FA 설정이 업데이트되었습니다",
+      "user2FAUpdateFailed": "사용자 2FA 설정 업데이트 실패"
     },
     "settings": {
       "profile": "프로필",
@@ -275,13 +275,13 @@
       "cloudflareTunnels": "Cloudflare 터널",
       "showTunnels": "사이드바에 터널 표시",
       "showTunnelsDesc": "이 옵션을 활성화하면 사이드바에서 Cloudflare 터널을 보고 관리할 수 있습니다.",
-      "backgroundImage": "Custom Background Image",
-      "backgroundImageUrl": "Background Image URL",
-      "backgroundImagePlaceholder": "Enter image URL (supports jpg/png/gif/webp)",
-      "backgroundImageHint": "Supports any image URL, leave empty to use default background",
-      "backgroundImageUpdated": "Background image updated",
-      "backgroundImageUpdateFailed": "Failed to update background image",
-      "updateBackgroundImage": "Update Background Image"
+      "backgroundImage": "사용자 정의 배경 이미지",
+      "backgroundImageUrl": "배경 이미지 URL",
+      "backgroundImagePlaceholder": "이미지 URL 입력 (jpg/png/gif/webp 지원)",
+      "backgroundImageHint": "모든 이미지 URL 지원, 기본 배경을 사용하려면 비워두세요",
+      "backgroundImageUpdated": "배경 이미지가 업데이트되었습니다",
+      "backgroundImageUpdateFailed": "배경 이미지 업데이트 실패",
+      "updateBackgroundImage": "배경 이미지 업데이트"
     },
     "about": {
       "title": "정보",
@@ -501,10 +501,10 @@
       "oidcAutoDiscover": "OIDC를 통해 자동 가져오기",
       "oidcDiscoverSuccess": "OIDC 구성을 가져왔습니다",
       "oidcDiscoverFailed": "OIDC 구성 가져오기 실패",
-      "require2FAGlobal": "Require 2FA Globally",
-      "require2FAGlobalDesc": "When enabled, all users must set up two-factor authentication to log in",
-      "securityPolicy": "Security Policy",
-      "securityPolicyDesc": "Configure system-level security policy settings"
+      "require2FAGlobal": "전역 2FA 필수",
+      "require2FAGlobalDesc": "활성화하면 모든 사용자는 로그인하기 위해 이단계 인증을 설정해야 합니다",
+      "securityPolicy": "보안 정책",
+      "securityPolicyDesc": "시스템 수준 보안 정책 설정 구성"
     },
     "domains": {
       "title": "도메인",
@@ -660,10 +660,10 @@
       "lineLabel": "라인",
       "allTypes": "모든 유형",
       "deleteConfirm": "레코드 \"{name}\" ({type}: {value})을(를) 삭제하시겠습니까?",
-      "fixErrors": "저장하기 전에 강조된 필드를修正하세요",
+      "fixErrors": "저장하기 전에 강조된 필드를 수정하세요",
       "hostRequired": "호스트 이름이 필요합니다",
       "hostInvalid": "호스트 이름 형식이 잘못되었습니다",
-      "cnameConflict": "CNAME 플래트닝이 지원되지 않습니다. CNAME은 다른 레코드와 共存할 수 없거나 @에 설정할 수 없습니다",
+      "cnameConflict": "CNAME 플래트닝이 지원되지 않습니다. CNAME은 다른 레코드와 공존할 수 없거나 @에 설정할 수 없습니다",
       "valueRequired": "값이 필요합니다",
       "invalidA": "A 레코드는 유효한 IPv4 주소여야 합니다",
       "invalidAAAA": "AAAA 레코드는 유효한 IPv6 주소여야 합니다",
@@ -675,7 +675,7 @@
       "invalidSrvPort": "포트는 1에서 65535 사이여야 합니다",
       "invalidSrvTargetRequired": "대상이 필요합니다",
       "invalidSrvTarget": "대상은 유효한 호스트 이름이어야 합니다",
-      "srvHelp": "SRV 레코드는更容易编辑而拆分。为便于编辑，值在API中自动组合。",
+      "srvHelp": "SRV 레코드는 편집을 쉽게 하기 위해 우선순위, 가중치, 포트, 대상으로 분할됩니다. API에 전송되는 값은 자동으로 조합됩니다.",
       "priority": "우선순위",
       "weight": "가중치",
       "port": "포트 *",

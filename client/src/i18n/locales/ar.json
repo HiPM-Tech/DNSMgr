@@ -228,10 +228,10 @@
       "deleteFailed": "فشل في حذف المستخدم",
       "you": "أنت",
       "deleteConfirm": "حذف المستخدم \"{name}\"؟ لا يمكن التراجع عن هذا الإجراء.",
-      "require2FA": "Require 2FA",
-      "require2FADesc": "When enabled, this user must set up two-factor authentication to log in",
-      "user2FAUpdated": "User 2FA setting updated",
-      "user2FAUpdateFailed": "Failed to update user 2FA setting"
+      "require2FA": "تفعيل 2FA",
+      "require2FADesc": "عند التفعيل، يجب على هذا المستخدم إعداد المصادقة ثنائية العامل لتسجيل الدخول",
+      "user2FAUpdated": "تم تحديث إعداد 2FA للمستخدم",
+      "user2FAUpdateFailed": "فشل في تحديث إعداد 2FA للمستخدم"
     },
     "settings": {
       "profile": "الملف الشخصي",
@@ -275,13 +275,13 @@
       "cloudflareTunnels": "أنفاق Cloudflare",
       "showTunnels": "إظهار الأنفاق في الشريط الجانبي",
       "showTunnelsDesc": "فعّل هذا لعرض وإدارة أنفاق Cloudflare من الشريط الجانبي.",
-      "backgroundImage": "Custom Background Image",
-      "backgroundImageUrl": "Background Image URL",
-      "backgroundImagePlaceholder": "Enter image URL (supports jpg/png/gif/webp)",
-      "backgroundImageHint": "Supports any image URL, leave empty to use default background",
-      "backgroundImageUpdated": "Background image updated",
-      "backgroundImageUpdateFailed": "Failed to update background image",
-      "updateBackgroundImage": "Update Background Image"
+      "backgroundImage": "صورة خلفية مخصصة",
+      "backgroundImageUrl": "رابط صورة الخلفية",
+      "backgroundImagePlaceholder": "أدخل رابط الصورة (يدعم jpg/png/gif/webp)",
+      "backgroundImageHint": "يدعم أي رابط صورة، اتركه فارغاً لاستخدام الخلفية الافتراضية",
+      "backgroundImageUpdated": "تم تحديث صورة الخلفية",
+      "backgroundImageUpdateFailed": "فشل في تحديث صورة الخلفية",
+      "updateBackgroundImage": "تحديث صورة الخلفية"
     },
     "about": {
       "title": "حول",
@@ -501,10 +501,10 @@
       "oidcAutoDiscover": "الجلب التلقائي عبر OIDC",
       "oidcDiscoverSuccess": "تم جلب تكوين OIDC",
       "oidcDiscoverFailed": "فشل في جلب تكوين OIDC",
-      "require2FAGlobal": "Require 2FA Globally",
-      "require2FAGlobalDesc": "When enabled, all users must set up two-factor authentication to log in",
-      "securityPolicy": "Security Policy",
-      "securityPolicyDesc": "Configure system-level security policy settings"
+      "require2FAGlobal": "تفعيل 2FA عالمياً",
+      "require2FAGlobalDesc": "عند التفعيل، يجب على جميع المستخدمين إعداد المصادقة ثنائية العامل لتسجيل الدخول",
+      "securityPolicy": "سياسة الأمان",
+      "securityPolicyDesc": "تكوين إعدادات سياسة الأمان على مستوى النظام"
     },
     "domains": {
       "title": "النطاقات",
