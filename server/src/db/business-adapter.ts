@@ -1836,9 +1836,16 @@ export const SystemOperations = {
 export const SecretOperations = {
   /** 获取运行时密钥 */
   async getRuntimeSecret(key: string): Promise<string | undefined> {
+    const dbType = getDbType();
+    const sql = dbType === 'mysql'
+      ? 'SELECT `value` FROM runtime_secrets WHERE `key` = ?'
+      : dbType === 'postgresql'
+        ? 'SELECT "value" FROM runtime_secrets WHERE "key" = $1'
+        : 'SELECT `value` FROM runtime_secrets WHERE `key` = ?';
+    const params = dbType === 'postgresql' ? [key] : [key];
     const row = await getInternal<{ value: string }>(
-      'SELECT value FROM runtime_secrets WHERE key = ?',
-      [key],
+      sql,
+      params,
       { operation: 'Secret.getRuntimeSecret', table: 'runtime_secrets' }
     );
     return row?.value;
@@ -1846,12 +1853,26 @@ export const SecretOperations = {
 
   /** 确保运行时密钥表存在 */
   async ensureRuntimeSecretsTable(): Promise<void> {
-    return executeInternal(
-      `CREATE TABLE IF NOT EXISTS runtime_secrets (
-        key VARCHAR(255) PRIMARY KEY,
-        value TEXT NOT NULL,
+    const dbType = getDbType();
+    const sql = dbType === 'mysql'
+      ? `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        \`key\` VARCHAR(255) PRIMARY KEY,
+        \`value\` TEXT NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )`,
+      )`
+      : dbType === 'postgresql'
+        ? `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        "key" VARCHAR(255) PRIMARY KEY,
+        "value" TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`
+        : `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        \`key\` VARCHAR(255) PRIMARY KEY,
+        \`value\` TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`;
+    return executeInternal(
+      sql,
       [],
       { operation: 'Secret.ensureRuntimeSecretsTable', table: 'runtime_secrets' }
     );
@@ -1859,9 +1880,27 @@ export const SecretOperations = {
 
   /** 设置运行时密钥 */
   async setRuntimeSecret(key: string, value: string): Promise<void> {
+    const dbType = getDbType();
+    let sql: string;
+    let params: unknown[];
+
+    if (dbType === 'mysql') {
+      // MySQL: 使用 INSERT ... ON DUPLICATE KEY UPDATE
+      sql = 'INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)';
+      params = [key, value];
+    } else if (dbType === 'postgresql') {
+      // PostgreSQL: 使用 INSERT ... ON CONFLICT
+      sql = 'INSERT INTO runtime_secrets ("key", "value") VALUES ($1, $2) ON CONFLICT("key") DO UPDATE SET "value" = EXCLUDED."value"';
+      params = [key, value];
+    } else {
+      // SQLite: 使用 INSERT ... ON CONFLICT
+      sql = 'INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?) ON CONFLICT(`key`) DO UPDATE SET `value` = excluded.`value`';
+      params = [key, value];
+    }
+
     return executeInternal(
-      'INSERT INTO runtime_secrets (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      [key, value],
+      sql,
+      params,
       { operation: 'Secret.setRuntimeSecret', table: 'runtime_secrets' }
     );
   },
@@ -1876,7 +1915,7 @@ export const SecretOperations = {
         // SQLite: 使用 executeInternal 执行 SQL
         await executeInternal('DELETE FROM runtime_secrets', [], { operation: 'Secret.rotate.delete', table: 'runtime_secrets' });
         await executeInternal(
-          'INSERT INTO runtime_secrets (key, value) VALUES (?, ?)',
+          'INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?)',
           ['jwt_runtime', jwtRuntimeSecret],
           { operation: 'Secret.rotate.insert', table: 'runtime_secrets' }
         );
@@ -1892,7 +1931,7 @@ export const SecretOperations = {
         // PostgreSQL: 使用 executeInternal 执行 SQL
         await executeInternal('DELETE FROM runtime_secrets', [], { operation: 'Secret.rotate.delete', table: 'runtime_secrets' });
         await executeInternal(
-          'INSERT INTO runtime_secrets (key, value) VALUES ($1, $2)',
+          'INSERT INTO runtime_secrets ("key", "value") VALUES ($1, $2)',
           ['jwt_runtime', jwtRuntimeSecret],
           { operation: 'Secret.rotate.insert', table: 'runtime_secrets' }
         );

@@ -271,13 +271,13 @@ async function rotateRuntimeSecrets(conn: DbConnection): Promise<void> {
     if (type === 'sqlite') {
       const sqliteConn = conn as SQLiteConnection;
       sqliteConn.exec('DELETE FROM runtime_secrets');
-      sqliteConn.prepare('INSERT INTO runtime_secrets (key, value) VALUES (?, ?)').run('jwt_runtime', jwtRuntimeSecret);
+      sqliteConn.prepare('INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?)').run('jwt_runtime', jwtRuntimeSecret);
     } else if (type === 'mysql') {
       await conn.execute('DELETE FROM runtime_secrets');
-      await conn.execute('INSERT INTO runtime_secrets (key, value) VALUES (?, ?)', ['jwt_runtime', jwtRuntimeSecret]);
+      await conn.execute('INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?)', ['jwt_runtime', jwtRuntimeSecret]);
     } else if (type === 'postgresql') {
       await conn.execute('DELETE FROM runtime_secrets');
-      await conn.execute('INSERT INTO runtime_secrets (key, value) VALUES ($1, $2)', ['jwt_runtime', jwtRuntimeSecret]);
+      await conn.execute('INSERT INTO runtime_secrets ("key", "value") VALUES ($1, $2)', ['jwt_runtime', jwtRuntimeSecret]);
     }
 
     log.info('DB', 'Runtime secrets rotated');
@@ -295,7 +295,7 @@ export function getRuntimeSecret(key: string): string | null {
 
     if (conn.type === 'sqlite') {
       const sqliteConn = conn as SQLiteConnection;
-      const result = sqliteConn.prepare('SELECT value FROM runtime_secrets WHERE key = ?').get(key) as { value: string } | undefined;
+      const result = sqliteConn.prepare('SELECT `value` FROM runtime_secrets WHERE `key` = ?').get(key) as { value: string } | undefined;
       return result?.value || null;
     }
 
