@@ -126,9 +126,6 @@ importers:
       swagger-ui-express:
         specifier: ^5.0.0
         version: 5.0.1(express@4.22.1)
-      whoiser:
-        specifier: ^2.0.0-beta.10
-        version: 2.0.0-beta.10
       zxcvbn:
         specifier: ^4.4.2
         version: 4.4.2
@@ -2330,9 +2327,6 @@ packages:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
     engines: {node: '>= 8'}
     hasBin: true
-
-  whoiser@2.0.0-beta.10:
-    resolution: {integrity: sha512-Y1uyLNR6zQnKj/mZPYtofs6u/9ZAnBzAuiTgU1aEMKjlnknrQdLyOKv9ErmIeF2mySMjGFj0tCam+DpxotBXHw==}
 
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
@@ -4620,10 +4614,6 @@ snapshots:
   which@2.0.2:
     dependencies:
       isexe: 2.0.0
-
-  whoiser@2.0.0-beta.10:
-    dependencies:
-      punycode-esm: 1.0.15
 
   word-wrap@1.2.5: {}
 
