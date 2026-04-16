@@ -6,6 +6,7 @@ import path from 'path';
 import { loadEnv } from './config/env';
 import { createConnection, isDbInitialized, hasUsers } from './db/database';
 import { initSchema, initSchemaAsync } from './db/schema';
+import { initSchema as initSchemaWithMigration } from './db/init';
 import { connect } from './db';
 import { disconnect } from './db/core/connection';
 import { authMiddleware, adminOnly } from './middleware/auth';
@@ -263,6 +264,9 @@ async function initializeApp() {
 
     // Initialize schema if needed (use async version for all database types)
     await initSchemaAsync(conn);
+
+    // Run column migration for existing tables (adds missing columns like background_image)
+    await initSchemaWithMigration();
 
     // Check if system is initialized
     isInitialized = await checkInitialization();

@@ -137,27 +137,37 @@ async function syncMySQLColumns(conn: DbConnection): Promise<void> {
     ],
   };
 
+  log.info('DB', 'Starting MySQL column sync...');
+
   for (const [table, columns] of Object.entries(tableColumns)) {
     try {
       // 获取表的现有列
       const existingColumns = await conn.query(`SHOW COLUMNS FROM ${table}`) as Array<{ Field: string }>;
       const existingNames = new Set(existingColumns.map(c => c.Field));
 
+      log.info('DB', `Table ${table} has columns: ${Array.from(existingNames).join(', ')}`);
+
       for (const col of columns) {
         if (!existingNames.has(col.name)) {
           log.info('DB', `Adding missing column: ${table}.${col.name}`);
           const afterClause = col.after ? ` AFTER ${col.after}` : '';
           await conn.execute(`ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.type}${afterClause}`);
+          log.info('DB', `Successfully added column: ${table}.${col.name}`);
+        } else {
+          log.debug('DB', `Column already exists: ${table}.${col.name}`);
         }
       }
     } catch (e) {
       // 表可能不存在，忽略错误
       if (e instanceof Error && (e.message.includes("doesn't exist") || e.message.includes('Unknown table'))) {
+        log.warn('DB', `Table ${table} does not exist, skipping column sync`);
         continue;
       }
-      log.warn('DB', `Failed to sync columns for ${table}`, { error: e });
+      log.error('DB', `Failed to sync columns for ${table}`, { error: e });
     }
   }
+
+  log.info('DB', 'MySQL column sync completed');
 }
 
 async function initPostgreSQLSchema(conn: DbConnection): Promise<void> {
