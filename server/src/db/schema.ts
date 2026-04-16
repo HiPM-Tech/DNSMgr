@@ -157,6 +157,7 @@ const sqliteSchema = {
       language TEXT NOT NULL DEFAULT 'zh-CN',
       notifications_enabled INTEGER NOT NULL DEFAULT 1,
       email_notifications INTEGER NOT NULL DEFAULT 1,
+      background_image TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -354,6 +355,7 @@ const mysqlSchema = {
       language VARCHAR(50) NOT NULL DEFAULT 'zh-CN',
       notifications_enabled TINYINT NOT NULL DEFAULT 1,
       email_notifications TINYINT NOT NULL DEFAULT 1,
+      background_image TEXT,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -581,6 +583,7 @@ const postgresqlSchema = {
       language VARCHAR(50) NOT NULL DEFAULT 'zh-CN',
       notifications_enabled BOOLEAN NOT NULL DEFAULT true,
       email_notifications BOOLEAN NOT NULL DEFAULT true,
+      background_image TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
