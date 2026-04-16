@@ -6,7 +6,9 @@
   "bin": "dist/app.js",
   "pkg": {
     "scripts": [
-      "dist/**/*.js"
+      "dist/**/*.js",
+      "node_modules/bcryptjs/**/*.js",
+      "node_modules/mysql2/**/*.js"
     ],
     "assets": [
       "../client/dist/**/*"
