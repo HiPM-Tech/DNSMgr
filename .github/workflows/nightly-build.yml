@@ -59,8 +59,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly-${{ env.DATE_TAG }}-${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
           build-args: |
             COMMIT_SHA=${{ github.sha }}
             BUILD_DATE=${{ env.DATE_TAG }}
