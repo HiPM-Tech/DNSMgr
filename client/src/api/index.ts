@@ -200,6 +200,9 @@ export const authApi = {
   createFailover: (id: number, data: any) => api.post<ApiResponse<any>>(`/domains/${id}/failover`, data),
   updateFailover: (id: number, data: any) => api.put<ApiResponse<any>>(`/domains/${id}/failover`, data),
   deleteFailover: (id: number) => api.delete<ApiResponse<any>>(`/domains/${id}/failover`),
+  getPreferences: () => api.get<ApiResponse<{ theme: string; language: string; notificationsEnabled: boolean; emailNotifications: boolean; backgroundImage?: string }>>('/auth/preferences'),
+  updatePreferences: (data: { theme?: string; language?: string; notificationsEnabled?: boolean; emailNotifications?: boolean; backgroundImage?: string }) =>
+    api.put<ApiResponse<null>>('/auth/preferences', data),
 };
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────

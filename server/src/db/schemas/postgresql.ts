@@ -182,6 +182,7 @@ export const postgresqlSchema: SchemaDefinition = {
       language VARCHAR(50) NOT NULL DEFAULT 'zh-CN',
       notifications_enabled BOOLEAN NOT NULL DEFAULT true,
       email_notifications BOOLEAN NOT NULL DEFAULT true,
+      background_image TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

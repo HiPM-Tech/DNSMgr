@@ -15,7 +15,7 @@ interface CaihongDnsResponse<T> {
   data?: T;
   msg?: string;
   total?: number;
-  rows?: T[];
+  rows?: T;
 }
 
 interface CaihongDnsDomain {
@@ -135,7 +135,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
   async check(): Promise<boolean> {
     try {
       // 尝试获取域名列表来验证连接
-      const res = await this.request<{ total: number; rows: CaihongDnsDomain[] }>('POST', '/domain_list', { offset: 0, limit: 1 });
+      const res = await this.request<CaihongDnsDomain[]>('POST', '/domain_list', { offset: 0, limit: 1 });
       return res.code === 0;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -153,13 +153,17 @@ export class CaihongDnsAdapter implements DnsAdapter {
       const body: Record<string, unknown> = { offset, limit: pageSize };
       if (keyword) body.kw = keyword;
       
-      const res = await this.request<{ total: number; rows: CaihongDnsDomain[] }>('POST', '/domain_list', body);
+      const res = await this.request<CaihongDnsDomain[]>('POST', '/domain_list', body);
       
-      if (res.code !== 0 || !res.rows || res.rows.length === 0) {
+      if (res.code !== 0) {
+        return { total: 0, list: [] };
+      }
+      
+      const rows: CaihongDnsDomain[] | undefined = res.rows;
+      if (!rows || rows.length === 0) {
         return { total: 0, list: [] };
       }
 
-      const rows = res.rows;
       return {
         total: res.total || 0,
         list: rows.map((d) => ({
@@ -202,13 +206,17 @@ export class CaihongDnsAdapter implements DnsAdapter {
       if (type) body.type = type;
       if (status !== undefined) body.status = status;
 
-      const res = await this.request<{ total: number; rows: CaihongDnsRecord[] }>('POST', '/record_list', body);
+      const res = await this.request<CaihongDnsRecord[]>('POST', '/record_list', body);
 
-      if (res.code !== 0 || !res.rows || res.rows.length === 0) {
+      if (res.code !== 0) {
+        return { total: 0, list: [] };
+      }
+      
+      const rows: CaihongDnsRecord[] | undefined = res.rows;
+      if (!rows || rows.length === 0) {
         return { total: 0, list: [] };
       }
 
-      const rows = res.rows;
       return {
         total: res.total || 0,
         list: rows.map((r) => this.mapRecord(r)),
@@ -244,7 +252,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
       }
 
       // 从列表中查找
-      const res = await this.request<{ total: number; rows: CaihongDnsRecord[] }>('POST', '/record_list', {
+      const res = await this.request<CaihongDnsRecord[]>('POST', '/record_list', {
         id: parseInt(this.config.domainId),
         offset: 0,
         limit: 1000,
@@ -254,7 +262,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
         return null;
       }
 
-      const rows = res.rows;
+      const rows: CaihongDnsRecord[] = res.rows;
       const record = rows.find((r) => r.RecordId === recordId);
       return record ? this.mapRecord(record) : null;
     } catch (e) {

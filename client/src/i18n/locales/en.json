@@ -27,6 +27,7 @@
       "delete": "Delete",
       "create": "Create",
       "cancel": "Cancel",
+      "clear": "Clear",
       "confirmAction": "Confirm Action",
       "noData": "No data",
       "provider": "Provider",
@@ -273,7 +274,14 @@
       "oauthUnbound": "OAuth account unbound",
       "cloudflareTunnels": "Cloudflare Tunnels",
       "showTunnels": "Show Tunnels in Sidebar",
-      "showTunnelsDesc": "Enable this to view and manage Cloudflare Tunnels from the sidebar."
+      "showTunnelsDesc": "Enable this to view and manage Cloudflare Tunnels from the sidebar.",
+      "backgroundImage": "Custom Background Image",
+      "backgroundImageUrl": "Background Image URL",
+      "backgroundImagePlaceholder": "Enter image URL (supports jpg/png/gif/webp)",
+      "backgroundImageHint": "Supports any image URL, leave empty to use default background",
+      "backgroundImageUpdated": "Background image updated",
+      "backgroundImageUpdateFailed": "Failed to update background image",
+      "updateBackgroundImage": "Update Background Image"
     },
     "about": {
       "title": "About",

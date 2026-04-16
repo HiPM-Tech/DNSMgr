@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { Lock, CheckCircle } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Lock, CheckCircle, Image, X } from 'lucide-react';
 import { authApi } from '../api';
 import type { OAuthBinding } from '../api';
 import { useToast } from '../hooks/useToast';
@@ -31,11 +31,39 @@ export function Settings() {
   const [oauthProviders, setOauthProviders] = useState<Array<{ key: 'custom' | 'logto'; providerName: string }>>([]);
   const [selectedOauthProvider, setSelectedOauthProvider] = useState<'custom' | 'logto'>('custom');
   const [oauthBindings, setOauthBindings] = useState<OAuthBinding[]>([]);
+  const [backgroundImage, setBackgroundImage] = useState('');
 
   useEffect(() => {
     setNickname(user?.nickname ?? '');
     setEmail(user?.email ?? '');
   }, [user?.id, user?.nickname, user?.email]);
+
+  // 获取用户偏好设置
+  const preferencesQuery = useQuery({
+    queryKey: ['userPreferences'],
+    queryFn: async () => {
+      const res = await authApi.getPreferences();
+      if (res.data.code === 0) {
+        setBackgroundImage(res.data.data.backgroundImage || '');
+        return res.data.data;
+      }
+      return null;
+    },
+  });
+
+  // 更新背景图
+  const updateBackgroundMutation = useMutation({
+    mutationFn: (imageUrl: string) => authApi.updatePreferences({ backgroundImage: imageUrl }),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) {
+        toast.error(res.data.msg);
+        return;
+      }
+      toast.success(t('settings.backgroundImageUpdated'));
+      preferencesQuery.refetch();
+    },
+    onError: () => toast.error(t('settings.backgroundImageUpdateFailed')),
+  });
 
   useEffect(() => {
     authApi.oauthStatus()
@@ -326,6 +354,65 @@ export function Settings() {
                 ))}
               </select>
               <p className="text-sm text-gray-500">{t('settings.languageHint')}</p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Image className="w-4 h-4" />
+              {t('settings.backgroundImage')}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  {t('settings.backgroundImageUrl')}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={backgroundImage}
+                    onChange={(e) => setBackgroundImage(e.target.value)}
+                    placeholder={t('settings.backgroundImagePlaceholder')}
+                    className={inputClass}
+                  />
+                  {backgroundImage && (
+                    <button
+                      type="button"
+                      onClick={() => setBackgroundImage('')}
+                      className="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-sm"
+                      title={t('common.clear')}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 mt-1.5">{t('settings.backgroundImageHint')}</p>
+              </div>
+              
+              {backgroundImage && (
+                <div className="relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                  <img
+                    src={backgroundImage}
+                    alt="Background preview"
+                    className="w-full h-32 object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="%23f3f4f6"/%3E%3Ctext x="50" y="50" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12"%3EInvalid Image%3C/text%3E%3C/svg%3E';
+                    }}
+                  />
+                </div>
+              )}
+              
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => updateBackgroundMutation.mutate(backgroundImage)}
+                  disabled={updateBackgroundMutation.isPending || backgroundImage === (preferencesQuery.data?.backgroundImage || '')}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
+                >
+                  {updateBackgroundMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {t('settings.updateBackgroundImage')}
+                </button>
+              </div>
             </div>
           </div>
 

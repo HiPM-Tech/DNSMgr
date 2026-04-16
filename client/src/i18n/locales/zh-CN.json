@@ -138,6 +138,7 @@
       "allTypes": "全部类型",
       "audit": "审计",
       "cancel": "取消",
+      "clear": "清除",
       "confirmAction": "确认操作",
       "create": "创建",
       "created": "创建时间",
@@ -445,7 +446,14 @@
       "showTunnelsDesc": "启用此选项可以在侧边栏查看和管理 Cloudflare Tunnels。",
       "unbindOauth": "解除绑定",
       "updatePassword": "更新密码",
-      "updateProfile": "更新资料"
+      "updateProfile": "更新资料",
+      "backgroundImage": "自定义背景图",
+      "backgroundImageUrl": "背景图 URL",
+      "backgroundImagePlaceholder": "请输入图片 URL（支持 jpg/png/gif/webp）",
+      "backgroundImageHint": "支持任意图片 URL，留空则使用默认背景",
+      "backgroundImageUpdated": "背景图已更新",
+      "backgroundImageUpdateFailed": "背景图更新失败",
+      "updateBackgroundImage": "更新背景图"
     },
     "setup": {
       "adminCreateFailed": "创建管理员失败",

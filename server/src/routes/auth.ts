@@ -8,6 +8,7 @@ import { checkLoginAllowed, recordFailedAttempt, clearLoginAttempts } from '../s
 import { sendEmailVerificationCode, verifyEmailVerificationCode } from '../service/emailVerification';
 import { logAuditOperation } from '../service/audit';
 import { getSmtpConfig, sendSmtpEmail } from '../service/smtp';
+import { getUserPreferences, updateUserPreferences, UserPreferences } from '../service/userPreferences';
 import { loginLimiter, registerLimiter, emailLimiter } from '../middleware/rateLimit';
 import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/totp';
 import { isValidUsername } from '../utils/validation';
@@ -1185,6 +1186,87 @@ router.post('/password-reset/confirm', async (req: Request, res: Response) => {
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to reset password' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/preferences:
+ *   get:
+ *     summary: Get current user preferences
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User preferences
+ */
+router.get('/preferences', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const preferences = await getUserPreferences(req.user!.userId);
+    res.json({
+      code: 0,
+      data: {
+        theme: preferences.theme,
+        language: preferences.language,
+        notificationsEnabled: preferences.notificationsEnabled,
+        emailNotifications: preferences.emailNotifications,
+        backgroundImage: preferences.backgroundImage,
+      },
+      msg: 'success',
+    });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get preferences' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/preferences:
+ *   put:
+ *     summary: Update current user preferences
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               theme:
+ *                 type: string
+ *                 enum: ['light', 'dark', 'auto']
+ *               language:
+ *                 type: string
+ *               notificationsEnabled:
+ *                 type: boolean
+ *               emailNotifications:
+ *                 type: boolean
+ *               backgroundImage:
+ *                 type: string
+ *                 description: Custom background image URL
+ *     responses:
+ *       200:
+ *         description: Preferences updated
+ */
+router.put('/preferences', authMiddleware, async (req: Request, res: Response) => {
+  const { theme, language, notificationsEnabled, emailNotifications, backgroundImage } = req.body as Partial<UserPreferences>;
+
+  try {
+    const updates: Partial<UserPreferences> = {};
+    if (theme !== undefined) updates.theme = theme;
+    if (language !== undefined) updates.language = language;
+    if (notificationsEnabled !== undefined) updates.notificationsEnabled = notificationsEnabled;
+    if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
+    if (backgroundImage !== undefined) updates.backgroundImage = backgroundImage;
+
+    await updateUserPreferences(req.user!.userId, updates);
+    await logAuditOperation(req.user!.userId, 'update_preferences', 'system', updates);
+    res.json({ code: 0, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update preferences' });
   }
 });
 

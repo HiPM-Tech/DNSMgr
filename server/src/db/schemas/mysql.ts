@@ -188,6 +188,7 @@ export const mysqlSchema: SchemaDefinition = {
       language VARCHAR(50) NOT NULL DEFAULT 'zh-CN',
       notifications_enabled TINYINT NOT NULL DEFAULT 1,
       email_notifications TINYINT NOT NULL DEFAULT 1,
+      background_image TEXT,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
