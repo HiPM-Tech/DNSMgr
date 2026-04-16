@@ -61,7 +61,8 @@
       "items": "عناصر",
       "page": "صفحة",
       "perPage": "لكل صفحة",
-      "pleaseSelect": "الرجاء الاختيار"
+      "pleaseSelect": "الرجاء الاختيار",
+      "clear": "مسح"
     },
     "mail": {
       "title": "إعداد البريد الإلكتروني",
@@ -226,7 +227,11 @@
       "updateFailed": "فشل في تحديث المستخدم",
       "deleteFailed": "فشل في حذف المستخدم",
       "you": "أنت",
-      "deleteConfirm": "حذف المستخدم \"{name}\"؟ لا يمكن التراجع عن هذا الإجراء."
+      "deleteConfirm": "حذف المستخدم \"{name}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+      "require2FA": "Require 2FA",
+      "require2FADesc": "When enabled, this user must set up two-factor authentication to log in",
+      "user2FAUpdated": "User 2FA setting updated",
+      "user2FAUpdateFailed": "Failed to update user 2FA setting"
     },
     "settings": {
       "profile": "الملف الشخصي",
@@ -269,7 +274,14 @@
       "oauthUnbound": "تم إلغاء ربط حساب OAuth",
       "cloudflareTunnels": "أنفاق Cloudflare",
       "showTunnels": "إظهار الأنفاق في الشريط الجانبي",
-      "showTunnelsDesc": "فعّل هذا لعرض وإدارة أنفاق Cloudflare من الشريط الجانبي."
+      "showTunnelsDesc": "فعّل هذا لعرض وإدارة أنفاق Cloudflare من الشريط الجانبي.",
+      "backgroundImage": "Custom Background Image",
+      "backgroundImageUrl": "Background Image URL",
+      "backgroundImagePlaceholder": "Enter image URL (supports jpg/png/gif/webp)",
+      "backgroundImageHint": "Supports any image URL, leave empty to use default background",
+      "backgroundImageUpdated": "Background image updated",
+      "backgroundImageUpdateFailed": "Failed to update background image",
+      "updateBackgroundImage": "Update Background Image"
     },
     "about": {
       "title": "حول",
@@ -488,7 +500,11 @@
       "oauthSaveFailed": "فشل في حفظ تكوين OAuth",
       "oidcAutoDiscover": "الجلب التلقائي عبر OIDC",
       "oidcDiscoverSuccess": "تم جلب تكوين OIDC",
-      "oidcDiscoverFailed": "فشل في جلب تكوين OIDC"
+      "oidcDiscoverFailed": "فشل في جلب تكوين OIDC",
+      "require2FAGlobal": "Require 2FA Globally",
+      "require2FAGlobalDesc": "When enabled, all users must set up two-factor authentication to log in",
+      "securityPolicy": "Security Policy",
+      "securityPolicyDesc": "Configure system-level security policy settings"
     },
     "domains": {
       "title": "النطاقات",

@@ -61,7 +61,8 @@
       "items": "itens",
       "page": "página",
       "perPage": "por página",
-      "pleaseSelect": "Por favor, selecione"
+      "pleaseSelect": "Por favor, selecione",
+      "clear": "Limpar"
     },
     "mail": {
       "title": "Configuração de Email",
@@ -226,7 +227,11 @@
       "updateFailed": "Falha ao atualizar usuário",
       "deleteFailed": "Falha ao excluir usuário",
       "you": "Você",
-      "deleteConfirm": "Excluir usuário \"{name}\"? Esta ação não pode ser desfeita."
+      "deleteConfirm": "Excluir usuário \"{name}\"? Esta ação não pode ser desfeita.",
+      "require2FA": "Require 2FA",
+      "require2FADesc": "When enabled, this user must set up two-factor authentication to log in",
+      "user2FAUpdated": "User 2FA setting updated",
+      "user2FAUpdateFailed": "Failed to update user 2FA setting"
     },
     "settings": {
       "profile": "Perfil",
@@ -269,7 +274,14 @@
       "oauthUnbound": "Conta OAuth desvinculada",
       "cloudflareTunnels": "Túneis Cloudflare",
       "showTunnels": "Mostrar Túneis na Barra Lateral",
-      "showTunnelsDesc": "Habilite isso para ver e gerenciar Túneis Cloudflare na barra lateral."
+      "showTunnelsDesc": "Habilite isso para ver e gerenciar Túneis Cloudflare na barra lateral.",
+      "backgroundImage": "Custom Background Image",
+      "backgroundImageUrl": "Background Image URL",
+      "backgroundImagePlaceholder": "Enter image URL (supports jpg/png/gif/webp)",
+      "backgroundImageHint": "Supports any image URL, leave empty to use default background",
+      "backgroundImageUpdated": "Background image updated",
+      "backgroundImageUpdateFailed": "Failed to update background image",
+      "updateBackgroundImage": "Update Background Image"
     },
     "about": {
       "title": "Sobre",
@@ -488,7 +500,11 @@
       "oauthSaveFailed": "Falha ao salvar configuração OAuth",
       "oidcAutoDiscover": "Buscar Auto via OIDC",
       "oidcDiscoverSuccess": "Configuração OIDC buscada",
-      "oidcDiscoverFailed": "Falha ao buscar configuração OIDC"
+      "oidcDiscoverFailed": "Falha ao buscar configuração OIDC",
+      "require2FAGlobal": "Require 2FA Globally",
+      "require2FAGlobalDesc": "When enabled, all users must set up two-factor authentication to log in",
+      "securityPolicy": "Security Policy",
+      "securityPolicyDesc": "Configure system-level security policy settings"
     },
     "domains": {
       "title": "Domínios",

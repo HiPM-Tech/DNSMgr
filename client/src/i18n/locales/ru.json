@@ -61,7 +61,8 @@
       "items": "элементов",
       "page": "страница",
       "perPage": "на странице",
-      "pleaseSelect": "Пожалуйста, выберите"
+      "pleaseSelect": "Пожалуйста, выберите",
+      "clear": "Очистить"
     },
     "mail": {
       "title": "Настройка почты",
@@ -226,7 +227,11 @@
       "updateFailed": "Не удалось обновить пользователя",
       "deleteFailed": "Не удалось удалить пользователя",
       "you": "Вы",
-      "deleteConfirm": "Удалить пользователя \"{name}\"? Это действие нельзя отменить."
+      "deleteConfirm": "Удалить пользователя \"{name}\"? Это действие нельзя отменить.",
+      "require2FA": "Require 2FA",
+      "require2FADesc": "When enabled, this user must set up two-factor authentication to log in",
+      "user2FAUpdated": "User 2FA setting updated",
+      "user2FAUpdateFailed": "Failed to update user 2FA setting"
     },
     "settings": {
       "profile": "Профиль",
@@ -269,7 +274,14 @@
       "oauthUnbound": "OAuth-аккаунт отвязан",
       "cloudflareTunnels": "Туннели Cloudflare",
       "showTunnels": "Показывать туннели в боковой панели",
-      "showTunnelsDesc": "Включите это, чтобы просматривать и управлять туннелями Cloudflare из боковой панели."
+      "showTunnelsDesc": "Включите это, чтобы просматривать и управлять туннелями Cloudflare из боковой панели.",
+      "backgroundImage": "Custom Background Image",
+      "backgroundImageUrl": "Background Image URL",
+      "backgroundImagePlaceholder": "Enter image URL (supports jpg/png/gif/webp)",
+      "backgroundImageHint": "Supports any image URL, leave empty to use default background",
+      "backgroundImageUpdated": "Background image updated",
+      "backgroundImageUpdateFailed": "Failed to update background image",
+      "updateBackgroundImage": "Update Background Image"
     },
     "about": {
       "title": "О системе",
@@ -488,7 +500,11 @@
       "oauthSaveFailed": "Не удалось сохранить конфигурацию OAuth",
       "oidcAutoDiscover": "Автополучение через OIDC",
       "oidcDiscoverSuccess": "Конфигурация OIDC получена",
-      "oidcDiscoverFailed": "Не удалось получить конфигурацию OIDC"
+      "oidcDiscoverFailed": "Не удалось получить конфигурацию OIDC",
+      "require2FAGlobal": "Require 2FA Globally",
+      "require2FAGlobalDesc": "When enabled, all users must set up two-factor authentication to log in",
+      "securityPolicy": "Security Policy",
+      "securityPolicyDesc": "Configure system-level security policy settings"
     },
     "domains": {
       "title": "Домены",
