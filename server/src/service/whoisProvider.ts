@@ -1,9 +1,9 @@
 /**
  * WHOIS Provider 抽象层
- * 支持多源查询：whoiser / RDAP / 直连 WHOIS 服务器
+ * 支持多源查询：直连 WHOIS 服务器 / RDAP
  */
 
-import { whoisDomain, firstResult } from 'whoiser';
+import * as net from 'net';
 import { log } from '../lib/logger';
 
 export interface WhoisResult {
@@ -11,7 +11,7 @@ export interface WhoisResult {
   expiryDate: Date | null;
   registrar: string | null;
   nameServers: string[];
-  raw: any;
+  raw: string;
 }
 
 interface WhoisProvider {
@@ -40,6 +40,74 @@ const SPECIAL_SUFFIXES = [
   // 其他
   'com.br', 'com.mx', 'co.nz', 'co.za', 'co.il', 'co.th',
 ];
+
+// WHOIS 服务器映射
+const WHOIS_SERVERS: Record<string, string> = {
+  'com': 'whois.verisign-grs.com',
+  'net': 'whois.verisign-grs.com',
+  'org': 'whois.publicinterestregistry.org',
+  'info': 'whois.afilias.net',
+  'biz': 'whois.biz',
+  'us': 'whois.nic.us',
+  'io': 'whois.nic.io',
+  'co': 'whois.nic.co',
+  'tv': 'whois.nic.tv',
+  'cc': 'whois.nic.cc',
+  'me': 'whois.nic.me',
+  'mobi': 'whois.dotmobiregistry.net',
+  'asia': 'whois.nic.asia',
+  'name': 'whois.nic.name',
+  'pro': 'whois.registrypro.pro',
+  'aero': 'whois.aero',
+  'museum': 'whois.museum',
+  'jobs': 'whois.nic.jobs',
+  'travel': 'whois.nic.travel',
+  'xxx': 'whois.nic.xxx',
+  // 国别域名
+  'cn': 'whois.cnnic.cn',
+  'uk': 'whois.nic.uk',
+  'de': 'whois.denic.de',
+  'fr': 'whois.nic.fr',
+  'eu': 'whois.eu',
+  'nl': 'whois.sidn.nl',
+  'ru': 'whois.tcinet.ru',
+  'br': 'whois.registro.br',
+  'au': 'whois.auda.org.au',
+  'jp': 'whois.jprs.jp',
+  'kr': 'whois.kr',
+  'tw': 'whois.twnic.net.tw',
+  'hk': 'whois.hkirc.hk',
+  'sg': 'whois.sgnic.sg',
+  'in': 'whois.registry.in',
+  'it': 'whois.nic.it',
+  'pl': 'whois.dns.pl',
+  'es': 'whois.nic.es',
+  'ca': 'whois.cira.ca',
+  'nz': 'whois.srs.net.nz',
+  'za': 'whois.registry.net.za',
+  'mx': 'whois.mx',
+  'ar': 'whois.nic.ar',
+  'cl': 'whois.nic.cl',
+  // 新顶级域名
+  'app': 'whois.nic.google',
+  'dev': 'whois.nic.google',
+  'page': 'whois.nic.google',
+  'cloud': 'whois.nic.cloud',
+  'blog': 'whois.nic.blog',
+  'shop': 'whois.nic.shop',
+  'site': 'whois.nic.site',
+  'online': 'whois.nic.online',
+  'website': 'whois.nic.website',
+  'space': 'whois.nic.space',
+  'store': 'whois.nic.store',
+  'tech': 'whois.nic.tech',
+  'xyz': 'whois.nic.xyz',
+  'club': 'whois.nic.club',
+  'live': 'whois.nic.live',
+  'news': 'whois.nic.news',
+  'video': 'whois.nic.video',
+  'email': 'whois.nic.email',
+};
 
 /**
  * 获取根域名（注册域名）
@@ -101,10 +169,8 @@ function parseDate(dateStr: string): Date | null {
   for (const regex of formats) {
     const match = dateStr.match(regex);
     if (match) {
-      // 根据匹配结果构造日期
       try {
         if (match[4] && match[5] && match[6]) {
-          // 带时间的格式
           d = new Date(
             parseInt(match[1]),
             parseInt(match[2]) - 1,
@@ -114,7 +180,6 @@ function parseDate(dateStr: string): Date | null {
             parseInt(match[6])
           );
         } else {
-          // 只有日期的格式
           d = new Date(
             parseInt(match[1]),
             parseInt(match[2]) - 1,
@@ -132,36 +197,64 @@ function parseDate(dateStr: string): Date | null {
 }
 
 /**
+ * 执行 WHOIS 查询
+ */
+async function whoisLookup(domain: string, server: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const socket = new net.Socket();
+    let data = '';
+    
+    socket.setTimeout(10000);
+    
+    socket.on('connect', () => {
+      socket.write(`${domain}\r\n`);
+    });
+    
+    socket.on('data', (chunk) => {
+      data += chunk.toString();
+    });
+    
+    socket.on('close', () => {
+      resolve(data);
+    });
+    
+    socket.on('error', (err) => {
+      reject(err);
+    });
+    
+    socket.on('timeout', () => {
+      socket.destroy();
+      reject(new Error('WHOIS query timeout'));
+    });
+    
+    socket.connect(43, server);
+  });
+}
+
+/**
  * 从 WHOIS 结果中提取到期日期
  */
-function extractExpiryDate(whoisData: any): Date | null {
-  if (!whoisData) return null;
-  
-  const possibleKeys = [
-    'Registry Expiry Date',
-    'Expiry Date',
-    'Registrar Registration Expiration Date',
-    'Expiration Date',
-    'expires',
-    'Expiration Time',
-    'paid-till',
-    'Renewal Date',
-    'Domain Expiration Date',
-    'Expire Date',
-    'Expiry',
-    'Valid Until',
-    'Valid-Until',
-    'validUntil',
+function extractExpiryDate(whoisText: string): Date | null {
+  const patterns = [
+    /Registry Expiry Date:\s*(.+)/i,
+    /Expiry Date:\s*(.+)/i,
+    /Registrar Registration Expiration Date:\s*(.+)/i,
+    /Expiration Date:\s*(.+)/i,
+    /expires:\s*(.+)/i,
+    /Expiration Time:\s*(.+)/i,
+    /paid-till:\s*(.+)/i,
+    /Renewal Date:\s*(.+)/i,
+    /Domain Expiration Date:\s*(.+)/i,
+    /Expire Date:\s*(.+)/i,
+    /Valid Until:\s*(.+)/i,
+    /Valid-Until:\s*(.+)/i,
   ];
   
-  for (const key of possibleKeys) {
-    const value = whoisData[key];
-    if (value) {
-      const date = parseDate(value);
-      if (date) {
-        log.debug('WhoisProvider', `Found expiry using key "${key}": ${date.toISOString()}`);
-        return date;
-      }
+  for (const pattern of patterns) {
+    const match = whoisText.match(pattern);
+    if (match) {
+      const date = parseDate(match[1].trim());
+      if (date) return date;
     }
   }
   
@@ -169,32 +262,100 @@ function extractExpiryDate(whoisData: any): Date | null {
 }
 
 /**
- * Whoiser Provider（主要查询方式）
+ * 从 WHOIS 结果中提取注册商
  */
-class WhoiserProvider implements WhoisProvider {
-  name = 'whoiser';
+function extractRegistrar(whoisText: string): string | null {
+  const patterns = [
+    /Registrar:\s*(.+)/i,
+    /Sponsoring Registrar:\s*(.+)/i,
+    /Registrar Name:\s*(.+)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = whoisText.match(pattern);
+    if (match) {
+      return match[1].trim();
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * 从 WHOIS 结果中提取域名服务器
+ */
+function extractNameServers(whoisText: string): string[] {
+  const ns: string[] = [];
+  const patterns = [
+    /Name Server:\s*(.+)/gi,
+    /Nserver:\s*(.+)/gi,
+    /NS:\s*(.+)/gi,
+  ];
+  
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(whoisText)) !== null) {
+      ns.push(match[1].trim().toLowerCase());
+    }
+  }
+  
+  return [...new Set(ns)];
+}
+
+/**
+ * 获取 WHOIS 服务器
+ */
+function getWhoisServer(domain: string): string | null {
+  const parts = domain.toLowerCase().split('.');
+  const tld = parts[parts.length - 1];
+  
+  // 首先尝试完整后缀匹配
+  if (parts.length >= 2) {
+    const secondLevel = parts.slice(-2).join('.');
+    if (WHOIS_SERVERS[secondLevel]) {
+      return WHOIS_SERVERS[secondLevel];
+    }
+  }
+  
+  // 然后尝试 TLD 匹配
+  return WHOIS_SERVERS[tld] || null;
+}
+
+/**
+ * Direct WHOIS Provider（主要查询方式）
+ */
+class DirectWhoisProvider implements WhoisProvider {
+  name = 'direct-whois';
   
   async query(domain: string): Promise<WhoisResult | null> {
+    const server = getWhoisServer(domain);
+    if (!server) {
+      log.debug('WhoisProvider', `No WHOIS server for ${domain}`);
+      return null;
+    }
+    
     try {
-      const result = await whoisDomain(domain, { follow: 1 });
-      const firstFound = firstResult(result) as any;
+      log.debug('WhoisProvider', `Querying ${domain} via ${server}`);
+      const raw = await whoisLookup(domain, server);
       
-      if (!firstFound) {
-        log.debug('WhoisProvider', `Whoiser: No result for ${domain}`);
+      if (!raw || raw.includes('No match') || raw.includes('NOT FOUND')) {
+        log.debug('WhoisProvider', `Domain ${domain} not found`);
         return null;
       }
       
-      const expiryDate = extractExpiryDate(firstFound);
+      const expiryDate = extractExpiryDate(raw);
+      const registrar = extractRegistrar(raw);
+      const nameServers = extractNameServers(raw);
       
       return {
         domain,
         expiryDate,
-        registrar: firstFound.Registrar || firstFound['Sponsoring Registrar'] || null,
-        nameServers: extractNameServers(firstFound),
-        raw: firstFound,
+        registrar,
+        nameServers,
+        raw,
       };
     } catch (error) {
-      log.debug('WhoisProvider', `Whoiser error for ${domain}:`, { 
+      log.debug('WhoisProvider', `Direct WHOIS error for ${domain}:`, { 
         error: error instanceof Error ? error.message : String(error) 
       });
       return null;
@@ -216,8 +377,8 @@ class RdapProvider implements WhoisProvider {
     
     // 常见的 RDAP 服务器
     const rdapServers: Record<string, string> = {
-      'com': 'https://rdap.verisign.com/com/v1/',
-      'net': 'https://rdap.verisign.com/net/v1/',
+      'com': 'https://rdap.verisign-grs.com/com/v1/',
+      'net': 'https://rdap.verisign-grs.com/net/v1/',
       'org': 'https://rdap.publicinterestregistry.org/rdap/org/',
       'info': 'https://rdap.publicinterestregistry.org/rdap/info/',
       'io': 'https://rdap.nic.io/',
@@ -244,7 +405,6 @@ class RdapProvider implements WhoisProvider {
       const url = `${baseUrl}domain/${domain}`;
       const response = await fetch(url, {
         headers: { 'Accept': 'application/rdap+json' },
-        signal: AbortSignal.timeout(10000),
       });
       
       if (!response.ok) {
@@ -282,7 +442,7 @@ class RdapProvider implements WhoisProvider {
         expiryDate,
         registrar,
         nameServers: data.nameservers?.map((n: any) => n.ldhName) || [],
-        raw: data,
+        raw: JSON.stringify(data),
       };
     } catch (error) {
       log.debug('WhoisProvider', `RDAP error for ${domain}:`, { 
@@ -293,32 +453,9 @@ class RdapProvider implements WhoisProvider {
   }
 }
 
-/**
- * 提取域名服务器
- */
-function extractNameServers(whoisData: any): string[] {
-  const ns: string[] = [];
-  
-  // 尝试各种可能的字段名
-  const nsKeys = ['Name Server', 'Name Servers', 'nserver', 'NS'];
-  
-  for (const key of nsKeys) {
-    const value = whoisData[key];
-    if (value) {
-      if (Array.isArray(value)) {
-        ns.push(...value);
-      } else if (typeof value === 'string') {
-        ns.push(value);
-      }
-    }
-  }
-  
-  return ns.filter(n => n).map(n => n.toLowerCase().trim());
-}
-
 // 创建 Provider 实例
 const providers: WhoisProvider[] = [
-  new WhoiserProvider(),
+  new DirectWhoisProvider(),
   new RdapProvider(),
 ];
 

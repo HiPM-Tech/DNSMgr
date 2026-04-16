@@ -43,7 +43,6 @@
     "qrcode": "^1.5.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
-    "whoiser": "^2.0.0-beta.10",
     "zxcvbn": "^4.4.2"
   },
   "devDependencies": {
