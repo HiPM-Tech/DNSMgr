@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { initSchema, initSchemaAsync, rotateRuntimeSecretsAsync } from '../db/schema';
+import { initSchema, initSchemaAsync } from '../db/schema';
 import { saveEnvConfig, getDbConfig } from '../config/env';
-import { createConnection, isDbInitialized, hasUsers, getDb, getCurrentConnection } from '../db/database';
-import { UserOperations, SystemOperations } from '../db/business-adapter';
+import { createConnection, isDbInitialized, hasUsers, getDb } from '../db/database';
+import { UserOperations, SystemOperations, SecretOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 
 const router = Router();
@@ -203,13 +203,8 @@ router.post('/admin', async (req: Request, res: Response) => {
   }
   
   try {
-    const conn = getCurrentConnection();
-    if (!conn) {
-      return res.status(500).json({ code: 500, msg: 'Database connection not available' });
-    }
-    
     const hash = bcrypt.hashSync(password, 10);
-    
+
     // 使用业务适配器创建用户，而不是直接调用数据库抽象层
     await UserOperations.create({
       username,
@@ -219,10 +214,10 @@ router.post('/admin', async (req: Request, res: Response) => {
       role: 'admin',
       role_level: 3,
     });
-    
-    // Rotate runtime secrets
-    await rotateRuntimeSecretsAsync(conn);
-    
+
+    // 使用业务适配器轮换运行时密钥
+    await SecretOperations.rotateRuntimeSecrets();
+
     log.info('Init', 'Admin user created successfully', { username, email });
     
     res.json({

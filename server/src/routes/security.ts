@@ -1,472 +1,146 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { authMiddleware, adminOnly } from '../middleware/auth';
-import { asyncHandler, errors } from '../middleware/errorHandler';
-import { ResponseHelper } from '../utils/response';
-import { sendSuccess, sendError } from '../utils/http';
-import {
-  generateTOTPSecret,
-  verifyTOTPToken,
-  enableTOTP,
-  disableTOTP,
-  getTOTPStatus,
-  verifyBackupCode,
-} from '../service/totp';
-import {
-  getActiveSessions,
-  deleteSession,
-  deleteOtherSessions,
-  deleteAllSessions,
-  cleanupExpiredSessions,
-} from '../service/session';
-import { getUserPreferences, updateUserPreferences } from '../service/userPreferences';
-import { logAuditOperation } from '../service/audit';
-import { get, query } from '../db';
+import { SecurityPolicyOperations, TrustedDeviceOperations, getDbType } from '../db/business-adapter';
+import { getSecurityPolicy, updateSecurityPolicy, checkPasswordStrength, validatePassword, requires2FA, has2FAEnabled } from '../service/securityPolicy';
 import { log } from '../lib/logger';
 
 const router = Router();
 
-/**
- * 2FA 相关路由
- */
+// 获取安全策略
+router.get('/policy', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const policy = await getSecurityPolicy();
+    res.json({ success: true, data: policy });
+  } catch (error) {
+    log.error('Security', 'Failed to get security policy:', { error });
+    res.status(500).json({ success: false, message: 'Failed to get security policy' });
+  }
+});
 
-/**
- * @swagger
- * /api/security/2fa/setup:
- *   post:
- *     summary: 生成 TOTP 2FA 密钥和二维码
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: TOTP 设置信息
- */
-router.post(
-  '/2fa/setup',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-    const email = (req as any).user.email;
+// 更新安全策略
+router.put('/policy', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const policy = req.body;
+    await updateSecurityPolicy(policy);
+    res.json({ success: true, message: 'Security policy updated' });
+  } catch (error) {
+    log.error('Security', 'Failed to update security policy:', { error });
+    res.status(500).json({ success: false, message: 'Failed to update security policy' });
+  }
+});
 
-    const setup = await generateTOTPSecret(userId, email);
-    ResponseHelper.success(res, setup, 'TOTP setup generated');
-  })
-);
-
-/**
- * @swagger
- * /api/security/2fa/enable:
- *   post:
- *     summary: 启用 TOTP 2FA
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               secret:
- *                 type: string
- *               token:
- *                 type: string
- *               backupCodes:
- *                 type: array
- *                 items:
- *                   type: string
- *     responses:
- *       200:
- *         description: 2FA enabled
- */
-router.post(
-  '/2fa/enable',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-    const { secret, token, backupCodes } = req.body as {
-      secret: string;
-      token: string;
-      backupCodes: string[];
-    };
-
-    if (!secret || !token || !backupCodes) {
-      throw errors.badRequest('Missing required fields');
-    }
-
-    // 验证 token
-    if (!verifyTOTPToken(secret, token)) {
-      throw errors.badRequest('Invalid TOTP token');
-    }
-
-    // 启用 2FA
-    await enableTOTP(userId, secret, backupCodes);
-    await logAuditOperation(userId, 'enable_2fa', '', {});
-
-    ResponseHelper.success(res, null, '2FA enabled successfully');
-  })
-);
-
-/**
- * @swagger
- * /api/security/2fa/disable:
- *   post:
- *     summary: 禁用 TOTP 2FA
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               password:
- *                 type: string
- *     responses:
- *       200:
- *         description: 2FA disabled
- */
-router.post(
-  '/2fa/disable',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-    const { password } = req.body as { password: string };
-
+// 检查密码强度
+router.post('/password-strength', async (req, res) => {
+  try {
+    const { password } = req.body;
     if (!password) {
-      throw errors.badRequest('Password is required');
+      return res.status(400).json({ success: false, message: 'Password is required' });
     }
 
-    // 验证密码（这里应该验证用户密码，但为了简化示例，跳过）
-    // 实际应该调用验证密码的函数
+    const result = checkPasswordStrength(password);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    log.error('Security', 'Failed to check password strength:', { error });
+    res.status(500).json({ success: false, message: 'Failed to check password strength' });
+  }
+});
 
-    await disableTOTP(userId);
-    await logAuditOperation(userId, 'disable_2fa', '', {});
-
-    ResponseHelper.success(res, null, '2FA disabled successfully');
-  })
-);
-
-/**
- * @swagger
- * /api/security/2fa/status:
- *   get:
- *     summary: 获取 2FA 状态
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: 2FA status
- */
-router.get(
-  '/2fa/status',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-    const status = await getTOTPStatus(userId);
-    ResponseHelper.success(res, status);
-  })
-);
-
-/**
- * 会话管理相关路由
- */
-
-/**
- * @swagger
- * /api/security/sessions:
- *   get:
- *     summary: 获取所有活跃会话
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: 活跃会话列表
- */
-router.get(
-  '/sessions',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-    const sessions = await getActiveSessions(userId);
-    ResponseHelper.success(res, sessions);
-  })
-);
-
-/**
- * @swagger
- * /api/security/sessions/{sessionId}:
- *   delete:
- *     summary: 删除指定会话（登出）
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: sessionId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       204:
- *         description: Session deleted
- */
-router.delete(
-  '/sessions/:sessionId',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-    const { sessionId } = req.params;
-
-    // 验证会话属于当前用户
-    const sessions = await getActiveSessions(userId);
-    if (!sessions.find((s) => s.id === sessionId)) {
-      throw errors.forbidden('Cannot delete other user sessions');
+// 验证密码是否符合策略
+router.post('/validate-password', async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
     }
 
-    await deleteSession(sessionId);
-    await logAuditOperation(userId, 'logout_session', '', { sessionId });
-
-    ResponseHelper.noContent(res);
-  })
-);
-
-/**
- * @swagger
- * /api/security/sessions/logout-others:
- *   post:
- *     summary: 登出所有其他会话
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Other sessions logged out
- */
-router.post(
-  '/sessions/logout-others',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-    const currentSessionId = (req as any).sessionId || '';
-
-    await deleteOtherSessions(userId, currentSessionId);
-    await logAuditOperation(userId, 'logout_other_sessions', '', {});
-
-    ResponseHelper.success(res, null, 'Other sessions logged out');
-  })
-);
-
-/**
- * @swagger
- * /api/security/sessions/logout-all:
- *   post:
- *     summary: 登出所有会话
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: All sessions logged out
- */
-router.post(
-  '/sessions/logout-all',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-
-    await deleteAllSessions(userId);
-    await logAuditOperation(userId, 'logout_all_sessions', '', {});
-
-    ResponseHelper.success(res, null, 'All sessions logged out');
-  })
-);
-
-/**
- * 用户偏好设置相关路由
- */
-
-/**
- * @swagger
- * /api/security/preferences:
- *   get:
- *     summary: 获取用户偏好设置
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: 用户偏好设置
- */
-router.get(
-  '/preferences',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-    const preferences = await getUserPreferences(userId);
-    ResponseHelper.success(res, preferences);
-  })
-);
-
-/**
- * @swagger
- * /api/security/preferences:
- *   put:
- *     summary: 更新用户偏好设置
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               theme:
- *                 type: string
- *                 enum: [light, dark, auto]
- *               language:
- *                 type: string
- *               notificationsEnabled:
- *                 type: boolean
- *               emailNotifications:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Preferences updated
- */
-router.put(
-  '/preferences',
-  authMiddleware,
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
-    const { theme, language, notificationsEnabled, emailNotifications } = req.body;
-
-    await updateUserPreferences(userId, {
-      theme,
-      language,
-      notificationsEnabled,
-      emailNotifications,
-    });
-
-    await logAuditOperation(userId, 'update_preferences', '', {
-      theme,
-      language,
-      notificationsEnabled,
-      emailNotifications,
-    });
-
-    const updated = await getUserPreferences(userId);
-    ResponseHelper.success(res, updated, 'Preferences updated');
-  })
-);
-
-/**
- * 管理员：用户 2FA 强制设置
- */
-
-/**
- * @swagger
- * /api/security/users/{userId}/require-2fa:
- *   get:
- *     summary: Get user's 2FA requirement status (admin only)
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: User 2FA requirement status
- */
-router.get('/users/:userId/require-2fa', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
-  const userId = parseInt(req.params.userId, 10);
-  if (isNaN(userId)) {
-    sendError(res, 'Invalid user ID');
-    return;
+    const result = await validatePassword(password);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    log.error('Security', 'Failed to validate password:', { error });
+    res.status(500).json({ success: false, message: 'Failed to validate password' });
   }
+});
 
-  const userSetting = await get(
-    'SELECT require_2fa FROM user_security_settings WHERE user_id = ?',
-    [userId]
-  ) as any;
-
-  sendSuccess(res, { require2FA: userSetting?.require_2fa === 1 });
-}));
-
-/**
- * @swagger
- * /api/security/users/{userId}/require-2fa:
- *   put:
- *     summary: Set user's 2FA requirement (admin only)
- *     tags: [Security]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               require2FA:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: User 2FA requirement updated
- */
-router.put('/users/:userId/require-2fa', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
-  const userId = parseInt(req.params.userId, 10);
-  if (isNaN(userId)) {
-    sendError(res, 'Invalid user ID');
-    return;
+// 检查当前用户是否需要 2FA
+router.get('/requires-2fa', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const required = await requires2FA(userId);
+    res.json({ success: true, data: { required } });
+  } catch (error) {
+    log.error('Security', 'Failed to check 2FA requirement:', { error });
+    res.status(500).json({ success: false, message: 'Failed to check 2FA requirement' });
   }
+});
 
-  const { require2FA } = req.body as { require2FA: boolean };
-
-  // Check if user exists
-  const user = await get('SELECT id FROM users WHERE id = ?', [userId]);
-  if (!user) {
-    sendError(res, 'User not found');
-    return;
+// 检查当前用户是否已启用 2FA
+router.get('/2fa-status', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const enabled = await has2FAEnabled(userId);
+    res.json({ success: true, data: { enabled } });
+  } catch (error) {
+    log.error('Security', 'Failed to check 2FA status:', { error });
+    res.status(500).json({ success: false, message: 'Failed to check 2FA status' });
   }
+});
 
-  // Insert or update user security settings
-  const existing = await get(
-    'SELECT id FROM user_security_settings WHERE user_id = ?',
-    [userId]
-  );
-
-  if (existing) {
-    await query(
-      'UPDATE user_security_settings SET require_2fa = ? WHERE user_id = ?',
-      [require2FA ? 1 : 0, userId]
-    );
-  } else {
-    await query(
-      'INSERT INTO user_security_settings (user_id, require_2fa) VALUES (?, ?)',
-      [userId, require2FA ? 1 : 0]
-    );
+// 获取用户的受信任设备列表
+router.get('/trusted-devices', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const devices = await TrustedDeviceOperations.getByUser(userId);
+    res.json({ success: true, data: devices });
+  } catch (error) {
+    log.error('Security', 'Failed to get trusted devices:', { error });
+    res.status(500).json({ success: false, message: 'Failed to get trusted devices' });
   }
+});
 
-  log.info('SecurityPolicy', `User ${userId} 2FA requirement set to ${require2FA}`);
-  sendSuccess(res, { require2FA });
-}));
+// 删除受信任设备
+router.delete('/trusted-devices/:deviceId', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { deviceId } = req.params;
+    const changes = await TrustedDeviceOperations.deleteByUserAndId(userId, deviceId);
+
+    if (changes > 0) {
+      res.json({ success: true, message: 'Device removed' });
+    } else {
+      res.status(404).json({ success: false, message: 'Device not found' });
+    }
+  } catch (error) {
+    log.error('Security', 'Failed to remove trusted device:', { error });
+    res.status(500).json({ success: false, message: 'Failed to remove trusted device' });
+  }
+});
+
+// 删除所有受信任设备
+router.delete('/trusted-devices', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    await TrustedDeviceOperations.deleteByUser(userId);
+    res.json({ success: true, message: 'All devices removed' });
+  } catch (error) {
+    log.error('Security', 'Failed to remove all trusted devices:', { error });
+    res.status(500).json({ success: false, message: 'Failed to remove all trusted devices' });
+  }
+});
+
+// 设置用户是否需要 2FA（管理员功能）
+router.post('/user-require-2fa', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const { userId, require2FA } = req.body;
+    if (userId === undefined || require2FA === undefined) {
+      return res.status(400).json({ success: false, message: 'userId and require2FA are required' });
+    }
+
+    await SecurityPolicyOperations.updateUser2FARequirement(userId, require2FA);
+    res.json({ success: true, message: 'User 2FA requirement updated' });
+  } catch (error) {
+    log.error('Security', 'Failed to update user 2FA requirement:', { error });
+    res.status(500).json({ success: false, message: 'Failed to update user 2FA requirement' });
+  }
+});
 
 export default router;
