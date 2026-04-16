@@ -30,3 +30,6 @@ nohup.out
 # OS
 .DS_Store
 Thumbs.db
+
+# PHP version (not part of this project)
+dnsmgr/
