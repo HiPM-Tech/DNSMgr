@@ -238,17 +238,39 @@ app.get('/api/logs', authMiddleware, adminOnly, async (req: Request, res: Respon
 });
 
 // Serve static files from client build directory
-const clientBuildPath = path.join(__dirname, '../../client/dist');
-app.use(express.static(clientBuildPath));
+// Support both development and pkg packaged executable
+const possiblePaths = [
+  // Packaged EXE: client folder next to executable
+  path.join(process.cwd(), 'client'),
+  // Development: client/dist from server/src
+  path.join(__dirname, '../../client/dist'),
+  // Alternative: from server/dist
+  path.join(__dirname, '../client/dist'),
+];
 
-// Serve index.html for all non-API routes (SPA support)
-app.get('*', (req: Request, res: Response) => {
-  // Don't interfere with API routes
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ code: 404, msg: 'API endpoint not found' });
+let clientBuildPath = '';
+for (const p of possiblePaths) {
+  if (require('fs').existsSync(p)) {
+    clientBuildPath = p;
+    console.log('Serving static files from:', p);
+    break;
   }
-  res.sendFile(path.join(clientBuildPath, 'index.html'));
-});
+}
+
+if (clientBuildPath) {
+  app.use(express.static(clientBuildPath));
+
+  // Serve index.html for all non-API routes (SPA support)
+  app.get('*', (req: Request, res: Response) => {
+    // Don't interfere with API routes
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ code: 404, msg: 'API endpoint not found' });
+    }
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+} else {
+  console.warn('Client build directory not found. API-only mode.');
+}
 
 // Global error handler (must be last)
 app.use(errorHandler);
