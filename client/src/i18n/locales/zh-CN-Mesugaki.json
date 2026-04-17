@@ -290,13 +290,16 @@
     },
     "passkeys": {
       "add": "加个通行密钥",
+      "addFailed": "添加失败，杂鱼",
       "addSuccess": "通行密钥弄好啦，真厉害（棒读）",
       "addedOn": "什么时候加的：",
       "confirmRemove": "确定要扔掉这个通行密钥吗？",
       "desc": "用指纹什么的登录，高科技哦",
       "none": "一个通行密钥都没有，真落后",
+      "removeFailed": "删除失败，你是笨蛋吗",
       "removeSuccess": "扔掉咯～",
-      "title": "通行密钥 (Passkeys)"
+      "title": "通行密钥 (Passkeys)",
+      "usePasskey": "用通行密钥登录"
     },
     "records": {
       "aHelp": "A 记录只能填写 IPv4 地址。",
