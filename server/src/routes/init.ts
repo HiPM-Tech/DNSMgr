@@ -147,6 +147,14 @@ router.post('/database', async (req: Request, res: Response) => {
         DB_SSL: pgConfig.ssl ? 'true' : 'false',
       }),
     });
+    // Disconnect any existing connection before establishing new one
+    try {
+      const { disconnect } = await import('../db/core/connection');
+      await disconnect();
+      log.info('Init', 'Disconnected existing connection');
+    } catch {
+      // Ignore errors if no existing connection
+    }
     // Establish database connection for the saved config
     try {
       await createConnection();
@@ -192,6 +200,14 @@ router.post('/database', async (req: Request, res: Response) => {
         DB_SSL: pgConfig.ssl ? 'true' : 'false',
       }),
     });
+    // Disconnect any existing connection before establishing new one
+    try {
+      const { disconnect } = await import('../db/core/connection');
+      await disconnect();
+      log.info('Init', 'Disconnected existing connection');
+    } catch {
+      // Ignore errors if no existing connection
+    }
     // Establish database connection for the saved config
     try {
       await createConnection();
