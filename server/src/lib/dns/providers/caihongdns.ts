@@ -11,7 +11,7 @@ interface CaihongDnsConfig {
 }
 
 interface CaihongDnsResponse<T> {
-  code: number;
+  code?: number;
   data?: T;
   msg?: string;
   total?: number;
@@ -29,14 +29,16 @@ interface CaihongDnsDomain {
 
 interface CaihongDnsRecord {
   RecordId: string;
+  Domain: string;
   Name: string;
   Type: string;
   Value: string;
   Line: string;
+  LineName?: string;
   TTL: number;
-  MX: number;
+  MX: number | null;
   Weight: number;
-  Status: number;
+  Status: string;
   Remark: string | null;
   UpdateTime: string | null;
 }
@@ -81,37 +83,28 @@ export class CaihongDnsAdapter implements DnsAdapter {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
     const url = `${baseUrl}/api${normalizedPath}`;
     const authParams = this.getAuthParams();
-    
+
     log.providerRequest('CaihongDns', method, url, { ...body, ...authParams, sign: '***' });
-    
+
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/x-www-form-urlencoded',
       };
 
-      let requestBody: string;
-      if (method === 'GET') {
-        const params = new URLSearchParams();
-        Object.entries({ ...authParams, ...body }).forEach(([key, value]) => {
+      const params = new URLSearchParams();
+      // Add auth params first
+      Object.entries(authParams).forEach(([key, value]) => {
+        params.append(key, String(value));
+      });
+      // Add body params
+      if (body) {
+        Object.entries(body).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
             params.append(key, String(value));
           }
         });
-        requestBody = params.toString();
-      } else {
-        const params = new URLSearchParams();
-        Object.entries(authParams).forEach(([key, value]) => {
-          params.append(key, String(value));
-        });
-        if (body) {
-          Object.entries(body).forEach(([key, value]) => {
-            if (value !== undefined && value !== null) {
-              params.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
-            }
-          });
-        }
-        requestBody = params.toString();
       }
+      const requestBody = params.toString();
 
       const res = await fetch(url, {
         method,
@@ -121,7 +114,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
 
       // Get response text first to handle non-JSON responses
       const responseText = await res.text();
-      
+
       let data: CaihongDnsResponse<T>;
       try {
         // Try to parse as JSON
@@ -132,14 +125,16 @@ export class CaihongDnsAdapter implements DnsAdapter {
         log.providerError('CaihongDns', [{ message: errorMsg }]);
         return { code: -1, msg: errorMsg };
       }
-      
-      log.providerResponse('CaihongDns', res.status, data.code === 0, { code: data.code, msg: data.msg });
-      
-      if (data.code !== 0) {
+
+      // Check if response has error code
+      const hasError = data.code !== undefined && data.code !== 0;
+      log.providerResponse('CaihongDns', res.status, !hasError, { code: data.code, msg: data.msg, hasData: data.rows !== undefined });
+
+      if (hasError) {
         this.error = data.msg || 'API error';
         log.providerError('CaihongDns', [{ message: this.error }]);
       }
-      
+
       return data;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -151,8 +146,9 @@ export class CaihongDnsAdapter implements DnsAdapter {
   async check(): Promise<boolean> {
     try {
       // 尝试获取域名列表来验证连接
-      const res = await this.request<CaihongDnsDomain[]>('POST', '/domain_list', { offset: 0, limit: 1 });
-      return res.code === 0;
+      const res = await this.request<CaihongDnsDomain[]>('POST', '/domain', { offset: 0, limit: 1 });
+      // Success if no error code and has rows/total
+      return (res.code === undefined || res.code === 0) && res.rows !== undefined;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return false;
@@ -168,13 +164,14 @@ export class CaihongDnsAdapter implements DnsAdapter {
       const offset = (page - 1) * pageSize;
       const body: Record<string, unknown> = { offset, limit: pageSize };
       if (keyword) body.kw = keyword;
-      
-      const res = await this.request<CaihongDnsDomain[]>('POST', '/domain_list', body);
-      
-      if (res.code !== 0) {
+
+      const res = await this.request<CaihongDnsDomain[]>('POST', '/domain', body);
+
+      // Check for error
+      if (res.code !== undefined && res.code !== 0) {
         return { total: 0, list: [] };
       }
-      
+
       const rows: CaihongDnsDomain[] | undefined = res.rows;
       if (!rows || rows.length === 0) {
         return { total: 0, list: [] };
@@ -211,23 +208,23 @@ export class CaihongDnsAdapter implements DnsAdapter {
       }
 
       const offset = (page - 1) * pageSize;
-      const body: Record<string, unknown> = { 
-        id: parseInt(this.config.domainId),
-        offset, 
-        limit: pageSize 
+      const body: Record<string, unknown> = {
+        offset,
+        limit: pageSize
       };
-      if (keyword) body.kw = keyword;
+      if (keyword) body.keyword = keyword;
       if (subdomain) body.subdomain = subdomain;
       if (value) body.value = value;
       if (type) body.type = type;
-      if (status !== undefined) body.status = status;
+      if (status !== undefined) body.status = String(status);
 
-      const res = await this.request<CaihongDnsRecord[]>('POST', '/record_list', body);
+      const res = await this.request<CaihongDnsRecord[]>('POST', `/record/data/${this.config.domainId}`, body);
 
-      if (res.code !== 0) {
+      // Check for error
+      if (res.code !== undefined && res.code !== 0) {
         return { total: 0, list: [] };
       }
-      
+
       const rows: CaihongDnsRecord[] | undefined = res.rows;
       if (!rows || rows.length === 0) {
         return { total: 0, list: [] };
@@ -246,14 +243,14 @@ export class CaihongDnsAdapter implements DnsAdapter {
   private mapRecord(r: CaihongDnsRecord): DnsRecord {
     return {
       RecordId: r.RecordId,
-      Domain: this.config.domain || '',
+      Domain: r.Domain || this.config.domain || '',
       Name: r.Name,
       Type: r.Type,
       Value: r.Value,
       Line: r.Line,
       TTL: r.TTL,
-      MX: r.MX,
-      Status: r.Status,
+      MX: r.MX === null ? undefined : r.MX,
+      Status: parseInt(r.Status, 10) || 0,
       Weight: r.Weight,
       Remark: r.Remark || undefined,
       UpdateTime: r.UpdateTime || undefined,
@@ -268,13 +265,12 @@ export class CaihongDnsAdapter implements DnsAdapter {
       }
 
       // 从列表中查找
-      const res = await this.request<CaihongDnsRecord[]>('POST', '/record_list', {
-        id: parseInt(this.config.domainId),
+      const res = await this.request<CaihongDnsRecord[]>('POST', `/record/data/${this.config.domainId}`, {
         offset: 0,
         limit: 1000,
       });
 
-      if (res.code !== 0 || !res.rows || res.rows.length === 0) {
+      if ((res.code !== undefined && res.code !== 0) || !res.rows || res.rows.length === 0) {
         return null;
       }
 
@@ -304,7 +300,6 @@ export class CaihongDnsAdapter implements DnsAdapter {
       }
 
       const body: Record<string, unknown> = {
-        id: parseInt(this.config.domainId),
         name,
         type,
         value,
@@ -315,9 +310,9 @@ export class CaihongDnsAdapter implements DnsAdapter {
       if (weight !== undefined) body.weight = weight;
       if (remark) body.remark = remark;
 
-      const res = await this.request<null>('POST', '/record_add', body);
+      const res = await this.request<null>('POST', `/record/add/${this.config.domainId}`, body);
 
-      if (res.code !== 0) {
+      if (res.code !== undefined && res.code !== 0) {
         return null;
       }
 
@@ -349,7 +344,6 @@ export class CaihongDnsAdapter implements DnsAdapter {
       }
 
       const body: Record<string, unknown> = {
-        id: parseInt(this.config.domainId),
         recordid: recordId,
         name,
         type,
@@ -361,8 +355,8 @@ export class CaihongDnsAdapter implements DnsAdapter {
       if (weight !== undefined) body.weight = weight;
       if (remark) body.remark = remark;
 
-      const res = await this.request<null>('POST', '/record_update', body);
-      return res.code === 0;
+      const res = await this.request<null>('POST', `/record/update/${this.config.domainId}`, body);
+      return res.code === undefined || res.code === 0;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return false;
@@ -376,11 +370,10 @@ export class CaihongDnsAdapter implements DnsAdapter {
         return false;
       }
 
-      const res = await this.request<null>('POST', '/record_delete', {
-        id: parseInt(this.config.domainId),
+      const res = await this.request<null>('POST', `/record/delete/${this.config.domainId}`, {
         recordid: recordId,
       });
-      return res.code === 0;
+      return res.code === undefined || res.code === 0;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return false;
@@ -394,12 +387,11 @@ export class CaihongDnsAdapter implements DnsAdapter {
         return false;
       }
 
-      const res = await this.request<null>('POST', '/record_status', {
-        id: parseInt(this.config.domainId),
+      const res = await this.request<null>('POST', `/record/status/${this.config.domainId}`, {
         recordid: recordId,
         status: status === 1 ? '1' : '0',
       });
-      return res.code === 0;
+      return res.code === undefined || res.code === 0;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return false;
