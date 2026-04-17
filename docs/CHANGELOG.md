@@ -1,5 +1,32 @@
 # 更新日志
 
+## [1.1.2] - 2026-04-18
+
+### 🐛 问题修复
+
+- **CaihongDns 适配器修复**
+  - 修复 `zoneId` 参数支持（DnsHelper 传递的是 zoneId 而非 domainId）
+  - 修复 MX 字段类型错误（`number | undefined` → `number`）
+  - 修复 baseUrl 拼接逻辑（自动处理带 `/api` 后缀的 URL）
+  - 修复 API 路径以匹配官方文档（`/domain`, `/record/data/{id}` 等）
+  - 修复非 JSON 响应处理（如 HTML 错误页面）
+
+- **DnsMgr 适配器修复**
+  - 修复 baseUrl 拼接逻辑（与 CaihongDns 保持一致）
+
+- **数据库初始化修复**
+  - 修复跳过初始化时的数据库连接建立问题
+  - 修复现有连接未断开导致的新连接失败问题
+  - 添加 `disconnect()` 调用以清理连接管理器状态
+
+### 🔧 改进
+
+- **类型安全**
+  - 改进 CaihongDns 响应类型定义（`code` 字段改为可选）
+  - 统一错误处理逻辑
+
+---
+
 ## [1.1.1] - 2026-04-17
 
 ### 🐛 问题修复
