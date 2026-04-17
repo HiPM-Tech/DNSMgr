@@ -1704,7 +1704,7 @@ export const SystemOperations = {
    * 测试 SQLite 数据库连接并检查是否有现有数据
    * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
    */
-  async testSqliteConnection(sqlitePath: string): Promise<{ success: boolean; message: string; hasExistingData: boolean }> {
+  async testSqliteConnection(sqlitePath: string): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
     const Database = require('better-sqlite3');
     const fs = require('fs');
     const path = require('path');
@@ -1718,14 +1718,16 @@ export const SystemOperations = {
     
     // Check if tables exist
     let hasData = false;
+    let hasUsers = false;
     try {
       const tables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
       if (tables.length > 0) {
-        // Check if there's any data
-        const firstTable = tables[0]?.name;
-        if (firstTable) {
-          const count = testDb.prepare(`SELECT COUNT(*) as cnt FROM "${firstTable}"`).get() as { cnt: number };
-          hasData = count?.cnt > 0;
+        hasData = true;
+        // Check if users table exists and has data
+        const usersTable = tables.find(t => t.name === 'users');
+        if (usersTable) {
+          const userCount = testDb.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number };
+          hasUsers = userCount?.cnt > 0;
         }
       }
     } catch {
@@ -1733,14 +1735,14 @@ export const SystemOperations = {
     }
     
     testDb.close();
-    return { success: true, message: 'SQLite connection successful', hasExistingData: hasData };
+    return { success: true, message: 'SQLite connection successful', hasExistingData: hasData, hasUsers };
   },
 
   /** 
    * 测试 MySQL 数据库连接并检查是否有现有数据
    * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
    */
-  async testMysqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean }> {
+  async testMysqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
     const mysql = require('mysql2/promise');
     
     const pool = mysql.createPool({
@@ -1759,14 +1761,16 @@ export const SystemOperations = {
 
     // Check if there's any data
     let hasData = false;
+    let hasUsers = false;
     try {
       const [tables] = await pool.execute('SHOW TABLES') as [any[], any];
       if (tables && tables.length > 0) {
-        const firstTable = Object.values(tables[0])[0] as string;
-        if (firstTable) {
-          const [countResult] = await pool.execute(`SELECT COUNT(*) as cnt FROM \`${firstTable}\``) as [any[], any];
-          const count = countResult[0]?.cnt || 0;
-          hasData = count > 0;
+        hasData = true;
+        // Check if users table exists and has data
+        const usersTableExists = tables.some(t => Object.values(t)[0] === 'users');
+        if (usersTableExists) {
+          const [userCountResult] = await pool.execute('SELECT COUNT(*) as cnt FROM users') as [any[], any];
+          hasUsers = userCountResult[0]?.cnt > 0;
         }
       }
     } catch {
@@ -1774,14 +1778,14 @@ export const SystemOperations = {
     }
     
     await pool.end();
-    return { success: true, message: 'MySQL connection successful', hasExistingData: hasData };
+    return { success: true, message: 'MySQL connection successful', hasExistingData: hasData, hasUsers };
   },
 
   /** 
    * 测试 PostgreSQL 数据库连接并检查是否有现有数据
    * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
    */
-  async testPostgresqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean }> {
+  async testPostgresqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
     const { Pool } = require('pg');
     
     const pool = new Pool({
@@ -1800,6 +1804,7 @@ export const SystemOperations = {
 
     // Check if there's any data
     let hasData = false;
+    let hasUsers = false;
     try {
       const tablesResult = await pool.query(`
         SELECT table_name FROM information_schema.tables 
@@ -1807,11 +1812,12 @@ export const SystemOperations = {
       `);
       const tables = tablesResult.rows as { table_name: string }[];
       if (tables && tables.length > 0) {
-        const firstTable = tables[0]?.table_name;
-        if (firstTable) {
-          const countResult = await pool.query(`SELECT COUNT(*) as cnt FROM "${firstTable}"`);
-          const count = countResult.rows[0]?.cnt || 0;
-          hasData = count > 0;
+        hasData = true;
+        // Check if users table exists and has data
+        const usersTableExists = tables.some(t => t.table_name === 'users');
+        if (usersTableExists) {
+          const userCountResult = await pool.query('SELECT COUNT(*) as cnt FROM users');
+          hasUsers = userCountResult.rows[0]?.cnt > 0;
         }
       }
     } catch {
@@ -1819,7 +1825,7 @@ export const SystemOperations = {
     }
     
     await pool.end();
-    return { success: true, message: 'PostgreSQL connection successful', hasExistingData: hasData };
+    return { success: true, message: 'PostgreSQL connection successful', hasExistingData: hasData, hasUsers };
   },
 
   /**
@@ -1831,7 +1837,7 @@ export const SystemOperations = {
     sqlite?: { path: string }; 
     mysql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }; 
     postgresql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean } 
-  }): Promise<{ success: boolean; message: string; hasExistingData: boolean }> {
+  }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
     if (config.type === 'sqlite') {
       return this.testSqliteConnection(config.sqlite?.path || './data/dnsmgr.db');
     } else if (config.type === 'mysql') {
