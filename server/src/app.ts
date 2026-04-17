@@ -6,7 +6,7 @@ import path from 'path';
 import { loadEnv } from './config/env';
 
 // Get the current file directory
-const __dirname = path.resolve();
+const APP_ROOT = path.resolve();
 import { createConnection, isDbInitialized, hasUsers, connect } from './db/connection';
 import { initSchema, initSchemaAsync } from './db/schema';
 import { initSchema as initSchemaWithMigration } from './db/init';
@@ -240,15 +240,14 @@ app.get('/api/logs', authMiddleware, adminOnly, async (req: Request, res: Respon
 });
 
 // Serve static files from client build directory
-// Support both development and pkg packaged executable
-// In pkg, assets are accessed via __dirname (virtual filesystem)
+// Support both development and packaged executable
 const possiblePaths = [
-  // Packaged EXE: assets are in pkg virtual filesystem at snapshot/client/dist
-  path.join(__dirname, 'client/dist'),
+  // Packaged: assets are in APP_ROOT/client/dist
+  path.join(APP_ROOT, 'client/dist'),
   // Development: client/dist from server/src
-  path.join(__dirname, '../../client/dist'),
+  path.join(APP_ROOT, '../../client/dist'),
   // Alternative: from server/dist
-  path.join(__dirname, '../client/dist'),
+  path.join(APP_ROOT, '../client/dist'),
   // Fallback: client folder next to executable
   path.join(process.cwd(), 'client'),
 ];
