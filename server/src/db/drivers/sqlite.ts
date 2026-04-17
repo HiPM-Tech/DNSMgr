@@ -41,25 +41,60 @@ export class SQLiteDriver extends BaseDriver {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      log.info('SQLite', 'Opening database', { path: config.path });
-      
+      log.info('SQLite', 'Opening database', { path: config.path, cwd: process.cwd() });
+
+      // 在 EXE 环境中，需要手动指定 better-sqlite3 的绑定文件路径
+      // pkg 打包后，process.pkg 会被设置
+      const isPkgEnvironment = !!(process as any).pkg;
+      if (isPkgEnvironment) {
+        log.info('SQLite', 'Detected PKG environment, setting up native bindings path');
+        // 尝试从 EXE 所在目录的 node_modules 加载绑定文件
+        const exeDir = path.dirname(process.execPath);
+        const possiblePaths = [
+          path.join(exeDir, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+          path.join(exeDir, 'node_modules', 'better-sqlite3', 'build', 'better_sqlite3.node'),
+          path.join(exeDir, '..', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+          path.join(exeDir, '..', 'node_modules', 'better-sqlite3', 'build', 'better_sqlite3.node'),
+        ];
+
+        let bindingPath: string | null = null;
+        for (const tryPath of possiblePaths) {
+          log.debug('SQLite', 'Checking binding path', { path: tryPath, exists: fs.existsSync(tryPath) });
+          if (fs.existsSync(tryPath)) {
+            bindingPath = tryPath;
+            break;
+          }
+        }
+
+        if (bindingPath) {
+          log.info('SQLite', 'Found native binding', { path: bindingPath });
+          // 设置环境变量让 bindings 模块能找到正确的路径
+          process.env.BETTER_SQLITE3_BINDING = bindingPath;
+        } else {
+          log.warn('SQLite', 'Native binding not found in expected locations', { possiblePaths });
+        }
+      }
+
       // 动态导入 better-sqlite3，以便在 EXE 环境中更好地处理错误
       let Database: any;
       try {
         Database = require('better-sqlite3');
       } catch (importError) {
-        log.error('SQLite', 'Failed to import better-sqlite3 module', { 
+        log.error('SQLite', 'Failed to import better-sqlite3 module', {
           error: importError,
           cwd: process.cwd(),
+          execPath: process.execPath,
+          isPkg: isPkgEnvironment,
           nodeModulesPath: path.join(process.cwd(), 'node_modules', 'better-sqlite3')
         });
         throw new Error(
           `Failed to load better-sqlite3 module. ` +
           `This may be due to missing native bindings in EXE environment. ` +
+          `Please ensure node_modules/better-sqlite3/build/Release/better_sqlite3.node exists next to the EXE. ` +
           `Error: ${importError instanceof Error ? importError.message : 'Unknown error'}`
         );
       }
-      
+
       this.db = new Database(config.path);
       log.info('SQLite', 'Database opened successfully');
 
