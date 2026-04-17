@@ -394,7 +394,7 @@ pause
           echo "✅ Release v${{ steps.get_version.outputs.version }} built successfully!"
           echo ""
           echo "Artifacts:"
-          echo "  - Windows EXE (with embedded client)"
+          echo "  - Windows ZIP Package (portable with Node.js runtime)"
           echo "  - Docker image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get_version.outputs.version }}"
           echo ""
           echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_version.outputs.version }}"
