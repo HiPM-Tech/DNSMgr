@@ -64,7 +64,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
 
       - name: Get version
         id: get_version
@@ -117,7 +117,7 @@ jobs:
           # - Node.js runtime
           cd server
           pkg . `
-            --targets node20-win-x64 `
+            --targets node18-win-x64 `
             --output "../release-dist/DNSMgr-Server-v$VERSION.exe" `
             --options "max-old-space-size=4096"
           cd ..
