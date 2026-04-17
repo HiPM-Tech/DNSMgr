@@ -15,53 +15,28 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     const duration = Date.now() - startTime;
     const statusCode = res.statusCode;
 
-    // Log request details
-    const logLevel = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
-    const logData: Record<string, unknown> = {
-      method: req.method,
-      path: req.path,
-      originalUrl: req.originalUrl,
-      status: statusCode,
-      duration: `${duration}ms`,
-      ip: req.ip,
-      requestId: req.id,
-      timestamp: new Date().toISOString(),
-    };
-
-    // Add user info if available (from auth middleware)
-    if ((req as any).user) {
-      logData.userId = (req as any).user.id;
-      logData.username = (req as any).user.username;
-    }
-
-    // Add query params for GET requests
-    if (req.method === 'GET' && Object.keys(req.query).length > 0) {
-      logData.query = req.query;
-    }
-
-    // Add body for non-GET requests (excluding sensitive endpoints)
-    const sensitivePaths = ['/api/auth/login', '/api/auth/register', '/api/init/admin'];
-    const isSensitive = sensitivePaths.some(path => req.path.includes(path));
-    if (req.method !== 'GET' && !isSensitive && req.body && Object.keys(req.body).length > 0) {
-      // Filter out sensitive fields
-      const filteredBody = { ...req.body };
-      delete filteredBody.password;
-      delete filteredBody.password_hash;
-      delete filteredBody.token;
-      if (Object.keys(filteredBody).length > 0) {
-        logData.body = filteredBody;
-      }
-    }
-
-    // 根据状态码选择日志级别
-    // 错误(>=500)用 error，警告(>=400)用 warn，其他用 debug（避免生产环境日志过多）
+    // 扁平化日志：只保留关键信息
+    const logLevel = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'debug';
+    
+    // 基础日志数据（精简）
+    const baseLog = `${req.method} ${req.path} ${statusCode} ${duration}ms`;
+    
+    // 错误和警告才记录详细信息
     if (logLevel === 'error') {
-      log.error('HTTP', 'Request error', logData);
+      log.error('HTTP', baseLog, { 
+        ip: req.ip,
+        error: 'Server error'
+      });
     } else if (logLevel === 'warn') {
-      log.warn('HTTP', 'Request warning', logData);
+      // 404 等警告只记录基础信息
+      if (statusCode === 404) {
+        log.debug('HTTP', baseLog);
+      } else {
+        log.warn('HTTP', baseLog, { ip: req.ip });
+      }
     } else {
-      // 正常请求使用 debug 级别，可通过 DNSMGR_LOG_LEVEL=debug 开启详细日志
-      log.debug('HTTP', 'Request completed', logData);
+      // 正常请求使用 debug 级别
+      log.debug('HTTP', baseLog);
     }
   };
 
