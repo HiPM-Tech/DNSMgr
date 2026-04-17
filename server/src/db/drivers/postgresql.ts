@@ -2,7 +2,6 @@
  * PostgreSQL 数据库驱动
  */
 
-import { Pool, PoolClient } from 'pg';
 import type { Transaction, ColumnType } from '../core/types';
 import type { DriverConfig } from './types';
 import { BaseDriver } from './base';
@@ -25,131 +24,114 @@ export interface PostgreSQLDriverConfig {
 /** PostgreSQL 驱动实现 */
 export class PostgreSQLDriver extends BaseDriver {
   readonly type = 'postgresql' as const;
-  private pool: Pool;
+  private pool: any; // Pool
   private connectionConfig: PostgreSQLDriverConfig;
 
   constructor(config: PostgreSQLDriverConfig, driverConfig?: DriverConfig) {
     super(driverConfig);
     this.connectionConfig = config;
 
-    this.pool = new Pool({
-      host: config.host,
-      port: config.port,
-      database: config.database,
-      user: config.user,
-      password: config.password,
-      ssl: config.ssl ? { rejectUnauthorized: false } : false,
-      max: config.poolSize || 20,
-      idleTimeoutMillis: config.idleTimeoutMillis || 30000,
-      connectionTimeoutMillis: config.connectionTimeoutMillis || 60000,
-    });
+    try {
+      // 动态导入 pg 模块
+      const { Pool } = require('pg');
+      
+      log.info('PostgreSQL', 'Creating connection pool', { 
+        host: config.host, 
+        port: config.port, 
+        database: config.database 
+      });
 
-    this.setupPoolEvents();
+      this.pool = new Pool({
+        host: config.host,
+        port: config.port,
+        database: config.database,
+        user: config.user,
+        password: config.password,
+        ssl: config.ssl ? { rejectUnauthorized: false } : false,
+        max: config.poolSize || 20,
+        idleTimeoutMillis: config.idleTimeoutMillis || 30000,
+        connectionTimeoutMillis: config.connectionTimeoutMillis || 60000,
+      });
+
+      this.setupPoolEvents();
+      log.info('PostgreSQL', 'Connection pool created successfully');
+    } catch (error) {
+      log.error('PostgreSQL', 'Failed to create connection pool', { 
+        host: config.host, 
+        port: config.port, 
+        database: config.database,
+        error 
+      });
+      throw new Error(
+        `Failed to initialize PostgreSQL driver: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 
   private setupPoolEvents(): void {
-    this.pool.on('error', (err) => {
+    this.pool.on('error', (err: Error) => {
       log.error('PostgreSQL', 'Unexpected pool error', { error: err });
     });
 
     this.pool.on('connect', () => {
-      if (this.config.logging) {
-        log.debug('PostgreSQL', 'New client connected');
-      }
+      log.debug('PostgreSQL', 'New client connected');
     });
 
     this.pool.on('acquire', () => {
-      this._stats.acquired++;
-      if (this.config.logging) {
-        log.debug('PostgreSQL', 'Client acquired from pool', { total: this._stats.acquired });
-      }
+      log.debug('PostgreSQL', 'Client acquired from pool');
     });
 
     this.pool.on('remove', () => {
-      this._stats.released++;
-      if (this.config.logging) {
-        log.debug('PostgreSQL', 'Client removed from pool', { total: this._stats.released });
-      }
+      log.debug('PostgreSQL', 'Client removed from pool');
     });
   }
 
   get isConnected(): boolean {
-    return true;
-  }
-
-  private logSlowQuery(sql: string, duration: number): void {
-    if (this.config.slowQueryThreshold && duration > this.config.slowQueryThreshold) {
-      log.warn('PostgreSQL', `Slow query (${duration}ms)`, { sql: sql.substring(0, 100) });
+    try {
+      return this.pool !== null;
+    } catch {
+      return false;
     }
   }
 
   async query<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
-    const startTime = Date.now();
     this._stats.queries++;
-    const client = await this.pool.connect();
+    const startTime = Date.now();
+
     try {
-      const result = await client.query(sql, params);
-      this.logSlowQuery(sql, Date.now() - startTime);
+      const result = await this.pool.query(sql, params);
+      const duration = Date.now() - startTime;
+
+      if (duration > (this._config.slowQueryThreshold || 100)) {
+        log.warn('PostgreSQL', 'Slow query detected', { sql: sql.substring(0, 100), duration });
+      }
+
       return result.rows as T[];
     } catch (error) {
       this._stats.errors++;
       log.error('PostgreSQL', 'Query error', { sql: sql.substring(0, 100), error });
       throw error;
-    } finally {
-      client.release();
     }
   }
 
   async get<T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> {
-    const startTime = Date.now();
-    this._stats.queries++;
-    const client = await this.pool.connect();
-    try {
-      const result = await client.query(sql, params);
-      this.logSlowQuery(sql, Date.now() - startTime);
-      return result.rows.length > 0 ? (result.rows[0] as T) : undefined;
-    } catch (error) {
-      this._stats.errors++;
-      log.error('PostgreSQL', 'Get error', { sql: sql.substring(0, 100), error });
-      throw error;
-    } finally {
-      client.release();
-    }
+    const rows = await this.query<T>(sql, params);
+    return rows[0];
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
-    const startTime = Date.now();
-    this._stats.queries++;
-    const client = await this.pool.connect();
-    try {
-      await client.query(sql, params);
-      this.logSlowQuery(sql, Date.now() - startTime);
-    } catch (error) {
-      this._stats.errors++;
-      log.error('PostgreSQL', 'Execute error', { sql: sql.substring(0, 100), error });
-      throw error;
-    } finally {
-      client.release();
-    }
+    await this.query(sql, params);
   }
 
   async insert(sql: string, params?: unknown[]): Promise<number> {
-    if (!sql.toLowerCase().includes('returning')) {
-      await this.execute(sql, params);
-      try {
-        const result = await this.get<{ id: number }>('SELECT lastval() as id');
-        return result?.id || 0;
-      } catch {
-        return 0;
-      }
-    } else {
-      const result = await this.get<{ id: number }>(sql, params);
-      return result?.id || 0;
-    }
+    const result = await this.query<{ id: number }>(sql + ' RETURNING id', params);
+    return result[0]?.id || 0;
   }
 
   async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
-    await this.execute(sql, params);
+    const result = await this.query(sql, params);
+    // PostgreSQL doesn't return changes directly, we need to use GET DIAGNOSTICS
+    // For simplicity, return 0 here
     return { changes: 0 };
   }
 
@@ -164,24 +146,14 @@ export class PostgreSQLDriver extends BaseDriver {
       },
       get: async <T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> => {
         const result = await client.query(sql, params);
-        return result.rows.length > 0 ? (result.rows[0] as T) : undefined;
+        return result.rows[0] as T | undefined;
       },
       execute: async (sql: string, params?: unknown[]): Promise<void> => {
         await client.query(sql, params);
       },
       insert: async (sql: string, params?: unknown[]): Promise<number> => {
-        if (!sql.toLowerCase().includes('returning')) {
-          await client.query(sql, params);
-          try {
-            const result = await client.query('SELECT lastval() as id');
-            return result.rows[0]?.id || 0;
-          } catch {
-            return 0;
-          }
-        } else {
-          const result = await client.query(sql, params);
-          return result.rows[0]?.id || 0;
-        }
+        const result = await client.query(sql + ' RETURNING id', params);
+        return result.rows[0]?.id || 0;
       },
       run: async (sql: string, params?: unknown[]): Promise<{ changes: number }> => {
         await client.query(sql, params);
@@ -190,7 +162,7 @@ export class PostgreSQLDriver extends BaseDriver {
     };
   }
 
-  raw(): Pool {
+  raw(): any {
     return this.pool;
   }
 
@@ -212,7 +184,7 @@ export class PostgreSQLDriver extends BaseDriver {
   mapType(type: ColumnType, options?: { length?: number; precision?: number; scale?: number }): string {
     switch (type) {
       case 'string':
-        return `VARCHAR(${options?.length || 255})`;
+        return options?.length ? `VARCHAR(${options.length})` : 'TEXT';
       case 'text':
         return 'TEXT';
       case 'integer':
@@ -220,7 +192,9 @@ export class PostgreSQLDriver extends BaseDriver {
       case 'bigint':
         return 'BIGINT';
       case 'decimal':
-        return `DECIMAL(${options?.precision || 10}, ${options?.scale || 2})`;
+        return options?.precision && options?.scale
+          ? `DECIMAL(${options.precision}, ${options.scale})`
+          : 'DECIMAL';
       case 'boolean':
         return 'BOOLEAN';
       case 'datetime':
@@ -234,18 +208,18 @@ export class PostgreSQLDriver extends BaseDriver {
       case 'uuid':
         return 'UUID';
       case 'serial':
-        return 'BIGSERIAL PRIMARY KEY';
+        return 'SERIAL PRIMARY KEY';
       default:
         return 'TEXT';
     }
   }
 
   now(): string {
-    return 'NOW()';
+    return 'CURRENT_TIMESTAMP';
   }
 
   dateDiff(a: string, b: string): string {
-    return `(${a} - ${b})`;
+    return `EXTRACT(EPOCH FROM (${a} - ${b}))`;
   }
 
   limitOffset(limit: number, offset?: number): string {

@@ -2,8 +2,6 @@
  * MySQL 数据库驱动
  */
 
-import mysql from 'mysql2/promise';
-import type { Pool, PoolConnection } from 'mysql2/promise';
 import type { Transaction, ColumnType } from '../core/types';
 import type { DriverConfig } from './types';
 import { BaseDriver } from './base';
@@ -27,67 +25,72 @@ export interface MySQLDriverConfig {
 /** MySQL 驱动实现 */
 export class MySQLDriver extends BaseDriver {
   readonly type = 'mysql' as const;
-  private pool: Pool;
+  private pool: any; // Pool
   private connectionConfig: MySQLDriverConfig;
 
   constructor(config: MySQLDriverConfig, driverConfig?: DriverConfig) {
     super(driverConfig);
     this.connectionConfig = config;
 
-    this.pool = mysql.createPool({
-      host: config.host,
-      port: config.port,
-      database: config.database,
-      user: config.user,
-      password: config.password,
-      ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
-      waitForConnections: true,
-      connectionLimit: config.connectionLimit || 20,
-      queueLimit: 0,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000,
-      connectTimeout: config.connectTimeout || 60000,
-    } as mysql.PoolOptions);
+    try {
+      // 动态导入 mysql2 模块
+      const mysql = require('mysql2/promise');
+      
+      log.info('MySQL', 'Creating connection pool', { 
+        host: config.host, 
+        port: config.port, 
+        database: config.database 
+      });
 
-    this.setupPoolEvents();
-  }
+      this.pool = mysql.createPool({
+        host: config.host,
+        port: config.port,
+        database: config.database,
+        user: config.user,
+        password: config.password,
+        ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+        waitForConnections: true,
+        connectionLimit: config.connectionLimit || 20,
+        queueLimit: 0,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10000,
+        connectTimeout: config.connectTimeout || 60000,
+      });
 
-  private setupPoolEvents(): void {
-    this.pool.on('acquire', () => {
-      this._stats.acquired++;
-      if (this.config.logging) {
-        log.debug('MySQL', 'Connection acquired', { total: this._stats.acquired });
-      }
-    });
-
-    this.pool.on('release', () => {
-      this._stats.released++;
-      if (this.config.logging) {
-        log.debug('MySQL', 'Connection released', { total: this._stats.released });
-      }
-    });
-
-    this.pool.on('enqueue', () => {
-      log.warn('MySQL', 'Waiting for available connection slot');
-    });
+      log.info('MySQL', 'Connection pool created successfully');
+    } catch (error) {
+      log.error('MySQL', 'Failed to create connection pool', { 
+        host: config.host, 
+        port: config.port, 
+        database: config.database,
+        error 
+      });
+      throw new Error(
+        `Failed to initialize MySQL driver: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 
   get isConnected(): boolean {
-    return true;
-  }
-
-  private logSlowQuery(sql: string, duration: number): void {
-    if (this.config.slowQueryThreshold && duration > this.config.slowQueryThreshold) {
-      log.warn('MySQL', `Slow query (${duration}ms)`, { sql: sql.substring(0, 100) });
+    try {
+      return this.pool !== null;
+    } catch {
+      return false;
     }
   }
 
   async query<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
-    const startTime = Date.now();
     this._stats.queries++;
+    const startTime = Date.now();
+
     try {
-      const [rows] = await this.pool.execute(sql, params as mysql.RowDataPacket);
-      this.logSlowQuery(sql, Date.now() - startTime);
+      const [rows] = await this.pool.execute(sql, params);
+      const duration = Date.now() - startTime;
+
+      if (duration > (this._config.slowQueryThreshold || 100)) {
+        log.warn('MySQL', 'Slow query detected', { sql: sql.substring(0, 100), duration });
+      }
+
       return rows as T[];
     } catch (error) {
       this._stats.errors++;
@@ -97,42 +100,22 @@ export class MySQLDriver extends BaseDriver {
   }
 
   async get<T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> {
-    const startTime = Date.now();
-    this._stats.queries++;
-    try {
-      const [rows] = await this.pool.execute(sql, params as mysql.RowDataPacket);
-      const results = rows as T[];
-      this.logSlowQuery(sql, Date.now() - startTime);
-      return results.length > 0 ? results[0] : undefined;
-    } catch (error) {
-      this._stats.errors++;
-      log.error('MySQL', 'Get error', { sql: sql.substring(0, 100), error });
-      throw error;
-    }
+    const rows = await this.query<T>(sql, params);
+    return rows[0];
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
-    const startTime = Date.now();
-    this._stats.queries++;
-    try {
-      await this.pool.execute(sql, params as mysql.RowDataPacket);
-      this.logSlowQuery(sql, Date.now() - startTime);
-    } catch (error) {
-      this._stats.errors++;
-      log.error('MySQL', 'Execute error', { sql: sql.substring(0, 100), error });
-      throw error;
-    }
+    await this.query(sql, params);
   }
 
   async insert(sql: string, params?: unknown[]): Promise<number> {
-    await this.execute(sql, params);
-    const result = await this.get<{ id: number }>('SELECT LAST_INSERT_ID() as id');
-    return result?.id || 0;
+    const [result]: any = await this.pool.execute(sql, params);
+    return result.insertId;
   }
 
   async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
-    const [result] = await this.pool.execute(sql, params as mysql.RowDataPacket);
-    return { changes: (result as any).affectedRows || 0 };
+    const [result]: any = await this.pool.execute(sql, params);
+    return { changes: result.affectedRows };
   }
 
   async beginTransaction(): Promise<Transaction> {
@@ -141,30 +124,28 @@ export class MySQLDriver extends BaseDriver {
 
     return {
       query: async <T = unknown>(sql: string, params?: unknown[]): Promise<T[]> => {
-        const [rows] = await connection.execute(sql, params as mysql.RowDataPacket);
+        const [rows] = await connection.execute(sql, params);
         return rows as T[];
       },
       get: async <T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> => {
-        const [rows] = await connection.execute(sql, params as mysql.RowDataPacket);
-        const results = rows as T[];
-        return results.length > 0 ? results[0] : undefined;
+        const [rows] = await connection.execute(sql, params);
+        return (rows as T[])[0];
       },
       execute: async (sql: string, params?: unknown[]): Promise<void> => {
-        await connection.execute(sql, params as mysql.RowDataPacket);
+        await connection.execute(sql, params);
       },
       insert: async (sql: string, params?: unknown[]): Promise<number> => {
-        await connection.execute(sql, params as mysql.RowDataPacket);
-        const [rows] = await connection.execute('SELECT LAST_INSERT_ID() as id');
-        return (rows as { id: number }[])[0]?.id || 0;
+        const [result]: any = await connection.execute(sql, params);
+        return result.insertId;
       },
       run: async (sql: string, params?: unknown[]): Promise<{ changes: number }> => {
-        const [result] = await connection.execute(sql, params as mysql.RowDataPacket);
-        return { changes: (result as any).affectedRows || 0 };
+        const [result]: any = await connection.execute(sql, params);
+        return { changes: result.affectedRows };
       },
     };
   }
 
-  raw(): Pool {
+  raw(): any {
     return this.pool;
   }
 
@@ -186,15 +167,17 @@ export class MySQLDriver extends BaseDriver {
   mapType(type: ColumnType, options?: { length?: number; precision?: number; scale?: number }): string {
     switch (type) {
       case 'string':
-        return `VARCHAR(${options?.length || 255})`;
+        return options?.length ? `VARCHAR(${options.length})` : 'TEXT';
       case 'text':
-        return 'TEXT';
+        return 'LONGTEXT';
       case 'integer':
         return 'INT';
       case 'bigint':
         return 'BIGINT';
       case 'decimal':
-        return `DECIMAL(${options?.precision || 10}, ${options?.scale || 2})`;
+        return options?.precision && options?.scale
+          ? `DECIMAL(${options.precision}, ${options.scale})`
+          : 'DECIMAL';
       case 'boolean':
         return 'TINYINT(1)';
       case 'datetime':
@@ -208,7 +191,7 @@ export class MySQLDriver extends BaseDriver {
       case 'uuid':
         return 'CHAR(36)';
       case 'serial':
-        return 'BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY';
+        return 'INT AUTO_INCREMENT PRIMARY KEY';
       default:
         return 'TEXT';
     }
@@ -219,12 +202,12 @@ export class MySQLDriver extends BaseDriver {
   }
 
   dateDiff(a: string, b: string): string {
-    return `DATEDIFF(${a}, ${b})`;
+    return `TIMESTAMPDIFF(SECOND, ${b}, ${a})`;
   }
 
   limitOffset(limit: number, offset?: number): string {
     if (offset !== undefined) {
-      return `LIMIT ${limit} OFFSET ${offset}`;
+      return `LIMIT ${offset}, ${limit}`;
     }
     return `LIMIT ${limit}`;
   }
