@@ -96,11 +96,28 @@ router.post('/test-db', async (req: Request, res: Response) => {
 router.post('/database', async (req: Request, res: Response) => {
   const { type, sqlite, mysql: mysqlConfig, postgresql: pgConfig, reset = false } = req.body;
 
-  const systemReady = await isDbInitialized() && await hasUsers();
-  if (systemReady) {
+  // Check if system is fully ready (database initialized AND has users)
+  const dbInitialized = await isDbInitialized();
+  const hasAnyUsers = dbInitialized ? await hasUsers() : false;
+  
+  // If system is fully ready (has users), prevent re-initialization
+  if (dbInitialized && hasAnyUsers) {
     return res.status(403).json({
       code: 403,
-      msg: 'System is already initialized. Database re-initialization is not allowed via public init endpoint.',
+      msg: 'System is already initialized with users. Database re-initialization is not allowed.',
+    });
+  }
+  
+  // If database is initialized but no users, allow skipping to user creation
+  if (dbInitialized && !hasAnyUsers && !reset) {
+    return res.json({
+      code: 0,
+      data: { 
+        success: true, 
+        skipToUserCreation: true,
+        message: 'Database already initialized. Proceed to create admin user.'
+      },
+      msg: 'Database already initialized. Please create admin user.',
     });
   }
   
@@ -122,7 +139,11 @@ router.post('/database', async (req: Request, res: Response) => {
     }
     
     if (type === 'sqlite') {
-      envConfig.DB_PATH = sqlite?.path || './data/dnsmgr.db';
+      // Normalize path for Windows
+      let dbPath = sqlite?.path || './data/dnsmgr.db';
+      // Convert backslashes to forward slashes for consistency
+      dbPath = dbPath.replace(/\\/g, '/');
+      envConfig.DB_PATH = dbPath;
     } else if (type === 'mysql') {
       envConfig.DB_HOST = mysqlConfig.host;
       envConfig.DB_PORT = String(mysqlConfig.port || 3306);

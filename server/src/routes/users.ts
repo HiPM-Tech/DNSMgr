@@ -144,13 +144,28 @@ router.put('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, 
     nickname?: string; email?: string; role?: number; status?: number; password?: string;
   };
   const callerRole = normalizeRole(req.user?.role);
-  if (user.role === ROLE_SUPER) {
+  const targetRole = normalizeRole(user.role);
+  
+  // Super admin cannot be modified
+  if (targetRole === ROLE_SUPER) {
     sendError(res, 'Super admin cannot be modified');
     return;
   }
-  if (callerRole === ROLE_ADMIN && user.role >= ROLE_ADMIN) {
-    sendError(res, 'Permission denied');
+  
+  // Admin cannot modify users with same or higher role level (peer protection)
+  // This prevents admins from modifying other admins or being modified by other admins
+  if (callerRole === ROLE_ADMIN && targetRole >= ROLE_ADMIN) {
+    sendError(res, 'Permission denied: Cannot modify users with same or higher role level');
     return;
+  }
+  
+  // Admin cannot upgrade users to admin level
+  if (callerRole === ROLE_ADMIN && role !== undefined) {
+    const newRoleLevel = normalizeRole(role);
+    if (newRoleLevel >= ROLE_ADMIN) {
+      sendError(res, 'Permission denied: Cannot grant admin privileges');
+      return;
+    }
   }
   
   const updates: { nickname?: string; email?: string; role_level?: number; role?: string; status?: number; password_hash?: string } = {};
@@ -161,11 +176,12 @@ router.put('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, 
   if (email !== undefined) { updates.email = email; }
   if (role !== undefined) {
     let roleLevel = normalizeRole(role);
-    if (callerRole === ROLE_ADMIN) {
+    // Only super admin can create other admins
+    if (callerRole !== ROLE_SUPER && roleLevel >= ROLE_ADMIN) {
       roleLevel = ROLE_USER;
     }
     if (roleLevel === ROLE_SUPER) {
-      sendError(res, 'Super admin cannot be created');
+      sendError(res, 'Super admin cannot be created through this endpoint');
       return;
     }
     updates.role_level = roleLevel;
@@ -208,14 +224,20 @@ router.delete('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Reques
     return;
   }
   const callerRole = normalizeRole(req.user?.role);
-  if (target.role === ROLE_SUPER) {
+  const targetRole = normalizeRole(target.role);
+  
+  // Super admin cannot be deleted
+  if (targetRole === ROLE_SUPER) {
     sendError(res, 'Super admin cannot be deleted');
     return;
   }
-  if (callerRole === ROLE_ADMIN && target.role >= ROLE_ADMIN) {
-    sendError(res, 'Permission denied');
+  
+  // Admin cannot delete users with same or higher role level (peer protection)
+  if (callerRole === ROLE_ADMIN && targetRole >= ROLE_ADMIN) {
+    sendError(res, 'Permission denied: Cannot delete users with same or higher role level');
     return;
   }
+  
   await UserOperations.delete(id);
   sendSuccess(res);
 }));

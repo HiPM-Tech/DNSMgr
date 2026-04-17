@@ -76,7 +76,8 @@ export async function isDbInitialized(): Promise<boolean> {
       return !!result;
     }
     return false;
-  } catch {
+  } catch (error) {
+    // Connection not established yet
     return false;
   }
 }

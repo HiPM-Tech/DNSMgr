@@ -35,23 +35,30 @@ export class SQLiteDriver extends BaseDriver {
     super(driverConfig);
     this.connectionConfig = config;
 
-    // 确保目录存在
-    const dir = path.dirname(config.path);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    try {
+      // 确保目录存在
+      const dir = path.dirname(config.path);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
 
-    this.db = new Database(config.path);
+      log.info('SQLite', 'Opening database', { path: config.path });
+      this.db = new Database(config.path);
+      log.info('SQLite', 'Database opened successfully');
 
-    // 配置 SQLite
-    if (config.enableWAL !== false) {
-      this.db.pragma('journal_mode = WAL');
-    }
-    if (config.foreignKeys !== false) {
-      this.db.pragma('foreign_keys = ON');
-    }
-    if (config.busyTimeout) {
-      this.db.pragma(`busy_timeout = ${config.busyTimeout}`);
+      // 配置 SQLite
+      if (config.enableWAL !== false) {
+        this.db.pragma('journal_mode = WAL');
+      }
+      if (config.foreignKeys !== false) {
+        this.db.pragma('foreign_keys = ON');
+      }
+      if (config.busyTimeout) {
+        this.db.pragma(`busy_timeout = ${config.busyTimeout}`);
+      }
+    } catch (error) {
+      log.error('SQLite', 'Failed to open database', { path: config.path, error });
+      throw new Error(`Failed to open SQLite database at ${config.path}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
