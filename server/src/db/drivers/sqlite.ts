@@ -46,6 +46,8 @@ export class SQLiteDriver extends BaseDriver {
       // 在 EXE 环境中，需要手动指定 better-sqlite3 的绑定文件路径
       // pkg 打包后，process.pkg 会被设置
       const isPkgEnvironment = !!(process as any).pkg;
+      let bindingPath: string | null = null;
+
       if (isPkgEnvironment) {
         log.info('SQLite', 'Detected PKG environment, setting up native bindings path');
         // 尝试从 EXE 所在目录的 node_modules 加载绑定文件
@@ -57,7 +59,6 @@ export class SQLiteDriver extends BaseDriver {
           path.join(exeDir, '..', 'node_modules', 'better-sqlite3', 'build', 'better_sqlite3.node'),
         ];
 
-        let bindingPath: string | null = null;
         for (const tryPath of possiblePaths) {
           log.debug('SQLite', 'Checking binding path', { path: tryPath, exists: fs.existsSync(tryPath) });
           if (fs.existsSync(tryPath)) {
@@ -68,8 +69,6 @@ export class SQLiteDriver extends BaseDriver {
 
         if (bindingPath) {
           log.info('SQLite', 'Found native binding', { path: bindingPath });
-          // 设置环境变量让 bindings 模块能找到正确的路径
-          process.env.BETTER_SQLITE3_BINDING = bindingPath;
         } else {
           log.warn('SQLite', 'Native binding not found in expected locations', { possiblePaths });
         }
@@ -78,6 +77,29 @@ export class SQLiteDriver extends BaseDriver {
       // 动态导入 better-sqlite3，以便在 EXE 环境中更好地处理错误
       let Database: any;
       try {
+        if (bindingPath) {
+          // 在 PKG 环境中，我们需要手动加载绑定文件
+          // 通过修改 require.cache 来注入正确的绑定路径
+          const bindingModulePath = 'better-sqlite3/build/Release/better_sqlite3.node';
+          const resolvedPath = require.resolve(bindingModulePath);
+          log.info('SQLite', 'Pre-loading native binding', { bindingPath, resolvedPath });
+
+          // 清除旧的缓存并加载新的绑定
+          delete require.cache[resolvedPath];
+          const nativeBinding = require(bindingPath);
+          require.cache[resolvedPath] = {
+            id: resolvedPath,
+            filename: resolvedPath,
+            loaded: true,
+            exports: nativeBinding,
+            children: [],
+            paths: [],
+            parent: null,
+            isPreloading: false,
+            require: require,
+          } as any;
+        }
+
         Database = require('better-sqlite3');
       } catch (importError) {
         log.error('SQLite', 'Failed to import better-sqlite3 module', {
@@ -85,6 +107,7 @@ export class SQLiteDriver extends BaseDriver {
           cwd: process.cwd(),
           execPath: process.execPath,
           isPkg: isPkgEnvironment,
+          bindingPath,
           nodeModulesPath: path.join(process.cwd(), 'node_modules', 'better-sqlite3')
         });
         throw new Error(
