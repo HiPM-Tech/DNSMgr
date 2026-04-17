@@ -99,7 +99,10 @@ jobs:
             exit 1
           }
 
-      - name: Create SEA blob and package EXE
+      - name: Install nexe
+        run: npm install -g nexe
+
+      - name: Package server to EXE
         shell: pwsh
         run: |
           $VERSION = "${{ steps.get_version.outputs.version }}"
@@ -107,46 +110,15 @@ jobs:
           # Create release dist directory at root
           New-Item -ItemType Directory -Force -Path "release-dist"
           
-          # Create SEA using Node.js single executable application feature
-          # https://nodejs.org/api/single-executable-applications.html
+          # Package server with nexe from server directory
+          # Use --build flag to compile Node.js from source if pre-built not available
           cd server
-          
-          # Create a sea-config.json
-          $seaConfig = @{
-            main = "dist/app.js"
-            output = "sea-prep.blob"
-            disableExperimentalSEAWarning = $true
-            useSnapshot = $false
-            useCodeCache = $true
-          } | ConvertTo-Json
-          $seaConfig | Out-File -FilePath "sea-config.json" -Encoding UTF8
-          
-          # Generate the blob
-          node --experimental-sea-config sea-config.json
-          
-          # Get the Node.js binary path
-          $nodePath = (Get-Command node).Source
-          Write-Host "Node.js path: $nodePath"
-          
-          # Copy node.exe to our output
-          Copy-Item $nodePath "../release-dist/DNSMgr-Server-v$VERSION.exe"
-          
-          # Remove the signature from the binary (Windows requirement)
-          # This is needed to inject the blob into the executable
-          if ($IsWindows -or $env:OS -eq "Windows_NT") {
-            # Use signtool to remove signature if it exists
-            $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\signtool.exe"
-            if (Test-Path $signtool) {
-              & $signtool remove /s "../release-dist/DNSMgr-Server-v$VERSION.exe" 2>$null
-            }
-          }
-          
-          # Inject the blob into the executable
-          # Using postject to inject the blob
-          npx postject "../release-dist/DNSMgr-Server-v$VERSION.exe" NODE_SEA_BLOB sea-prep.blob `
-            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 `
-            --macho-segment-name NODE_SEA
-          
+          nexe dist/app.js `
+            --target "windows-x64-20.18.0" `
+            --output "../release-dist/DNSMgr-Server-v$VERSION.exe" `
+            --resource "../client/dist/**/*" `
+            --build `
+            --verbose
           cd ..
           
           # Note: Client files are now bundled inside the EXE via pkg assets
