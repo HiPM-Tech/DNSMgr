@@ -1821,6 +1821,28 @@ export const SystemOperations = {
     await pool.end();
     return { success: true, message: 'PostgreSQL connection successful', hasExistingData: hasData };
   },
+
+  /**
+   * 统一测试数据库连接（根据类型自动选择）
+   * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
+   */
+  async testConnection(config: { 
+    type: 'sqlite' | 'mysql' | 'postgresql'; 
+    sqlite?: { path: string }; 
+    mysql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }; 
+    postgresql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean } 
+  }): Promise<{ success: boolean; message: string; hasExistingData: boolean }> {
+    if (config.type === 'sqlite') {
+      return this.testSqliteConnection(config.sqlite?.path || './data/dnsmgr.db');
+    } else if (config.type === 'mysql') {
+      if (!config.mysql) throw new Error('MySQL configuration required');
+      return this.testMysqlConnection(config.mysql);
+    } else if (config.type === 'postgresql') {
+      if (!config.postgresql) throw new Error('PostgreSQL configuration required');
+      return this.testPostgresqlConnection(config.postgresql);
+    }
+    throw new Error(`Unsupported database type: ${config.type}`);
+  },
 };
 
 // ============================================================================

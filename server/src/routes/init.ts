@@ -96,13 +96,64 @@ router.post('/test-db', async (req: Request, res: Response) => {
 router.post('/database', async (req: Request, res: Response) => {
   const { type, sqlite, mysql: mysqlConfig, postgresql: pgConfig, reset = false } = req.body;
 
-  // Check if system is fully ready (database initialized AND has users)
-  const dbInitialized = await isDbInitialized();
-  const hasAnyUsers = dbInitialized ? await hasUsers() : false;
-  
-  // If system is fully ready (has users) and user chooses to keep data (not reset),
+  if (!type || !['sqlite', 'mysql', 'postgresql'].includes(type)) {
+    return res.status(400).json({ code: 400, msg: 'Invalid database type' });
+  }
+
+  // First, temporarily set up config to test connection and check existing data
+  const testConfig: any = { type };
+  if (type === 'sqlite') {
+    testConfig.sqlite = sqlite || { path: './data/dnsmgr.db' };
+  } else if (type === 'mysql') {
+    testConfig.mysql = mysqlConfig;
+  } else if (type === 'postgresql') {
+    testConfig.postgresql = pgConfig;
+  }
+
+  // Test connection and check for existing data before saving config
+  let hasExistingData = false;
+  let hasExistingUsers = false;
+  try {
+    const testResult = await SystemOperations.testConnection(testConfig);
+    hasExistingData = testResult.hasExistingData;
+    // If we can connect and there's data, check if there are users
+    if (hasExistingData) {
+      // Create a temporary connection to check for users
+      const { connect } = await import('../db/core/connection');
+      const tempConn = await connect();
+      const userResult = await tempConn.get('SELECT COUNT(*) as cnt FROM users');
+      hasExistingUsers = (userResult as { cnt: number })?.cnt > 0;
+      await tempConn.close();
+    }
+  } catch (error) {
+    // Connection failed or no existing data, proceed with normal initialization
+    log.debug('Init', 'No existing database connection or no data found', { error });
+  }
+
+  // If system has existing users and user chooses to keep data (not reset),
   // allow skipping to complete step (for server migration scenarios)
-  if (dbInitialized && hasAnyUsers && !reset) {
+  if (hasExistingData && hasExistingUsers && !reset) {
+    // Save config first so the system can use it
+    saveEnvConfig({
+      DB_TYPE: type,
+      ...(type === 'sqlite' && { DB_PATH: sqlite?.path || './data/dnsmgr.db' }),
+      ...(type === 'mysql' && {
+        DB_HOST: mysqlConfig.host,
+        DB_PORT: String(mysqlConfig.port || 3306),
+        DB_NAME: mysqlConfig.database,
+        DB_USER: mysqlConfig.user,
+        DB_PASSWORD: mysqlConfig.password,
+        DB_SSL: mysqlConfig.ssl ? 'true' : 'false',
+      }),
+      ...(type === 'postgresql' && {
+        DB_HOST: pgConfig.host,
+        DB_PORT: String(pgConfig.port || 5432),
+        DB_NAME: pgConfig.database,
+        DB_USER: pgConfig.user,
+        DB_PASSWORD: pgConfig.password,
+        DB_SSL: pgConfig.ssl ? 'true' : 'false',
+      }),
+    });
     return res.json({
       code: 0,
       data: { 
@@ -114,8 +165,29 @@ router.post('/database', async (req: Request, res: Response) => {
     });
   }
   
-  // If database is initialized but no users, allow skipping to user creation
-  if (dbInitialized && !hasAnyUsers && !reset) {
+  // If database has data but no users, allow skipping to user creation
+  if (hasExistingData && !hasExistingUsers && !reset) {
+    // Save config first
+    saveEnvConfig({
+      DB_TYPE: type,
+      ...(type === 'sqlite' && { DB_PATH: sqlite?.path || './data/dnsmgr.db' }),
+      ...(type === 'mysql' && {
+        DB_HOST: mysqlConfig.host,
+        DB_PORT: String(mysqlConfig.port || 3306),
+        DB_NAME: mysqlConfig.database,
+        DB_USER: mysqlConfig.user,
+        DB_PASSWORD: mysqlConfig.password,
+        DB_SSL: mysqlConfig.ssl ? 'true' : 'false',
+      }),
+      ...(type === 'postgresql' && {
+        DB_HOST: pgConfig.host,
+        DB_PORT: String(pgConfig.port || 5432),
+        DB_NAME: pgConfig.database,
+        DB_USER: pgConfig.user,
+        DB_PASSWORD: pgConfig.password,
+        DB_SSL: pgConfig.ssl ? 'true' : 'false',
+      }),
+    });
     return res.json({
       code: 0,
       data: { 
@@ -125,10 +197,6 @@ router.post('/database', async (req: Request, res: Response) => {
       },
       msg: 'Database already initialized. Please create admin user.',
     });
-  }
-  
-  if (!type || !['sqlite', 'mysql', 'postgresql'].includes(type)) {
-    return res.status(400).json({ code: 400, msg: 'Invalid database type' });
   }
   
   try {
