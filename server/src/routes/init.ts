@@ -4,6 +4,8 @@ import crypto from 'crypto';
 import { initSchema, initSchemaAsync } from '../db/schema';
 import { saveEnvConfig, getDbConfig } from '../config/env';
 import { createConnection, isDbInitialized, hasUsers } from '../db/connection';
+import { connect } from '../db/core/connection';
+import type { DatabaseConfig } from '../db/core/config';
 import { UserOperations, SystemOperations, SecretOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 
@@ -157,7 +159,51 @@ router.post('/database', async (req: Request, res: Response) => {
     }
     // Establish database connection for the saved config
     try {
-      await createConnection();
+      // Build database config object directly from request parameters
+      const dbConfig: DatabaseConfig = {
+        type,
+        logging: process.env.DB_LOGGING !== 'false',
+        slowQueryThreshold: parseInt(process.env.DB_SLOW_QUERY_THRESHOLD || '100', 10),
+      };
+      
+      if (type === 'sqlite') {
+        let dbPath = sqlite?.path || './data/dnsmgr.db';
+        dbPath = dbPath.replace(/\\/g, '/');
+        dbConfig.sqlite = {
+          path: dbPath,
+          mode: 'readwrite',
+          busyTimeout: 5000,
+          enableWAL: true,
+          foreignKeys: true,
+        };
+      } else if (type === 'mysql' && mysqlConfig) {
+        dbConfig.mysql = {
+          host: mysqlConfig.host,
+          port: mysqlConfig.port || 3306,
+          database: mysqlConfig.database,
+          user: mysqlConfig.user,
+          password: mysqlConfig.password,
+          ssl: mysqlConfig.ssl,
+          connectionLimit: 20,
+          connectTimeout: 60000,
+          acquireTimeout: 60000,
+          timeout: 60000,
+        };
+      } else if (type === 'postgresql' && pgConfig) {
+        dbConfig.postgresql = {
+          host: pgConfig.host,
+          port: pgConfig.port || 5432,
+          database: pgConfig.database,
+          user: pgConfig.user,
+          password: pgConfig.password,
+          ssl: pgConfig.ssl,
+          poolSize: 20,
+          connectionTimeoutMillis: 60000,
+          idleTimeoutMillis: 30000,
+        };
+      }
+      
+      await connect(dbConfig);
       log.info('Init', 'Database connection established for existing data');
     } catch (error) {
       log.error('Init', 'Failed to establish database connection', { error });
@@ -267,8 +313,55 @@ router.post('/database', async (req: Request, res: Response) => {
     
     saveEnvConfig(envConfig);
     
-    // Create database connection
-    const conn = await createConnection();
+    // Build database config object directly from request parameters
+    // to ensure correct database type is used
+    const dbConfig: DatabaseConfig = {
+      type,
+      logging: process.env.DB_LOGGING !== 'false',
+      slowQueryThreshold: parseInt(process.env.DB_SLOW_QUERY_THRESHOLD || '100', 10),
+    };
+    
+    if (type === 'sqlite') {
+      let dbPath = sqlite?.path || './data/dnsmgr.db';
+      dbPath = dbPath.replace(/\\/g, '/');
+      dbConfig.sqlite = {
+        path: dbPath,
+        mode: 'readwrite',
+        busyTimeout: 5000,
+        enableWAL: true,
+        foreignKeys: true,
+      };
+    } else if (type === 'mysql' && mysqlConfig) {
+      dbConfig.mysql = {
+        host: mysqlConfig.host,
+        port: mysqlConfig.port || 3306,
+        database: mysqlConfig.database,
+        user: mysqlConfig.user,
+        password: mysqlConfig.password,
+        ssl: mysqlConfig.ssl,
+        connectionLimit: 20,
+        connectTimeout: 60000,
+        acquireTimeout: 60000,
+        timeout: 60000,
+      };
+    } else if (type === 'postgresql' && pgConfig) {
+      dbConfig.postgresql = {
+        host: pgConfig.host,
+        port: pgConfig.port || 5432,
+        database: pgConfig.database,
+        user: pgConfig.user,
+        password: pgConfig.password,
+        ssl: pgConfig.ssl,
+        poolSize: 20,
+        connectionTimeoutMillis: 60000,
+        idleTimeoutMillis: 30000,
+      };
+    }
+    
+    log.info('Init', 'Creating connection with config', { type: dbConfig.type });
+    
+    // Create database connection with explicit config
+    const conn = await connect(dbConfig);
     
     // Initialize schema (use async version for all database types)
     // If reset is true, drop existing tables first
