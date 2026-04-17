@@ -117,7 +117,7 @@ jobs:
           # - Node.js runtime
           cd server
           pkg . `
-            --targets node18-win-x64 `
+            --targets node20-win-x64 `
             --output "../release-dist/DNSMgr-Server-v$VERSION.exe" `
             --options "max-old-space-size=4096"
           cd ..
