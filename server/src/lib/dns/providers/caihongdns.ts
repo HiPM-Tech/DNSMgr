@@ -76,7 +76,10 @@ export class CaihongDnsAdapter implements DnsAdapter {
   }
 
   private async request<T>(method: string, path: string, body?: Record<string, unknown>): Promise<CaihongDnsResponse<T>> {
-    const url = `${this.config.baseUrl}${path}`;
+    // Ensure baseUrl doesn't end with /api and path starts with /
+    const baseUrl = this.config.baseUrl.replace(/\/api\/?$/, '');
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const url = `${baseUrl}/api${normalizedPath}`;
     const authParams = this.getAuthParams();
     
     log.providerRequest('CaihongDns', method, url, { ...body, ...authParams, sign: '***' });
