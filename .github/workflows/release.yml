@@ -92,25 +92,20 @@ jobs:
           New-Item -ItemType Directory -Force -Path "release-dist/client"
           Copy-Item -Path "client/dist" -Destination "release-dist/client/" -Recurse -Force
           
-          # Copy node_modules
-          New-Item -ItemType Directory -Force -Path "release-dist/server/node_modules"
-          $nativeModules = @("better-sqlite3", "bcryptjs", "mysql2")
-          foreach ($mod in $nativeModules) {
-            if (Test-Path "server/node_modules/$mod") {
-              Copy-Item -Path "server/node_modules/$mod" -Destination "release-dist/server/node_modules/" -Recurse -Force
-            }
-          }
+          # Copy node_modules (copy entire directory to ensure all sub-dependencies are included)
+          Copy-Item -Path "server/node_modules" -Destination "release-dist/server/" -Recurse -Force
           
-          $pkg = Get-Content "server/package.json" | ConvertFrom-Json
-          foreach ($dep in $pkg.dependencies.PSObject.Properties.Name) {
-            if (Test-Path "server/node_modules/$dep") {
-              Copy-Item -Path "server/node_modules/$dep" -Destination "release-dist/server/node_modules/" -Recurse -Force
-            }
-          }
-          
-          # Create start script
-          $batContent = "@echo off`necho Starting DNSMgr Server...`nset NODE_PATH=%~dp0server\node_modules`nset PATH=%~dp0nodejs;%PATH`n`"%~dp0nodejs\node.exe`" `"%~dp0server\dist\app.js`"`npause"
-          [System.IO.File]::WriteAllText("release-dist/Start-DNSMgr.bat", $batContent, [System.Text.Encoding]::UTF8)
+          # Create start script (without BOM)
+          $batLines = @(
+            '@echo off',
+            'echo Starting DNSMgr Server...',
+            'set NODE_PATH=%~dp0server\node_modules',
+            'set PATH=%~dp0nodejs;%PATH%',
+            '"%~dp0nodejs\node.exe" "%~dp0server\dist\app.js"',
+            'pause'
+          )
+          $batContent = $batLines -join "`r`n"
+          [System.IO.File]::WriteAllText("release-dist/Start-DNSMgr.bat", $batContent, [System.Text.Encoding]::ASCII)
           
           Compress-Archive -Path "release-dist/*" -DestinationPath "DNSMgr-Windows-v$VERSION.zip" -Force
 
