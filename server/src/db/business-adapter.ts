@@ -281,10 +281,9 @@ async function executeInternal(sql: string, params?: unknown[], context?: Operat
   try {
     await db.execute(processedSql, params);
     const duration = Date.now() - startTime;
-    log.info('BusinessAdapter', `Command executed`, { 
-      sql: processedSql.substring(0, 100),
-      duration: `${duration}ms`,
-      operation: context?.operation
+    log.debug('BusinessAdapter', `Command executed`, { 
+      operation: context?.operation,
+      duration: `${duration}ms`
     });
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -309,11 +308,10 @@ async function insertInternal(sql: string, params?: unknown[], context?: Operati
   try {
     const id = await db.insert(processedSql, params);
     const duration = Date.now() - startTime;
-    log.info('BusinessAdapter', `Insert executed`, { 
-      sql: processedSql.substring(0, 100), 
+    log.debug('BusinessAdapter', `Insert executed`, { 
+      operation: context?.operation,
       insertId: id,
-      duration: `${duration}ms`,
-      operation: context?.operation
+      duration: `${duration}ms`
     });
     return id;
   } catch (error) {
@@ -339,11 +337,10 @@ async function runInternal(sql: string, params?: unknown[], context?: OperationC
   try {
     const result = await db.run(processedSql, params);
     const duration = Date.now() - startTime;
-    log.info('BusinessAdapter', `Run executed`, { 
-      sql: processedSql.substring(0, 100), 
+    log.debug('BusinessAdapter', `Run executed`, { 
+      operation: context?.operation,
       changes: result.changes,
-      duration: `${duration}ms`,
-      operation: context?.operation
+      duration: `${duration}ms`
     });
     return result;
   } catch (error) {
