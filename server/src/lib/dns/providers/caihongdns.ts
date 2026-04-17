@@ -115,8 +115,21 @@ export class CaihongDnsAdapter implements DnsAdapter {
         headers,
         body: requestBody,
       });
+
+      // Get response text first to handle non-JSON responses
+      const responseText = await res.text();
       
-      const data = (await res.json()) as CaihongDnsResponse<T>;
+      let data: CaihongDnsResponse<T>;
+      try {
+        // Try to parse as JSON
+        data = JSON.parse(responseText) as CaihongDnsResponse<T>;
+      } catch (parseError) {
+        // If JSON parsing fails, return error with raw response
+        const errorMsg = `Invalid JSON response: ${responseText.substring(0, 200)}`;
+        log.providerError('CaihongDns', [{ message: errorMsg }]);
+        return { code: -1, msg: errorMsg };
+      }
+      
       log.providerResponse('CaihongDns', res.status, data.code === 0, { code: data.code, msg: data.msg });
       
       if (data.code !== 0) {
