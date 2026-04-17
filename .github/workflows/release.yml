@@ -99,10 +99,7 @@ jobs:
             exit 1
           }
 
-      - name: Install nexe
-        run: npm install -g nexe
-
-      - name: Package server to EXE
+      - name: Create Windows ZIP Package
         shell: pwsh
         run: |
           $VERSION = "${{ steps.get_version.outputs.version }}"
@@ -110,52 +107,110 @@ jobs:
           # Create release dist directory at root
           New-Item -ItemType Directory -Force -Path "release-dist"
           
-          # Package server with nexe from server directory
-          # Use --build flag to compile Node.js from source if pre-built not available
-          cd server
-          # Try to use pre-built Node.js 20.11.0 (LTS), fallback to build if not available
-          nexe dist/app.js `
-            --target "windows-x64-20.11.0" `
-            --output "../release-dist/DNSMgr-Server-v$VERSION.exe" `
-            --resource "../client/dist/**/*" `
-            --verbose
-          cd ..
+          # Download Node.js 20 for Windows x64
+          Write-Host "📥 Downloading Node.js 20..."
+          $nodeUrl = "https://nodejs.org/dist/v20.11.0/node-v20.11.0-win-x64.zip"
+          Invoke-WebRequest -Uri $nodeUrl -OutFile "node.zip"
+          Expand-Archive -Path "node.zip" -DestinationPath "release-dist" -Force
           
-          # Note: Client files are now bundled inside the EXE via pkg assets
-          # No need to copy client/dist separately
+          # Rename node directory for cleaner structure
+          Rename-Item -Path "release-dist/node-v20.11.0-win-x64" -NewName "nodejs" -Force
           
-          # Copy native modules that cannot be bundled
-          # better-sqlite3 needs to be in node_modules next to the EXE
-          New-Item -ItemType Directory -Force -Path "release-dist/node_modules/better-sqlite3"
-          Copy-Item -Path "server/node_modules/better-sqlite3/build" -Destination "release-dist/node_modules/better-sqlite3/" -Recurse -Force
-          Copy-Item -Path "server/node_modules/better-sqlite3/lib" -Destination "release-dist/node_modules/better-sqlite3/" -Recurse -Force
-          Copy-Item -Path "server/node_modules/better-sqlite3/package.json" -Destination "release-dist/node_modules/better-sqlite3/" -Force
+          # Copy server files
+          Write-Host "📦 Copying server files..."
+          New-Item -ItemType Directory -Force -Path "release-dist/server"
+          Copy-Item -Path "server/dist" -Destination "release-dist/server/" -Recurse -Force
+          Copy-Item -Path "server/package.json" -Destination "release-dist/server/" -Force
           
-          # List release-dist contents
-          Write-Host "📁 Release-dist directory contents:"
-          Get-ChildItem "release-dist" | Select-Object -First 20
+          # Copy client files
+          Write-Host "📦 Copying client files..."
+          New-Item -ItemType Directory -Force -Path "release-dist/client"
+          Copy-Item -Path "client/dist" -Destination "release-dist/client/" -Recurse -Force
           
-          # Create README for EXE
+          # Copy node_modules (production dependencies only)
+          Write-Host "📦 Copying node_modules..."
+          New-Item -ItemType Directory -Force -Path "release-dist/server/node_modules"
+          
+          # Copy essential native modules
+          $nativeModules = @(
+            "better-sqlite3",
+            "bcryptjs",
+            "mysql2"
+          )
+          foreach ($mod in $nativeModules) {
+            if (Test-Path "server/node_modules/$mod") {
+              Write-Host "  - Copying $mod"
+              Copy-Item -Path "server/node_modules/$mod" -Destination "release-dist/server/node_modules/" -Recurse -Force
+            }
+          }
+          
+          # Copy production dependencies from package.json
+          $pkg = Get-Content "server/package.json" | ConvertFrom-Json
+          foreach ($dep in $pkg.dependencies.PSObject.Properties.Name) {
+            if (Test-Path "server/node_modules/$dep") {
+              Write-Host "  - Copying $dep"
+              Copy-Item -Path "server/node_modules/$dep" -Destination "release-dist/server/node_modules/" -Recurse -Force
+            }
+          }
+          
+          # Create start script
+          $startScript = @'
+@echo off
+chcp 65001 >nul
+echo Starting DNSMgr Server v$VERSION...
+echo.
+
+set NODE_PATH=%~dp0server\node_modules
+set PATH=%~dp0nodejs;%PATH%
+
+"%~dp0nodejs\node.exe" "%~dp0server\dist\app.js"
+
+pause
+'@
+          $startScript | Out-File -FilePath "release-dist/Start-DNSMgr.bat" -Encoding UTF8
+          
+          # Create README
           $lines = @(
             "DNSMgr Server v$VERSION",
             "========================",
             "",
-            "This is a standalone Windows executable for DNSMgr Server.",
-            "The frontend is bundled inside this EXE file.",
+            "Windows Portable Package",
             "",
-            "Usage:",
-            "1. Run DNSMgr-Server-v$VERSION.exe",
-            "2. Open http://localhost:3000 in your browser",
-            "3. Follow the setup wizard on first run",
+            "📦 Contents:",
+            "- nodejs/         - Node.js 20 runtime",
+            "- server/         - DNSMgr server files",
+            "- client/         - DNSMgr frontend files",
+            "- Start-DNSMgr.bat - Start script",
             "",
-            "Configuration:",
+            "🚀 Quick Start:",
+            "1. Extract this ZIP file",
+            "2. Double-click Start-DNSMgr.bat",
+            "3. Open http://localhost:3000 in your browser",
+            "4. Follow the setup wizard on first run",
+            "",
+            "⚙️ Configuration:",
             "- Database: SQLite (default), MySQL, or PostgreSQL",
             "- Port: 3000 (default)",
-            "- Data directory: ./data",
+            "- Data directory: ./data (created on first run)",
             "",
-            "For more information, visit: https://github.com/${{ github.repository }}"
+            "📁 Directory Structure:",
+            "  DNSMgr/",
+            "  ├── nodejs/           # Node.js runtime",
+            "  ├── server/           # Server files",
+            "  │   ├── dist/         # Compiled server",
+            "  │   └── node_modules/ # Dependencies",
+            "  ├── client/           # Frontend files",
+            "  │   └── dist/         # Built frontend",
+            "  ├── data/             # Database & config (created on run)",
+            "  └── Start-DNSMgr.bat  # Start script",
+            "",
+            "For more information: https://github.com/${{ github.repository }}"
           )
           $lines | Out-File -FilePath "release-dist/README.txt" -Encoding UTF8
+          
+          # List release-dist contents
+          Write-Host "📁 Release-dist directory contents:"
+          Get-ChildItem "release-dist" | Select-Object -First 20
 
       - name: Create ZIP archive
         shell: pwsh
