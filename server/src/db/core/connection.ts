@@ -252,16 +252,10 @@ export class ConnectionManager {
       this.connectionPromise = null;
     }
 
-    // 关闭连接
-    if (this.connection) {
-      try {
-        await this.connection.close();
-        log.info('ConnectionManager', 'Connection closed successfully');
-      } catch (error) {
-        log.error('ConnectionManager', 'Error closing connection', { error });
-      }
-      this.connection = null;
-    }
+    // 关闭连接（通过 DriverManager 关闭驱动，避免重复关闭）
+    // DriverConnectionWrapper.close() 和 closeDriver() 会操作同一个底层驱动
+    // 所以只需要调用 closeDriver() 即可
+    this.connection = null;
 
     // 关闭驱动
     try {
