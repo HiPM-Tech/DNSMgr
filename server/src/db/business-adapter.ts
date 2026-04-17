@@ -2391,8 +2391,11 @@ export const LoginLimitOperations = {
 export const FailoverOperations = {
   /** 获取所有启用的容灾配置 */
   async getAllEnabled(): Promise<QueryResult[]> {
+    const dbType = getDbType();
+    // PostgreSQL 使用 true/false，SQLite/MySQL 使用 1/0
+    const enabledValue = dbType === 'postgresql' ? 'true' : '1';
     return queryInternal(
-      'SELECT * FROM failover_configs WHERE enabled = 1',
+      `SELECT * FROM failover_configs WHERE enabled = ${enabledValue}`,
       [],
       { operation: 'Failover.getAllEnabled', table: 'failover_configs' }
     );
@@ -2723,18 +2726,24 @@ export const WebAuthnOperations = {
 
   /** 创建 WebAuthn 配置 */
   async createConfig(userId: number): Promise<void> {
+    const dbType = getDbType();
+    // PostgreSQL 使用 true/false，SQLite/MySQL 使用 1/0
+    const enabledValue = dbType === 'postgresql' ? true : 1;
     return executeInternal(
       'INSERT INTO user_2fa (user_id, type, secret, enabled) VALUES (?, ?, ?, ?)',
-      [userId, 'webauthn', 'webauthn', 1],
+      [userId, 'webauthn', 'webauthn', enabledValue],
       { operation: 'WebAuthn.createConfig', table: 'user_2fa' }
     );
   },
 
   /** 启用 WebAuthn */
   async enable(userId: number): Promise<void> {
+    const dbType = getDbType();
+    // PostgreSQL 使用 true/false，SQLite/MySQL 使用 1/0
+    const enabledValue = dbType === 'postgresql' ? true : 1;
     return executeInternal(
-      'UPDATE user_2fa SET enabled = 1 WHERE user_id = ? AND type = ?',
-      [userId, 'webauthn'],
+      'UPDATE user_2fa SET enabled = ? WHERE user_id = ? AND type = ?',
+      [enabledValue, userId, 'webauthn'],
       { operation: 'WebAuthn.enable', table: 'user_2fa' }
     );
   },
