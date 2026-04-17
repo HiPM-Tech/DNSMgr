@@ -62,7 +62,10 @@ export class DnsMgrAdapter implements DnsAdapter {
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<DnsMgrApiResponse<T>> {
-    const url = `${this.config.baseUrl}/api${path}`;
+    // Ensure baseUrl doesn't end with /api and path starts with /
+    const baseUrl = this.config.baseUrl.replace(/\/api\/?$/, '');
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const url = `${baseUrl}/api${normalizedPath}`;
     log.providerRequest('DnsMgr', method, url, body);
     
     try {
