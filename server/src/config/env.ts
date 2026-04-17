@@ -91,6 +91,11 @@ export function saveEnvConfig(config: Record<string, string>): void {
   
   // Reload environment variables
   dotenv.config({ path: envPath, override: true });
+  
+  // Also directly update process.env to ensure the changes take effect immediately
+  Object.entries(config).forEach(([key, value]) => {
+    process.env[key] = value;
+  });
 }
 
 // Validate environment variables
