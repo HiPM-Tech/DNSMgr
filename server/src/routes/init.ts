@@ -119,11 +119,12 @@ router.post('/database', async (req: Request, res: Response) => {
     // If we can connect and there's data, check if there are users
     if (hasExistingData) {
       // Create a temporary connection to check for users
-      const { connect } = await import('../db/core/connection');
+      const { connect, disconnect } = await import('../db/core/connection');
       const tempConn = await connect();
       const userResult = await tempConn.get('SELECT COUNT(*) as cnt FROM users');
       hasExistingUsers = (userResult as { cnt: number })?.cnt > 0;
-      await tempConn.close();
+      // Use disconnect to properly clean up the connection manager
+      await disconnect();
     }
   } catch (error) {
     // Connection failed or no existing data, proceed with normal initialization
