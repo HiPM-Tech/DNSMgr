@@ -3,19 +3,10 @@ import cors from 'cors';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { loadEnv } from './config/env';
 
-// SEA (Single Executable Application) support
-// Detect if running in SEA environment
-const isSea = !!(process as any).sea;
-if (isSea) {
-  console.log('[SEA] Running in Single Executable Application mode');
-}
-
-// Get the current file directory (works in both SEA and normal mode)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Get the current file directory
+const __dirname = path.resolve();
 import { createConnection, isDbInitialized, hasUsers, connect } from './db/connection';
 import { initSchema, initSchemaAsync } from './db/schema';
 import { initSchema as initSchemaWithMigration } from './db/init';
