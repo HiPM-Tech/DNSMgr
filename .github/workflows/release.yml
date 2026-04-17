@@ -64,7 +64,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18.20.0'
 
       - name: Get version
         id: get_version
@@ -114,7 +114,7 @@ jobs:
           # nexe will bundle the app with Node.js runtime
           cd server
           nexe dist/app.js `
-            --target "windows-x64-20.18.0" `
+            --target "windows-x64-18.20.0" `
             --output "../release-dist/DNSMgr-Server-v$VERSION.exe" `
             --resource "../client/dist/**/*" `
             --verbose
