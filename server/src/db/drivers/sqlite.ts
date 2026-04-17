@@ -2,7 +2,6 @@
  * SQLite 数据库驱动
  */
 
-import Database from 'better-sqlite3';
 import type { Transaction, ColumnType } from '../core/types';
 import type { DriverConfig } from './types';
 import { BaseDriver } from './base';
@@ -28,7 +27,7 @@ function serializeParams(params: unknown[]): unknown[] {
 /** SQLite 驱动实现 */
 export class SQLiteDriver extends BaseDriver {
   readonly type = 'sqlite' as const;
-  private db: Database.Database;
+  private db: any; // Database.Database
   private connectionConfig: SQLiteDriverConfig;
 
   constructor(config: SQLiteDriverConfig, driverConfig?: DriverConfig) {
@@ -43,6 +42,24 @@ export class SQLiteDriver extends BaseDriver {
       }
 
       log.info('SQLite', 'Opening database', { path: config.path });
+      
+      // 动态导入 better-sqlite3，以便在 EXE 环境中更好地处理错误
+      let Database: any;
+      try {
+        Database = require('better-sqlite3');
+      } catch (importError) {
+        log.error('SQLite', 'Failed to import better-sqlite3 module', { 
+          error: importError,
+          cwd: process.cwd(),
+          nodeModulesPath: path.join(process.cwd(), 'node_modules', 'better-sqlite3')
+        });
+        throw new Error(
+          `Failed to load better-sqlite3 module. ` +
+          `This may be due to missing native bindings in EXE environment. ` +
+          `Error: ${importError instanceof Error ? importError.message : 'Unknown error'}`
+        );
+      }
+      
       this.db = new Database(config.path);
       log.info('SQLite', 'Database opened successfully');
 
@@ -58,12 +75,16 @@ export class SQLiteDriver extends BaseDriver {
       }
     } catch (error) {
       log.error('SQLite', 'Failed to open database', { path: config.path, error });
-      throw new Error(`Failed to open SQLite database at ${config.path}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
     }
   }
 
   get isConnected(): boolean {
-    return this.db.open;
+    try {
+      return this.db && this.db.open;
+    } catch {
+      return false;
+    }
   }
 
   async query<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
@@ -151,13 +172,15 @@ export class SQLiteDriver extends BaseDriver {
     };
   }
 
-  raw(): Database.Database {
+  raw(): any {
     return this.db;
   }
 
   async close(): Promise<void> {
     log.info('SQLite', 'Closing database', { stats: this._stats });
-    this.db.close();
+    if (this.db) {
+      this.db.close();
+    }
   }
 
   // ==================== SQL 方言 ====================
