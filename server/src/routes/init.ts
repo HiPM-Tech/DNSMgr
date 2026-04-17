@@ -9,6 +9,102 @@ import type { DatabaseConfig } from '../db/core/config';
 import { UserOperations, SystemOperations, SecretOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 
+// ============================================================================
+// 初始化专用数据库连接函数（隔离、防污染）
+// ============================================================================
+
+/**
+ * 构建数据库配置对象
+ */
+function buildDbConfig(
+  type: 'sqlite' | 'mysql' | 'postgresql',
+  sqlite?: { path: string },
+  mysqlConfig?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean },
+  pgConfig?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean }
+): DatabaseConfig {
+  const dbConfig: DatabaseConfig = {
+    type,
+    logging: process.env.DB_LOGGING !== 'false',
+    slowQueryThreshold: parseInt(process.env.DB_SLOW_QUERY_THRESHOLD || '100', 10),
+  };
+
+  if (type === 'sqlite') {
+    let dbPath = sqlite?.path || './data/dnsmgr.db';
+    dbPath = dbPath.replace(/\\/g, '/');
+    dbConfig.sqlite = {
+      path: dbPath,
+      mode: 'readwrite',
+      busyTimeout: 5000,
+      enableWAL: true,
+      foreignKeys: true,
+    };
+  } else if (type === 'mysql' && mysqlConfig) {
+    dbConfig.mysql = {
+      host: mysqlConfig.host,
+      port: mysqlConfig.port || 3306,
+      database: mysqlConfig.database,
+      user: mysqlConfig.user,
+      password: mysqlConfig.password,
+      ssl: mysqlConfig.ssl,
+      connectionLimit: 20,
+      connectTimeout: 60000,
+      acquireTimeout: 60000,
+      timeout: 60000,
+    };
+  } else if (type === 'postgresql' && pgConfig) {
+    dbConfig.postgresql = {
+      host: pgConfig.host,
+      port: pgConfig.port || 5432,
+      database: pgConfig.database,
+      user: pgConfig.user,
+      password: pgConfig.password,
+      ssl: pgConfig.ssl,
+      poolSize: 20,
+      connectionTimeoutMillis: 60000,
+      idleTimeoutMillis: 30000,
+    };
+  }
+
+  return dbConfig;
+}
+
+/**
+ * 保存数据库配置到环境变量
+ */
+function saveDatabaseConfig(
+  type: 'sqlite' | 'mysql' | 'postgresql',
+  sqlite?: { path: string },
+  mysqlConfig?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean },
+  pgConfig?: { host: string; port: number; database: string; user: string; password: string; ssl?: boolean }
+): void {
+  const envConfig: Record<string, string> = {
+    DB_TYPE: type,
+  };
+
+  if (type === 'sqlite') {
+    let dbPath = sqlite?.path || './data/dnsmgr.db';
+    dbPath = dbPath.replace(/\\/g, '/');
+    envConfig.DB_PATH = dbPath;
+  } else if (type === 'mysql' && mysqlConfig) {
+    envConfig.DB_HOST = mysqlConfig.host;
+    envConfig.DB_PORT = String(mysqlConfig.port || 3306);
+    envConfig.DB_NAME = mysqlConfig.database;
+    envConfig.DB_USER = mysqlConfig.user;
+    envConfig.DB_PASSWORD = mysqlConfig.password;
+    envConfig.DB_SSL = mysqlConfig.ssl ? 'true' : 'false';
+  } else if (type === 'postgresql' && pgConfig) {
+    envConfig.DB_HOST = pgConfig.host;
+    envConfig.DB_PORT = String(pgConfig.port || 5432);
+    envConfig.DB_NAME = pgConfig.database;
+    envConfig.DB_USER = pgConfig.user;
+    envConfig.DB_PASSWORD = pgConfig.password;
+    envConfig.DB_SSL = pgConfig.ssl ? 'true' : 'false';
+  }
+
+  saveEnvConfig(envConfig);
+  log.info('Init', 'Database configuration saved', { type });
+}
+
 const router = Router();
 
 // Check system initialization status
@@ -102,283 +198,127 @@ router.post('/database', async (req: Request, res: Response) => {
     return res.status(400).json({ code: 400, msg: 'Invalid database type' });
   }
 
-  // First, temporarily set up config to test connection and check existing data
-  const testConfig: any = { type };
-  if (type === 'sqlite') {
-    testConfig.sqlite = sqlite || { path: './data/dnsmgr.db' };
-  } else if (type === 'mysql') {
-    testConfig.mysql = mysqlConfig;
-  } else if (type === 'postgresql') {
-    testConfig.postgresql = pgConfig;
-  }
-
-  // Test connection and check for existing data before saving config
+  // Step 1: Test connection and check for existing data
+  const testConfig = buildDbConfig(type, sqlite, mysqlConfig, pgConfig);
   let hasExistingData = false;
   let hasExistingUsers = false;
+  
   try {
-    const testResult = await SystemOperations.testConnection(testConfig);
+    const testResult = await SystemOperations.testConnection({
+      type,
+      sqlite: sqlite || { path: './data/dnsmgr.db' },
+      mysql: mysqlConfig,
+      postgresql: pgConfig,
+    });
     hasExistingData = testResult.hasExistingData;
-    // Use hasUsers from test result (if available)
     hasExistingUsers = testResult.hasUsers || false;
+    log.info('Init', 'Test connection result', { hasExistingData, hasExistingUsers, type });
   } catch (error) {
-    // Connection failed or no existing data, proceed with normal initialization
     log.debug('Init', 'No existing database connection or no data found', { error });
   }
 
-  // If system has existing users and user chooses to keep data (not reset),
-  // allow skipping to complete step (for server migration scenarios)
+  // Step 2: Handle different scenarios based on existing data
+  
+  // Scenario A: Has existing users and keeping data -> Skip to complete
   if (hasExistingData && hasExistingUsers && !reset) {
-    // Save config first so the system can use it
-    saveEnvConfig({
-      DB_TYPE: type,
-      ...(type === 'sqlite' && { DB_PATH: sqlite?.path || './data/dnsmgr.db' }),
-      ...(type === 'mysql' && {
-        DB_HOST: mysqlConfig.host,
-        DB_PORT: String(mysqlConfig.port || 3306),
-        DB_NAME: mysqlConfig.database,
-        DB_USER: mysqlConfig.user,
-        DB_PASSWORD: mysqlConfig.password,
-        DB_SSL: mysqlConfig.ssl ? 'true' : 'false',
-      }),
-      ...(type === 'postgresql' && {
-        DB_HOST: pgConfig.host,
-        DB_PORT: String(pgConfig.port || 5432),
-        DB_NAME: pgConfig.database,
-        DB_USER: pgConfig.user,
-        DB_PASSWORD: pgConfig.password,
-        DB_SSL: pgConfig.ssl ? 'true' : 'false',
-      }),
-    });
-    // Disconnect any existing connection before establishing new one
     try {
-      const { disconnect } = await import('../db/core/connection');
-      await disconnect();
-      log.info('Init', 'Disconnected existing connection');
-    } catch {
-      // Ignore errors if no existing connection
-    }
-    // Establish database connection for the saved config
-    try {
-      // Build database config object directly from request parameters
-      const dbConfig: DatabaseConfig = {
-        type,
-        logging: process.env.DB_LOGGING !== 'false',
-        slowQueryThreshold: parseInt(process.env.DB_SLOW_QUERY_THRESHOLD || '100', 10),
-      };
+      // Save config first
+      saveDatabaseConfig(type, sqlite, mysqlConfig, pgConfig);
       
-      if (type === 'sqlite') {
-        let dbPath = sqlite?.path || './data/dnsmgr.db';
-        dbPath = dbPath.replace(/\\/g, '/');
-        dbConfig.sqlite = {
-          path: dbPath,
-          mode: 'readwrite',
-          busyTimeout: 5000,
-          enableWAL: true,
-          foreignKeys: true,
-        };
-      } else if (type === 'mysql' && mysqlConfig) {
-        dbConfig.mysql = {
-          host: mysqlConfig.host,
-          port: mysqlConfig.port || 3306,
-          database: mysqlConfig.database,
-          user: mysqlConfig.user,
-          password: mysqlConfig.password,
-          ssl: mysqlConfig.ssl,
-          connectionLimit: 20,
-          connectTimeout: 60000,
-          acquireTimeout: 60000,
-          timeout: 60000,
-        };
-      } else if (type === 'postgresql' && pgConfig) {
-        dbConfig.postgresql = {
-          host: pgConfig.host,
-          port: pgConfig.port || 5432,
-          database: pgConfig.database,
-          user: pgConfig.user,
-          password: pgConfig.password,
-          ssl: pgConfig.ssl,
-          poolSize: 20,
-          connectionTimeoutMillis: 60000,
-          idleTimeoutMillis: 30000,
-        };
-      }
+      // Disconnect any existing connection
+      try {
+        const { disconnect } = await import('../db/core/connection');
+        await disconnect();
+      } catch { /* Ignore */ }
       
-      await connect(dbConfig);
-      log.info('Init', 'Database connection established for existing data');
+      // Establish new connection with explicit config
+      await connect(testConfig);
+      log.info('Init', 'Connected to existing database with users, skipping to complete');
+      
+      return res.json({
+        code: 0,
+        data: { 
+          success: true, 
+          skipToComplete: true,
+          message: 'Database already initialized with users. Setup complete.'
+        },
+        msg: 'Database already initialized with users. Setup complete.',
+      });
     } catch (error) {
-      log.error('Init', 'Failed to establish database connection', { error });
+      log.error('Init', 'Failed to connect to existing database', { error });
       return res.status(500).json({
         code: 500,
-        msg: 'Failed to establish database connection. Please check your configuration.',
+        msg: 'Failed to connect to existing database. Please check your configuration.',
       });
     }
-    return res.json({
-      code: 0,
-      data: { 
-        success: true, 
-        skipToComplete: true,
-        message: 'Database already initialized with users. Setup complete.'
-      },
-      msg: 'Database already initialized with users. Setup complete.',
-    });
   }
   
-  // If database has data but no users, allow skipping to user creation
+  // Scenario B: Has existing data but no users, keeping data -> Skip to user creation
   if (hasExistingData && !hasExistingUsers && !reset) {
-    // Save config first
-    saveEnvConfig({
-      DB_TYPE: type,
-      ...(type === 'sqlite' && { DB_PATH: sqlite?.path || './data/dnsmgr.db' }),
-      ...(type === 'mysql' && {
-        DB_HOST: mysqlConfig.host,
-        DB_PORT: String(mysqlConfig.port || 3306),
-        DB_NAME: mysqlConfig.database,
-        DB_USER: mysqlConfig.user,
-        DB_PASSWORD: mysqlConfig.password,
-        DB_SSL: mysqlConfig.ssl ? 'true' : 'false',
-      }),
-      ...(type === 'postgresql' && {
-        DB_HOST: pgConfig.host,
-        DB_PORT: String(pgConfig.port || 5432),
-        DB_NAME: pgConfig.database,
-        DB_USER: pgConfig.user,
-        DB_PASSWORD: pgConfig.password,
-        DB_SSL: pgConfig.ssl ? 'true' : 'false',
-      }),
-    });
-    // Disconnect any existing connection before establishing new one
     try {
-      const { disconnect } = await import('../db/core/connection');
-      await disconnect();
-      log.info('Init', 'Disconnected existing connection');
-    } catch {
-      // Ignore errors if no existing connection
-    }
-    // Establish database connection for the saved config
-    try {
-      await createConnection();
-      log.info('Init', 'Database connection established for existing data');
+      // Save config first
+      saveDatabaseConfig(type, sqlite, mysqlConfig, pgConfig);
+      
+      // Disconnect any existing connection
+      try {
+        const { disconnect } = await import('../db/core/connection');
+        await disconnect();
+      } catch { /* Ignore */ }
+      
+      // Establish new connection with explicit config
+      await connect(testConfig);
+      log.info('Init', 'Connected to existing database without users, skipping to user creation');
+      
+      return res.json({
+        code: 0,
+        data: { 
+          success: true, 
+          skipToUserCreation: true,
+          message: 'Database already initialized. Proceed to create admin user.'
+        },
+        msg: 'Database already initialized. Please create admin user.',
+      });
     } catch (error) {
-      log.error('Init', 'Failed to establish database connection', { error });
+      log.error('Init', 'Failed to connect to existing database', { error });
       return res.status(500).json({
         code: 500,
-        msg: 'Failed to establish database connection. Please check your configuration.',
+        msg: 'Failed to connect to existing database. Please check your configuration.',
       });
     }
-    return res.json({
-      code: 0,
-      data: { 
-        success: true, 
-        skipToUserCreation: true,
-        message: 'Database already initialized. Proceed to create admin user.'
-      },
-      msg: 'Database already initialized. Please create admin user.',
-    });
   }
   
+  // Scenario C: Fresh initialization or reset
   try {
-    // Save configuration to data/.env
-    const envConfig: Record<string, string> = {
-      DB_TYPE: type,
-    };
-
-    // Generate a random base JWT secret during initialization when missing
-    // (or still using insecure default).
+    // Save configuration
+    saveDatabaseConfig(type, sqlite, mysqlConfig, pgConfig);
+    
+    // Generate JWT secret if needed
     const currentJwtSecret = process.env.JWT_SECRET || '';
     if (!currentJwtSecret || currentJwtSecret === 'dnsmgr-secret-key') {
-      envConfig.JWT_SECRET = crypto.randomBytes(32).toString('hex');
+      saveEnvConfig({ JWT_SECRET: crypto.randomBytes(32).toString('hex') });
     }
-    
-    if (type === 'sqlite') {
-      // Normalize path for Windows
-      let dbPath = sqlite?.path || './data/dnsmgr.db';
-      // Convert backslashes to forward slashes for consistency
-      dbPath = dbPath.replace(/\\/g, '/');
-      envConfig.DB_PATH = dbPath;
-    } else if (type === 'mysql') {
-      envConfig.DB_HOST = mysqlConfig.host;
-      envConfig.DB_PORT = String(mysqlConfig.port || 3306);
-      envConfig.DB_NAME = mysqlConfig.database;
-      envConfig.DB_USER = mysqlConfig.user;
-      envConfig.DB_PASSWORD = mysqlConfig.password;
-      envConfig.DB_SSL = mysqlConfig.ssl ? 'true' : 'false';
-    } else if (type === 'postgresql') {
-      envConfig.DB_HOST = pgConfig.host;
-      envConfig.DB_PORT = String(pgConfig.port || 5432);
-      envConfig.DB_NAME = pgConfig.database;
-      envConfig.DB_USER = pgConfig.user;
-      envConfig.DB_PASSWORD = pgConfig.password;
-      envConfig.DB_SSL = pgConfig.ssl ? 'true' : 'false';
-    }
-    
-    saveEnvConfig(envConfig);
-    
-    // Build database config object directly from request parameters
-    // to ensure correct database type is used
-    const dbConfig: DatabaseConfig = {
-      type,
-      logging: process.env.DB_LOGGING !== 'false',
-      slowQueryThreshold: parseInt(process.env.DB_SLOW_QUERY_THRESHOLD || '100', 10),
-    };
-    
-    if (type === 'sqlite') {
-      let dbPath = sqlite?.path || './data/dnsmgr.db';
-      dbPath = dbPath.replace(/\\/g, '/');
-      dbConfig.sqlite = {
-        path: dbPath,
-        mode: 'readwrite',
-        busyTimeout: 5000,
-        enableWAL: true,
-        foreignKeys: true,
-      };
-    } else if (type === 'mysql' && mysqlConfig) {
-      dbConfig.mysql = {
-        host: mysqlConfig.host,
-        port: mysqlConfig.port || 3306,
-        database: mysqlConfig.database,
-        user: mysqlConfig.user,
-        password: mysqlConfig.password,
-        ssl: mysqlConfig.ssl,
-        connectionLimit: 20,
-        connectTimeout: 60000,
-        acquireTimeout: 60000,
-        timeout: 60000,
-      };
-    } else if (type === 'postgresql' && pgConfig) {
-      dbConfig.postgresql = {
-        host: pgConfig.host,
-        port: pgConfig.port || 5432,
-        database: pgConfig.database,
-        user: pgConfig.user,
-        password: pgConfig.password,
-        ssl: pgConfig.ssl,
-        poolSize: 20,
-        connectionTimeoutMillis: 60000,
-        idleTimeoutMillis: 30000,
-      };
-    }
-    
-    log.info('Init', 'Creating connection with config', { type: dbConfig.type });
     
     // Create database connection with explicit config
-    const conn = await connect(dbConfig);
+    log.info('Init', 'Creating new database connection', { type, reset });
+    const conn = await connect(testConfig);
     
-    // Initialize schema (use async version for all database types)
-    // If reset is true, drop existing tables first
+    // Initialize schema
     if (reset) {
       await initSchemaAsync(conn, true);
+      log.info('Init', 'Database schema reset successfully');
     } else {
       await initSchemaAsync(conn, false);
+      log.info('Init', 'Database schema initialized successfully');
     }
     
-    res.json({
+    return res.json({
       code: 0,
       data: { success: true, reset },
       msg: reset ? 'Database reset successfully' : 'Database initialized successfully',
     });
   } catch (error) {
-    log.error('Init', 'Database initialization error', { error });
-    res.status(500).json({
+    log.error('Init', 'Database initialization error', { error, type, reset });
+    return res.status(500).json({
       code: 500,
       msg: error instanceof Error ? error.message : 'Failed to initialize database',
     });
