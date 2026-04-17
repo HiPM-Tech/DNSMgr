@@ -100,11 +100,17 @@ router.post('/database', async (req: Request, res: Response) => {
   const dbInitialized = await isDbInitialized();
   const hasAnyUsers = dbInitialized ? await hasUsers() : false;
   
-  // If system is fully ready (has users), prevent re-initialization
-  if (dbInitialized && hasAnyUsers) {
-    return res.status(403).json({
-      code: 403,
-      msg: 'System is already initialized with users. Database re-initialization is not allowed.',
+  // If system is fully ready (has users) and user chooses to keep data (not reset),
+  // allow skipping to complete step (for server migration scenarios)
+  if (dbInitialized && hasAnyUsers && !reset) {
+    return res.json({
+      code: 0,
+      data: { 
+        success: true, 
+        skipToComplete: true,
+        message: 'Database already initialized with users. Setup complete.'
+      },
+      msg: 'Database already initialized with users. Setup complete.',
     });
   }
   

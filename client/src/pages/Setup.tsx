@@ -85,9 +85,12 @@ export function Setup() {
       };
       const res = await initApi.initDatabase(config);
       if (res.data.code === 0) {
-        // Check if backend indicates we should skip to user creation
-        if (res.data.data?.skipToUserCreation) {
-          // Database already initialized, skip to admin creation
+        // Check if backend indicates we should skip to complete (for migration scenarios)
+        if (res.data.data?.skipToComplete) {
+          // Database already initialized with users, skip to complete
+          setCurrentStep('complete');
+        } else if (res.data.data?.skipToUserCreation) {
+          // Database already initialized but no users, skip to admin creation
           setCurrentStep('admin');
         } else if (reset) {
           // If reset, go to admin step
