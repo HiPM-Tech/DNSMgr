@@ -249,7 +249,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
       Value: r.Value,
       Line: r.Line,
       TTL: r.TTL,
-      MX: r.MX === null ? undefined : r.MX,
+      MX: r.MX === null ? 0 : r.MX,
       Status: parseInt(r.Status, 10) || 0,
       Weight: r.Weight,
       Remark: r.Remark || undefined,
