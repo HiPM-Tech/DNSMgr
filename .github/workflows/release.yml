@@ -92,8 +92,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path "release-dist/client"
           Copy-Item -Path "client/dist" -Destination "release-dist/client/" -Recurse -Force
           
-          # Copy node_modules (copy entire directory to ensure all sub-dependencies are included)
-          Copy-Item -Path "server/node_modules" -Destination "release-dist/server/" -Recurse -Force
+          # Use npm to install dependencies in the release directory
+          # This ensures all dependencies (including sub-dependencies) are properly installed
+          Set-Location -Path "release-dist/server"
+          npm install --production --no-package-lock
+          Set-Location -Path "../../"
           
           # Create start script (without BOM)
           $batLines = @(
