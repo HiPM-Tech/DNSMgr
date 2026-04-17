@@ -109,15 +109,8 @@ jobs:
           }
           
           # Create start script
-          $startScript = @"
-@echo off
-echo Starting DNSMgr Server...
-set NODE_PATH=%~dp0server\node_modules
-set PATH=%~dp0nodejs;%PATH%
-"%~dp0nodejs\node.exe" "%~dp0server\dist\app.js"
-pause
-"@
-          $startScript | Out-File -FilePath "release-dist/Start-DNSMgr.bat" -Encoding UTF8
+          $batContent = "@echo off`necho Starting DNSMgr Server...`nset NODE_PATH=%~dp0server\node_modules`nset PATH=%~dp0nodejs;%PATH`n`"%~dp0nodejs\node.exe`" `"%~dp0server\dist\app.js`"`npause"
+          [System.IO.File]::WriteAllText("release-dist/Start-DNSMgr.bat", $batContent, [System.Text.Encoding]::UTF8)
           
           Compress-Archive -Path "release-dist/*" -DestinationPath "DNSMgr-Windows-v$VERSION.zip" -Force
 
