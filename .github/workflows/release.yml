@@ -64,7 +64,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Get version
         id: get_version
@@ -99,8 +99,8 @@ jobs:
             exit 1
           }
 
-      - name: Install pkg
-        run: npm install -g pkg
+      - name: Install nexe
+        run: npm install -g nexe
 
       - name: Package server to EXE
         shell: pwsh
@@ -110,16 +110,14 @@ jobs:
           # Create release dist directory at root
           New-Item -ItemType Directory -Force -Path "release-dist"
           
-          # Package server with pkg from server directory
-          # pkg will read package.json and include:
-          # - All dependencies (node_modules)
-          # - Client files (from pkg.assets: ../client/dist/**/*)
-          # - Node.js runtime
+          # Package server with nexe from server directory
+          # nexe will bundle the app with Node.js runtime
           cd server
-          pkg . `
-            --targets node18-win-x64 `
+          nexe dist/app.js `
+            --target "windows-x64-20.18.0" `
             --output "../release-dist/DNSMgr-Server-v$VERSION.exe" `
-            --options "max-old-space-size=4096"
+            --resource "../client/dist/**/*" `
+            --verbose
           cd ..
           
           # Note: Client files are now bundled inside the EXE via pkg assets
