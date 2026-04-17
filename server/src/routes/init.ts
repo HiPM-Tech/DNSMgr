@@ -147,6 +147,17 @@ router.post('/database', async (req: Request, res: Response) => {
         DB_SSL: pgConfig.ssl ? 'true' : 'false',
       }),
     });
+    // Establish database connection for the saved config
+    try {
+      await createConnection();
+      log.info('Init', 'Database connection established for existing data');
+    } catch (error) {
+      log.error('Init', 'Failed to establish database connection', { error });
+      return res.status(500).json({
+        code: 500,
+        msg: 'Failed to establish database connection. Please check your configuration.',
+      });
+    }
     return res.json({
       code: 0,
       data: { 
@@ -181,6 +192,17 @@ router.post('/database', async (req: Request, res: Response) => {
         DB_SSL: pgConfig.ssl ? 'true' : 'false',
       }),
     });
+    // Establish database connection for the saved config
+    try {
+      await createConnection();
+      log.info('Init', 'Database connection established for existing data');
+    } catch (error) {
+      log.error('Init', 'Failed to establish database connection', { error });
+      return res.status(500).json({
+        code: 500,
+        msg: 'Failed to establish database connection. Please check your configuration.',
+      });
+    }
     return res.json({
       code: 0,
       data: { 
