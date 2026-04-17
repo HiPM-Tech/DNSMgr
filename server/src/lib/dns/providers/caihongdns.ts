@@ -53,7 +53,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
       uid: config.uid || '',
       apiKey: config.apiKey || '',
       domain: config.domain,
-      domainId: config.domainId,
+      domainId: config.domainId || config.zoneId, // Support both domainId and zoneId
     };
   }
 
