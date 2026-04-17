@@ -34,6 +34,248 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install markdown-it markdown-it-anchor markdown-it-table-of-contents
+
+      - name: Convert Markdown to HTML
+        run: |
+          # 创建转换脚本
+          cat > convert.js << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const MarkdownIt = require('markdown-it');
+
+          const md = new MarkdownIt({
+              html: true,
+              linkify: true,
+              typographer: true,
+              highlight: function (str, lang) {
+                  return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+              }
+          });
+
+          // 添加目录支持
+          md.use(require('markdown-it-anchor'));
+          md.use(require('markdown-it-table-of-contents'));
+
+          function convertFile(inputPath, outputPath) {
+              try {
+                  const content = fs.readFileSync(inputPath, 'utf-8');
+                  const html = md.render(content);
+                  
+                  // 获取相对路径用于标题
+                  const relativePath = path.relative('docs', inputPath);
+                  const title = path.basename(inputPath, '.md');
+                  
+                  const template = `<!DOCTYPE html>
+          <html lang="zh-CN">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>${title} - DNSMgr 文档</title>
+              <style>
+                  * {
+                      margin: 0;
+                      padding: 0;
+                      box-sizing: border-box;
+                  }
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                      line-height: 1.6;
+                      color: #333;
+                      background: #f5f7fa;
+                  }
+                  .container {
+                      max-width: 900px;
+                      margin: 0 auto;
+                      padding: 40px 20px;
+                  }
+                  .nav {
+                      background: white;
+                      padding: 15px 20px;
+                      border-radius: 8px;
+                      margin-bottom: 30px;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                  }
+                  .nav a {
+                      color: #667eea;
+                      text-decoration: none;
+                      margin-right: 20px;
+                  }
+                  .nav a:hover {
+                      text-decoration: underline;
+                  }
+                  .content {
+                      background: white;
+                      padding: 40px;
+                      border-radius: 12px;
+                      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                  }
+                  h1 {
+                      color: #1a1a2e;
+                      font-size: 2.5rem;
+                      margin-bottom: 20px;
+                      padding-bottom: 15px;
+                      border-bottom: 3px solid #667eea;
+                  }
+                  h2 {
+                      color: #16213e;
+                      font-size: 1.8rem;
+                      margin: 40px 0 20px;
+                      padding-bottom: 10px;
+                      border-bottom: 2px solid #e0e0e0;
+                  }
+                  h3 {
+                      color: #0f3460;
+                      font-size: 1.4rem;
+                      margin: 30px 0 15px;
+                  }
+                  p {
+                      margin: 15px 0;
+                      color: #444;
+                  }
+                  code {
+                      background: #f4f4f4;
+                      padding: 2px 6px;
+                      border-radius: 4px;
+                      font-family: 'Consolas', 'Monaco', monospace;
+                      font-size: 0.9em;
+                      color: #e83e8c;
+                  }
+                  pre {
+                      background: #1e1e1e;
+                      color: #d4d4d4;
+                      padding: 20px;
+                      border-radius: 8px;
+                      overflow-x: auto;
+                      margin: 20px 0;
+                  }
+                  pre code {
+                      background: none;
+                      color: inherit;
+                      padding: 0;
+                  }
+                  table {
+                      width: 100%;
+                      border-collapse: collapse;
+                      margin: 20px 0;
+                  }
+                  th, td {
+                      padding: 12px;
+                      text-align: left;
+                      border-bottom: 1px solid #e0e0e0;
+                  }
+                  th {
+                      background: #f8f9fa;
+                      font-weight: 600;
+                      color: #333;
+                  }
+                  tr:hover {
+                      background: #f8f9fa;
+                  }
+                  ul, ol {
+                      margin: 15px 0;
+                      padding-left: 30px;
+                  }
+                  li {
+                      margin: 8px 0;
+                  }
+                  a {
+                      color: #667eea;
+                      text-decoration: none;
+                  }
+                  a:hover {
+                      text-decoration: underline;
+                  }
+                  blockquote {
+                      border-left: 4px solid #667eea;
+                      padding-left: 20px;
+                      margin: 20px 0;
+                      color: #666;
+                      font-style: italic;
+                  }
+                  hr {
+                      border: none;
+                      border-top: 1px solid #e0e0e0;
+                      margin: 40px 0;
+                  }
+                  .toc {
+                      background: #f8f9fa;
+                      padding: 20px;
+                      border-radius: 8px;
+                      margin: 20px 0;
+                  }
+                  .toc ul {
+                      list-style: none;
+                      padding-left: 0;
+                  }
+                  .toc li {
+                      margin: 5px 0;
+                  }
+                  @media (max-width: 768px) {
+                      .content {
+                          padding: 20px;
+                      }
+                      h1 {
+                          font-size: 1.8rem;
+                      }
+                      h2 {
+                          font-size: 1.4rem;
+                      }
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <nav class="nav">
+                      <a href="/DNSMgr/">🏠 首页</a>
+                      <a href="javascript:history.back()">← 返回</a>
+                  </nav>
+                  <div class="content">
+                      ${html}
+                  </div>
+              </div>
+          </body>
+          </html>`;
+                  
+                  fs.writeFileSync(outputPath, template);
+                  console.log(`✓ Converted: ${inputPath} -> ${outputPath}`);
+              } catch (error) {
+                  console.error(`✗ Failed to convert ${inputPath}:`, error.message);
+              }
+          }
+
+          function processDirectory(dir) {
+              if (!fs.existsSync(dir)) {
+                  console.log(`Directory not found: ${dir}`);
+                  return;
+              }
+              
+              const files = fs.readdirSync(dir);
+              
+              files.forEach(file => {
+                  const fullPath = path.join(dir, file);
+                  const stat = fs.statSync(fullPath);
+                  
+                  if (stat.isDirectory()) {
+                      processDirectory(fullPath);
+                  } else if (file.endsWith('.md')) {
+                      const outputPath = fullPath.replace('.md', '.html');
+                      convertFile(fullPath, outputPath);
+                  }
+              });
+          }
+
+          // 处理 docs 目录
+          console.log('Starting Markdown conversion...');
+          processDirectory('docs');
+          console.log('Conversion complete!');
+          EOF
+          
+          node convert.js
+
       - name: Generate Documentation Index
         run: |
           cat > docs/index.html << 'EOF'
@@ -217,7 +459,7 @@ jobs:
                           <h2>🔍 代码审查</h2>
                           <p>AI 代码审查团的审查报告</p>
                           <ul>
-                              <li><a href="../ai-censorship/root.html">审查根文档</a></li>
+                              <li><a href="ai-censorship/root.html">审查根文档</a></li>
                           </ul>
                           <span class="badge">质量保证</span>
                       </div>
@@ -235,230 +477,10 @@ jobs:
           </html>
           EOF
 
-      - name: Install dependencies
+      - name: List generated files
         run: |
-          npm install markdown-it markdown-it-anchor markdown-it-table-of-contents
-
-      - name: Convert Markdown to HTML
-        run: |
-          # 创建转换脚本
-          cat > convert.js << 'EOF'
-          const fs = require('fs');
-          const path = require('path');
-          const MarkdownIt = require('./node_modules/markdown-it');
-
-          const md = new MarkdownIt({
-              html: true,
-              linkify: true,
-              typographer: true,
-              highlight: function (str, lang) {
-                  return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
-              }
-          });
-
-          // 添加目录支持
-          md.use(require('./node_modules/markdown-it-anchor'));
-          md.use(require('./node_modules/markdown-it-table-of-contents'));
-
-          function convertFile(inputPath, outputPath) {
-              const content = fs.readFileSync(inputPath, 'utf-8');
-              const html = md.render(content);
-              
-              const template = `<!DOCTYPE html>
-          <html lang="zh-CN">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>${path.basename(inputPath, '.md')} - DNSMgr 文档</title>
-              <style>
-                  * {
-                      margin: 0;
-                      padding: 0;
-                      box-sizing: border-box;
-                  }
-                  body {
-                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-                      line-height: 1.6;
-                      color: #333;
-                      background: #f5f7fa;
-                  }
-                  .container {
-                      max-width: 900px;
-                      margin: 0 auto;
-                      padding: 40px 20px;
-                  }
-                  .nav {
-                      background: white;
-                      padding: 15px 20px;
-                      border-radius: 8px;
-                      margin-bottom: 30px;
-                      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                  }
-                  .nav a {
-                      color: #667eea;
-                      text-decoration: none;
-                      margin-right: 20px;
-                  }
-                  .nav a:hover {
-                      text-decoration: underline;
-                  }
-                  .content {
-                      background: white;
-                      padding: 40px;
-                      border-radius: 12px;
-                      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-                  }
-                  h1 {
-                      color: #1a1a2e;
-                      font-size: 2.5rem;
-                      margin-bottom: 20px;
-                      padding-bottom: 15px;
-                      border-bottom: 3px solid #667eea;
-                  }
-                  h2 {
-                      color: #16213e;
-                      font-size: 1.8rem;
-                      margin: 40px 0 20px;
-                      padding-bottom: 10px;
-                      border-bottom: 2px solid #e0e0e0;
-                  }
-                  h3 {
-                      color: #0f3460;
-                      font-size: 1.4rem;
-                      margin: 30px 0 15px;
-                  }
-                  p {
-                      margin: 15px 0;
-                      color: #444;
-                  }
-                  code {
-                      background: #f4f4f4;
-                      padding: 2px 6px;
-                      border-radius: 4px;
-                      font-family: 'Consolas', 'Monaco', monospace;
-                      font-size: 0.9em;
-                      color: #e83e8c;
-                  }
-                  pre {
-                      background: #1e1e1e;
-                      color: #d4d4d4;
-                      padding: 20px;
-                      border-radius: 8px;
-                      overflow-x: auto;
-                      margin: 20px 0;
-                  }
-                  pre code {
-                      background: none;
-                      color: inherit;
-                      padding: 0;
-                  }
-                  table {
-                      width: 100%;
-                      border-collapse: collapse;
-                      margin: 20px 0;
-                  }
-                  th, td {
-                      padding: 12px;
-                      text-align: left;
-                      border-bottom: 1px solid #e0e0e0;
-                  }
-                  th {
-                      background: #f8f9fa;
-                      font-weight: 600;
-                      color: #333;
-                  }
-                  tr:hover {
-                      background: #f8f9fa;
-                  }
-                  ul, ol {
-                      margin: 15px 0;
-                      padding-left: 30px;
-                  }
-                  li {
-                      margin: 8px 0;
-                  }
-                  a {
-                      color: #667eea;
-                      text-decoration: none;
-                  }
-                  a:hover {
-                      text-decoration: underline;
-                  }
-                  blockquote {
-                      border-left: 4px solid #667eea;
-                      padding-left: 20px;
-                      margin: 20px 0;
-                      color: #666;
-                      font-style: italic;
-                  }
-                  hr {
-                      border: none;
-                      border-top: 1px solid #e0e0e0;
-                      margin: 40px 0;
-                  }
-                  .toc {
-                      background: #f8f9fa;
-                      padding: 20px;
-                      border-radius: 8px;
-                      margin: 20px 0;
-                  }
-                  .toc ul {
-                      list-style: none;
-                      padding-left: 0;
-                  }
-                  .toc li {
-                      margin: 5px 0;
-                  }
-                  @media (max-width: 768px) {
-                      .content {
-                          padding: 20px;
-                      }
-                      h1 {
-                          font-size: 1.8rem;
-                      }
-                      h2 {
-                          font-size: 1.4rem;
-                      }
-                  }
-              </style>
-          </head>
-          <body>
-              <div class="container">
-                  <nav class="nav">
-                      <a href="index.html">🏠 首页</a>
-                      <a href="javascript:history.back()">← 返回</a>
-                  </nav>
-                  <div class="content">
-                      ${html}
-                  </div>
-              </div>
-          </body>
-          </html>`;
-              
-              fs.writeFileSync(outputPath, template);
-              console.log(`Converted: ${inputPath} -> ${outputPath}`);
-          }
-
-          function processDirectory(dir) {
-              const files = fs.readdirSync(dir);
-              
-              files.forEach(file => {
-                  const fullPath = path.join(dir, file);
-                  const stat = fs.statSync(fullPath);
-                  
-                  if (stat.isDirectory()) {
-                      processDirectory(fullPath);
-                  } else if (file.endsWith('.md')) {
-                      const outputPath = fullPath.replace('.md', '.html');
-                      convertFile(fullPath, outputPath);
-                  }
-              });
-          }
-
-          processDirectory('docs');
-          EOF
-          
-          node convert.js
+          echo "Generated documentation files:"
+          find docs -name "*.html" -type f | head -20
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
