@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap, FileText, Info, Cpu, Sun, Moon, Monitor, Key, X, Menu,
+  LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap, FileText, Info, Cpu, Sun, Moon, Monitor, Key, X, Menu, Shield,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { roleLabelKey } from '../utils/roles';
@@ -159,6 +159,20 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
           >
             <Settings className="w-4 h-4 flex-shrink-0" />
             {t('common.settings')}
+          </NavLink>
+          <NavLink
+            to="/security"
+            onClick={isMobile ? onClose : undefined}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+              }`
+            }
+          >
+            <Shield className="w-4 h-4 flex-shrink-0" />
+            {t('common.security')}
           </NavLink>
           <NavLink
             to="/about"

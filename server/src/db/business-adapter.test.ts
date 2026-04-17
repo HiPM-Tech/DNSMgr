@@ -10,9 +10,8 @@ import {
   SecretOperations,
   SettingsOperations,
 } from './business-adapter';
-import { connect, disconnect } from './core/connection';
+import { connect, disconnect, getConnection } from './core/connection';
 import { initSchemaAsync } from './schema';
-import { createConnection } from './database';
 
 // Test database configuration
 const TEST_DB_PATH = ':memory:';
@@ -22,9 +21,8 @@ describe('Business Adapter Layer', () => {
     // Initialize test database
     process.env.DB_TYPE = 'sqlite';
     process.env.DB_PATH = TEST_DB_PATH;
-    
-    const conn = await createConnection();
-    await connect();
+
+    const conn = await connect();
     await initSchemaAsync(conn);
   });
 

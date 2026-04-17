@@ -1,5 +1,36 @@
 # 更新日志
 
+## [1.1.1] - 2026-04-17
+
+### 🐛 问题修复
+
+- **数据库系统重构**
+  - 统一数据库连接系统到 `db/core/connection.ts`
+  - 移除旧的 `db/database.ts` 直接调用
+  - 修复 PostgreSQL 触发器语法错误 (`CREATE TRIGGER IF NOT EXISTS` 不支持)
+  - 修复 MySQL/SQLite/PostgreSQL schema 兼容性问题
+
+- **2FA 功能完善**
+  - 修复 2FA 设置/启用/禁用 API 路由缺失问题
+  - 添加前端安全页面 (`/security`)
+  - 完善 2FA 启用/禁用流程
+  - 添加禁用 2FA 的确认流程
+
+### 🔧 新增工具
+
+- **CLI 管理工具** (`npm run cli`)
+  - `disable-2fa` - 禁用指定用户的 2FA
+  - `reset-db-config` - 重置数据库连接配置
+  - `list-users` - 列出所有用户
+  - `reset-password` - 重置用户密码
+
+### 📝 文档更新
+
+- 更新 API 文档，添加 2FA 相关接口
+- 添加 CLI 工具使用说明
+
+---
+
 ## [1.1.0] - 2026-04-16
 
 ### ✨ 新增功能

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { authMiddleware, adminOnly } from '../middleware/auth';
-import { SecurityPolicyOperations, TrustedDeviceOperations, getDbType } from '../db/business-adapter';
+import { SecurityPolicyOperations, TrustedDeviceOperations, getDbType, UserOperations } from '../db/business-adapter';
 import { getSecurityPolicy, updateSecurityPolicy, checkPasswordStrength, validatePassword, requires2FA, has2FAEnabled } from '../service/securityPolicy';
+import { generateTOTPSecret, enableTOTP, disableTOTP, getTOTPStatus, verifyTOTPToken } from '../service/totp';
 import { log } from '../lib/logger';
 
 const router = Router();
@@ -77,11 +78,74 @@ router.get('/requires-2fa', authMiddleware, async (req, res) => {
 router.get('/2fa-status', authMiddleware, async (req, res) => {
   try {
     const userId = (req as any).user.userId;
-    const enabled = await has2FAEnabled(userId);
-    res.json({ success: true, data: { enabled } });
+    const status = await getTOTPStatus(userId);
+    res.json({ success: true, data: status });
   } catch (error) {
     log.error('Security', 'Failed to check 2FA status:', { error });
     res.status(500).json({ success: false, message: 'Failed to check 2FA status' });
+  }
+});
+
+// 设置 TOTP 2FA
+router.post('/2fa/setup', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const user = await UserOperations.getById(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const email = (user as { email?: string }).email;
+    const username = (user as { username: string }).username;
+    const setup = await generateTOTPSecret(userId, email || username);
+    res.json({ success: true, data: setup });
+  } catch (error) {
+    log.error('Security', 'Failed to setup 2FA:', { error });
+    res.status(500).json({ success: false, message: 'Failed to setup 2FA' });
+  }
+});
+
+// 启用 TOTP 2FA
+router.post('/2fa/enable', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { secret, token, backupCodes } = req.body;
+
+    if (!secret || !token || !backupCodes) {
+      return res.status(400).json({ success: false, message: 'secret, token, and backupCodes are required' });
+    }
+
+    // 验证 TOTP 令牌
+    if (!verifyTOTPToken(secret, token)) {
+      return res.status(400).json({ success: false, message: 'Invalid verification code' });
+    }
+
+    await enableTOTP(userId, secret, backupCodes);
+    res.json({ success: true, message: '2FA enabled successfully' });
+  } catch (error) {
+    log.error('Security', 'Failed to enable 2FA:', { error });
+    res.status(500).json({ success: false, message: 'Failed to enable 2FA' });
+  }
+});
+
+// 禁用 TOTP 2FA
+router.post('/2fa/disable', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { token } = req.body;
+
+    // 验证当前 TOTP 令牌才能禁用
+    const status = await getTOTPStatus(userId);
+    if (!status.enabled) {
+      return res.status(400).json({ success: false, message: '2FA is not enabled' });
+    }
+
+    await disableTOTP(userId);
+    res.json({ success: true, message: '2FA disabled successfully' });
+  } catch (error) {
+    log.error('Security', 'Failed to disable 2FA:', { error });
+    res.status(500).json({ success: false, message: 'Failed to disable 2FA' });
   }
 });
 

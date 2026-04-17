@@ -14,6 +14,7 @@ import { Records } from './pages/Records';
 import { Users } from './pages/Users';
 import { Teams } from './pages/Teams';
 import { Settings } from './pages/Settings';
+import { Security } from './pages/Security';
 import { Tunnels } from './pages/Tunnels';
 import { Tokens } from './pages/Tokens';
 import { About } from './pages/About';
@@ -46,6 +47,7 @@ function App() {
                   <Route path="tokens" element={<Tokens />} />
                   <Route path="teams" element={<Teams />} />
                   <Route path="settings" element={<Settings />} />
+                  <Route path="security" element={<Security />} />
                   <Route path="about" element={<About />} />
                   <Route element={<AdminRoute />}>
                     <Route path="users" element={<Users />} />

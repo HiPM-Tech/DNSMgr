@@ -1,6 +1,6 @@
 {
   "name": "dnsmgr-server",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "DNS aggregation management platform backend",
   "main": "dist/app.js",
   "bin": "dist/app.js",
@@ -28,6 +28,8 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "test": "node --require ts-node/register --test src/**/*.test.ts",
+    "cli": "ts-node src/cli.ts",
+    "cli:help": "ts-node src/cli.ts --help",
     "pkg:win": "pkg . --targets node18-win-x64 --output dist/pkg/DNSMgr-Server-win.exe",
     "pkg:linux": "pkg . --targets node18-linux-x64 --output dist/pkg/DNSMgr-Server-linux",
     "pkg:macos": "pkg . --targets node18-macos-x64 --output dist/pkg/DNSMgr-Server-macos",

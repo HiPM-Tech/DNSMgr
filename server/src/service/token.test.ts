@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
 import {
   generateToken,
@@ -7,8 +7,23 @@ import {
   hasDomainPermission,
 } from './token';
 import type { TokenPayload } from '../types/token';
+import { connect, disconnect } from '../db/core/connection';
+import { initSchemaAsync } from '../db/schema';
 
 describe('Token Service', () => {
+  before(async () => {
+    // Initialize test database
+    process.env.DB_TYPE = 'sqlite';
+    process.env.DB_PATH = ':memory:';
+
+    const conn = await connect();
+    await initSchemaAsync(conn);
+  });
+
+  after(async () => {
+    await disconnect();
+  });
+
   describe('generateToken', () => {
     it('should generate a token with correct prefix', () => {
       const token = generateToken();

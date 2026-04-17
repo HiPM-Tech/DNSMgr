@@ -38,6 +38,8 @@ export function Security() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [passkeys, setPasskeys] = useState<any[]>([]);
+  const [showDisable2FA, setShowDisable2FA] = useState(false);
+  const [disable2FAToken, setDisable2FAToken] = useState('');
 
   useEffect(() => {
     loadSessions();
@@ -221,6 +223,39 @@ export function Security() {
     }
   };
 
+  const handleDisable2FA = async () => {
+    if (!disable2FAToken || disable2FAToken.length !== 6) {
+      toast.error(t('security.enterVerificationCode'));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/security/2fa/disable', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ token: disable2FAToken }),
+      });
+
+      if (response.ok) {
+        toast.success(t('security.disable2faSuccess'));
+        setShowDisable2FA(false);
+        setDisable2FAToken('');
+        await loadTotpStatus();
+      } else {
+        const data = await response.json();
+        toast.error(data.message || t('security.disable2faFailed'));
+      }
+    } catch (error) {
+      toast.error(t('security.disable2faFailed'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const copyBackupCode = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
@@ -246,7 +281,7 @@ export function Security() {
               </p>
             </div>
           </div>
-          {!totpEnabled && (
+          {!totpEnabled ? (
             <button
               onClick={() => {
                 setShowTotpSetup(true);
@@ -256,6 +291,14 @@ export function Security() {
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
             >
               {t('security.enable2fa')}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowDisable2FA(true)}
+              disabled={loading}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+            >
+              {t('security.disable2fa')}
             </button>
           )}
         </div>
@@ -432,6 +475,47 @@ export function Security() {
                 className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
               >
                 {loading ? t('security.enabling') : t('security.enable2fa')}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Disable 2FA Modal */}
+      {showDisable2FA && (
+        <Modal title={t('security.disable2fa')} onClose={() => setShowDisable2FA(false)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {t('security.disable2faWarning')}
+            </p>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                {t('security.enterVerificationCode')}
+              </label>
+              <input
+                type="text"
+                value={disable2FAToken}
+                onChange={(e) => setDisable2FAToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                maxLength={6}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-center text-2xl tracking-widest"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDisable2FA(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={handleDisable2FA}
+                disabled={loading || disable2FAToken.length !== 6}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+              >
+                {loading ? t('security.disabling') : t('security.disable2fa')}
               </button>
             </div>
           </div>

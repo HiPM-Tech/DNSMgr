@@ -16,7 +16,6 @@ import crypto from 'crypto';
 import type { SQLCompiler } from './query/compiler';
 import { getDefaultCompiler } from './query/compiler';
 import { transaction, getConnection } from './core/connection';
-import { getCurrentConnection } from './database';
 import { log } from '../lib/logger';
 
 // 本地 db 对象，避免循环依赖
@@ -1670,39 +1669,34 @@ export class TransactionOperations {
 export const SystemOperations = {
   /** 获取数据库信息（版本、驱动等） */
   async getDatabaseInfo(): Promise<{ type: string; version: string; driverVersion: string }> {
-    const conn = getCurrentConnection();
-    
+    const conn = getConnection();
+
     let dbInfo = {
-      type: 'unknown',
+      type: conn.type,
       version: 'unknown',
       driverVersion: 'unknown',
     };
-    
-    if (conn) {
-      dbInfo.type = conn.type;
-      
-      if (conn.type === 'sqlite') {
-        // Get SQLite version
-        const sqliteConn = conn as any;
-        const versionRow = sqliteConn.prepare('SELECT sqlite_version() as version').get();
-        dbInfo.version = versionRow?.version || 'unknown';
-        dbInfo.driverVersion = require('better-sqlite3/package.json').version;
-      } else if (conn.type === 'mysql') {
-        // Get MySQL version
-        const result = await conn.get('SELECT VERSION() as version');
-        dbInfo.version = (result as { version: string })?.version || 'unknown';
-        dbInfo.driverVersion = require('mysql2/package.json').version;
-      } else if (conn.type === 'postgresql') {
-        // Get PostgreSQL version
-        const result = await conn.get('SELECT version() as version');
-        const fullVersion = (result as { version: string })?.version || 'unknown';
-        // Extract version number from string like "PostgreSQL 15.2 on ..."
-        const match = fullVersion.match(/PostgreSQL\s+(\d+\.?\d*)/);
-        dbInfo.version = match ? match[1] : fullVersion;
-        dbInfo.driverVersion = require('pg/package.json').version;
-      }
+
+    if (conn.type === 'sqlite') {
+      // Get SQLite version
+      const result = await conn.get('SELECT sqlite_version() as version');
+      dbInfo.version = (result as { version: string })?.version || 'unknown';
+      dbInfo.driverVersion = require('better-sqlite3/package.json').version;
+    } else if (conn.type === 'mysql') {
+      // Get MySQL version
+      const result = await conn.get('SELECT VERSION() as version');
+      dbInfo.version = (result as { version: string })?.version || 'unknown';
+      dbInfo.driverVersion = require('mysql2/package.json').version;
+    } else if (conn.type === 'postgresql') {
+      // Get PostgreSQL version
+      const result = await conn.get('SELECT version() as version');
+      const fullVersion = (result as { version: string })?.version || 'unknown';
+      // Extract version number from string like "PostgreSQL 15.2 on ..."
+      const match = fullVersion.match(/PostgreSQL\s+(\d+\.?\d*)/);
+      dbInfo.version = match ? match[1] : fullVersion;
+      dbInfo.driverVersion = require('pg/package.json').version;
     }
-    
+
     return dbInfo;
   },
 

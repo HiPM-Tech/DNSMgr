@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { initSchema, initSchemaAsync } from '../db/schema';
 import { saveEnvConfig, getDbConfig } from '../config/env';
-import { createConnection, isDbInitialized, hasUsers, getDb } from '../db/database';
+import { createConnection, isDbInitialized, hasUsers } from '../db/connection';
 import { UserOperations, SystemOperations, SecretOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 

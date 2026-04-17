@@ -11,7 +11,8 @@
 import { sqliteSchema } from './schemas/sqlite';
 import { mysqlSchema } from './schemas/mysql';
 import { postgresqlSchema } from './schemas/postgresql';
-import { getDb, SQLiteConnection } from './database';
+import { getConnection } from './core/connection';
+import type { DatabaseConnection } from './core/types';
 import { log } from '../lib/logger';
 
 // Re-export schema definitions
@@ -21,16 +22,13 @@ export { sqliteSchema, mysqlSchema, postgresqlSchema };
  * Initialize database schema (legacy synchronous version - SQLite only)
  * @deprecated Use initSchemaAsync instead
  */
-export function initSchema(): void {
-  const db = getDb();
-  if (!db) {
-    throw new Error('Database not initialized');
-  }
+export async function initSchema(): Promise<void> {
+  const conn = getConnection();
 
   // Create tables
   for (const sql of sqliteSchema.createTables) {
     try {
-      (db as SQLiteConnection).exec(sql);
+      await conn.execute(sql);
     } catch (error) {
       log.error('Schema', 'Failed to create table', { error, sql: sql.substring(0, 100) });
       throw error;
@@ -40,7 +38,7 @@ export function initSchema(): void {
   // Create indexes
   for (const sql of sqliteSchema.createIndexes) {
     try {
-      (db as SQLiteConnection).exec(sql);
+      await conn.execute(sql);
     } catch (error) {
       log.error('Schema', 'Failed to create index', { error, sql: sql.substring(0, 100) });
       throw error;
