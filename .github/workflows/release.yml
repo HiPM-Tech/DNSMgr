@@ -113,11 +113,11 @@ jobs:
           # Package server with nexe from server directory
           # Use --build flag to compile Node.js from source if pre-built not available
           cd server
+          # Try to use pre-built Node.js 20.11.0 (LTS), fallback to build if not available
           nexe dist/app.js `
-            --target "windows-x64-20.18.0" `
+            --target "windows-x64-20.11.0" `
             --output "../release-dist/DNSMgr-Server-v$VERSION.exe" `
             --resource "../client/dist/**/*" `
-            --build `
             --verbose
           cd ..
           
