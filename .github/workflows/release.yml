@@ -109,14 +109,15 @@ jobs:
           }
           
           # Create start script
-          @'
+          $startScript = @"
 @echo off
 echo Starting DNSMgr Server...
 set NODE_PATH=%~dp0server\node_modules
 set PATH=%~dp0nodejs;%PATH%
 "%~dp0nodejs\node.exe" "%~dp0server\dist\app.js"
 pause
-'@ | Out-File -FilePath "release-dist/Start-DNSMgr.bat" -Encoding UTF8
+"@
+          $startScript | Out-File -FilePath "release-dist/Start-DNSMgr.bat" -Encoding UTF8
           
           Compress-Archive -Path "release-dist/*" -DestinationPath "DNSMgr-Windows-v$VERSION.zip" -Force
 
