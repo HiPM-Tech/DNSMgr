@@ -102,7 +102,7 @@ export class PostgreSQLDriver extends BaseDriver {
       const result = await this.pool.query(sql, params);
       const duration = Date.now() - startTime;
 
-      if (duration > (this._config.slowQueryThreshold || 100)) {
+      if (duration > (this.config.slowQueryThreshold || 100)) {
         log.warn('PostgreSQL', 'Slow query detected', { sql: sql.substring(0, 100), duration });
       }
 

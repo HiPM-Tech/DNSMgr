@@ -87,7 +87,7 @@ export class MySQLDriver extends BaseDriver {
       const [rows] = await this.pool.execute(sql, params);
       const duration = Date.now() - startTime;
 
-      if (duration > (this._config.slowQueryThreshold || 100)) {
+      if (duration > (this.config.slowQueryThreshold || 100)) {
         log.warn('MySQL', 'Slow query detected', { sql: sql.substring(0, 100), duration });
       }
 
