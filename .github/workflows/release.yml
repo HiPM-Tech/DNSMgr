@@ -1,6 +1,5 @@
 name: Release Build
 
-# 手动触发发布工作流
 on:
   workflow_dispatch:
     inputs:
@@ -14,7 +13,7 @@ on:
         default: false
         type: boolean
       build_exe:
-        description: 'Build Windows EXE?'
+        description: 'Build Windows package?'
         required: false
         default: true
         type: boolean
@@ -34,8 +33,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # 构建 Windows EXE
-  build-exe:
+  build-windows:
     if: inputs.build_exe == true
     runs-on: windows-latest
     steps:
@@ -47,19 +45,6 @@ jobs:
         with:
           version: 9
           run_install: false
-
-      - name: Get pnpm store directory
-        shell: pwsh
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $env:GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -74,7 +59,6 @@ jobs:
           if ($VERSION -eq "") {
             $VERSION = (Get-Content package.json | ConvertFrom-Json).version
           }
-          # Remove 'v' prefix if present
           $VERSION = $VERSION -replace '^v', ''
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
           echo "Building version: $VERSION"
@@ -88,152 +72,67 @@ jobs:
       - name: Build client
         run: pnpm --filter dnsmgr-client build
 
-      - name: Verify client build
-        shell: pwsh
-        run: |
-          if (Test-Path "client/dist") {
-            Write-Host "✅ client/dist exists"
-            Get-ChildItem "client/dist" -Recurse | Select-Object -First 10
-          } else {
-            Write-Error "❌ client/dist not found!"
-            exit 1
-          }
-
       - name: Create Windows ZIP Package
         shell: pwsh
         run: |
           $VERSION = "${{ steps.get_version.outputs.version }}"
-          
-          # Create release dist directory at root
           New-Item -ItemType Directory -Force -Path "release-dist"
           
-          # Download Node.js 20 for Windows x64
-          Write-Host "📥 Downloading Node.js 20..."
+          # Download Node.js 20
           $nodeUrl = "https://nodejs.org/dist/v20.11.0/node-v20.11.0-win-x64.zip"
           Invoke-WebRequest -Uri $nodeUrl -OutFile "node.zip"
           Expand-Archive -Path "node.zip" -DestinationPath "release-dist" -Force
-          
-          # Rename node directory for cleaner structure
           Rename-Item -Path "release-dist/node-v20.11.0-win-x64" -NewName "nodejs" -Force
           
-          # Copy server files
-          Write-Host "📦 Copying server files..."
+          # Copy files
           New-Item -ItemType Directory -Force -Path "release-dist/server"
           Copy-Item -Path "server/dist" -Destination "release-dist/server/" -Recurse -Force
           Copy-Item -Path "server/package.json" -Destination "release-dist/server/" -Force
           
-          # Copy client files
-          Write-Host "📦 Copying client files..."
           New-Item -ItemType Directory -Force -Path "release-dist/client"
           Copy-Item -Path "client/dist" -Destination "release-dist/client/" -Recurse -Force
           
-          # Copy node_modules (production dependencies only)
-          Write-Host "📦 Copying node_modules..."
+          # Copy node_modules
           New-Item -ItemType Directory -Force -Path "release-dist/server/node_modules"
-          
-          # Copy essential native modules
-          $nativeModules = @(
-            "better-sqlite3",
-            "bcryptjs",
-            "mysql2"
-          )
+          $nativeModules = @("better-sqlite3", "bcryptjs", "mysql2")
           foreach ($mod in $nativeModules) {
             if (Test-Path "server/node_modules/$mod") {
-              Write-Host "  - Copying $mod"
               Copy-Item -Path "server/node_modules/$mod" -Destination "release-dist/server/node_modules/" -Recurse -Force
             }
           }
           
-          # Copy production dependencies from package.json
           $pkg = Get-Content "server/package.json" | ConvertFrom-Json
           foreach ($dep in $pkg.dependencies.PSObject.Properties.Name) {
             if (Test-Path "server/node_modules/$dep") {
-              Write-Host "  - Copying $dep"
               Copy-Item -Path "server/node_modules/$dep" -Destination "release-dist/server/node_modules/" -Recurse -Force
             }
           }
           
           # Create start script
-          $startScript = @'
+          @'
 @echo off
-chcp 65001 >nul
-echo Starting DNSMgr Server v$VERSION...
-echo.
-
+echo Starting DNSMgr Server...
 set NODE_PATH=%~dp0server\node_modules
 set PATH=%~dp0nodejs;%PATH%
-
 "%~dp0nodejs\node.exe" "%~dp0server\dist\app.js"
-
 pause
-'@
-          $startScript | Out-File -FilePath "release-dist/Start-DNSMgr.bat" -Encoding UTF8
+'@ | Out-File -FilePath "release-dist/Start-DNSMgr.bat" -Encoding UTF8
           
-          # Create README
-          $lines = @(
-            "DNSMgr Server v$VERSION",
-            "========================",
-            "",
-            "Windows Portable Package",
-            "",
-            "📦 Contents:",
-            "- nodejs/         - Node.js 20 runtime",
-            "- server/         - DNSMgr server files",
-            "- client/         - DNSMgr frontend files",
-            "- Start-DNSMgr.bat - Start script",
-            "",
-            "🚀 Quick Start:",
-            "1. Extract this ZIP file",
-            "2. Double-click Start-DNSMgr.bat",
-            "3. Open http://localhost:3000 in your browser",
-            "4. Follow the setup wizard on first run",
-            "",
-            "⚙️ Configuration:",
-            "- Database: SQLite (default), MySQL, or PostgreSQL",
-            "- Port: 3000 (default)",
-            "- Data directory: ./data (created on first run)",
-            "",
-            "📁 Directory Structure:",
-            "  DNSMgr/",
-            "  ├── nodejs/           # Node.js runtime",
-            "  ├── server/           # Server files",
-            "  │   ├── dist/         # Compiled server",
-            "  │   └── node_modules/ # Dependencies",
-            "  ├── client/           # Frontend files",
-            "  │   └── dist/         # Built frontend",
-            "  ├── data/             # Database & config (created on run)",
-            "  └── Start-DNSMgr.bat  # Start script",
-            "",
-            "For more information: https://github.com/${{ github.repository }}"
-          )
-          $lines | Out-File -FilePath "release-dist/README.txt" -Encoding UTF8
-          
-          # List release-dist contents
-          Write-Host "📁 Release-dist directory contents:"
-          Get-ChildItem "release-dist" | Select-Object -First 20
-
-      - name: Create ZIP archive
-        shell: pwsh
-        run: |
-          $VERSION = "${{ steps.get_version.outputs.version }}"
           Compress-Archive -Path "release-dist/*" -DestinationPath "DNSMgr-Windows-v$VERSION.zip" -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-exe
+          name: windows-package
           path: DNSMgr-Windows-*.zip
           retention-days: 7
 
-  # 构建 Docker 镜像
   build-docker:
     if: inputs.build_docker == true
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    outputs:
-      image_tag: ${{ steps.meta.outputs.tags }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -245,7 +144,6 @@ pause
           if [ -z "$VERSION" ]; then
             VERSION=$(node -p "require('./package.json').version")
           fi
-          # Remove 'v' prefix if present
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
@@ -282,23 +180,13 @@ pause
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            VERSION=${{ steps.get_version.outputs.version }}
-            BUILD_DATE=${{ github.event.repository.updated_at }}
 
-      - name: Output image info
-        run: |
-          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          echo "Tags: ${{ steps.meta.outputs.tags }}"
-
-  # 创建 GitHub Release
   create-release:
-    needs: [build-exe, build-docker]
-    if: always() && (needs.build-exe.result == 'success' || needs.build-docker.result == 'success')
+    needs: [build-windows, build-docker]
+    if: always() && (needs.build-windows.result == 'success' || needs.build-docker.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -310,98 +198,24 @@ pause
           if [ -z "$VERSION" ]; then
             VERSION=$(node -p "require('./package.json').version")
           fi
-          # Remove 'v' prefix if present
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Version: $VERSION"
 
-      - name: Download EXE artifact
+      - name: Download artifact
         if: inputs.build_exe == true
         uses: actions/download-artifact@v4
         with:
-          name: windows-exe
+          name: windows-package
           path: ./artifacts
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
-          
-          # Extract changelog for this version
-          if [ -f docs/CHANGELOG.md ]; then
-            # Try to extract section for this version
-            CHANGELOG=$(sed -n "/## \[$VERSION\]/,/## \[/p" docs/CHANGELOG.md | sed '$d' | head -100)
-            if [ -z "$CHANGELOG" ]; then
-              CHANGELOG="See [CHANGELOG.md](docs/CHANGELOG.md) for full release notes."
-            fi
-          else
-            CHANGELOG="Release v$VERSION"
-          fi
-          
-          # Write to file for release body
-          echo "$CHANGELOG" > RELEASE_NOTES.md
-          
-          # Also output for debugging
-          echo "Changelog:"
-          cat RELEASE_NOTES.md
-
       - name: Create Release
-        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.get_version.outputs.version }}
           name: DNSMgr v${{ steps.get_version.outputs.version }}
-          body_path: RELEASE_NOTES.md
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
-          files: |
-            ./artifacts/*.zip
+          files: ./artifacts/*.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Output release info
-        run: |
-          echo "========================================"
-          echo "Release Created Successfully!"
-          echo "========================================"
-          echo "Version: v${{ steps.get_version.outputs.version }}"
-          echo "Release URL: ${{ steps.create_release.outputs.url }}"
-          echo "Is Draft: ${{ inputs.draft }}"
-          echo "Is Prerelease: ${{ inputs.prerelease }}"
-          echo "========================================"
-
-  # 发送通知
-  notify:
-    needs: [build-exe, build-docker, create-release]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get version
-        id: get_version
-        run: |
-          VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(node -p "require('./package.json').version")
-          fi
-          VERSION="${VERSION#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Notify success
-        if: needs.build-exe.result == 'success' && needs.build-docker.result == 'success' && needs.create-release.result == 'success'
-        run: |
-          echo "✅ Release v${{ steps.get_version.outputs.version }} built successfully!"
-          echo ""
-          echo "Artifacts:"
-          echo "  - Windows ZIP Package (portable with Node.js runtime)"
-          echo "  - Docker image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get_version.outputs.version }}"
-          echo ""
-          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_version.outputs.version }}"
-
-      - name: Notify failure
-        if: failure()
-        run: |
-          echo "❌ Release v${{ steps.get_version.outputs.version }} build failed!"
-          echo ""
-          echo "Please check the workflow logs for details."
