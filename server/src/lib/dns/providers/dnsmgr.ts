@@ -115,20 +115,37 @@ export class DnsMgrAdapter implements DnsAdapter {
       
       const res = await this.request<{ total: number; list: DnsMgrDomain[] }>('GET', path);
       
+      log.debug('DnsMgr', 'getDomainList response', { 
+        code: res.code, 
+        hasData: !!res.data, 
+        dataType: typeof res.data,
+        total: res.data?.total,
+        listLength: res.data?.list?.length,
+        rawData: JSON.stringify(res.data).substring(0, 200)
+      });
+      
       if (res.code !== 0) {
+        log.error('DnsMgr', 'getDomainList failed', { code: res.code, msg: res.msg });
+        return { total: 0, list: [] };
+      }
+
+      // Handle case where data might be null or undefined
+      if (!res.data || !Array.isArray(res.data.list)) {
+        log.error('DnsMgr', 'getDomainList invalid data structure', { data: res.data });
         return { total: 0, list: [] };
       }
 
       return {
-        total: res.data.total,
+        total: res.data.total || 0,
         list: res.data.list.map((d) => ({
           Domain: d.name,
           ThirdId: String(d.id),
-          RecordCount: d.record_count,
+          RecordCount: d.record_count || 0,
         })),
       };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      log.error('DnsMgr', 'getDomainList exception', { error: this.error });
       return { total: 0, list: [] };
     }
   }
