@@ -31,16 +31,17 @@ export function isStubProvider(type: string): boolean {
   return STUB_TYPES.has(type);
 }
 
-export function createAdapter(type: string, config: Record<string, string>, domain?: string, zoneId?: string): DnsAdapter {
+export function createAdapter(type: string, config: Record<string, string>, domain?: string, zoneId?: string, domainId?: string): DnsAdapter {
   const definition = providerDefinitionMap.get(type);
   if (!definition) {
     throw new Error(`Unknown provider type: ${type}`);
   }
 
-  // 将 domain 和 zoneId 添加到 config 中，供需要它们的提供商使用（如 Cloudflare）
+  // 将 domain、zoneId 和 domainId 添加到 config 中，供需要它们的提供商使用
   const enhancedConfig = { ...config };
   if (domain) enhancedConfig.domain = domain;
   if (zoneId) enhancedConfig.zoneId = zoneId;
+  if (domainId) enhancedConfig.domainId = domainId;
 
   const adapter = definition.adapterFactory(enhancedConfig);
 

@@ -100,8 +100,9 @@ async function getAdapterForDomain(domain: Domain) {
   log.info('Records', 'Found account', { accountType: account.type, accountName: account.name });
   // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
   const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
-  log.info('Records', 'Creating adapter', { type: account.type, domain: domain.name, thirdId: domain.third_id });
-  const adapter = createAdapter(account.type, cfg, domain.name, domain.third_id);
+  log.info('Records', 'Creating adapter', { type: account.type, domain: domain.name, thirdId: domain.third_id, localDomainId: domain.id });
+  // Pass domain.id as domainId for DnsMgr provider (self-hosted)
+  const adapter = createAdapter(account.type, cfg, domain.name, domain.third_id, String(domain.id));
   log.info('Records', 'Adapter created');
   return adapter;
 }
