@@ -159,6 +159,7 @@
       "loading": "加载中… 急什么呀",
       "logout": "登出啦",
       "mail": "邮件",
+      "security": "安全",
       "name": "名称",
       "noData": "啥也没有诶",
       "noEmailSet": "没设邮箱哦，笨蛋",
@@ -383,6 +384,12 @@
       "twoFactorEnabled": "开着呢（还剩 {count} 个备用码，省着点用）"
     },
     "settings": {
+      "backgroundImage": "自定义背景图",
+      "backgroundImageHint": "支持任意图片 URL，留空则使用默认背景",
+      "backgroundImagePlaceholder": "请输入图片 URL（支持 jpg/png/gif/webp）",
+      "backgroundImageUpdateFailed": "背景图更新失败",
+      "backgroundImageUpdated": "背景图已更新",
+      "backgroundImageUrl": "背景图 URL",
       "bindOauth": "绑定 OAuth 账号",
       "changePassword": "修改密码",
       "cloudflareTunnels": "Cloudflare Tunnels，高科技玩意",
