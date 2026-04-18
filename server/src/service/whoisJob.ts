@@ -52,9 +52,12 @@ function setCachedWhois(domain: string, result: WhoisResult): void {
  */
 export async function checkWhoisForDomain(domainName: string): Promise<Date | null> {
   try {
+    log.info('WhoisJob', `Checking WHOIS for ${domainName}`);
+    
     // 检查缓存
     const cached = getCachedWhois(domainName);
     if (cached?.expiryDate) {
+      log.info('WhoisJob', `Using cached expiry for ${domainName}: ${cached.expiryDate.toISOString()}`);
       return cached.expiryDate;
     }
 
@@ -63,13 +66,19 @@ export async function checkWhoisForDomain(domainName: string): Promise<Date | nu
 
     if (result?.expiryDate) {
       setCachedWhois(domainName, result);
+      log.info('WhoisJob', `Got expiry date for ${domainName}: ${result.expiryDate.toISOString()}`);
       return result.expiryDate;
     }
 
-    log.warn('WhoisJob', `No expiry date found for ${domainName}`);
+    log.warn('WhoisJob', `No expiry date found for ${domainName}`, {
+      domain: domainName,
+      hasResult: !!result,
+      resultKeys: result ? Object.keys(result) : null,
+    });
   } catch (error) {
     log.error('WhoisJob', `Error checking ${domainName}:`, {
-      error: error instanceof Error ? error.message : String(error)
+      domain: domainName,
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 
@@ -107,14 +116,18 @@ export async function syncAllDomainsWhois() {
 
   try {
     const domains = await WhoisOperations.getAllDomains() as unknown as Domain[];
-    log.info('WhoisJob', `Found ${domains.length} domains to sync`);
+    log.info('WhoisJob', `Found ${domains.length} domains to sync`, {
+      domainNames: domains.map(d => d.name),
+    });
 
     let successCount = 0;
     let failCount = 0;
+    const failedDomains: string[] = [];
 
     // 使用并发控制，最多 3 个并发请求
     await asyncPool(3, domains, async (d) => {
       try {
+        log.info('WhoisJob', `Processing domain: ${d.name}`);
         const expiresAt = await checkWhoisForDomain(d.name);
 
         if (expiresAt) {
@@ -123,25 +136,31 @@ export async function syncAllDomainsWhois() {
           await WhoisOperations.updateExpiry(d.id, formattedDate);
 
           successCount++;
+          log.info('WhoisJob', `Updated expiry for ${d.name}: ${formattedDate}`);
 
           // 检查是否需要发送通知
           await checkAndSendNotification(d, expiresAt);
         } else {
           failCount++;
+          failedDomains.push(d.name);
           log.warn('WhoisJob', `Failed to get expiry for ${d.name}`);
         }
       } catch (error) {
         failCount++;
+        failedDomains.push(d.name);
         log.error('WhoisJob', `Error processing ${d.name}:`, {
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     });
 
-    log.info('WhoisJob', `WHOIS sync completed: ${successCount} success, ${failCount} failed`);
+    log.info('WhoisJob', `WHOIS sync completed: ${successCount} success, ${failCount} failed`, {
+      failedDomains: failedDomains.slice(0, 20), // 最多显示20个失败的域名
+      totalFailed: failedDomains.length,
+    });
   } catch (error) {
     log.error('WhoisJob', 'Sync failed:', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 }
@@ -174,7 +193,7 @@ async function checkAndSendNotification(domain: Domain, expiresAt: Date): Promis
     }
   } catch (error) {
     log.error('WhoisJob', `Error checking notification for ${domain.name}:`, {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 }
@@ -184,29 +203,35 @@ async function checkAndSendNotification(domain: Domain, expiresAt: Date): Promis
  */
 export async function syncDomainWhois(domainId: number): Promise<{ success: boolean; expiresAt: Date | null; message?: string }> {
   try {
+    log.info('WhoisJob', `Syncing WHOIS for domain ID: ${domainId}`);
+    
     const domain = await WhoisOperations.getDomainById(domainId) as Domain | undefined;
 
     if (!domain) {
+      log.warn('WhoisJob', `Domain not found: ${domainId}`);
       return { success: false, expiresAt: null, message: 'Domain not found' };
     }
 
+    log.info('WhoisJob', `Found domain: ${domain.name} (ID: ${domainId})`);
     const expiresAt = await checkWhoisForDomain(domain.name);
 
     if (expiresAt) {
       const formattedDate = formatDateForMySQL(expiresAt);
       await WhoisOperations.updateExpiry(domainId, formattedDate);
+      log.info('WhoisJob', `Successfully synced WHOIS for ${domain.name}: ${formattedDate}`);
       return { success: true, expiresAt };
     }
 
+    log.warn('WhoisJob', `Could not retrieve expiry date for ${domain.name}`);
     return { success: false, expiresAt: null, message: 'Could not retrieve expiry date' };
   } catch (error) {
     log.error('WhoisJob', `Error syncing domain ${domainId}:`, {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
     return {
       success: false,
       expiresAt: null,
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }

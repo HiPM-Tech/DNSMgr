@@ -107,6 +107,118 @@ const WHOIS_SERVERS: Record<string, string> = {
   'news': 'whois.nic.news',
   'video': 'whois.nic.video',
   'email': 'whois.nic.email',
+  // 更多新顶级域名
+  'top': 'whois.nic.top',
+  'vip': 'whois.nic.vip',
+  'work': 'whois.nic.work',
+  'world': 'whois.nic.world',
+  'wtf': 'whois.nic.wtf',
+  'id': 'whois.id',
+  'fm': 'whois.nic.fm',
+  'ms': 'whois.nic.ms',
+  'sh': 'whois.nic.sh',
+  'ac': 'whois.nic.ac',
+  'ro': 'whois.rotld.ro',
+  'se': 'whois.iis.se',
+  'ch': 'whois.nic.ch',
+  'at': 'whois.nic.at',
+  'be': 'whois.dns.be',
+  'dk': 'whois.dk-hostmaster.dk',
+  'fi': 'whois.fi',
+  'no': 'whois.norid.no',
+  'nu': 'whois.iis.nu',
+  'ie': 'whois.weare.ie',
+  'pt': 'whois.dns.pt',
+  'gr': 'whois.gr',
+  'hu': 'whois.nic.hu',
+  'cz': 'whois.nic.cz',
+  'sk': 'whois.sk-nic.sk',
+  'lt': 'whois.domreg.lt',
+  'lv': 'whois.nic.lv',
+  'ee': 'whois.tld.ee',
+  'ua': 'whois.ua',
+  'su': 'whois.tcinet.ru',
+  'by': 'whois.cctld.by',
+  'md': 'whois.nic.md',
+  'ge': 'whois.nic.ge',
+  'am': 'whois.amnic.net',
+  'az': 'whois.az',
+  'kz': 'whois.nic.kz',
+  'uz': 'whois.cctld.uz',
+  'kg': 'whois.kg',
+  'tj': 'whois.nic.tj',
+  'tm': 'whois.nic.tm',
+  'af': 'whois.nic.af',
+  'pk': 'whois.pknic.net.pk',
+  'bd': 'whois.btcl.net.bd',
+  'lk': 'whois.nic.lk',
+  'mm': 'whois.nic.mm',
+  'kh': 'whois.nic.kh',
+  'la': 'whois.nic.la',
+  'vn': 'whois.vnnic.vn',
+  'th': 'whois.thnic.co.th',
+  'my': 'whois.mynic.my',
+  'ph': 'whois.dot.ph',
+  'np': 'whois.nic.np',
+  'bt': 'whois.nic.bt',
+  'mn': 'whois.nic.mn',
+  // 国别域名 - 非洲
+  'ci': 'whois.nic.ci',
+  'cd': 'whois.nic.cd',
+  'cm': 'whois.netcom.cm',
+  'ga': 'whois.nic.ga',
+  'ml': 'whois.nic.ml',
+  'cf': 'whois.nic.cf',
+  'td': 'whois.nic.td',
+  'ne': 'whois.nic.ne',
+  'tg': 'whois.nic.tg',
+  'bj': 'whois.nic.bj',
+  'sn': 'whois.nic.sn',
+  'gm': 'whois.nic.gm',
+  'gw': 'whois.nic.gw',
+  'gn': 'whois.nic.gn',
+  'sl': 'whois.nic.sl',
+  'lr': 'whois.nic.lr',
+  'ly': 'whois.nic.ly',
+  'mr': 'whois.nic.mr',
+  'eh': 'whois.nic.eh',
+  'ma': 'whois.nic.ma',
+  'dz': 'whois.nic.dz',
+  'tn': 'whois.ati.tn',
+  'eg': 'whois.egregistry.eg',
+  'sd': 'whois.nic.sd',
+  'ss': 'whois.nic.ss',
+  'er': 'whois.nic.er',
+  'dj': 'whois.nic.dj',
+  'et': 'whois.nic.et',
+  'so': 'whois.nic.so',
+  'bi': 'whois.nic.bi',
+  'rw': 'whois.nic.rw',
+  'ug': 'whois.nic.ug',
+  'ke': 'whois.kenic.or.ke',
+  'tz': 'whois.nic.tz',
+  'mw': 'whois.nic.mw',
+  'zm': 'whois.nic.zm',
+  'zw': 'whois.nic.zw',
+  'mz': 'whois.nic.mz',
+  'mg': 'whois.nic.mg',
+  're': 'whois.nic.re',
+  'yt': 'whois.nic.yt',
+  'km': 'whois.nic.km',
+  'sc': 'whois.nic.sc',
+  'mu': 'whois.nic.mu',
+  // 更多新顶级域名
+  'today': 'whois.nic.today',
+  'tokyo': 'whois.nic.tokyo',
+  'tools': 'whois.nic.tools',
+  'town': 'whois.nic.town',
+  'toys': 'whois.nic.toys',
+  'trade': 'whois.nic.trade',
+  'trading': 'whois.nic.trading',
+  'training': 'whois.nic.training',
+  'tube': 'whois.nic.tube',
+  'tires': 'whois.nic.tires',
+  'tirol': 'whois.nic.tirol',
 };
 
 /**
@@ -248,6 +360,10 @@ function extractExpiryDate(whoisText: string): Date | null {
     /Expire Date:\s*(.+)/i,
     /Valid Until:\s*(.+)/i,
     /Valid-Until:\s*(.+)/i,
+    /expire:\s*(.+)/i,
+    /Expiry:\s*(.+)/i,
+    /Expiration:\s*(.+)/i,
+    /Domain Status:\s*.*Expir/i,
   ];
   
   for (const pattern of patterns) {
@@ -330,31 +446,66 @@ class DirectWhoisProvider implements WhoisProvider {
   async query(domain: string): Promise<WhoisResult | null> {
     const server = getWhoisServer(domain);
     if (!server) {
-      log.debug('WhoisProvider', `No WHOIS server for ${domain}`);
+      log.warn('WhoisProvider', `No WHOIS server configured for ${domain}`, {
+        domain,
+        tld: domain.split('.').pop(),
+        availableTlds: Object.keys(WHOIS_SERVERS).slice(0, 20),
+      });
       return null;
     }
     
     try {
-      log.debug('WhoisProvider', `Querying ${domain} via ${server}`);
+      log.info('WhoisProvider', `Querying ${domain} via ${server}`);
       const raw = await whoisLookup(domain, server);
       
-      if (!raw || raw.includes('No match') || raw.includes('NOT FOUND')) {
-        log.debug('WhoisProvider', `Domain ${domain} not found`);
+      if (!raw || raw.includes('No match') || raw.includes('NOT FOUND') || raw.includes('Not found')) {
+        log.warn('WhoisProvider', `Domain ${domain} not found in WHOIS`, {
+          domain,
+          server,
+          responseLength: raw?.length || 0,
+          responsePreview: raw?.substring(0, 200) || 'empty',
+        });
         return null;
       }
       
-      log.debug('WhoisProvider', `WHOIS response for ${domain} (first 500 chars):`, raw.substring(0, 500));
+      // 检查是否包含限制信息
+      if (raw.includes('rate limit') || raw.includes('Rate limit') || raw.includes('quota exceeded')) {
+        log.warn('WhoisProvider', `Rate limit hit for ${domain}`, {
+          domain,
+          server,
+        });
+      }
       
       const expiryDate = extractExpiryDate(raw);
       const registrar = extractRegistrar(raw);
       const nameServers = extractNameServers(raw);
       
-      log.debug('WhoisProvider', `Extracted data for ${domain}:`, {
-        hasExpiryDate: !!expiryDate,
-        expiryDate: expiryDate?.toISOString(),
-        registrar,
-        nameServerCount: nameServers.length
-      });
+      // 记录提取结果（无论成功与否）
+      if (expiryDate) {
+        log.info('WhoisProvider', `Successfully extracted expiry for ${domain}`, {
+          domain,
+          expiryDate: expiryDate.toISOString(),
+          registrar,
+          nameServerCount: nameServers.length,
+        });
+      } else {
+        // 提取失败时记录更多信息以便诊断
+        log.warn('WhoisProvider', `Failed to extract expiry date for ${domain}`, {
+          domain,
+          server,
+          registrar,
+          nameServerCount: nameServers.length,
+          responseLength: raw.length,
+          // 查找可能包含日期相关信息的行
+          dateRelatedLines: raw.split('\n')
+            .filter(line => 
+              /expir|expiry|expiration|valid|paid|renewal/i.test(line) && 
+              /\d{4}/.test(line)
+            )
+            .slice(0, 10),
+          responsePreview: raw.substring(0, 1000),
+        });
+      }
       
       return {
         domain,
@@ -364,8 +515,10 @@ class DirectWhoisProvider implements WhoisProvider {
         raw,
       };
     } catch (error) {
-      log.debug('WhoisProvider', `Direct WHOIS error for ${domain}:`, { 
-        error: error instanceof Error ? error.message : String(error) 
+      log.error('WhoisProvider', `Direct WHOIS error for ${domain}`, {
+        domain,
+        server,
+        error: error instanceof Error ? error.message : String(error),
       });
       return null;
     }
@@ -398,6 +551,24 @@ class RdapProvider implements WhoisProvider {
       'ai': 'https://rdap.whois.ai/',
       'ng': 'https://rdap.nic.net.ng/',
       'uk': 'https://rdap.nic.uk/',
+      'top': 'https://rdap.nic.top/',
+      'xyz': 'https://rdap.nic.xyz/',
+      'club': 'https://rdap.nic.club/',
+      'online': 'https://rdap.nic.online/',
+      'site': 'https://rdap.nic.site/',
+      'store': 'https://rdap.nic.store/',
+      'vip': 'https://rdap.nic.vip/',
+      'work': 'https://rdap.nic.work/',
+      'icu': 'https://rdap.nic.icu/',
+      'cyou': 'https://rdap.nic.cyou/',
+      'today': 'https://rdap.nic.today/',
+      'tokyo': 'https://rdap.nic.tokyo/',
+      'tools': 'https://rdap.nic.tools/',
+      'town': 'https://rdap.nic.town/',
+      'toys': 'https://rdap.nic.toys/',
+      'trade': 'https://rdap.nic.trade/',
+      'training': 'https://rdap.nic.training/',
+      'tube': 'https://rdap.nic.tube/',
     };
     
     return rdapServers[tld] || null;
@@ -406,18 +577,24 @@ class RdapProvider implements WhoisProvider {
   async query(domain: string): Promise<WhoisResult | null> {
     const baseUrl = this.getRdapUrl(domain);
     if (!baseUrl) {
-      log.debug('WhoisProvider', `RDAP: No server for TLD of ${domain}`);
+      log.info('WhoisProvider', `RDAP: No server for TLD of ${domain}`, { domain, tld: domain.split('.').pop() });
       return null;
     }
     
     try {
       const url = `${baseUrl}domain/${domain}`;
+      log.info('WhoisProvider', `RDAP querying ${domain}`, { url });
+      
       const response = await fetch(url, {
         headers: { 'Accept': 'application/rdap+json' },
       });
       
       if (!response.ok) {
-        log.debug('WhoisProvider', `RDAP: HTTP ${response.status} for ${domain}`);
+        log.warn('WhoisProvider', `RDAP: HTTP ${response.status} for ${domain}`, {
+          domain,
+          status: response.status,
+          statusText: response.statusText,
+        });
         return null;
       }
       
@@ -446,6 +623,20 @@ class RdapProvider implements WhoisProvider {
         }
       }
       
+      if (expiryDate) {
+        log.info('WhoisProvider', `RDAP successfully got expiry for ${domain}`, {
+          domain,
+          expiryDate: expiryDate.toISOString(),
+          registrar,
+        });
+      } else {
+        log.warn('WhoisProvider', `RDAP: No expiry date found for ${domain}`, {
+          domain,
+          hasEvents: !!data.events,
+          events: data.events?.map((e: any) => ({ action: e.eventAction, date: e.eventDate })),
+        });
+      }
+      
       return {
         domain,
         expiryDate,
@@ -454,8 +645,9 @@ class RdapProvider implements WhoisProvider {
         raw: JSON.stringify(data),
       };
     } catch (error) {
-      log.debug('WhoisProvider', `RDAP error for ${domain}:`, { 
-        error: error instanceof Error ? error.message : String(error) 
+      log.error('WhoisProvider', `RDAP error for ${domain}`, {
+        domain,
+        error: error instanceof Error ? error.message : String(error),
       });
       return null;
     }
@@ -476,36 +668,47 @@ export async function queryWhois(domain: string): Promise<WhoisResult | null> {
   const rootDomain = getRootDomain(domain);
   
   if (rootDomain !== domain) {
-    log.debug('WhoisProvider', `Querying root domain ${rootDomain} for ${domain}`);
+    log.info('WhoisProvider', `Querying root domain ${rootDomain} for ${domain}`);
   }
   
-  log.debug('WhoisProvider', `Starting WHOIS query for ${domain} (root: ${rootDomain})`);
+  log.info('WhoisProvider', `Starting WHOIS query for ${domain} (root: ${rootDomain})`);
+  
+  let lastError: string | null = null;
   
   for (const provider of providers) {
     try {
-      log.debug('WhoisProvider', `Trying provider ${provider.name} for ${rootDomain}`);
+      log.info('WhoisProvider', `Trying provider ${provider.name} for ${rootDomain}`);
       const result = await provider.query(rootDomain);
       if (result) {
-        log.debug('WhoisProvider', `Provider ${provider.name} returned result for ${rootDomain}`, {
+        log.info('WhoisProvider', `Provider ${provider.name} returned result for ${rootDomain}`, {
           hasExpiryDate: !!result.expiryDate,
           expiryDate: result.expiryDate?.toISOString(),
           registrar: result.registrar,
-          nameServerCount: result.nameServers.length
+          nameServerCount: result.nameServers.length,
         });
         if (result.expiryDate) {
           log.info('WhoisProvider', `Got expiry for ${domain} via ${provider.name}: ${result.expiryDate.toISOString()}`);
           return result;
+        } else {
+          lastError = `Provider ${provider.name} returned result but no expiry date`;
         }
       } else {
-        log.debug('WhoisProvider', `Provider ${provider.name} returned null for ${rootDomain}`);
+        lastError = `Provider ${provider.name} returned null`;
+        log.info('WhoisProvider', `Provider ${provider.name} returned null for ${rootDomain}`);
       }
     } catch (error) {
-      log.debug('WhoisProvider', `Provider ${provider.name} failed for ${domain}:`, { 
-        error: error instanceof Error ? error.message : String(error) 
+      lastError = `Provider ${provider.name} failed: ${error instanceof Error ? error.message : String(error)}`;
+      log.error('WhoisProvider', `Provider ${provider.name} failed for ${domain}`, { 
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
   
-  log.warn('WhoisProvider', `All providers failed for ${domain} (root: ${rootDomain})`);
+  log.warn('WhoisProvider', `All providers failed for ${domain} (root: ${rootDomain})`, {
+    domain,
+    rootDomain,
+    lastError,
+    tld: rootDomain.split('.').pop(),
+  });
   return null;
 }
