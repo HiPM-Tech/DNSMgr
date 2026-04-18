@@ -343,9 +343,18 @@ class DirectWhoisProvider implements WhoisProvider {
         return null;
       }
       
+      log.debug('WhoisProvider', `WHOIS response for ${domain} (first 500 chars):`, raw.substring(0, 500));
+      
       const expiryDate = extractExpiryDate(raw);
       const registrar = extractRegistrar(raw);
       const nameServers = extractNameServers(raw);
+      
+      log.debug('WhoisProvider', `Extracted data for ${domain}:`, {
+        hasExpiryDate: !!expiryDate,
+        expiryDate: expiryDate?.toISOString(),
+        registrar,
+        nameServerCount: nameServers.length
+      });
       
       return {
         domain,
@@ -470,12 +479,25 @@ export async function queryWhois(domain: string): Promise<WhoisResult | null> {
     log.debug('WhoisProvider', `Querying root domain ${rootDomain} for ${domain}`);
   }
   
+  log.debug('WhoisProvider', `Starting WHOIS query for ${domain} (root: ${rootDomain})`);
+  
   for (const provider of providers) {
     try {
+      log.debug('WhoisProvider', `Trying provider ${provider.name} for ${rootDomain}`);
       const result = await provider.query(rootDomain);
-      if (result && result.expiryDate) {
-        log.info('WhoisProvider', `Got expiry for ${domain} via ${provider.name}: ${result.expiryDate.toISOString()}`);
-        return result;
+      if (result) {
+        log.debug('WhoisProvider', `Provider ${provider.name} returned result for ${rootDomain}`, {
+          hasExpiryDate: !!result.expiryDate,
+          expiryDate: result.expiryDate?.toISOString(),
+          registrar: result.registrar,
+          nameServerCount: result.nameServers.length
+        });
+        if (result.expiryDate) {
+          log.info('WhoisProvider', `Got expiry for ${domain} via ${provider.name}: ${result.expiryDate.toISOString()}`);
+          return result;
+        }
+      } else {
+        log.debug('WhoisProvider', `Provider ${provider.name} returned null for ${rootDomain}`);
       }
     } catch (error) {
       log.debug('WhoisProvider', `Provider ${provider.name} failed for ${domain}:`, { 
@@ -484,6 +506,6 @@ export async function queryWhois(domain: string): Promise<WhoisResult | null> {
     }
   }
   
-  log.warn('WhoisProvider', `All providers failed for ${domain}`);
+  log.warn('WhoisProvider', `All providers failed for ${domain} (root: ${rootDomain})`);
   return null;
 }
