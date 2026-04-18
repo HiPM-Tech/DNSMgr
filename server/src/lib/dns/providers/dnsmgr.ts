@@ -113,14 +113,15 @@ export class DnsMgrAdapter implements DnsAdapter {
         path += `&keyword=${encodeURIComponent(keyword)}`;
       }
       
-      const res = await this.request<{ total: number; list: DnsMgrDomain[] }>('GET', path);
+      // DnsMgr API returns array directly in data, not { total, list } format
+      const res = await this.request<DnsMgrDomain[]>('GET', path);
       
       log.debug('DnsMgr', 'getDomainList response', { 
         code: res.code, 
         hasData: !!res.data, 
         dataType: typeof res.data,
-        total: res.data?.total,
-        listLength: res.data?.list?.length,
+        isArray: Array.isArray(res.data),
+        dataLength: Array.isArray(res.data) ? res.data.length : 0,
         rawData: JSON.stringify(res.data).substring(0, 200)
       });
       
@@ -129,15 +130,29 @@ export class DnsMgrAdapter implements DnsAdapter {
         return { total: 0, list: [] };
       }
 
-      // Handle case where data might be null or undefined
-      if (!res.data || !Array.isArray(res.data.list)) {
-        log.error('DnsMgr', 'getDomainList invalid data structure', { data: res.data });
+      // DnsMgr returns array directly, not { total, list } format
+      if (!res.data || !Array.isArray(res.data)) {
+        log.error('DnsMgr', 'getDomainList invalid data structure - expected array', { data: res.data });
         return { total: 0, list: [] };
       }
 
+      const domains = res.data;
+      
+      // Apply keyword filter if provided (server-side filtering may not work)
+      let filteredDomains = domains;
+      if (keyword) {
+        const lowerKeyword = keyword.toLowerCase();
+        filteredDomains = domains.filter(d => d.name.toLowerCase().includes(lowerKeyword));
+      }
+
+      // Apply pagination
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize;
+      const paginatedDomains = filteredDomains.slice(start, end);
+
       return {
-        total: res.data.total || 0,
-        list: res.data.list.map((d) => ({
+        total: filteredDomains.length,
+        list: paginatedDomains.map((d) => ({
           Domain: d.name,
           ThirdId: String(d.id),
           RecordCount: d.record_count || 0,
