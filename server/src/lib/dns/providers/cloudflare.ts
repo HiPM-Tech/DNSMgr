@@ -376,18 +376,12 @@ export class CloudflareAdapter implements DnsAdapter {
   private isPausedRecordName(name: string): boolean {
     return (
       name === '_cloud_paused' ||
-      name.endsWith('_cloud_paused') ||
-      name === '_paused' ||
-      name.endsWith('_paused')
+      name.endsWith('_cloud_paused')
     );
   }
 
   private decodePausedRecordName(name: string): string {
-    if (name === '_paused') return '@';
     if (name === '_cloud_paused') return '@';
-    if (name.endsWith('_paused')) {
-      return name.slice(0, -'_paused'.length);
-    }
     if (name.endsWith('_cloud_paused')) {
       return name.slice(0, -'_cloud_paused'.length);
     }
