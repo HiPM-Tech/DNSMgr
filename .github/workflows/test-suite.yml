@@ -14,7 +14,7 @@ on:
       - 'docs/**'
       - '.gitignore'
       - 'LICENSE'
-  
+
   # PR创建、更新、同步时触发
   pull_request:
     types:
@@ -32,7 +32,7 @@ on:
       - 'docs/**'
       - '.gitignore'
       - 'LICENSE'
-  
+
   # 手动触发
   workflow_dispatch:
     inputs:
@@ -74,22 +74,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
 
       - name: Install dependencies
         run: |
-          cd server && npm ci
-          cd ../client && npm ci
+          cd server && pnpm install --frozen-lockfile
+          cd ../client && pnpm install --frozen-lockfile
 
       - name: Run ESLint
         run: |
-          cd server && npm run lint || true
-          cd ../client && npm run lint || true
+          cd server && pnpm run lint || true
+          cd ../client && pnpm run lint || true
 
       - name: Type check
         run: |
-          cd server && npm run build
-          cd ../client && npm run build
+          cd server && pnpm run build
+          cd ../client && pnpm run build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -113,13 +117,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
 
       - name: Install dependencies
-        run: cd server && npm ci
+        run: cd server && pnpm install --frozen-lockfile
 
       - name: Run unit tests
-        run: cd server && npm test -- --coverage --testPathPattern="\.test\.ts$" --testPathIgnorePatterns="e2e"
+        run: cd server && pnpm test -- --coverage --testPathPattern="\.test\.ts$" --testPathIgnorePatterns="e2e"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -140,13 +148,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
 
       - name: Install dependencies
-        run: cd client && npm ci
+        run: cd client && pnpm install --frozen-lockfile
 
       - name: Run unit tests
-        run: cd client && npm test -- --coverage --passWithNoTests
+        run: cd client && pnpm test -- --coverage --passWithNoTests
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -197,13 +209,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
 
       - name: Install dependencies
         run: |
-          cd server && npm ci
-          cd ../client && npm ci
-          cd ../e2e && npm ci
+          cd server && pnpm install --frozen-lockfile
+          cd ../client && pnpm install --frozen-lockfile
+          cd ../e2e && pnpm install --frozen-lockfile
 
       - name: Install Playwright
         run: cd e2e && npx playwright install --with-deps
@@ -214,11 +230,11 @@ jobs:
           echo "DB_TYPE=sqlite" > .env
           echo "DB_PATH=:memory:" >> .env
           echo "JWT_SECRET=test-secret" >> .env
-          npm run start &
+          pnpm run start &
           sleep 5
 
       - name: Run E2E tests
-        run: cd e2e && npm test
+        run: cd e2e && pnpm test
 
       - name: Upload E2E results
         uses: actions/upload-artifact@v4

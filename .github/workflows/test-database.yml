@@ -17,7 +17,7 @@ jobs:
   test-database:
     name: Test ${{ inputs.database }}
     runs-on: ubuntu-latest
-    
+
     services:
       # PostgreSQL服务（所有数据库类型都启动，但只在需要时使用）
       postgres:
@@ -33,7 +33,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      
+
       # MySQL服务（所有数据库类型都启动，但只在需要时使用）
       mysql:
         image: mysql:8.0
@@ -58,10 +58,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
 
       - name: Install dependencies
-        run: cd server && npm ci
+        run: cd server && pnpm install --frozen-lockfile
 
       # 测试1: 初始化测试（无数据）
       - name: Test Initialization (Fresh)
@@ -85,9 +89,9 @@ jobs:
           JWT_SECRET=test-secret-${{ inputs.database }}
           NODE_ENV=test
           EOF
-          
+
           echo "Testing initialization with ${{ inputs.database }}..."
-          npm run test:init
+          pnpm run test:init
 
       # 测试2: 基础功能测试（使用MOCK）
       - name: Test Basic Functions (with MOCK)
@@ -97,8 +101,8 @@ jobs:
           echo "MOCK_DNS_PROVIDERS=true" >> .env
           echo "MOCK_EMAIL_SERVICE=true" >> .env
           echo "MOCK_EXTERNAL_API=true" >> .env
-          
-          npm test -- --testNamePattern="Database|Auth|User|Domain" --coverage
+
+          pnpm test -- --testNamePattern="Database|Auth|User|Domain" --coverage
         env:
           CI: true
 
@@ -108,10 +112,10 @@ jobs:
         run: |
           cd server
           # 创建一些测试数据
-          npm run test:seed
-          
+          pnpm run test:seed
+
           # 重启服务并验证数据还在
-          npm run test:verify-data
+          pnpm run test:verify-data
 
       # 测试4: 删除.env后测试（模拟新环境但有数据）
       - name: Test After .env Removal
@@ -120,13 +124,13 @@ jobs:
           cd server
           # 备份.env
           cp .env .env.backup
-          
+
           # 删除.env
           rm -f .env
-          
+
           # 测试在没有.env的情况下是否能正确检测现有数据
-          npm run test:init-detect || true
-          
+          pnpm run test:init-detect || true
+
           # 恢复.env
           mv .env.backup .env
 
@@ -135,23 +139,23 @@ jobs:
         id: test-migrations
         run: |
           cd server
-          npm run db:migrate:test
-          npm run db:rollback:test
-          npm run db:migrate:test
+          pnpm run db:migrate:test
+          pnpm run db:rollback:test
+          pnpm run db:migrate:test
 
       # 测试6: 并发连接测试
       - name: Test Concurrent Connections
         id: test-concurrent
         run: |
           cd server
-          npm run test:concurrent
+          pnpm run test:concurrent
 
       # 测试7: 错误恢复测试
       - name: Test Error Recovery
         id: test-recovery
         run: |
           cd server
-          npm run test:error-recovery
+          pnpm run test:error-recovery
 
       # 收集测试结果
       - name: Collect Test Results
