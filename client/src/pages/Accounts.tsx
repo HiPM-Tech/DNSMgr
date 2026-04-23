@@ -25,7 +25,7 @@ function ProviderBadge({ type }: { type: string }) {
 interface AccountFormProps {
   providers: Provider[];
   initial?: DnsAccount;
-  onSubmit: (data: { type: string; name: string; config: Record<string, string>; remark: string }) => void;
+  onSubmit: (data: { type: string; name: string; config: Record<string, string | boolean>; remark: string }) => void;
   isLoading: boolean;
 }
 
@@ -42,7 +42,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
     return false;
   });
   const [config, setConfig] = useState<Record<string, string>>(
-    initial?.config ? Object.fromEntries(Object.keys(initial.config).filter(k => k !== 'useProxy').map((k) => [k, initial.config[k] || ''])) : {}
+    initial?.config ? Object.fromEntries(Object.keys(initial.config).filter(k => k !== 'useProxy').map((k) => [k, String(initial.config[k] || '')])) : {}
   );
 
   const provider = providers.find((p) => p.type === type);
@@ -156,7 +156,7 @@ export function Accounts() {
   const visibleProviders = providers.filter((p) => !p.isStub);
 
   const createMutation = useMutation({
-    mutationFn: (data: Parameters<typeof accountsApi.create>[0]) => accountsApi.create(data),
+    mutationFn: (data: { type: string; name: string; config: Record<string, string | boolean>; remark: string }) => accountsApi.create(data),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['accounts'] });
@@ -167,7 +167,7 @@ export function Accounts() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof accountsApi.update>[1] }) =>
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; config?: Record<string, string | boolean>; remark?: string } }) =>
       accountsApi.update(id, data),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }

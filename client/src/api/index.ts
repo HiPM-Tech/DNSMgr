@@ -219,9 +219,9 @@ export const accountsApi = {
   list: () => api.get<ApiResponse<DnsAccount[]>>('/accounts'),
   providers: () => api.get<ApiResponse<Provider[]>>('/accounts/providers'),
   get: (id: number) => api.get<ApiResponse<DnsAccount>>(`/accounts/${id}`),
-  create: (data: { type: string; name: string; config: Record<string, string>; remark?: string; team_id?: number }) =>
+  create: (data: { type: string; name: string; config: Record<string, string | boolean>; remark?: string; team_id?: number }) =>
     api.post<ApiResponse<{ id: number }>>('/accounts', data),
-  update: (id: number, data: { name?: string; config?: Record<string, string>; remark?: string }) =>
+  update: (id: number, data: { name?: string; config?: Record<string, string | boolean>; remark?: string }) =>
     api.put<ApiResponse<null>>(`/accounts/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/accounts/${id}`),
 };
