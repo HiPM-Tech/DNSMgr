@@ -28,6 +28,14 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "test": "node --require ts-node/register --test src/**/*.test.ts",
+    "test:init": "ts-node scripts/test-init.ts",
+    "test:seed": "ts-node scripts/test-seed.ts",
+    "test:verify-data": "ts-node scripts/test-verify-data.ts",
+    "test:init-detect": "ts-node scripts/test-init-detect.ts",
+    "test:concurrent": "ts-node scripts/test-concurrent.ts",
+    "test:error-recovery": "ts-node scripts/test-error-recovery.ts",
+    "db:migrate:test": "ts-node scripts/db-migrate.ts test",
+    "db:rollback:test": "ts-node scripts/db-rollback.ts test",
     "cli": "ts-node src/cli.ts",
     "cli:help": "ts-node src/cli.ts --help",
     "pkg:win": "pkg . --targets node18-win-x64 --output dist/pkg/DNSMgr-Server-win.exe",
@@ -38,16 +46,18 @@
   "dependencies": {
     "@simplewebauthn/server": "^13.3.0",
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^12.8.0",
+    "better-sqlite3": "^12.9.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.0",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
+    "https-proxy-agent": "^9.0.0",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.20.0",
     "otplib": "^12.0.1",
     "pg": "^8.20.0",
     "qrcode": "^1.5.3",
+    "socks-proxy-agent": "^10.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "zxcvbn": "^4.4.2"
@@ -64,6 +74,7 @@
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.6",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.5"
   }
 }

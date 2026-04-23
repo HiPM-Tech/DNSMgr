@@ -1,0 +1,204 @@
+name: Database Test
+
+on:
+  workflow_call:
+    inputs:
+      database:
+        required: true
+        type: string
+        description: 'Database type (sqlite, postgresql, mysql)'
+      test_type:
+        required: true
+        type: string
+        default: 'all'
+        description: 'Test type (unit, integration, e2e, all)'
+
+jobs:
+  test-database:
+    name: Test ${{ inputs.database }}
+    runs-on: ubuntu-latest
+    
+    services:
+      # PostgreSQL服务
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: dnsmgr_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        if: ${{ inputs.database == 'postgresql' }}
+      
+      # MySQL服务
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: dnsmgr_test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        if: ${{ inputs.database == 'mysql' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: cd server && npm ci
+
+      # 测试1: 初始化测试（无数据）
+      - name: Test Initialization (Fresh)
+        id: init-fresh
+        run: |
+          cd server
+          rm -f .env
+          cat > .env << EOF
+          DB_TYPE=${{ inputs.database }}
+          ${{ inputs.database == 'postgresql' && 'DB_HOST=localhost
+          DB_PORT=5432
+          DB_USER=test
+          DB_PASSWORD=test
+          DB_NAME=dnsmgr_test' || '' }}
+          ${{ inputs.database == 'mysql' && 'DB_HOST=localhost
+          DB_PORT=3306
+          DB_USER=test
+          DB_PASSWORD=test
+          DB_NAME=dnsmgr_test' || '' }}
+          ${{ inputs.database == 'sqlite' && 'DB_PATH=:memory:' || '' }}
+          JWT_SECRET=test-secret-${{ inputs.database }}
+          NODE_ENV=test
+          EOF
+          
+          echo "Testing initialization with ${{ inputs.database }}..."
+          npm run test:init
+
+      # 测试2: 基础功能测试（使用MOCK）
+      - name: Test Basic Functions (with MOCK)
+        id: test-basic
+        run: |
+          cd server
+          echo "MOCK_DNS_PROVIDERS=true" >> .env
+          echo "MOCK_EMAIL_SERVICE=true" >> .env
+          echo "MOCK_EXTERNAL_API=true" >> .env
+          
+          npm test -- --testNamePattern="Database|Auth|User|Domain" --coverage
+        env:
+          CI: true
+
+      # 测试3: 数据持久化测试
+      - name: Test Data Persistence
+        id: test-persistence
+        run: |
+          cd server
+          # 创建一些测试数据
+          npm run test:seed
+          
+          # 重启服务并验证数据还在
+          npm run test:verify-data
+
+      # 测试4: 删除.env后测试（模拟新环境但有数据）
+      - name: Test After .env Removal
+        id: test-no-env
+        run: |
+          cd server
+          # 备份.env
+          cp .env .env.backup
+          
+          # 删除.env
+          rm -f .env
+          
+          # 测试在没有.env的情况下是否能正确检测现有数据
+          npm run test:init-detect || true
+          
+          # 恢复.env
+          mv .env.backup .env
+
+      # 测试5: 数据库迁移测试
+      - name: Test Database Migrations
+        id: test-migrations
+        run: |
+          cd server
+          npm run db:migrate:test
+          npm run db:rollback:test
+          npm run db:migrate:test
+
+      # 测试6: 并发连接测试
+      - name: Test Concurrent Connections
+        id: test-concurrent
+        run: |
+          cd server
+          npm run test:concurrent
+
+      # 测试7: 错误恢复测试
+      - name: Test Error Recovery
+        id: test-recovery
+        run: |
+          cd server
+          npm run test:error-recovery
+
+      # 收集测试结果
+      - name: Collect Test Results
+        id: collect-results
+        if: always()
+        run: |
+          echo "## Test Results for ${{ inputs.database }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Initialization (Fresh) | ${{ steps.init-fresh.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Basic Functions | ${{ steps.test-basic.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Data Persistence | ${{ steps.test-persistence.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| After .env Removal | ${{ steps.test-no-env.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Database Migrations | ${{ steps.test-migrations.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Concurrent Connections | ${{ steps.test-concurrent.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Error Recovery | ${{ steps.test-recovery.outcome }} |" >> $GITHUB_STEP_SUMMARY
+
+      # 上传测试报告
+      - name: Upload Test Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-${{ inputs.database }}
+          path: |
+            server/coverage/
+            server/test-results/
+            server/logs/
+          retention-days: 7
+
+      # 上传覆盖率报告
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./server/coverage/lcov.info
+          flags: ${{ inputs.database }}-integration
+          name: ${{ inputs.database }}-coverage
+
+      # 检查关键测试是否通过
+      - name: Check Critical Tests
+        if: always()
+        run: |
+          if [[ "${{ steps.init-fresh.outcome }}" == "failure" ]] || \
+             [[ "${{ steps.test-basic.outcome }}" == "failure" ]]; then
+            echo "Critical tests failed for ${{ inputs.database }}!"
+            exit 1
+          fi
+          echo "All critical tests passed for ${{ inputs.database }}!"

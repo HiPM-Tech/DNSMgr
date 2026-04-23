@@ -25,7 +25,7 @@ export {
 export type { DatabaseType } from './core/types';
 
 // 向后兼容的辅助函数
-import { getConnection } from './core/connection';
+import { getConnection, connect as coreConnect, disconnect as coreDisconnect } from './core/connection';
 
 /**
  * 获取当前连接（向后兼容）
@@ -44,8 +44,7 @@ export function getCurrentConnection() {
  * @deprecated 使用 connect() 替代
  */
 export async function createConnection() {
-  const { connect } = await import('./core/connection');
-  return connect();
+  return coreConnect();
 }
 
 /**
@@ -53,8 +52,7 @@ export async function createConnection() {
  * @deprecated 使用 disconnect() 替代
  */
 export async function closeConnection() {
-  const { disconnect } = await import('./core/connection');
-  return disconnect();
+  return coreDisconnect();
 }
 
 /**

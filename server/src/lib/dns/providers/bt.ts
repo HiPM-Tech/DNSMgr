@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface BtConfig {
   AccountID: string;
@@ -10,6 +11,7 @@ interface BtConfig {
   domain?: string;
   domainId?: string;
   domainType?: string;
+  useProxy?: boolean;
 }
 
 export class BtAdapter extends BaseAdapter {
@@ -25,6 +27,7 @@ export class BtAdapter extends BaseAdapter {
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
       domainType: '1',
+      useProxy: !!config.useProxy,
     };
     if (this.config.domainId) {
       const parts = this.config.domainId.split('|');
@@ -49,7 +52,7 @@ export class BtAdapter extends BaseAdapter {
     };
 
     const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, { method, headers, body });
+    const res = await fetchWithFallback(url, { method, headers, body }, this.config.useProxy, 'BT');
     const data = (await res.json()) as Dict;
 
     if (!res.ok || data.code !== 0) {

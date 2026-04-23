@@ -1,5 +1,6 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface CloudflareConfig {
   email?: string;
@@ -7,6 +8,7 @@ interface CloudflareConfig {
   apiToken?: string;
   zoneId?: string;
   domain?: string;
+  useProxy?: boolean;
 }
 
 interface CfZone {
@@ -69,11 +71,11 @@ export class CloudflareAdapter implements DnsAdapter {
   private async request<T>(method: string, path: string, body?: unknown): Promise<CfApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
     log.providerRequest('Cloudflare', method, url, body);
-    const res = await fetch(url, {
+    const res = await fetchWithFallback(url, {
       method,
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
-    });
+    }, this.config.useProxy, 'Cloudflare');
     const data = (await res.json()) as CfApiResponse<T>;
     log.providerResponse('Cloudflare', res.status, data.success, { resultCount: Array.isArray(data.result) ? data.result.length : 0 });
     if (!data.success && data.errors?.length) {

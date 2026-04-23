@@ -1,11 +1,13 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface SpaceshipConfig {
   apiKey: string;
   apiSecret: string;
   domain?: string;
+  useProxy?: boolean;
 }
 
 export class SpaceshipAdapter extends BaseAdapter {
@@ -19,6 +21,7 @@ export class SpaceshipAdapter extends BaseAdapter {
       apiKey: safeString(config.apiKey) || safeString(config.apikey),
       apiSecret: safeString(config.apiSecret) || safeString(config.apisecret),
       domain: safeString(config.domain),
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -47,7 +50,7 @@ export class SpaceshipAdapter extends BaseAdapter {
       headers['Content-Type'] = 'application/json';
     }
 
-    const res = await fetch(url, { method, headers, body });
+    const res = await fetchWithFallback(url, { method, headers, body }, this.config.useProxy, 'Spaceship');
     const data = (await res.json()) as Dict;
 
     if (res.status !== 200 && res.status !== 204) {

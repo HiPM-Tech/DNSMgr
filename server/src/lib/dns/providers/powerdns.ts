@@ -1,6 +1,7 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface PowerdnsConfig {
   serverUrl: string;
@@ -8,6 +9,7 @@ interface PowerdnsConfig {
   serverId: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 interface Rrset {
@@ -40,6 +42,7 @@ export class PowerdnsAdapter extends BaseAdapter {
       serverId: safeString(config.serverId) || 'localhost',
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -74,7 +77,7 @@ export class PowerdnsAdapter extends BaseAdapter {
       body = JSON.stringify(params);
     }
 
-    const res = await fetch(url, { method, headers: this.getHeaders(), body });
+    const res = await fetchWithFallback(url, { method, headers: this.getHeaders(), body }, this.config.useProxy, 'PowerDNS');
     const data = (await res.json()) as Dict;
 
     if (!res.ok) {

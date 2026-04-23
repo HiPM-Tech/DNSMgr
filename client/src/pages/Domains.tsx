@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ExternalLink, Search, Activity } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, Search, Activity, Layers } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { domainsApi, accountsApi } from '../api';
 import type { Domain, DnsAccount } from '../api';
@@ -10,6 +10,15 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
+
+// 判断是否为顶域（只包含一个点的域名，如 example.com）
+function isApexDomain(name: string): boolean {
+  // 移除可能的尾部点号
+  const normalized = name.replace(/\.$/, '');
+  // 顶域只包含一个点（域名.后缀）
+  const parts = normalized.split('.');
+  return parts.length === 2;
+}
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -325,12 +334,14 @@ export function Domains() {
   const [configuringFailover, setConfiguringFailover] = useState<Domain | null>(null);
   const [accountFilter, setAccountFilter] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [domainTypeFilter, setDomainTypeFilter] = useState<'all' | 'apex' | 'subdomain'>('all');
 
   const { data: domains = [], isLoading } = useQuery({
-    queryKey: ['domains', accountFilter, keyword],
+    queryKey: ['domains', accountFilter, keyword, domainTypeFilter],
     queryFn: () => domainsApi.list({
       account_id: accountFilter ? Number(accountFilter) : undefined,
       keyword: keyword || undefined,
+      domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
     }).then((r) => r.data.data ?? []),
   });
 
@@ -366,13 +377,22 @@ export function Domains() {
   const columns = [
     {
       key: 'name', label: t('domains.domainName'),
-      render: (row: Domain) => (
-        <button onClick={() => navigate(`/domains/${row.id}/records`)}
-          className="flex items-center gap-1.5 font-medium text-blue-600 hover:text-blue-800 transition-colors">
-          {row.name}
-          <ExternalLink className="w-3.5 h-3.5" />
-        </button>
-      ),
+      render: (row: Domain) => {
+        const isApex = isApexDomain(row.name);
+        return (
+          <button onClick={() => navigate(`/domains/${row.id}/records`)}
+            className="flex items-center gap-2 font-medium text-blue-600 hover:text-blue-800 transition-colors">
+            {row.name}
+            {!isApex && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                <Layers className="w-3 h-3" />
+                {t('domains.subdomain')}
+              </span>
+            )}
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        );
+      },
     },
     {
       key: 'account_id', label: t('domains.account'),
@@ -460,6 +480,12 @@ export function Domains() {
           className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
           <option value="">{t('domains.allAccounts')}</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <select value={domainTypeFilter} onChange={(e) => setDomainTypeFilter(e.target.value as 'all' | 'apex' | 'subdomain')}
+          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <option value="all">{t('domains.allDomains')}</option>
+          <option value="apex">{t('domains.apexDomains')}</option>
+          <option value="subdomain">{t('domains.subdomains')}</option>
         </select>
       </div>
 

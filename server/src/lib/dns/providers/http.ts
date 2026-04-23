@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { fetchWithFallback } from '../../proxy-http';
 
 export type Dict = Record<string, unknown>;
 
@@ -9,6 +10,8 @@ export interface RequestOptions {
   body?: string;
   timeoutMs?: number;
   parseError?: (payload: unknown) => string | undefined;
+  useProxy?: boolean;
+  providerName?: string;
 }
 
 function withQuery(url: string, query?: Record<string, unknown>): string {
@@ -31,12 +34,14 @@ async function performRequest(url: string, options: RequestOptions): Promise<{ r
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(withQuery(url, options.query), {
+    const useProxy = options.useProxy ?? false;
+    const providerName = options.providerName ?? 'Unknown';
+    const res = await fetchWithFallback(withQuery(url, options.query), {
       method: options.method ?? 'GET',
       headers: options.headers,
       body: options.body,
       signal: controller.signal,
-    });
+    }, useProxy, providerName);
     const text = await res.text();
     return { res, text };
   } catch (error) {

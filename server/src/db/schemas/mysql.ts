@@ -307,6 +307,47 @@ export const mysqlSchema: SchemaDefinition = {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       INDEX idx_user_id (user_id),
       INDEX idx_fingerprint (device_fingerprint)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_configs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      domain_id INT NOT NULL,
+      expected_ns TEXT NOT NULL,
+      enabled TINYINT NOT NULL DEFAULT 0,
+      notify_email TINYINT NOT NULL DEFAULT 1,
+      notify_channels TINYINT NOT NULL DEFAULT 1,
+      check_interval INT NOT NULL DEFAULT 3600,
+      created_by INT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id),
+      INDEX idx_domain_id (domain_id),
+      INDEX idx_enabled (enabled)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_status (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      config_id INT NOT NULL UNIQUE,
+      current_ns TEXT NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'ok',
+      last_check_at DATETIME,
+      last_alert_at DATETIME,
+      alert_count INT NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (config_id) REFERENCES ns_monitor_configs(id) ON DELETE CASCADE,
+      INDEX idx_config_id (config_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_alerts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      config_id INT NOT NULL,
+      alert_type VARCHAR(20) NOT NULL,
+      expected_ns TEXT NOT NULL,
+      actual_ns TEXT NOT NULL,
+      sent_email TINYINT NOT NULL DEFAULT 0,
+      sent_channels TINYINT NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (config_id) REFERENCES ns_monitor_configs(id) ON DELETE CASCADE,
+      INDEX idx_config_id (config_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ],
   createIndexes: [

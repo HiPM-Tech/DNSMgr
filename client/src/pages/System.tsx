@@ -1,20 +1,24 @@
 import { useState } from 'react';
-import { Info, Database, Shield, Bell } from 'lucide-react';
+import { Info, Database, Shield, Bell, Key, Globe } from 'lucide-react';
 import { useI18n } from '../contexts/I18nContext';
 
 import { OverviewTab } from './system/OverviewTab';
 import { DatabaseTab } from './system/DatabaseTab';
 import { SecurityTab } from './system/SecurityTab';
+import { AccessTab } from './system/AccessTab';
+import { NetworkTab } from './system/NetworkTab';
 import { NotificationChannels } from '../components/NotificationChannels';
 
 export function System() {
   const { t } = useI18n();
-  const [activeTab, setActiveTab] = useState<'overview' | 'database' | 'security' | 'notifications'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'database' | 'security' | 'access' | 'network' | 'notifications'>('overview');
 
   const tabs = [
     { id: 'overview', label: t('system.tabs.overview'), icon: Info },
     { id: 'database', label: t('system.tabs.database'), icon: Database },
     { id: 'security', label: t('system.tabs.security'), icon: Shield },
+    { id: 'access', label: t('system.tabs.access'), icon: Key },
+    { id: 'network', label: t('system.tabs.network'), icon: Globe },
     { id: 'notifications', label: t('system.tabs.notifications'), icon: Bell },
   ];
 
@@ -47,6 +51,8 @@ export function System() {
       {activeTab === 'overview' && <OverviewTab />}
       {activeTab === 'database' && <DatabaseTab />}
       {activeTab === 'security' && <SecurityTab />}
+      {activeTab === 'access' && <AccessTab />}
+      {activeTab === 'network' && <NetworkTab />}
       {activeTab === 'notifications' && (
         <div className="space-y-6">
           <NotificationChannels />

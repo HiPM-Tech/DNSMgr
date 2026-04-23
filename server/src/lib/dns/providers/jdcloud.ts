@@ -2,12 +2,14 @@ import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber, uuid } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface JdcloudConfig {
   AccessKeyId: string;
   AccessKeySecret: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 class JdcloudClient {
@@ -19,7 +21,8 @@ class JdcloudClient {
 
   constructor(
     private accessKeyId: string,
-    private accessKeySecret: string
+    private accessKeySecret: string,
+    private useProxy: boolean = false
   ) {}
 
   private escape(str: string): string {
@@ -119,7 +122,7 @@ class JdcloudClient {
       url += '?' + this.getCanonicalQueryString(query);
     }
 
-    const res = await fetch(url, { method, headers, body: body || undefined });
+    const res = await fetchWithFallback(url, { method, headers, body: body || undefined }, this.useProxy, 'JDCloud');
     const data = (await res.json()) as Dict;
 
     if (res.status !== 200) {
@@ -143,8 +146,9 @@ export class JdcloudAdapter extends BaseAdapter {
       AccessKeySecret: safeString(config.AccessKeySecret),
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
-    this.client = new JdcloudClient(this.config.AccessKeyId, this.config.AccessKeySecret);
+    this.client = new JdcloudClient(this.config.AccessKeyId, this.config.AccessKeySecret, this.config.useProxy);
   }
 
   async check(): Promise<boolean> {

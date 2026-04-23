@@ -1,6 +1,7 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { log } from '../../logger';
 import crypto from 'crypto';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface CaihongDnsConfig {
   baseUrl: string;
@@ -8,6 +9,7 @@ interface CaihongDnsConfig {
   apiKey: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 interface CaihongDnsResponse<T> {
@@ -54,6 +56,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
       apiKey: config.apiKey || '',
       domain: config.domain,
       domainId: config.domainId || config.zoneId, // Support both domainId and zoneId
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -106,11 +109,11 @@ export class CaihongDnsAdapter implements DnsAdapter {
       }
       const requestBody = params.toString();
 
-      const res = await fetch(url, {
+      const res = await fetchWithFallback(url, {
         method,
         headers,
         body: requestBody,
-      });
+      }, this.config.useProxy, 'CaihongDns');
 
       // Get response text first to handle non-JSON responses
       const responseText = await res.text();

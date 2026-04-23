@@ -2,12 +2,14 @@ import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface QingcloudConfig {
   access_key_id: string;
   secret_access_key: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 export class QingcloudAdapter extends BaseAdapter {
@@ -21,6 +23,7 @@ export class QingcloudAdapter extends BaseAdapter {
       secret_access_key: safeString(config.secret_access_key),
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -52,7 +55,7 @@ export class QingcloudAdapter extends BaseAdapter {
       headers['Content-Type'] = 'application/json; charset=utf-8';
     }
 
-    const res = await fetch(url, { method, headers, body });
+    const res = await fetchWithFallback(url, { method, headers, body }, this.config.useProxy, 'Qingcloud');
     const data = (await res.json()) as Dict;
 
     if (res.status !== 200 && res.status !== 204) {

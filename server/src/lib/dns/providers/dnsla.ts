@@ -1,12 +1,14 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface DnslaConfig {
   apiid: string;
   apisecret: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 export class DnslaAdapter extends BaseAdapter {
@@ -31,6 +33,7 @@ export class DnslaAdapter extends BaseAdapter {
       apisecret: safeString(config.apisecret),
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -59,7 +62,7 @@ export class DnslaAdapter extends BaseAdapter {
       body = JSON.stringify(params);
     }
 
-    const res = await fetch(url, { method, headers, body });
+    const res = await fetchWithFallback(url, { method, headers, body }, this.config.useProxy, 'DNSLA');
     const data = (await res.json()) as Dict;
 
     if (!res.ok || data.code !== 200) {

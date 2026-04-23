@@ -31,6 +31,8 @@ import emailTemplatesRouter from './routes/emailTemplates';
 import tunnelsRouter from './routes/tunnels';
 import webauthnRouter from './routes/webauthn';
 import tokensRouter from './routes/tokens';
+import nsMonitorRouter from './routes/ns-monitor';
+import networkRouter from './routes/network';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
@@ -39,6 +41,7 @@ loadEnv();
 
 import { startFailoverJob } from './service/failoverJob';
 import { startWhoisJob } from './service/whoisJob';
+import { startNsMonitorJob } from './service/nsMonitorJob';
 import { initSecurityPolicyTable } from './service/securityPolicy';
 import { initTrustedDevicesTable } from './service/deviceTrust';
 import { log } from './lib/logger';
@@ -165,6 +168,8 @@ app.use('/api/email-templates', emailTemplatesRouter);
 app.use('/api/tunnels', tunnelsRouter);
 app.use('/api/auth/webauthn', webauthnRouter);
 app.use('/api/tokens', tokensRouter);
+app.use('/api/ns-monitor', nsMonitorRouter);
+app.use('/api/network', networkRouter);
 
 // Logs route
 /**
@@ -313,6 +318,7 @@ async function initializeApp() {
       await initTrustedDevicesTable();
       startFailoverJob();
       startWhoisJob();
+      startNsMonitorJob();
     } else {
       log.info('Server', 'System not initialized. Running in initialization mode.');
       log.info('Server', 'Please access the setup wizard to configure the system.');
@@ -340,6 +346,7 @@ async function initializeApp() {
           await initTrustedDevicesTable();
           startFailoverJob();
           startWhoisJob();
+          startNsMonitorJob();
         }
     }, 5000);
 
@@ -413,6 +420,7 @@ async function initializeApp() {
           await initTrustedDevicesTable();
           startFailoverJob();
           startWhoisJob();
+          startNsMonitorJob();
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');
           log.info('Server', 'You may need to refresh the page.');
         }

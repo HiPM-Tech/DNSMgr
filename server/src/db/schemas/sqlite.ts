@@ -267,6 +267,44 @@ export const sqliteSchema: SchemaDefinition = {
       expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_configs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      domain_id INTEGER NOT NULL,
+      expected_ns TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 0,
+      notify_email INTEGER NOT NULL DEFAULT 1,
+      notify_channels INTEGER NOT NULL DEFAULT 1,
+      check_interval INTEGER NOT NULL DEFAULT 3600,
+      created_by INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_status (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      config_id INTEGER NOT NULL,
+      current_ns TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing')),
+      last_check_at TEXT,
+      last_alert_at TEXT,
+      alert_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (config_id) REFERENCES ns_monitor_configs(id) ON DELETE CASCADE,
+      UNIQUE(config_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      config_id INTEGER NOT NULL,
+      alert_type TEXT NOT NULL CHECK(alert_type IN ('mismatch', 'missing')),
+      expected_ns TEXT NOT NULL DEFAULT '',
+      actual_ns TEXT NOT NULL DEFAULT '',
+      sent_email INTEGER NOT NULL DEFAULT 0,
+      sent_channels INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (config_id) REFERENCES ns_monitor_configs(id) ON DELETE CASCADE
     )`
   ],
   createIndexes: [
@@ -282,6 +320,10 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_user_webauthn_credentials_user_id ON user_webauthn_credentials(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_id ON trusted_devices(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_trusted_devices_fingerprint ON trusted_devices(device_fingerprint)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_configs_domain_id ON ns_monitor_configs(domain_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_configs_enabled ON ns_monitor_configs(enabled)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_status_config_id ON ns_monitor_status(config_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_alerts_config_id ON ns_monitor_alerts(config_id)`,
   ],
   alterTables: [
     // SQLite 不支持 ALTER TABLE ADD COLUMN 的复杂操作，需要在初始化时处理

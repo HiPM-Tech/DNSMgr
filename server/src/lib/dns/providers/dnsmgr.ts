@@ -1,11 +1,13 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface DnsMgrConfig {
   baseUrl: string;
   apiToken: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 interface DnsMgrApiResponse<T> {
@@ -51,6 +53,7 @@ export class DnsMgrAdapter implements DnsAdapter {
       apiToken: config.apiToken || '',
       domain: config.domain,
       domainId: config.domainId,
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -69,11 +72,11 @@ export class DnsMgrAdapter implements DnsAdapter {
     log.providerRequest('DnsMgr', method, url, body);
     
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithFallback(url, {
         method,
         headers: this.getHeaders(),
         body: body ? JSON.stringify(body) : undefined,
-      });
+      }, this.config.useProxy, 'DnsMgr');
       
       const data = (await res.json()) as DnsMgrApiResponse<T>;
       log.providerResponse('DnsMgr', res.status, data.code === 0, { resultCount: data.data && typeof data.data === 'object' && 'list' in data.data ? (data.data as any).list?.length : 0 });

@@ -17,6 +17,7 @@ import { Settings } from './pages/Settings';
 import { Security } from './pages/Security';
 import { Tunnels } from './pages/Tunnels';
 import { Tokens } from './pages/Tokens';
+import { NSMonitor } from './pages/NSMonitor';
 import { About } from './pages/About';
 import { System } from './pages/System';
 import { I18nProvider } from './contexts/I18nContext';
@@ -45,6 +46,7 @@ function App() {
                   <Route path="domains/:id/records" element={<Records />} />
                   <Route path="tunnels" element={<Tunnels />} />
                   <Route path="tokens" element={<Tokens />} />
+                  <Route path="ns-monitor" element={<NSMonitor />} />
                   <Route path="teams" element={<Teams />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="security" element={<Security />} />

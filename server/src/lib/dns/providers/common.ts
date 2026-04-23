@@ -135,11 +135,13 @@ export abstract class TokenAuthAdapter extends BaseAdapter {
 export abstract class AliyunRpcAdapter extends BaseAdapter {
   protected readonly accessKeyId: string;
   protected readonly accessKeySecret: string;
+  protected readonly useProxy: boolean;
 
   constructor(config: Record<string, string>) {
     super();
     this.accessKeyId = safeString(config.AccessKeyId);
     this.accessKeySecret = safeString(config.AccessKeySecret);
+    this.useProxy = !!config.useProxy;
   }
 
   protected abstract endpoint(): string;
@@ -183,6 +185,8 @@ export abstract class AliyunRpcAdapter extends BaseAdapter {
         }
         return undefined;
       },
+      useProxy: this.useProxy,
+      providerName: 'Aliyun',
     });
     log.providerResponse('Aliyun', 200, true, { action, hasData: result !== null });
     return result;
@@ -192,11 +196,13 @@ export abstract class AliyunRpcAdapter extends BaseAdapter {
 export abstract class TencentCloudAdapter extends BaseAdapter {
   protected readonly secretId: string;
   protected readonly secretKey: string;
+  protected readonly useProxy: boolean;
 
   constructor(config: Record<string, string>) {
     super();
     this.secretId = safeString(config.SecretId);
     this.secretKey = safeString(config.SecretKey);
+    this.useProxy = !!config.useProxy;
   }
 
   protected abstract service(): string;
@@ -256,6 +262,8 @@ export abstract class TencentCloudAdapter extends BaseAdapter {
         'X-TC-Version': this.version(),
       },
       body,
+      useProxy: this.useProxy,
+      providerName: 'TencentCloud',
     });
 
     const response = (data.Response ?? data) as Dict;

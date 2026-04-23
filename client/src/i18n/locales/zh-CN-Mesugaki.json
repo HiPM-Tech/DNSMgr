@@ -179,8 +179,16 @@
       "status": "状态",
       "system": "系统",
       "teams": "团队",
+      "tokens": "API 令牌",
+      "nsMonitor": "NS 监测",
       "ttl": "TTL",
       "type": "类型",
+      "clear": "清除",
+      "items": "条",
+      "page": "页",
+      "perPage": "条/页",
+      "pleaseSelect": "请选择嘛",
+      "total": "共",
       "unknown": "不知道啦～",
       "users": "用户们",
       "value": "值"
@@ -238,6 +246,10 @@
       "providerDomainIdPlaceholder": "可选第三方 ID",
       "records": "记录数",
       "remark": "备注",
+      "allDomains": "全部域名",
+      "apexDomains": "顶域",
+      "subdomains": "子域",
+      "subdomain": "子域",
       "saveConfig": "保存配置，别忘了",
       "searchPlaceholder": "搜索域名...",
       "selectDomains": "选择域名",
@@ -275,7 +287,14 @@
       "username": "用户名",
       "usernameOrEmail": "用户名/邮箱",
       "usernameOrEmailPlaceholder": "输入用户名或邮箱嘛",
-      "usernamePlaceholder": "输入用户名啦"
+      "usernamePlaceholder": "输入用户名啦",
+      "verify2FA": "验证双因素认证",
+      "enterAuthCode": "输入验证码",
+      "useBackupCode": "使用备份码",
+      "enterBackupCode": "输入备份码",
+      "useAuthCode": "使用验证码",
+      "backupCode": "备份码",
+      "authCode": "验证码"
     },
     "mail": {
       "add": "给我加记录！",
@@ -352,7 +371,16 @@
       "valueLabel": "记录值 *",
       "valuePlaceholder": "请输入记录值",
       "valueRequired": "记录值都不填，大叔是白痴吗？",
-      "weight": "权重"
+      "weight": "权重",
+      "proxy": "代理",
+      "proxied": "已代理",
+      "dnsOnly": "仅 DNS",
+      "fields": {
+        "host": "主机记录",
+        "value": "记录值",
+        "mx": "MX 优先级",
+        "type": "类型"
+      }
     },
     "security": {
       "activeSessions": "谁在偷偷用你的账号？",
@@ -430,7 +458,8 @@
       "showTunnelsDesc": "开了这个就能在旁边看到 Cloudflare Tunnels 啦，别看漏了",
       "unbindOauth": "解除绑定",
       "updatePassword": "更新密码",
-      "updateProfile": "更新资料"
+      "updateProfile": "更新资料",
+      "updateBackgroundImage": "更新背景图"
     },
     "setup": {
       "adminCreateFailed": "创建管理员失败",
@@ -741,6 +770,35 @@
       "tokenNameRequired": "请填写令牌名称",
       "tokenStatusUpdated": "状态已更新",
       "tokenTip": "此令牌的权限与您的用户权限相同，可用于管理域名、添加解析等操作。"
+    },
+    "nsMonitor": {
+      "title": "NS 监测",
+      "subtitle": "监测域名的 NS 记录变更，及时发现 DNS 劫持和配置异常喵~",
+      "domainName": "域名",
+      "currentNS": "当前 NS",
+      "expectedNS": "预期 NS",
+      "expectedNSPlaceholder": "例如：ns1.example.com, ns2.example.com",
+      "expectedNSHint": "多个 NS 服务器用逗号分隔，留空则只检测 NS 是否存在喵",
+      "monitoring": "监测开关",
+      "notifications": "通知方式",
+      "lastCheck": "最后检查",
+      "searchPlaceholder": "搜索域名...",
+      "noConfigs": "暂无监测配置，快去域名列表中添加监测吧喵~",
+      "editConfig": "编辑监测配置",
+      "enableMonitoring": "启用监测",
+      "notifyEmail": "邮件通知",
+      "notifyChannels": "通知渠道",
+      "checkNow": "立即检查",
+      "checkSuccess": "检查完成啦",
+      "checkFailed": "检查失败惹",
+      "updateSuccess": "配置已更新",
+      "updateFailed": "更新失败",
+      "normal": "正常",
+      "mismatch": "不匹配",
+      "missing": "缺失",
+      "notChecked": "未检查",
+      "notSet": "未设置",
+      "never": "从未"
     },
     "tunnels": {
       "actions": "操作",

@@ -2,13 +2,19 @@ import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 class HuaweiCloudClient {
+  private readonly useProxy: boolean;
+
   constructor(
     private readonly accessKeyId: string,
     private readonly secretAccessKey: string,
-    private readonly endpoint: string = 'dns.myhuaweicloud.com'
-  ) {}
+    private readonly endpoint: string = 'dns.myhuaweicloud.com',
+    useProxy: boolean = false
+  ) {
+    this.useProxy = useProxy;
+  }
 
   private escape(str: string): string {
     return encodeURIComponent(str)
@@ -108,11 +114,11 @@ class HuaweiCloudClient {
     }
 
     log.providerRequest('Huawei', method, url);
-    const res = await fetch(url, {
+    const res = await fetchWithFallback(url, {
       method,
       headers,
       body: bodyStr || undefined,
-    });
+    }, this.useProxy, 'Huawei');
 
     const data = (await res.json()) as Dict;
     if (!res.ok || data.error_msg || data.message || (data.error as Dict)?.error_msg) {
@@ -131,6 +137,7 @@ interface HuaweiConfig {
   SecretAccessKey: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 export class HuaweiAdapter extends BaseAdapter {
@@ -144,8 +151,9 @@ export class HuaweiAdapter extends BaseAdapter {
       SecretAccessKey: safeString(config.SecretAccessKey),
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
-    this.client = new HuaweiCloudClient(this.config.AccessKeyId, this.config.SecretAccessKey);
+    this.client = new HuaweiCloudClient(this.config.AccessKeyId, this.config.SecretAccessKey, 'dns.myhuaweicloud.com', this.config.useProxy);
   }
 
   async check(): Promise<boolean> {

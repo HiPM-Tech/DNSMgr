@@ -2,12 +2,14 @@ import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, Dict, safeString, toNumber } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface HuoshanConfig {
   AccessKeyId: string;
   SecretAccessKey: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 class VolcengineClient {
@@ -18,7 +20,8 @@ class VolcengineClient {
 
   constructor(
     private accessKeyId: string,
-    private secretAccessKey: string
+    private secretAccessKey: string,
+    private useProxy: boolean = false
   ) {}
 
   private escape(str: string): string {
@@ -114,7 +117,7 @@ class VolcengineClient {
     headers['Authorization'] = authorization;
 
     const url = `https://${this.endpoint}/?${this.getCanonicalQueryString(query)}`;
-    const res = await fetch(url, { method, headers, body: body || undefined });
+    const res = await fetchWithFallback(url, { method, headers, body: body || undefined }, this.useProxy, 'Huoshan');
     const data = (await res.json()) as Dict;
 
     if (res.status !== 200) {
@@ -154,8 +157,9 @@ export class HuoshanAdapter extends BaseAdapter {
       SecretAccessKey: safeString(config.SecretAccessKey),
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
-    this.client = new VolcengineClient(this.config.AccessKeyId, this.config.SecretAccessKey);
+    this.client = new VolcengineClient(this.config.AccessKeyId, this.config.SecretAccessKey, this.config.useProxy);
   }
 
   async check(): Promise<boolean> {

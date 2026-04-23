@@ -2,14 +2,19 @@ import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 class AliyunEsaRpcClient {
+  private useProxy: boolean;
   constructor(
     private readonly endpoint: string,
     private readonly accessKeyId: string,
     private readonly accessKeySecret: string,
-    private readonly version: string = '2024-09-10'
-  ) {}
+    private readonly version: string = '2024-09-10',
+    useProxy: boolean = false
+  ) {
+    this.useProxy = useProxy;
+  }
 
   private percentEncode(value: string): string {
     return encodeURIComponent(value)
@@ -54,7 +59,7 @@ class AliyunEsaRpcClient {
   async call<T = Dict>(action: string, params: Record<string, unknown> = {}): Promise<T> {
     const query = this.buildSignedQuery(action, params);
     const url = `${this.endpoint}?${query.toString()}`;
-    const res = await fetch(url, { method: 'GET' });
+    const res = await fetchWithFallback(url, { method: 'GET' }, this.useProxy, 'AliyunESA');
     const data = (await res.json()) as Dict;
     if (!res.ok || data.Code) {
       const err = safeString(data.Message) || safeString(data.Code) || `Aliyun ESA action ${action} failed`;
@@ -70,6 +75,7 @@ interface AliyunEsaConfig {
   region?: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 export class AliyunesaAdapter extends BaseAdapter {
@@ -84,9 +90,10 @@ export class AliyunesaAdapter extends BaseAdapter {
       region: safeString(config.region) || 'cn-hangzhou',
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
     const endpoint = `https://esa.${this.config.region}.aliyuncs.com/`;
-    this.client = new AliyunEsaRpcClient(endpoint, this.config.AccessKeyId, this.config.AccessKeySecret);
+    this.client = new AliyunEsaRpcClient(endpoint, this.config.AccessKeyId, this.config.AccessKeySecret, '2024-09-10', this.config.useProxy);
   }
 
   async check(): Promise<boolean> {

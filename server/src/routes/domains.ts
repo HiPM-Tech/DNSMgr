@@ -132,7 +132,7 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword } = req.query as { account_id?: string; keyword?: string };
+  const { account_id, keyword, domain_type } = req.query as { account_id?: string; keyword?: string; domain_type?: string };
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
 
@@ -145,6 +145,22 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     keyword,
     isSuper: isSuper(role),
   }) as unknown as Domain[];
+
+  // 根据域名类型过滤
+  if (domain_type && domain_type !== 'all') {
+    domains = domains.filter((domain) => {
+      const normalized = domain.name.replace(/\.$/, '');
+      const parts = normalized.split('.');
+      const isApex = parts.length === 2;
+      
+      if (domain_type === 'apex') {
+        return isApex;
+      } else if (domain_type === 'subdomain') {
+        return !isApex;
+      }
+      return true;
+    });
+  }
 
   if (!isSuper(role)) {
     domains = await Promise.all(domains.map(async (domain) => {

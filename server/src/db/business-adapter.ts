@@ -2929,6 +2929,171 @@ export const AuditLogOperations = {
 };
 
 // ============================================================================
+// NS 监测业务操作
+// ============================================================================
+
+export const NSMonitorOperations = {
+  /** 获取所有启用的 NS 监测配置（包含创建者是否为管理员信息） */
+  async getAllEnabled(): Promise<QueryResult[]> {
+    const dbType = getDbType();
+    const enabledValue = dbType === 'postgresql' ? 'true' : '1';
+    // 关联 users 表获取创建者角色信息
+    return queryInternal(
+      `SELECT c.*, d.name as domain_name, u.role as creator_role
+       FROM ns_monitor_configs c
+       JOIN domains d ON d.id = c.domain_id
+       LEFT JOIN users u ON u.id = c.created_by
+       WHERE c.enabled = ${enabledValue}`,
+      [],
+      { operation: 'NSMonitor.getAllEnabled', table: 'ns_monitor_configs' }
+    );
+  },
+
+  /** 获取所有 NS 监测配置（带域名信息） */
+  async getAllWithDomain(userId: number, isSuper: boolean): Promise<QueryResult[]> {
+    if (isSuper) {
+      return queryInternal(
+        `SELECT c.*, d.name as domain_name, s.current_ns, s.status, s.last_check_at, s.alert_count
+         FROM ns_monitor_configs c
+         JOIN domains d ON d.id = c.domain_id
+         LEFT JOIN ns_monitor_status s ON s.config_id = c.id
+         ORDER BY d.name`,
+        [],
+        { operation: 'NSMonitor.getAllWithDomain', table: 'ns_monitor_configs' }
+      );
+    }
+    // 非超级管理员，只返回有权限的域名
+    return queryInternal(
+      `SELECT c.*, d.name as domain_name, s.current_ns, s.status, s.last_check_at, s.alert_count
+       FROM ns_monitor_configs c
+       JOIN domains d ON d.id = c.domain_id
+       LEFT JOIN ns_monitor_status s ON s.config_id = c.id
+       JOIN domain_permissions p ON p.domain_id = d.id
+       WHERE p.user_id = ? OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?)
+       ORDER BY d.name`,
+      [userId, userId],
+      { operation: 'NSMonitor.getAllWithDomain', table: 'ns_monitor_configs' }
+    );
+  },
+
+  /** 根据域名ID获取 NS 监测配置 */
+  async getByDomain(domainId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM ns_monitor_configs WHERE domain_id = ?',
+      [domainId],
+      { operation: 'NSMonitor.getByDomain', table: 'ns_monitor_configs' }
+    );
+  },
+
+  /** 根据ID获取 NS 监测配置 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT c.*, d.name as domain_name FROM ns_monitor_configs c
+       JOIN domains d ON d.id = c.domain_id
+       WHERE c.id = ?`,
+      [id],
+      { operation: 'NSMonitor.getById', table: 'ns_monitor_configs' }
+    );
+  },
+
+  /** 创建 NS 监测配置 */
+  async create(data: Record<string, unknown>): Promise<number> {
+    const fields = Object.keys(data);
+    const placeholders = fields.map(() => '?').join(', ');
+    return insertInternal(
+      `INSERT INTO ns_monitor_configs (${fields.join(', ')}) VALUES (${placeholders})`,
+      Object.values(data),
+      { operation: 'NSMonitor.create', table: 'ns_monitor_configs' }
+    );
+  },
+
+  /** 更新 NS 监测配置 */
+  async update(id: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE ns_monitor_configs SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'NSMonitor.update', table: 'ns_monitor_configs' }
+    );
+  },
+
+  /** 删除 NS 监测配置 */
+  async delete(id: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM ns_monitor_configs WHERE id = ?',
+      [id],
+      { operation: 'NSMonitor.delete', table: 'ns_monitor_configs' }
+    );
+  },
+
+  /** 获取 NS 监测状态 */
+  async getStatus(configId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM ns_monitor_status WHERE config_id = ?',
+      [configId],
+      { operation: 'NSMonitor.getStatus', table: 'ns_monitor_status' }
+    );
+  },
+
+  /** 更新 NS 监测状态 */
+  async updateStatus(configId: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE ns_monitor_status SET ${setClause} WHERE config_id = ?`,
+      [...values, configId],
+      { operation: 'NSMonitor.updateStatus', table: 'ns_monitor_status' }
+    );
+  },
+
+  /** 初始化 NS 监测状态 */
+  async initStatus(configId: number, currentNs: string): Promise<void> {
+    const dbType = getDbType();
+    const now = dbType === 'postgresql' ? 'NOW()' : dbType === 'mysql' ? 'NOW()' : "datetime('now')";
+    return executeInternal(
+      `INSERT INTO ns_monitor_status (config_id, current_ns, status, last_check_at, alert_count)
+       VALUES (?, ?, 'ok', ${now}, 0)`,
+      [configId, currentNs],
+      { operation: 'NSMonitor.initStatus', table: 'ns_monitor_status' }
+    );
+  },
+
+  /** 记录 NS 监测告警 */
+  async createAlert(data: Record<string, unknown>): Promise<number> {
+    const fields = Object.keys(data);
+    const placeholders = fields.map(() => '?').join(', ');
+    return insertInternal(
+      `INSERT INTO ns_monitor_alerts (${fields.join(', ')}) VALUES (${placeholders})`,
+      Object.values(data),
+      { operation: 'NSMonitor.createAlert', table: 'ns_monitor_alerts' }
+    );
+  },
+
+  /** 获取域名的告警历史 */
+  async getAlertsByConfig(configId: number, limit: number = 10): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM ns_monitor_alerts WHERE config_id = ? ORDER BY created_at DESC LIMIT ?',
+      [configId, limit],
+      { operation: 'NSMonitor.getAlertsByConfig', table: 'ns_monitor_alerts' }
+    );
+  },
+
+  /** 获取最近的告警（用于告警抑制） */
+  async getRecentAlerts(configId: number, alertType: string, limit: number = 1): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM ns_monitor_alerts WHERE config_id = ? AND alert_type = ? ORDER BY created_at DESC LIMIT ?',
+      [configId, alertType, limit],
+      { operation: 'NSMonitor.getRecentAlerts', table: 'ns_monitor_alerts' }
+    );
+  },
+};
+
+// ============================================================================
 // 导出默认对象（兼容旧代码）
 // ============================================================================
 
@@ -2976,4 +3141,5 @@ export default {
   Whois: WhoisOperations,
   AuditRules: AuditRulesOperations,
   AuditLog: AuditLogOperations,
+  NSMonitor: NSMonitorOperations,
 };

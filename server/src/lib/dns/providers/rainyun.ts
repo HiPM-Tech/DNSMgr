@@ -1,11 +1,13 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { Dict, normalizeRrName, safeString, BaseAdapter, toNumber } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface RainyunConfig {
   apiKey: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 interface RainyunDomain {
@@ -44,6 +46,7 @@ export class RainyunAdapter extends BaseAdapter {
       apiKey: safeString(config.apiKey),
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -70,7 +73,7 @@ export class RainyunAdapter extends BaseAdapter {
       options.body = JSON.stringify(body);
     }
 
-    const res = await fetch(url, options);
+    const res = await fetchWithFallback(url, options, this.config.useProxy, 'Rainyun');
     const data = (await res.json()) as RainyunApiResponse<T>;
 
     if (!res.ok || data.code !== 200) {

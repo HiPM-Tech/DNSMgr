@@ -34,8 +34,15 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
   const [type, setType] = useState(initial?.type ?? providers[0]?.type ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [remark, setRemark] = useState(initial?.remark ?? '');
+  // 统一使用布尔值处理 useProxy，支持从字符串和布尔值初始化
+  const [useProxy, setUseProxy] = useState(() => {
+    const raw = initial?.config?.useProxy;
+    if (typeof raw === 'boolean') return raw;
+    if (typeof raw === 'string') return raw === 'true';
+    return false;
+  });
   const [config, setConfig] = useState<Record<string, string>>(
-    initial?.config ? Object.fromEntries(Object.keys(initial.config).map((k) => [k, ''])) : {}
+    initial?.config ? Object.fromEntries(Object.keys(initial.config).filter(k => k !== 'useProxy').map((k) => [k, initial.config[k] || ''])) : {}
   );
 
   const provider = providers.find((p) => p.type === type);
@@ -43,11 +50,13 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
   const handleTypeChange = (nextType: string) => {
     setType(nextType);
     setConfig({});
+    setUseProxy(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ type, name, config, remark });
+    // 统一使用布尔值提交 useProxy
+    onSubmit({ type, name, config: { ...config, useProxy }, remark });
   };
 
   const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
@@ -95,6 +104,21 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
           )}
         </div>
       ))}
+      <div className="flex items-center gap-3 py-2">
+        <input
+          type="checkbox"
+          id="useProxy"
+          checked={useProxy}
+          onChange={(e) => setUseProxy(e.target.checked)}
+          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+        />
+        <label htmlFor="useProxy" className="text-sm text-gray-700 dark:text-gray-300">
+          {t('accounts.useProxy')}
+        </label>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          ({t('accounts.useProxyHint')})
+        </span>
+      </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('common.remark')}</label>
         <input value={remark} onChange={(e) => setRemark(e.target.value)} placeholder={t('common.optionalRemark')} className={inputClass} />

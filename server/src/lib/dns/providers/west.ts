@@ -2,11 +2,13 @@ import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface WestConfig {
   username: string;
   apiPassword: string;
   domain?: string;
+  useProxy?: boolean;
 }
 
 interface WestDomainItem {
@@ -57,6 +59,7 @@ export class WestAdapter extends BaseAdapter implements DnsAdapter {
       username: safeString(config.username),
       apiPassword: safeString(config.api_password),
       domain: safeString(config.domain),
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -101,7 +104,7 @@ export class WestAdapter extends BaseAdapter implements DnsAdapter {
       body = this.toFormBody(payload);
     }
 
-    const res = await fetch(url, { method, headers, body });
+    const res = await fetchWithFallback(url, { method, headers, body }, this.config.useProxy, 'West');
     const text = await res.text();
     let data: WestApiResponse<T>;
     try {

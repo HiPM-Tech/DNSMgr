@@ -298,7 +298,44 @@ export const postgresqlSchema: SchemaDefinition = {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_id ON trusted_devices(user_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_trusted_devices_fingerprint ON trusted_devices(device_fingerprint)`
+    `CREATE INDEX IF NOT EXISTS idx_trusted_devices_fingerprint ON trusted_devices(device_fingerprint)`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_configs (
+      id SERIAL PRIMARY KEY,
+      domain_id INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+      expected_ns TEXT NOT NULL DEFAULT '',
+      enabled BOOLEAN NOT NULL DEFAULT false,
+      notify_email BOOLEAN NOT NULL DEFAULT true,
+      notify_channels BOOLEAN NOT NULL DEFAULT true,
+      check_interval INTEGER NOT NULL DEFAULT 3600,
+      created_by INTEGER NOT NULL REFERENCES users(id),
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_configs_domain_id ON ns_monitor_configs(domain_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_configs_enabled ON ns_monitor_configs(enabled)`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_status (
+      id SERIAL PRIMARY KEY,
+      config_id INTEGER NOT NULL UNIQUE REFERENCES ns_monitor_configs(id) ON DELETE CASCADE,
+      current_ns TEXT NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing')),
+      last_check_at TIMESTAMP,
+      last_alert_at TIMESTAMP,
+      alert_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_status_config_id ON ns_monitor_status(config_id)`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_alerts (
+      id SERIAL PRIMARY KEY,
+      config_id INTEGER NOT NULL REFERENCES ns_monitor_configs(id) ON DELETE CASCADE,
+      alert_type VARCHAR(20) NOT NULL CHECK(alert_type IN ('mismatch', 'missing')),
+      expected_ns TEXT NOT NULL DEFAULT '',
+      actual_ns TEXT NOT NULL DEFAULT '',
+      sent_email BOOLEAN NOT NULL DEFAULT false,
+      sent_channels BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_alerts_config_id ON ns_monitor_alerts(config_id)`
   ],
   createIndexes: [
     // 索引已在 CREATE TABLE 中定义

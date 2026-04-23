@@ -1,5 +1,6 @@
 import { FailoverOperations, getDbType } from '../db/business-adapter';
 import { getFailoverConfig, getFailoverStatus, performHealthCheck, performFailover, FailoverConfig } from './failover';
+import { connect } from '../db/core/connection';
 import { log } from '../lib/logger';
 
 export function startFailoverJob() {
@@ -49,7 +50,18 @@ export function startFailoverJob() {
         }
       }
     } catch (e) {
-      log.error('FailoverJob', 'Error', { error: e });
+      // Check if it's a connection error, try to reconnect
+      if (e instanceof Error && e.message.includes('Database connection not initialized')) {
+        log.warn('FailoverJob', 'Database connection lost, attempting to reconnect...');
+        try {
+          await connect();
+          log.info('FailoverJob', 'Database reconnected successfully');
+        } catch (reconnectError) {
+          log.error('FailoverJob', 'Failed to reconnect to database', { error: reconnectError });
+        }
+      } else {
+        log.error('FailoverJob', 'Error', { error: e });
+      }
     }
   }, 10000); // check every 10 seconds, but inside we respect checkInterval
 }

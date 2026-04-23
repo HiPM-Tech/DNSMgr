@@ -1,6 +1,7 @@
 import { WhoisOperations } from '../db/business-adapter';
 import { Domain } from '../types';
 import { sendNotification } from './notification';
+import { connect } from '../db/core/connection';
 import { log } from '../lib/logger';
 import { queryWhois, getRootDomain, WhoisResult } from './whoisProvider';
 
@@ -113,6 +114,26 @@ async function asyncPool<T, R>(concurrency: number, items: T[], fn: (item: T) =>
  */
 export async function syncAllDomainsWhois() {
   log.info('WhoisJob', 'Starting WHOIS sync for all domains');
+
+  try {
+    const domains = await WhoisOperations.getAllDomains() as unknown as Domain[];
+  } catch (error) {
+    // Check if it's a connection error, try to reconnect
+    if (error instanceof Error && error.message.includes('Database connection not initialized')) {
+      log.warn('WhoisJob', 'Database connection lost, attempting to reconnect...');
+      try {
+        await connect();
+        log.info('WhoisJob', 'Database reconnected successfully, retrying...');
+        // Retry once
+        const domains = await WhoisOperations.getAllDomains() as unknown as Domain[];
+      } catch (reconnectError) {
+        log.error('WhoisJob', 'Failed to reconnect to database', { error: reconnectError });
+        return;
+      }
+    } else {
+      throw error;
+    }
+  }
 
   try {
     const domains = await WhoisOperations.getAllDomains() as unknown as Domain[];

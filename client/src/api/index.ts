@@ -229,7 +229,7 @@ export const accountsApi = {
 // ─── Domains ──────────────────────────────────────────────────────────────────
 
 export const domainsApi = {
-  list: (params?: { account_id?: number; keyword?: string }) =>
+  list: (params?: { account_id?: number; keyword?: string; domain_type?: 'all' | 'apex' | 'subdomain' }) =>
     api.get<ApiResponse<Domain[]>>('/domains', { params }),
   get: (id: number) => api.get<ApiResponse<Domain>>(`/domains/${id}`),
   listFromProvider: (accountId: number) =>
@@ -493,4 +493,72 @@ export const tokensApi = {
   toggleStatus: (id: number, is_active: boolean) =>
     api.patch<ApiResponse<null>>(`/tokens/${id}/status`, { is_active }),
   getDomains: () => api.get<ApiResponse<{ id: number; name: string; account_name: string }[]>>('/tokens/domains'),
+};
+
+// ─── NS Monitor ───────────────────────────────────────────────────────────────
+
+export interface NSMonitorConfig {
+  id: number;
+  domain_id: number;
+  domain_name: string;
+  expected_ns: string;
+  enabled: boolean;
+  notify_email: boolean;
+  notify_channels: boolean;
+  current_ns?: string;
+  status?: 'ok' | 'mismatch' | 'missing';
+  last_check_at?: string;
+  alert_count?: number;
+}
+
+export const nsMonitorApi = {
+  list: () => api.get<ApiResponse<NSMonitorConfig[]>>('/ns-monitor'),
+  get: (id: number) => api.get<ApiResponse<NSMonitorConfig & { alerts: any[] }>>(`/ns-monitor/${id}`),
+  getByDomain: (domainId: number) => api.get<ApiResponse<NSMonitorConfig | null>>(`/ns-monitor/domain/${domainId}`),
+  create: (data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
+    api.post<ApiResponse<{ id: number }>>('/ns-monitor', data),
+  update: (id: number, data: { expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
+    api.post<ApiResponse<{ id: number }>>('/ns-monitor', { ...data, id }),
+  delete: (id: number) => api.delete<ApiResponse<null>>(`/ns-monitor/${id}`),
+  check: (id: number) => api.post<ApiResponse<{ current_ns: string[]; expected_ns: string[]; status: string }>>(`/ns-monitor/${id}/check`, {}),
+};
+
+// ─── Network API ──────────────────────────────────────────────────────────────
+
+export interface IpInfo {
+  ip: string;
+  type: 'v4' | 'v6';
+  source: string;
+  country?: string;
+  region?: string;
+  city?: string;
+  isp?: string;
+}
+
+export interface NetworkInfo {
+  server: {
+    v4: IpInfo | null;
+    v6: IpInfo | null;
+  };
+  client: {
+    v4: IpInfo | null;
+    v6: IpInfo | null;
+  };
+}
+
+export interface ProxyConfig {
+  enabled: boolean;
+  type: 'socks5' | 'http';
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+}
+
+export const networkApi = {
+  getInfo: () => api.get<ApiResponse<NetworkInfo & { serverDirect: { v4: IpInfo | null; v6: IpInfo | null }; proxy: { enabled: boolean; type: 'socks5' | 'http'; host: string; port: number } | null }>>('/network/info'),
+  getServerIp: () => api.get<ApiResponse<{ v4: IpInfo | null; v6: IpInfo | null }>>('/network/server-ip'),
+  getClientIp: () => api.get<ApiResponse<{ v4: IpInfo | null; v6: IpInfo | null }>>('/network/client-ip'),
+  getProxy: () => api.get<ApiResponse<ProxyConfig>>('/network/proxy'),
+  updateProxy: (config: ProxyConfig) => api.post<ApiResponse<ProxyConfig>>('/network/proxy', config),
 };

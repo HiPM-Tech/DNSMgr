@@ -1,12 +1,14 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, Dict, normalizeRrName, safeString, BaseAdapter, toNumber, toRecordStatus } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 interface DnsheConfig {
   apiKey: string;
   apiSecret: string;
   domain?: string;
   subdomainId?: string;
+  useProxy?: boolean;
 }
 
 interface DnsheSubdomain {
@@ -54,6 +56,7 @@ export class DnsheAdapter extends BaseAdapter {
       apiSecret: safeString(config.apiSecret),
       domain: safeString(config.domain),
       subdomainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -82,7 +85,7 @@ export class DnsheAdapter extends BaseAdapter {
       options.body = JSON.stringify(body);
     }
 
-    const res = await fetch(url, options);
+    const res = await fetchWithFallback(url, options, this.config.useProxy, 'DNSHE');
     const data = (await res.json()) as DnsheApiResponse<T>;
     
     if (!data.success && data.error) {

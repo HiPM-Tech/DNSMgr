@@ -2,13 +2,19 @@ import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid } from './common';
 import { log } from '../../logger';
+import { fetchWithFallback } from '../../proxy-http';
 
 class BaiduCloudClient {
+  private readonly useProxy: boolean;
+
   constructor(
     private readonly accessKeyId: string,
     private readonly secretAccessKey: string,
-    private readonly endpoint: string = 'dns.baidubce.com'
-  ) {}
+    private readonly endpoint: string = 'dns.baidubce.com',
+    useProxy: boolean = false
+  ) {
+    this.useProxy = useProxy;
+  }
 
   private escape(str: string): string {
     return encodeURIComponent(str)
@@ -102,11 +108,11 @@ class BaiduCloudClient {
       url += '?' + this.getCanonicalQueryString(query);
     }
 
-    const res = await fetch(url, {
+    const res = await fetchWithFallback(url, {
       method,
       headers,
       body: bodyStr || undefined,
-    });
+    }, this.useProxy, 'Baidu');
 
     if (res.status === 200 && res.headers.get('content-length') === '0') {
       return {} as T;
@@ -126,6 +132,7 @@ interface BaiduConfig {
   SecretAccessKey: string;
   domain?: string;
   domainId?: string;
+  useProxy?: boolean;
 }
 
 export class BaiduAdapter extends BaseAdapter {
@@ -139,8 +146,9 @@ export class BaiduAdapter extends BaseAdapter {
       SecretAccessKey: safeString(config.SecretAccessKey),
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId),
+      useProxy: !!config.useProxy,
     };
-    this.client = new BaiduCloudClient(this.config.AccessKeyId, this.config.SecretAccessKey);
+    this.client = new BaiduCloudClient(this.config.AccessKeyId, this.config.SecretAccessKey, 'dns.baidubce.com', this.config.useProxy);
   }
 
   async check(): Promise<boolean> {
