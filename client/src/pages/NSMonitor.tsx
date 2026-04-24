@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Shield, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2 } from 'lucide-react';
 import { nsMonitorApi, domainsApi } from '../api';
@@ -43,7 +43,7 @@ export function NSMonitor() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
+    mutationFn: (data: { id: number; domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
       nsMonitorApi.update(data.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
@@ -90,15 +90,15 @@ export function NSMonitor() {
     },
   });
 
-  const filteredConfigs = configs.filter((c: NSMonitorConfig) =>
-    c.domain_name.toLowerCase().includes(searchKeyword.toLowerCase())
-  );
+  const filteredConfigs = configs?.filter((c: NSMonitorConfig) =>
+    c.domain_name?.toLowerCase().includes(searchKeyword.toLowerCase())
+  ) || [];
 
   // 获取尚未添加监测的域名
-  const monitoredDomainIds = new Set(configs.map((c: NSMonitorConfig) => c.domain_id));
-  const availableDomains = domains.filter((d: Domain) => !monitoredDomainIds.has(d.id));
+  const monitoredDomainIds = new Set(configs?.map((c: NSMonitorConfig) => c.domain_id) || []);
+  const availableDomains = domains?.filter((d: Domain) => !monitoredDomainIds.has(d.id)) || [];
 
-  const columns = [
+  const columns: { key: string; label: string; render?: (row: NSMonitorConfig) => ReactNode }[] = [
     {
       key: 'domain_name',
       label: t('nsMonitor.domainName'),
@@ -220,6 +220,7 @@ export function NSMonitor() {
   const handleToggleEnabled = (row: NSMonitorConfig) => {
     updateMutation.mutate({
       id: row.id,
+      domain_id: row.domain_id,
       expected_ns: row.expected_ns,
       enabled: !row.enabled,
       notify_email: row.notify_email,
@@ -234,6 +235,7 @@ export function NSMonitor() {
     const formData = new FormData(e.currentTarget);
     updateMutation.mutate({
       id: selectedConfig.id,
+      domain_id: selectedConfig.domain_id,
       expected_ns: formData.get('expected_ns') as string,
       enabled: formData.get('enabled') === 'on',
       notify_email: formData.get('notify_email') === 'on',
