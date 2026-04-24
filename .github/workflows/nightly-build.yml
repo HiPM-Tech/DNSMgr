@@ -77,17 +77,17 @@ jobs:
           push: ${{ needs.prepare.outputs.push_enabled == 'true' }}
           tags: |
             ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-amd64
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-${{ github.sha }}-amd64
             ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-amd64
           no-cache: true
           build-args: |
             COMMIT_SHA=${{ github.sha }}
             BUILD_DATE=${{ needs.prepare.outputs.date_tag }}
-          outputs: type=image,push-by-digest=true,name-canonical=true
 
       - name: Output build info
         run: |
           echo "Platform: linux/amd64"
-          echo "Tags: nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-amd64, nightly-amd64"
+          echo "Tags: nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-amd64, nightly-${{ github.sha }}-amd64, nightly-amd64"
 
   build-arm64:
     name: Build Nightly ARM64
@@ -122,17 +122,17 @@ jobs:
           push: ${{ needs.prepare.outputs.push_enabled == 'true' }}
           tags: |
             ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-arm64
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-${{ github.sha }}-arm64
             ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-arm64
           no-cache: true
           build-args: |
             COMMIT_SHA=${{ github.sha }}
             BUILD_DATE=${{ needs.prepare.outputs.date_tag }}
-          outputs: type=image,push-by-digest=true,name-canonical=true
 
       - name: Output build info
         run: |
           echo "Platform: linux/arm64"
-          echo "Tags: nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-arm64, nightly-arm64"
+          echo "Tags: nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-arm64, nightly-${{ github.sha }}-arm64, nightly-arm64"
 
   # ============================================================================
   # 阶段 3: 创建多架构 manifest
@@ -170,6 +170,12 @@ jobs:
             "${IMAGE_BASE}:nightly-${DATE_TAG}-${SHA}-amd64" \
             "${IMAGE_BASE}:nightly-${DATE_TAG}-${SHA}-arm64"
 
+          # 创建 SHA tag 的 manifest
+          docker buildx imagetools create \
+            --tag "${IMAGE_BASE}:nightly-${SHA}" \
+            "${IMAGE_BASE}:nightly-${SHA}-amd64" \
+            "${IMAGE_BASE}:nightly-${SHA}-arm64"
+
           # 创建 nightly tag 的 manifest
           docker buildx imagetools create \
             --tag "${IMAGE_BASE}:nightly" \
@@ -181,7 +187,7 @@ jobs:
       - name: Output manifest info
         run: |
           echo "Image: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
-          echo "Tags: nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}, nightly"
+          echo "Tags: nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}, nightly-${{ github.sha }}, nightly"
           echo "Platforms: linux/amd64, linux/arm64"
 
   # ============================================================================

@@ -179,7 +179,6 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: type=image,push-by-digest=true,name-canonical=true
 
       - name: Output build info
         run: |
@@ -224,7 +223,6 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: type=image,push-by-digest=true,name-canonical=true
 
       - name: Output build info
         run: |

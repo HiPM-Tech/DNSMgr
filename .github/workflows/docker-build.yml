@@ -127,8 +127,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
-          # 导出镜像供后续合并使用
-          outputs: type=image,push-by-digest=true,name-canonical=true
 
       - name: Output image info
         run: |
@@ -179,8 +177,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
-          # 导出镜像供后续合并使用
-          outputs: type=image,push-by-digest=true,name-canonical=true
 
       - name: Output image info
         run: |
