@@ -178,7 +178,7 @@ export interface WebAuthnResponse {
     userHandle?: string;
   };
   type: 'public-key';
-  clientExtensionResults?: Record<string, unknown>;
+  clientExtensionResults?: unknown;
 }
 
 export interface WebAuthnCredential {
@@ -186,11 +186,6 @@ export interface WebAuthnCredential {
   name: string;
   created_at: string;
   last_used_at?: string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface ErrorWithTypes extends Error {
-  types?: string[];
 }
 
 export interface FailoverConfig {

@@ -5,6 +5,7 @@ import { Zap } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { authApi, initApi } from '../api';
+import type { WebAuthnResponse } from '../api';
 import { useToast } from '../hooks/useToast';
 import { startAuthentication } from '@simplewebauthn/browser';
 
@@ -94,8 +95,9 @@ export function Login() {
       const optsRes = await authApi.webauthnLoginOptions(username);
       if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
       
-      const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as PublicKeyCredentialRequestOptionsJSON });
-      await login(username, password, undefined, undefined, attResp);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as any });
+      await login(username, password, undefined, undefined, attResp as unknown as WebAuthnResponse);
       navigate('/');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t('login.failed'));

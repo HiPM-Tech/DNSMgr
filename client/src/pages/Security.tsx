@@ -5,6 +5,7 @@ import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { startRegistration } from '@simplewebauthn/browser';
 import { authApi } from '../api';
+import type { WebAuthnResponse } from '../api';
 
 interface Session {
   id: string;
@@ -62,10 +63,11 @@ export function Security() {
       const optsRes = await authApi.webauthnRegOptions();
       if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
       
-      const attResp = await startRegistration({ optionsJSON: optsRes.data.data.options as PublicKeyCredentialCreationOptionsJSON });
-      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const attResp = await startRegistration({ optionsJSON: optsRes.data.data.options as any });
+
       const verifyRes = await authApi.webauthnRegVerify({
-        credential: attResp
+        credential: attResp as unknown as WebAuthnResponse
       });
       if (verifyRes.data.code === 0) {
         toast.success(t('passkeys.addSuccess'));
