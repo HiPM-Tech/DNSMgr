@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Shield, CheckCircle, Globe, Play, Loader2, AlertCircle, Clock, XCircle } from 'lucide-react';
-import { networkApi, ConnectivityResult } from '../../api';
+import { networkApi, type ConnectivityResult } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 
