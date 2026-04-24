@@ -168,16 +168,67 @@ export interface LogEntry {
   created_at: string;
 }
 
+export interface WebAuthnResponse {
+  id: string;
+  rawId: string;
+  response: {
+    authenticatorData: string;
+    clientDataJSON: string;
+    signature: string;
+    userHandle?: string;
+  };
+  type: 'public-key';
+  clientExtensionResults?: Record<string, unknown>;
+}
+
+export interface WebAuthnCredential {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at?: string;
+}
+
+export interface FailoverConfig {
+  id: number;
+  domain_id: number;
+  record_id: number;
+  record_type: string;
+  record_name: string;
+  primary_value: string;
+  backup_value: string;
+  check_interval: number;
+  check_timeout: number;
+  check_method: string;
+  enabled: boolean;
+}
+
+export interface FailoverStatus {
+  id: number;
+  config_id: number;
+  current_value: string;
+  status: 'primary' | 'backup' | 'unknown';
+  last_check_at?: string;
+  last_failover_at?: string;
+  fail_count: number;
+  success_count: number;
+  last_error?: string;
+}
+
+export interface FailoverData {
+  config: FailoverConfig;
+  status: FailoverStatus;
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: any) =>
-    api.post<ApiResponse<any>>('/auth/login', { username, password, totpCode, backupCode, webauthnResponse }),
-  webauthnRegOptions: () => api.get<ApiResponse<any>>('/auth/webauthn/registration-options'),
-  webauthnRegVerify: (data: any) => api.post<ApiResponse<any>>('/auth/webauthn/registration-verify', data),
-  webauthnLoginOptions: (username: string) => api.get<ApiResponse<any>>(`/auth/webauthn/login-options?username=${encodeURIComponent(username)}`),
-  webauthnCreds: () => api.get<ApiResponse<any[]>>('/auth/webauthn/credentials'),
-  webauthnDeleteCred: (id: string) => api.delete<ApiResponse<any>>(`/auth/webauthn/credentials/${encodeURIComponent(id)}`),
+  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse) =>
+    api.post<ApiResponse<{ token?: string; user?: User }>>('/auth/login', { username, password, totpCode, backupCode, webauthnResponse }),
+  webauthnRegOptions: () => api.get<ApiResponse<{ options: unknown }>>('/auth/webauthn/registration-options'),
+  webauthnRegVerify: (data: { credential: unknown }) => api.post<ApiResponse<{ success: boolean }>>('/auth/webauthn/registration-verify', data),
+  webauthnLoginOptions: (username: string) => api.get<ApiResponse<{ options: unknown }>>(`/auth/webauthn/login-options?username=${encodeURIComponent(username)}`),
+  webauthnCreds: () => api.get<ApiResponse<WebAuthnCredential[]>>('/auth/webauthn/credentials'),
+  webauthnDeleteCred: (id: string) => api.delete<ApiResponse<null>>(`/auth/webauthn/credentials/${encodeURIComponent(id)}`),
   oauthStatus: () => api.get<ApiResponse<OAuthStatus>>('/auth/oauth/status'),
   oauthStart: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start', { provider }),
   oauthStartBind: (provider?: 'custom' | 'logto') => api.post<ApiResponse<{ authUrl: string }>>('/auth/oauth/start-bind', { provider }),
@@ -196,10 +247,10 @@ export const authApi = {
     api.post<ApiResponse<null>>('/auth/password-reset/request', { email }),
   confirmPasswordReset: (email: string, code: string, newPassword: string) =>
     api.post<ApiResponse<null>>('/auth/password-reset/confirm', { email, code, newPassword }),
-  getFailover: (id: number) => api.get<ApiResponse<{ config: any, status: any }>>(`/domains/${id}/failover`),
-  createFailover: (id: number, data: any) => api.post<ApiResponse<any>>(`/domains/${id}/failover`, data),
-  updateFailover: (id: number, data: any) => api.put<ApiResponse<any>>(`/domains/${id}/failover`, data),
-  deleteFailover: (id: number) => api.delete<ApiResponse<any>>(`/domains/${id}/failover`),
+  getFailover: (id: number) => api.get<ApiResponse<FailoverData>>(`/domains/${id}/failover`),
+  createFailover: (id: number, data: Partial<FailoverConfig>) => api.post<ApiResponse<FailoverConfig>>(`/domains/${id}/failover`, data),
+  updateFailover: (id: number, data: Partial<FailoverConfig>) => api.put<ApiResponse<FailoverConfig>>(`/domains/${id}/failover`, data),
+  deleteFailover: (id: number) => api.delete<ApiResponse<null>>(`/domains/${id}/failover`),
   getPreferences: () => api.get<ApiResponse<{ theme: string; language: string; notificationsEnabled: boolean; emailNotifications: boolean; backgroundImage?: string }>>('/auth/preferences'),
   updatePreferences: (data: { theme?: string; language?: string; notificationsEnabled?: boolean; emailNotifications?: boolean; backgroundImage?: string }) =>
     api.put<ApiResponse<null>>('/auth/preferences', data),
@@ -207,12 +258,23 @@ export const authApi = {
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
 
+export interface Tunnel {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+}
+
+export interface TunnelConfig {
+  [key: string]: unknown;
+}
+
 // ─── Tunnels ──────────────────────────────────────────────────────────────────
 export const tunnelsApi = {
-  list: () => api.get<ApiResponse<any[]>>('/tunnels'),
-  getConfig: (accountId: string, tunnelId: string) => api.get<ApiResponse<any>>(`/tunnels/${accountId}/${tunnelId}`),
-  updateConfig: (accountId: string, tunnelId: string, config: any) => api.put<ApiResponse<any>>(`/tunnels/${accountId}/${tunnelId}/config`, { config }),
-  delete: (accountId: string, tunnelId: string) => api.delete<ApiResponse<any>>(`/tunnels/${accountId}/${tunnelId}`),
+  list: () => api.get<ApiResponse<Tunnel[]>>('/tunnels'),
+  getConfig: (accountId: string, tunnelId: string) => api.get<ApiResponse<TunnelConfig>>(`/tunnels/${accountId}/${tunnelId}`),
+  updateConfig: (accountId: string, tunnelId: string, config: TunnelConfig) => api.put<ApiResponse<TunnelConfig>>(`/tunnels/${accountId}/${tunnelId}/config`, { config }),
+  delete: (accountId: string, tunnelId: string) => api.delete<ApiResponse<null>>(`/tunnels/${accountId}/${tunnelId}`),
 };
 
 export const accountsApi = {

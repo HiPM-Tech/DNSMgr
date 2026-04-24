@@ -104,7 +104,7 @@ jobs:
           echo "MOCK_EMAIL_SERVICE=true" >> .env
           echo "MOCK_EXTERNAL_API=true" >> .env
 
-          pnpm test -- --testNamePattern="Database|Auth|User|Domain" --coverage
+          pnpm test
         env:
           CI: true
 
