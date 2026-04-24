@@ -791,7 +791,7 @@
     },
     "network": {
       "title": "网络信息",
-      "subtitle": "查看服务器和客户端的 IP 地址信息，配置代理访问外部 API",
+      "subtitle": "配置代理访问外部 API（Baidu、Google、Apple、Cloudflare），显示当前网络连通状态",
       "refresh": "刷新",
       "refreshSuccess": "刷新成功",
       "refreshFailed": "刷新失败",

@@ -653,7 +653,7 @@
     },
     "network": {
       "title": "네트워크 정보",
-      "subtitle": "서버 및 클라이언트 IP 주소 정보를 확인하고 외부 API 접근을 위한 프록시를 구성",
+      "subtitle": "외부 API(Baidu, Google, Apple, Cloudflare) 접근을 위한 프록시를 구성하고 현재 네트워크 연결 상태를 표시",
       "refresh": "새로고침",
       "refreshSuccess": "새로고침 성공",
       "refreshFailed": "새로고침 실패",

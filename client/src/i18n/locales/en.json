@@ -617,7 +617,7 @@
     },
     "network": {
       "title": "Network Information",
-      "subtitle": "View server and client IP address information, configure proxy for external API access",
+      "subtitle": "Configure proxy to access external APIs (Baidu, Google, Apple, Cloudflare), display current network connectivity status",
       "refresh": "Refresh",
       "refreshSuccess": "Refresh successful",
       "refreshFailed": "Refresh failed",

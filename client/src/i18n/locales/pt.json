@@ -653,7 +653,7 @@
     },
     "network": {
       "title": "Informações de rede",
-      "subtitle": "Visualizar informações de endereço IP do servidor e cliente, configurar proxy para acesso API externo",
+      "subtitle": "Configurar proxy para acessar APIs externas (Baidu, Google, Apple, Cloudflare), exibir status atual de conectividade de rede",
       "refresh": "Atualizar",
       "refreshSuccess": "Atualização bem-sucedida",
       "refreshFailed": "Falha na atualização",

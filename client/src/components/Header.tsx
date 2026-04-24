@@ -21,6 +21,10 @@ export function Header({ onMenuClick }: HeaderProps) {
     settings: t('common.settings'),
     about: t('common.about'),
     system: t('common.system'),
+    'ns-monitor': t('common.nsMonitor'),
+    security: t('common.security'),
+    tokens: t('common.tokens'),
+    tunnels: t('common.tunnels'),
   };
 
   const crumbs = [

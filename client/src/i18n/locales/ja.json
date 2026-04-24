@@ -985,7 +985,7 @@
     },
     "network": {
       "title": "ネットワーク情報",
-      "subtitle": "サーバーとクライアントのIPアドレス情報を確認し、外部APIアクセス用のプロキシを設定",
+      "subtitle": "外部API（Baidu、Google、Apple、Cloudflare）へのアクセス用プロキシを設定し、現在のネットワーク接続状態を表示",
       "refresh": "更新",
       "refreshSuccess": "更新しました",
       "refreshFailed": "更新に失敗しました",

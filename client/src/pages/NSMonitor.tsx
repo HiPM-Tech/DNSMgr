@@ -159,12 +159,21 @@ export function NSMonitor() {
     {
       key: 'notifications',
       label: t('nsMonitor.notifications'),
-      render: (row: NSMonitorConfig) => (
-        <div className="flex items-center gap-2">
-          {row.notify_email && <Mail className="w-4 h-4 text-blue-500" />}
-          {row.notify_channels && <Bell className="w-4 h-4 text-purple-500" />}
-        </div>
-      ),
+      render: (row: NSMonitorConfig) => {
+        // 将数字转换为布尔值（数据库可能返回 0/1）
+        const hasEmail = Boolean(row.notify_email);
+        const hasChannels = Boolean(row.notify_channels);
+        // 如果都没有配置，显示 "-"
+        if (!hasEmail && !hasChannels) {
+          return <span className="text-gray-400">-</span>;
+        }
+        return (
+          <div className="flex items-center gap-2">
+            {hasEmail && <Mail className="w-4 h-4 text-blue-500" />}
+            {hasChannels && <Bell className="w-4 h-4 text-purple-500" />}
+          </div>
+        );
+      },
     },
     {
       key: 'last_check',
