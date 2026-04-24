@@ -125,7 +125,9 @@ jobs:
           version: 8
 
       - name: Install dependencies
-        run: cd server && pnpm install --frozen-lockfile
+        run: |
+          pnpm install --no-frozen-lockfile
+          cd server && pnpm install --frozen-lockfile
 
       - name: Run unit tests
         run: cd server && pnpm test -- --coverage --testPathPattern="\.test\.ts$" --testPathIgnorePatterns="e2e"
@@ -156,7 +158,9 @@ jobs:
           version: 8
 
       - name: Install dependencies
-        run: cd client && pnpm install --frozen-lockfile
+        run: |
+          pnpm install --no-frozen-lockfile
+          cd client && pnpm install --frozen-lockfile
 
       - name: Run unit tests
         run: cd client && pnpm test -- --coverage --passWithNoTests
@@ -218,6 +222,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pnpm install --no-frozen-lockfile
           cd server && pnpm install --frozen-lockfile
           cd ../client && pnpm install --frozen-lockfile
           cd ../e2e && pnpm install --frozen-lockfile

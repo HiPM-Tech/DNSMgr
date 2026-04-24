@@ -65,7 +65,9 @@ jobs:
           version: 8
 
       - name: Install dependencies
-        run: cd server && pnpm install --frozen-lockfile
+        run: |
+          pnpm install --no-frozen-lockfile
+          cd server && pnpm install --frozen-lockfile
 
       # 测试1: 初始化测试（无数据）
       - name: Test Initialization (Fresh)
