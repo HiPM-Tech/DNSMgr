@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  
+
   workflow_dispatch:
     inputs:
       push:
@@ -21,12 +21,36 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-nightly:
+  # ============================================================================
+  # 阶段 1: 准备构建信息
+  # ============================================================================
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      date_tag: ${{ steps.vars.outputs.date_tag }}
+      image_name_lower: ${{ steps.vars.outputs.image_name_lower }}
+      push_enabled: ${{ steps.vars.outputs.push_enabled }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up build variables
+        id: vars
+        run: |
+          echo "date_tag=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "image_name_lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "push_enabled=${{ github.event.inputs.push || 'true' }}" >> $GITHUB_OUTPUT
+
+  # ============================================================================
+  # 阶段 2: 并行构建 AMD64 和 ARM64
+  # ============================================================================
+  build-amd64:
+    name: Build Nightly AMD64
+    runs-on: ubuntu-latest
+    needs: prepare
     permissions:
       contents: read
       packages: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,72 +62,158 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v4
+        if: needs.prepare.outputs.push_enabled == 'true'
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up date tag
-        run: |
-          echo "DATE_TAG=$(date +%Y%m%d)" >> $GITHUB_ENV
-          echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        if: github.event.inputs.push != 'false'
+      - name: Build and push AMD64 image
+        uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
+          platforms: linux/amd64
+          push: ${{ needs.prepare.outputs.push_enabled == 'true' }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly-${{ env.DATE_TAG }}-${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-amd64
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-amd64
           no-cache: true
           build-args: |
             COMMIT_SHA=${{ github.sha }}
-            BUILD_DATE=${{ env.DATE_TAG }}
+            BUILD_DATE=${{ needs.prepare.outputs.date_tag }}
+          outputs: type=image,push-by-digest=true,name-canonical=true
 
-      - name: Output build information
+      - name: Output build info
         run: |
-          echo "========================================"
-          echo "Nightly Docker Build Completed"
-          echo "========================================"
-          echo "Repository: ${{ github.repository }}"
-          echo "Branch: ${{ github.ref }}"
-          echo "Commit SHA: ${{ github.sha }}"
-          echo "Triggered by: ${{ github.event_name }}"
-          echo "========================================"
+          echo "Platform: linux/amd64"
+          echo "Tags: nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-amd64, nightly-amd64"
 
-  verify-image:
+  build-arm64:
+    name: Build Nightly ARM64
     runs-on: ubuntu-latest
-    needs: build-nightly
+    needs: prepare
     permissions:
       contents: read
-      packages: read
-    
+      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to Container Registry
-        uses: docker/login-action@v4
+        if: needs.prepare.outputs.push_enabled == 'true'
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up image name
-        run: |
-          echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Build and push ARM64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/arm64
+          push: ${{ needs.prepare.outputs.push_enabled == 'true' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-arm64
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly-arm64
+          no-cache: true
+          build-args: |
+            COMMIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ needs.prepare.outputs.date_tag }}
+          outputs: type=image,push-by-digest=true,name-canonical=true
 
-      - name: Pull and verify Docker image
+      - name: Output build info
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly
+          echo "Platform: linux/arm64"
+          echo "Tags: nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-arm64, nightly-arm64"
+
+  # ============================================================================
+  # 阶段 3: 创建多架构 manifest
+  # ============================================================================
+  merge:
+    name: Create Nightly Multi-Arch Manifest
+    runs-on: ubuntu-latest
+    needs: [prepare, build-amd64, build-arm64]
+    if: always() && needs.build-amd64.result == 'success' && needs.build-arm64.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: needs.prepare.outputs.push_enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        if: needs.prepare.outputs.push_enabled == 'true'
+        run: |
+          IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
+          DATE_TAG="${{ needs.prepare.outputs.date_tag }}"
+          SHA="${{ github.sha }}"
+
+          # 创建日期+SHA tag 的 manifest
+          docker buildx imagetools create \
+            --tag "${IMAGE_BASE}:nightly-${DATE_TAG}-${SHA}" \
+            "${IMAGE_BASE}:nightly-${DATE_TAG}-${SHA}-amd64" \
+            "${IMAGE_BASE}:nightly-${DATE_TAG}-${SHA}-arm64"
+
+          # 创建 nightly tag 的 manifest
+          docker buildx imagetools create \
+            --tag "${IMAGE_BASE}:nightly" \
+            "${IMAGE_BASE}:nightly-amd64" \
+            "${IMAGE_BASE}:nightly-arm64"
+
+          echo "Multi-arch manifest created successfully"
+
+      - name: Output manifest info
+        run: |
+          echo "Image: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
+          echo "Tags: nightly-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}, nightly"
+          echo "Platforms: linux/amd64, linux/arm64"
+
+  # ============================================================================
+  # 阶段 4: 验证镜像
+  # ============================================================================
+  verify-image:
+    name: Verify Nightly Image
+    runs-on: ubuntu-latest
+    needs: [prepare, merge]
+    if: always() && needs.merge.result == 'success'
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and verify manifest
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:nightly"
+          docker pull $IMAGE
           echo "Verifying Docker image labels:"
-          docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly --format='{{json .Config.Labels}}'
+          docker inspect $IMAGE --format='{{json .Config.Labels}}'
           echo ""
           echo "Image size:"
-          docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:nightly --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+          docker images $IMAGE --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+          echo ""
+          echo "Manifest platforms:"
+          docker manifest inspect $IMAGE | grep architecture
           echo ""
           echo "Image verification completed successfully!"

@@ -44,12 +44,16 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  # ============================================================================
+  # 阶段 1: 准备版本信息（单任务，为后续并行构建提供元数据）
+  # ============================================================================
+  prepare:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
+    outputs:
+      processed_tag: ${{ steps.version.outputs.processed_tag }}
+      is_beta: ${{ steps.version.outputs.is_beta }}
+      push_enabled: ${{ steps.version.outputs.push_enabled }}
+      image_name: ${{ env.IMAGE_NAME }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,22 +61,39 @@ jobs:
       - name: Process version tag
         id: version
         run: |
-          INPUT_TAG="${{ github.event.inputs.tag }}"
-          IS_BETA="${{ github.event.inputs.beta }}"
-          
+          INPUT_TAG="${{ github.event.inputs.tag || inputs.tag }}"
+          IS_BETA="${{ github.event.inputs.beta || inputs.beta }}"
+          PUSH_ENABLED="${{ github.event.inputs.push || inputs.push }}"
+
           # Remove 'v' prefix if present
           TAG="${INPUT_TAG#v}"
-          
+
           # If beta is checked and tag doesn't contain 'beta', add '-beta' suffix
           if [ "$IS_BETA" = "true" ] && [[ ! "$TAG" =~ beta ]]; then
             TAG="${TAG}-beta"
           fi
-          
+
           echo "processed_tag=$TAG" >> $GITHUB_OUTPUT
           echo "is_beta=$IS_BETA" >> $GITHUB_OUTPUT
+          echo "push_enabled=$PUSH_ENABLED" >> $GITHUB_OUTPUT
           echo "Original tag: $INPUT_TAG"
           echo "Processed tag: $TAG"
           echo "Is beta: $IS_BETA"
+          echo "Push enabled: $PUSH_ENABLED"
+
+  # ============================================================================
+  # 阶段 2: 并行构建 AMD64 和 ARM64 镜像
+  # ============================================================================
+  build-amd64:
+    name: Build AMD64
+    runs-on: ubuntu-latest
+    needs: prepare
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -81,7 +102,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
-        if: inputs.push == 'true' || github.event.inputs.push == 'true'
+        if: needs.prepare.outputs.push_enabled == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -92,27 +113,153 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}
           tags: |
-            type=raw,value=${{ steps.version.outputs.processed_tag }}
-            type=sha,prefix=,suffix=,format=short
-            type=ref,event=branch
-            ${{ (inputs.beta != 'true' && github.event.inputs.beta != 'true') && 'type=raw,value=latest' || '' }}
-            ${{ (inputs.beta == 'true' || github.event.inputs.beta == 'true') && 'type=raw,value=beta' || '' }}
+            type=raw,value=${{ needs.prepare.outputs.processed_tag }}-amd64
+            type=sha,prefix=,suffix=-amd64,format=short
 
-      - name: Build and push Docker image
+      - name: Build and push AMD64 image
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          push: ${{ inputs.push == 'true' || github.event.inputs.push == 'true' }}
+          platforms: linux/amd64
+          push: ${{ needs.prepare.outputs.push_enabled == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
+          # 导出镜像供后续合并使用
+          outputs: type=image,push-by-digest=true,name-canonical=true
 
       - name: Output image info
         run: |
-          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          echo "Platform: linux/amd64"
+          echo "Image: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}"
           echo "Tags: ${{ steps.meta.outputs.tags }}"
-          echo "Labels: ${{ steps.meta.outputs.labels }}"
-          echo "Is Beta: ${{ steps.version.outputs.is_beta }}"
+
+  build-arm64:
+    name: Build ARM64
+    runs-on: ubuntu-latest
+    needs: prepare
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: needs.prepare.outputs.push_enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.processed_tag }}-arm64
+            type=sha,prefix=,suffix=-arm64,format=short
+
+      - name: Build and push ARM64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/arm64
+          push: ${{ needs.prepare.outputs.push_enabled == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          no-cache: true
+          # 导出镜像供后续合并使用
+          outputs: type=image,push-by-digest=true,name-canonical=true
+
+      - name: Output image info
+        run: |
+          echo "Platform: linux/arm64"
+          echo "Image: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}"
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+
+  # ============================================================================
+  # 阶段 3: 创建多架构 manifest（合并 AMD64 + ARM64）
+  # ============================================================================
+  merge:
+    name: Create Multi-Arch Manifest
+    runs-on: ubuntu-latest
+    needs: [prepare, build-amd64, build-arm64]
+    if: always() && needs.build-amd64.result == 'success' && needs.build-arm64.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: needs.prepare.outputs.push_enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        if: needs.prepare.outputs.push_enabled == 'true'
+        run: |
+          IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}"
+          TAG="${{ needs.prepare.outputs.processed_tag }}"
+          IS_BETA="${{ needs.prepare.outputs.is_beta }}"
+
+          # 创建版本 tag 的 manifest
+          docker buildx imagetools create \
+            --tag "${IMAGE_BASE}:${TAG}" \
+            "${IMAGE_BASE}:${TAG}-amd64" \
+            "${IMAGE_BASE}:${TAG}-arm64"
+
+          # 如果不是 beta，创建 latest tag
+          if [ "$IS_BETA" != "true" ]; then
+            docker buildx imagetools create \
+              --tag "${IMAGE_BASE}:latest" \
+              "${IMAGE_BASE}:${TAG}-amd64" \
+              "${IMAGE_BASE}:${TAG}-arm64"
+          else
+            # 如果是 beta，创建 beta tag
+            docker buildx imagetools create \
+              --tag "${IMAGE_BASE}:beta" \
+              "${IMAGE_BASE}:${TAG}-amd64" \
+              "${IMAGE_BASE}:${TAG}-arm64"
+          fi
+
+          echo "Multi-arch manifest created successfully"
+
+      - name: Output manifest info
+        run: |
+          echo "Image: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}"
+          echo "Version Tag: ${{ needs.prepare.outputs.processed_tag }}"
+          echo "Is Beta: ${{ needs.prepare.outputs.is_beta }}"
+          echo "Platforms: linux/amd64, linux/arm64"
+
+  # ============================================================================
+  # 阶段 4: 清理（可选：删除单架构 tag，只保留 manifest）
+  # ============================================================================
+  cleanup:
+    name: Cleanup Single-Arch Tags
+    runs-on: ubuntu-latest
+    needs: [prepare, merge]
+    if: always() && needs.merge.result == 'success' && needs.prepare.outputs.push_enabled == 'true'
+    permissions:
+      packages: write
+    steps:
+      - name: Delete single-arch tags from GHCR
+        run: |
+          # 使用 GitHub API 删除单架构标签（可选，保留它们也无妨）
+          echo "Single-arch tags can be cleaned up manually if needed"
+          echo "Tags to clean: ${{ needs.prepare.outputs.processed_tag }}-amd64, ${{ needs.prepare.outputs.processed_tag }}-arm64"
