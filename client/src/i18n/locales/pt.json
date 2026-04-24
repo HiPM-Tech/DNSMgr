@@ -160,6 +160,10 @@
       "createFailed": "Falha ao criar equipe",
       "updateFailed": "Falha ao atualizar equipe",
       "deleteFailed": "Falha ao excluir equipe",
+      "roleOwner": "Proprietário",
+      "roleAdmin": "Administrador",
+      "roleMember": "Membro",
+      "roleSuper": "Super Administrador",
       "teamMembers": "Equipe: {name}",
       "membersCount": "{count} membro{suffix}",
       "addMember": "Adicionar Membro",
@@ -843,7 +847,10 @@
         "remove_team_member": "Remover Membro da Equipe",
         "add_domain_permission": "Adicionar Permissão de Domínio",
         "update_domain_permission": "Atualizar Permissão de Domínio",
-        "remove_domain_permission": "Remover Permissão de Domínio"
+        "remove_domain_permission": "Remover Permissão de Domínio",
+        "add_team_domain_permission": "Adicionar Permissão de Domínio da Equipe",
+        "update_team_domain_permission": "Atualizar Permissão de Domínio da Equipe",
+        "remove_team_domain_permission": "Remover Permissão de Domínio da Equipe"
       },
       "parts": {
         "host": ", host {host}",

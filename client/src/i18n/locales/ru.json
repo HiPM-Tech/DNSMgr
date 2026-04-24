@@ -160,6 +160,10 @@
       "createFailed": "Не удалось создать команду",
       "updateFailed": "Не удалось обновить команду",
       "deleteFailed": "Не удалось удалить команду",
+      "roleOwner": "Владелец",
+      "roleAdmin": "Администратор",
+      "roleMember": "Участник",
+      "roleSuper": "Супер Администратор",
       "teamMembers": "Команда: {name}",
       "membersCount": "{count} участник(ов)",
       "addMember": "Добавить участника",
@@ -843,7 +847,10 @@
         "remove_team_member": "Удалить члена команды",
         "add_domain_permission": "Добавить разрешение домена",
         "update_domain_permission": "Обновить разрешение домена",
-        "remove_domain_permission": "Удалить разрешение домена"
+        "remove_domain_permission": "Удалить разрешение домена",
+        "add_team_domain_permission": "Добавить разрешение домена команды",
+        "update_team_domain_permission": "Обновить разрешение домена команды",
+        "remove_team_domain_permission": "Удалить разрешение домена команды"
       },
       "parts": {
         "host": ", хост {host}",

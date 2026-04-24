@@ -160,6 +160,10 @@
       "createFailed": "Failed to create team",
       "updateFailed": "Failed to update team",
       "deleteFailed": "Failed to delete team",
+      "roleOwner": "Owner",
+      "roleAdmin": "Admin",
+      "roleMember": "Member",
+      "roleSuper": "Super Admin",
       "teamMembers": "Team: {name}",
       "membersCount": "{count} member{suffix}",
       "addMember": "Add Member",
@@ -845,7 +849,10 @@
         "remove_team_member": "Remove Team Member",
         "add_domain_permission": "Add Domain Permission",
         "update_domain_permission": "Update Domain Permission",
-        "remove_domain_permission": "Remove Domain Permission"
+        "remove_domain_permission": "Remove Domain Permission",
+        "add_team_domain_permission": "Add Team Domain Permission",
+        "update_team_domain_permission": "Update Team Domain Permission",
+        "remove_team_domain_permission": "Remove Team Domain Permission"
       },
       "parts": {
         "host": ", host {host}",

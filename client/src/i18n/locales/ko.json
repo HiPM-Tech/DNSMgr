@@ -160,6 +160,10 @@
       "createFailed": "팀 생성 실패",
       "updateFailed": "팀 업데이트 실패",
       "deleteFailed": "팀 삭제 실패",
+      "roleOwner": "소유자",
+      "roleAdmin": "관리자",
+      "roleMember": "멤버",
+      "roleSuper": "슈퍼 관리자",
       "teamMembers": "팀: {name}",
       "membersCount": "{count}명의 멤버",
       "addMember": "멤버 추가",
@@ -843,7 +847,10 @@
         "remove_team_member": "팀 멤버 제거",
         "add_domain_permission": "도메인 권한 추가",
         "update_domain_permission": "도메인 권한 업데이트",
-        "remove_domain_permission": "도메인 권한 제거"
+        "remove_domain_permission": "도메인 권한 제거",
+        "add_team_domain_permission": "팀 도메인 권한 추가",
+        "update_team_domain_permission": "팀 도메인 권한 업데이트",
+        "remove_team_domain_permission": "팀 도메인 권한 제거"
       },
       "parts": {
         "host": ", 호스트 {host}",

@@ -210,7 +210,7 @@ export function Teams() {
     },
     {
       key: 'my_role', label: t('teams.myRole'),
-      render: (team: Team) => team.my_role ? <Badge variant="blue">{team.my_role}</Badge> : <span className="text-gray-400 text-xs">-</span>,
+      render: (team: Team) => team.my_role ? <Badge variant="blue">{t(`teams.role${team.my_role.charAt(0).toUpperCase() + team.my_role.slice(1)}` as any)}</Badge> : <span className="text-gray-400 text-xs">-</span>,
     },
     {
       key: 'actions', label: t('common.actions'),
@@ -322,7 +322,7 @@ export function Teams() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="gray">{member.role}</Badge>
+                      <Badge variant="gray">{t(`teams.role${member.role.charAt(0).toUpperCase() + member.role.slice(1)}` as any)}</Badge>
                       {canManageTeam && (
                         <button onClick={() => setMemberPermissionsFor(member)}
                           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">

@@ -158,8 +158,12 @@
       "teamUpdated": "تم تحديث الفريق",
       "teamDeleted": "تم حذف الفريق",
       "createFailed": "فشل في إنشاء الفريق",
-      "updateFailed": "فشل في تحديث الفريق",
-      "deleteFailed": "فشل في حذف الفريق",
+      "updateFailed": "فشل تحديث الفريق",
+      "deleteFailed": "فشل حذف الفريق",
+      "roleOwner": "المالك",
+      "roleAdmin": "المسؤول",
+      "roleMember": "عضو",
+      "roleSuper": "المشرف العام",
       "teamMembers": "الفريق: {name}",
       "membersCount": "{count} عضو",
       "addMember": "إضافة عضو",
@@ -843,7 +847,10 @@
         "remove_team_member": "إزالة عضو من الفريق",
         "add_domain_permission": "إضافة إذن النطاق",
         "update_domain_permission": "تحديث إذن النطاق",
-        "remove_domain_permission": "إزالة إذن النطاق"
+        "remove_domain_permission": "إزالة إذن النطاق",
+        "add_team_domain_permission": "إضافة إذن نطاق الفريق",
+        "update_team_domain_permission": "تحديث إذن نطاق الفريق",
+        "remove_team_domain_permission": "إزالة إذن نطاق الفريق"
       },
       "parts": {
         "host": "، المضيف {host}",

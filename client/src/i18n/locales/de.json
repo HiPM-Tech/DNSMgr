@@ -160,6 +160,10 @@
       "createFailed": "Fehler beim Erstellen des Teams",
       "updateFailed": "Fehler beim Aktualisieren des Teams",
       "deleteFailed": "Fehler beim Löschen des Teams",
+      "roleOwner": "Besitzer",
+      "roleAdmin": "Administrator",
+      "roleMember": "Mitglied",
+      "roleSuper": "Super Administrator",
       "teamMembers": "Team: {name}",
       "membersCount": "{count} Mitglied{plural}",
       "addMember": "Mitglied hinzufügen",
@@ -843,7 +847,10 @@
         "remove_team_member": "Teammitglied entfernen",
         "add_domain_permission": "Domain-Berechtigung hinzufügen",
         "update_domain_permission": "Domain-Berechtigung aktualisieren",
-        "remove_domain_permission": "Domain-Berechtigung entfernen"
+        "remove_domain_permission": "Domain-Berechtigung entfernen",
+        "add_team_domain_permission": "Team-Domain-Berechtigung hinzufügen",
+        "update_team_domain_permission": "Team-Domain-Berechtigung aktualisieren",
+        "remove_team_domain_permission": "Team-Domain-Berechtigung entfernen"
       },
       "parts": {
         "host": ", Host {host}",

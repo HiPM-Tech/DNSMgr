@@ -33,15 +33,23 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     teams = await TeamOperations.getByUserId(userId) as unknown as Team[];
   }
   
-  // Get member count for each team
-  const teamsWithCount = await Promise.all(
+  // Get member count and my_role for each team
+  const teamsWithDetails = await Promise.all(
     teams.map(async (team) => {
       const members = await TeamOperations.getMembers(team.id) as unknown as TeamMember[];
-      return { ...team, member_count: members.length };
+      // Get user's role in this team
+      let myRole: string | undefined;
+      if (isSuper(role)) {
+        myRole = 'super';
+      } else {
+        const member = await TeamOperations.getMemberWithRole(team.id, userId);
+        myRole = member?.role;
+      }
+      return { ...team, member_count: members.length, my_role: myRole };
     })
   );
   
-  sendSuccess(res, teamsWithCount);
+  sendSuccess(res, teamsWithDetails);
 }));
 
 /**

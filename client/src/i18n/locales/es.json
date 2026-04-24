@@ -166,7 +166,11 @@
       "teamNamePlaceholder": "Ingresa el nombre del equipo",
       "teamUpdated": "Equipo actualizado",
       "title": "Equipos",
-      "updateFailed": "Error al actualizar equipo"
+      "updateFailed": "Error al actualizar equipo",
+      "roleOwner": "Propietario",
+      "roleAdmin": "Administrador",
+      "roleMember": "Miembro",
+      "roleSuper": "Super Administrador"
     },
     "users": {
       "active": "Activo",
@@ -686,7 +690,10 @@
         "remove_team_member": "Eliminar miembro del equipo",
         "add_domain_permission": "Agregar permiso de dominio",
         "update_domain_permission": "Actualizar permiso de dominio",
-        "remove_domain_permission": "Eliminar permiso de dominio"
+        "remove_domain_permission": "Eliminar permiso de dominio",
+        "add_team_domain_permission": "Agregar permiso de dominio de equipo",
+        "update_team_domain_permission": "Actualizar permiso de dominio de equipo",
+        "remove_team_domain_permission": "Eliminar permiso de dominio de equipo"
       },
       "parts": {
         "host": ", host {host}",

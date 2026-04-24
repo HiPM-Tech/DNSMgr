@@ -66,6 +66,10 @@ const actionKeys: Record<string, string> = {
   add_domain_permission: 'audit.actions.add_domain_permission',
   update_domain_permission: 'audit.actions.update_domain_permission',
   remove_domain_permission: 'audit.actions.remove_domain_permission',
+  // Team domain permission actions
+  add_team_domain_permission: 'audit.actions.add_team_domain_permission',
+  update_team_domain_permission: 'audit.actions.update_team_domain_permission',
+  remove_team_domain_permission: 'audit.actions.remove_team_domain_permission',
   // WHOIS
   update_whois: 'audit.actions.update_whois',
 };
@@ -117,6 +121,10 @@ export function getAuditActionVariant(log: LogEntry): 'green' | 'red' | 'yellow'
   if (log.action === 'create_team' || log.action === 'add_team_member' || log.action === 'add_domain_permission') return 'green';
   if (log.action === 'delete_team' || log.action === 'remove_team_member' || log.action === 'remove_domain_permission') return 'red';
   if (log.action === 'update_team' || log.action === 'update_domain_permission') return 'blue';
+  // Team domain permission actions
+  if (log.action === 'add_team_domain_permission') return 'green';
+  if (log.action === 'remove_team_domain_permission') return 'red';
+  if (log.action === 'update_team_domain_permission') return 'blue';
   // DNS Account actions
   if (log.action === 'add_dns_account') return 'green';
   if (log.action === 'delete_dns_account') return 'red';

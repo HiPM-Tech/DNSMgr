@@ -233,7 +233,11 @@
       "teamNamePlaceholder": "チーム名を入力してください",
       "teamUpdated": "チームを更新しました",
       "title": "チーム",
-      "updateFailed": "チームの更新に失敗しました"
+      "updateFailed": "チームの更新に失敗しました",
+      "roleOwner": "所有者",
+      "roleAdmin": "管理者",
+      "roleMember": "メンバー",
+      "roleSuper": "スーパー管理者"
     },
     "users": {
       "active": "アクティブ",
@@ -800,7 +804,10 @@
         "remove_team_member": "チームメンバーを削除",
         "add_domain_permission": "ドメイン権限を追加",
         "update_domain_permission": "ドメイン権限を更新",
-        "remove_domain_permission": "ドメイン権限を削除"
+        "remove_domain_permission": "ドメイン権限を削除",
+        "add_team_domain_permission": "チームドメイン権限を追加",
+        "update_team_domain_permission": "チームドメイン権限を更新",
+        "remove_team_domain_permission": "チームドメイン権限を削除"
       },
       "parts": {
         "host": "、ホスト {host}",

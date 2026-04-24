@@ -467,7 +467,11 @@ export const UserOperations = {
 
   /** 获取所有用户 */
   async getAll(): Promise<QueryResult[]> {
-    return queryInternal('SELECT * FROM users ORDER BY id', [], { operation: 'User.getAll', table: 'users' });
+    return queryInternal(
+      'SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users ORDER BY id',
+      [],
+      { operation: 'User.getAll', table: 'users' }
+    );
   },
 
   /** 创建用户 */
