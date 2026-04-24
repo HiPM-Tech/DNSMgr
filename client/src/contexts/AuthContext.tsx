@@ -1,14 +1,14 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { authApi } from '../api';
-import type { User } from '../api';
+import type { User, WebAuthnResponse } from '../api';
 import { isAdmin } from '../utils/roles';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: any) => Promise<void>;
+  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse) => Promise<void>;
   loginWithToken: (token: string, user: User) => void;
   logout: () => void;
   updateUser: (user: User) => void;
@@ -36,19 +36,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, [token]);
 
-  const login = async (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: any) => {
+  const login = async (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse) => {
     const res = await authApi.login(username, password, totpCode, backupCode, webauthnResponse);
     if (res.data.code === -2) {
       // 2FA required
-      const err = new Error('2FA_REQUIRED') as any;
+      const err = new Error('2FA_REQUIRED') as Error & { types?: string[] };
       err.types = res.data.data?.types || ['totp'];
       throw err;
     }
     if (res.data.code !== 0) throw new Error(res.data.msg);
     const { token: tok, user: u } = res.data.data;
-    localStorage.setItem('token', tok);
-    setToken(tok);
-    setUser(u);
+    if (tok) localStorage.setItem('token', tok);
+    if (tok) setToken(tok);
+    if (u) setUser(u);
   };
 
   const logout = () => {

@@ -62,11 +62,10 @@ export function Security() {
       const optsRes = await authApi.webauthnRegOptions();
       if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
       
-      const attResp = await startRegistration(optsRes.data.data);
+      const attResp = await startRegistration({ optionsJSON: optsRes.data.data.options as PublicKeyCredentialCreationOptionsJSON });
       
       const verifyRes = await authApi.webauthnRegVerify({
-        ...attResp,
-        name: `Passkey added on ${new Date().toLocaleDateString()}`
+        credential: attResp
       });
       if (verifyRes.data.code === 0) {
         toast.success(t('passkeys.addSuccess'));
@@ -74,8 +73,8 @@ export function Security() {
       } else {
         throw new Error(verifyRes.data.msg);
       }
-    } catch (e: any) {
-      toast.error(e.message || t('passkeys.addFailed'));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : t('passkeys.addFailed'));
     } finally {
       setLoading(false);
     }

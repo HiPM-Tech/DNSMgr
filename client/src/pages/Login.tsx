@@ -94,11 +94,11 @@ export function Login() {
       const optsRes = await authApi.webauthnLoginOptions(username);
       if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
       
-      const attResp = await startAuthentication(optsRes.data.data);
+      const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as PublicKeyCredentialRequestOptionsJSON });
       await login(username, password, undefined, undefined, attResp);
       navigate('/');
-    } catch (e: any) {
-      setError(e.message || t('login.failed'));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : t('login.failed'));
     } finally {
       setLoading(false);
     }
