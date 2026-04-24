@@ -82,6 +82,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pnpm install --frozen-lockfile
           cd server && pnpm install --frozen-lockfile
           cd ../client && pnpm install --frozen-lockfile
 
