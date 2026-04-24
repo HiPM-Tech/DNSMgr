@@ -684,7 +684,10 @@
       "missing": "Missing",
       "notChecked": "Not checked",
       "notSet": "Not set",
-      "never": "Never"
+      "never": "Never",
+      "deleteConfirm": "Delete NS monitor config for \"{domain}\"?",
+      "deleteSuccess": "Monitor config deleted",
+      "deleteFailed": "Failed to delete monitor config"
     },
     "tunnels": {
       "title": "Cloudflare Tunnels",

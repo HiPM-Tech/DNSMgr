@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus } from 'lucide-react';
+import { Shield, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2 } from 'lucide-react';
 import { nsMonitorApi, domainsApi } from '../api';
 import type { Domain } from '../api';
 import { Table } from '../components/Table';
@@ -76,6 +76,17 @@ export function NSMonitor() {
     },
     onError: () => {
       toast.error(t('nsMonitor.checkFailed'));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => nsMonitorApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
+      toast.success(t('nsMonitor.deleteSuccess'));
+    },
+    onError: () => {
+      toast.error(t('nsMonitor.deleteFailed'));
     },
   });
 
@@ -188,6 +199,18 @@ export function NSMonitor() {
             title={t('common.edit')}
           >
             <Shield className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              if (confirm(t('nsMonitor.deleteConfirm', { domain: row.domain_name }))) {
+                deleteMutation.mutate(row.id);
+              }
+            }}
+            disabled={deleteMutation.isPending}
+            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            title={t('common.delete')}
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       ),

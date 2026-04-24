@@ -19,6 +19,16 @@ function toDbBoolean(value: boolean, dbType: string): boolean | number {
   return dbType === 'postgresql' ? value : value ? 1 : 0;
 }
 
+/** 将日期转换为数据库兼容的格式 */
+function toDbDateTime(date: Date, dbType: string): string {
+  if (dbType === 'mysql') {
+    // MySQL 需要 YYYY-MM-DD HH:MM:SS 格式
+    return date.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+  }
+  // SQLite 和 PostgreSQL 支持 ISO 8601
+  return date.toISOString();
+}
+
 /**
  * @swagger
  * /api/ns-monitor:
@@ -171,6 +181,11 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
 
+  if (!domain_id) {
+    res.status(400).json({ success: false, error: 'domain_id is required' });
+    return;
+  }
+
   // Check permission
   if (!isSuper(role)) {
     const access = await getDomainAccess(domain_id, userId, role);
@@ -185,10 +200,31 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
 
   const dbType = getDbType();
 
+  // 自动获取当前 NS 记录作为预期值（如果用户未提供）
+  let finalExpectedNs = expected_ns || '';
+  if (!finalExpectedNs) {
+    try {
+      const domain = await DomainOperations.getById(domain_id);
+      if (domain && domain.name) {
+        const currentNs = await resolveNsRecords(domain.name as string);
+        if (currentNs.length > 0) {
+          finalExpectedNs = currentNs.join(', ');
+          log.info('NSMonitor', 'Auto-filled expected NS from current records', {
+            domainId: domain_id,
+            domainName: domain.name,
+            nsRecords: currentNs,
+          });
+        }
+      }
+    } catch (error) {
+      log.warn('NSMonitor', 'Failed to auto-fetch NS records', { domainId: domain_id, error });
+    }
+  }
+
   if (existing) {
     // Update existing
     await NSMonitorOperations.update(existing.id as number, {
-      expected_ns: expected_ns || '',
+      expected_ns: finalExpectedNs,
       enabled: toDbBoolean(enabled, dbType),
       notify_email: toDbBoolean(notify_email, dbType),
       notify_channels: toDbBoolean(notify_channels, dbType),
@@ -204,7 +240,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     // Create new
     const id = await NSMonitorOperations.create({
       domain_id,
-      expected_ns: expected_ns || '',
+      expected_ns: finalExpectedNs,
       enabled: toDbBoolean(enabled, dbType),
       notify_email: toDbBoolean(notify_email, dbType),
       notify_channels: toDbBoolean(notify_channels, dbType),
@@ -288,12 +324,12 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
 
   // Update status
   const checkDbType = getDbType();
-  const now = new Date().toISOString();
+  const now = new Date();
 
   await NSMonitorOperations.updateStatus(parseInt(id), {
     current_ns: currentNsStr,
     status,
-    last_check_at: now,
+    last_check_at: toDbDateTime(now, checkDbType),
   });
 
   log.info('NSMonitor', 'Manual check completed', { domainId: config.domain_id, status, userId });

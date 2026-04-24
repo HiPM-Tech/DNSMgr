@@ -806,7 +806,10 @@
       "missing": "缺失",
       "notChecked": "未检查",
       "notSet": "未设置",
-      "never": "从未"
+      "never": "从未",
+      "deleteConfirm": "确认删除域名 \"{domain}\" 的 NS 监测配置喵？",
+      "deleteSuccess": "监测配置已删除喵",
+      "deleteFailed": "删除监测配置失败惹"
     },
     "network": {
       "title": "网络信息",

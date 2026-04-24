@@ -646,7 +646,10 @@
       "missing": "누락",
       "notChecked": "확인 안됨",
       "notSet": "설정 안됨",
-      "never": "없음"
+      "never": "없음",
+      "deleteConfirm": "도메인 \"{domain}\" 의 NS 모니터링 설정을 삭제하시겠습니까?",
+      "deleteSuccess": "모니터링 설정이 삭제되었습니다",
+      "deleteFailed": "모니터링 설정 삭제 실패"
     },
     "network": {
       "title": "네트워크 정보",

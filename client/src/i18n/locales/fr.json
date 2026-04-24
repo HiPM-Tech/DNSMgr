@@ -646,7 +646,10 @@
       "missing": "Manquant",
       "notChecked": "Non vérifié",
       "notSet": "Non défini",
-      "never": "Jamais"
+      "never": "Jamais",
+      "deleteConfirm": "Supprimer la configuration de surveillance NS pour \"{domain}\" ?",
+      "deleteSuccess": "Configuration de surveillance supprimée",
+      "deleteFailed": "Échec de la suppression de la configuration"
     },
     "network": {
       "title": "Informations réseau",

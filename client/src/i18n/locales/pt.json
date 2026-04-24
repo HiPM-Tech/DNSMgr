@@ -646,7 +646,10 @@
       "missing": "Ausente",
       "notChecked": "Não verificado",
       "notSet": "Não definido",
-      "never": "Nunca"
+      "never": "Nunca",
+      "deleteConfirm": "Excluir configuração de monitoramento NS para \"{domain}\"?",
+      "deleteSuccess": "Configuração de monitoramento excluída",
+      "deleteFailed": "Falha ao excluir configuração de monitoramento"
     },
     "network": {
       "title": "Informações de rede",

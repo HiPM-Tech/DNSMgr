@@ -977,7 +977,10 @@
       "missing": "欠落",
       "notChecked": "未確認",
       "notSet": "未設定",
-      "never": "未実施"
+      "never": "未実施",
+      "deleteConfirm": "ドメイン \"{domain}\" の NS 監視設定を削除しますか？",
+      "deleteSuccess": "監視設定を削除しました",
+      "deleteFailed": "監視設定の削除に失敗しました"
     },
     "network": {
       "title": "ネットワーク情報",

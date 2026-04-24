@@ -646,7 +646,10 @@
       "missing": "مفقود",
       "notChecked": "لم يتم الفحص",
       "notSet": "غير محدد",
-      "never": "أبدًا"
+      "never": "أبدًا",
+      "deleteConfirm": "حذف تكوين مراقبة NS لـ \"{domain}\"؟",
+      "deleteSuccess": "تم حذف تكوين المراقبة",
+      "deleteFailed": "فشل حذف تكوين المراقبة"
     },
     "network": {
       "title": "معلومات الشبكة",

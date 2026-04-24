@@ -850,7 +850,10 @@
       "missing": "Falta",
       "notChecked": "No verificado",
       "notSet": "No configurado",
-      "never": "Nunca"
+      "never": "Nunca",
+      "deleteConfirm": "¿Eliminar configuración de monitoreo NS para \"{domain}\"?",
+      "deleteSuccess": "Configuración de monitoreo eliminada",
+      "deleteFailed": "Error al eliminar configuración de monitoreo"
     },
     "network": {
       "title": "Información de red",

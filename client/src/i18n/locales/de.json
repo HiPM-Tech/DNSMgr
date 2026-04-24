@@ -646,7 +646,10 @@
       "missing": "Fehlt",
       "notChecked": "Nicht geprüft",
       "notSet": "Nicht festgelegt",
-      "never": "Nie"
+      "never": "Nie",
+      "deleteConfirm": "NS-Überwachungskonfiguration für \"{domain}\" löschen?",
+      "deleteSuccess": "Überwachungskonfiguration gelöscht",
+      "deleteFailed": "Löschen der Überwachungskonfiguration fehlgeschlagen"
     },
     "network": {
       "title": "Netzwerkinformationen",
