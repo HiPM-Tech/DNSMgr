@@ -684,4 +684,195 @@ router.delete('/:id/domain-permissions/:permissionId', authMiddleware, asyncHand
   sendSuccess(res);
 }));
 
+/**
+ * @swagger
+ * /api/teams/{id}/members/{userId}/domain-permissions:
+ *   get:
+ *     summary: Get member domain permissions
+ *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of permissions
+ */
+router.get('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInt(req.params.id);
+  const targetUserId = parseInt(req.params.userId);
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
+  if (!team) {
+    sendError(res, 'Team not found', 404);
+    return;
+  }
+  
+  // Check permission (admin or creator can view any member's permissions, members can view their own)
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin' && userId !== targetUserId) {
+    sendError(res, 'Permission denied', 403);
+    return;
+  }
+  
+  // Check if target user is a team member
+  const isMember = await TeamOperations.isMember(teamId, targetUserId);
+  if (!isMember) {
+    sendError(res, 'User is not a member of this team', 404);
+    return;
+  }
+  
+  const permissions = await DomainPermissionOperations.getByUserIdWithDomainName(targetUserId);
+  sendSuccess(res, permissions);
+}));
+
+/**
+ * @swagger
+ * /api/teams/{id}/members/{userId}/domain-permissions:
+ *   post:
+ *     summary: Add domain permission for team member
+ *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [domain_id, permission]
+ *             properties:
+ *               domain_id:
+ *                 type: integer
+ *               permission:
+ *                 type: string
+ *                 enum: [read, write]
+ *               sub:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Permission added
+ */
+router.post('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInt(req.params.id);
+  const targetUserId = parseInt(req.params.userId);
+  const { domain_id, permission, sub } = req.body as { domain_id: number; permission: 'read' | 'write'; sub?: string };
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
+  if (!team) {
+    sendError(res, 'Team not found', 404);
+    return;
+  }
+  
+  // Check permission
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
+    return;
+  }
+  
+  // Check if target user is a team member
+  const isMember = await TeamOperations.isMember(teamId, targetUserId);
+  if (!isMember) {
+    sendError(res, 'User is not a member of this team');
+    return;
+  }
+  
+  // Check if already exists
+  const existing = await DomainPermissionOperations.getByUserDomainAndSub(targetUserId, domain_id, sub || '');
+  if (existing) {
+    sendError(res, 'Permission already exists for this domain');
+    return;
+  }
+  
+  await DomainPermissionOperations.create({
+    domain_id,
+    user_id: targetUserId,
+    team_id: null,
+    permission,
+    sub: sub || '',
+  });
+  
+  await logAuditOperation(userId, 'add_domain_permission', team.name, { teamId, targetUserId, domainId: domain_id, permission, sub });
+  sendSuccess(res);
+}));
+
+/**
+ * @swagger
+ * /api/teams/{id}/members/{userId}/domain-permissions/{permissionId}:
+ *   delete:
+ *     summary: Remove domain permission from team member
+ *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: permissionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Permission removed
+ */
+router.delete('/:id/members/:userId/domain-permissions/:permissionId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const teamId = parseInt(req.params.id);
+  const targetUserId = parseInt(req.params.userId);
+  const permissionId = parseInt(req.params.permissionId);
+  const userId = req.user!.userId;
+  const role = req.user!.role;
+  
+  const team = await TeamOperations.getById(teamId) as Team | undefined;
+  if (!team) {
+    sendError(res, 'Team not found', 404);
+    return;
+  }
+  
+  // Check permission
+  const member = await TeamOperations.getMemberWithRole(teamId, userId);
+  if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
+    sendError(res, 'Permission denied', 403);
+    return;
+  }
+  
+  await DomainPermissionOperations.deleteByUserAndId(permissionId, targetUserId);
+  
+  await logAuditOperation(userId, 'remove_domain_permission', team.name, { teamId, targetUserId, permissionId });
+  sendSuccess(res);
+}));
+
 export default router;
