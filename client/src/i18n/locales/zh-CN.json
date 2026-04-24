@@ -820,7 +820,20 @@
       "directConnection": "直连",
       "viaProxy": "通过代理",
       "proxy": "代理",
-      "saving": "保存中..."
+      "saving": "保存中...",
+      "proxyType": "代理类型",
+      "httpProxy": "HTTP(S) 代理",
+      "socks5Proxy": "SOCKS5 代理",
+      "connectivityTest": "网络连通性测试",
+      "connectivityTestDesc": "测试与各大网络服务的连接状态",
+      "startTest": "开始测试",
+      "testing": "测试中...",
+      "proxyMode": "代理模式",
+      "statusOk": "正常",
+      "statusTimeout": "超时",
+      "statusError": "错误",
+      "statusUnknown": "未知",
+      "testError": "测试失败"
     },
     "teams": {
       "addMember": "添加成员",

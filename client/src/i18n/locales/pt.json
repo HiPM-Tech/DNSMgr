@@ -685,7 +685,17 @@
       "saving": "Salvando...",
       "proxyType": "Tipo de proxy",
       "httpProxy": "Proxy HTTP(S)",
-      "socks5Proxy": "Proxy SOCKS5"
+      "socks5Proxy": "Proxy SOCKS5",
+      "connectivityTest": "Teste de conectividade de rede",
+      "connectivityTestDesc": "Testar estado de conexão com principais serviços de rede",
+      "startTest": "Iniciar teste",
+      "testing": "Testando...",
+      "proxyMode": "Modo proxy",
+      "statusOk": "OK",
+      "statusTimeout": "Tempo esgotado",
+      "statusError": "Erro",
+      "statusUnknown": "Desconhecido",
+      "testError": "Teste falhou"
     },
     "tunnels": {
       "title": "Túneis Cloudflare",
@@ -821,7 +831,19 @@
         "update_profile_email": "Atualizar Email do Perfil",
         "send_email_verification_code": "Enviar Código de Verificação de Email",
         "send_password_reset_code": "Enviar Código de Redefinição de Senha",
-        "reset_password_by_email": "Redefinir Senha por Email"
+        "reset_password_by_email": "Redefinir Senha por Email",
+        "update_whois": "Atualizar WHOIS",
+        "add_dns_account": "Adicionar Conta DNS",
+        "update_dns_account": "Atualizar Conta DNS",
+        "delete_dns_account": "Excluir Conta DNS",
+        "add_team": "Adicionar Equipe",
+        "update_team": "Atualizar Equipe",
+        "delete_team": "Excluir Equipe",
+        "add_team_member": "Adicionar Membro à Equipe",
+        "remove_team_member": "Remover Membro da Equipe",
+        "add_domain_permission": "Adicionar Permissão de Domínio",
+        "update_domain_permission": "Atualizar Permissão de Domínio",
+        "remove_domain_permission": "Remover Permissão de Domínio"
       },
       "parts": {
         "host": ", host {host}",

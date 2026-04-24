@@ -685,7 +685,17 @@
       "saving": "Speichern...",
       "proxyType": "Proxy-Typ",
       "httpProxy": "HTTP(S)-Proxy",
-      "socks5Proxy": "SOCKS5-Proxy"
+      "socks5Proxy": "SOCKS5-Proxy",
+      "connectivityTest": "Netzwerkverbindungstest",
+      "connectivityTestDesc": "Verbindungsstatus zu wichtigen Netzwerkdiensten testen",
+      "startTest": "Test starten",
+      "testing": "Test läuft...",
+      "proxyMode": "Proxy-Modus",
+      "statusOk": "OK",
+      "statusTimeout": "Zeitüberschreitung",
+      "statusError": "Fehler",
+      "statusUnknown": "Unbekannt",
+      "testError": "Test fehlgeschlagen"
     },
     "tunnels": {
       "title": "Cloudflare-Tunnel",
@@ -821,7 +831,19 @@
         "update_profile_email": "Profil-E-Mail aktualisieren",
         "send_email_verification_code": "E-Mail-Bestätigungscode senden",
         "send_password_reset_code": "Passwort-Reset-Code senden",
-        "reset_password_by_email": "Passwort per E-Mail zurücksetzen"
+        "reset_password_by_email": "Passwort per E-Mail zurücksetzen",
+        "update_whois": "WHOIS aktualisieren",
+        "add_dns_account": "DNS-Konto hinzufügen",
+        "update_dns_account": "DNS-Konto aktualisieren",
+        "delete_dns_account": "DNS-Konto löschen",
+        "add_team": "Team hinzufügen",
+        "update_team": "Team aktualisieren",
+        "delete_team": "Team löschen",
+        "add_team_member": "Teammitglied hinzufügen",
+        "remove_team_member": "Teammitglied entfernen",
+        "add_domain_permission": "Domain-Berechtigung hinzufügen",
+        "update_domain_permission": "Domain-Berechtigung aktualisieren",
+        "remove_domain_permission": "Domain-Berechtigung entfernen"
       },
       "parts": {
         "host": ", Host {host}",

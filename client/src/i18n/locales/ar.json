@@ -685,7 +685,17 @@
       "saving": "جاري الحفظ...",
       "proxyType": "نوع الوكيل",
       "httpProxy": "وكيل HTTP(S)",
-      "socks5Proxy": "وكيل SOCKS5"
+      "socks5Proxy": "وكيل SOCKS5",
+      "connectivityTest": "اختبار اتصال الشبكة",
+      "connectivityTestDesc": "اختبار حالة الاتصال بخدمات الشبكة الرئيسية",
+      "startTest": "بدء الاختبار",
+      "testing": "جاري الاختبار...",
+      "proxyMode": "وضع الوكيل",
+      "statusOk": "موافق",
+      "statusTimeout": "انتهاء المهلة",
+      "statusError": "خطأ",
+      "statusUnknown": "غير معروف",
+      "testError": "فشل الاختبار"
     },
     "tunnels": {
       "title": "أنفاق Cloudflare",
@@ -821,7 +831,19 @@
         "update_profile_email": "تحديث بريد الملف الشخصي",
         "send_email_verification_code": "إرسال رمز التحقق من البريد الإلكتروني",
         "send_password_reset_code": "إرسال رمز إعادة تعيين كلمة المرور",
-        "reset_password_by_email": "إعادة تعيين كلمة المرور بالبريد الإلكتروني"
+        "reset_password_by_email": "إعادة تعيين كلمة المرور بالبريد الإلكتروني",
+        "update_whois": "تحديث WHOIS",
+        "add_dns_account": "إضافة حساب DNS",
+        "update_dns_account": "تحديث حساب DNS",
+        "delete_dns_account": "حذف حساب DNS",
+        "add_team": "إضافة فريق",
+        "update_team": "تحديث الفريق",
+        "delete_team": "حذف الفريق",
+        "add_team_member": "إضافة عضو للفريق",
+        "remove_team_member": "إزالة عضو من الفريق",
+        "add_domain_permission": "إضافة إذن النطاق",
+        "update_domain_permission": "تحديث إذن النطاق",
+        "remove_domain_permission": "إزالة إذن النطاق"
       },
       "parts": {
         "host": "، المضيف {host}",

@@ -30,7 +30,7 @@ export const mysqlSchema: SchemaDefinition = {
       id INT AUTO_INCREMENT PRIMARY KEY,
       team_id INT NOT NULL,
       user_id INT NOT NULL,
-      role ENUM('owner', 'member') NOT NULL DEFAULT 'member',
+      role ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member',
       joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -354,6 +354,8 @@ export const mysqlSchema: SchemaDefinition = {
     // 索引已在 CREATE TABLE 中定义
   ],
   alterTables: [
-    // MySQL 支持 ALTER TABLE，可以在这里添加迁移脚本
+    // Migration: Add 'admin' to team_members role enum
+    // This modifies the existing ENUM to include 'admin' role
+    `ALTER TABLE team_members MODIFY COLUMN role ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member'`
   ],
 };

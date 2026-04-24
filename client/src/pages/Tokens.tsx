@@ -4,6 +4,7 @@ import { Key, Plus, Trash2, Copy, Check, X, Calendar, Globe, Infinity } from 'lu
 import { useToast } from '../hooks/useToast';
 import { tokensApi } from '../api';
 import { useI18n } from '../contexts/I18nContext';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface Token {
   id: number;
@@ -24,6 +25,7 @@ export function Tokens() {
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [domainSearch, setDomainSearch] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; tokenId: number | null }>({ show: false, tokenId: null });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -72,12 +74,27 @@ export function Tokens() {
       if (res.data.code === 0) {
         queryClient.invalidateQueries({ queryKey: ['tokens'] });
         toast.success(t('tokens.tokenDeleted'));
+        setDeleteConfirm({ show: false, tokenId: null });
       } else {
         toast.error(res.data.msg);
       }
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const handleDeleteClick = (tokenId: number) => {
+    setDeleteConfirm({ show: true, tokenId });
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirm.tokenId !== null) {
+      deleteMutation.mutate(deleteConfirm.tokenId);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteConfirm({ show: false, tokenId: null });
+  };
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) =>
@@ -229,11 +246,7 @@ export function Tokens() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() => {
-                        if (confirm(t('tokens.deleteConfirm'))) {
-                          deleteMutation.mutate(token.id);
-                        }
-                      }}
+                      onClick={() => handleDeleteClick(token.id)}
                       className="p-1 text-red-600 hover:bg-red-50 rounded"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -245,6 +258,16 @@ export function Tokens() {
           </tbody>
         </table>
       </div>
+
+      {/* Delete Confirm Dialog */}
+      {deleteConfirm.show && (
+        <ConfirmDialog
+          message={t('tokens.deleteConfirm')}
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
+          isLoading={deleteMutation.isPending}
+        />
+      )}
 
       {/* Create Modal */}
       {showCreateModal && (

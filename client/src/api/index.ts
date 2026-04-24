@@ -606,7 +606,21 @@ export interface ProxyConfig {
   password?: string;
 }
 
+export interface ConnectivityResult {
+  name: string;
+  url: string;
+  status: 'ok' | 'error' | 'timeout';
+  latency: number;
+  error?: string;
+}
+
+export interface ConnectivityResponse {
+  proxyEnabled: boolean;
+  results: ConnectivityResult[];
+}
+
 export const networkApi = {
   getProxy: () => api.get<ApiResponse<ProxyConfig>>('/network/proxy'),
   updateProxy: (config: ProxyConfig) => api.post<ApiResponse<ProxyConfig>>('/network/proxy', config),
+  testConnectivity: () => api.get<ApiResponse<ConnectivityResponse>>('/network/connectivity'),
 };

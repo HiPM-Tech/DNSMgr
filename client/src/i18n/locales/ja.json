@@ -1017,7 +1017,17 @@
       "saving": "保存中...",
       "proxyType": "プロキシタイプ",
       "httpProxy": "HTTP(S) プロキシ",
-      "socks5Proxy": "SOCKS5 プロキシ"
+      "socks5Proxy": "SOCKS5 プロキシ",
+      "connectivityTest": "ネットワーク接続テスト",
+      "connectivityTestDesc": "主要なネットワークサービスへの接続状態をテスト",
+      "startTest": "テスト開始",
+      "testing": "テスト中...",
+      "proxyMode": "プロキシモード",
+      "statusOk": "正常",
+      "statusTimeout": "タイムアウト",
+      "statusError": "エラー",
+      "statusUnknown": "不明",
+      "testError": "テスト失敗"
     },
     "tunnels": {
       "title": "Cloudflare Tunnels",

@@ -129,6 +129,21 @@ export async function initSchemaAsync(
         throw error;
       }
     }
+
+    // Execute alter tables (migrations)
+    for (const sql of sqliteSchema.alterTables || []) {
+      try {
+        if (conn.execute) {
+          await conn.execute(sql);
+        } else if (conn.exec) {
+          conn.exec(sql);
+        }
+        log.info('Schema', 'Executed migration', { sql: sql.substring(0, 100) });
+      } catch (error) {
+        // Migration errors are logged but not thrown (idempotent)
+        log.warn('Schema', 'Migration skipped (may already be applied)', { error: (error as Error).message, sql: sql.substring(0, 100) });
+      }
+    }
   } else if (dbType === 'mysql') {
     for (const sql of mysqlSchema.createTables) {
       try {
@@ -155,6 +170,21 @@ export async function initSchemaAsync(
         throw error;
       }
     }
+
+    // Execute alter tables (migrations)
+    for (const sql of mysqlSchema.alterTables || []) {
+      try {
+        if (conn.execute) {
+          await conn.execute(sql);
+        } else if (conn.exec) {
+          conn.exec(sql);
+        }
+        log.info('Schema', 'Executed migration', { sql: sql.substring(0, 100) });
+      } catch (error) {
+        // Migration errors are logged but not thrown (idempotent)
+        log.warn('Schema', 'Migration skipped (may already be applied)', { error: (error as Error).message, sql: sql.substring(0, 100) });
+      }
+    }
   } else if (dbType === 'postgresql') {
     for (const sql of postgresqlSchema.createTables) {
       try {
@@ -179,6 +209,21 @@ export async function initSchemaAsync(
       } catch (error) {
         log.error('Schema', 'Failed to create index', { error, sql: sql.substring(0, 100) });
         throw error;
+      }
+    }
+
+    // Execute alter tables (migrations)
+    for (const sql of postgresqlSchema.alterTables || []) {
+      try {
+        if (conn.execute) {
+          await conn.execute(sql);
+        } else if (conn.exec) {
+          conn.exec(sql);
+        }
+        log.info('Schema', 'Executed migration', { sql: sql.substring(0, 100) });
+      } catch (error) {
+        // Migration errors are logged but not thrown (idempotent)
+        log.warn('Schema', 'Migration skipped (may already be applied)', { error: (error as Error).message, sql: sql.substring(0, 100) });
       }
     }
   } else {

@@ -685,7 +685,17 @@
       "saving": "Сохранение...",
       "proxyType": "Тип прокси",
       "httpProxy": "HTTP(S) прокси",
-      "socks5Proxy": "SOCKS5 прокси"
+      "socks5Proxy": "SOCKS5 прокси",
+      "connectivityTest": "Тест сетевого подключения",
+      "connectivityTestDesc": "Проверка состояния подключения к основным сетевым службам",
+      "startTest": "Начать тест",
+      "testing": "Тестирование...",
+      "proxyMode": "Режим прокси",
+      "statusOk": "OK",
+      "statusTimeout": "Таймаут",
+      "statusError": "Ошибка",
+      "statusUnknown": "Неизвестно",
+      "testError": "Тест не пройден"
     },
     "tunnels": {
       "title": "Туннели Cloudflare",
@@ -821,7 +831,19 @@
         "update_profile_email": "Обновить email профиля",
         "send_email_verification_code": "Отправить код подтверждения email",
         "send_password_reset_code": "Отправить код сброса пароля",
-        "reset_password_by_email": "Сбросить пароль по email"
+        "reset_password_by_email": "Сбросить пароль по email",
+        "update_whois": "Обновить WHOIS",
+        "add_dns_account": "Добавить DNS-аккаунт",
+        "update_dns_account": "Обновить DNS-аккаунт",
+        "delete_dns_account": "Удалить DNS-аккаунт",
+        "add_team": "Добавить команду",
+        "update_team": "Обновить команду",
+        "delete_team": "Удалить команду",
+        "add_team_member": "Добавить члена команды",
+        "remove_team_member": "Удалить члена команды",
+        "add_domain_permission": "Добавить разрешение домена",
+        "update_domain_permission": "Обновить разрешение домена",
+        "remove_domain_permission": "Удалить разрешение домена"
       },
       "parts": {
         "host": ", хост {host}",

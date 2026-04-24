@@ -685,7 +685,17 @@
       "saving": "Enregistrement...",
       "proxyType": "Type de proxy",
       "httpProxy": "Proxy HTTP(S)",
-      "socks5Proxy": "Proxy SOCKS5"
+      "socks5Proxy": "Proxy SOCKS5",
+      "connectivityTest": "Test de connectivité réseau",
+      "connectivityTestDesc": "Tester l'état de connexion aux principaux services réseau",
+      "startTest": "Démarrer le test",
+      "testing": "Test en cours...",
+      "proxyMode": "Mode proxy",
+      "statusOk": "OK",
+      "statusTimeout": "Délai dépassé",
+      "statusError": "Erreur",
+      "statusUnknown": "Inconnu",
+      "testError": "Échec du test"
     },
     "tunnels": {
       "title": "Tunnels Cloudflare",
@@ -821,7 +831,19 @@
         "update_profile_email": "Mettre à jour l'email du profil",
         "send_email_verification_code": "Envoyer le code de vérification email",
         "send_password_reset_code": "Envoyer le code de réinitialisation du mot de passe",
-        "reset_password_by_email": "Réinitialiser le mot de passe par email"
+        "reset_password_by_email": "Réinitialiser le mot de passe par email",
+        "update_whois": "Mettre à jour WHOIS",
+        "add_dns_account": "Ajouter un compte DNS",
+        "update_dns_account": "Mettre à jour le compte DNS",
+        "delete_dns_account": "Supprimer le compte DNS",
+        "add_team": "Ajouter une équipe",
+        "update_team": "Mettre à jour l'équipe",
+        "delete_team": "Supprimer l'équipe",
+        "add_team_member": "Ajouter un membre à l'équipe",
+        "remove_team_member": "Supprimer un membre de l'équipe",
+        "add_domain_permission": "Ajouter une permission de domaine",
+        "update_domain_permission": "Mettre à jour la permission de domaine",
+        "remove_domain_permission": "Supprimer la permission de domaine"
       },
       "parts": {
         "host": ", hôte {host}",

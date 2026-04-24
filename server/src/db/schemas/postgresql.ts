@@ -47,7 +47,7 @@ export const postgresqlSchema: SchemaDefinition = {
       id SERIAL PRIMARY KEY,
       team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      role VARCHAR(20) NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'member')),
+      role VARCHAR(20) NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
       joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(team_id, user_id)
     )`,
@@ -341,6 +341,9 @@ export const postgresqlSchema: SchemaDefinition = {
     // 索引已在 CREATE TABLE 中定义
   ],
   alterTables: [
-    // PostgreSQL 支持 ALTER TABLE，可以在这里添加迁移脚本
+    // Migration: Add 'admin' to team_members role check constraint
+    // First drop the existing constraint, then add the new one
+    `ALTER TABLE team_members DROP CONSTRAINT IF EXISTS team_members_role_check`,
+    `ALTER TABLE team_members ADD CONSTRAINT team_members_role_check CHECK (role IN ('owner', 'admin', 'member'))`
   ],
 };

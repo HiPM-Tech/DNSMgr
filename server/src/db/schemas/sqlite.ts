@@ -26,7 +26,7 @@ export const sqliteSchema: SchemaDefinition = {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       team_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
-      role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('owner', 'member')),
+      role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member')),
       joined_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -326,6 +326,13 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_alerts_config_id ON ns_monitor_alerts(config_id)`,
   ],
   alterTables: [
-    // SQLite 不支持 ALTER TABLE ADD COLUMN 的复杂操作，需要在初始化时处理
+    // SQLite 不支持直接修改 CHECK 约束
+    // 对于已存在的数据库，需要手动重建表或使用迁移脚本
+    // 新创建的表将自动使用更新后的 CHECK 约束
+    // 注意：SQLite 迁移需要特殊处理，以下是一个示例迁移流程（需要手动执行）
+    // 1. 创建新表 team_members_new 带有新的 CHECK 约束
+    // 2. 复制数据
+    // 3. 删除旧表
+    // 4. 重命名新表
   ],
 };

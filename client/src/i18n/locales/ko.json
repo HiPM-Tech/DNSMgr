@@ -685,7 +685,17 @@
       "saving": "저장 중...",
       "proxyType": "프록시 유형",
       "httpProxy": "HTTP(S) 프록시",
-      "socks5Proxy": "SOCKS5 프록시"
+      "socks5Proxy": "SOCKS5 프록시",
+      "connectivityTest": "네트워크 연결 테스트",
+      "connectivityTestDesc": "주요 네트워크 서비스 연결 상태 테스트",
+      "startTest": "테스트 시작",
+      "testing": "테스트 중...",
+      "proxyMode": "프록시 모드",
+      "statusOk": "정상",
+      "statusTimeout": "시간 초과",
+      "statusError": "오류",
+      "statusUnknown": "알 수 없음",
+      "testError": "테스트 실패"
     },
     "tunnels": {
       "title": "Cloudflare 터널",
@@ -820,8 +830,20 @@
         "unbind_oauth_account": "OAuth 계정 연결 해제",
         "update_profile_email": "프로필 이메일 업데이트",
         "send_email_verification_code": "이메일 인증 코드 보내기",
-        "send_password_reset_code": "비밀번호 재설정 코드 보내기",
-        "reset_password_by_email": "이메일로 비밀번호 재설정"
+        "send_password_reset_code": "비밀번호 재설정 코드 본내기",
+        "reset_password_by_email": "이메일로 비밀번호 재설정",
+        "update_whois": "WHOIS 업데이트",
+        "add_dns_account": "DNS 계정 추가",
+        "update_dns_account": "DNS 계정 업데이트",
+        "delete_dns_account": "DNS 계정 삭제",
+        "add_team": "팀 추가",
+        "update_team": "팀 업데이트",
+        "delete_team": "팀 삭제",
+        "add_team_member": "팀 멤버 추가",
+        "remove_team_member": "팀 멤버 제거",
+        "add_domain_permission": "도메인 권한 추가",
+        "update_domain_permission": "도메인 권한 업데이트",
+        "remove_domain_permission": "도메인 권한 제거"
       },
       "parts": {
         "host": ", 호스트 {host}",

@@ -674,7 +674,19 @@
         "update_profile_email": "Actualizar correo del perfil",
         "send_email_verification_code": "Enviar código de verificación por correo",
         "send_password_reset_code": "Enviar código de restablecimiento de contraseña",
-        "reset_password_by_email": "Restablecer contraseña por correo"
+        "reset_password_by_email": "Restablecer contraseña por correo",
+        "update_whois": "Actualizar WHOIS",
+        "add_dns_account": "Agregar cuenta DNS",
+        "update_dns_account": "Actualizar cuenta DNS",
+        "delete_dns_account": "Eliminar cuenta DNS",
+        "add_team": "Agregar equipo",
+        "update_team": "Actualizar equipo",
+        "delete_team": "Eliminar equipo",
+        "add_team_member": "Agregar miembro al equipo",
+        "remove_team_member": "Eliminar miembro del equipo",
+        "add_domain_permission": "Agregar permiso de dominio",
+        "update_domain_permission": "Actualizar permiso de dominio",
+        "remove_domain_permission": "Eliminar permiso de dominio"
       },
       "parts": {
         "host": ", host {host}",
@@ -889,7 +901,17 @@
       "saving": "Guardando...",
       "proxyType": "Tipo de proxy",
       "httpProxy": "Proxy HTTP(S)",
-      "socks5Proxy": "Proxy SOCKS5"
+      "socks5Proxy": "Proxy SOCKS5",
+      "connectivityTest": "Prueba de conectividad de red",
+      "connectivityTestDesc": "Probar estado de conexión a servicios de red principales",
+      "startTest": "Iniciar prueba",
+      "testing": "Probando...",
+      "proxyMode": "Modo proxy",
+      "statusOk": "OK",
+      "statusTimeout": "Tiempo agotado",
+      "statusError": "Error",
+      "statusUnknown": "Desconocido",
+      "testError": "Prueba fallida"
     },
     "tunnels": {
       "title": "Túneles de Cloudflare",

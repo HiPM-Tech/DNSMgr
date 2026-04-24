@@ -649,7 +649,17 @@
       "saving": "Saving...",
       "proxyType": "Proxy Type",
       "httpProxy": "HTTP(S) Proxy",
-      "socks5Proxy": "SOCKS5 Proxy"
+      "socks5Proxy": "SOCKS5 Proxy",
+      "connectivityTest": "Network Connectivity Test",
+      "connectivityTestDesc": "Test connection status to major network services",
+      "startTest": "Start Test",
+      "testing": "Testing...",
+      "proxyMode": "Proxy Mode",
+      "statusOk": "OK",
+      "statusTimeout": "Timeout",
+      "statusError": "Error",
+      "statusUnknown": "Unknown",
+      "testError": "Test Failed"
     },
     "nsMonitor": {
       "title": "NS Monitor",
@@ -823,7 +833,19 @@
         "update_profile_email": "Update Profile Email",
         "send_email_verification_code": "Send Email Verification Code",
         "send_password_reset_code": "Send Password Reset Code",
-        "reset_password_by_email": "Reset Password by Email"
+        "reset_password_by_email": "Reset Password by Email",
+        "update_whois": "Update WHOIS",
+        "add_dns_account": "Add DNS Account",
+        "update_dns_account": "Update DNS Account",
+        "delete_dns_account": "Delete DNS Account",
+        "add_team": "Add Team",
+        "update_team": "Update Team",
+        "delete_team": "Delete Team",
+        "add_team_member": "Add Team Member",
+        "remove_team_member": "Remove Team Member",
+        "add_domain_permission": "Add Domain Permission",
+        "update_domain_permission": "Update Domain Permission",
+        "remove_domain_permission": "Remove Domain Permission"
       },
       "parts": {
         "host": ", host {host}",
