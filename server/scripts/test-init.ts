@@ -39,7 +39,7 @@ async function testInit() {
       tables = await conn.query("SELECT tablename as name FROM pg_tables WHERE schemaname = 'public'");
     }
 
-    const requiredTables = ['users', 'domains', 'records', 'accounts', 'settings'];
+    const requiredTables = ['users', 'domains', 'dns_accounts', 'system_settings', 'operation_logs'];
     const existingTables = tables.map((t: any) => t.name);
 
     for (const table of requiredTables) {
