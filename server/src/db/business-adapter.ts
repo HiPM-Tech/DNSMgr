@@ -391,6 +391,29 @@ export function now(): string {
   return compiler.now();
 }
 
+/**
+ * 将日期格式化为数据库兼容的格式 (YYYY-MM-DD HH:mm:ss)
+ * 根据数据库类型自动转换格式：
+ * - MySQL: YYYY-MM-DD HH:mm:ss
+ * - SQLite: ISO 8601 格式
+ * - PostgreSQL: ISO 8601 格式
+ */
+export function formatDateForDB(date: Date): string {
+  const dbType = getDbType();
+  if (dbType === 'mysql') {
+    // MySQL 需要 YYYY-MM-DD HH:mm:ss 格式
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+  // SQLite 和 PostgreSQL 支持 ISO 8601
+  return date.toISOString();
+}
+
 /** 获取数据库类型 */
 export function getDbType(): string {
   return db.type;

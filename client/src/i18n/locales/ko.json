@@ -7,6 +7,7 @@
       "dnsAccounts": "DNS 계정",
       "domains": "도메인",
       "teams": "팀",
+      "nsMonitor": "NS 모니터링",
       "tokens": "API 토큰",
       "users": "사용자",
       "audit": "감사",

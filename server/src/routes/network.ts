@@ -124,18 +124,20 @@ function createProxyAgent(config: ProxyConfig): any | null {
         ? `${config.username}:${config.password}@`
         : '';
       const proxyUrl = `socks5://${auth}${config.host}:${config.port}`;
+      log.debug('Network', 'Creating SOCKS5 proxy agent', { host: config.host, port: config.port });
       return new SocksProxyAgent(proxyUrl);
-    } else if (HttpsProxyAgent) {
+    } else if (config.type === 'http' && HttpsProxyAgent) {
       const auth = config.username && config.password
         ? `${config.username}:${config.password}@`
         : '';
       const proxyUrl = `http://${auth}${config.host}:${config.port}`;
+      log.debug('Network', 'Creating HTTP proxy agent', { host: config.host, port: config.port });
       return new HttpsProxyAgent(proxyUrl);
     }
-    log.warn('Network', 'Proxy agent not available');
+    log.warn('Network', 'Proxy agent not available or unsupported type', { type: config.type });
     return null;
   } catch (error) {
-    log.error('Network', 'Failed to create proxy agent', { error });
+    log.error('Network', 'Failed to create proxy agent', { error: (error as Error).message });
     return null;
   }
 }
@@ -187,13 +189,22 @@ async function queryIpService(service: typeof IP_SERVICES[0], isV6: boolean = fa
   try {
     const url = isV6 && service.ipv6Url ? service.ipv6Url : service.url;
     const isHttp = url.startsWith('http://');
+    
+    log.debug('Network', `Querying IP from ${service.name}`, { url, isV6: !!isV6, hasProxy: !!proxyAgent });
+    
     const data = isHttp 
       ? await httpGet(url, proxyAgent) 
       : await httpsGet(url, proxyAgent);
 
+    log.debug('Network', `Received response from ${service.name}`, { dataLength: data.length, dataPreview: data.substring(0, 200) });
+
     if (service.name === 'cloudflare') {
       const result = parseCloudflareTrace(data);
-      if (!result) return null;
+      if (!result) {
+        log.warn('Network', `Failed to parse cloudflare trace response`, { data: data.substring(0, 500) });
+        return null;
+      }
+      log.debug('Network', `Parsed cloudflare IP`, { ip: result.ip, type: result.type });
       return {
         ip: result.ip,
         type: result.type,
@@ -203,12 +214,19 @@ async function queryIpService(service: typeof IP_SERVICES[0], isV6: boolean = fa
 
     try {
       const jsonData = JSON.parse(data);
-      return parseJsonIp(jsonData, service.name);
-    } catch {
+      const result = parseJsonIp(jsonData, service.name);
+      if (result) {
+        log.debug('Network', `Parsed JSON IP from ${service.name}`, { ip: result.ip, type: result.type });
+      } else {
+        log.warn('Network', `Failed to parse JSON IP from ${service.name}`, { jsonData });
+      }
+      return result;
+    } catch (parseError) {
+      log.warn('Network', `Failed to parse JSON from ${service.name}`, { error: parseError, data: data.substring(0, 200) });
       return null;
     }
   } catch (error) {
-    log.warn('Network', `Failed to query IP from ${service.name}`, { error });
+    log.warn('Network', `Failed to query IP from ${service.name}`, { error: (error as Error).message });
     return null;
   }
 }
@@ -372,19 +390,31 @@ router.get('/info', authMiddleware, asyncHandler(async (req: Request, res: Respo
     }
   }
 
+  const responseData = {
+    server: serverResults,
+    serverDirect: directResults,
+    client: clientResults,
+    proxy: proxyConfig && proxyConfig.enabled ? {
+      enabled: true,
+      type: proxyConfig.type,
+      host: proxyConfig.host,
+      port: proxyConfig.port,
+    } : null,
+  };
+
+  log.debug('Network', 'Returning network info', { 
+    serverV4: !!serverResults.v4, 
+    serverV6: !!serverResults.v6,
+    directV4: !!directResults.v4,
+    directV6: !!directResults.v6,
+    clientV4: !!clientResults.v4,
+    clientV6: !!clientResults.v6,
+    proxyEnabled: proxyConfig?.enabled 
+  });
+
   res.json({
     success: true,
-    data: {
-      server: serverResults,
-      serverDirect: directResults,
-      client: clientResults,
-      proxy: proxyConfig && proxyConfig.enabled ? {
-        enabled: true,
-        type: proxyConfig.type,
-        host: proxyConfig.host,
-        port: proxyConfig.port,
-      } : null,
-    },
+    data: responseData,
   });
 }));
 

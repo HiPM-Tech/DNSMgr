@@ -3,7 +3,7 @@
  * NS 监测定时任务服务
  */
 
-import { NSMonitorOperations, DomainOperations, AuditOperations } from '../db/business-adapter';
+import { NSMonitorOperations, DomainOperations, AuditOperations, formatDateForDB } from '../db/business-adapter';
 import { resolveNsRecords, getNsStatus } from '../lib/dns/ns-lookup';
 import { sendNotification } from './notification';
 import { log } from '../lib/logger';
@@ -120,10 +120,9 @@ async function checkDomainNs(config: {
     // 确定状态
     const status = getNsStatus(currentNs, expectedList);
 
-    // 获取数据库类型
-    const { default: db } = await import('../db/business-adapter');
-    const dbType = db.getDbType();
-    const now = new Date().toISOString();
+    // 获取当前时间（数据库兼容格式）
+    const now = new Date();
+    const nowStr = formatDateForDB(now);
 
     // 获取当前状态
     const existingStatus = await NSMonitorOperations.getStatus(config.id);
@@ -132,7 +131,7 @@ async function checkDomainNs(config: {
     await NSMonitorOperations.updateStatus(config.id, {
       current_ns: currentNsStr,
       status,
-      last_check_at: now,
+      last_check_at: nowStr,
     });
 
     // 如果状态异常且与上次不同，发送告警
@@ -164,7 +163,7 @@ async function checkDomainNs(config: {
       const alertCount = (existingStatus?.alert_count as number) || 0;
       await NSMonitorOperations.updateStatus(config.id, {
         alert_count: alertCount + 1,
-        last_alert_at: now,
+        last_alert_at: nowStr,
       });
 
       // 发送通知（如果被抑制则不发送）

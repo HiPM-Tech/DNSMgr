@@ -211,6 +211,7 @@
       "success": "成功",
       "system": "系统",
       "teams": "团队",
+      "nsMonitor": "NS 监测",
       "tokens": "API 令牌",
       "ttl": "TTL",
       "type": "类型",

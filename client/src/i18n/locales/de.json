@@ -7,6 +7,7 @@
       "dnsAccounts": "DNS-Konten",
       "domains": "Domains",
       "teams": "Teams",
+      "nsMonitor": "NS-Monitor",
       "tokens": "API-Token",
       "users": "Benutzer",
       "audit": "Prüfung",

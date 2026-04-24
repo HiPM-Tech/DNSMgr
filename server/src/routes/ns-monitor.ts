@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { NSMonitorOperations, DomainOperations, getDbType } from '../db/business-adapter';
+import { NSMonitorOperations, DomainOperations, getDbType, formatDateForDB } from '../db/business-adapter';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { log } from '../lib/logger';
@@ -17,16 +17,6 @@ const router = Router();
 /** 将布尔值转换为数据库特定的布尔类型 */
 function toDbBoolean(value: boolean, dbType: string): boolean | number {
   return dbType === 'postgresql' ? value : value ? 1 : 0;
-}
-
-/** 将日期转换为数据库兼容的格式 */
-function toDbDateTime(date: Date, dbType: string): string {
-  if (dbType === 'mysql') {
-    // MySQL 需要 YYYY-MM-DD HH:MM:SS 格式
-    return date.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
-  }
-  // SQLite 和 PostgreSQL 支持 ISO 8601
-  return date.toISOString();
 }
 
 /**
@@ -323,13 +313,12 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
   }
 
   // Update status
-  const checkDbType = getDbType();
   const now = new Date();
 
   await NSMonitorOperations.updateStatus(parseInt(id), {
     current_ns: currentNsStr,
     status,
-    last_check_at: toDbDateTime(now, checkDbType),
+    last_check_at: formatDateForDB(now),
   });
 
   log.info('NSMonitor', 'Manual check completed', { domainId: config.domain_id, status, userId });

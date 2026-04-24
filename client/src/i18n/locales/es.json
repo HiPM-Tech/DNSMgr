@@ -93,6 +93,7 @@
       "status": "Estado",
       "system": "Sistema",
       "teams": "Equipos",
+      "nsMonitor": "Monitor NS",
       "tokens": "Tokens API",
       "ttl": "TTL",
       "type": "Tipo",

@@ -111,6 +111,7 @@
       "success": "成功",
       "system": "システム",
       "teams": "チーム",
+      "nsMonitor": "NS 監視",
       "tokens": "API トークン",
 
       "ttl": "TTL",

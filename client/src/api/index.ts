@@ -602,10 +602,20 @@ export interface NetworkInfo {
     v4: IpInfo | null;
     v6: IpInfo | null;
   };
+  serverDirect: {
+    v4: IpInfo | null;
+    v6: IpInfo | null;
+  };
   client: {
     v4: IpInfo | null;
     v6: IpInfo | null;
   };
+  proxy: {
+    enabled: boolean;
+    type: 'socks5' | 'http';
+    host: string;
+    port: number;
+  } | null;
 }
 
 export interface ProxyConfig {
@@ -618,7 +628,7 @@ export interface ProxyConfig {
 }
 
 export const networkApi = {
-  getInfo: () => api.get<ApiResponse<NetworkInfo & { serverDirect: { v4: IpInfo | null; v6: IpInfo | null }; proxy: { enabled: boolean; type: 'socks5' | 'http'; host: string; port: number } | null }>>('/network/info'),
+  getInfo: () => api.get<ApiResponse<NetworkInfo>>('/network/info'),
   getServerIp: () => api.get<ApiResponse<{ v4: IpInfo | null; v6: IpInfo | null }>>('/network/server-ip'),
   getClientIp: () => api.get<ApiResponse<{ v4: IpInfo | null; v6: IpInfo | null }>>('/network/client-ip'),
   getProxy: () => api.get<ApiResponse<ProxyConfig>>('/network/proxy'),
