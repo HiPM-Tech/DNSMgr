@@ -52,6 +52,22 @@ const actionKeys: Record<string, string> = {
   send_email_verification_code: 'audit.actions.send_email_verification_code',
   send_password_reset_code: 'audit.actions.send_password_reset_code',
   reset_password_by_email: 'audit.actions.reset_password_by_email',
+  // DNS Account actions
+  add_dns_account: 'audit.actions.add_dns_account',
+  update_dns_account: 'audit.actions.update_dns_account',
+  delete_dns_account: 'audit.actions.delete_dns_account',
+  // Team actions
+  create_team: 'audit.actions.add_team',
+  update_team: 'audit.actions.update_team',
+  delete_team: 'audit.actions.delete_team',
+  add_team_member: 'audit.actions.add_team_member',
+  remove_team_member: 'audit.actions.remove_team_member',
+  // Domain permission actions
+  add_domain_permission: 'audit.actions.add_domain_permission',
+  update_domain_permission: 'audit.actions.update_domain_permission',
+  remove_domain_permission: 'audit.actions.remove_domain_permission',
+  // WHOIS
+  update_whois: 'audit.actions.update_whois',
 };
 
 export function getAuditActionOptions(t: TranslateFn) {
@@ -97,6 +113,16 @@ export function getAuditActionVariant(log: LogEntry): 'green' | 'red' | 'yellow'
   if (log.action === 'disable_2fa' || log.action === 'unbind_oauth_account' || log.action === 'reset_password_by_email') return 'red';
   if (log.action === 'view_jwt_secret' || log.action === 'logout_session' || log.action === 'logout_other_sessions' || log.action === 'logout_all_sessions' || log.action === 'send_email_verification_code' || log.action === 'send_password_reset_code' || log.action === 'failover_switch') return 'yellow';
   if (log.action === 'update_security_config' || log.action === 'update_smtp_config' || log.action === 'update_oauth_config' || log.action === 'update_logto_oauth_config' || log.action === 'update_preferences' || log.action === 'bind_oauth_account' || log.action === 'update_profile_email') return 'blue';
+  // Team actions
+  if (log.action === 'create_team' || log.action === 'add_team_member' || log.action === 'add_domain_permission') return 'green';
+  if (log.action === 'delete_team' || log.action === 'remove_team_member' || log.action === 'remove_domain_permission') return 'red';
+  if (log.action === 'update_team' || log.action === 'update_domain_permission') return 'blue';
+  // DNS Account actions
+  if (log.action === 'add_dns_account') return 'green';
+  if (log.action === 'delete_dns_account') return 'red';
+  if (log.action === 'update_dns_account') return 'blue';
+  // WHOIS
+  if (log.action === 'update_whois') return 'blue';
   return 'gray';
 }
 

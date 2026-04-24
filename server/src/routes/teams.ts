@@ -303,9 +303,15 @@ router.get('/:id/members', authMiddleware, asyncHandler(async (req: Request, res
  */
 router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const teamId = parseInt(req.params.id);
-  const { user_id, role: memberRole } = req.body as { user_id: number; role: 'admin' | 'member' };
+  const { user_id, userId: bodyUserId, role: memberRole } = req.body as { user_id?: number; userId?: number; role: 'admin' | 'member' };
+  const targetUserId = user_id || bodyUserId;
   const userId = req.user!.userId;
   const role = req.user!.role;
+  
+  if (!targetUserId) {
+    sendError(res, 'User ID is required');
+    return;
+  }
   
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
@@ -321,22 +327,22 @@ router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, re
   }
   
   // Check if user exists
-  const targetUser = await UserOperations.getById(user_id);
+  const targetUser = await UserOperations.getById(targetUserId);
   if (!targetUser) {
     sendError(res, 'User not found');
     return;
   }
   
   // Check if already member
-  const isAlreadyMember = await TeamOperations.isMember(teamId, user_id);
+  const isAlreadyMember = await TeamOperations.isMember(teamId, targetUserId);
   if (isAlreadyMember) {
     sendError(res, 'User is already a member of this team');
     return;
   }
   
-  await TeamOperations.addMember(teamId, user_id, memberRole || 'member');
+  await TeamOperations.addMember(teamId, targetUserId, memberRole || 'member');
   
-  await logAuditOperation(userId, 'add_team_member', team.name, { teamId, targetUserId: user_id, role: memberRole });
+  await logAuditOperation(userId, 'add_team_member', team.name, { teamId, targetUserId, role: memberRole });
   sendSuccess(res);
 }));
 
@@ -462,7 +468,7 @@ router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: R
 
 /**
  * @swagger
- * /api/teams/{id}/permissions:
+ * /api/teams/{id}/domain-permissions:
  *   get:
  *     summary: Get team domain permissions
  *     tags: [Teams]
@@ -478,7 +484,7 @@ router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: R
  *       200:
  *         description: List of permissions
  */
-router.get('/:id/permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.get('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const teamId = parseInt(req.params.id);
   const userId = req.user!.userId;
   const role = req.user!.role;
@@ -502,7 +508,7 @@ router.get('/:id/permissions', authMiddleware, asyncHandler(async (req: Request,
 
 /**
  * @swagger
- * /api/teams/{id}/permissions:
+ * /api/teams/{id}/domain-permissions:
  *   post:
  *     summary: Add domain permission for team
  *     tags: [Teams]
@@ -533,7 +539,7 @@ router.get('/:id/permissions', authMiddleware, asyncHandler(async (req: Request,
  *       200:
  *         description: Permission added
  */
-router.post('/:id/permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.post('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const teamId = parseInt(req.params.id);
   const { domain_id, permission, sub } = req.body as { domain_id: number; permission: 'read' | 'write'; sub?: string };
   const userId = req.user!.userId;
@@ -572,7 +578,7 @@ router.post('/:id/permissions', authMiddleware, asyncHandler(async (req: Request
 
 /**
  * @swagger
- * /api/teams/{id}/permissions/{permissionId}:
+ * /api/teams/{id}/domain-permissions/{permissionId}:
  *   put:
  *     summary: Update team domain permission
  *     tags: [Teams]
@@ -604,7 +610,7 @@ router.post('/:id/permissions', authMiddleware, asyncHandler(async (req: Request
  *       200:
  *         description: Permission updated
  */
-router.put('/:id/permissions/:permissionId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.put('/:id/domain-permissions/:permissionId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const teamId = parseInt(req.params.id);
   const permissionId = parseInt(req.params.permissionId);
   const { permission } = req.body as { permission: 'read' | 'write' };
@@ -632,7 +638,7 @@ router.put('/:id/permissions/:permissionId', authMiddleware, asyncHandler(async 
 
 /**
  * @swagger
- * /api/teams/{id}/permissions/{permissionId}:
+ * /api/teams/{id}/domain-permissions/{permissionId}:
  *   delete:
  *     summary: Remove team domain permission
  *     tags: [Teams]
@@ -653,7 +659,7 @@ router.put('/:id/permissions/:permissionId', authMiddleware, asyncHandler(async 
  *       200:
  *         description: Permission removed
  */
-router.delete('/:id/permissions/:permissionId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id/domain-permissions/:permissionId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const teamId = parseInt(req.params.id);
   const permissionId = parseInt(req.params.permissionId);
   const userId = req.user!.userId;
