@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail } from 'lucide-react';
-import { nsMonitorApi } from '../api';
+import { Shield, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus } from 'lucide-react';
+import { nsMonitorApi, domainsApi } from '../api';
+import type { Domain } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
 import { useToast } from '../hooks/useToast';
@@ -27,11 +28,18 @@ export function NSMonitor() {
   const queryClient = useQueryClient();
   const [selectedConfig, setSelectedConfig] = useState<NSMonitorConfig | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],
     queryFn: () => nsMonitorApi.list().then(r => r.data.data || []),
+  });
+
+  const { data: domains = [] } = useQuery({
+    queryKey: ['domains'],
+    queryFn: () => domainsApi.list().then(r => r.data.data || []),
+    enabled: isAddModalOpen,
   });
 
   const updateMutation = useMutation({
@@ -44,6 +52,19 @@ export function NSMonitor() {
     },
     onError: () => {
       toast.error(t('nsMonitor.updateFailed'));
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
+      nsMonitorApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
+      setIsAddModalOpen(false);
+      toast.success(t('nsMonitor.addSuccess'));
+    },
+    onError: () => {
+      toast.error(t('nsMonitor.addFailed'));
     },
   });
 
@@ -61,6 +82,10 @@ export function NSMonitor() {
   const filteredConfigs = configs.filter((c: NSMonitorConfig) =>
     c.domain_name.toLowerCase().includes(searchKeyword.toLowerCase())
   );
+
+  // 获取尚未添加监测的域名
+  const monitoredDomainIds = new Set(configs.map((c: NSMonitorConfig) => c.domain_id));
+  const availableDomains = domains.filter((d: Domain) => !monitoredDomainIds.has(d.id));
 
   const columns = [
     {
@@ -193,6 +218,25 @@ export function NSMonitor() {
     });
   };
 
+  const handleAdd = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const domainId = parseInt(formData.get('domain_id') as string);
+
+    if (!domainId) {
+      toast.error(t('nsMonitor.selectDomain'));
+      return;
+    }
+
+    createMutation.mutate({
+      domain_id: domainId,
+      expected_ns: formData.get('expected_ns') as string,
+      enabled: formData.get('enabled') === 'on',
+      notify_email: formData.get('notify_email') === 'on',
+      notify_channels: formData.get('notify_channels') === 'on',
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -204,6 +248,13 @@ export function NSMonitor() {
             {t('nsMonitor.subtitle')}
           </p>
         </div>
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          {t('nsMonitor.addMonitor')}
+        </button>
       </div>
 
       <div className="flex items-center gap-3">
@@ -228,6 +279,7 @@ export function NSMonitor() {
         />
       </div>
 
+      {/* Edit Modal */}
       {isEditModalOpen && selectedConfig && (
         <Modal
           title={t('nsMonitor.editConfig')}
@@ -314,6 +366,108 @@ export function NSMonitor() {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 {t('common.save')}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Add Modal */}
+      {isAddModalOpen && (
+        <Modal
+          title={t('nsMonitor.addMonitor')}
+          onClose={() => setIsAddModalOpen(false)}
+        >
+          <form onSubmit={handleAdd} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('nsMonitor.selectDomain')} *
+              </label>
+              {availableDomains.length === 0 ? (
+                <div className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                  {t('nsMonitor.noAvailableDomains')}
+                </div>
+              ) : (
+                <select
+                  name="domain_id"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                >
+                  <option value="">{t('nsMonitor.selectDomainPlaceholder')}</option>
+                  {availableDomains.map((domain: Domain) => (
+                    <option key={domain.id} value={domain.id}>
+                      {domain.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('nsMonitor.expectedNS')}
+              </label>
+              <textarea
+                name="expected_ns"
+                placeholder={t('nsMonitor.expectedNSPlaceholder')}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {t('nsMonitor.expectedNSHint')}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  name="enabled"
+                  defaultChecked={true}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {t('nsMonitor.enableMonitoring')}
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  name="notify_email"
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {t('nsMonitor.notifyEmail')}
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  name="notify_channels"
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {t('nsMonitor.notifyChannels')}
+                </span>
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={createMutation.isPending || availableDomains.length === 0}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {t('common.add')}
               </button>
             </div>
           </form>

@@ -15,7 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 提交信息检查
   commit-message:
     name: Commit Message
     runs-on: ubuntu-latest
@@ -27,27 +26,23 @@ jobs:
 
       - name: Check Commit Messages
         run: |
-          # 获取本次推送的所有提交
           COMMITS=$(git log --format=%s origin/${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || git log --format=%s -n 10)
-          
+
           echo "检查提交信息..."
           echo "$COMMITS"
-          
-          # 检查每个提交信息
+
           FAILED=0
           while IFS= read -r commit; do
             [ -z "$commit" ] && continue
-            
+
             echo "检查: $commit"
-            
-            # 检查长度
+
             if [ ${#commit} -lt 10 ]; then
               echo "  ❌ 提交信息太短"
               FAILED=1
               continue
             fi
-            
-            # 检查格式 (conventional commits)
+
             if [[ ! "$commit" =~ ^(feat|fix|docs|style|refactor|test|chore|ci|build|perf|revert)(\(.+\))?!?:\s.+ ]]; then
               echo "  ⚠️ 建议使用 conventional commits 格式"
               echo "     例如: feat: 添加新功能"
@@ -57,12 +52,11 @@ jobs:
               echo "  ✅ 格式正确"
             fi
           done <<< "$COMMITS"
-          
+
           if [ $FAILED -eq 1 ]; then
             exit 1
           fi
 
-  # 快速测试
   quick-test:
     name: Quick Test
     runs-on: ubuntu-latest
@@ -74,36 +68,41 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - name: Install Server Dependencies
-        run: |
-          cd server
-          npm ci
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
-      - name: Install Client Dependencies
+      - name: Get pnpm store directory
+        shell: bash
         run: |
-          cd client
-          npm ci
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Lint Check
         run: |
-          cd server
-          npm run lint || echo "⚠️ Server lint issues"
-          cd ../client
-          npm run lint || echo "⚠️ Client lint issues"
+          pnpm --filter dnsmgr-server run lint || echo "⚠️ Server lint issues"
+          pnpm --filter dnsmgr-client run lint || echo "⚠️ Client lint issues"
 
       - name: Type Check
         run: |
-          cd server
-          npm run build --noEmit 2>/dev/null || npm run build
+          pnpm --filter dnsmgr-server run build --noEmit 2>/dev/null || pnpm --filter dnsmgr-server run build
 
       - name: Quick Unit Test
         run: |
-          cd server
-          npm test -- --testNamePattern="Database|Auth" --passWithNoTests || echo "⚠️ Some tests failed"
+          pnpm --filter dnsmgr-server run test -- --testNamePattern="Database|Auth" --passWithNoTests || echo "⚠️ Some tests failed"
 
-  # 文件检查
   file-check:
     name: File Check
     runs-on: ubuntu-latest
@@ -113,9 +112,8 @@ jobs:
 
       - name: Check File Size
         run: |
-          # 检查大文件
-          LARGE_FILES=$(find . -type f -size +1M ! -path "./node_modules/*" ! -path "./.git/*" 2>/dev/null)
-          
+          LARGE_FILES=$(find . -type f -size +1M ! -path "./node_modules/*" ! -path "./.git/*" ! -path "./.pnpm/*" 2>/dev/null)
+
           if [ -n "$LARGE_FILES" ]; then
             echo "⚠️ 发现大文件(>1MB):"
             echo "$LARGE_FILES"
@@ -123,9 +121,8 @@ jobs:
 
       - name: Check File Encoding
         run: |
-          # 检查非UTF-8编码的文件
-          NON_UTF8=$(file -i $(find . -type f \( -name "*.ts" -o -name "*.js" -o -name "*.json" \) ! -path "./node_modules/*" ! -path "./.git/*" 2>/dev/null) | grep -v "charset=utf-8" || true)
-          
+          NON_UTF8=$(file -i $(find . -type f \( -name "*.ts" -o -name "*.js" -o -name "*.json" \) ! -path "./node_modules/*" ! -path "./.git/*" ! -path "./.pnpm/*" 2>/dev/null) | grep -v "charset=utf-8" || true)
+
           if [ -n "$NON_UTF8" ]; then
             echo "⚠️ 发现非UTF-8编码的文件:"
             echo "$NON_UTF8"
@@ -133,15 +130,13 @@ jobs:
 
       - name: Check Trailing Whitespace
         run: |
-          # 检查行尾空格
-          TRAILING=$(grep -r -l ' $' --include="*.ts" --include="*.js" --include="*.json" --exclude-dir=node_modules --exclude-dir=.git . 2>/dev/null || true)
-          
+          TRAILING=$(grep -r -l ' $' --include="*.ts" --include="*.js" --include="*.json" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.pnpm . 2>/dev/null || true)
+
           if [ -n "$TRAILING" ]; then
             echo "⚠️ 发现行尾空格:"
             echo "$TRAILING"
           fi
 
-  # 安全检查
   security-check:
     name: Security Check
     runs-on: ubuntu-latest
@@ -159,29 +154,27 @@ jobs:
 
       - name: Check for Sensitive Patterns
         run: |
-          # 检查敏感信息模式
           PATTERNS=(
             "password\s*=\s*['\"][^'\"]+['\"]"
             "api[_-]?key\s*=\s*['\"][^'\"]+['\"]"
             "secret\s*=\s*['\"][^'\"]+['\"]"
             "token\s*=\s*['\"][^'\"]+['\"]"
           )
-          
+
           FOUND=0
           for pattern in "${PATTERNS[@]}"; do
-            MATCHES=$(grep -r -i -n "$pattern" --include="*.ts" --include="*.js" --exclude-dir=node_modules --exclude-dir=.git . 2>/dev/null || true)
+            MATCHES=$(grep -r -i -n "$pattern" --include="*.ts" --include="*.js" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.pnpm . 2>/dev/null || true)
             if [ -n "$MATCHES" ]; then
               echo "⚠️ 发现可能的敏感信息 ($pattern):"
               echo "$MATCHES"
               FOUND=1
             fi
           done
-          
+
           if [ $FOUND -eq 1 ]; then
             echo "请检查上述文件是否包含敏感信息"
           fi
 
-  # 总结
   summary:
     name: Summary
     runs-on: ubuntu-latest

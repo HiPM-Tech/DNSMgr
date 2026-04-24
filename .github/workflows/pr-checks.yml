@@ -15,7 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # PR信息验证
   pr-info:
     name: PR Info
     runs-on: ubuntu-latest
@@ -35,7 +34,6 @@ jobs:
           echo "branch=${{ github.head_ref }}" >> $GITHUB_OUTPUT
           echo "is_draft=${{ github.event.pull_request.draft }}" >> $GITHUB_OUTPUT
 
-  # PR标题和描述检查
   pr-validation:
     name: PR Validation
     runs-on: ubuntu-latest
@@ -45,30 +43,26 @@ jobs:
         run: |
           TITLE="${{ needs.pr-info.outputs.title }}"
           echo "PR Title: $TITLE"
-          
-          # 检查标题长度
+
           if [ ${#TITLE} -lt 10 ]; then
             echo "❌ PR标题太短，请至少10个字符"
             exit 1
           fi
-          
-          # 检查标题格式（可选）
+
           if [[ ! "$TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore|ci|build|perf):\s.+ ]]; then
             echo "⚠️ PR标题建议使用 conventional commits 格式:"
             echo "   例如: feat: 添加新功能, fix: 修复bug"
           fi
-          
+
           echo "✅ PR标题检查通过"
 
       - name: Check PR Description
         run: |
           BODY="${{ needs.pr-info.outputs.body }}"
-          
-          # 检查是否有描述
+
           if [ -z "$BODY" ] || [ "$BODY" = "null" ]; then
             echo "⚠️ PR没有描述，建议添加描述说明变更内容"
           else
-            # 检查描述长度
             if [ ${#BODY} -lt 30 ]; then
               echo "⚠️ PR描述较短，建议添加更多详细信息"
             else
@@ -76,7 +70,6 @@ jobs:
             fi
           fi
 
-  # 代码变更检查
   code-changes:
     name: Code Changes
     runs-on: ubuntu-latest
@@ -88,35 +81,31 @@ jobs:
 
       - name: Check Change Size
         run: |
-          # 获取变更的文件数和行数
           git fetch origin ${{ github.base_ref }} --depth=1
           CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} | wc -l)
           CHANGED_LINES=$(git diff --stat origin/${{ github.base_ref }} | tail -1 | awk '{print $4}')
-          
+
           echo "变更文件数: $CHANGED_FILES"
           echo "变更行数: $CHANGED_LINES"
-          
-          # 如果变更太多，给出警告
+
           if [ "$CHANGED_FILES" -gt 50 ]; then
             echo "⚠️ 变更文件数较多($CHANGED_FILES)，建议拆分PR"
           fi
-          
+
           if [ -n "$CHANGED_LINES" ] && [ "$CHANGED_LINES" -gt 1000 ]; then
             echo "⚠️ 变更行数较多($CHANGED_LINES)，建议拆分PR"
           fi
 
       - name: Check Sensitive Files
         run: |
-          # 检查是否修改了敏感文件
           SENSITIVE_FILES=$(git diff --name-only origin/${{ github.base_ref }} | grep -E "(\.env|secrets|credentials|password)" || true)
-          
+
           if [ -n "$SENSITIVE_FILES" ]; then
             echo "⚠️ 检测到可能包含敏感信息的文件变更:"
             echo "$SENSITIVE_FILES"
             echo "请确保没有提交敏感信息！"
           fi
 
-  # 依赖检查
   dependency-check:
     name: Dependency Check
     runs-on: ubuntu-latest
@@ -128,23 +117,32 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - name: Check Server Dependencies
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Get pnpm store directory
+        shell: bash
         run: |
-          cd server
-          if [ -f package.json ]; then
-            npm audit --audit-level=high || echo "⚠️ 发现安全漏洞，请检查"
-          fi
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - name: Check Client Dependencies
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Dependencies Audit
         run: |
-          cd client
-          if [ -f package.json ]; then
-            npm audit --audit-level=high || echo "⚠️ 发现安全漏洞，请检查"
-          fi
+          pnpm audit --audit-level=high || echo "⚠️ 发现安全漏洞，请检查"
 
-  # 自动评论
   auto-comment:
     name: Auto Comment
     runs-on: ubuntu-latest
@@ -155,9 +153,9 @@ jobs:
         with:
           script: |
             const message = `👋 感谢提交PR！
-            
+
             ## 自动检查已启动
-            
+
             以下检查将会运行：
             - ✅ 代码格式检查 (ESLint)
             - ✅ 类型检查 (TypeScript)
@@ -165,16 +163,16 @@ jobs:
             - ✅ 集成测试 (SQLite/PostgreSQL/MySQL)
             - ✅ E2E测试
             - ✅ 安全审计
-            
+
             ## PR规范
-            
+
             - 标题建议使用 conventional commits 格式
             - 描述请说明变更内容和原因
             - 确保所有测试通过
             - 大型变更建议拆分PR
-            
+
             如有问题请联系维护者。`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -182,7 +180,6 @@ jobs:
               body: message
             });
 
-  # 检查PR是否可以合并
   merge-check:
     name: Merge Check
     runs-on: ubuntu-latest
@@ -204,7 +201,6 @@ jobs:
           fi
           echo "✅ PR没有合并冲突"
 
-  # 总结
   summary:
     name: PR Summary
     runs-on: ubuntu-latest

@@ -19,9 +19,8 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      # PostgreSQL服务（所有数据库类型都启动，但只在需要时使用）
       postgres:
-        image: postgres:16-alpine
+        image: postgres:17-alpine
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -34,9 +33,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      # MySQL服务（所有数据库类型都启动，但只在需要时使用）
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: test
           MYSQL_DATABASE: dnsmgr_test
@@ -60,16 +58,28 @@ jobs:
           node-version: '20'
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
         run: |
-          pnpm install --no-frozen-lockfile
-          cd server && pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile
+          pnpm --filter dnsmgr-server install --frozen-lockfile
 
-      # 测试1: 初始化测试（无数据）
       - name: Test Initialization (Fresh)
         id: init-fresh
         run: |
@@ -95,7 +105,6 @@ jobs:
           echo "Testing initialization with ${{ inputs.database }}..."
           pnpm run test:init
 
-      # 测试2: 基础功能测试（使用MOCK）
       - name: Test Basic Functions (with MOCK)
         id: test-basic
         run: |
@@ -108,35 +117,22 @@ jobs:
         env:
           CI: true
 
-      # 测试3: 数据持久化测试
       - name: Test Data Persistence
         id: test-persistence
         run: |
           cd server
-          # 创建一些测试数据
           pnpm run test:seed
-
-          # 重启服务并验证数据还在
           pnpm run test:verify-data
 
-      # 测试4: 删除.env后测试（模拟新环境但有数据）
       - name: Test After .env Removal
         id: test-no-env
         run: |
           cd server
-          # 备份.env
           cp .env .env.backup
-
-          # 删除.env
           rm -f .env
-
-          # 测试在没有.env的情况下是否能正确检测现有数据
           pnpm run test:init-detect || true
-
-          # 恢复.env
           mv .env.backup .env
 
-      # 测试5: 数据库迁移测试
       - name: Test Database Migrations
         id: test-migrations
         run: |
@@ -145,21 +141,18 @@ jobs:
           pnpm run db:rollback:test
           pnpm run db:migrate:test
 
-      # 测试6: 并发连接测试
       - name: Test Concurrent Connections
         id: test-concurrent
         run: |
           cd server
           pnpm run test:concurrent
 
-      # 测试7: 错误恢复测试
       - name: Test Error Recovery
         id: test-recovery
         run: |
           cd server
           pnpm run test:error-recovery
 
-      # 收集测试结果
       - name: Collect Test Results
         id: collect-results
         if: always()
@@ -176,7 +169,6 @@ jobs:
           echo "| Concurrent Connections | ${{ steps.test-concurrent.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Error Recovery | ${{ steps.test-recovery.outcome }} |" >> $GITHUB_STEP_SUMMARY
 
-      # 上传测试报告
       - name: Upload Test Report
         uses: actions/upload-artifact@v4
         if: always()
@@ -188,15 +180,14 @@ jobs:
             server/logs/
           retention-days: 7
 
-      # 上传覆盖率报告
       - name: Upload Coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./server/coverage/lcov.info
           flags: ${{ inputs.database }}-integration
           name: ${{ inputs.database }}-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
 
-      # 检查关键测试是否通过
       - name: Check Critical Tests
         if: always()
         run: |

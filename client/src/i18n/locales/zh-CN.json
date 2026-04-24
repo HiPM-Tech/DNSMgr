@@ -39,7 +39,9 @@
       "subtitle": "管理你的 DNS 服务商凭据",
       "title": "DNS 账号",
       "updateFailed": "更新账号失败",
-      "updateSuccess": "账号更新成功"
+      "updateSuccess": "账号更新成功",
+      "useProxy": "使用代理",
+      "useProxyHint": "通过系统代理访问 DNS 服务商 API"
     },
     "audit": {
       "actionType": "操作类型",
@@ -924,7 +926,13 @@
       "notifications": "通知方式",
       "lastCheck": "最后检查",
       "searchPlaceholder": "搜索域名...",
-      "noConfigs": "暂无监测配置，请在域名列表中添加监测",
+      "noConfigs": "暂无监测配置，请点击右上角添加",
+      "addMonitor": "添加监测",
+      "addSuccess": "监测已添加",
+      "addFailed": "添加监测失败",
+      "selectDomain": "请选择域名",
+      "selectDomainPlaceholder": "请选择要监测的域名",
+      "noAvailableDomains": "暂无可添加的域名（所有域名已添加监测）",
       "editConfig": "编辑监测配置",
       "enableMonitoring": "启用监测",
       "notifyEmail": "邮件通知",

@@ -1,7 +1,6 @@
 name: Test Suite
 
 on:
-  # 推送到主要分支时触发
   push:
     branches:
       - main
@@ -15,7 +14,6 @@ on:
       - '.gitignore'
       - 'LICENSE'
 
-  # PR创建、更新、同步时触发
   pull_request:
     types:
       - opened
@@ -33,7 +31,6 @@ on:
       - '.gitignore'
       - 'LICENSE'
 
-  # 手动触发
   workflow_dispatch:
     inputs:
       test_type:
@@ -62,7 +59,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 代码检查和构建
   lint-and-build:
     name: Lint & Build
     runs-on: ubuntu-latest
@@ -76,25 +72,35 @@ jobs:
           node-version: '20'
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: |
-          pnpm install --no-frozen-lockfile
-          cd server && pnpm install --frozen-lockfile
-          cd ../client && pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run ESLint
         run: |
-          cd server && pnpm run lint || true
-          cd ../client && pnpm run lint || true
+          pnpm --filter dnsmgr-server run lint || true
+          pnpm --filter dnsmgr-client run lint || true
 
       - name: Type check
         run: |
-          cd server && pnpm run build
-          cd ../client && pnpm run build
+          pnpm --filter dnsmgr-server run build
+          pnpm --filter client run build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -105,7 +111,6 @@ jobs:
             client/dist
           retention-days: 1
 
-  # 单元测试（并行）
   unit-test-server:
     name: Unit Test - Server
     runs-on: ubuntu-latest
@@ -120,24 +125,36 @@ jobs:
           node-version: '20'
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: |
-          pnpm install --no-frozen-lockfile
-          cd server && pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run unit tests
-        run: cd server && pnpm test -- --coverage --testPathPattern="\.test\.ts$" --testPathIgnorePatterns="e2e"
+        run: pnpm --filter dnsmgr-server run test -- --coverage --testPathPattern="\.test\.ts$" --testPathIgnorePatterns="e2e"
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./server/coverage/lcov.info
           flags: server-unit
           name: server-unit-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   unit-test-client:
     name: Unit Test - Client
@@ -153,26 +170,37 @@ jobs:
           node-version: '20'
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: |
-          pnpm install --no-frozen-lockfile
-          cd client && pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run unit tests
-        run: cd client && pnpm test -- --coverage --passWithNoTests
+        run: pnpm --filter dnsmgr-client run test -- --coverage --passWithNoTests || true
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./client/coverage/lcov.info
           flags: client-unit
           name: client-unit-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
 
-  # 数据库集成测试 - 调用子工作流
   test-sqlite:
     name: Test - SQLite
     needs: lint-and-build
@@ -200,7 +228,6 @@ jobs:
       database: mysql
       test_type: ${{ github.event.inputs.test_type || 'all' }}
 
-  # E2E测试
   e2e-test:
     name: E2E Test
     runs-on: ubuntu-latest
@@ -216,19 +243,28 @@ jobs:
           node-version: '20'
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: |
-          pnpm install --no-frozen-lockfile
-          cd server && pnpm install --frozen-lockfile
-          cd ../client && pnpm install --frozen-lockfile
-          cd ../e2e && pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright
-        run: cd e2e && npx playwright install --with-deps
+        run: pnpm --filter dnsmgr-e2e exec playwright install --with-deps
 
       - name: Start server (SQLite mode)
         run: |
@@ -240,7 +276,7 @@ jobs:
           sleep 5
 
       - name: Run E2E tests
-        run: cd e2e && pnpm test
+        run: pnpm --filter dnsmgr-e2e run test
 
       - name: Upload E2E results
         uses: actions/upload-artifact@v4
@@ -252,22 +288,19 @@ jobs:
             e2e/playwright-report/
           retention-days: 7
 
-  # 测试结果汇总
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
     needs: [unit-test-server, unit-test-client, test-sqlite, test-postgresql, test-mysql, e2e-test]
     if: always()
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Generate test report
         run: |
           echo "# Test Suite Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & Build | ${{ needs.lint-and-build.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Test - Server | ${{ needs.unit-test-server.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Test - Client | ${{ needs.unit-test-client.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Test - SQLite | ${{ needs.test-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY

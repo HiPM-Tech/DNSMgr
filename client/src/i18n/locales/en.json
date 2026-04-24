@@ -140,7 +140,9 @@
       "accountNamePlaceholder": "e.g. My Aliyun Account",
       "fieldPlaceholder": "Enter {label}",
       "saveChanges": "Save Changes",
-      "provider": "Provider"
+      "provider": "Provider",
+      "useProxy": "Use Proxy",
+      "useProxyHint": "Access DNS provider API through system proxy"
     },
     "teams": {
       "title": "Teams",
@@ -644,7 +646,10 @@
       "directConnection": "Direct",
       "viaProxy": "Via Proxy",
       "proxy": "Proxy",
-      "saving": "Saving..."
+      "saving": "Saving...",
+      "proxyType": "Proxy Type",
+      "httpProxy": "HTTP(S) Proxy",
+      "socks5Proxy": "SOCKS5 Proxy"
     },
     "nsMonitor": {
       "title": "NS Monitor",
@@ -658,7 +663,13 @@
       "notifications": "Notifications",
       "lastCheck": "Last Check",
       "searchPlaceholder": "Search domains...",
-      "noConfigs": "No monitoring configurations yet. Add monitoring from the domain list.",
+      "noConfigs": "No monitoring configurations yet. Click the button above to add one.",
+      "addMonitor": "Add Monitor",
+      "addSuccess": "Monitor added",
+      "addFailed": "Failed to add monitor",
+      "selectDomain": "Select Domain",
+      "selectDomainPlaceholder": "Select a domain to monitor",
+      "noAvailableDomains": "No available domains (all domains are already being monitored)",
       "editConfig": "Edit Monitoring Config",
       "enableMonitoring": "Enable Monitoring",
       "notifyEmail": "Email Notification",
