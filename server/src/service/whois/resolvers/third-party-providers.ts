@@ -38,13 +38,13 @@ export const THIRD_PARTY_WHOIS_PROVIDERS: ThirdPartyProviderConfig[] = [
  * 用于当官方查询失败时的备选
  */
 export const THIRD_PARTY_RDAP_PROVIDERS: ThirdPartyProviderConfig[] = [
-  // 预留：可添加第三方 RDAP 服务
-  // {
-  //   name: 'third-party-rdap-example',
-  //   suffixes: ['com', 'net', 'org'],
-  //   method: QueryMethodType.RDAP,
-  //   server: 'https://rdap.thirdparty.com/',
-  // },
+  // 第三方 RDAP 服务：rdap-box
+  {
+    name: 'rdap-box',
+    suffixes: ['today'],
+    method: QueryMethodType.RDAP,
+    server: 'https://rdap-box.vercel.app/domain/',
+  },
 ];
 
 /**
