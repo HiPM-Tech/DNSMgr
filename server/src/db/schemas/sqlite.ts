@@ -316,6 +316,23 @@ export const sqliteSchema: SchemaDefinition = {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      domain_id INTEGER NOT NULL,
+      expected_ns TEXT NOT NULL DEFAULT '',
+      current_ns TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing')),
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_check_at TEXT,
+      last_alert_at TEXT,
+      alert_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+      UNIQUE(user_id, domain_id)
     )`
   ],
   createIndexes: [
@@ -331,11 +348,10 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_user_webauthn_credentials_user_id ON user_webauthn_credentials(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_id ON trusted_devices(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_trusted_devices_fingerprint ON trusted_devices(device_fingerprint)`,
-    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_configs_domain_id ON ns_monitor_configs(domain_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_configs_enabled ON ns_monitor_configs(enabled)`,
-    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_status_config_id ON ns_monitor_status(config_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_alerts_config_id ON ns_monitor_alerts(config_id)`,
     `CREATE INDEX IF NOT EXISTS idx_user_ns_monitor_prefs_user_id ON user_ns_monitor_prefs(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_id ON ns_monitor_domains(domain_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`,
   ],
   alterTables: [
     // SQLite 不支持直接修改 CHECK 约束

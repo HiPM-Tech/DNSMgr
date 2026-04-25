@@ -360,6 +360,26 @@ export const mysqlSchema: SchemaDefinition = {
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       INDEX idx_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      domain_id INT NOT NULL,
+      expected_ns TEXT NOT NULL DEFAULT '',
+      current_ns TEXT NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing')),
+      enabled TINYINT NOT NULL DEFAULT 1,
+      last_check_at DATETIME,
+      last_alert_at DATETIME,
+      alert_count INT NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_user_domain (user_id, domain_id),
+      INDEX idx_user_id (user_id),
+      INDEX idx_domain_id (domain_id),
+      INDEX idx_enabled (enabled)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ],
   createIndexes: [

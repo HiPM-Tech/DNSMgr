@@ -346,7 +346,25 @@ export const postgresqlSchema: SchemaDefinition = {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_user_ns_monitor_prefs_user_id ON user_ns_monitor_prefs(user_id)`
+    `CREATE INDEX IF NOT EXISTS idx_user_ns_monitor_prefs_user_id ON user_ns_monitor_prefs(user_id)`,
+    `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      domain_id INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+      expected_ns TEXT NOT NULL DEFAULT '',
+      current_ns TEXT NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing')),
+      enabled BOOLEAN NOT NULL DEFAULT true,
+      last_check_at TIMESTAMP,
+      last_alert_at TIMESTAMP,
+      alert_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, domain_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_id ON ns_monitor_domains(domain_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`
   ],
   createIndexes: [
     // 索引已在 CREATE TABLE 中定义
