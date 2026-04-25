@@ -128,14 +128,28 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         name: keyword
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 20
  *     responses:
  *       200:
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword, domain_type } = req.query as { account_id?: string; keyword?: string; domain_type?: string };
+  const { account_id, keyword, domain_type, page, pageSize } = req.query as { account_id?: string; keyword?: string; domain_type?: string; page?: string; pageSize?: string };
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
+
+  // Pagination params
+  const currentPage = Math.max(1, parseInteger(page) || 1);
+  const size = Math.min(100, Math.max(1, parseInteger(pageSize) || 20));
 
   // Check if using token auth and get allowed domains
   const tokenPayload = (req as any).tokenPayload;
@@ -181,9 +195,16 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     })).then(results => results.filter((d): d is Domain => d !== null));
   }
 
+  // Calculate pagination
+  const total = domains.length;
+  const totalPages = Math.ceil(total / size);
+  const startIndex = (currentPage - 1) * size;
+  const endIndex = Math.min(startIndex + size, total);
+  const paginatedDomains = domains.slice(startIndex, endIndex);
+
   const accountCache = new Map<number, DnsAccount>();
   await Promise.allSettled(
-    domains
+    paginatedDomains
       .filter((domain) => !domain.record_count)
       .map(async (domain) => {
         let account = accountCache.get(domain.account_id);
@@ -206,7 +227,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       })
   );
 
-  sendSuccess(res, domains);
+  sendSuccess(res, { list: paginatedDomains, total, page: currentPage, pageSize: size, totalPages });
 }));
 
 /**

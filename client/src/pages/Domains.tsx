@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ExternalLink, Search, Activity, Layers } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, Search, Activity, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { domainsApi, accountsApi } from '../api';
 import type { Domain, DnsAccount } from '../api';
@@ -11,6 +11,7 @@ import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isApexDomain } from '../utils/domain-utils';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -327,15 +328,32 @@ export function Domains() {
   const [accountFilter, setAccountFilter] = useState('');
   const [keyword, setKeyword] = useState('');
   const [domainTypeFilter, setDomainTypeFilter] = useState<'all' | 'apex' | 'subdomain'>('all');
+  
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const { data: domains = [], isLoading } = useQuery({
-    queryKey: ['domains', accountFilter, keyword, domainTypeFilter],
+  const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
+    queryKey: ['domains', accountFilter, keyword, domainTypeFilter, page, pageSize],
     queryFn: () => domainsApi.list({
       account_id: accountFilter ? Number(accountFilter) : undefined,
       keyword: keyword || undefined,
       domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
-    }).then((r) => r.data.data ?? []),
+      page,
+      pageSize,
+    }).then((r) => {
+      const data = r.data.data;
+      if (data) {
+        setTotal(data.total);
+        setTotalPages(data.totalPages);
+      }
+      return data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 };
+    }),
   });
+
+  const domains = domainsData?.list ?? [];
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts'],
@@ -479,15 +497,15 @@ export function Domains() {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={keyword} onChange={(e) => setKeyword(e.target.value)}
+          <input value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }}
             placeholder={t('domains.searchPlaceholder')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
         </div>
-        <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}
+        <select value={accountFilter} onChange={(e) => { setAccountFilter(e.target.value); setPage(1); }}
           className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
           <option value="">{t('domains.allAccounts')}</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
-        <select value={domainTypeFilter} onChange={(e) => setDomainTypeFilter(e.target.value as 'all' | 'apex' | 'subdomain')}
+        <select value={domainTypeFilter} onChange={(e) => { setDomainTypeFilter(e.target.value as 'all' | 'apex' | 'subdomain'); setPage(1); }}
           className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
           <option value="all">{t('domains.allDomains')}</option>
           <option value="apex">{t('domains.apexDomains')}</option>
@@ -498,6 +516,47 @@ export function Domains() {
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
         <Table columns={columns} data={domains} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.noDomainsFound')} />
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <span>{t('common.total')}: {total} {t('common.items')}</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+            >
+              <option value={10}>10 {t('common.perPage')}</option>
+              <option value={20}>20 {t('common.perPage')}</option>
+              <option value={50}>50 {t('common.perPage')}</option>
+              <option value={100}>100 {t('common.perPage')}</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {t('common.page')} {page} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {showAdd && canManage && (
         <Modal title={t('domains.addDomain')} onClose={() => setShowAdd(false)}>
