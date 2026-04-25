@@ -1,6 +1,6 @@
 /**
  * NS Monitor Job Service
- * NS 监测定时任务服务
+ * NS 监测定时任务服务 - 新架构（用户级）
  */
 
 import { NSMonitorOperations, DomainOperations, AuditOperations, UserOperations, formatDateForDB } from '../db/business-adapter';
@@ -17,25 +17,22 @@ const ALERT_SUPPRESS_MINUTES = 30;
  * 检查是否需要抑制告警（避免重复发送）
  * @returns true 表示需要抑制（不发送），false 表示可以发送
  */
-async function shouldSuppressAlert(configId: number, alertType: string): Promise<boolean> {
+async function shouldSuppressAlert(monitorId: number, alertType: string, lastAlertAt: string | null): Promise<boolean> {
   try {
-    // 获取最近一次的相同类型告警
-    const recentAlerts = await NSMonitorOperations.getRecentAlerts(configId, alertType, 1);
-    if (recentAlerts.length === 0) {
+    if (!lastAlertAt) {
       return false; // 没有历史告警，不需要抑制
     }
 
-    const lastAlert = recentAlerts[0];
-    const lastAlertTime = new Date(lastAlert.created_at as string).getTime();
+    const lastAlertTime = new Date(lastAlertAt).getTime();
     const now = Date.now();
     const suppressTimeMs = ALERT_SUPPRESS_MINUTES * 60 * 1000;
 
     // 如果在抑制时间内，则抑制告警
     if (now - lastAlertTime < suppressTimeMs) {
       log.info('NSMonitorJob', 'Alert suppressed (recent alert exists)', {
-        configId,
+        monitorId,
         alertType,
-        lastAlertTime: lastAlert.created_at,
+        lastAlertAt,
         suppressMinutes: ALERT_SUPPRESS_MINUTES,
       });
       return true;
@@ -43,7 +40,7 @@ async function shouldSuppressAlert(configId: number, alertType: string): Promise
 
     return false;
   } catch (error) {
-    log.error('NSMonitorJob', 'Failed to check alert suppression', { configId, alertType, error });
+    log.error('NSMonitorJob', 'Failed to check alert suppression', { monitorId, alertType, error });
     return false; // 出错时不抑制，确保告警能被发送
   }
 }
@@ -52,11 +49,11 @@ async function shouldSuppressAlert(configId: number, alertType: string): Promise
  * 记录NS告警到审计日志
  */
 async function logNsAlertToAudit(
-  config: {
+  monitor: {
     id: number;
     domain_id: number;
     domain_name: string;
-    created_by?: number;
+    user_id?: number;
   },
   status: 'mismatch' | 'missing',
   currentNs: string[],
@@ -65,26 +62,26 @@ async function logNsAlertToAudit(
   try {
     const alertTypeText = status === 'mismatch' ? 'NS记录不匹配' : 'NS记录缺失';
     const details = JSON.stringify({
-      domain: config.domain_name,
+      domain: monitor.domain_name,
       alertType: status,
       currentNs: currentNs.join(', ') || '无',
       expectedNs: expectedNs.join(', ') || '未配置',
-      configId: config.id,
+      monitorId: monitor.id,
     });
 
     // 使用系统用户ID (0) 或者配置的创建者ID
-    const userId = config.created_by || 0;
+    const userId = monitor.user_id || 0;
 
     await AuditOperations.log({
       user_id: userId,
       action: `ns_monitor_alert_${status}`,
       target_type: 'domain',
-      target_id: config.domain_id.toString(),
-      details: `${alertTypeText}: ${config.domain_name} - ${details}`,
+      target_id: monitor.domain_id.toString(),
+      details: `${alertTypeText}: ${monitor.domain_name} - ${details}`,
     });
 
     log.info('NSMonitorJob', 'NS alert logged to audit', {
-      domain: config.domain_name,
+      domain: monitor.domain_name,
       status,
       userId,
     });
@@ -96,25 +93,25 @@ async function logNsAlertToAudit(
 /**
  * 检查单个域名的 NS 记录
  */
-async function checkDomainNs(config: {
+async function checkDomainNs(monitor: {
   id: number;
   domain_id: number;
   domain_name: string;
   expected_ns: string;
-  notify_email: number | boolean;
-  notify_channels: number | boolean;
-  created_by?: number;
-  isAdmin?: boolean;
+  user_id: number;
+  status: string;
+  alert_count: number;
+  last_alert_at: string | null;
 }): Promise<void> {
   try {
-    log.info('NSMonitorJob', 'Checking NS records', { domain: config.domain_name, configId: config.id });
+    log.info('NSMonitorJob', 'Checking NS records', { domain: monitor.domain_name, monitorId: monitor.id });
 
     // 查询当前 NS 记录
-    const currentNs = await resolveNsRecords(config.domain_name);
+    const currentNs = await resolveNsRecords(monitor.domain_name);
     const currentNsStr = currentNs.join(', ');
 
     // 解析预期的 NS 记录
-    const expectedNs = (config.expected_ns as string) || '';
+    const expectedNs = (monitor.expected_ns as string) || '';
     const expectedList = expectedNs.split(',').map(s => s.trim()).filter(Boolean);
 
     // 确定状态
@@ -124,62 +121,49 @@ async function checkDomainNs(config: {
     const now = new Date();
     const nowStr = formatDateForDB(now);
 
-    // 获取当前状态
-    const existingStatus = await NSMonitorOperations.getStatus(config.id);
-
     // 更新状态
-    await NSMonitorOperations.updateStatus(config.id, {
+    await NSMonitorOperations.updateStatus(monitor.id, {
       current_ns: currentNsStr,
       status,
       last_check_at: nowStr,
     });
 
     // 如果状态异常且与上次不同，发送告警
-    if (status !== 'ok' && (!existingStatus || existingStatus.status !== status)) {
+    if (status !== 'ok' && monitor.status !== status) {
       log.warn('NSMonitorJob', 'NS record anomaly detected', {
-        domain: config.domain_name,
+        domain: monitor.domain_name,
         status,
         current: currentNs,
         expected: expectedList,
       });
 
       // 记录告警到审计日志
-      await logNsAlertToAudit(config, status, currentNs, expectedList);
+      await logNsAlertToAudit(monitor, status, currentNs, expectedList);
 
       // 检查是否需要抑制告警
-      const isSuppressed = await shouldSuppressAlert(config.id, status);
+      const isSuppressed = await shouldSuppressAlert(monitor.id, status, monitor.last_alert_at);
 
-      // 记录告警到数据库
-      await NSMonitorOperations.createAlert({
-        config_id: config.id,
-        alert_type: status,
-        expected_ns: expectedNs,
-        actual_ns: currentNsStr,
-        sent_email: 0,
-        sent_channels: 0,
-      });
-
-      // 更新告警计数
-      const alertCount = (existingStatus?.alert_count as number) || 0;
-      await NSMonitorOperations.updateStatus(config.id, {
+      // 更新告警计数和时间
+      const alertCount = monitor.alert_count || 0;
+      await NSMonitorOperations.updateStatus(monitor.id, {
         alert_count: alertCount + 1,
         last_alert_at: nowStr,
       });
 
       // 发送通知（如果被抑制则不发送）
       if (!isSuppressed) {
-        await sendNsAlert(config, status, currentNs, expectedList);
+        await sendNsAlert(monitor, status, currentNs, expectedList);
       }
     }
 
     log.info('NSMonitorJob', 'NS check completed', {
-      domain: config.domain_name,
+      domain: monitor.domain_name,
       status,
       currentNs: currentNsStr,
     });
   } catch (error) {
     log.error('NSMonitorJob', 'Failed to check NS records', {
-      domain: config.domain_name,
+      domain: monitor.domain_name,
       error,
     });
   }
@@ -190,22 +174,19 @@ async function checkDomainNs(config: {
  * 使用用户的通知偏好设置，邮件发送至用户自己的邮箱
  */
 async function sendNsAlert(
-  config: {
+  monitor: {
     id: number;
     domain_name: string;
-    notify_email: number | boolean;
-    notify_channels: number | boolean;
-    created_by?: number;
-    isAdmin?: boolean;
+    user_id: number;
   },
   status: 'mismatch' | 'missing',
   currentNs: string[],
   expectedNs: string[]
 ): Promise<void> {
   const alertTypeText = status === 'mismatch' ? 'NS 记录不匹配' : 'NS 记录缺失';
-  const title = `【DNSMgr 告警】${config.domain_name} ${alertTypeText}`;
+  const title = `【DNSMgr 告警】${monitor.domain_name} ${alertTypeText}`;
 
-  const message = `域名: ${config.domain_name}\n` +
+  const message = `域名: ${monitor.domain_name}\n` +
     `告警类型: ${alertTypeText}\n` +
     `当前 NS: ${currentNs.join(', ') || '无'}\n` +
     `预期 NS: ${expectedNs.join(', ') || '未配置'}\n` +
@@ -213,7 +194,7 @@ async function sendNsAlert(
 
   try {
     // 获取用户的通知偏好设置
-    const userId = config.created_by;
+    const userId = monitor.user_id;
     let shouldSendEmail = false;
     let shouldSendChannels = false;
 
@@ -228,14 +209,14 @@ async function sendNsAlert(
         shouldSendChannels = true;
       }
     } else {
-      // 没有创建者信息，使用配置中的设置（向后兼容）
-      shouldSendEmail = config.notify_email === 1 || config.notify_email === true;
-      shouldSendChannels = config.notify_channels === 1 || config.notify_channels === true;
+      // 没有创建者信息，默认启用
+      shouldSendEmail = true;
+      shouldSendChannels = true;
     }
 
     // 生成 HTML 格式的消息
     const htmlMessage = `<h3>${title}</h3>
-<p><strong>域名:</strong> ${config.domain_name}</p>
+<p><strong>域名:</strong> ${monitor.domain_name}</p>
 <p><strong>告警类型:</strong> ${alertTypeText}</p>
 <p><strong>当前 NS:</strong> ${currentNs.join(', ') || '无'}</p>
 <p><strong>预期 NS:</strong> ${expectedNs.join(', ') || '未配置'}</p>
@@ -249,26 +230,26 @@ async function sendNsAlert(
           const emailSent = await sendEmailToUser(user.email as string, title, message, htmlMessage);
           if (emailSent) {
             log.info('NSMonitorJob', 'Email notification sent to user', {
-              domain: config.domain_name,
+              domain: monitor.domain_name,
               userId,
               email: user.email,
             });
           } else {
             log.warn('NSMonitorJob', 'Failed to send email notification to user', {
-              domain: config.domain_name,
+              domain: monitor.domain_name,
               userId,
               email: user.email,
             });
           }
         } else {
           log.warn('NSMonitorJob', 'User has no email configured, skipping email notification', {
-            domain: config.domain_name,
+            domain: monitor.domain_name,
             userId,
           });
         }
       } catch (emailError) {
         log.warn('NSMonitorJob', 'Error sending email to user', {
-          domain: config.domain_name,
+          domain: monitor.domain_name,
           userId,
           error: emailError,
         });
@@ -280,13 +261,13 @@ async function sendNsAlert(
       try {
         await sendNotification(title, message, htmlMessage);
         log.info('NSMonitorJob', 'Channel notification sent', {
-          domain: config.domain_name,
+          domain: monitor.domain_name,
           status,
           userId,
         });
       } catch (channelError) {
         log.warn('NSMonitorJob', 'Error sending channel notification', {
-          domain: config.domain_name,
+          domain: monitor.domain_name,
           userId,
           error: channelError,
         });
@@ -295,13 +276,13 @@ async function sendNsAlert(
 
     if (!shouldSendEmail && !shouldSendChannels) {
       log.info('NSMonitorJob', 'Notification skipped (disabled in user preferences)', {
-        domain: config.domain_name,
+        domain: monitor.domain_name,
         userId,
       });
     }
   } catch (error) {
     log.error('NSMonitorJob', 'Failed to send alert notification', {
-      domain: config.domain_name,
+      domain: monitor.domain_name,
       error,
     });
   }
@@ -315,32 +296,27 @@ async function runNsMonitorJob(): Promise<void> {
     log.info('NSMonitorJob', 'Starting NS monitor job');
 
     // 获取所有启用的监测配置
-    const configs = await NSMonitorOperations.getAllEnabled() as unknown as Array<{
+    const monitors = await NSMonitorOperations.getAllEnabled() as unknown as Array<{
       id: number;
       domain_id: number;
       domain_name: string;
       expected_ns: string;
-      notify_email: number | boolean;
-      notify_channels: number | boolean;
-      created_by: number;
-      creator_role: string;
+      user_id: number;
+      status: string;
+      alert_count: number;
+      last_alert_at: string | null;
     }>;
 
-    if (configs.length === 0) {
+    if (monitors.length === 0) {
       log.info('NSMonitorJob', 'No enabled NS monitor configurations');
       return;
     }
 
-    log.info('NSMonitorJob', `Checking ${configs.length} domains`);
+    log.info('NSMonitorJob', `Checking ${monitors.length} domains`);
 
     // 逐个检查
-    for (const config of configs) {
-      // 判断创建者是否为管理员
-      const isAdmin = config.creator_role === 'super' || config.creator_role === 'admin';
-      await checkDomainNs({
-        ...config,
-        isAdmin,
-      });
+    for (const monitor of monitors) {
+      await checkDomainNs(monitor);
     }
 
     log.info('NSMonitorJob', 'NS monitor job completed');
