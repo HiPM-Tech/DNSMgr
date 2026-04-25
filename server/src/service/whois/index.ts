@@ -55,8 +55,8 @@ export {
   findRdapServerForDomain,
   refreshRdapServerList,
   getCacheStatus,
+  initRdapServerList,
   type RdapServerConfig,
-  type RdapCache,
 } from './rdap-server-list';
 
 // 导出第三方查询服务器
