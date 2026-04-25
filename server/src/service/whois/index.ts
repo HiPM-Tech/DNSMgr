@@ -170,118 +170,41 @@ class WhoisService {
       return cached;
     }
 
-    let result: WhoisResult | null = null;
-    let apexResult: WhoisResult | null = null;
-
     // 获取根域名
     const rootDomain = getRootDomain(domain);
     const isSubdomain = domain !== rootDomain;
 
-    // ========== 1. 顶域查询（同时获取顶域到期时间作为参考） ==========
+    // 如果是顶域，直接查询顶域
+    if (!isSubdomain) {
+      return this.queryApexOnly(domain, timeout);
+    }
 
-    // 1.1 顶域RDAP 并行查询
-    log.info('WhoisService', `[APEX+RDAP+PARALLEL] Starting parallel RDAP queries for ${rootDomain}`);
-    apexResult = await this.queryApexRdapParallel(rootDomain, timeout);
+    // ========== 子域名：顶域和子域并行查询 ==========
+    log.info('WhoisService', `[PARALLEL] Starting parallel apex and subdomain queries for ${domain}`);
+
+    // 并行启动顶域查询和子域查询
+    const apexPromise = this.queryApexCombined(rootDomain, timeout);
+    const subdomainPromise = preferSubdomain
+      ? this.querySubdomainCombined(domain, timeout)
+      : Promise.resolve(null);
+
+    // 等待两个查询完成
+    const [apexResult, subdomainResult] = await Promise.all([apexPromise, subdomainPromise]);
+
+    // 如果子域查询成功，返回子域结果（包含顶域到期时间）
+    if (subdomainResult?.expiryDate) {
+      if (apexResult?.expiryDate) {
+        subdomainResult.apexExpiryDate = apexResult.expiryDate;
+        subdomainResult.apexRegistrar = apexResult.registrar;
+      }
+      this.setCached(domain, subdomainResult);
+      log.info('WhoisService', `[SUCCESS] Subdomain query succeeded for ${domain}`);
+      return subdomainResult;
+    }
+
+    // 如果子域查询失败但顶域查询成功，返回顶域结果
     if (apexResult?.expiryDate) {
-      // 如果查询的是顶域本身，直接返回
-      if (!isSubdomain) {
-        this.setCached(domain, apexResult);
-        return apexResult;
-      }
-    }
-
-    // 1.2 顶域WHOIS 并行查询
-    if (!apexResult?.expiryDate) {
-      log.info('WhoisService', `[APEX+WHOIS+PARALLEL] Starting parallel WHOIS queries for ${rootDomain}`);
-      apexResult = await this.queryApexWhoisParallel(rootDomain, timeout);
-      if (apexResult?.expiryDate && !isSubdomain) {
-        this.setCached(domain, apexResult);
-        return apexResult;
-      }
-    }
-
-    // ========== 2. 子域查询（如果是子域名） ==========
-    if (preferSubdomain && isSubdomain) {
-      // 2.1 子域RDAP 并行查询（注册的提供商）
-      log.info('WhoisService', `[SUBDOMAIN+RDAP+PARALLEL] Starting parallel subdomain RDAP queries for ${domain}`);
-      result = await this.querySubdomainRdapParallel(domain, timeout);
-      if (result?.expiryDate) {
-        // 合并顶域到期时间
-        if (apexResult?.expiryDate) {
-          result.apexExpiryDate = apexResult.expiryDate;
-          result.apexRegistrar = apexResult.registrar;
-        }
-        this.setCached(domain, result);
-        return result;
-      }
-
-      // 2.2 子域WHOIS 并行查询（注册的提供商）
-      log.info('WhoisService', `[SUBDOMAIN+WHOIS+PARALLEL] Starting parallel subdomain WHOIS queries for ${domain}`);
-      result = await this.querySubdomainWhoisParallel(domain, timeout);
-      if (result?.expiryDate) {
-        if (apexResult?.expiryDate) {
-          result.apexExpiryDate = apexResult.expiryDate;
-          result.apexRegistrar = apexResult.registrar;
-        }
-        this.setCached(domain, result);
-        return result;
-      }
-
-      // 2.3 子域RDAP 并行平级查询（使用子域提供商无视域名匹配进行查询）
-      log.info('WhoisService', `[SUBDOMAIN+RDAP+UPLEVEL] Starting parallel uplevel RDAP queries for ${domain}`);
-      result = await this.queryUplevelRdapParallel(domain, timeout);
-      if (result?.expiryDate) {
-        if (apexResult?.expiryDate) {
-          result.apexExpiryDate = apexResult.expiryDate;
-          result.apexRegistrar = apexResult.registrar;
-        }
-        this.setCached(domain, result);
-        return result;
-      }
-
-      // 2.4 子域WHOIS 并行平级查询（使用子域提供商无视域名匹配进行查询）
-      log.info('WhoisService', `[SUBDOMAIN+WHOIS+UPLEVEL] Starting parallel uplevel WHOIS queries for ${domain}`);
-      result = await this.queryUplevelWhoisParallel(domain, timeout);
-      if (result?.expiryDate) {
-        if (apexResult?.expiryDate) {
-          result.apexExpiryDate = apexResult.expiryDate;
-          result.apexRegistrar = apexResult.registrar;
-        }
-        this.setCached(domain, result);
-        return result;
-      }
-    }
-
-    // ========== 3. 第三方查询（最后备选） ==========
-
-    // 3.1 第三方RDAP 并行查询
-    log.info('WhoisService', `[THIRDPARTY+RDAP+PARALLEL] Starting parallel third-party RDAP queries for ${domain}`);
-    result = await this.queryThirdPartyRdapParallel(domain, timeout);
-    if (result?.expiryDate) {
-      if (isSubdomain && apexResult?.expiryDate) {
-        result.apexExpiryDate = apexResult.expiryDate;
-        result.apexRegistrar = apexResult.registrar;
-      }
-      this.setCached(domain, result);
-      return result;
-    }
-
-    // 3.2 第三方WHOIS 并行查询
-    log.info('WhoisService', `[THIRDPARTY+WHOIS+PARALLEL] Starting parallel third-party WHOIS queries for ${domain}`);
-    result = await this.queryThirdPartyWhoisParallel(domain, timeout);
-    if (result?.expiryDate) {
-      if (isSubdomain && apexResult?.expiryDate) {
-        result.apexExpiryDate = apexResult.expiryDate;
-        result.apexRegistrar = apexResult.registrar;
-      }
-      this.setCached(domain, result);
-      return result;
-    }
-
-    // 如果子域名查询失败但顶域查询成功，创建子域名结果（使用顶域到期时间）
-    if (isSubdomain && apexResult?.expiryDate) {
-      log.info('WhoisService', `Subdomain query failed, using apex domain expiry for ${domain}`);
-      const subdomainResult: WhoisResult = {
+      const result: WhoisResult = {
         domain,
         expiryDate: apexResult.expiryDate,
         registrar: apexResult.registrar,
@@ -290,11 +213,111 @@ class WhoisService {
         apexExpiryDate: apexResult.expiryDate,
         apexRegistrar: apexResult.registrar,
       };
-      this.setCached(domain, subdomainResult);
-      return subdomainResult;
+      this.setCached(domain, result);
+      log.info('WhoisService', `[FALLBACK] Using apex domain expiry for ${domain}`);
+      return result;
     }
 
-    log.warn('WhoisService', `All queries failed for ${domain}`);
+    // ========== 3. 第三方查询（最后备选） ==========
+    log.info('WhoisService', `[THIRDPARTY] Starting third-party queries for ${domain}`);
+
+    let result = await this.queryThirdPartyRdapParallel(domain, timeout);
+    if (!result?.expiryDate) {
+      result = await this.queryThirdPartyWhoisParallel(domain, timeout);
+    }
+
+    if (result?.expiryDate) {
+      this.setCached(domain, result);
+      log.info('WhoisService', `[SUCCESS] Third-party query succeeded for ${domain}`);
+      return result;
+    }
+
+    log.warn('WhoisService', `[FAILED] All queries failed for ${domain}`);
+    return null;
+  }
+
+  /**
+   * 仅查询顶域（用于顶域名本身）
+   */
+  private async queryApexOnly(domain: string, timeout: number): Promise<WhoisResult | null> {
+    log.info('WhoisService', `[APEX-ONLY] Querying apex domain ${domain}`);
+
+    let result = await this.queryApexRdapParallel(domain, timeout);
+    if (!result?.expiryDate) {
+      result = await this.queryApexWhoisParallel(domain, timeout);
+    }
+
+    if (result?.expiryDate) {
+      this.setCached(domain, result);
+      log.info('WhoisService', `[SUCCESS] Apex query succeeded for ${domain}`);
+      return result;
+    }
+
+    // 尝试第三方
+    result = await this.queryThirdPartyRdapParallel(domain, timeout);
+    if (!result?.expiryDate) {
+      result = await this.queryThirdPartyWhoisParallel(domain, timeout);
+    }
+
+    if (result?.expiryDate) {
+      this.setCached(domain, result);
+      return result;
+    }
+
+    return null;
+  }
+
+  /**
+   * 组合查询顶域（RDAP + WHOIS）
+   */
+  private async queryApexCombined(domain: string, timeout: number): Promise<WhoisResult | null> {
+    log.info('WhoisService', `[APEX-COMBINED] Starting combined apex queries for ${domain}`);
+
+    // 并行查询 RDAP 和 WHOIS
+    const rdapPromise = this.queryApexRdapParallel(domain, timeout);
+    const whoisPromise = this.queryApexWhoisParallel(domain, timeout);
+
+    // 使用 Promise.race 获取最快的结果
+    const rdapResult = await rdapPromise;
+    if (rdapResult?.expiryDate) {
+      log.info('WhoisService', `[APEX-COMBINED] RDAP won for ${domain}`);
+      return rdapResult;
+    }
+
+    const whoisResult = await whoisPromise;
+    if (whoisResult?.expiryDate) {
+      log.info('WhoisService', `[APEX-COMBINED] WHOIS won for ${domain}`);
+      return whoisResult;
+    }
+
+    return null;
+  }
+
+  /**
+   * 组合查询子域（所有子域查询方式）
+   */
+  private async querySubdomainCombined(domain: string, timeout: number): Promise<WhoisResult | null> {
+    log.info('WhoisService', `[SUBDOMAIN-COMBINED] Starting combined subdomain queries for ${domain}`);
+
+    // 并行启动所有子域查询
+    const promises = [
+      this.querySubdomainRdapParallel(domain, timeout),
+      this.querySubdomainWhoisParallel(domain, timeout),
+      this.queryUplevelRdapParallel(domain, timeout),
+      this.queryUplevelWhoisParallel(domain, timeout),
+    ];
+
+    // 等待所有查询完成，取第一个成功的结果
+    const results = await Promise.all(promises);
+
+    for (let i = 0; i < results.length; i++) {
+      if (results[i]?.expiryDate) {
+        const methods = ['Subdomain-RDAP', 'Subdomain-WHOIS', 'Uplevel-RDAP', 'Uplevel-WHOIS'];
+        log.info('WhoisService', `[SUBDOMAIN-COMBINED] ${methods[i]} won for ${domain}`);
+        return results[i];
+      }
+    }
+
     return null;
   }
 
