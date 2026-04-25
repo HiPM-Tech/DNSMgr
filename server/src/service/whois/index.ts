@@ -219,17 +219,39 @@ class WhoisService {
     }
 
     // ========== 3. 第三方查询（最后备选） ==========
-    // 使用根域名查询第三方，因为子域名通常没有独立的 WHOIS 记录
-    log.info('WhoisService', `[THIRDPARTY] Starting third-party queries for ${rootDomain}`);
+    // 同时查询根域名和子域名，合并结果
+    log.info('WhoisService', `[THIRDPARTY] Starting third-party queries for ${domain} (root: ${rootDomain})`);
 
-    let result = await this.queryThirdPartyRdapParallel(rootDomain, timeout);
-    if (!result?.expiryDate) {
-      result = await this.queryThirdPartyWhoisParallel(rootDomain, timeout);
+    // 并行查询根域名和子域名
+    const [rootResult, subdomainResult] = await Promise.all([
+      this.queryThirdPartyRdapParallel(rootDomain, timeout).then(r => r || this.queryThirdPartyWhoisParallel(rootDomain, timeout)),
+      domain !== rootDomain ? this.queryThirdPartyRdapParallel(domain, timeout).then(r => r || this.queryThirdPartyWhoisParallel(domain, timeout)) : Promise.resolve(null),
+    ]);
+
+    // 优先使用子域名结果，但继承根域名的到期时间
+    if (subdomainResult?.expiryDate) {
+      if (rootResult?.expiryDate) {
+        subdomainResult.apexExpiryDate = rootResult.expiryDate;
+        subdomainResult.apexRegistrar = rootResult.registrar;
+      }
+      this.setCached(domain, subdomainResult);
+      log.info('WhoisService', `[SUCCESS] Third-party subdomain query succeeded for ${domain}`);
+      return subdomainResult;
     }
 
-    if (result?.expiryDate) {
+    // 如果子域名查询失败，使用根域名结果
+    if (rootResult?.expiryDate) {
+      const result: WhoisResult = {
+        domain,
+        expiryDate: rootResult.expiryDate,
+        registrar: rootResult.registrar,
+        nameServers: rootResult.nameServers,
+        raw: rootResult.raw,
+        apexExpiryDate: rootResult.expiryDate,
+        apexRegistrar: rootResult.registrar,
+      };
       this.setCached(domain, result);
-      log.info('WhoisService', `[SUCCESS] Third-party query succeeded for ${domain}`);
+      log.info('WhoisService', `[SUCCESS] Third-party root domain query succeeded for ${domain}`);
       return result;
     }
 
