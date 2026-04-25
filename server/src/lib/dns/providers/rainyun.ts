@@ -1,5 +1,5 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { Dict, normalizeRrName, safeString, BaseAdapter, toNumber } from './common';
+import { asArray, BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber, toRecordStatus } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -129,6 +129,14 @@ export class RainyunAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Rainyun');
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 100,
@@ -140,14 +148,15 @@ export class RainyunAdapter extends BaseAdapter {
     status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
       const res = await this.request<{
         data: RainyunRecord[];
         total: number;
-      }>(`/product/domain/${this.config.domainId}/dns/?limit=${pageSize}&page_no=${page}`, 'GET');
+      }>(`/product/domain/${domainId}/dns/?limit=${pageSize}&page_no=${page}`, 'GET');
 
       if (res.code !== 200 || !res.data) {
         return { total: 0, list: [] };
@@ -195,13 +204,14 @@ export class RainyunAdapter extends BaseAdapter {
 
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
       const res = await this.request<{
         data: RainyunRecord[];
-      }>(`/product/domain/${this.config.domainId}/dns/`, 'GET');
+      }>(`/product/domain/${domainId}/dns/`, 'GET');
 
       if (res.code !== 200 || !res.data) {
         return null;
@@ -230,7 +240,8 @@ export class RainyunAdapter extends BaseAdapter {
     _remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
@@ -247,7 +258,7 @@ export class RainyunAdapter extends BaseAdapter {
       }
 
       const res = await this.request<{ record_id: number }>(
-        `/product/domain/${this.config.domainId}/dns`,
+        `/product/domain/${domainId}/dns`,
         'POST',
         body
       );
@@ -275,7 +286,8 @@ export class RainyunAdapter extends BaseAdapter {
     _remark?: string
   ): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
@@ -293,7 +305,7 @@ export class RainyunAdapter extends BaseAdapter {
       }
 
       const res = await this.request<Dict>(
-        `/product/domain/${this.config.domainId}/dns`,
+        `/product/domain/${domainId}/dns`,
         'PATCH',
         body
       );
@@ -307,12 +319,13 @@ export class RainyunAdapter extends BaseAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
       const res = await this.request<Dict>(
-        `/product/domain/${this.config.domainId}/dns/`,
+        `/product/domain/${domainId}/dns/`,
         'DELETE',
         {
           record_id: toNumber(recordId, 0),

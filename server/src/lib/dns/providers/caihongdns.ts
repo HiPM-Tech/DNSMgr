@@ -2,6 +2,7 @@ import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { log } from '../../logger';
 import crypto from 'crypto';
 import { fetchWithFallback } from '../../proxy-http';
+import { resolveDomainIdHelper } from './common';
 
 interface CaihongDnsConfig {
   baseUrl: string;
@@ -194,6 +195,14 @@ export class CaihongDnsAdapter implements DnsAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'CaihongDns');
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 100,
@@ -205,7 +214,8 @@ export class CaihongDnsAdapter implements DnsAdapter {
     status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return { total: 0, list: [] };
       }
@@ -221,7 +231,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
       if (type) body.type = type;
       if (status !== undefined) body.status = String(status);
 
-      const res = await this.request<CaihongDnsRecord[]>('POST', `/record/data/${this.config.domainId}`, body);
+      const res = await this.request<CaihongDnsRecord[]>('POST', `/record/data/${domainId}`, body);
 
       // Check for error
       if (res.code !== undefined && res.code !== 0) {
@@ -262,13 +272,14 @@ export class CaihongDnsAdapter implements DnsAdapter {
 
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return null;
       }
 
       // 从列表中查找
-      const res = await this.request<CaihongDnsRecord[]>('POST', `/record/data/${this.config.domainId}`, {
+      const res = await this.request<CaihongDnsRecord[]>('POST', `/record/data/${domainId}`, {
         offset: 0,
         limit: 1000,
       });
@@ -297,7 +308,8 @@ export class CaihongDnsAdapter implements DnsAdapter {
     remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return null;
       }
@@ -313,7 +325,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
       if (weight !== undefined) body.weight = weight;
       if (remark) body.remark = remark;
 
-      const res = await this.request<null>('POST', `/record/add/${this.config.domainId}`, body);
+      const res = await this.request<null>('POST', `/record/add/${domainId}`, body);
 
       if (res.code !== undefined && res.code !== 0) {
         return null;
@@ -341,7 +353,8 @@ export class CaihongDnsAdapter implements DnsAdapter {
     remark?: string
   ): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return false;
       }
@@ -358,7 +371,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
       if (weight !== undefined) body.weight = weight;
       if (remark) body.remark = remark;
 
-      const res = await this.request<null>('POST', `/record/update/${this.config.domainId}`, body);
+      const res = await this.request<null>('POST', `/record/update/${domainId}`, body);
       return res.code === undefined || res.code === 0;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -368,12 +381,13 @@ export class CaihongDnsAdapter implements DnsAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return false;
       }
 
-      const res = await this.request<null>('POST', `/record/delete/${this.config.domainId}`, {
+      const res = await this.request<null>('POST', `/record/delete/${domainId}`, {
         recordid: recordId,
       });
       return res.code === undefined || res.code === 0;
@@ -385,12 +399,13 @@ export class CaihongDnsAdapter implements DnsAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return false;
       }
 
-      const res = await this.request<null>('POST', `/record/status/${this.config.domainId}`, {
+      const res = await this.request<null>('POST', `/record/status/${domainId}`, {
         recordid: recordId,
         status: status === 1 ? '1' : '0',
       });

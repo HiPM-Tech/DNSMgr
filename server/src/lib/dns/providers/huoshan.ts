@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -191,6 +191,14 @@ export class HuoshanAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID (Zone ID)
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Huoshan');
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 20,
@@ -202,11 +210,12 @@ export class HuoshanAdapter extends BaseAdapter {
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
-      const params: Dict = { ZID: toNumber(this.config.domainId, 0), PageNumber: page, PageSize: pageSize, SearchOrder: 'desc' };
+      const params: Dict = { ZID: toNumber(domainId, 0), PageNumber: page, PageSize: pageSize, SearchOrder: 'desc' };
 
       if (subdomain || type || line || value) {
         params.Host = subdomain;
@@ -251,12 +260,13 @@ export class HuoshanAdapter extends BaseAdapter {
     remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
       const params: Dict = {
-        ZID: toNumber(this.config.domainId, 0),
+        ZID: toNumber(domainId, 0),
         Host: name,
         Type: this.convertType(type),
         Value: type === 'MX' ? `${mx} ${value}` : value,
@@ -389,11 +399,12 @@ export class HuoshanAdapter extends BaseAdapter {
     if (this.domainInfo) {
       return this.domainInfo;
     }
-    if (!this.config.domainId) {
+    const domainId = await this.resolveDomainId();
+    if (!domainId) {
       return null;
     }
     try {
-      const data = await this.client.request<Dict>('GET', 'QueryZone', { ZID: toNumber(this.config.domainId, 0) });
+      const data = await this.client.request<Dict>('GET', 'QueryZone', { ZID: toNumber(domainId, 0) });
       this.domainInfo = data;
       return data;
     } catch (e) {

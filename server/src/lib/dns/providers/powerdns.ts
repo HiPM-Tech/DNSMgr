@@ -1,5 +1,5 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -117,6 +117,14 @@ export class PowerdnsAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID (Zone ID)
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Powerdns');
+  }
+
   async getDomainRecords(
     _page = 1,
     _pageSize = 20,
@@ -128,11 +136,12 @@ export class PowerdnsAdapter extends BaseAdapter {
     status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
-      const data = await this.request<{ rrsets: Rrset[] }>('GET', `/servers/${this.config.serverId}/zones/${this.config.domainId}`);
+      const data = await this.request<{ rrsets: Rrset[] }>('GET', `/servers/${this.config.serverId}/zones/${domainId}`);
       this.rrsetsCache = data.rrsets || [];
 
       let rrsetId = 0;
@@ -216,7 +225,8 @@ export class PowerdnsAdapter extends BaseAdapter {
     remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
@@ -232,7 +242,7 @@ export class PowerdnsAdapter extends BaseAdapter {
       }
 
       const records = [{ content: recordValue, disabled: false }];
-      await this.rrsetReplace(name, type, ttl, records, remark);
+      await this.rrsetReplace(name, type, ttl, records, remark, domainId);
       return 'success';
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -252,7 +262,8 @@ export class PowerdnsAdapter extends BaseAdapter {
     remark?: string
   ): Promise<boolean> {
     try {
-      if (!this.config.domainId || !this.rrsetsCache) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId || !this.rrsetsCache) {
         return false;
       }
 
@@ -285,7 +296,7 @@ export class PowerdnsAdapter extends BaseAdapter {
             this.error = '记录不存在';
             return false;
           }
-          await this.rrsetReplace(rrset.host || '', rrset.type, ttl, rrset.records, remark);
+          await this.rrsetReplace(rrset.host || '', rrset.type, ttl, rrset.records, remark, domainId);
           return true;
         }
       }
@@ -300,7 +311,8 @@ export class PowerdnsAdapter extends BaseAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      if (!this.config.domainId || !this.rrsetsCache) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId || !this.rrsetsCache) {
         return false;
       }
 
@@ -325,9 +337,9 @@ export class PowerdnsAdapter extends BaseAdapter {
           }
 
           if (rrset.records.length > 0) {
-            await this.rrsetReplace(rrset.host || '', rrset.type, rrset.ttl, rrset.records);
+            await this.rrsetReplace(rrset.host || '', rrset.type, rrset.ttl, rrset.records, undefined, domainId);
           } else {
-            await this.rrsetDelete(rrset.host || '', rrset.type);
+            await this.rrsetDelete(rrset.host || '', rrset.type, domainId);
           }
           return true;
         }
@@ -343,7 +355,8 @@ export class PowerdnsAdapter extends BaseAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
-      if (!this.config.domainId || !this.rrsetsCache) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId || !this.rrsetsCache) {
         return false;
       }
 
@@ -365,7 +378,7 @@ export class PowerdnsAdapter extends BaseAdapter {
             this.error = '记录不存在';
             return false;
           }
-          await this.rrsetReplace(rrset.host || '', rrset.type, rrset.ttl, rrset.records);
+          await this.rrsetReplace(rrset.host || '', rrset.type, rrset.ttl, rrset.records, undefined, domainId);
           return true;
         }
       }
@@ -404,8 +417,12 @@ export class PowerdnsAdapter extends BaseAdapter {
     }
   }
 
-  private async rrsetReplace(host: string, type: string, ttl: number, records: Array<{ content: string; disabled: boolean }>, remark?: string): Promise<void> {
-    const name = host === '@' ? this.config.domainId : `${host}.${this.config.domainId}`;
+  private async rrsetReplace(host: string, type: string, ttl: number, records: Array<{ content: string; disabled: boolean }>, remark?: string, domainId?: string): Promise<void> {
+    const zoneId = domainId || this.config.domainId;
+    if (!zoneId) {
+      throw new Error('Domain ID not set');
+    }
+    const name = host === '@' ? zoneId : `${host}.${zoneId}`;
     const rrset: Dict = {
       name,
       type,
@@ -417,12 +434,16 @@ export class PowerdnsAdapter extends BaseAdapter {
     if (remark) {
       rrset.comments = [{ account: '', content: remark }];
     }
-    await this.request('PATCH', `/servers/${this.config.serverId}/zones/${this.config.domainId}`, { rrsets: [rrset] });
+    await this.request('PATCH', `/servers/${this.config.serverId}/zones/${zoneId}`, { rrsets: [rrset] });
   }
 
-  private async rrsetDelete(host: string, type: string): Promise<void> {
-    const name = host === '@' ? this.config.domainId : `${host}.${this.config.domainId}`;
-    await this.request('PATCH', `/servers/${this.config.serverId}/zones/${this.config.domainId}`, {
+  private async rrsetDelete(host: string, type: string, domainId?: string): Promise<void> {
+    const zoneId = domainId || this.config.domainId;
+    if (!zoneId) {
+      throw new Error('Domain ID not set');
+    }
+    const name = host === '@' ? zoneId : `${host}.${zoneId}`;
+    await this.request('PATCH', `/servers/${this.config.serverId}/zones/${zoneId}`, {
       rrsets: [{ name, type, changetype: 'DELETE' }],
     });
   }

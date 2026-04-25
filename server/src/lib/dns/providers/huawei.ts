@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid } from './common';
+import { asArray, BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber, toRecordStatus, uuid } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -195,6 +195,14 @@ export class HuaweiAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID (Zone ID)
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Huawei');
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 20,
@@ -206,7 +214,8 @@ export class HuaweiAdapter extends BaseAdapter {
     status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
@@ -230,7 +239,7 @@ export class HuaweiAdapter extends BaseAdapter {
       const data = await this.client.request<{
         recordsets: Dict[];
         metadata: { total_count: number };
-      }>('GET', `/v2.1/zones/${this.config.domainId}/recordsets`, query);
+      }>('GET', `/v2.1/zones/${domainId}/recordsets`, query);
 
       const list = (data.recordsets || []).map((row) => this.mapRecord(row));
       return { total: data.metadata?.total_count || list.length, list };
@@ -242,11 +251,12 @@ export class HuaweiAdapter extends BaseAdapter {
 
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
-      const data = await this.client.request<Dict>('GET', `/v2.1/zones/${this.config.domainId}/recordsets/${recordId}`);
+      const data = await this.client.request<Dict>('GET', `/v2.1/zones/${domainId}/recordsets/${recordId}`);
       return this.mapRecord(data);
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -265,7 +275,8 @@ export class HuaweiAdapter extends BaseAdapter {
     remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
@@ -291,7 +302,7 @@ export class HuaweiAdapter extends BaseAdapter {
 
       const data = await this.client.request<{ id: string }>(
         'POST',
-        `/v2.1/zones/${this.config.domainId}/recordsets`,
+        `/v2.1/zones/${domainId}/recordsets`,
         null,
         body
       );
@@ -315,7 +326,8 @@ export class HuaweiAdapter extends BaseAdapter {
     remark?: string
   ): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
@@ -339,7 +351,7 @@ export class HuaweiAdapter extends BaseAdapter {
         body.weight = weight;
       }
 
-      await this.client.request('PUT', `/v2.1/zones/${this.config.domainId}/recordsets/${recordId}`, null, body);
+      await this.client.request('PUT', `/v2.1/zones/${domainId}/recordsets/${recordId}`, null, body);
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -349,11 +361,12 @@ export class HuaweiAdapter extends BaseAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
-      await this.client.request('DELETE', `/v2.1/zones/${this.config.domainId}/recordsets/${recordId}`);
+      await this.client.request('DELETE', `/v2.1/zones/${domainId}/recordsets/${recordId}`);
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);

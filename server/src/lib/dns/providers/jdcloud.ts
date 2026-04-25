@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { BaseAdapter, Dict, safeString, toNumber, uuid } from './common';
+import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber, uuid } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -180,6 +180,14 @@ export class JdcloudAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'JDCloud');
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 20,
@@ -191,7 +199,8 @@ export class JdcloudAdapter extends BaseAdapter {
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
@@ -204,7 +213,7 @@ export class JdcloudAdapter extends BaseAdapter {
         params.search = keyword;
       }
 
-      const data = await this.client.request<{ dataList: Array<Dict>; totalCount: number }>('GET', `/domain/${this.config.domainId}/ResourceRecord`, params);
+      const data = await this.client.request<{ dataList: Array<Dict>; totalCount: number }>('GET', `/domain/${domainId}/ResourceRecord`, params);
       let list = (data.dataList || []).map((row) => this.mapRecord(row));
 
       if (subdomain) {
@@ -233,7 +242,8 @@ export class JdcloudAdapter extends BaseAdapter {
     _remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
@@ -261,7 +271,7 @@ export class JdcloudAdapter extends BaseAdapter {
 
       const params: Dict = { req: reqParams };
 
-      const data = await this.client.request<{ dataList: { id: string } }>('POST', `/domain/${this.config.domainId}/ResourceRecord`, params);
+      const data = await this.client.request<{ dataList: { id: string } }>('POST', `/domain/${domainId}/ResourceRecord`, params);
       return data.dataList?.id || null;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -281,7 +291,8 @@ export class JdcloudAdapter extends BaseAdapter {
     _remark?: string
   ): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
@@ -309,7 +320,7 @@ export class JdcloudAdapter extends BaseAdapter {
       }
       const params: Dict = { req: reqParams };
 
-      await this.client.request('PUT', `/domain/${this.config.domainId}/ResourceRecord/${recordId}`, params);
+      await this.client.request('PUT', `/domain/${domainId}/ResourceRecord/${recordId}`, params);
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -319,11 +330,12 @@ export class JdcloudAdapter extends BaseAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
-      await this.client.request('DELETE', `/domain/${this.config.domainId}/ResourceRecord/${recordId}`);
+      await this.client.request('DELETE', `/domain/${domainId}/ResourceRecord/${recordId}`);
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -333,11 +345,12 @@ export class JdcloudAdapter extends BaseAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
-      await this.client.request('PUT', `/domain/${this.config.domainId}/ResourceRecord/${recordId}/status`, { action: status === 1 ? 'enable' : 'disable' });
+      await this.client.request('PUT', `/domain/${domainId}/ResourceRecord/${recordId}/status`, { action: status === 1 ? 'enable' : 'disable' });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -352,8 +365,13 @@ export class JdcloudAdapter extends BaseAdapter {
         return this.getDefaultLines();
       }
 
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
+        return this.getDefaultLines();
+      }
+
       const packId = domainInfo.packId;
-      const data = await this.client.request<{ data: Array<Dict> }>('GET', `/domain/${this.config.domainId}/viewTree`, { packId, viewId: '0' });
+      const data = await this.client.request<{ data: Array<Dict> }>('GET', `/domain/${domainId}/viewTree`, { packId, viewId: '0' });
       const list: Array<{ id: string; name: string }> = [];
       this.processLineList(list, data.data || [], null);
       return list;

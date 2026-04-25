@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid } from './common';
+import { asArray, BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber, toRecordStatus, uuid } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -127,6 +127,14 @@ export class AliyunesaAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID (Site ID)
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Aliyunesa');
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 20,
@@ -138,13 +146,14 @@ export class AliyunesaAdapter extends BaseAdapter {
     status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
       const params: Record<string, unknown> = {
         Action: 'ListRecords',
-        SiteId: this.config.domainId,
+        SiteId: domainId,
         PageNumber: page,
         PageSize: pageSize,
       };
@@ -199,7 +208,8 @@ export class AliyunesaAdapter extends BaseAdapter {
     remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
@@ -224,7 +234,7 @@ export class AliyunesaAdapter extends BaseAdapter {
 
       const params: Record<string, unknown> = {
         Action: 'CreateRecord',
-        SiteId: this.config.domainId,
+        SiteId: domainId,
         RecordName: recordName,
         Type: recordType,
         Proxied: line === '1' ? 'true' : 'false',

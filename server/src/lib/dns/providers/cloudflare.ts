@@ -1,4 +1,5 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
+import { resolveDomainIdHelper } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -100,6 +101,14 @@ export class CloudflareAdapter implements DnsAdapter {
     return this.error;
   }
 
+  /**
+   * 根据域名查找 Zone ID
+   * 当 config.zoneId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveZoneId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Cloudflare');
+  }
+
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
     let path = `/zones?page=${page}&per_page=${pageSize}`;
     if (keyword) path += `&name=${encodeURIComponent(keyword)}`;
@@ -131,8 +140,9 @@ export class CloudflareAdapter implements DnsAdapter {
     _line?: string,
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
-    if (!this.config.zoneId) return { total: 0, list: [] };
-    let path = `/zones/${this.config.zoneId}/dns_records?page=${page}&per_page=${pageSize}`;
+    const zoneId = await this.resolveZoneId();
+    if (!zoneId) return { total: 0, list: [] };
+    let path = `/zones/${zoneId}/dns_records?page=${page}&per_page=${pageSize}`;
     if (type) path += `&type=${encodeURIComponent(type)}`;
     // Cloudflare requires full record name for filtering (including zone name).
     if (subdomain) {
@@ -155,8 +165,9 @@ export class CloudflareAdapter implements DnsAdapter {
   }
 
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
-    if (!this.config.zoneId) return null;
-    const res = await this.request<CfRecord>('GET', `/zones/${this.config.zoneId}/dns_records/${recordId}`);
+    const zoneId = await this.resolveZoneId();
+    if (!zoneId) return null;
+    const res = await this.request<CfRecord>('GET', `/zones/${zoneId}/dns_records/${recordId}`);
     if (!res.success) return null;
     return this.mapRecord(res.result);
   }
@@ -172,9 +183,10 @@ export class CloudflareAdapter implements DnsAdapter {
     remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.zoneId) return null;
+      const zoneId = await this.resolveZoneId();
+      if (!zoneId) return null;
       const body = this.buildRecordBody(name, type, value, line, ttl, mx, weight, remark);
-      const res = await this.request<CfRecord>('POST', `/zones/${this.config.zoneId}/dns_records`, body);
+      const res = await this.request<CfRecord>('POST', `/zones/${zoneId}/dns_records`, body);
       if (!res.success) return null;
       return res.result.id;
     } catch (e) {
@@ -195,9 +207,10 @@ export class CloudflareAdapter implements DnsAdapter {
     remark?: string
   ): Promise<boolean> {
     try {
-      if (!this.config.zoneId) return false;
+      const zoneId = await this.resolveZoneId();
+      if (!zoneId) return false;
       const body = this.buildRecordBody(name, type, value, line, ttl, mx, weight, remark);
-      const res = await this.request<CfRecord>('PATCH', `/zones/${this.config.zoneId}/dns_records/${recordId}`, body);
+      const res = await this.request<CfRecord>('PATCH', `/zones/${zoneId}/dns_records/${recordId}`, body);
       return res.success;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -206,8 +219,9 @@ export class CloudflareAdapter implements DnsAdapter {
   }
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
-    if (!this.config.zoneId) return false;
-    const res = await this.request<{ id: string }>('DELETE', `/zones/${this.config.zoneId}/dns_records/${recordId}`);
+    const zoneId = await this.resolveZoneId();
+    if (!zoneId) return false;
+    const res = await this.request<{ id: string }>('DELETE', `/zones/${zoneId}/dns_records/${recordId}`);
     return res.success;
   }
 

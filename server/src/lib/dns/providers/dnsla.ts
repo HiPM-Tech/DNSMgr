@@ -1,5 +1,5 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -101,6 +101,14 @@ export class DnslaAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'DNSLA');
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 20,
@@ -112,11 +120,12 @@ export class DnslaAdapter extends BaseAdapter {
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
-      const params: Dict = { domainId: this.config.domainId, pageIndex: page, pageSize };
+      const params: Dict = { domainId: domainId, pageIndex: page, pageSize };
       if (subdomain) {
         params.host = subdomain;
       } else if (keyword) {
@@ -156,12 +165,13 @@ export class DnslaAdapter extends BaseAdapter {
     _remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
       const params: Dict = {
-        domainId: this.config.domainId,
+        domainId: domainId,
         type: this.convertType(type),
         host: name,
         data: value,

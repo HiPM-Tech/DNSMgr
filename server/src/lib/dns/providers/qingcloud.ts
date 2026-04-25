@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -104,6 +104,14 @@ export class QingcloudAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID (Zone Name)
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Qingcloud');
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 20,
@@ -115,7 +123,8 @@ export class QingcloudAdapter extends BaseAdapter {
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
@@ -124,7 +133,7 @@ export class QingcloudAdapter extends BaseAdapter {
       }
 
       const offset = (page - 1) * pageSize;
-      const params: Dict = { zone_name: this.config.domainId, offset, limit: pageSize };
+      const params: Dict = { zone_name: domainId, offset, limit: pageSize };
       if (keyword) {
         params.search_word = keyword;
       }
@@ -161,12 +170,13 @@ export class QingcloudAdapter extends BaseAdapter {
 
   private async getHostRecords(subdomain: string): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
       const host = this.getHost(subdomain);
-      const data = await this.request<{ records: Array<Dict>; total_count: number }>('GET', '/v1/dns/host_info/', { zone_name: this.config.domainId, domain_name: host });
+      const data = await this.request<{ records: Array<Dict>; total_count: number }>('GET', '/v1/dns/host_info/', { zone_name: domainId, domain_name: host });
       const list: DnsRecord[] = [];
 
       for (const record of data.records || []) {
@@ -229,7 +239,8 @@ export class QingcloudAdapter extends BaseAdapter {
     _remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
@@ -245,7 +256,7 @@ export class QingcloudAdapter extends BaseAdapter {
       const record = [{ weight: recordWeight, values }];
 
       const params: Dict = {
-        zone_name: this.config.domainId,
+        zone_name: domainId,
         domain_name: name,
         view_id: toNumber(line, 0),
         type,
@@ -275,7 +286,8 @@ export class QingcloudAdapter extends BaseAdapter {
     _remark?: string
   ): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
@@ -308,7 +320,7 @@ export class QingcloudAdapter extends BaseAdapter {
       }
 
       const params: Dict = {
-        zone_name: this.config.domainId,
+        zone_name: domainId,
         domain_name: name,
         view_id: toNumber(line, 0),
         type,
@@ -327,12 +339,13 @@ export class QingcloudAdapter extends BaseAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
-      if (recordId.includes(this.config.domainId)) {
-        await this.request('DELETE', '/v1/domain/', { domain_names: JSON.stringify([recordId]), zone_name: this.config.domainId });
+      if (recordId.includes(domainId)) {
+        await this.request('DELETE', '/v1/domain/', { domain_names: JSON.stringify([recordId]), zone_name: domainId });
         return true;
       }
 
@@ -362,7 +375,7 @@ export class QingcloudAdapter extends BaseAdapter {
       if (name === '') name = '@';
 
       const params: Dict = {
-        zone_name: this.config.domainId,
+        zone_name: domainId,
         domain_name: name,
         view_id: toNumber(data.data.view_id, 0),
         type: data.data.rd_type,
@@ -392,11 +405,12 @@ export class QingcloudAdapter extends BaseAdapter {
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return this.getDefaultLines();
       }
 
-      const data = await this.request<{ zone_views: Array<{ id: string; name: string }> }>('GET', '/v1/zone/view/', { zone_name: this.config.domainId, type: 'GET_FULL' });
+      const data = await this.request<{ zone_views: Array<{ id: string; name: string }> }>('GET', '/v1/zone/view/', { zone_name: domainId, type: 'GET_FULL' });
       return (data.zone_views || []).map((row) => ({ id: row.id, name: row.name === '*' ? '默认' : row.name }));
     } catch (e) {
       return this.getDefaultLines();

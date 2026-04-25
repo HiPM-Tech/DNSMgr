@@ -1,6 +1,7 @@
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
+import { resolveDomainIdHelper } from './common';
 
 interface DnsMgrConfig {
   baseUrl: string;
@@ -168,6 +169,14 @@ export class DnsMgrAdapter implements DnsAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'DnsMgr');
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 100,
@@ -179,12 +188,13 @@ export class DnsMgrAdapter implements DnsAdapter {
     status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return { total: 0, list: [] };
       }
 
-      let path = `/domains/${this.config.domainId}/records?page=${page}&pageSize=${pageSize}`;
+      let path = `/domains/${domainId}/records?page=${page}&pageSize=${pageSize}`;
       if (keyword) path += `&keyword=${encodeURIComponent(keyword)}`;
       if (subdomain) path += `&subdomain=${encodeURIComponent(subdomain)}`;
       if (value) path += `&value=${encodeURIComponent(value)}`;
@@ -228,13 +238,14 @@ export class DnsMgrAdapter implements DnsAdapter {
 
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return null;
       }
 
       // DnsMgr API 没有单独的获取单条记录接口，从列表中查找
-      const res = await this.request<{ total: number; list: DnsMgrRecord[] }>('GET', `/domains/${this.config.domainId}/records?page=1&pageSize=1000`);
+      const res = await this.request<{ total: number; list: DnsMgrRecord[] }>('GET', `/domains/${domainId}/records?page=1&pageSize=1000`);
       
       if (res.code !== 0) {
         return null;
@@ -259,7 +270,8 @@ export class DnsMgrAdapter implements DnsAdapter {
     remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return null;
       }
@@ -275,7 +287,7 @@ export class DnsMgrAdapter implements DnsAdapter {
       if (weight !== undefined) body.weight = weight;
       if (remark) body.remark = remark;
 
-      const res = await this.request<{ id: string }>('POST', `/domains/${this.config.domainId}/records`, body);
+      const res = await this.request<{ id: string }>('POST', `/domains/${domainId}/records`, body);
 
       if (res.code !== 0) {
         return null;
@@ -300,7 +312,8 @@ export class DnsMgrAdapter implements DnsAdapter {
     remark?: string
   ): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return false;
       }
@@ -316,7 +329,7 @@ export class DnsMgrAdapter implements DnsAdapter {
       if (weight !== undefined) body.weight = weight;
       if (remark) body.remark = remark;
 
-      const res = await this.request<null>('PUT', `/domains/${this.config.domainId}/records/${recordId}`, body);
+      const res = await this.request<null>('PUT', `/domains/${domainId}/records/${recordId}`, body);
       return res.code === 0;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -326,12 +339,13 @@ export class DnsMgrAdapter implements DnsAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return false;
       }
 
-      const res = await this.request<null>('DELETE', `/domains/${this.config.domainId}/records/${recordId}`);
+      const res = await this.request<null>('DELETE', `/domains/${domainId}/records/${recordId}`);
       return res.code === 0;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -341,12 +355,13 @@ export class DnsMgrAdapter implements DnsAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         this.error = 'Domain ID not set';
         return false;
       }
 
-      const res = await this.request<null>('PUT', `/domains/${this.config.domainId}/records/${recordId}/status`, { status });
+      const res = await this.request<null>('PUT', `/domains/${domainId}/records/${recordId}/status`, { status });
       return res.code === 0;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);

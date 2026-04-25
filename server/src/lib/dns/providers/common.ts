@@ -68,6 +68,40 @@ export function buildSrvValue(port: unknown, target: unknown, fallback: unknown)
   return safeString(fallback);
 }
 
+/**
+ * 通用 domainId 解析函数
+ * 当 config.domainId 未设置时，尝试通过域名搜索获取
+ */
+export async function resolveDomainIdHelper(
+  config: { domainId?: string; domain?: string },
+  getDomainList: (keyword?: string, page?: number, pageSize?: number) => Promise<PageResult<DomainInfo>>,
+  providerName: string
+): Promise<string | null> {
+  if (config.domainId) {
+    return config.domainId;
+  }
+
+  if (!config.domain) {
+    return null;
+  }
+
+  try {
+    log.debug(providerName, `Resolving domainId for domain: ${config.domain}`);
+    const result = await getDomainList(config.domain, 1, 1);
+    if (result.list.length > 0) {
+      const domainId = result.list[0].ThirdId;
+      log.debug(providerName, `Resolved domainId: ${domainId} for domain: ${config.domain}`);
+      // 缓存 domainId 避免重复查询
+      config.domainId = domainId;
+      return domainId;
+    }
+  } catch (error) {
+    log.error(providerName, `Failed to resolve domainId for domain: ${config.domain}`, { error });
+  }
+
+  return null;
+}
+
 export abstract class BaseAdapter implements DnsAdapter {
   protected error = '';
 

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { BaseAdapter, Dict, safeString, toNumber } from './common';
+import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber } from './common';
 import { log } from '../../logger';
 import { fetchWithFallback } from '../../proxy-http';
 
@@ -91,6 +91,40 @@ export class BtAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 根据域名查找 Domain ID
+   * 当 config.domainId 未设置时，尝试通过域名搜索获取
+   */
+  private async resolveDomainId(): Promise<string | null> {
+    if (this.config.domainId) {
+      return this.config.domainId;
+    }
+
+    if (!this.config.domain) {
+      return null;
+    }
+
+    try {
+      log.debug('Bt', `Resolving domainId for domain: ${this.config.domain}`);
+      const result = await this.getDomainList(this.config.domain, 1, 1);
+      if (result.list.length > 0) {
+        const thirdId = result.list[0].ThirdId;
+        const parts = thirdId.split('|');
+        const domainId = parts[0];
+        const domainType = parts[1] || '1';
+        log.debug('Bt', `Resolved domainId: ${domainId}, domainType: ${domainType} for domain: ${this.config.domain}`);
+        // 缓存 domainId 和 domainType 避免重复查询
+        this.config.domainId = domainId;
+        this.config.domainType = domainType;
+        return domainId;
+      }
+    } catch (error) {
+      log.error('Bt', `Failed to resolve domainId for domain: ${this.config.domain}`, { error });
+    }
+
+    return null;
+  }
+
   async getDomainRecords(
     page = 1,
     pageSize = 20,
@@ -102,7 +136,8 @@ export class BtAdapter extends BaseAdapter {
     status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return { total: 0, list: [] };
       }
 
@@ -152,12 +187,13 @@ export class BtAdapter extends BaseAdapter {
     remark?: string
   ): Promise<string | null> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return null;
       }
 
       const params: Dict = {
-        domain_id: toNumber(this.config.domainId, 0),
+        domain_id: toNumber(domainId, 0),
         domain_type: toNumber(this.config.domainType, 1),
         type,
         record: name,
@@ -188,13 +224,14 @@ export class BtAdapter extends BaseAdapter {
     remark?: string
   ): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
       const params: Dict = {
         record_id: recordId,
-        domain_id: toNumber(this.config.domainId, 0),
+        domain_id: toNumber(domainId, 0),
         domain_type: toNumber(this.config.domainType, 1),
         type,
         record: name,
@@ -215,13 +252,14 @@ export class BtAdapter extends BaseAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
       await this.request('/api/v1/dns/record/delete', {
         id: recordId,
-        domain_id: toNumber(this.config.domainId, 0),
+        domain_id: toNumber(domainId, 0),
         domain_type: toNumber(this.config.domainType, 1),
       });
       return true;
@@ -233,14 +271,15 @@ export class BtAdapter extends BaseAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
-      if (!this.config.domainId) {
+      const domainId = await this.resolveDomainId();
+      if (!domainId) {
         return false;
       }
 
       const path = status === 0 ? '/api/v1/dns/record/pause' : '/api/v1/dns/record/start';
       await this.request(path, {
         record_id: recordId,
-        domain_id: toNumber(this.config.domainId, 0),
+        domain_id: toNumber(domainId, 0),
         domain_type: toNumber(this.config.domainType, 1),
       });
       return true;
