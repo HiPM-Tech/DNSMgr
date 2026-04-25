@@ -2058,17 +2058,12 @@ export const SecurityPolicyOperations = {
 
   /** 检查用户是否有 2FA */
   async has2FA(userId: number): Promise<boolean> {
-    const totp = await getInternal<{ id: number }>(
-      'SELECT id FROM user_totp WHERE user_id = ?',
-      [userId],
-      { operation: 'SecurityPolicy.has2FA.totp', table: 'user_totp' }
+    const result = await getInternal<{ count: number }>(
+      'SELECT COUNT(*) as count FROM user_2fa WHERE user_id = ? AND type IN (?, ?) AND enabled = 1',
+      [userId, 'totp', 'webauthn'],
+      { operation: 'SecurityPolicy.has2FA', table: 'user_2fa' }
     );
-    const webauthn = await getInternal<{ id: number }>(
-      'SELECT id FROM user_webauthn_credentials WHERE user_id = ? LIMIT 1',
-      [userId],
-      { operation: 'SecurityPolicy.has2FA.webauthn', table: 'user_webauthn_credentials' }
-    );
-    return !!(totp || webauthn);
+    return (result?.count || 0) > 0;
   },
 
   /** 更新用户 2FA 要求设置 */
@@ -2850,7 +2845,14 @@ export const WhoisOperations = {
   },
 
   /** 更新域名过期时间 */
-  async updateExpiry(domainId: number, expiresAt: string): Promise<void> {
+  async updateExpiry(domainId: number, expiresAt: string, apexExpiresAt?: string | null): Promise<void> {
+    if (apexExpiresAt !== undefined) {
+      return executeInternal(
+        'UPDATE domains SET expires_at = ?, apex_expires_at = ? WHERE id = ?',
+        [expiresAt, apexExpiresAt, domainId],
+        { operation: 'Whois.updateExpiry', table: 'domains' }
+      );
+    }
     return executeInternal(
       'UPDATE domains SET expires_at = ? WHERE id = ?',
       [expiresAt, domainId],

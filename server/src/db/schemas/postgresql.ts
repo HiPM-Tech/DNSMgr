@@ -75,6 +75,7 @@ export const postgresqlSchema: SchemaDefinition = {
       is_hidden SMALLINT NOT NULL DEFAULT 0,
       record_count INTEGER NOT NULL DEFAULT 0,
       expires_at TIMESTAMP,
+      apex_expires_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(account_id, name)
     )`,
@@ -133,7 +134,7 @@ export const postgresqlSchema: SchemaDefinition = {
     )`,
     `CREATE TABLE IF NOT EXISTS user_2fa (
       id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       type VARCHAR(50) NOT NULL DEFAULT 'totp' CHECK(type IN ('totp', 'webauthn')),
       secret VARCHAR(255) NOT NULL,
       backup_codes JSONB NOT NULL DEFAULT '[]',
@@ -344,6 +345,8 @@ export const postgresqlSchema: SchemaDefinition = {
     // Migration: Add 'admin' to team_members role check constraint
     // First drop the existing constraint, then add the new one
     `ALTER TABLE team_members DROP CONSTRAINT IF EXISTS team_members_role_check`,
-    `ALTER TABLE team_members ADD CONSTRAINT team_members_role_check CHECK (role IN ('owner', 'admin', 'member'))`
+    `ALTER TABLE team_members ADD CONSTRAINT team_members_role_check CHECK (role IN ('owner', 'admin', 'member'))`,
+    // Migration: Add apex_expires_at column to domains table for subdomain expiry tracking
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TIMESTAMP`
   ],
 };

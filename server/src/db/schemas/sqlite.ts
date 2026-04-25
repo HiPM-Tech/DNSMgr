@@ -53,6 +53,7 @@ export const sqliteSchema: SchemaDefinition = {
       is_hidden INTEGER NOT NULL DEFAULT 0,
       record_count INTEGER NOT NULL DEFAULT 0,
       expires_at TEXT,
+      apex_expires_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE
     )`,
@@ -104,7 +105,7 @@ export const sqliteSchema: SchemaDefinition = {
     )`,
     `CREATE TABLE IF NOT EXISTS user_2fa (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL UNIQUE,
+      user_id INTEGER NOT NULL,
       type TEXT NOT NULL DEFAULT 'totp' CHECK(type IN ('totp', 'webauthn')),
       secret TEXT NOT NULL,
       backup_codes TEXT NOT NULL DEFAULT '[]',
@@ -334,5 +335,7 @@ export const sqliteSchema: SchemaDefinition = {
     // 2. 复制数据
     // 3. 删除旧表
     // 4. 重命名新表
+    // Migration: Add apex_expires_at column to domains table for subdomain expiry tracking
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TEXT`
   ],
 };

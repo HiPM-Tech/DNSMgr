@@ -62,6 +62,7 @@ export const mysqlSchema: SchemaDefinition = {
       is_hidden TINYINT NOT NULL DEFAULT 0,
       record_count INT NOT NULL DEFAULT 0,
       expires_at DATETIME,
+      apex_expires_at DATETIME,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE,
       UNIQUE KEY unique_account_name (account_id, name),
@@ -126,7 +127,7 @@ export const mysqlSchema: SchemaDefinition = {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS user_2fa (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL UNIQUE,
+      user_id INT NOT NULL,
       type VARCHAR(50) NOT NULL DEFAULT 'totp' CHECK(type IN ('totp', 'webauthn')),
       secret VARCHAR(255) NOT NULL,
       backup_codes JSON,
@@ -356,6 +357,8 @@ export const mysqlSchema: SchemaDefinition = {
   alterTables: [
     // Migration: Add 'admin' to team_members role enum
     // This modifies the existing ENUM to include 'admin' role
-    `ALTER TABLE team_members MODIFY COLUMN role ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member'`
+    `ALTER TABLE team_members MODIFY COLUMN role ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member'`,
+    // Migration: Add apex_expires_at column to domains table for subdomain expiry tracking
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at DATETIME`
   ],
 };
