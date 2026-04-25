@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Globe, Server, Users, Activity, Clock } from 'lucide-react';
 import { accountsApi, domainsApi, usersApi, logsApi } from '../api';
+import type { Domain } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { AuditLogList } from '../components/AuditLogList';
