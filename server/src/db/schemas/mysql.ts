@@ -359,6 +359,18 @@ export const mysqlSchema: SchemaDefinition = {
     // This modifies the existing ENUM to include 'admin' role
     `ALTER TABLE team_members MODIFY COLUMN role ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member'`,
     // Migration: Add apex_expires_at column to domains table for subdomain expiry tracking
-    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at DATETIME`
+    // MySQL doesn't support IF NOT EXISTS in ALTER TABLE ADD COLUMN, using procedure instead
+    `DROP PROCEDURE IF EXISTS add_apex_expires_at_if_not_exists`,
+    `CREATE PROCEDURE add_apex_expires_at_if_not_exists()
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'apex_expires_at'
+      ) THEN
+        ALTER TABLE domains ADD COLUMN apex_expires_at DATETIME;
+      END IF;
+    END`,
+    `CALL add_apex_expires_at_if_not_exists()`,
+    `DROP PROCEDURE IF EXISTS add_apex_expires_at_if_not_exists`
   ],
 };
