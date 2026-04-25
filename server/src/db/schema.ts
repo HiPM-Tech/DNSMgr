@@ -26,11 +26,23 @@ async function handleMySQLMigrations(
     // Check if apex_expires_at column exists in domains table
     const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'apex_expires_at'`;
-    
+
     let columnExists = false;
     if (conn.execute) {
-      const result = await conn.execute(checkColumnSql) as Array<{ cnt: number }>;
-      columnExists = result && result[0] && result[0].cnt > 0;
+      try {
+        const result = await conn.execute(checkColumnSql);
+        // Handle different result formats from different MySQL drivers
+        if (Array.isArray(result) && result.length > 0) {
+          const row = result[0];
+          if (row && typeof row === 'object') {
+            // Try different possible property names
+            const count = row.cnt ?? row.CNT ?? row['COUNT(*)'] ?? row.count ?? 0;
+            columnExists = parseInt(String(count), 10) > 0;
+          }
+        }
+      } catch (checkError) {
+        log.warn('Schema', 'Failed to check if column exists, assuming it does not exist', { error: (checkError as Error).message });
+      }
     }
 
     if (!columnExists) {
@@ -43,7 +55,13 @@ async function handleMySQLMigrations(
         }
         log.info('Schema', 'Added apex_expires_at column to domains table');
       } catch (error) {
-        log.warn('Schema', 'Failed to add apex_expires_at column (may already exist)', { error: (error as Error).message });
+        // If error is duplicate column, just log it as info
+        const errorMsg = (error as Error).message || '';
+        if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+          log.info('Schema', 'apex_expires_at column already exists (detected during add)');
+        } else {
+          log.warn('Schema', 'Failed to add apex_expires_at column', { error: errorMsg });
+        }
       }
     } else {
       log.debug('Schema', 'apex_expires_at column already exists in domains table');
