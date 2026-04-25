@@ -553,6 +553,7 @@
       "unknown": "Неизвестно",
       "daysLeft": "{days} дней осталось",
       "expired": "Истёк",
+      "apexDomainExpiry": "Срок действия основного домена",
       "noAccounts": "Нет DNS-аккаунтов",
       "noAccountsDesc": "Вам нужно добавить DNS-аккаунт перед добавлением доменов.",
       "goToAddAccount": "Перейти к добавлению DNS-аккаунта",

@@ -553,6 +553,7 @@
       "unknown": "알 수 없음",
       "daysLeft": "{days}일 남음",
       "expired": "만료됨",
+      "apexDomainExpiry": "상위 도메인 만료",
       "noAccounts": "DNS 계정 없음",
       "noAccountsDesc": "도메인을 추가하기 전에 DNS 계정을 추가해야 합니다.",
       "goToAddAccount": "DNS 계정 추가로 이동",

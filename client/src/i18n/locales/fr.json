@@ -553,6 +553,7 @@
       "unknown": "Inconnu",
       "daysLeft": "{days} jours restants",
       "expired": "Expiré",
+      "apexDomainExpiry": "Expiration du domaine principal",
       "noAccounts": "Aucun compte DNS",
       "noAccountsDesc": "Vous devez ajouter un compte DNS avant d'ajouter des domaines.",
       "goToAddAccount": "Aller à l'ajout de compte DNS",

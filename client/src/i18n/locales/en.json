@@ -555,6 +555,7 @@
       "unknown": "Unknown",
       "daysLeft": "{days} days left",
       "expired": "Expired",
+      "apexDomainExpiry": "Apex Domain Expiry",
       "noAccounts": "No DNS Accounts",
       "noAccountsDesc": "You need to add a DNS account before adding domains.",
       "goToAddAccount": "Go to Add DNS Account",

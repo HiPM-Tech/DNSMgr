@@ -451,6 +451,7 @@
       "emptyRemark": "-",
       "expired": "Expirado",
       "expires": "Expira",
+      "apexDomainExpiry": "Vencimiento del dominio principal",
       "failoverTitle": "Configuración de conmutación por error: {name}",
       "goToAddAccount": "Ir a agregar cuenta DNS",
       "healthy": "Saludable",

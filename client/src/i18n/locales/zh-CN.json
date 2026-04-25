@@ -317,6 +317,7 @@
       "emptyRemark": "-",
       "expired": "已到期",
       "expires": "到期时间",
+      "apexDomainExpiry": "主域名到期",
       "failoverTitle": "故障切换配置：{name}",
       "goToAddAccount": "前往添加 DNS 账号",
       "healthy": "健康",

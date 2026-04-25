@@ -543,6 +543,7 @@
       "emptyRemark": "-",
       "expired": "期限切れ",
       "expires": "有効期限",
+      "apexDomainExpiry": "親ドメインの有効期限",
       "failoverTitle": "フェイルオーバー設定：{name}",
       "goToAddAccount": "DNS アカウントの追加に移動",
       "healthy": "正常",

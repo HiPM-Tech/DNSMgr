@@ -249,6 +249,7 @@
       "emptyRemark": "-",
       "expired": "已经过期啦，杂鱼！",
       "expires": "到期时间",
+      "apexDomainExpiry": "主域名到期（这个也要记好啦）",
       "failoverTitle": "故障切换：{name}，别搞砸了",
       "goToAddAccount": "带你去加账号，跟紧点",
       "healthy": "活蹦乱跳",
