@@ -43,7 +43,7 @@ export function NSMonitor() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { id: number; domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
+    mutationFn: (data: { id: number; expected_ns: string; enabled: boolean }) =>
       nsMonitorApi.update(data.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
@@ -229,11 +229,8 @@ export function NSMonitor() {
   const handleToggleEnabled = (row: NSMonitorConfig) => {
     updateMutation.mutate({
       id: row.id,
-      domain_id: row.domain_id,
       expected_ns: row.expected_ns,
       enabled: !row.enabled,
-      notify_email: row.notify_email,
-      notify_channels: row.notify_channels,
     });
   };
 
@@ -244,11 +241,8 @@ export function NSMonitor() {
     const formData = new FormData(e.currentTarget);
     updateMutation.mutate({
       id: selectedConfig.id,
-      domain_id: selectedConfig.domain_id,
       expected_ns: formData.get('expected_ns') as string,
       enabled: formData.get('enabled') === 'on',
-      notify_email: formData.get('notify_email') === 'on',
-      notify_channels: formData.get('notify_channels') === 'on',
     });
   };
 
