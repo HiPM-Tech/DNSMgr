@@ -31,6 +31,13 @@ export class RdapMethod extends BaseQueryMethod {
         },
       });
 
+      this.log('debug', `RDAP response received for ${domain}`, {
+        server,
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      });
+
       if (!response.ok) {
         this.log('warn', `RDAP HTTP ${response.status} for ${domain}`, {
           status: response.status,
@@ -70,11 +77,22 @@ export class RdapMethod extends BaseQueryMethod {
         raw: JSON.stringify(data),
       };
     } catch (error) {
-      const errorDetails = error instanceof Error ? {
-        message: error.message,
-        name: error.name,
-        stack: error.stack?.substring(0, 500),
-      } : { error: String(error) };
+      let errorDetails: Record<string, unknown>;
+      if (error instanceof Error) {
+        errorDetails = {
+          message: error.message,
+          name: error.name,
+          stack: error.stack?.substring(0, 500),
+        };
+      } else if (typeof error === 'object' && error !== null) {
+        // 处理非标准错误对象
+        errorDetails = {
+          error: JSON.stringify(error).substring(0, 500),
+          type: typeof error,
+        };
+      } else {
+        errorDetails = { error: String(error) };
+      }
       this.log('error', `RDAP query error for ${domain}`, errorDetails);
       return null;
     }
