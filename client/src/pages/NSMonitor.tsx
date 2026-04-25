@@ -5,6 +5,7 @@ import { nsMonitorApi, domainsApi } from '../api';
 import type { Domain } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -30,6 +31,7 @@ export function NSMonitor() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [deleteConfig, setDeleteConfig] = useState<NSMonitorConfig | null>(null);
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],
@@ -229,11 +231,7 @@ export function NSMonitor() {
             <Shield className="w-4 h-4" />
           </button>
           <button
-            onClick={() => {
-              if (confirm(t('nsMonitor.deleteConfirm', { domain: row.domain_name }))) {
-                deleteMutation.mutate(row.id);
-              }
-            }}
+            onClick={() => setDeleteConfig(row)}
             disabled={deleteMutation.isPending}
             className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title={t('common.delete')}
@@ -490,6 +488,7 @@ export function NSMonitor() {
                 <input
                   type="checkbox"
                   name="notify_email"
+                  defaultChecked={true}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
@@ -501,6 +500,7 @@ export function NSMonitor() {
                 <input
                   type="checkbox"
                   name="notify_channels"
+                  defaultChecked={true}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
@@ -527,6 +527,19 @@ export function NSMonitor() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {/* Delete Confirm Dialog */}
+      {deleteConfig && (
+        <ConfirmDialog
+          message={t('nsMonitor.deleteConfirm', { domain: deleteConfig.domain_name })}
+          onConfirm={() => {
+            deleteMutation.mutate(deleteConfig.id);
+            setDeleteConfig(null);
+          }}
+          onCancel={() => setDeleteConfig(null)}
+          isLoading={deleteMutation.isPending}
+        />
       )}
     </div>
   );
