@@ -51,7 +51,6 @@ export function Teams() {
     enabled: !!viewTeam,
   });
   const domains = domainsData?.list ?? [];
-  });
 
   const { data: teamDomainPermissions = [], isLoading: teamDomainPermissionsLoading } = useQuery({
     queryKey: ['team-domain-permissions', viewTeam?.id],
