@@ -1,5 +1,25 @@
 import { SchemaDefinition } from './index';
 
+/**
+ * MySQL 数据库禁忌事项 / MySQL Database Restrictions:
+ *
+ * 1. TEXT/BLOB/JSON/GEOMETRY 类型列不能有默认值
+ *    - 错误: ER_BLOB_CANT_HAVE_DEFAULT (errno 1101)
+ *    - 解决: 使用 NULL 或 VARCHAR 替代，或在应用层处理默认值
+ *
+ * 2. 不支持 ALTER TABLE ADD COLUMN IF NOT EXISTS
+ *    - 需要使用存储过程或应用层检查
+ *
+ * 3. ENUM 类型修改需要重建表
+ *    - 不能直接添加新的 ENUM 值
+ *
+ * 4. CHECK 约束在 MySQL 8.0.16+ 才生效
+ *    - 旧版本会解析但不强制执行
+ *
+ * 5. 存储过程在预处理语句协议中不受支持
+ *    - 错误: ER_UNSUPPORTED_PS (errno 1295)
+ */
+
 export const mysqlSchema: SchemaDefinition = {
   createTables: [
     `CREATE TABLE IF NOT EXISTS users (
@@ -365,9 +385,9 @@ export const mysqlSchema: SchemaDefinition = {
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
       domain_id INT NOT NULL,
-      expected_ns TEXT NOT NULL DEFAULT '',
-      current_ns TEXT NOT NULL DEFAULT '',
-      status VARCHAR(20) NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing')),
+      expected_ns TEXT,
+      current_ns TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'ok',
       enabled TINYINT NOT NULL DEFAULT 1,
       last_check_at DATETIME,
       last_alert_at DATETIME,
