@@ -28,10 +28,11 @@ export function Dashboard() {
     queryFn: () => accountsApi.list().then((r) => r.data.data ?? []),
   });
 
-  const { data: domains } = useQuery({
+  const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains'],
-    queryFn: () => domainsApi.list().then((r) => r.data.data ?? []),
+    queryFn: () => domainsApi.list().then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
   });
+  const domains = domainsData?.list ?? [];
 
   const { data: users } = useQuery({
     queryKey: ['users'],

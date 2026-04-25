@@ -45,10 +45,12 @@ export function Teams() {
     enabled: !!viewTeam,
   });
 
-  const { data: domains = [] } = useQuery({
+  const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains'],
-    queryFn: () => domainsApi.list().then((r) => r.data.data ?? []),
+    queryFn: () => domainsApi.list().then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
     enabled: !!viewTeam,
+  });
+  const domains = domainsData?.list ?? [];
   });
 
   const { data: teamDomainPermissions = [], isLoading: teamDomainPermissionsLoading } = useQuery({
