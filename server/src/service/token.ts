@@ -150,9 +150,9 @@ export async function updateTokenPermissions(
     end_time?: string | null;
   }
 ): Promise<void> {
-  // Convert empty string to null for datetime fields
-  const startTime = data.start_time === '' ? null : data.start_time;
-  const endTime = data.end_time === '' ? null : data.end_time;
+  // Convert empty string or undefined to null for datetime fields
+  const startTime = !data.start_time || data.start_time === '' ? null : data.start_time;
+  const endTime = !data.end_time || data.end_time === '' ? null : data.end_time;
 
   // Use business adapter to update token
   await TokenOperations.updateByUser(tokenId, userId, {
