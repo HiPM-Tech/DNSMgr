@@ -25,8 +25,15 @@ export class WhoisMethod extends BaseQueryMethod {
       this.log('info', `Querying ${domain} via WHOIS ${server}`);
       const raw = await this.whoisLookup(domain, host, port);
 
+      // Debug: log raw response
+      this.log('debug', `WHOIS raw response for ${domain}`, { 
+        server, 
+        raw: raw.substring(0, 500),
+        length: raw.length 
+      });
+
       if (!raw || this.isNotFound(raw)) {
-        this.log('warn', `Domain ${domain} not found in WHOIS`, { server });
+        this.log('warn', `Domain ${domain} not found in WHOIS`, { server, raw: raw.substring(0, 200) });
         return null;
       }
 
