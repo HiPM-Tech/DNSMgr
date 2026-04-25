@@ -49,9 +49,19 @@ function setCachedWhois(domain: string, result: WhoisResult): void {
 }
 
 /**
+ * WHOIS 查询结果
+ */
+export interface WhoisCheckResult {
+  expiryDate: Date | null;
+  apexExpiryDate: Date | null;
+  registrar: string | null;
+  nameServers: string[];
+}
+
+/**
  * 检查单个域名的 WHOIS
  */
-export async function checkWhoisForDomain(domainName: string): Promise<Date | null> {
+export async function checkWhoisForDomain(domainName: string): Promise<WhoisCheckResult> {
   try {
     log.info('WhoisJob', `Checking WHOIS for ${domainName}`);
     
@@ -59,7 +69,12 @@ export async function checkWhoisForDomain(domainName: string): Promise<Date | nu
     const cached = getCachedWhois(domainName);
     if (cached?.expiryDate) {
       log.info('WhoisJob', `Using cached expiry for ${domainName}: ${cached.expiryDate.toISOString()}`);
-      return cached.expiryDate;
+      return {
+        expiryDate: cached.expiryDate,
+        apexExpiryDate: cached.apexExpiryDate || null,
+        registrar: cached.registrar,
+        nameServers: cached.nameServers,
+      };
     }
 
     // 查询 WHOIS
@@ -67,8 +82,16 @@ export async function checkWhoisForDomain(domainName: string): Promise<Date | nu
 
     if (result?.expiryDate) {
       setCachedWhois(domainName, result);
-      log.info('WhoisJob', `Got expiry date for ${domainName}: ${result.expiryDate.toISOString()}`);
-      return result.expiryDate;
+      log.info('WhoisJob', `Got expiry date for ${domainName}: ${result.expiryDate.toISOString()}`, {
+        hasApexExpiry: !!result.apexExpiryDate,
+        apexExpiryDate: result.apexExpiryDate?.toISOString(),
+      });
+      return {
+        expiryDate: result.expiryDate,
+        apexExpiryDate: result.apexExpiryDate || null,
+        registrar: result.registrar,
+        nameServers: result.nameServers,
+      };
     }
 
     log.warn('WhoisJob', `No expiry date found for ${domainName}`, {
@@ -83,7 +106,12 @@ export async function checkWhoisForDomain(domainName: string): Promise<Date | nu
     });
   }
 
-  return null;
+  return {
+    expiryDate: null,
+    apexExpiryDate: null,
+    registrar: null,
+    nameServers: [],
+  };
 }
 
 /**
@@ -149,18 +177,23 @@ export async function syncAllDomainsWhois() {
     await asyncPool(3, domains, async (d) => {
       try {
         log.info('WhoisJob', `Processing domain: ${d.name}`);
-        const expiresAt = await checkWhoisForDomain(d.name);
+        const whoisResult = await checkWhoisForDomain(d.name);
 
-        if (expiresAt) {
+        if (whoisResult.expiryDate) {
           // 更新数据库
-          const formattedDate = formatDateForMySQL(expiresAt);
-          await WhoisOperations.updateExpiry(d.id, formattedDate);
+          const formattedDate = formatDateForMySQL(whoisResult.expiryDate);
+          const formattedApexDate = whoisResult.apexExpiryDate 
+            ? formatDateForMySQL(whoisResult.apexExpiryDate) 
+            : null;
+          await WhoisOperations.updateExpiry(d.id, formattedDate, formattedApexDate);
 
           successCount++;
-          log.info('WhoisJob', `Updated expiry for ${d.name}: ${formattedDate}`);
+          log.info('WhoisJob', `Updated expiry for ${d.name}: ${formattedDate}`, {
+            apexExpiryDate: formattedApexDate,
+          });
 
           // 检查是否需要发送通知
-          await checkAndSendNotification(d, expiresAt);
+          await checkAndSendNotification(d, whoisResult.expiryDate);
         } else {
           failCount++;
           failedDomains.push(d.name);
@@ -222,7 +255,7 @@ async function checkAndSendNotification(domain: Domain, expiresAt: Date): Promis
 /**
  * 立即同步单个域名的 WHOIS
  */
-export async function syncDomainWhois(domainId: number): Promise<{ success: boolean; expiresAt: Date | null; message?: string }> {
+export async function syncDomainWhois(domainId: number): Promise<{ success: boolean; expiresAt: Date | null; apexExpiresAt?: Date | null; message?: string }> {
   try {
     log.info('WhoisJob', `Syncing WHOIS for domain ID: ${domainId}`);
     
@@ -234,13 +267,22 @@ export async function syncDomainWhois(domainId: number): Promise<{ success: bool
     }
 
     log.info('WhoisJob', `Found domain: ${domain.name} (ID: ${domainId})`);
-    const expiresAt = await checkWhoisForDomain(domain.name);
+    const whoisResult = await checkWhoisForDomain(domain.name);
 
-    if (expiresAt) {
-      const formattedDate = formatDateForMySQL(expiresAt);
-      await WhoisOperations.updateExpiry(domainId, formattedDate);
-      log.info('WhoisJob', `Successfully synced WHOIS for ${domain.name}: ${formattedDate}`);
-      return { success: true, expiresAt };
+    if (whoisResult.expiryDate) {
+      const formattedDate = formatDateForMySQL(whoisResult.expiryDate);
+      const formattedApexDate = whoisResult.apexExpiryDate 
+        ? formatDateForMySQL(whoisResult.apexExpiryDate) 
+        : null;
+      await WhoisOperations.updateExpiry(domainId, formattedDate, formattedApexDate);
+      log.info('WhoisJob', `Successfully synced WHOIS for ${domain.name}: ${formattedDate}`, {
+        apexExpiryDate: formattedApexDate,
+      });
+      return { 
+        success: true, 
+        expiresAt: whoisResult.expiryDate,
+        apexExpiresAt: whoisResult.apexExpiryDate,
+      };
     }
 
     log.warn('WhoisJob', `Could not retrieve expiry date for ${domain.name}`);
