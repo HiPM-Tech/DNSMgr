@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, requireTokenDomainPermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { DnsAccount, Domain } from '../types';
@@ -146,7 +146,7 @@ async function updateDomainRecordCount(domainId: number, count: number): Promise
  *       200:
  *         description: List of DNS records
  */
-router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.get('/', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {
   log.info('Records', '=== GET /records route entered ===', { domainId: req.params.domainId, path: req.path, originalUrl: req.originalUrl });
   const domainId = parseInteger(req.params.domainId) ?? 0;
   log.info('Records', 'Parsed domainId', { domainId });
@@ -183,7 +183,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
  *     security:
  *       - bearerAuth: []
  */
-router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {
   const domainId = parseInteger(req.params.domainId) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
@@ -230,7 +230,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   }
 }));
 
-router.post('/batch', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.post('/batch', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {
   const domainId = parseInteger(req.params.domainId) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
@@ -304,7 +304,7 @@ router.post('/batch', authMiddleware, asyncHandler(async (req: Request, res: Res
  *     security:
  *       - bearerAuth: []
  */
-router.put('/:recordId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.put('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {
   const domainId = parseInteger(req.params.domainId) ?? 0;
   const recordId = req.params.recordId;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
@@ -361,7 +361,7 @@ router.put('/:recordId', authMiddleware, asyncHandler(async (req: Request, res: 
  *     security:
  *       - bearerAuth: []
  */
-router.delete('/:recordId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {
   const domainId = parseInteger(req.params.domainId) ?? 0;
   const recordId = req.params.recordId;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
@@ -409,7 +409,7 @@ router.delete('/:recordId', authMiddleware, asyncHandler(async (req: Request, re
  *     security:
  *       - bearerAuth: []
  */
-router.put('/:recordId/status', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.put('/:recordId/status', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {
   const domainId = parseInteger(req.params.domainId) ?? 0;
   const recordId = req.params.recordId;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));

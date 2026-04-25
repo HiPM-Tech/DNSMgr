@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware, requireDomainPermission } from '../middleware/auth';
+import { authMiddleware, requireDomainPermission, requireTokenDomainPermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { createFailoverConfig, getFailoverConfigByDomain, getFailoverStatus, updateFailoverConfig, deleteFailoverConfig } from '../service/failover';
@@ -560,7 +560,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  *       200:
  *         description: Domain updated
  */
-router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
   const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
@@ -595,7 +595,7 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  *       200:
  *         description: Domain deleted
  */
-router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
   const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
@@ -667,7 +667,7 @@ router.get('/:id/failover', authMiddleware, asyncHandler(async (req: Request, re
   sendSuccess(res, { config, status });
 }));
 
-router.post('/:id/failover', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.post('/:id/failover', authMiddleware, requireTokenDomainPermission(), asyncHandler(async (req: Request, res: Response) => {
   const domainId = parseInteger(req.params.id, { min: 1 }) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canWrite) {
@@ -699,7 +699,7 @@ router.post('/:id/failover', authMiddleware, asyncHandler(async (req: Request, r
   }
 }));
 
-router.put('/:id/failover', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.put('/:id/failover', authMiddleware, requireTokenDomainPermission(), asyncHandler(async (req: Request, res: Response) => {
   const domainId = parseInteger(req.params.id, { min: 1 }) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canWrite) {
@@ -715,7 +715,7 @@ router.put('/:id/failover', authMiddleware, asyncHandler(async (req: Request, re
   sendSuccess(res);
 }));
 
-router.delete('/:id/failover', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id/failover', authMiddleware, requireTokenDomainPermission(), asyncHandler(async (req: Request, res: Response) => {
   const domainId = parseInteger(req.params.id, { min: 1 }) ?? 0;
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canWrite) {
@@ -749,7 +749,7 @@ router.delete('/:id/failover', authMiddleware, asyncHandler(async (req: Request,
  *       200:
  *         description: WHOIS refreshed
  */
-router.post('/:id/whois', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.post('/:id/whois', authMiddleware, requireTokenDomainPermission(), asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
   const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {

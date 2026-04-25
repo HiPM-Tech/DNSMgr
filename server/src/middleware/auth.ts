@@ -190,6 +190,51 @@ export function requireJwtAuth(routeName: string = 'this resource') {
   ];
 }
 
+/**
+ * 检查 API 令牌是否有权限操作指定域名
+ * 用于保护域名操作路由，防止令牌越权
+ * @param paramName 域名ID参数名，默认为'id'，记录路由使用'domainId'
+ */
+export function requireTokenDomainPermission(paramName: string = 'id') {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const tokenPayload = (req as any).tokenPayload as TokenPayload | undefined;
+
+    // 如果不是令牌认证，直接通过
+    if (!tokenPayload) {
+      next();
+      return;
+    }
+
+    // 如果 allowed_domains 为空数组，表示允许所有域名
+    if (!tokenPayload.allowedDomains || tokenPayload.allowedDomains.length === 0) {
+      next();
+      return;
+    }
+
+    // 获取请求中的域名 ID
+    const domainId = req.params[paramName] ? parseInt(req.params[paramName], 10) : req.body.domain_id;
+
+    if (!domainId || isNaN(domainId)) {
+      res.status(403).json({
+        code: -1,
+        msg: 'Domain ID is required for API token access'
+      });
+      return;
+    }
+
+    // 检查域名是否在允许的列表中
+    if (!tokenPayload.allowedDomains.includes(domainId)) {
+      res.status(403).json({
+        code: -1,
+        msg: 'API token does not have permission to access this domain'
+      });
+      return;
+    }
+
+    next();
+  };
+}
+
 export async function signToken(payload: JwtPayload): Promise<string> {
   const jwtSecret = await getJwtSecret();
   return jwt.sign(payload, jwtSecret, { expiresIn: '7d' });
