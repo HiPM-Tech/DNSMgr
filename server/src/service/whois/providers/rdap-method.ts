@@ -2,6 +2,9 @@
  * RDAP 查询方式实现
  */
 
+import * as https from 'https';
+import * as http from 'http';
+import { URL } from 'url';
 import { BaseQueryMethod, QueryMethodType, WhoisResult } from './base';
 
 /**
@@ -24,29 +27,12 @@ export class RdapMethod extends BaseQueryMethod {
     try {
       this.log('info', `Querying ${domain} via RDAP ${server}`);
       
-      const response = await fetch(url, {
-        headers: {
-          'Accept': 'application/rdap+json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
-      });
+      const data = await this.httpRequest(url);
 
-      this.log('debug', `RDAP response received for ${domain}`, {
-        server,
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      });
-
-      if (!response.ok) {
-        this.log('warn', `RDAP HTTP ${response.status} for ${domain}`, {
-          status: response.status,
-          statusText: response.statusText,
-        });
+      if (!data) {
+        this.log('warn', `RDAP empty response for ${domain}`, { server });
         return null;
       }
-
-      const data = await response.json();
 
       // Debug: log raw response
       const rawJson = JSON.stringify(data);
@@ -96,6 +82,61 @@ export class RdapMethod extends BaseQueryMethod {
       this.log('error', `RDAP query error for ${domain}`, errorDetails);
       return null;
     }
+  }
+
+  /**
+   * 执行 HTTP/HTTPS 请求
+   */
+  private httpRequest(url: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const parsedUrl = new URL(url);
+      const isHttps = parsedUrl.protocol === 'https:';
+      const client = isHttps ? https : http;
+
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (isHttps ? 443 : 80),
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'GET',
+        headers: {
+          'Accept': 'application/rdap+json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        timeout: 10000,
+      };
+
+      const req = client.request(options, (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              const jsonData = JSON.parse(data);
+              resolve(jsonData);
+            } catch (e) {
+              reject(new Error(`Failed to parse JSON: ${e}`));
+            }
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        reject(error);
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Request timeout'));
+      });
+
+      req.end();
+    });
   }
 
   /**
