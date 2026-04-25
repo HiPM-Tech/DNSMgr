@@ -117,6 +117,12 @@ export function isSubdomainHosted(domain: string): boolean {
  * 添加自定义子域 WHOIS 查询商
  */
 export function addSubdomainWhoisProvider(config: SubdomainProviderConfig): void {
+  // 安全检查：不允许空 suffixes 数组（防止范用查询）
+  if (!config.suffixes || config.suffixes.length === 0) {
+    console.error(`[SubdomainProviders] SECURITY: Rejected WHOIS provider ${config.name} - empty suffixes array not allowed for subdomain providers`);
+    return;
+  }
+
   const exists = SUBDOMAIN_WHOIS_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
     console.warn(`[SubdomainProviders] WHOIS provider ${config.name} already exists, skipping`);
@@ -134,6 +140,12 @@ export function addSubdomainWhoisProvider(config: SubdomainProviderConfig): void
  * 添加自定义子域 RDAP 查询商
  */
 export function addSubdomainRdapProvider(config: SubdomainProviderConfig): void {
+  // 安全检查：不允许空 suffixes 数组（防止范用查询）
+  if (!config.suffixes || config.suffixes.length === 0) {
+    console.error(`[SubdomainProviders] SECURITY: Rejected RDAP provider ${config.name} - empty suffixes array not allowed for subdomain providers`);
+    return;
+  }
+
   const exists = SUBDOMAIN_RDAP_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
     console.warn(`[SubdomainProviders] RDAP provider ${config.name} already exists, skipping`);

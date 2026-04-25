@@ -317,6 +317,12 @@ export function findApexRdapProvider(domain: string): ProviderConfig | null {
  * 添加自定义顶域 WHOIS 查询商
  */
 export function addApexWhoisProvider(config: ProviderConfig): void {
+  // 安全检查：不允许空 suffixes 数组（防止范用查询）
+  if (!config.suffixes || config.suffixes.length === 0) {
+    console.error(`[ApexProviders] SECURITY: Rejected WHOIS provider ${config.name} - empty suffixes array not allowed for apex providers`);
+    return;
+  }
+
   const exists = APEX_WHOIS_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
     console.warn(`[ApexProviders] WHOIS provider ${config.name} already exists, skipping`);
@@ -333,6 +339,12 @@ export function addApexWhoisProvider(config: ProviderConfig): void {
  * 添加自定义顶域 RDAP 查询商
  */
 export function addApexRdapProvider(config: ProviderConfig): void {
+  // 安全检查：不允许空 suffixes 数组（防止范用查询）
+  if (!config.suffixes || config.suffixes.length === 0) {
+    console.error(`[ApexProviders] SECURITY: Rejected RDAP provider ${config.name} - empty suffixes array not allowed for apex providers`);
+    return;
+  }
+
   const exists = APEX_RDAP_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
     console.warn(`[ApexProviders] RDAP provider ${config.name} already exists, skipping`);
