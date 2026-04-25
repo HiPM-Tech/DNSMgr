@@ -696,6 +696,7 @@
       "checkFailed": "Check failed",
       "updateSuccess": "Configuration updated",
       "updateFailed": "Update failed",
+      "updatePrefsFailed": "Failed to update notification settings",
       "normal": "Normal",
       "mismatch": "Mismatch",
       "missing": "Missing",

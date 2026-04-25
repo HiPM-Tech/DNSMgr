@@ -36,6 +36,12 @@ export function NSMonitor() {
     queryFn: () => nsMonitorApi.list().then(r => r.data.data || []),
   });
 
+  // 获取用户通知偏好设置
+  const { data: userPrefs } = useQuery({
+    queryKey: ['ns-monitor-user-prefs'],
+    queryFn: () => nsMonitorApi.getUserPrefs().then(r => r.data.data),
+  });
+
   const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains'],
     queryFn: () => domainsApi.list().then(r => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
@@ -53,6 +59,18 @@ export function NSMonitor() {
     },
     onError: () => {
       toast.error(t('nsMonitor.updateFailed'));
+    },
+  });
+
+  const updateUserPrefsMutation = useMutation({
+    mutationFn: (data: { notify_email?: boolean; notify_channels?: boolean }) =>
+      nsMonitorApi.updateUserPrefs(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
+      queryClient.invalidateQueries({ queryKey: ['ns-monitor-user-prefs'] });
+    },
+    onError: () => {
+      toast.error(t('nsMonitor.updatePrefsFailed'));
     },
   });
 
@@ -161,9 +179,9 @@ export function NSMonitor() {
       key: 'notifications',
       label: t('nsMonitor.notifications'),
       render: (row: NSMonitorConfig) => {
-        // 将数字转换为布尔值（数据库可能返回 0/1）
-        const hasEmail = Boolean(row.notify_email);
-        const hasChannels = Boolean(row.notify_channels);
+        // 优先使用用户偏好设置，如果没有则使用监测配置中的值
+        const hasEmail = Boolean(userPrefs?.notify_email ?? row.notify_email);
+        const hasChannels = Boolean(userPrefs?.notify_channels ?? row.notify_channels);
         // 如果都没有配置，显示 "-"
         if (!hasEmail && !hasChannels) {
           return <span className="text-gray-400">-</span>;
@@ -240,10 +258,18 @@ export function NSMonitor() {
     if (!selectedConfig) return;
 
     const formData = new FormData(e.currentTarget);
+    
+    // Update monitor config
     updateMutation.mutate({
       id: selectedConfig.id,
       expected_ns: formData.get('expected_ns') as string,
       enabled: formData.get('enabled') === 'on',
+    });
+    
+    // Update user notification preferences
+    updateUserPrefsMutation.mutate({
+      notify_email: formData.get('notify_email') === 'on',
+      notify_channels: formData.get('notify_channels') === 'on',
     });
   };
 
@@ -360,7 +386,7 @@ export function NSMonitor() {
                 <input
                   type="checkbox"
                   name="notify_email"
-                  defaultChecked={selectedConfig.notify_email}
+                  defaultChecked={userPrefs?.notify_email ?? selectedConfig.notify_email}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
@@ -372,7 +398,7 @@ export function NSMonitor() {
                 <input
                   type="checkbox"
                   name="notify_channels"
-                  defaultChecked={selectedConfig.notify_channels}
+                  defaultChecked={userPrefs?.notify_channels ?? selectedConfig.notify_channels}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">

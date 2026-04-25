@@ -320,3 +320,36 @@ We support multiple DNS providers out of the box (Cloudflare, AliYun, TencentClo
 2. **Register the Adapter**: Add your adapter to the switch case in `server/src/lib/dns/DnsHelper.ts`.
 3. **Update Frontend**: Add your provider to the `PROVIDERS` list in `client/src/pages/Accounts.tsx` with its required configuration fields.
 4. **Submit a PR**: We welcome pull requests! Ensure your code follows the existing style and passes the tests.
+
+---
+
+## 🛡️ AI Censorship & Code Quality
+
+DNSMgr adopts a strict AI code review mechanism to ensure code quality and project standards.
+
+### Code Review Standards
+
+- **P0 Level** (Must Fix): Database standards, security vulnerabilities, functional defects
+- **P1 Level** (Recommended Fix): Code quality, performance optimization, i18n completeness
+- **P2 Level** (Optional Optimization): Code comments, naming conventions, abstraction reuse
+
+### Core Requirements
+
+1. ✅ All database operations MUST go through the Business Adapter Layer
+2. ✅ JWT authentication uses dual-key structure
+3. ✅ Complete logging (requests, responses, errors, business operations)
+4. ✅ OAuth2/OIDC standard support
+5. ✅ Complete i18n multi-language support
+
+### Documentation
+
+- [Development Standards](docs/DEVELOPMENT.md) - Code standards, database standards, development process
+- [AI Censorship](ai-censorship/root.md) - Code review standards and checklist
+- [Architecture Documentation](docs/architecture/overview.md) - System architecture design
+- [API Documentation](docs/api-reference.md) - Complete RESTful API reference
+
+---
+
+<p align="center">
+  Made with ❤️ by HiPM Tech
+</p>

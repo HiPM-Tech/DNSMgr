@@ -1,6 +1,6 @@
 # DNSMgr 文档中心
 
-> 🚀 现代化的 DNS 聚合管理平台 | 支持 18+ DNS 服务商 | v1.1.0
+> 🚀 现代化的 DNS 聚合管理平台 | 支持 18+ DNS 服务商 | v1.2.0
 
 <p align="center">
   <a href="api-reference.md">🔌 API 文档</a> •
@@ -35,6 +35,7 @@
 - [DNS 核心层](architecture/dns-core.md) - DNS 服务商适配器架构
 - [认证与授权](architecture/authentication.md) - 安全认证体系
 - [API 路由](architecture/api-routes.md) - RESTful API 设计
+- [模块说明](architecture/modules.md) - 前后端模块结构
 
 ### 🔄 流程文档
 - [用户认证流程](flow/authentication-flow.md) - 登录认证完整流程
@@ -42,6 +43,10 @@
 - [OAuth 绑定流程](flow/oauth-bind-flow.md) - OAuth 账号绑定流程
 - [DNS 记录管理流程](flow/dns-record-flow.md) - 记录操作业务流程
 - [数据库初始化流程](flow/database-init-flow.md) - 数据库初始化流程
+
+### 🛡️ 审核与规范
+- [开发规范](DEVELOPMENT.md) - 代码规范、数据库规范、开发流程
+- [AI 审核团](../ai-censorship/root.md) - 代码审核标准和审查清单
 
 ---
 
@@ -60,6 +65,7 @@ DNSMgr 是一个现代化的 DNS 聚合管理平台，具有以下特点：
 | 🔔 **多通知渠道** | 邮件、Webhook、Telegram、钉钉 |
 | 🌍 **多语言支持** | 10+ 语言，包括 Mesugaki 风格 |
 | 🔌 **完整 API** | RESTful API + API Token 认证 |
+| 🛡️ **AI 审核团** | 严格的代码审核机制 |
 
 ---
 
@@ -137,9 +143,9 @@ domains = client.get_domains()
 ```bash
 docker run -d \
   --name dnsmgr \
-  -p 3000:3000 \
+  -p 3001:3001 \
   -v $(pwd)/data:/app/data \
-  hipm/dnsmgr:latest
+  ghcr.io/hipm-tech/dnsmgr:latest
 ```
 
 ### 开发环境
@@ -191,6 +197,28 @@ DNSMgr 支持以下语言：
 
 ---
 
+## 🛡️ AI 审核团
+
+DNSMgr 项目采用严格的 AI 代码审核机制，确保代码质量和项目规范：
+
+### 审核标准
+
+- **P0 级别**（必须修复）：数据库规范、安全漏洞、功能缺陷
+- **P1 级别**（建议修复）：代码质量、性能优化、i18n 完整性
+- **P2 级别**（可选优化）：代码注释、命名规范、抽象复用
+
+### 核心要求
+
+1. ✅ 所有数据库操作必须通过业务适配器层
+2. ✅ JWT 认证使用双层密钥结构
+3. ✅ 完整的日志记录（请求、响应、错误、业务操作）
+4. ✅ 支持 OAuth2/OIDC 标准
+5. ✅ 完整的 i18n 多语言支持
+
+👉 [查看完整审核标准](../ai-censorship/root.md)
+
+---
+
 ## 🔗 相关链接
 
 - [GitHub 仓库](https://github.com/HiPM-Tech/DNSMgr)
@@ -203,4 +231,4 @@ DNSMgr 支持以下语言：
   Made with ❤️ by HiPM Tech
 </p>
 
-*最后更新：2025年1月*
+*最后更新：2025年4月*

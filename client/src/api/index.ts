@@ -586,9 +586,12 @@ export const nsMonitorApi = {
   getByDomain: (domainId: number) => api.get<ApiResponse<NSMonitorConfig | null>>(`/ns-monitor/domain/${domainId}`),
   create: (data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
     api.post<ApiResponse<{ id: number }>>('/ns-monitor', data),
-  update: (id: number, data: { expected_ns?: string; enabled?: boolean; notify_email?: boolean; notify_channels?: boolean }) =>
+  update: (id: number, data: { expected_ns?: string; enabled?: boolean }) =>
     api.put<ApiResponse<null>>(`/ns-monitor/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/ns-monitor/${id}`),
+  getUserPrefs: () => api.get<ApiResponse<{ notify_email: boolean; notify_channels: boolean; check_interval: number }>>('/ns-monitor/user/prefs'),
+  updateUserPrefs: (data: { notify_email?: boolean; notify_channels?: boolean; check_interval?: number }) =>
+    api.put<ApiResponse<null>>('/ns-monitor/user/prefs', data),
   check: (id: number) => api.post<ApiResponse<{ current_ns: string[]; expected_ns: string[]; status: string }>>(`/ns-monitor/${id}/check`, {}),
 };
 
