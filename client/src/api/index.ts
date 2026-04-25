@@ -92,6 +92,7 @@ export interface Domain {
   remark: string;
   record_count?: number;
   expires_at?: string;
+  apex_expires_at?: string;  // 根域名到期时间（仅对子域名有效）
   created_at: string;
 }
 

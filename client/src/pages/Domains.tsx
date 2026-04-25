@@ -10,15 +10,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
-
-// 判断是否为顶域（只包含一个点的域名，如 example.com）
-function isApexDomain(name: string): boolean {
-  // 移除可能的尾部点号
-  const normalized = name.replace(/\.$/, '');
-  // 顶域只包含一个点（域名.后缀）
-  const parts = normalized.split('.');
-  return parts.length === 2;
-}
+import { isApexDomain } from '../utils/domain-utils';
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -418,11 +410,25 @@ export function Domains() {
         else if (daysLeft <= 30) colorClass = 'text-yellow-600 font-medium';
         else if (daysLeft <= 90) colorClass = 'text-blue-600 font-medium';
         
+        // 检查是否有根域名到期时间（子域名情况）
+        const hasApexExpiry = !!row.apex_expires_at;
+        const apexExpiry = hasApexExpiry ? new Date(row.apex_expires_at!) : null;
+        
         return (
           <div className="flex flex-col">
+            {/* 子域名到期时间（大字） */}
             <span className={`text-sm ${colorClass}`}>
               {expiry.toLocaleDateString()}
             </span>
+            
+            {/* 根域名到期时间（小字，仅对子域名显示） */}
+            {hasApexExpiry && apexExpiry && (
+              <span className="text-xs text-gray-400 mt-0.5">
+                {t('domains.apexDomainExpiry')}: {apexExpiry.toLocaleDateString()}
+              </span>
+            )}
+            
+            {/* 剩余天数提示 */}
             {daysLeft >= 0 && (
               <span className={`text-xs ${daysLeft <= 30 ? 'text-yellow-600' : 'text-gray-500'}`}>
                 {t('domains.daysLeft', { days: daysLeft })}

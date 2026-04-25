@@ -10,6 +10,7 @@ import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/
 import { log } from '../lib/logger';
 import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations } from '../db/business-adapter';
 import { syncDomainWhois } from '../service/whoisJob';
+import { getRootDomain } from '../service/whoisProvider';
 
 const router = Router();
 
@@ -150,8 +151,9 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   if (domain_type && domain_type !== 'all') {
     domains = domains.filter((domain) => {
       const normalized = domain.name.replace(/\.$/, '');
-      const parts = normalized.split('.');
-      const isApex = parts.length === 2;
+      // 使用 getRootDomain 来正确判断是否为顶域
+      const rootDomain = getRootDomain(normalized);
+      const isApex = normalized === rootDomain;
       
       if (domain_type === 'apex') {
         return isApex;
@@ -354,9 +356,38 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
     // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
     const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
     const dnsAdapter = createAdapter(account.type, cfg);
-    const result = await dnsAdapter.getDomainList();
+
+    // 分页获取所有域名
+    const allDomains: Array<{ Domain: string; ThirdId: string; RecordCount?: number }> = [];
+    let page = 1;
+    const pageSize = 50;
+    let hasMore = true;
+
+    const maxPages = 2000; // 最大页数限制（2000页 x 50个 = 10万个）
+
+    while (hasMore) {
+      try {
+        const result = await dnsAdapter.getDomainList(undefined, page, pageSize);
+        allDomains.push(...result.list);
+        // 改进的分页判断：当返回数据少于pageSize，或已达到/超过预期总数时停止
+        hasMore = result.list.length === pageSize && (page - 1) * pageSize + result.list.length < result.total;
+        page++;
+
+        // 安全限制：最多获取10万个域名或2000页防止无限循环
+        if (allDomains.length >= 100000 || page > maxPages) {
+          log.warn('Domains', `Sync domain limit reached (${allDomains.length} domains, ${page} pages), stopping pagination`);
+          break;
+        }
+      } catch (error) {
+        log.error('Domains', `Failed to fetch page ${page}:`, { error });
+        break;
+      }
+    }
+
+    log.info('Domains', `Sync fetched ${allDomains.length} domains from provider`, { accountId: account_id, provider: account.type });
+
     let added = 0;
-    for (const d of result.list) {
+    for (const d of allDomains) {
       const normalizedName = normalizeDomainName(d.Domain);
       const existing = await DomainOperations.getByAccountIdAndName(account_id, normalizedName);
       if (!existing) {
@@ -368,7 +399,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
         });
         added++;
         await logAuditOperation(req.user!.userId, 'sync_add_domain', normalizedName, { accountId: account_id });
-        
+
         // 异步获取 WHOIS 信息（不阻塞响应）
         syncDomainWhois(id).catch(err => {
           log.warn('Domains', `Failed to sync WHOIS for ${normalizedName}:`, { error: err });
@@ -377,8 +408,8 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
         await DomainOperations.updateThirdIdAndRecordCount(existing.id as number, d.ThirdId || '', d.RecordCount ?? 0);
       }
     }
-    await logAuditOperation(req.user!.userId, 'sync_domains', '', { accountId: account_id, total: result.total, added });
-    sendSuccess(res, { total: result.total, added });
+    await logAuditOperation(req.user!.userId, 'sync_domains', '', { accountId: account_id, total: allDomains.length, added });
+    sendSuccess(res, { total: allDomains.length, added });
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
   }
@@ -414,13 +445,47 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
     const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
     log.info('ProviderList', 'Fetching domains', { accountType: account.type, configKeys: Object.keys(cfg) });
     const dnsAdapter = createAdapter(account.type, cfg);
-    const result = await dnsAdapter.getDomainList();
-    log.info('ProviderList', 'Domains fetched', { total: result.total, listCount: result.list.length });
-    const domains = result.list.map((d) => ({
-      name: normalizeDomainName(d.Domain),
-      third_id: d.ThirdId,
-      record_count: d.RecordCount ?? 0,
-    }));
+
+    // 分页获取所有域名
+    const allProviderDomains: Array<{ Domain: string; ThirdId: string; RecordCount?: number }> = [];
+    let page = 1;
+    const pageSize = 50;
+    let hasMore = true;
+    const maxPages = 2000;
+
+    while (hasMore) {
+      try {
+        const result = await dnsAdapter.getDomainList(undefined, page, pageSize);
+        allProviderDomains.push(...result.list);
+        hasMore = result.list.length === pageSize && (page - 1) * pageSize + result.list.length < result.total;
+        page++;
+
+        if (allProviderDomains.length >= 100000 || page > maxPages) {
+          log.warn('ProviderList', `Domain limit reached (${allProviderDomains.length} domains, ${page} pages), stopping pagination`);
+          break;
+        }
+      } catch (error) {
+        log.error('ProviderList', `Failed to fetch page ${page}:`, { error });
+        break;
+      }
+    }
+
+    log.info('ProviderList', 'Domains fetched', { total: allProviderDomains.length });
+
+    // 获取当前账号下已添加的域名列表
+    const existingDomains = await DomainOperations.getByAccountId(accountId) as Array<{ name: string }>;
+    const existingDomainNames = new Set(existingDomains.map((d) => normalizeDomainName(d.name)));
+
+    // 过滤掉已添加的域名（不限制数量，展示所有可同步的域名）
+    const domains = allProviderDomains
+      .map((d) => ({
+        name: normalizeDomainName(d.Domain),
+        third_id: d.ThirdId,
+        record_count: d.RecordCount ?? 0,
+      }))
+      .filter((d) => !existingDomainNames.has(d.name));
+
+    log.info('ProviderList', 'Filtered domains', { total: allProviderDomains.length, filtered: domains.length, existing: existingDomainNames.size });
     sendSuccess(res, domains);
   } catch (e) {
     log.error('ProviderList', 'Error fetching domains', e);
@@ -686,7 +751,8 @@ router.post('/:id/whois', authMiddleware, asyncHandler(async (req: Request, res:
   
   if (result.success) {
     sendSuccess(res, { 
-      expires_at: result.expiresAt?.toISOString() 
+      expires_at: result.expiresAt?.toISOString(),
+      apex_expires_at: result.apexExpiresAt?.toISOString(),
     }, 'WHOIS info refreshed successfully');
   } else {
     sendError(res, result.message || 'Failed to refresh WHOIS info');
