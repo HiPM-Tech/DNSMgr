@@ -929,6 +929,8 @@
       "title": "API 令牌管理",
       "tokenCreated": "令牌创建成功",
       "tokenDeleted": "令牌已删除",
+      "tokenUpdated": "令牌已更新",
+      "editToken": "编辑令牌",
       "tokenName": "令牌名称",
       "tokenNamePlaceholder": "例如：CI/CD 部署令牌",
       "tokenNameRequired": "请填写令牌名称",

@@ -598,6 +598,8 @@
       "endTimeHint": "Leave blank to keep it valid indefinitely",
       "tokenCreated": "Token created successfully",
       "tokenDeleted": "Token deleted",
+      "tokenUpdated": "Token updated",
+      "editToken": "Edit Token",
       "tokenStatusUpdated": "Status updated",
       "createFailed": "Failed to create token",
       "deleteFailed": "Failed to delete token",

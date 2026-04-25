@@ -292,8 +292,8 @@ export const accountsApi = {
 // ─── Domains ──────────────────────────────────────────────────────────────────
 
 export const domainsApi = {
-  list: (params?: { account_id?: number; keyword?: string; domain_type?: 'all' | 'apex' | 'subdomain' }) =>
-    api.get<ApiResponse<Domain[]>>('/domains', { params }),
+  list: (params?: { account_id?: number; keyword?: string; domain_type?: 'all' | 'apex' | 'subdomain'; page?: number; pageSize?: number }) =>
+    api.get<ApiResponse<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>>('/domains', { params }),
   get: (id: number) => api.get<ApiResponse<Domain>>(`/domains/${id}`),
   listFromProvider: (accountId: number) =>
     api.get<ApiResponse<ProviderDomainOption[]>>(`/domains/provider-list/${accountId}`),
@@ -552,6 +552,12 @@ export const tokensApi = {
     start_time?: string;
     end_time?: string;
   }) => api.post<ApiResponse<{ token: string; tokenData: UserToken }>>('/tokens', data),
+  update: (id: number, data: {
+    name?: string;
+    allowed_domains?: number[];
+    start_time?: string;
+    end_time?: string;
+  }) => api.put<ApiResponse<null>>(`/tokens/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/tokens/${id}`),
   toggleStatus: (id: number, is_active: boolean) =>
     api.patch<ApiResponse<null>>(`/tokens/${id}/status`, { is_active }),
@@ -580,8 +586,8 @@ export const nsMonitorApi = {
   getByDomain: (domainId: number) => api.get<ApiResponse<NSMonitorConfig | null>>(`/ns-monitor/domain/${domainId}`),
   create: (data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
     api.post<ApiResponse<{ id: number }>>('/ns-monitor', data),
-  update: (id: number, data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
-    api.post<ApiResponse<{ id: number }>>('/ns-monitor', { ...data, id }),
+  update: (id: number, data: { expected_ns?: string; enabled?: boolean; notify_email?: boolean; notify_channels?: boolean }) =>
+    api.put<ApiResponse<null>>(`/ns-monitor/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/ns-monitor/${id}`),
   check: (id: number) => api.post<ApiResponse<{ current_ns: string[]; expected_ns: string[]; status: string }>>(`/ns-monitor/${id}/check`, {}),
 };
