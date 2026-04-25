@@ -9,7 +9,7 @@ import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { log } from '../lib/logger';
 import { normalizeRole, isSuper, isAdmin } from '../utils/roles';
-import { resolveNsRecords } from '../lib/dns/ns-lookup';
+import { resolveNsRecords, NSLookupResult } from '../lib/dns/ns-lookup';
 import { getDomainAccess } from './domains';
 
 const router = Router();
@@ -317,37 +317,57 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
     return;
   }
 
-  // Query current NS records
-  const currentNs = await resolveNsRecords(domain.name as string);
+  // Query current NS records with dual query (encrypted + plain)
+  const nsResult: NSLookupResult = await resolveNsRecords(domain.name as string);
+  const currentNs = nsResult.nsRecords;
   const currentNsStr = currentNs.join(', ');
+
+  // Get encrypted and plain query results
+  const encryptedNs = nsResult.encryptedResult?.records?.map(r => r.data) || [];
+  const plainNs = nsResult.plainResult?.records?.map(r => r.data) || [];
 
   // Check against expected
   const expectedNs = (monitor.expected_ns as string) || '';
-  let status = 'ok';
+  let status: 'ok' | 'mismatch' | 'missing' | 'poisoned' = 'ok';
 
-  if (expectedNs && currentNs.length > 0) {
+  if (currentNs.length === 0) {
+    status = 'missing';
+  } else if (nsResult.isPoisoned) {
+    status = 'poisoned';
+  } else if (expectedNs) {
     const expectedList = expectedNs.split(',').map(s => s.trim()).filter(Boolean);
     const hasMismatch = expectedList.length > 0 && !expectedList.every(ns => currentNs.includes(ns));
     if (hasMismatch) {
       status = 'mismatch';
     }
-  } else if (currentNs.length === 0) {
-    status = 'missing';
   }
 
-  // Update status
+  // Update status with encrypted and plain NS records
   await NSMonitorOperations.updateStatus(parseInt(id), {
     current_ns: currentNsStr,
+    encrypted_ns: encryptedNs.join(', '),
+    plain_ns: plainNs.join(', '),
+    is_poisoned: nsResult.isPoisoned,
     status,
     last_check_at: formatDateForDB(new Date()),
   });
 
-  log.info('NSMonitor', 'Manual check completed', { monitorId: id, domainId: monitor.domain_id, status });
+  log.info('NSMonitor', 'Manual check completed', {
+    monitorId: id,
+    domainId: monitor.domain_id,
+    status,
+    isPoisoned: nsResult.isPoisoned,
+    encryptedCount: encryptedNs.length,
+    plainCount: plainNs.length,
+  });
 
   res.json({
     success: true,
     data: {
       current_ns: currentNs,
+      encrypted_ns: encryptedNs,
+      plain_ns: plainNs,
+      is_poisoned: nsResult.isPoisoned,
       expected_ns: expectedNs.split(',').map(s => s.trim()).filter(Boolean),
       status,
     },

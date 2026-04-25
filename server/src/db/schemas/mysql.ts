@@ -387,6 +387,9 @@ export const mysqlSchema: SchemaDefinition = {
       domain_id INT NOT NULL,
       expected_ns TEXT,
       current_ns TEXT,
+      encrypted_ns TEXT,
+      plain_ns TEXT,
+      is_poisoned TINYINT NOT NULL DEFAULT 0,
       status VARCHAR(20) NOT NULL DEFAULT 'ok',
       enabled TINYINT NOT NULL DEFAULT 1,
       last_check_at DATETIME,
@@ -411,5 +414,9 @@ export const mysqlSchema: SchemaDefinition = {
     `ALTER TABLE team_members MODIFY COLUMN role ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member'`,
     // Note: apex_expires_at column is added via handleMySQLMigrations() in schema.ts
     // (stored procedures are not supported in prepared statement protocol)
+    // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS is_poisoned TINYINT NOT NULL DEFAULT 0`,
   ],
 };

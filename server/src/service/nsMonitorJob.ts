@@ -55,19 +55,37 @@ async function logNsAlertToAudit(
     domain_name: string;
     user_id?: number;
   },
-  status: 'mismatch' | 'missing',
+  status: 'mismatch' | 'missing' | 'poisoned',
   currentNs: string[],
-  expectedNs: string[]
+  expectedNs: string[],
+  isPoisoned?: boolean,
+  encryptedNs?: string[],
+  plainNs?: string[]
 ): Promise<void> {
   try {
-    const alertTypeText = status === 'mismatch' ? 'NS记录不匹配' : 'NS记录缺失';
-    const details = JSON.stringify({
+    const alertTypeMap: Record<string, string> = {
+      'mismatch': 'NS记录不匹配',
+      'missing': 'NS记录缺失',
+      'poisoned': 'DNS污染检测',
+    };
+    const alertTypeText = alertTypeMap[status] || 'NS异常';
+    
+    const detailsObj: Record<string, unknown> = {
       domain: monitor.domain_name,
       alertType: status,
       currentNs: currentNs.join(', ') || '无',
       expectedNs: expectedNs.join(', ') || '未配置',
       monitorId: monitor.id,
-    });
+    };
+    
+    // 添加DNS污染检测详情
+    if (isPoisoned) {
+      detailsObj.isPoisoned = true;
+      detailsObj.encryptedNs = encryptedNs?.join(', ') || '无';
+      detailsObj.plainNs = plainNs?.join(', ') || '无';
+    }
+    
+    const details = JSON.stringify(detailsObj);
 
     // 使用系统用户ID (0) 或者配置的创建者ID
     const userId = monitor.user_id || 0;
@@ -83,6 +101,7 @@ async function logNsAlertToAudit(
     log.info('NSMonitorJob', 'NS alert logged to audit', {
       domain: monitor.domain_name,
       status,
+      isPoisoned,
       userId,
     });
   } catch (error) {
@@ -106,24 +125,39 @@ async function checkDomainNs(monitor: {
   try {
     log.info('NSMonitorJob', 'Checking NS records', { domain: monitor.domain_name, monitorId: monitor.id });
 
-    // 查询当前 NS 记录
-    const currentNs = await resolveNsRecords(monitor.domain_name);
+    // 查询当前 NS 记录（带DNS污染检测）
+    const nsResult = await resolveNsRecords(monitor.domain_name);
+    const currentNs = nsResult.nsRecords;
     const currentNsStr = currentNs.join(', ');
+
+    // 获取加密和明文查询结果
+    const encryptedNs = nsResult.encryptedResult?.records?.map(r => r.data) || [];
+    const plainNs = nsResult.plainResult?.records?.map(r => r.data) || [];
 
     // 解析预期的 NS 记录
     const expectedNs = (monitor.expected_ns as string) || '';
     const expectedList = expectedNs.split(',').map(s => s.trim()).filter(Boolean);
 
     // 确定状态
-    const status = getNsStatus(currentNs, expectedList);
+    let status: 'ok' | 'mismatch' | 'missing' | 'poisoned' = 'ok';
+    if (currentNs.length === 0) {
+      status = 'missing';
+    } else if (nsResult.isPoisoned) {
+      status = 'poisoned';
+    } else if (expectedList.length > 0 && !validateNsRecords(currentNs, expectedList)) {
+      status = 'mismatch';
+    }
 
     // 获取当前时间（数据库兼容格式）
     const now = new Date();
     const nowStr = formatDateForDB(now);
 
-    // 更新状态
+    // 更新状态（包含加密和明文NS记录）
     await NSMonitorOperations.updateStatus(monitor.id, {
       current_ns: currentNsStr,
+      encrypted_ns: encryptedNs.join(', '),
+      plain_ns: plainNs.join(', '),
+      is_poisoned: nsResult.isPoisoned,
       status,
       last_check_at: nowStr,
     });
@@ -133,12 +167,15 @@ async function checkDomainNs(monitor: {
       log.warn('NSMonitorJob', 'NS record anomaly detected', {
         domain: monitor.domain_name,
         status,
+        isPoisoned: nsResult.isPoisoned,
         current: currentNs,
+        encrypted: encryptedNs,
+        plain: plainNs,
         expected: expectedList,
       });
 
       // 记录告警到审计日志
-      await logNsAlertToAudit(monitor, status, currentNs, expectedList);
+      await logNsAlertToAudit(monitor, status, currentNs, expectedList, nsResult.isPoisoned, encryptedNs, plainNs);
 
       // 检查是否需要抑制告警
       const isSuppressed = await shouldSuppressAlert(monitor.id, status, monitor.last_alert_at);
@@ -152,13 +189,14 @@ async function checkDomainNs(monitor: {
 
       // 发送通知（如果被抑制则不发送）
       if (!isSuppressed) {
-        await sendNsAlert(monitor, status, currentNs, expectedList);
+        await sendNsAlert(monitor, status, currentNs, expectedList, nsResult.isPoisoned, encryptedNs, plainNs);
       }
     }
 
     log.info('NSMonitorJob', 'NS check completed', {
       domain: monitor.domain_name,
       status,
+      isPoisoned: nsResult.isPoisoned,
       currentNs: currentNsStr,
     });
   } catch (error) {
@@ -179,18 +217,34 @@ async function sendNsAlert(
     domain_name: string;
     user_id: number;
   },
-  status: 'mismatch' | 'missing',
+  status: 'mismatch' | 'missing' | 'poisoned',
   currentNs: string[],
-  expectedNs: string[]
+  expectedNs: string[],
+  isPoisoned?: boolean,
+  encryptedNs?: string[],
+  plainNs?: string[]
 ): Promise<void> {
-  const alertTypeText = status === 'mismatch' ? 'NS 记录不匹配' : 'NS 记录缺失';
+  const alertTypeMap: Record<string, string> = {
+    'mismatch': 'NS 记录不匹配',
+    'missing': 'NS 记录缺失',
+    'poisoned': 'DNS 污染检测',
+  };
+  const alertTypeText = alertTypeMap[status] || 'NS 异常';
   const title = `【DNSMgr 告警】${monitor.domain_name} ${alertTypeText}`;
 
-  const message = `域名: ${monitor.domain_name}\n` +
+  let message = `域名: ${monitor.domain_name}\n` +
     `告警类型: ${alertTypeText}\n` +
     `当前 NS: ${currentNs.join(', ') || '无'}\n` +
-    `预期 NS: ${expectedNs.join(', ') || '未配置'}\n` +
-    `时间: ${new Date().toLocaleString('zh-CN')}`;
+    `预期 NS: ${expectedNs.join(', ') || '未配置'}\n`;
+  
+  // 添加DNS污染检测详情
+  if (isPoisoned && encryptedNs && plainNs) {
+    message += `加密 DNS 结果: ${encryptedNs.join(', ') || '无'}\n` +
+      `明文 DNS 结果: ${plainNs.join(', ') || '无'}\n` +
+      `⚠️ 警告: 加密DNS与明文DNS查询结果不一致，可能存在DNS污染!\n`;
+  }
+  
+  message += `时间: ${new Date().toLocaleString('zh-CN')}`;
 
   try {
     // 获取用户的通知偏好设置
@@ -215,12 +269,21 @@ async function sendNsAlert(
     }
 
     // 生成 HTML 格式的消息
-    const htmlMessage = `<h3>${title}</h3>
+    let htmlMessage = `<h3>${title}</h3>
 <p><strong>域名:</strong> ${monitor.domain_name}</p>
 <p><strong>告警类型:</strong> ${alertTypeText}</p>
 <p><strong>当前 NS:</strong> ${currentNs.join(', ') || '无'}</p>
-<p><strong>预期 NS:</strong> ${expectedNs.join(', ') || '未配置'}</p>
-<p><strong>时间:</strong> ${new Date().toLocaleString('zh-CN')}</p>`;
+<p><strong>预期 NS:</strong> ${expectedNs.join(', ') || '未配置'}</p>`;
+    
+    // 添加DNS污染检测详情到HTML
+    if (isPoisoned && encryptedNs && plainNs) {
+      htmlMessage += `<p><strong style="color: #9333ea;">⚠️ DNS 污染检测:</strong></p>
+<p><strong>加密 DNS 结果:</strong> ${encryptedNs.join(', ') || '无'}</p>
+<p><strong>明文 DNS 结果:</strong> ${plainNs.join(', ') || '无'}</p>
+<p style="color: #dc2626;"><strong>警告:</strong> 加密DNS与明文DNS查询结果不一致，可能存在DNS污染!</p>`;
+    }
+    
+    htmlMessage += `<p><strong>时间:</strong> ${new Date().toLocaleString('zh-CN')}</p>`;
 
     // 发送邮件通知到用户自己的邮箱（如果启用）
     if (shouldSendEmail && userId) {
@@ -233,6 +296,8 @@ async function sendNsAlert(
               domain: monitor.domain_name,
               userId,
               email: user.email,
+              status,
+              isPoisoned,
             });
           } else {
             log.warn('NSMonitorJob', 'Failed to send email notification to user', {
@@ -263,6 +328,7 @@ async function sendNsAlert(
         log.info('NSMonitorJob', 'Channel notification sent', {
           domain: monitor.domain_name,
           status,
+          isPoisoned,
           userId,
         });
       } catch (channelError) {

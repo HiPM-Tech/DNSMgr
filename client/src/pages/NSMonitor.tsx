@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2 } from 'lucide-react';
+import { Shield, ShieldAlert, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2 } from 'lucide-react';
 import { nsMonitorApi, domainsApi } from '../api';
 import type { Domain } from '../api';
 import { Table } from '../components/Table';
@@ -18,7 +18,10 @@ interface NSMonitorConfig {
   notify_email: boolean;
   notify_channels: boolean;
   current_ns?: string;
-  status?: 'ok' | 'mismatch' | 'missing';
+  encrypted_ns?: string[];
+  plain_ns?: string[];
+  is_poisoned?: boolean;
+  status?: 'ok' | 'mismatch' | 'missing' | 'poisoned';
   last_check_at?: string;
   alert_count?: number;
 }
@@ -126,6 +129,12 @@ export function NSMonitor() {
       render: (row: NSMonitorConfig) => (
         <div className="flex items-center gap-2">
           <span className="font-medium">{row.domain_name}</span>
+          {row.status === 'poisoned' && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs" title={t('nsMonitor.poisonedTooltip')}>
+              <ShieldAlert className="w-3 h-3" />
+              {t('nsMonitor.poisoned')}
+            </span>
+          )}
           {row.status === 'mismatch' && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">
               <AlertTriangle className="w-3 h-3" />
@@ -151,8 +160,38 @@ export function NSMonitor() {
       key: 'current_ns',
       label: t('nsMonitor.currentNS'),
       render: (row: NSMonitorConfig) => (
-        <div className="text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
-          {row.current_ns || t('nsMonitor.notChecked')}
+        <div className="space-y-1">
+          {/* 加密查询结果 */}
+          {row.encrypted_ns && row.encrypted_ns.length > 0 && (
+            <div className="text-xs">
+              <span className="text-green-600 font-medium">{t('nsMonitor.encrypted')}:</span>
+              <span className="text-gray-600 dark:text-gray-400 ml-1">
+                {row.encrypted_ns.join(', ')}
+              </span>
+            </div>
+          )}
+          {/* 明文查询结果 */}
+          {row.plain_ns && row.plain_ns.length > 0 && (
+            <div className="text-xs">
+              <span className="text-blue-600 font-medium">{t('nsMonitor.plain')}:</span>
+              <span className="text-gray-600 dark:text-gray-400 ml-1">
+                {row.plain_ns.join(', ')}
+              </span>
+            </div>
+          )}
+          {/* 无结果 */}
+          {(!row.encrypted_ns || row.encrypted_ns.length === 0) && (!row.plain_ns || row.plain_ns.length === 0) && (
+            <div className="text-sm text-gray-400">
+              {row.current_ns || t('nsMonitor.notChecked')}
+            </div>
+          )}
+          {/* DNS 污染警告 */}
+          {row.is_poisoned && (
+            <div className="text-xs text-purple-600 font-medium flex items-center gap-1 mt-1">
+              <ShieldAlert className="w-3 h-3" />
+              {t('nsMonitor.dnsPoisoningDetected')}
+            </div>
+          )}
         </div>
       ),
     },

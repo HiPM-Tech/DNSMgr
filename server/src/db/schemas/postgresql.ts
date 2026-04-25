@@ -386,7 +386,10 @@ export const postgresqlSchema: SchemaDefinition = {
       domain_id INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
       expected_ns TEXT NOT NULL DEFAULT '',
       current_ns TEXT NOT NULL DEFAULT '',
-      status VARCHAR(20) NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing')),
+      encrypted_ns TEXT,
+      plain_ns TEXT,
+      is_poisoned BOOLEAN NOT NULL DEFAULT false,
+      status VARCHAR(20) NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing', 'poisoned')),
       enabled BOOLEAN NOT NULL DEFAULT true,
       last_check_at TIMESTAMP,
       last_alert_at TIMESTAMP,
@@ -408,6 +411,13 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE team_members DROP CONSTRAINT IF EXISTS team_members_role_check`,
     `ALTER TABLE team_members ADD CONSTRAINT team_members_role_check CHECK (role IN ('owner', 'admin', 'member'))`,
     // Migration: Add apex_expires_at column to domains table for subdomain expiry tracking
-    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TIMESTAMP`
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TIMESTAMP`,
+    // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS is_poisoned BOOLEAN NOT NULL DEFAULT false`,
+    // Migration: Update status check constraint to include 'poisoned'
+    `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_status_check`,
+    `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_status_check CHECK (status IN ('ok', 'mismatch', 'missing', 'poisoned'))`
   ],
 };

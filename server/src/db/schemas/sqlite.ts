@@ -363,7 +363,10 @@ export const sqliteSchema: SchemaDefinition = {
       domain_id INTEGER NOT NULL,
       expected_ns TEXT NOT NULL DEFAULT '',
       current_ns TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing')),
+      encrypted_ns TEXT,
+      plain_ns TEXT,
+      is_poisoned INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'ok' CHECK(status IN ('ok', 'mismatch', 'missing', 'poisoned')),
       enabled INTEGER NOT NULL DEFAULT 1,
       last_check_at TEXT,
       last_alert_at TEXT,
@@ -403,6 +406,10 @@ export const sqliteSchema: SchemaDefinition = {
     // 3. 删除旧表
     // 4. 重命名新表
     // Migration: Add apex_expires_at column to domains table for subdomain expiry tracking
-    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TEXT`
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TEXT`,
+    // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS is_poisoned INTEGER NOT NULL DEFAULT 0`
   ],
 };

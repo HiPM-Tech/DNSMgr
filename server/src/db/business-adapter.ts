@@ -3155,6 +3155,9 @@ export const NSMonitorOperations = {
   /** 更新监测状态（用于定时任务） */
   async updateStatus(id: number, updates: {
     current_ns?: string;
+    encrypted_ns?: string;
+    plain_ns?: string;
+    is_poisoned?: boolean | number;
     status?: string;
     last_check_at?: string;
     last_alert_at?: string;
