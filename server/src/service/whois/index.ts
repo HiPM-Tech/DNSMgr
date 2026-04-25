@@ -467,6 +467,9 @@ class WhoisService {
   private async queryApexRdapParallel(domain: string, timeout: number): Promise<WhoisResult | null> {
     const queries: Array<() => Promise<WhoisResult | null>> = [];
 
+    // Debug: 记录提供商数量
+    log.debug('WhoisService', `[APEX+RDAP] Provider count: ${APEX_RDAP_PROVIDERS.length} for ${domain}`);
+
     // 查找所有匹配的RDAP提供商
     for (const provider of APEX_RDAP_PROVIDERS) {
       const isMatch = provider.suffixes.some(suffix => {
@@ -475,6 +478,7 @@ class WhoisService {
       });
 
       if (isMatch) {
+        log.debug('WhoisService', `[APEX+RDAP] Matched provider: ${provider.name} for ${domain}`);
         queries.push(() => this.queryWithProvider(
           domain,
           provider,
@@ -485,7 +489,7 @@ class WhoisService {
     }
 
     if (queries.length === 0) {
-      log.debug('WhoisService', `[APEX+RDAP] No matching providers for ${domain}`);
+      log.warn('WhoisService', `[APEX+RDAP] No matching providers for ${domain}`);
       return null;
     }
 
