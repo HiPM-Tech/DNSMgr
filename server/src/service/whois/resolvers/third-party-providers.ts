@@ -55,6 +55,11 @@ export function findThirdPartyWhoisProvider(domain: string): ThirdPartyProviderC
   const lowerDomain = domain.toLowerCase();
 
   for (const provider of THIRD_PARTY_WHOIS_PROVIDERS) {
+    // 空 suffixes 数组表示匹配所有域名
+    if (provider.suffixes.length === 0) {
+      return provider;
+    }
+
     const isMatch = provider.suffixes.some(suffix => {
       if (lowerDomain === suffix) return true;
       return lowerDomain.endsWith('.' + suffix);
@@ -75,6 +80,11 @@ export function findThirdPartyRdapProvider(domain: string): ThirdPartyProviderCo
   const lowerDomain = domain.toLowerCase();
 
   for (const provider of THIRD_PARTY_RDAP_PROVIDERS) {
+    // 空 suffixes 数组表示匹配所有域名
+    if (provider.suffixes.length === 0) {
+      return provider;
+    }
+
     const isMatch = provider.suffixes.some(suffix => {
       if (lowerDomain === suffix) return true;
       return lowerDomain.endsWith('.' + suffix);
