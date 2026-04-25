@@ -223,20 +223,20 @@ class WhoisService {
     log.info('WhoisService', `[THIRDPARTY] Starting third-party queries for ${domain} (root: ${rootDomain})`);
 
     // 并行查询根域名和子域名
-    const [rootResult, subdomainResult] = await Promise.all([
+    const [rootResult, thirdPartySubdomainResult] = await Promise.all([
       this.queryThirdPartyRdapParallel(rootDomain, timeout).then(r => r || this.queryThirdPartyWhoisParallel(rootDomain, timeout)),
       domain !== rootDomain ? this.queryThirdPartyRdapParallel(domain, timeout).then(r => r || this.queryThirdPartyWhoisParallel(domain, timeout)) : Promise.resolve(null),
     ]);
 
     // 优先使用子域名结果，但继承根域名的到期时间
-    if (subdomainResult?.expiryDate) {
+    if (thirdPartySubdomainResult?.expiryDate) {
       if (rootResult?.expiryDate) {
-        subdomainResult.apexExpiryDate = rootResult.expiryDate;
-        subdomainResult.apexRegistrar = rootResult.registrar;
+        thirdPartySubdomainResult.apexExpiryDate = rootResult.expiryDate;
+        thirdPartySubdomainResult.apexRegistrar = rootResult.registrar;
       }
-      this.setCached(domain, subdomainResult);
+      this.setCached(domain, thirdPartySubdomainResult);
       log.info('WhoisService', `[SUCCESS] Third-party subdomain query succeeded for ${domain}`);
-      return subdomainResult;
+      return thirdPartySubdomainResult;
     }
 
     // 如果子域名查询失败，使用根域名结果
