@@ -39,9 +39,10 @@ export const THIRD_PARTY_WHOIS_PROVIDERS: ThirdPartyProviderConfig[] = [
  */
 export const THIRD_PARTY_RDAP_PROVIDERS: ThirdPartyProviderConfig[] = [
   // 第三方 RDAP 服务：rdap-box
+  // 支持所有域名后缀，作为通用备选
   {
     name: 'rdap-box',
-    suffixes: ['today'],
+    suffixes: [],
     method: QueryMethodType.RDAP,
     server: 'https://rdap-box.vercel.app/domain/',
   },
