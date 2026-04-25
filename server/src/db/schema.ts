@@ -15,6 +15,44 @@ import { getConnection } from './core/connection';
 import type { DatabaseConnection } from './core/types';
 import { log } from '../lib/logger';
 
+/**
+ * Handle MySQL-specific migrations that require application-level checks
+ * (stored procedures are not supported in prepared statement protocol)
+ */
+async function handleMySQLMigrations(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  try {
+    // Check if apex_expires_at column exists in domains table
+    const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'apex_expires_at'`;
+    
+    let columnExists = false;
+    if (conn.execute) {
+      const result = await conn.execute(checkColumnSql) as Array<{ cnt: number }>;
+      columnExists = result && result[0] && result[0].cnt > 0;
+    }
+
+    if (!columnExists) {
+      try {
+        const addColumnSql = `ALTER TABLE domains ADD COLUMN apex_expires_at DATETIME`;
+        if (conn.execute) {
+          await conn.execute(addColumnSql);
+        } else if (conn.exec) {
+          conn.exec(addColumnSql);
+        }
+        log.info('Schema', 'Added apex_expires_at column to domains table');
+      } catch (error) {
+        log.warn('Schema', 'Failed to add apex_expires_at column (may already exist)', { error: (error as Error).message });
+      }
+    } else {
+      log.debug('Schema', 'apex_expires_at column already exists in domains table');
+    }
+  } catch (error) {
+    log.warn('Schema', 'MySQL migration check failed', { error: (error as Error).message });
+  }
+}
+
 // Re-export schema definitions
 export { sqliteSchema, mysqlSchema, postgresqlSchema };
 
@@ -185,6 +223,10 @@ export async function initSchemaAsync(
         log.warn('Schema', 'Migration skipped (may already be applied)', { error: (error as Error).message, sql: sql.substring(0, 100) });
       }
     }
+
+    // Handle MySQL-specific migrations that require application-level checks
+    // (stored procedures are not supported in prepared statement protocol)
+    await handleMySQLMigrations(conn);
   } else if (dbType === 'postgresql') {
     for (const sql of postgresqlSchema.createTables) {
       try {
