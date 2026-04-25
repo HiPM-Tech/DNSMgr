@@ -66,8 +66,193 @@ async function handleMySQLMigrations(
     } else {
       log.debug('Schema', 'apex_expires_at column already exists in domains table');
     }
+
+    // 迁移：删除旧的域名级 NS 监测表（已废弃，改为用户级）
+    await dropOldNsMonitorTables(conn);
   } catch (error) {
     log.warn('Schema', 'MySQL migration check failed', { error: (error as Error).message });
+  }
+}
+
+/**
+ * 删除旧的域名级 NS 监测表（迁移到用户级）- MySQL
+ */
+async function dropOldNsMonitorTables(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  const oldTables = [
+    'ns_monitor_configs',
+    'ns_monitor_status',
+    'ns_monitor_alerts'
+  ];
+
+  for (const tableName of oldTables) {
+    try {
+      // 检查表是否存在
+      const checkTableSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_NAME = '${tableName}'`;
+
+      let tableExists = false;
+      if (conn.execute) {
+        const result = await conn.execute(checkTableSql);
+        if (Array.isArray(result) && result.length > 0) {
+          const row = result[0] as Record<string, number>;
+          const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+          tableExists = parseInt(String(count), 10) > 0;
+        }
+      }
+
+      if (tableExists) {
+        // 清空表数据
+        try {
+          if (conn.execute) {
+            await conn.execute(`DELETE FROM ${tableName}`);
+          } else if (conn.exec) {
+            conn.exec(`DELETE FROM ${tableName}`);
+          }
+          log.info('Schema', `Cleared old NS monitor table: ${tableName}`);
+        } catch (clearError) {
+          log.warn('Schema', `Failed to clear table ${tableName}`, { error: (clearError as Error).message });
+        }
+
+        // 删除表
+        try {
+          if (conn.execute) {
+            await conn.execute(`DROP TABLE ${tableName}`);
+          } else if (conn.exec) {
+            conn.exec(`DROP TABLE ${tableName}`);
+          }
+          log.info('Schema', `Dropped old NS monitor table: ${tableName}`);
+        } catch (dropError) {
+          log.warn('Schema', `Failed to drop table ${tableName}`, { error: (dropError as Error).message });
+        }
+      }
+    } catch (error) {
+      log.warn('Schema', `Error processing old NS monitor table ${tableName}`, { error: (error as Error).message });
+    }
+  }
+}
+
+/**
+ * 删除旧的域名级 NS 监测表（迁移到用户级）- SQLite
+ */
+async function dropOldNsMonitorTablesSQLite(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  const oldTables = [
+    'ns_monitor_configs',
+    'ns_monitor_status',
+    'ns_monitor_alerts'
+  ];
+
+  for (const tableName of oldTables) {
+    try {
+      // 检查表是否存在
+      let tableExists = false;
+      if (conn.execute) {
+        try {
+          await conn.execute(`SELECT 1 FROM ${tableName} LIMIT 1`);
+          tableExists = true;
+        } catch {
+          tableExists = false;
+        }
+      } else if (conn.exec) {
+        try {
+          conn.exec(`SELECT 1 FROM ${tableName} LIMIT 1`);
+          tableExists = true;
+        } catch {
+          tableExists = false;
+        }
+      }
+
+      if (tableExists) {
+        // 清空表数据
+        try {
+          if (conn.execute) {
+            await conn.execute(`DELETE FROM ${tableName}`);
+          } else if (conn.exec) {
+            conn.exec(`DELETE FROM ${tableName}`);
+          }
+          log.info('Schema', `Cleared old NS monitor table: ${tableName}`);
+        } catch (clearError) {
+          log.warn('Schema', `Failed to clear table ${tableName}`, { error: (clearError as Error).message });
+        }
+
+        // 删除表
+        try {
+          if (conn.execute) {
+            await conn.execute(`DROP TABLE IF EXISTS ${tableName}`);
+          } else if (conn.exec) {
+            conn.exec(`DROP TABLE IF EXISTS ${tableName}`);
+          }
+          log.info('Schema', `Dropped old NS monitor table: ${tableName}`);
+        } catch (dropError) {
+          log.warn('Schema', `Failed to drop table ${tableName}`, { error: (dropError as Error).message });
+        }
+      }
+    } catch (error) {
+      log.warn('Schema', `Error processing old NS monitor table ${tableName}`, { error: (error as Error).message });
+    }
+  }
+}
+
+/**
+ * 删除旧的域名级 NS 监测表（迁移到用户级）- PostgreSQL
+ */
+async function dropOldNsMonitorTablesPostgreSQL(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  const oldTables = [
+    'ns_monitor_configs',
+    'ns_monitor_status',
+    'ns_monitor_alerts'
+  ];
+
+  for (const tableName of oldTables) {
+    try {
+      // 检查表是否存在
+      const checkTableSql = `SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = '${tableName}'
+      )`;
+
+      let tableExists = false;
+      if (conn.execute) {
+        const result = await conn.execute(checkTableSql);
+        if (Array.isArray(result) && result.length > 0) {
+          const row = result[0] as Record<string, boolean>;
+          tableExists = row?.exists ?? false;
+        }
+      }
+
+      if (tableExists) {
+        // 清空表数据
+        try {
+          if (conn.execute) {
+            await conn.execute(`DELETE FROM ${tableName}`);
+          } else if (conn.exec) {
+            conn.exec(`DELETE FROM ${tableName}`);
+          }
+          log.info('Schema', `Cleared old NS monitor table: ${tableName}`);
+        } catch (clearError) {
+          log.warn('Schema', `Failed to clear table ${tableName}`, { error: (clearError as Error).message });
+        }
+
+        // 删除表
+        try {
+          if (conn.execute) {
+            await conn.execute(`DROP TABLE IF EXISTS ${tableName}`);
+          } else if (conn.exec) {
+            conn.exec(`DROP TABLE IF EXISTS ${tableName}`);
+          }
+          log.info('Schema', `Dropped old NS monitor table: ${tableName}`);
+        } catch (dropError) {
+          log.warn('Schema', `Failed to drop table ${tableName}`, { error: (dropError as Error).message });
+        }
+      }
+    } catch (error) {
+      log.warn('Schema', `Error processing old NS monitor table ${tableName}`, { error: (error as Error).message });
+    }
   }
 }
 
@@ -200,6 +385,9 @@ export async function initSchemaAsync(
         log.warn('Schema', 'Migration skipped (may already be applied)', { error: (error as Error).message, sql: sql.substring(0, 100) });
       }
     }
+
+    // 迁移：删除旧的域名级 NS 监测表（已废弃，改为用户级）
+    await dropOldNsMonitorTablesSQLite(conn);
   } else if (dbType === 'mysql') {
     for (const sql of mysqlSchema.createTables) {
       try {
@@ -286,6 +474,9 @@ export async function initSchemaAsync(
         log.warn('Schema', 'Migration skipped (may already be applied)', { error: (error as Error).message, sql: sql.substring(0, 100) });
       }
     }
+
+    // 迁移：删除旧的域名级 NS 监测表（已废弃，改为用户级）
+    await dropOldNsMonitorTablesPostgreSQL(conn);
   } else {
     throw new Error(`Unsupported database type: ${dbType}`);
   }
