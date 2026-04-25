@@ -159,7 +159,14 @@ export function Records() {
     {
       key: 'value', label: t('common.value'),
       render: (r: DnsRecord) => (
-        <span className="font-mono text-xs text-gray-700 max-w-xs truncate block" title={r.value}>{r.value}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs text-gray-700 max-w-xs truncate block" title={r.value}>{r.value}</span>
+          {r.type === 'MX' && r.mx !== undefined && (
+            <span className="inline-flex items-center px-1.5 py-0.5 bg-orange-50 text-orange-600 rounded text-xs font-medium" title={t('records.mxPriority')}>
+              {r.mx}
+            </span>
+          )}
+        </div>
       ),
     },
     {
