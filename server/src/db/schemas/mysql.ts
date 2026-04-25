@@ -349,6 +349,17 @@ export const mysqlSchema: SchemaDefinition = {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (config_id) REFERENCES ns_monitor_configs(id) ON DELETE CASCADE,
       INDEX idx_config_id (config_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS user_ns_monitor_prefs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL UNIQUE,
+      notify_email TINYINT NOT NULL DEFAULT 1,
+      notify_channels TINYINT NOT NULL DEFAULT 1,
+      check_interval INT NOT NULL DEFAULT 3600,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ],
   createIndexes: [

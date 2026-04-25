@@ -3169,6 +3169,49 @@ export const NSMonitorOperations = {
       { operation: 'NSMonitor.getRecentAlerts', table: 'ns_monitor_alerts' }
     );
   },
+
+  /** 获取用户的 NS 监测偏好设置 */
+  async getUserPrefs(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM user_ns_monitor_prefs WHERE user_id = ?',
+      [userId],
+      { operation: 'NSMonitor.getUserPrefs', table: 'user_ns_monitor_prefs' }
+    );
+  },
+
+  /** 创建用户的 NS 监测偏好设置 */
+  async createUserPrefs(userId: number, data: Record<string, unknown>): Promise<number> {
+    const fields = ['user_id', ...Object.keys(data)];
+    const placeholders = fields.map(() => '?').join(', ');
+    const values = [userId, ...Object.values(data)];
+    return insertInternal(
+      `INSERT INTO user_ns_monitor_prefs (${fields.join(', ')}) VALUES (${placeholders})`,
+      values,
+      { operation: 'NSMonitor.createUserPrefs', table: 'user_ns_monitor_prefs' }
+    );
+  },
+
+  /** 更新用户的 NS 监测偏好设置 */
+  async updateUserPrefs(userId: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE user_ns_monitor_prefs SET ${setClause} WHERE user_id = ?`,
+      [...values, userId],
+      { operation: 'NSMonitor.updateUserPrefs', table: 'user_ns_monitor_prefs' }
+    );
+  },
+
+  /** 删除用户的 NS 监测偏好设置 */
+  async deleteUserPrefs(userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_ns_monitor_prefs WHERE user_id = ?',
+      [userId],
+      { operation: 'NSMonitor.deleteUserPrefs', table: 'user_ns_monitor_prefs' }
+    );
+  },
 };
 
 // ============================================================================

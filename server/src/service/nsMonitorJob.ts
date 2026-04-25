@@ -187,7 +187,7 @@ async function checkDomainNs(config: {
 
 /**
  * 发送 NS 告警通知
- * 仅管理员添加的监测会使用通知渠道
+ * 使用用户的通知偏好设置
  */
 async function sendNsAlert(
   config: {
@@ -212,20 +212,25 @@ async function sendNsAlert(
     `时间: ${new Date().toLocaleString('zh-CN')}`;
 
   try {
-    // 仅管理员添加的监测使用通知渠道
-    const isAdminCreated = config.isAdmin === true;
+    // 获取用户的通知偏好设置
+    const userId = config.created_by;
+    let shouldSendEmail = false;
+    let shouldSendChannels = false;
 
-    // 检查是否需要发送邮件（仅管理员）
-    const shouldSendEmail = isAdminCreated && (config.notify_email === 1 || config.notify_email === true);
-    // 检查是否需要发送渠道通知（仅管理员）
-    const shouldSendChannels = isAdminCreated && (config.notify_channels === 1 || config.notify_channels === true);
-
-    if (!isAdminCreated) {
-      log.info('NSMonitorJob', 'Notification skipped (non-admin created config)', {
-        domain: config.domain_name,
-        createdBy: config.created_by,
-      });
-      return;
+    if (userId) {
+      const userPrefs = await NSMonitorOperations.getUserPrefs(userId);
+      if (userPrefs) {
+        shouldSendEmail = userPrefs.notify_email === 1 || userPrefs.notify_email === true;
+        shouldSendChannels = userPrefs.notify_channels === 1 || userPrefs.notify_channels === true;
+      } else {
+        // 默认启用通知
+        shouldSendEmail = true;
+        shouldSendChannels = true;
+      }
+    } else {
+      // 没有创建者信息，使用配置中的设置（向后兼容）
+      shouldSendEmail = config.notify_email === 1 || config.notify_email === true;
+      shouldSendChannels = config.notify_channels === 1 || config.notify_channels === true;
     }
 
     if (shouldSendEmail || shouldSendChannels) {
@@ -244,7 +249,12 @@ async function sendNsAlert(
         status,
         email: shouldSendEmail,
         channels: shouldSendChannels,
-        isAdmin: isAdminCreated,
+        userId,
+      });
+    } else {
+      log.info('NSMonitorJob', 'Notification skipped (disabled in user preferences)', {
+        domain: config.domain_name,
+        userId,
       });
     }
   } catch (error) {

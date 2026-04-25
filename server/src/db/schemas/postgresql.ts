@@ -336,7 +336,17 @@ export const postgresqlSchema: SchemaDefinition = {
       sent_channels BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_alerts_config_id ON ns_monitor_alerts(config_id)`
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_alerts_config_id ON ns_monitor_alerts(config_id)`,
+    `CREATE TABLE IF NOT EXISTS user_ns_monitor_prefs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      notify_email BOOLEAN NOT NULL DEFAULT true,
+      notify_channels BOOLEAN NOT NULL DEFAULT true,
+      check_interval INTEGER NOT NULL DEFAULT 3600,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_user_ns_monitor_prefs_user_id ON user_ns_monitor_prefs(user_id)`
   ],
   createIndexes: [
     // 索引已在 CREATE TABLE 中定义

@@ -306,6 +306,16 @@ export const sqliteSchema: SchemaDefinition = {
       sent_channels INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (config_id) REFERENCES ns_monitor_configs(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_ns_monitor_prefs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      notify_email INTEGER NOT NULL DEFAULT 1,
+      notify_channels INTEGER NOT NULL DEFAULT 1,
+      check_interval INTEGER NOT NULL DEFAULT 3600,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`
   ],
   createIndexes: [
@@ -325,6 +335,7 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_configs_enabled ON ns_monitor_configs(enabled)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_status_config_id ON ns_monitor_status(config_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_alerts_config_id ON ns_monitor_alerts(config_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_user_ns_monitor_prefs_user_id ON user_ns_monitor_prefs(user_id)`,
   ],
   alterTables: [
     // SQLite 不支持直接修改 CHECK 约束

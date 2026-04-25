@@ -5,10 +5,10 @@
 
 import { Router, Request, Response } from 'express';
 import { NSMonitorOperations, DomainOperations, getDbType, formatDateForDB } from '../db/business-adapter';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, requireJwtAuth } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { log } from '../lib/logger';
-import { normalizeRole, isSuper } from '../utils/roles';
+import { normalizeRole, isSuper, isAdmin } from '../utils/roles';
 import { resolveNsRecords } from '../lib/dns/ns-lookup';
 import { getDomainAccess } from './domains';
 
@@ -376,6 +376,124 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
   log.info('NSMonitor', 'Configuration deleted', { configId: id, userId });
 
   res.json({ success: true });
+}));
+
+// ============================================================================
+// 用户 NS 监测偏好设置（每个用户独立）
+// ============================================================================
+
+/**
+ * @swagger
+ * /api/ns-monitor/user/prefs:
+ *   get:
+ *     summary: Get user's NS monitor preferences
+ *     tags: [NS Monitor]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User's NS monitor preferences
+ */
+router.get('/user/prefs', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+
+  const prefs = await NSMonitorOperations.getUserPrefs(userId);
+
+  res.json({
+    success: true,
+    data: prefs || {
+      user_id: userId,
+      notify_email: true,
+      notify_channels: true,
+      check_interval: 3600,
+    },
+  });
+}));
+
+/**
+ * @swagger
+ * /api/ns-monitor/user/prefs:
+ *   put:
+ *     summary: Update user's NS monitor preferences
+ *     tags: [NS Monitor]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notify_email:
+ *                 type: boolean
+ *                 description: Enable email notifications (admin only)
+ *               notify_channels:
+ *                 type: boolean
+ *                 description: Enable channel notifications (admin only)
+ *               check_interval:
+ *                 type: integer
+ *                 description: Check interval in seconds
+ *     responses:
+ *       200:
+ *         description: Preferences updated successfully
+ */
+router.put('/user/prefs', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const role = normalizeRole(req.user!.role);
+  const { notify_email, notify_channels, check_interval } = req.body;
+
+  // 普通用户无权操作通知渠道启用（只有管理员可以）
+  const updates: Record<string, unknown> = {};
+
+  // check_interval 所有用户都可以修改
+  if (check_interval !== undefined) {
+    updates.check_interval = check_interval;
+  }
+
+  // notify_email 和 notify_channels 只有管理员可以修改
+  if (isAdmin(role) || isSuper(role)) {
+    if (notify_email !== undefined) {
+      updates.notify_email = toDbBoolean(notify_email, getDbType());
+    }
+    if (notify_channels !== undefined) {
+      updates.notify_channels = toDbBoolean(notify_channels, getDbType());
+    }
+  } else {
+    // 普通用户尝试修改通知渠道，记录警告日志
+    if (notify_email !== undefined || notify_channels !== undefined) {
+      log.warn('NSMonitor', 'Non-admin user attempted to modify notification channels', {
+        userId,
+        role,
+        attemptedChanges: { notify_email, notify_channels },
+      });
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ success: false, error: 'No valid fields to update' });
+    return;
+  }
+
+  // 检查是否已存在偏好设置
+  const existing = await NSMonitorOperations.getUserPrefs(userId);
+
+  if (existing) {
+    await NSMonitorOperations.updateUserPrefs(userId, updates);
+  } else {
+    // 创建新的偏好设置
+    const createData: Record<string, unknown> = {
+      notify_email: toDbBoolean(true, getDbType()),
+      notify_channels: toDbBoolean(true, getDbType()),
+      check_interval: 3600,
+      ...updates,
+    };
+    await NSMonitorOperations.createUserPrefs(userId, createData);
+  }
+
+  log.info('NSMonitor', 'User preferences updated', { userId, updates });
+
+  res.json({ success: true, msg: 'Preferences updated successfully' });
 }));
 
 export default router;
