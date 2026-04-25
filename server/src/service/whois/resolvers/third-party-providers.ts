@@ -44,7 +44,7 @@ export const THIRD_PARTY_RDAP_PROVIDERS: ThirdPartyProviderConfig[] = [
     name: 'rdap-box',
     suffixes: [],
     method: QueryMethodType.RDAP,
-    server: 'https://rdap-box.vercel.app/domain/',
+    server: 'https://rdap-box.vercel.app/',
   },
 ];
 

@@ -229,6 +229,12 @@ export const APEX_WHOIS_PROVIDERS: ProviderConfig[] = [
     method: QueryMethodType.WHOIS,
     server: 'whois.nic.work',
   },
+  {
+    name: 'nic-today',
+    suffixes: ['today'],
+    method: QueryMethodType.WHOIS,
+    server: 'whois.nic.today',
+  },
 ];
 
 /**
@@ -270,6 +276,12 @@ export const APEX_RDAP_PROVIDERS: ProviderConfig[] = [
     suffixes: ['uk'],
     method: QueryMethodType.RDAP,
     server: 'https://rdap.nic.uk/',
+  },
+  {
+    name: 'rdap-nic-today',
+    suffixes: ['today'],
+    method: QueryMethodType.RDAP,
+    server: 'https://rdap.nic.today/',
   },
 ];
 
