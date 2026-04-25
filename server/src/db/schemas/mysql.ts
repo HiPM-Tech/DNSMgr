@@ -403,6 +403,22 @@ export const mysqlSchema: SchemaDefinition = {
       INDEX idx_user_id (user_id),
       INDEX idx_domain_id (domain_id),
       INDEX idx_enabled (enabled)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS rdap_server_cache (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tld VARCHAR(255) NOT NULL UNIQUE,
+      servers TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS system_cache (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      cache_key VARCHAR(255) NOT NULL UNIQUE,
+      cache_value TEXT NOT NULL,
+      expires_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_expires_at (expires_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ],
   createIndexes: [

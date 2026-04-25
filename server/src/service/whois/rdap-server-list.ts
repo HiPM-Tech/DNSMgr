@@ -1,23 +1,21 @@
 /**
  * RDAP 服务器列表管理
- * 从 IANA 官方源下载并缓存 RDAP 服务器列表
+ * 从 IANA 官方源下载并缓存 RDAP 服务器列表到数据库
  * 官方源: https://data.iana.org/rdap/dns.json
  */
 
 import * as https from 'https';
-import * as fs from 'fs';
-import * as path from 'path';
 import { log } from '../../lib/logger';
+import { RdapCacheOperations, SystemCacheOperations } from '../../db/business-adapter';
 
 // IANA RDAP 服务器列表 URL
 const IANA_RDAP_URL = 'https://data.iana.org/rdap/dns.json';
 
-// 缓存文件路径
-const CACHE_DIR = process.env.CACHE_DIR || path.join(process.cwd(), 'cache');
-const CACHE_FILE = path.join(CACHE_DIR, 'rdap-servers.json');
-
 // 缓存有效期（30天，单位：毫秒）
 const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
+
+// 系统缓存键
+const CACHE_KEY = 'rdap_server_list_last_update';
 
 /**
  * IANA RDAP 响应数据结构
@@ -35,24 +33,6 @@ interface IanaRdapResponse {
 interface RdapServerConfig {
   tld: string;
   servers: string[];
-}
-
-/**
- * 缓存数据结构
- */
-interface RdapCache {
-  lastUpdated: string;
-  data: RdapServerConfig[];
-}
-
-/**
- * 确保缓存目录存在
- */
-function ensureCacheDir(): void {
-  if (!fs.existsSync(CACHE_DIR)) {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
-    log.info('RdapServerList', `Created cache directory: ${CACHE_DIR}`);
-  }
 }
 
 /**
@@ -150,83 +130,95 @@ function parseIanaData(data: IanaRdapResponse): RdapServerConfig[] {
 }
 
 /**
- * 保存缓存到文件
+ * 保存 RDAP 服务器列表到数据库
  */
-function saveCache(configs: RdapServerConfig[]): void {
+async function saveToDatabase(configs: RdapServerConfig[]): Promise<void> {
   try {
-    ensureCacheDir();
-    const cache: RdapCache = {
-      lastUpdated: new Date().toISOString(),
-      data: configs,
-    };
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf-8');
-    log.info('RdapServerList', `Saved RDAP server list cache to ${CACHE_FILE}`);
+    // 清空旧缓存
+    await RdapCacheOperations.clearAll();
+    
+    // 批量保存新数据
+    await RdapCacheOperations.saveBatch(configs);
+    
+    // 更新缓存时间戳
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + CACHE_TTL);
+    await SystemCacheOperations.set(CACHE_KEY, now.toISOString(), expiresAt);
+    
+    log.info('RdapServerList', `Saved ${configs.length} RDAP servers to database`);
   } catch (error) {
-    log.error('RdapServerList', 'Failed to save cache', {
+    log.error('RdapServerList', 'Failed to save to database', {
       error: error instanceof Error ? error.message : String(error),
     });
+    throw error;
   }
 }
 
 /**
- * 从缓存文件加载
+ * 从数据库加载 RDAP 服务器列表
  */
-function loadCache(): RdapCache | null {
+async function loadFromDatabase(): Promise<RdapServerConfig[]> {
   try {
-    if (!fs.existsSync(CACHE_FILE)) {
-      log.debug('RdapServerList', 'Cache file does not exist');
-      return null;
-    }
-
-    const content = fs.readFileSync(CACHE_FILE, 'utf-8');
-    const cache = JSON.parse(content) as RdapCache;
-
-    // 验证缓存结构
-    if (!cache.lastUpdated || !Array.isArray(cache.data)) {
-      log.warn('RdapServerList', 'Invalid cache structure');
-      return null;
-    }
-
-    log.debug('RdapServerList', `Loaded cache from ${CACHE_FILE}`, {
-      lastUpdated: cache.lastUpdated,
-      configCount: cache.data.length,
-    });
-
-    return cache;
+    const entries = await RdapCacheOperations.getAll();
+    
+    const configs: RdapServerConfig[] = entries.map(entry => ({
+      tld: entry.tld as string,
+      servers: JSON.parse(entry.servers as string),
+    }));
+    
+    log.debug('RdapServerList', `Loaded ${configs.length} RDAP servers from database`);
+    return configs;
   } catch (error) {
-    log.error('RdapServerList', 'Failed to load cache', {
+    log.error('RdapServerList', 'Failed to load from database', {
       error: error instanceof Error ? error.message : String(error),
     });
-    return null;
+    return [];
   }
 }
 
 /**
  * 检查缓存是否过期
  */
-function isCacheExpired(cache: RdapCache): boolean {
-  const lastUpdated = new Date(cache.lastUpdated).getTime();
-  const now = Date.now();
-  const age = now - lastUpdated;
-
-  const isExpired = age > CACHE_TTL;
-  log.debug('RdapServerList', `Cache age: ${Math.floor(age / 1000 / 60 / 60)} hours, expired: ${isExpired}`);
-
-  return isExpired;
+async function isCacheExpired(): Promise<boolean> {
+  try {
+    const lastUpdateStr = await SystemCacheOperations.get(CACHE_KEY);
+    
+    if (!lastUpdateStr) {
+      log.debug('RdapServerList', 'No cache timestamp found, cache is expired');
+      return true;
+    }
+    
+    const lastUpdate = new Date(lastUpdateStr).getTime();
+    const now = Date.now();
+    const age = now - lastUpdate;
+    
+    const isExpired = age > CACHE_TTL;
+    log.debug('RdapServerList', `Cache age: ${Math.floor(age / 1000 / 60 / 60)} hours, expired: ${isExpired}`);
+    
+    return isExpired;
+  } catch (error) {
+    log.warn('RdapServerList', 'Failed to check cache expiration', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return true;
+  }
 }
 
 /**
  * 获取 RDAP 服务器列表
- * 优先使用缓存，缓存过期或不存在时从 IANA 下载
+ * 优先使用数据库缓存，缓存过期或不存在时从 IANA 下载
  */
 export async function getRdapServerList(forceRefresh = false): Promise<RdapServerConfig[]> {
-  // 尝试加载缓存
-  const cache = loadCache();
-
-  // 如果缓存有效且未强制刷新，使用缓存
-  if (!forceRefresh && cache && !isCacheExpired(cache)) {
-    log.info('RdapServerList', 'Using cached RDAP server list');
-    return cache.data;
+  // 检查缓存是否有效
+  const isExpired = forceRefresh || await isCacheExpired();
+  
+  if (!isExpired) {
+    log.info('RdapServerList', 'Using cached RDAP server list from database');
+    const configs = await loadFromDatabase();
+    if (configs.length > 0) {
+      return configs;
+    }
+    log.warn('RdapServerList', 'Database cache is empty, will download from IANA');
   }
 
   // 缓存不存在或已过期，从 IANA 下载
@@ -234,7 +226,7 @@ export async function getRdapServerList(forceRefresh = false): Promise<RdapServe
     const ianaData = await downloadFromIana();
     if (ianaData) {
       const configs = parseIanaData(ianaData);
-      saveCache(configs);
+      await saveToDatabase(configs);
       return configs;
     }
   } catch (error) {
@@ -242,10 +234,11 @@ export async function getRdapServerList(forceRefresh = false): Promise<RdapServe
       error: error instanceof Error ? error.message : String(error),
     });
 
-    // 下载失败但有缓存，使用过期缓存作为后备
-    if (cache) {
-      log.warn('RdapServerList', 'Using expired cache as fallback');
-      return cache.data;
+    // 下载失败但尝试使用数据库缓存作为后备
+    log.warn('RdapServerList', 'Using database cache as fallback');
+    const configs = await loadFromDatabase();
+    if (configs.length > 0) {
+      return configs;
     }
   }
 
@@ -259,14 +252,20 @@ export async function getRdapServerList(forceRefresh = false): Promise<RdapServe
  */
 export async function findRdapServer(tld: string): Promise<string | null> {
   const normalizedTld = tld.toLowerCase().replace(/^\./, '');
-  const configs = await getRdapServerList();
-
-  const config = configs.find(c => c.tld === normalizedTld);
-  if (config && config.servers.length > 0) {
-    // 返回第一个服务器
-    const server = config.servers[0];
-    log.debug('RdapServerList', `Found RDAP server for .${normalizedTld}`, { server });
-    return server;
+  
+  try {
+    const entry = await RdapCacheOperations.getByTld(normalizedTld);
+    if (entry) {
+      const servers = JSON.parse(entry.servers as string);
+      if (servers.length > 0) {
+        log.debug('RdapServerList', `Found RDAP server for .${normalizedTld}`, { server: servers[0] });
+        return servers[0];
+      }
+    }
+  } catch (error) {
+    log.warn('RdapServerList', `Failed to find RDAP server for .${normalizedTld}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   log.debug('RdapServerList', `No RDAP server found for .${normalizedTld}`);
@@ -293,23 +292,32 @@ export async function refreshRdapServerList(): Promise<RdapServerConfig[]> {
 /**
  * 获取缓存状态信息
  */
-export function getCacheStatus(): { exists: boolean; lastUpdated?: string; age?: number; expired?: boolean } {
-  const cache = loadCache();
+export async function getCacheStatus(): Promise<{ exists: boolean; lastUpdated?: string; age?: number; expired?: boolean; count?: number }> {
+  try {
+    const lastUpdateStr = await SystemCacheOperations.get(CACHE_KEY);
+    const stats = await RdapCacheOperations.getStats();
+    
+    if (!lastUpdateStr) {
+      return { exists: false, count: stats.count };
+    }
 
-  if (!cache) {
+    const lastUpdated = new Date(lastUpdateStr).getTime();
+    const now = Date.now();
+    const age = now - lastUpdated;
+
+    return {
+      exists: true,
+      lastUpdated: lastUpdateStr,
+      age: Math.floor(age / 1000), // 秒
+      expired: age > CACHE_TTL,
+      count: stats.count,
+    };
+  } catch (error) {
+    log.warn('RdapServerList', 'Failed to get cache status', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return { exists: false };
   }
-
-  const lastUpdated = new Date(cache.lastUpdated).getTime();
-  const now = Date.now();
-  const age = now - lastUpdated;
-
-  return {
-    exists: true,
-    lastUpdated: cache.lastUpdated,
-    age: Math.floor(age / 1000), // 秒
-    expired: age > CACHE_TTL,
-  };
 }
 
 /**
@@ -330,4 +338,4 @@ export async function initRdapServerList(): Promise<void> {
 }
 
 // 导出类型
-export type { RdapServerConfig, RdapCache };
+export type { RdapServerConfig };

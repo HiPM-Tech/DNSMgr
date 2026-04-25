@@ -400,7 +400,25 @@ export const postgresqlSchema: SchemaDefinition = {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_id ON ns_monitor_domains(domain_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`,
+    `CREATE TABLE IF NOT EXISTS rdap_server_cache (
+      id SERIAL PRIMARY KEY,
+      tld VARCHAR(255) NOT NULL UNIQUE,
+      servers TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_rdap_server_cache_tld ON rdap_server_cache(tld)`,
+    `CREATE TABLE IF NOT EXISTS system_cache (
+      id SERIAL PRIMARY KEY,
+      cache_key VARCHAR(255) NOT NULL UNIQUE,
+      cache_value TEXT NOT NULL,
+      expires_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_system_cache_key ON system_cache(cache_key)`,
+    `CREATE INDEX IF NOT EXISTS idx_system_cache_expires ON system_cache(expires_at)`
   ],
   createIndexes: [
     // 索引已在 CREATE TABLE 中定义

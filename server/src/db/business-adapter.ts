@@ -3176,6 +3176,161 @@ export const NSMonitorOperations = {
 };
 
 // ============================================================================
+// RDAP 服务器缓存操作
+// ============================================================================
+
+export const RdapCacheOperations = {
+  /** 获取所有 RDAP 服务器缓存 */
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM rdap_server_cache ORDER BY tld',
+      [],
+      { operation: 'RdapCache.getAll', table: 'rdap_server_cache' }
+    );
+  },
+
+  /** 根据 TLD 获取 RDAP 服务器 */
+  async getByTld(tld: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM rdap_server_cache WHERE tld = ?',
+      [tld.toLowerCase()],
+      { operation: 'RdapCache.getByTld', table: 'rdap_server_cache' }
+    );
+  },
+
+  /** 批量保存 RDAP 服务器缓存 */
+  async saveBatch(entries: Array<{ tld: string; servers: string[] }>): Promise<void> {
+    const dbType = getDbType();
+    const now = formatDateForDB(new Date());
+
+    for (const entry of entries) {
+      const serversJson = JSON.stringify(entry.servers);
+      
+      if (dbType === 'postgresql') {
+        // PostgreSQL 使用 ON CONFLICT
+        await executeInternal(
+          `INSERT INTO rdap_server_cache (tld, servers, created_at, updated_at) 
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT (tld) DO UPDATE SET 
+           servers = EXCLUDED.servers, updated_at = EXCLUDED.updated_at`,
+          [entry.tld.toLowerCase(), serversJson, now, now],
+          { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
+        );
+      } else if (dbType === 'mysql') {
+        // MySQL 使用 ON DUPLICATE KEY UPDATE
+        await executeInternal(
+          `INSERT INTO rdap_server_cache (tld, servers, created_at, updated_at) 
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE 
+           servers = VALUES(servers), updated_at = VALUES(updated_at)`,
+          [entry.tld.toLowerCase(), serversJson, now, now],
+          { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
+        );
+      } else {
+        // SQLite 使用 REPLACE 或先删除后插入
+        await executeInternal(
+          `INSERT OR REPLACE INTO rdap_server_cache (tld, servers, created_at, updated_at) 
+           VALUES (?, ?, COALESCE((SELECT created_at FROM rdap_server_cache WHERE tld = ?), ?), ?)`,
+          [entry.tld.toLowerCase(), serversJson, entry.tld.toLowerCase(), now, now],
+          { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
+        );
+      }
+    }
+  },
+
+  /** 清空所有 RDAP 服务器缓存 */
+  async clearAll(): Promise<void> {
+    return executeInternal(
+      'DELETE FROM rdap_server_cache',
+      [],
+      { operation: 'RdapCache.clearAll', table: 'rdap_server_cache' }
+    );
+  },
+
+  /** 获取缓存统计信息 */
+  async getStats(): Promise<{ count: number; lastUpdated?: string }> {
+    const result = await getInternal<{ count: number; last_updated?: string }>(
+      'SELECT COUNT(*) as count, MAX(updated_at) as last_updated FROM rdap_server_cache',
+      [],
+      { operation: 'RdapCache.getStats', table: 'rdap_server_cache' }
+    );
+    return {
+      count: result?.count || 0,
+      lastUpdated: result?.last_updated,
+    };
+  },
+};
+
+// ============================================================================
+// 系统缓存操作（通用键值缓存）
+// ============================================================================
+
+export const SystemCacheOperations = {
+  /** 获取缓存值 */
+  async get(key: string): Promise<string | null> {
+    const result = await getInternal<{ cache_value: string }>(
+      'SELECT cache_value FROM system_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > ?)',
+      [key, formatDateForDB(new Date())],
+      { operation: 'SystemCache.get', table: 'system_cache' }
+    );
+    return result?.cache_value || null;
+  },
+
+  /** 设置缓存值 */
+  async set(key: string, value: string, expiresAt?: Date): Promise<void> {
+    const dbType = getDbType();
+    const now = formatDateForDB(new Date());
+    const expires = expiresAt ? formatDateForDB(expiresAt) : null;
+
+    if (dbType === 'postgresql') {
+      await executeInternal(
+        `INSERT INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at) 
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (cache_key) DO UPDATE SET 
+         cache_value = EXCLUDED.cache_value, expires_at = EXCLUDED.expires_at, updated_at = EXCLUDED.updated_at`,
+        [key, value, expires, now, now],
+        { operation: 'SystemCache.set', table: 'system_cache' }
+      );
+    } else if (dbType === 'mysql') {
+      await executeInternal(
+        `INSERT INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at) 
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+         cache_value = VALUES(cache_value), expires_at = VALUES(expires_at), updated_at = VALUES(updated_at)`,
+        [key, value, expires, now, now],
+        { operation: 'SystemCache.set', table: 'system_cache' }
+      );
+    } else {
+      await executeInternal(
+        `INSERT OR REPLACE INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at) 
+         VALUES (?, ?, ?, COALESCE((SELECT created_at FROM system_cache WHERE cache_key = ?), ?), ?)`,
+        [key, value, expires, key, now, now],
+        { operation: 'SystemCache.set', table: 'system_cache' }
+      );
+    }
+  },
+
+  /** 删除缓存 */
+  async delete(key: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM system_cache WHERE cache_key = ?',
+      [key],
+      { operation: 'SystemCache.delete', table: 'system_cache' }
+    );
+  },
+
+  /** 清理过期缓存 */
+  async cleanupExpired(): Promise<number> {
+    const result = await runInternal(
+      'DELETE FROM system_cache WHERE expires_at IS NOT NULL AND expires_at <= ?',
+      [formatDateForDB(new Date())],
+      { operation: 'SystemCache.cleanupExpired', table: 'system_cache' }
+    );
+    return result.changes || 0;
+  },
+};
+
+// ============================================================================
 // 导出默认对象（兼容旧代码）
 // ============================================================================
 
@@ -3224,4 +3379,6 @@ export default {
   AuditRules: AuditRulesOperations,
   AuditLog: AuditLogOperations,
   NSMonitor: NSMonitorOperations,
+  RdapCache: RdapCacheOperations,
+  SystemCache: SystemCacheOperations,
 };

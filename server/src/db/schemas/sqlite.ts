@@ -376,6 +376,21 @@ export const sqliteSchema: SchemaDefinition = {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
       UNIQUE(user_id, domain_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS rdap_server_cache (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tld TEXT NOT NULL UNIQUE,
+      servers TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS system_cache (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cache_key TEXT NOT NULL UNIQUE,
+      cache_value TEXT NOT NULL,
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ],
   createIndexes: [
