@@ -278,11 +278,20 @@ class WhoisService {
       return result;
     }
 
-    // 如果子域名查询失败但顶域查询成功，返回顶域结果（对于子域名查询）
+    // 如果子域名查询失败但顶域查询成功，创建子域名结果（使用顶域到期时间）
     if (isSubdomain && apexResult?.expiryDate) {
       log.info('WhoisService', `Subdomain query failed, using apex domain expiry for ${domain}`);
-      this.setCached(domain, apexResult);
-      return apexResult;
+      const subdomainResult: WhoisResult = {
+        domain,
+        expiryDate: apexResult.expiryDate,
+        registrar: apexResult.registrar,
+        nameServers: apexResult.nameServers,
+        raw: apexResult.raw,
+        apexExpiryDate: apexResult.expiryDate,
+        apexRegistrar: apexResult.registrar,
+      };
+      this.setCached(domain, subdomainResult);
+      return subdomainResult;
     }
 
     log.warn('WhoisService', `All queries failed for ${domain}`);
