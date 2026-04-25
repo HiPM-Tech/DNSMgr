@@ -3,9 +3,9 @@
  * NS 监测定时任务服务
  */
 
-import { NSMonitorOperations, DomainOperations, AuditOperations, formatDateForDB } from '../db/business-adapter';
+import { NSMonitorOperations, DomainOperations, AuditOperations, UserOperations, formatDateForDB } from '../db/business-adapter';
 import { resolveNsRecords, getNsStatus } from '../lib/dns/ns-lookup';
-import { sendNotification } from './notification';
+import { sendNotification, sendEmailToUser } from './notification';
 import { log } from '../lib/logger';
 
 let monitorInterval: NodeJS.Timeout | null = null;
@@ -187,7 +187,7 @@ async function checkDomainNs(config: {
 
 /**
  * 发送 NS 告警通知
- * 使用用户的通知偏好设置
+ * 使用用户的通知偏好设置，邮件发送至用户自己的邮箱
  */
 async function sendNsAlert(
   config: {
@@ -233,25 +233,67 @@ async function sendNsAlert(
       shouldSendChannels = config.notify_channels === 1 || config.notify_channels === true;
     }
 
-    if (shouldSendEmail || shouldSendChannels) {
-      // 生成 HTML 格式的消息
-      const htmlMessage = `<h3>${title}</h3>
+    // 生成 HTML 格式的消息
+    const htmlMessage = `<h3>${title}</h3>
 <p><strong>域名:</strong> ${config.domain_name}</p>
 <p><strong>告警类型:</strong> ${alertTypeText}</p>
 <p><strong>当前 NS:</strong> ${currentNs.join(', ') || '无'}</p>
 <p><strong>预期 NS:</strong> ${expectedNs.join(', ') || '未配置'}</p>
 <p><strong>时间:</strong> ${new Date().toLocaleString('zh-CN')}</p>`;
 
-      await sendNotification(title, message, htmlMessage);
+    // 发送邮件通知到用户自己的邮箱（如果启用）
+    if (shouldSendEmail && userId) {
+      try {
+        const user = await UserOperations.getPublicById(userId);
+        if (user && user.email) {
+          const emailSent = await sendEmailToUser(user.email as string, title, message, htmlMessage);
+          if (emailSent) {
+            log.info('NSMonitorJob', 'Email notification sent to user', {
+              domain: config.domain_name,
+              userId,
+              email: user.email,
+            });
+          } else {
+            log.warn('NSMonitorJob', 'Failed to send email notification to user', {
+              domain: config.domain_name,
+              userId,
+              email: user.email,
+            });
+          }
+        } else {
+          log.warn('NSMonitorJob', 'User has no email configured, skipping email notification', {
+            domain: config.domain_name,
+            userId,
+          });
+        }
+      } catch (emailError) {
+        log.warn('NSMonitorJob', 'Error sending email to user', {
+          domain: config.domain_name,
+          userId,
+          error: emailError,
+        });
+      }
+    }
 
-      log.info('NSMonitorJob', 'Alert notification sent', {
-        domain: config.domain_name,
-        status,
-        email: shouldSendEmail,
-        channels: shouldSendChannels,
-        userId,
-      });
-    } else {
+    // 发送渠道通知（如果启用）
+    if (shouldSendChannels) {
+      try {
+        await sendNotification(title, message, htmlMessage);
+        log.info('NSMonitorJob', 'Channel notification sent', {
+          domain: config.domain_name,
+          status,
+          userId,
+        });
+      } catch (channelError) {
+        log.warn('NSMonitorJob', 'Error sending channel notification', {
+          domain: config.domain_name,
+          userId,
+          error: channelError,
+        });
+      }
+    }
+
+    if (!shouldSendEmail && !shouldSendChannels) {
       log.info('NSMonitorJob', 'Notification skipped (disabled in user preferences)', {
         domain: config.domain_name,
         userId,

@@ -443,7 +443,9 @@ router.put('/user/prefs', authMiddleware, asyncHandler(async (req: Request, res:
   const role = normalizeRole(req.user!.role);
   const { notify_email, notify_channels, check_interval } = req.body;
 
-  // 普通用户无权操作通知渠道启用（只有管理员可以）
+  // 权限控制：
+  // - 所有用户都可以修改 check_interval 和 notify_email（邮件发送至用户自己的邮箱）
+  // - 只有管理员可以修改 notify_channels（渠道通知需要系统级配置）
   const updates: Record<string, unknown> = {};
 
   // check_interval 所有用户都可以修改
@@ -451,21 +453,23 @@ router.put('/user/prefs', authMiddleware, asyncHandler(async (req: Request, res:
     updates.check_interval = check_interval;
   }
 
-  // notify_email 和 notify_channels 只有管理员可以修改
+  // notify_email 所有用户都可以修改（邮件发送至用户自己的邮箱）
+  if (notify_email !== undefined) {
+    updates.notify_email = toDbBoolean(notify_email, getDbType());
+  }
+
+  // notify_channels 只有管理员可以修改（需要系统级渠道配置）
   if (isAdmin(role) || isSuper(role)) {
-    if (notify_email !== undefined) {
-      updates.notify_email = toDbBoolean(notify_email, getDbType());
-    }
     if (notify_channels !== undefined) {
       updates.notify_channels = toDbBoolean(notify_channels, getDbType());
     }
   } else {
     // 普通用户尝试修改通知渠道，记录警告日志
-    if (notify_email !== undefined || notify_channels !== undefined) {
+    if (notify_channels !== undefined) {
       log.warn('NSMonitor', 'Non-admin user attempted to modify notification channels', {
         userId,
         role,
-        attemptedChanges: { notify_email, notify_channels },
+        attemptedChange: { notify_channels },
       });
     }
   }

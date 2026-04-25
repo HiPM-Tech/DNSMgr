@@ -77,12 +77,44 @@ async function sendEmailWithRetry(
 ): Promise<boolean> {
   const { to } = channel.config;
   if (!to) return false;
-  
+
   const result = await withRetry(
     () => sendSmtpEmail(to, title, htmlMessage || message),
     channel.name
   );
   return result !== null;
+}
+
+/**
+ * 发送邮件到指定用户邮箱
+ * 用于NS监测等用户级通知
+ * @param email 目标邮箱地址
+ * @param title 邮件标题
+ * @param message 邮件内容（纯文本）
+ * @param htmlMessage 邮件内容（HTML）
+ * @returns 是否发送成功
+ */
+export async function sendEmailToUser(
+  email: string,
+  title: string,
+  message: string,
+  htmlMessage?: string
+): Promise<boolean> {
+  if (!email) {
+    log.warn('Notification', 'Cannot send email: email address is empty');
+    return false;
+  }
+
+  try {
+    const result = await withRetry(
+      () => sendSmtpEmail(email, title, htmlMessage || message),
+      `UserEmail:${email}`
+    );
+    return result !== null;
+  } catch (error) {
+    log.warn('Notification', 'Failed to send email to user', { email, error });
+    return false;
+  }
 }
 
 // 发送Webhook通知（带重试）
