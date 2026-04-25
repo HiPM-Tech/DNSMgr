@@ -41,6 +41,14 @@ export class RdapMethod extends BaseQueryMethod {
 
       const data = await response.json();
 
+      // Debug: log raw response
+      const rawJson = JSON.stringify(data);
+      this.log('debug', `RDAP raw response for ${domain}`, {
+        server,
+        raw: rawJson.substring(0, 500),
+        length: rawJson.length,
+      });
+
       // 解析 RDAP 响应
       const expiryDate = this.extractExpiryDate(data);
       const registrar = this.extractRegistrar(data);
