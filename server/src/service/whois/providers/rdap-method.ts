@@ -25,9 +25,8 @@ export class RdapMethod extends BaseQueryMethod {
       this.log('info', `Querying ${domain} via RDAP ${server}`);
       
       const response = await fetch(url, {
-        headers: { 
+        headers: {
           'Accept': 'application/rdap+json',
-          'User-Agent': 'DNSMgr/1.2.0'
         },
       });
 
