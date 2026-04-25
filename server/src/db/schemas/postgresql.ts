@@ -1,5 +1,38 @@
 import { SchemaDefinition } from './index';
 
+/**
+ * PostgreSQL 数据库禁忌事项 / PostgreSQL Database Restrictions:
+ *
+ * 1. 布尔类型使用 BOOLEAN，但需注意默认值
+ *    - 支持 true/false 或 1/0
+ *    - 推荐使用 true/false 更清晰
+ *
+ * 2. JSONB 类型索引需要 GIN 索引
+ *    - 直接使用索引可能不生效
+ *    - 需使用: CREATE INDEX idx ON table USING GIN (jsonb_column)
+ *
+ * 3. TEXT 类型可以有默认值
+ *    - 与 MySQL 不同，PostgreSQL 支持 TEXT DEFAULT 'value'
+ *
+ * 4. 触发器函数需要单独创建
+ *    - 使用 CREATE OR REPLACE FUNCTION
+ *    - 然后在触发器中引用
+ *
+ * 5. ALTER TABLE ADD COLUMN IF NOT EXISTS 支持良好
+ *    - 无需像 MySQL 那样使用存储过程
+ *
+ * 6. CHECK 约束在 8.0.16+ 才完全生效
+ *    - 旧版本会解析但不强制执行
+ *
+ * 7. 外键约束默认会检查，但可通过 DEFERRABLE 延迟检查
+ *    - 默认: NOT DEFERRABLE
+ *    - 可选: DEFERRABLE INITIALLY DEFERRED
+ *
+ * 8. SERIAL 类型实际上是 INTEGER + sequence
+ *    - 不能直接修改 SERIAL 列的默认值
+ *    - 需要修改关联的 sequence
+ */
+
 export const postgresqlSchema: SchemaDefinition = {
   createTables: [
     `CREATE TABLE IF NOT EXISTS users (

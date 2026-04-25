@@ -1,5 +1,45 @@
 import { SchemaDefinition } from './index';
 
+/**
+ * SQLite 数据库禁忌事项 / SQLite Database Restrictions:
+ *
+ * 1. ALTER TABLE 功能非常有限
+ *    - 不支持 DROP COLUMN (3.35.0+ 才支持)
+ *    - 不支持 ALTER COLUMN
+ *    - 不支持 ADD CONSTRAINT
+ *    - 修改列需要: 创建新表 -> 复制数据 -> 删除旧表 -> 重命名
+ *
+ * 2. 外键约束默认关闭
+ *    - 需要手动执行: PRAGMA foreign_keys = ON
+ *    - 每次连接都需要设置
+ *
+ * 3. TEXT 类型可以有默认值
+ *    - 支持: TEXT NOT NULL DEFAULT ''
+ *    - 与 MySQL 不同
+ *
+ * 4. 布尔类型使用 INTEGER (0/1)
+ *    - 不支持 BOOLEAN 关键字（虽然可以写，但会被忽略）
+ *    - 使用 0 表示 false，1 表示 true
+ *
+ * 5. 日期时间使用 TEXT 存储
+ *    - 推荐格式: 'YYYY-MM-DD HH:MM:SS'
+ *    - 使用 datetime('now') 获取当前时间
+ *
+ * 6. 自增主键使用 INTEGER PRIMARY KEY AUTOINCREMENT
+ *    - 注意: 只有 INTEGER 类型才能使用 AUTOINCREMENT
+ *    - 或者使用 ROWID 别名: INTEGER PRIMARY KEY
+ *
+ * 7. CHECK 约束在创建表时生效
+ *    - 但修改 CHECK 约束需要重建表
+ *
+ * 8. 并发写入性能较差
+ *    - 写操作会锁定整个数据库
+ *    - 不适合高并发写入场景
+ *
+ * 9. ALTER TABLE ADD COLUMN IF NOT EXISTS 支持良好
+ *    - 从 3.2.0 版本开始支持
+ */
+
 export const sqliteSchema: SchemaDefinition = {
   createTables: [
     `CREATE TABLE IF NOT EXISTS users (
