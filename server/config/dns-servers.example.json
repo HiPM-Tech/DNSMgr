@@ -1,0 +1,35 @@
+{
+  "description": "DNS 服务器配置文件示例",
+  "servers": [
+    {
+      "name": "custom-doh",
+      "type": "doh",
+      "address": "https://dns.example.com/dns-query",
+      "priority": 1,
+      "timeout": 5000,
+      "proxyEnabled": true
+    },
+    {
+      "name": "custom-dot",
+      "type": "dot",
+      "address": "dns.example.com:853",
+      "priority": 2,
+      "timeout": 5000,
+      "proxyEnabled": false
+    },
+    {
+      "name": "custom-udp",
+      "type": "udp",
+      "address": "1.2.3.4:53",
+      "priority": 10,
+      "timeout": 3000,
+      "proxyEnabled": false
+    }
+  ],
+  "settings": {
+    "preferEncrypted": true,
+    "defaultTimeout": 5000,
+    "useProxy": true,
+    "retryCount": 2
+  }
+}
