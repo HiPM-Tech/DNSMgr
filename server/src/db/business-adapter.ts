@@ -3121,8 +3121,7 @@ export const NSMonitorOperations = {
 
   /** 创建域名监测配置 */
   async create(data: { user_id: number; domain_id: number; expected_ns?: string }): Promise<number> {
-    const dbType = getDbType();
-    const now = formatDateForDB(new Date(), dbType);
+    const now = formatDateForDB(new Date());
     return insertInternal(
       `INSERT INTO ns_monitor_domains (user_id, domain_id, expected_ns, current_ns, status, enabled, created_at, updated_at)
        VALUES (?, ?, ?, '', 'ok', 1, ?, ?)`,
