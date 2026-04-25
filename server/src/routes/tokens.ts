@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware, noTokenAuth } from '../middleware/auth';
-import { createUserToken, getUserTokens, deleteUserToken, toggleTokenStatus } from '../service/token';
+import { createUserToken, getUserTokens, deleteUserToken, toggleTokenStatus, updateTokenPermissions } from '../service/token';
 import { DomainOperations } from '../db/business-adapter';
 import { normalizeRole } from '../utils/roles';
 
@@ -246,6 +246,80 @@ router.patch('/:id/status', authMiddleware, noTokenAuth('token management'), asy
     res.json({ code: 0, msg: 'Token status updated' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update token status' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/tokens/{id}:
+ *   put:
+ *     summary: Update token permissions
+ *     tags: [Tokens]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: number
+ *         description: Token ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Token name
+ *               allowed_domains:
+ *                 type: array
+ *                 items:
+ *                   type: number
+ *                 description: List of allowed domain IDs (empty array means all domains)
+ *               allowed_services:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: List of allowed services
+ *               start_time:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Token activation time (optional)
+ *               end_time:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Token expiration time (optional, null means no expiry)
+ *     responses:
+ *       200:
+ *         description: Token permissions updated successfully
+ *       400:
+ *         description: Invalid parameters
+ *       500:
+ *         description: Server error
+ */
+router.put('/:id', authMiddleware, noTokenAuth('token management'), async (req: Request, res: Response) => {
+  const tokenId = parseInt(req.params.id);
+  const { name, allowed_domains, allowed_services, start_time, end_time } = req.body;
+
+  if (isNaN(tokenId)) {
+    res.status(400).json({ code: 400, msg: 'Invalid token ID' });
+    return;
+  }
+
+  try {
+    await updateTokenPermissions(tokenId, req.user!.userId, {
+      name,
+      allowed_domains,
+      allowed_services,
+      start_time,
+      end_time,
+    });
+    res.json({ code: 0, msg: 'Token permissions updated successfully' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update token permissions' });
   }
 });
 

@@ -138,6 +138,28 @@ export async function toggleTokenStatus(tokenId: number, userId: number, isActiv
   await TokenOperations.toggleStatusByUser(tokenId, userId, isActive);
 }
 
+// Update token permissions
+export async function updateTokenPermissions(
+  tokenId: number,
+  userId: number,
+  data: {
+    name?: string;
+    allowed_domains?: number[];
+    allowed_services?: string[];
+    start_time?: string | null;
+    end_time?: string | null;
+  }
+): Promise<void> {
+  // Use business adapter to update token
+  await TokenOperations.updateByUser(tokenId, userId, {
+    name: data.name,
+    allowed_domains: data.allowed_domains !== undefined ? JSON.stringify(data.allowed_domains) : undefined,
+    allowed_services: data.allowed_services !== undefined ? JSON.stringify(data.allowed_services) : undefined,
+    start_time: data.start_time,
+    end_time: data.end_time,
+  });
+}
+
 // Check if token has permission for a service
 export function hasServicePermission(tokenPayload: TokenPayload, service: string): boolean {
   return tokenPayload.allowedServices.includes(service) || 

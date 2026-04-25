@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, requireDomainPermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { createFailoverConfig, getFailoverConfigByDomain, getFailoverStatus, updateFailoverConfig, deleteFailoverConfig } from '../service/failover';
@@ -137,8 +137,12 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
 
+  // Check if using token auth and get allowed domains
+  const tokenPayload = (req as any).tokenPayload;
+  const tokenAllowedDomains = tokenPayload?.allowedDomains as number[] | undefined;
+
   const teamIds = isSuper(role) ? [] : await TeamOperations.getTeamIdsByUserId(userId);
-  
+
   let domains = await DomainOperations.getAccessibleDomains({
     userId,
     teamIds,
@@ -147,6 +151,12 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     isSuper: isSuper(role),
   }) as unknown as Domain[];
 
+  // Filter by token allowed domains if using token auth
+  // Empty allowed_domains array means all domains are allowed
+  if (tokenAllowedDomains && tokenAllowedDomains.length > 0) {
+    domains = domains.filter((domain) => tokenAllowedDomains.includes(domain.id));
+  }
+
   // 根据域名类型过滤
   if (domain_type && domain_type !== 'all') {
     domains = domains.filter((domain) => {
@@ -154,7 +164,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       // 使用 getRootDomain 来正确判断是否为顶域
       const rootDomain = getRootDomain(normalized);
       const isApex = normalized === rootDomain;
-      
+
       if (domain_type === 'apex') {
         return isApex;
       } else if (domain_type === 'subdomain') {

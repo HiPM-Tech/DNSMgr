@@ -1342,6 +1342,55 @@ export const TokenOperations = {
       { operation: 'Token.toggleStatusByUser', table: 'user_tokens' }
     );
   },
+
+  /** 更新令牌权限（带用户验证） */
+  async updateByUser(
+    tokenId: number,
+    userId: number,
+    data: {
+      name?: string;
+      allowed_domains?: string;
+      allowed_services?: string;
+      start_time?: string | null;
+      end_time?: string | null;
+    }
+  ): Promise<void> {
+    const fields: string[] = [];
+    const values: (string | number | null)[] = [];
+
+    if (data.name !== undefined) {
+      fields.push('name = ?');
+      values.push(data.name);
+    }
+    if (data.allowed_domains !== undefined) {
+      fields.push('allowed_domains = ?');
+      values.push(data.allowed_domains);
+    }
+    if (data.allowed_services !== undefined) {
+      fields.push('allowed_services = ?');
+      values.push(data.allowed_services);
+    }
+    if (data.start_time !== undefined) {
+      fields.push('start_time = ?');
+      values.push(data.start_time);
+    }
+    if (data.end_time !== undefined) {
+      fields.push('end_time = ?');
+      values.push(data.end_time);
+    }
+
+    if (fields.length === 0) {
+      return;
+    }
+
+    values.push(tokenId, userId);
+
+    return executeInternal(
+      `UPDATE user_tokens SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+      values,
+      { operation: 'Token.updateByUser', table: 'user_tokens' }
+    );
+  },
 };
 
 // ============================================================================
