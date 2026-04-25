@@ -49,7 +49,17 @@ async function handleMySQLMigrations(
       try {
         const addColumnSql = `ALTER TABLE domains ADD COLUMN apex_expires_at DATETIME`;
         if (conn.execute) {
-          await conn.execute(addColumnSql);
+          try {
+            await conn.execute(addColumnSql);
+          } catch (execError) {
+            // Handle async execute error
+            const errorMsg = (execError as Error).message || '';
+            if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+              log.info('Schema', 'apex_expires_at column already exists (detected during add)');
+              return;
+            }
+            throw execError;
+          }
         } else if (conn.exec) {
           try {
             conn.exec(addColumnSql);
