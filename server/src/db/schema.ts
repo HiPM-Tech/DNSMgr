@@ -51,7 +51,17 @@ async function handleMySQLMigrations(
         if (conn.execute) {
           await conn.execute(addColumnSql);
         } else if (conn.exec) {
-          conn.exec(addColumnSql);
+          try {
+            conn.exec(addColumnSql);
+          } catch (execError) {
+            // Handle sync exec error
+            const errorMsg = (execError as Error).message || '';
+            if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+              log.info('Schema', 'apex_expires_at column already exists (detected during add)');
+              return;
+            }
+            throw execError;
+          }
         }
         log.info('Schema', 'Added apex_expires_at column to domains table');
       } catch (error) {
