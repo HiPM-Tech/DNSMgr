@@ -219,11 +219,12 @@ class WhoisService {
     }
 
     // ========== 3. 第三方查询（最后备选） ==========
-    log.info('WhoisService', `[THIRDPARTY] Starting third-party queries for ${domain}`);
+    // 使用根域名查询第三方，因为子域名通常没有独立的 WHOIS 记录
+    log.info('WhoisService', `[THIRDPARTY] Starting third-party queries for ${rootDomain}`);
 
-    let result = await this.queryThirdPartyRdapParallel(domain, timeout);
+    let result = await this.queryThirdPartyRdapParallel(rootDomain, timeout);
     if (!result?.expiryDate) {
-      result = await this.queryThirdPartyWhoisParallel(domain, timeout);
+      result = await this.queryThirdPartyWhoisParallel(rootDomain, timeout);
     }
 
     if (result?.expiryDate) {
