@@ -152,6 +152,44 @@ export function adminOnly(req: Request, res: Response, next: NextFunction): void
   next();
 }
 
+/**
+ * 检查是否使用令牌授权（而非 JWT/Session）
+ * 用于限制令牌不能访问某些敏感路由
+ */
+function isTokenAuth(req: Request): boolean {
+  return !!(req as any).tokenPayload;
+}
+
+/**
+ * 禁止令牌授权访问的中间件
+ * 用于保护敏感路由，如令牌管理、系统设置等
+ * @param routeName 路由名称（用于错误提示）
+ */
+export function noTokenAuth(routeName: string = 'this resource') {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (isTokenAuth(req)) {
+      res.status(403).json({ 
+        code: -1, 
+        msg: `API token is not allowed to access ${routeName}. Please use JWT authentication.` 
+      });
+      return;
+    }
+    next();
+  };
+}
+
+/**
+ * 要求 JWT 认证（禁止使用令牌）的中间件
+ * 组合了 authMiddleware 和 noTokenAuth 的功能
+ * 用于超管权限路由
+ */
+export function requireJwtAuth(routeName: string = 'this resource') {
+  return [
+    authMiddleware,
+    noTokenAuth(routeName)
+  ];
+}
+
 export async function signToken(payload: JwtPayload): Promise<string> {
   const jwtSecret = await getJwtSecret();
   return jwt.sign(payload, jwtSecret, { expiresIn: '7d' });

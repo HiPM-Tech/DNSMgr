@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authMiddleware, adminOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly, noTokenAuth } from '../middleware/auth';
 import { SecurityPolicyOperations, TrustedDeviceOperations, getDbType, UserOperations } from '../db/business-adapter';
 import { getSecurityPolicy, updateSecurityPolicy, checkPasswordStrength, validatePassword, requires2FA, has2FAEnabled } from '../service/securityPolicy';
 import { generateTOTPSecret, enableTOTP, disableTOTP, getTOTPStatus, verifyTOTPToken } from '../service/totp';
@@ -8,7 +8,7 @@ import { log } from '../lib/logger';
 const router = Router();
 
 // 获取安全策略
-router.get('/policy', authMiddleware, adminOnly, async (req, res) => {
+router.get('/policy', authMiddleware, noTokenAuth('security settings'), adminOnly, async (req, res) => {
   try {
     const policy = await getSecurityPolicy();
     res.json({ code: 0, data: policy, msg: 'success' });
@@ -19,7 +19,7 @@ router.get('/policy', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // 更新安全策略
-router.put('/policy', authMiddleware, adminOnly, async (req, res) => {
+router.put('/policy', authMiddleware, noTokenAuth('security settings'), adminOnly, async (req, res) => {
   try {
     const policy = req.body;
     await updateSecurityPolicy(policy);
@@ -192,7 +192,7 @@ router.delete('/trusted-devices', authMiddleware, async (req, res) => {
 });
 
 // 设置用户是否需要 2FA（管理员功能）
-router.post('/user-require-2fa', authMiddleware, adminOnly, async (req, res) => {
+router.post('/user-require-2fa', authMiddleware, noTokenAuth('security settings'), adminOnly, async (req, res) => {
   try {
     const { userId, require2FA } = req.body;
     if (userId === undefined || require2FA === undefined) {

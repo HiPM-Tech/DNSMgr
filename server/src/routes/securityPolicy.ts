@@ -3,7 +3,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { authMiddleware, adminOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly, noTokenAuth } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { sendSuccess, sendError } from '../utils/http';
 import {
@@ -35,7 +35,7 @@ const router = Router();
  *       200:
  *         description: Security policy
  */
-router.get('/policy', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
+router.get('/policy', authMiddleware, noTokenAuth('security policy'), adminOnly, asyncHandler(async (req: Request, res: Response) => {
   const policy = await getSecurityPolicy();
   sendSuccess(res, policy);
 }));
@@ -77,7 +77,7 @@ router.get('/policy', authMiddleware, adminOnly, asyncHandler(async (req: Reques
  *       200:
  *         description: Policy updated
  */
-router.put('/policy', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
+router.put('/policy', authMiddleware, noTokenAuth('security policy'), adminOnly, asyncHandler(async (req: Request, res: Response) => {
   await updateSecurityPolicy(req.body);
   sendSuccess(res, await getSecurityPolicy());
 }));

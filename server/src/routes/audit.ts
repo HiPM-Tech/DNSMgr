@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware, adminOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly, noTokenAuth } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import {
   AuditLogEntry,
@@ -84,6 +84,7 @@ function toLegacyAuditLog(log: AuditLogEntry) {
 router.get(
   '/logs',
   authMiddleware,
+  noTokenAuth('audit logs'),
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
     const { page, pageSize } = parsePagination(req.query, { defaultPageSize: 50, maxPageSize: 200 });
@@ -129,6 +130,7 @@ router.get(
 router.get(
   '/export/csv',
   authMiddleware,
+  noTokenAuth('audit logs'),
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
     const csv = await exportAuditLogsAsCSV(getAuditFilters(req.query));
@@ -175,6 +177,7 @@ router.get(
 router.get(
   '/export/json',
   authMiddleware,
+  noTokenAuth('audit logs'),
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
     const json = await exportAuditLogsAsJSON(getAuditFilters(req.query));
@@ -212,6 +215,7 @@ router.get(
 router.get(
   '/anomalies/:userId',
   authMiddleware,
+  noTokenAuth('audit logs'),
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = parseInteger(req.params.userId, { min: 1 });
@@ -248,6 +252,7 @@ router.get(
 router.get(
   '/stats/:userId',
   authMiddleware,
+  noTokenAuth('audit logs'),
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = parseInteger(req.params.userId, { min: 1 });
@@ -284,6 +289,7 @@ router.get(
 router.get(
   '/time-distribution/:userId',
   authMiddleware,
+  noTokenAuth('audit logs'),
   adminOnly,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = parseInteger(req.params.userId, { min: 1 });

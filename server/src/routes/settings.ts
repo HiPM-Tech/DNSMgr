@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware, adminOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly, noTokenAuth } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
 import { getLoginLimitConfig, updateLoginLimitConfig, getLoginAttemptStats, unlockAccount } from '../service/loginLimit';
 import { SettingsOperations, NotificationOperations, AuditRuleOperations, DomainExpiryOperations, UserOperations } from '../db/business-adapter';
@@ -167,7 +167,7 @@ async function updateLogtoOAuthConfig(input: Partial<OAuthConfig>): Promise<OAut
  *       200:
  *         description: JWT base secret
  */
-router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.post('/jwt-secret', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const { password } = req.body as { password?: string };
   if (!password) {
     res.status(400).json({ code: 400, msg: 'Password is required' });
@@ -211,7 +211,7 @@ router.post('/jwt-secret', authMiddleware, adminOnly, async (req: Request, res: 
   });
 });
 
-router.get('/notifications', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
+router.get('/notifications', authMiddleware, noTokenAuth('system settings'), adminOnly, async (_req: Request, res: Response) => {
   const value = await NotificationOperations.getChannels();
   if (!value) {
     res.json({ code: 0, data: [], msg: 'success' });
@@ -225,7 +225,7 @@ router.get('/notifications', authMiddleware, adminOnly, async (_req: Request, re
   }
 });
 
-router.put('/notifications', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.put('/notifications', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const channels = req.body.channels;
   if (!Array.isArray(channels)) return res.status(400).json({ code: -1, msg: 'Invalid channels array' });
   
@@ -233,7 +233,7 @@ router.put('/notifications', authMiddleware, adminOnly, async (req: Request, res
   res.json({ code: 0, msg: 'success' });
 });
 
-router.get('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.get('/audit-rules', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const value = await AuditRuleOperations.getRules();
   const defaultRules = {
     enabled: true,
@@ -254,7 +254,7 @@ router.get('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: 
   }
 });
 
-router.put('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.put('/audit-rules', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const rules = req.body.rules;
   if (!rules) return res.status(400).json({ code: -1, msg: 'Rules required' });
   
@@ -262,7 +262,7 @@ router.put('/audit-rules', authMiddleware, adminOnly, async (req: Request, res: 
   res.json({ code: 0, msg: 'success' });
 });
 
-router.get('/security', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
+router.get('/security', authMiddleware, noTokenAuth('system settings'), adminOnly, async (_req: Request, res: Response) => {
   const value = await SettingsOperations.get('security_config');
   
   const expiryNotifyValue = await DomainExpiryOperations.getNotification();
@@ -287,7 +287,7 @@ router.get('/security', authMiddleware, adminOnly, async (_req: Request, res: Re
   }
 });
 
-router.put('/security', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.put('/security', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const { jwtViewEmailNotify, domainExpiryNotify, domainExpiryDays } = req.body;
   const config = { jwtViewEmailNotify: !!jwtViewEmailNotify };
 
@@ -302,7 +302,7 @@ router.put('/security', authMiddleware, adminOnly, async (req: Request, res: Res
   res.json({ code: 0, msg: 'success' });
 });
 
-router.get('/smtp', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
+router.get('/smtp', authMiddleware, noTokenAuth('system settings'), adminOnly, async (_req: Request, res: Response) => {
   try {
     const config = await getSmtpConfig();
     res.json({ code: 0, data: config, msg: 'success' });
@@ -311,7 +311,7 @@ router.get('/smtp', authMiddleware, adminOnly, async (_req: Request, res: Respon
   }
 });
 
-router.put('/smtp', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.put('/smtp', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   try {
     const next = await updateSmtpConfig(req.body || {});
     await logAuditOperation(req.user!.userId, 'update_smtp_config', 'system', { enabled: next.enabled, host: next.host, port: next.port });
@@ -338,7 +338,7 @@ router.post('/smtp/test', authMiddleware, adminOnly, async (req: Request, res: R
   }
 });
 
-router.get('/oauth', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
+router.get('/oauth', authMiddleware, noTokenAuth('system settings'), adminOnly, async (_req: Request, res: Response) => {
   try {
     const config = await getOAuthConfig();
     res.json({ code: 0, data: config, msg: 'success' });
@@ -347,7 +347,7 @@ router.get('/oauth', authMiddleware, adminOnly, async (_req: Request, res: Respo
   }
 });
 
-router.put('/oauth', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.put('/oauth', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   try {
     const config = await updateOAuthConfig({ ...(req.body || {}), template: 'generic' });
     await logAuditOperation(req.user!.userId, 'update_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, issuer: config.issuer });
@@ -357,7 +357,7 @@ router.put('/oauth', authMiddleware, adminOnly, async (req: Request, res: Respon
   }
 });
 
-router.get('/oauth/logto', authMiddleware, adminOnly, async (_req: Request, res: Response) => {
+router.get('/oauth/logto', authMiddleware, noTokenAuth('system settings'), adminOnly, async (_req: Request, res: Response) => {
   try {
     const config = await getLogtoOAuthConfig();
     res.json({ code: 0, data: config, msg: 'success' });
@@ -366,7 +366,7 @@ router.get('/oauth/logto', authMiddleware, adminOnly, async (_req: Request, res:
   }
 });
 
-router.put('/oauth/logto', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.put('/oauth/logto', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   try {
     const config = await updateLogtoOAuthConfig(req.body || {});
     await logAuditOperation(req.user!.userId, 'update_logto_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, logtoDomain: config.logtoDomain });
@@ -376,7 +376,7 @@ router.put('/oauth/logto', authMiddleware, adminOnly, async (req: Request, res: 
   }
 });
 
-router.post('/oauth/oidc-discover', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.post('/oauth/oidc-discover', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const { issuer } = req.body as { issuer?: string };
   if (!issuer) {
     res.status(400).json({ code: 400, msg: 'issuer is required' });
@@ -419,7 +419,7 @@ router.post('/oauth/oidc-discover', authMiddleware, adminOnly, async (req: Reque
  *       200:
  *         description: Login limit configuration
  */
-router.get('/login-limit', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.get('/login-limit', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   try {
     const config = await getLoginLimitConfig();
     res.json({
@@ -460,7 +460,7 @@ router.get('/login-limit', authMiddleware, adminOnly, async (req: Request, res: 
  *       200:
  *         description: Configuration updated
  */
-router.put('/login-limit', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.put('/login-limit', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const { enabled, maxAttempts, lockoutDuration } = req.body;
   
   try {
@@ -498,7 +498,7 @@ router.put('/login-limit', authMiddleware, adminOnly, async (req: Request, res: 
  *       200:
  *         description: Login attempt statistics
  */
-router.get('/login-attempts/stats', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.get('/login-attempts/stats', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   try {
     const stats = await getLoginAttemptStats();
     res.json({
@@ -536,7 +536,7 @@ router.get('/login-attempts/stats', authMiddleware, adminOnly, async (req: Reque
  *       200:
  *         description: Account unlocked
  */
-router.post('/login-attempts/unlock', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+router.post('/login-attempts/unlock', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const { identifier } = req.body;
   
   if (!identifier) {

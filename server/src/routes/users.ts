@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { authMiddleware, adminOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly, noTokenAuth } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { User } from '../types';
 import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, normalizeRole } from '../utils/roles';
@@ -22,7 +22,7 @@ const router = Router();
  *       200:
  *         description: List of users
  */
-router.get('/', authMiddleware, adminOnly, asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', authMiddleware, noTokenAuth('user management'), adminOnly, asyncHandler(async (_req: Request, res: Response) => {
   const users = await UserOperations.getAll();
   sendSuccess(res, users);
 }));
@@ -58,7 +58,7 @@ router.get('/', authMiddleware, adminOnly, asyncHandler(async (_req: Request, re
  *       200:
  *         description: User created
  */
-router.post('/', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
+router.post('/', authMiddleware, noTokenAuth('user management'), adminOnly, asyncHandler(async (req: Request, res: Response) => {
   const { username, nickname, email = '', password, role = ROLE_USER } = req.body as {
     username: string; nickname?: string; email?: string; password: string; role?: number;
   };
@@ -133,7 +133,7 @@ router.post('/', authMiddleware, adminOnly, asyncHandler(async (req: Request, re
  *       200:
  *         description: User updated
  */
-router.put('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
+router.put('/:id', authMiddleware, noTokenAuth('user management'), adminOnly, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id, { min: 1 }) ?? 0;
   const user = await UserOperations.getById(id) as User | undefined;
   if (!user) {
@@ -212,7 +212,7 @@ router.put('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, 
  *       200:
  *         description: User deleted
  */
-router.delete('/:id', authMiddleware, adminOnly, asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authMiddleware, noTokenAuth('user management'), adminOnly, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id, { min: 1 }) ?? 0;
   if (id === req.user!.userId) {
     sendError(res, 'Cannot delete yourself');

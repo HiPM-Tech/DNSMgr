@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, noTokenAuth } from '../middleware/auth';
 import { createUserToken, getUserTokens, deleteUserToken, toggleTokenStatus } from '../service/token';
 import { DomainOperations } from '../db/business-adapter';
 import { normalizeRole } from '../utils/roles';
@@ -59,7 +59,7 @@ const router = Router();
  *                 msg:
  *                   type: string
  */
-router.get('/', authMiddleware, async (req: Request, res: Response) => {
+router.get('/', authMiddleware, noTokenAuth('token management'), async (req: Request, res: Response) => {
   try {
     const tokens = await getUserTokens(req.user!.userId);
     res.json({ code: 0, data: tokens, msg: 'success' });
@@ -125,7 +125,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  *       400:
  *         description: Invalid request parameters
  */
-router.post('/', authMiddleware, async (req: Request, res: Response) => {
+router.post('/', authMiddleware, noTokenAuth('token management'), async (req: Request, res: Response) => {
   const { name, allowed_domains, start_time, end_time } = req.body;
 
   if (!name || !allowed_domains) {
@@ -182,7 +182,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
  *       500:
  *         description: Server error
  */
-router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
+router.delete('/:id', authMiddleware, noTokenAuth('token management'), async (req: Request, res: Response) => {
   const tokenId = parseInt(req.params.id);
   if (isNaN(tokenId)) {
     res.status(400).json({ code: 400, msg: 'Invalid token ID' });
@@ -232,7 +232,7 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
  *       500:
  *         description: Server error
  */
-router.patch('/:id/status', authMiddleware, async (req: Request, res: Response) => {
+router.patch('/:id/status', authMiddleware, noTokenAuth('token management'), async (req: Request, res: Response) => {
   const tokenId = parseInt(req.params.id);
   const { is_active } = req.body;
 
@@ -283,7 +283,7 @@ router.patch('/:id/status', authMiddleware, async (req: Request, res: Response) 
  *       500:
  *         description: Database connection not available
  */
-router.get('/domains', authMiddleware, async (req: Request, res: Response) => {
+router.get('/domains', authMiddleware, noTokenAuth('token management'), async (req: Request, res: Response) => {
   try {
     const domains = await DomainOperations.getUserAccessibleDomains(req.user!.userId);
 
