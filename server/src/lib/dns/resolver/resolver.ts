@@ -5,7 +5,9 @@
 import { DNSQueryType, DNSResponse, DNSQueryOptions, DNSResolverResult, DNSServerType } from './types';
 import { dnsServerRegistry } from './servers';
 import { queryDoH } from './doh-resolver';
-import { queryPlainDNS } from './plain-resolver';
+import { queryDoT as queryDoTImpl } from './dot-resolver';
+import { queryPlainDNS as queryPlainDNSImpl } from './plain-resolver';
+import { createTLSViaProxy, parseProxyUrl } from './proxy-tunnel';
 import { log } from '../../logger';
 import { getProxyConfig } from '../../proxy-http';
 
@@ -91,8 +93,12 @@ export class DNSResolver {
             response = await queryDoH(domain, type, server.address, timeout);
           }
         } else {
-          // DoT 查询（暂不支持代理）
-          response = await this.queryDoT(domain, type, server.address, timeout);
+          // DoT 查询，支持代理
+          if (useProxy && server.proxyEnabled) {
+            response = await this.queryDoTWithProxy(domain, type, server.address, timeout);
+          } else {
+            response = await queryDoTImpl(domain, type, server.address, timeout);
+          }
         }
 
         if (response && response.answers.length > 0) {
@@ -166,9 +172,108 @@ export class DNSResolver {
     address: string,
     timeout: number
   ): Promise<DNSResponse | null> {
-    // TODO: 实现 DoT 查询
-    log.debug('DNSResolver', `DoT query not implemented yet: ${domain}`);
-    return null;
+    return queryDoTImpl(domain, type, address, timeout);
+  }
+
+  /**
+   * 使用代理查询 DoT (DNS over TLS)
+   */
+  private async queryDoTWithProxy(
+    domain: string,
+    type: DNSQueryType,
+    address: string,
+    timeout: number
+  ): Promise<DNSResponse | null> {
+    try {
+      const proxyConfig = await getProxyConfig();
+      if (!proxyConfig || !proxyConfig.enabled) {
+        return await queryDoTImpl(domain, type, address, timeout);
+      }
+
+      log.debug('DNSResolver', `Using proxy for DoT query: ${domain}`);
+
+      const [host, portStr] = address.split(':');
+      const port = parseInt(portStr) || 853;
+
+      // 构建代理配置
+      const proxyCfg: import('./proxy-tunnel').ProxyConfig = {
+        host: proxyConfig.host || 'localhost',
+        port: proxyConfig.port || 8080,
+        protocol: proxyConfig.type === 'socks5' ? 'http' : (proxyConfig.type as 'http' | 'https') || 'http',
+      };
+      
+      if (proxyConfig.username && proxyConfig.password) {
+        proxyCfg.auth = {
+          username: proxyConfig.username,
+          password: proxyConfig.password,
+        };
+      }
+
+      // 通过代理建立 TLS 连接
+      const tlsSocket = await createTLSViaProxy(
+        host,
+        port,
+        proxyCfg,
+        { servername: host },
+        timeout
+      );
+
+      // 使用 TLS socket 发送 DNS 查询
+      return new Promise((resolve) => {
+        const { encodeDNSQuery, decodeDNSResponse } = require('./doh-resolver');
+        const queryBuffer = encodeDNSQuery(domain, type);
+        const dotBuffer = Buffer.alloc(2 + queryBuffer.length);
+        dotBuffer.writeUInt16BE(queryBuffer.length, 0);
+        queryBuffer.copy(dotBuffer, 2);
+
+        let dataBuffer = Buffer.alloc(0);
+        let expectedLength = 0;
+
+        tlsSocket.write(dotBuffer);
+
+        tlsSocket.on('data', (data) => {
+          dataBuffer = Buffer.concat([dataBuffer, data]);
+
+          if (expectedLength === 0 && dataBuffer.length >= 2) {
+            expectedLength = dataBuffer.readUInt16BE(0) + 2;
+          }
+
+          if (expectedLength > 0 && dataBuffer.length >= expectedLength) {
+            try {
+              const responseData = dataBuffer.slice(2, expectedLength);
+              const response = decodeDNSResponse(responseData);
+              response.source = `dot+proxy://${address}`;
+              tlsSocket.end();
+              resolve(response);
+            } catch (error) {
+              log.error('DNSResolver', `Failed to decode DoT+Proxy response: ${domain}`, {
+                error: error instanceof Error ? error.message : String(error),
+              });
+              tlsSocket.end();
+              resolve(null);
+            }
+          }
+        });
+
+        tlsSocket.on('error', (error) => {
+          log.error('DNSResolver', `DoT+Proxy socket error: ${domain}`, {
+            error: error.message,
+          });
+          resolve(null);
+        });
+
+        tlsSocket.on('timeout', () => {
+          log.debug('DNSResolver', `DoT+Proxy timeout: ${domain}`);
+          tlsSocket.end();
+          resolve(null);
+        });
+      });
+    } catch (error) {
+      log.error('DNSResolver', `DoT query with proxy failed: ${domain}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
   }
 
   /**
@@ -194,7 +299,7 @@ export class DNSResolver {
     const queries = servers.map(async (server) => {
       const startTime = Date.now();
       try {
-        const response = await this.queryPlainDNS(domain, type, server.address, server.type, timeout);
+        const response = await this.queryPlainDNSInternal(domain, type, server.address, server.type, timeout);
 
         if (response && response.answers.length > 0) {
           return {
@@ -230,14 +335,14 @@ export class DNSResolver {
   /**
    * 查询明文 DNS（UDP/TCP）
    */
-  private async queryPlainDNS(
+  private async queryPlainDNSInternal(
     domain: string,
     type: DNSQueryType,
     address: string,
     protocol: DNSServerType,
     timeout: number
   ): Promise<DNSResponse | null> {
-    return queryPlainDNS(domain, type, address, protocol, timeout);
+    return queryPlainDNSImpl(domain, type, address, protocol, timeout);
   }
 
   /**
@@ -306,6 +411,68 @@ export class DNSResolver {
   }
 
   /**
+   * 解析 NS 记录（双重查询：加密 + 明文）
+   * 用于检测 DNS 污染
+   */
+  async resolveNSWithValidation(domain: string): Promise<{
+    encrypted: DNSResolverResult;
+    plain: DNSResolverResult;
+    isPoisoned: boolean;
+    nsRecords: string[];
+  }> {
+    const normalizedDomain = domain.replace(/\.$/, '').toLowerCase();
+    const timeout = 10000;
+
+    // 并行查询加密 DNS 和明文 DNS
+    const [encryptedResult, plainResult] = await Promise.all([
+      this.queryEncrypted(normalizedDomain, DNSQueryType.NS, timeout, true),
+      this.queryPlain(normalizedDomain, DNSQueryType.NS, timeout),
+    ]);
+
+    // 检查是否被污染
+    let isPoisoned = false;
+
+    // 如果加密查询成功但明文查询失败，可能是网络问题
+    // 如果两者都成功但结果不同，可能是 DNS 污染
+    if (encryptedResult.success && plainResult.success) {
+      const encryptedNS = encryptedResult.records?.map(r => r.data).sort() || [];
+      const plainNS = plainResult.records?.map(r => r.data).sort() || [];
+
+      if (encryptedNS.length !== plainNS.length) {
+        isPoisoned = true;
+      } else {
+        for (let i = 0; i < encryptedNS.length; i++) {
+          if (encryptedNS[i] !== plainNS[i]) {
+            isPoisoned = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // 优先使用加密 DNS 的结果
+    const nsRecords = encryptedResult.success && encryptedResult.records
+      ? encryptedResult.records.map(r => r.data)
+      : plainResult.success && plainResult.records
+        ? plainResult.records.map(r => r.data)
+        : [];
+
+    if (isPoisoned) {
+      log.warn('DNSResolver', `DNS poisoning detected for ${domain}`, {
+        encrypted: encryptedResult.records?.map(r => r.data),
+        plain: plainResult.records?.map(r => r.data),
+      });
+    }
+
+    return {
+      encrypted: encryptedResult,
+      plain: plainResult,
+      isPoisoned,
+      nsRecords,
+    };
+  }
+
+  /**
    * 解析 NS 记录
    */
   async resolveNS(domain: string): Promise<string[]> {
@@ -336,6 +503,42 @@ export class DNSResolver {
       return result.records.map(r => r.data);
     }
     return [];
+  }
+
+  // ==================== 导出查询方法 ====================
+
+  /**
+   * 导出：查询加密 DNS（DoH/DoT）
+   */
+  async resolveEncrypted(
+    domain: string,
+    type: DNSQueryType = DNSQueryType.A,
+    timeout: number = 5000,
+    useProxy: boolean = true
+  ): Promise<DNSResolverResult> {
+    return this.queryEncrypted(domain, type, timeout, useProxy);
+  }
+
+  /**
+   * 导出：查询明文 DNS（UDP/TCP）
+   */
+  async resolvePlain(
+    domain: string,
+    type: DNSQueryType = DNSQueryType.A,
+    timeout: number = 5000
+  ): Promise<DNSResolverResult> {
+    return this.queryPlain(domain, type, timeout);
+  }
+
+  /**
+   * 导出：查询系统 DNS
+   */
+  async resolveSystem(
+    domain: string,
+    type: DNSQueryType = DNSQueryType.A,
+    timeout: number = 5000
+  ): Promise<DNSResolverResult> {
+    return this.querySystem(domain, type, timeout);
   }
 }
 

@@ -1,146 +1,101 @@
 /**
  * NS Record Lookup Utility
- * NS 记录查询工具
+ * NS 记录查询工具 - 使用新的 DNS 解析模块（支持 DNS 污染检测）
  */
 
-import { promises as dns } from 'dns';
+import { dnsResolver, DNSQueryType, DNSResolverResult } from './resolver';
 import { log } from '../logger';
 
-// 公共 DNS 服务器列表（作为备选）
-const PUBLIC_DNS_SERVERS = [
-  '8.8.8.8',      // Google DNS
-  '8.8.4.4',      // Google DNS Secondary
-  '1.1.1.1',      // Cloudflare DNS
-  '1.0.0.1',      // Cloudflare DNS Secondary
-  '223.5.5.5',    // AliDNS
-  '223.6.6.6',    // AliDNS Secondary
-];
-
 // 查询超时时间（毫秒）
-const DNS_TIMEOUT = 8000;
+const DNS_TIMEOUT = 10000;
 
-// 单次 resolver 重试次数
-const RESOLVER_RETRIES = 1;
-
-/**
- * 带超时的 Promise 包装器
- */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
-    ),
-  ]);
+export interface NSLookupResult {
+  nsRecords: string[];
+  isPoisoned: boolean;
+  encryptedResult?: DNSResolverResult;
+  plainResult?: DNSResolverResult;
 }
 
 /**
- * 使用指定 DNS 服务器解析 NS 记录
+ * 解析域名的 NS 记录（带 DNS 污染检测）
+ * 同时使用加密 DNS 和明文 DNS 查询，检测是否被污染
  * @param domain 域名
- * @param dnsServer DNS 服务器地址
- * @returns NS 记录列表
+ * @returns NS 查询结果（包含污染检测信息）
  */
-async function resolveNsWithServer(domain: string, dnsServer: string): Promise<string[]> {
-  const resolver = new dns.Resolver();
-
-  try {
-    resolver.setServers([dnsServer]);
-
-    const nsRecords = await withTimeout(
-      resolver.resolveNs(domain),
-      DNS_TIMEOUT,
-      `DNS query to ${dnsServer}`
-    );
-
-    return nsRecords;
-  } finally {
-    // 确保 resolver 资源被释放
-    try {
-      resolver.cancel();
-    } catch {
-      // ignore cancel errors
-    }
-  }
-}
-
-/**
- * 解析域名的 NS 记录
- * 优先使用系统默认 DNS，失败时尝试公共 DNS 服务器
- * @param domain 域名
- * @returns NS 记录列表
- */
-export async function resolveNsRecords(domain: string): Promise<string[]> {
+export async function resolveNsRecords(domain: string): Promise<NSLookupResult> {
   // 移除可能的尾部点号并转为小写
   const normalizedDomain = domain.replace(/\.$/, '').toLowerCase();
 
   if (!normalizedDomain || normalizedDomain.includes(' ')) {
     log.warn('NSLookup', 'Invalid domain provided', { domain });
-    return [];
+    return { nsRecords: [], isPoisoned: false };
   }
 
-  // 首先尝试系统默认 DNS
   try {
-    const nsRecords = await withTimeout(
-      dns.resolveNs(normalizedDomain),
-      DNS_TIMEOUT,
-      'System DNS query'
-    );
+    // 使用双重查询（加密 + 明文）
+    const validationResult = await dnsResolver.resolveNSWithValidation(normalizedDomain);
 
-    if (nsRecords && nsRecords.length > 0) {
-      const uniqueNs = [...new Set(nsRecords.map(ns => ns.toLowerCase()))].sort();
-      log.info('NSLookup', 'NS records resolved (system DNS)', {
+    if (validationResult.nsRecords.length > 0) {
+      log.info('NSLookup', 'NS records resolved', {
         domain: normalizedDomain,
-        count: uniqueNs.length,
-        servers: uniqueNs,
+        count: validationResult.nsRecords.length,
+        servers: validationResult.nsRecords,
+        isPoisoned: validationResult.isPoisoned,
+        encryptedSource: validationResult.encrypted.source,
+        plainSource: validationResult.plain.source,
       });
-      return uniqueNs;
+
+      return {
+        nsRecords: validationResult.nsRecords,
+        isPoisoned: validationResult.isPoisoned,
+        encryptedResult: validationResult.encrypted,
+        plainResult: validationResult.plain,
+      };
+    }
+
+    // 如果没有 NS 记录，尝试查询 A 记录（可能是子域名）
+    log.debug('NSLookup', 'No NS records found, trying A record', {
+      domain: normalizedDomain,
+    });
+
+    const aResult = await dnsResolver.resolve(normalizedDomain, DNSQueryType.A, {
+      preferEncrypted: true,
+      timeout: DNS_TIMEOUT,
+      useProxy: true,
+    });
+
+    if (aResult.success && aResult.records && aResult.records.length > 0) {
+      log.info('NSLookup', 'A records found (subdomain)', {
+        domain: normalizedDomain,
+        ips: aResult.records.map(r => r.data),
+        source: aResult.source,
+      });
+      // 返回空数组表示这是一个子域名，没有 NS 记录
+      return { nsRecords: [], isPoisoned: false };
     }
   } catch (error) {
-    const errCode = (error as NodeJS.ErrnoException).code;
-    log.warn('NSLookup', 'System DNS resolution failed, trying public DNS', {
+    log.error('NSLookup', 'DNS resolution failed', {
       domain: normalizedDomain,
-      errorCode: errCode,
-      errorMessage: (error as Error).message,
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 
-  // 系统 DNS 失败，尝试公共 DNS 服务器
-  for (const dnsServer of PUBLIC_DNS_SERVERS) {
-    for (let attempt = 0; attempt <= RESOLVER_RETRIES; attempt++) {
-      try {
-        const nsRecords = await resolveNsWithServer(normalizedDomain, dnsServer);
-
-        if (nsRecords && nsRecords.length > 0) {
-          const uniqueNs = [...new Set(nsRecords.map(ns => ns.toLowerCase()))].sort();
-          log.info('NSLookup', 'NS records resolved (public DNS)', {
-            domain: normalizedDomain,
-            dnsServer,
-            attempt: attempt + 1,
-            count: uniqueNs.length,
-            servers: uniqueNs,
-          });
-          return uniqueNs;
-        }
-      } catch (error) {
-        const errCode = (error as NodeJS.ErrnoException).code;
-        log.warn('NSLookup', 'Public DNS resolution failed', {
-          domain: normalizedDomain,
-          dnsServer,
-          attempt: attempt + 1,
-          errorCode: errCode,
-          errorMessage: (error as Error).message,
-        });
-      }
-    }
-  }
-
-  // 所有 DNS 服务器都失败
-  log.error('NSLookup', 'Failed to resolve NS records from all DNS servers', {
+  // 所有查询都失败
+  log.error('NSLookup', 'Failed to resolve NS records', {
     domain: normalizedDomain,
-    triedServers: ['system', ...PUBLIC_DNS_SERVERS],
   });
 
-  return [];
+  return { nsRecords: [], isPoisoned: false };
+}
+
+/**
+ * 仅获取 NS 记录（不包含污染检测信息）
+ * @param domain 域名
+ * @returns NS 记录列表
+ */
+export async function getNsRecordsOnly(domain: string): Promise<string[]> {
+  const result = await resolveNsRecords(domain);
+  return result.nsRecords;
 }
 
 /**
@@ -179,4 +134,61 @@ export function getNsStatus(current: string[], expected: string[]): 'ok' | 'mism
   }
 
   return 'ok';
+}
+
+/**
+ * 批量解析多个域名的 NS 记录
+ * @param domains 域名列表
+ * @returns 域名到 NS 记录的映射
+ */
+export async function resolveNsRecordsBatch(domains: string[]): Promise<Map<string, NSLookupResult>> {
+  const results = new Map<string, NSLookupResult>();
+
+  // 并行解析所有域名
+  const promises = domains.map(async (domain) => {
+    const nsResult = await resolveNsRecords(domain);
+    results.set(domain, nsResult);
+  });
+
+  await Promise.all(promises);
+
+  const poisonedCount = Array.from(results.values()).filter(r => r.isPoisoned).length;
+
+  log.info('NSLookup', 'Batch NS resolution completed', {
+    total: domains.length,
+    successful: Array.from(results.values()).filter(r => r.nsRecords.length > 0).length,
+    poisoned: poisonedCount,
+  });
+
+  return results;
+}
+
+/**
+ * 检查域名 NS 记录是否变更
+ * @param domain 域名
+ * @param previousNs 之前的 NS 记录
+ * @returns 是否变更
+ */
+export async function checkNsChanged(domain: string, previousNs: string[]): Promise<boolean> {
+  const currentResult = await resolveNsRecords(domain);
+  const currentNs = currentResult.nsRecords;
+
+  if (currentNs.length !== previousNs.length) {
+    return true;
+  }
+
+  const currentSet = new Set(currentNs.map(ns => ns.toLowerCase()));
+  const previousSet = new Set(previousNs.map(ns => ns.toLowerCase()));
+
+  if (currentSet.size !== previousSet.size) {
+    return true;
+  }
+
+  for (const ns of currentSet) {
+    if (!previousSet.has(ns)) {
+      return true;
+    }
+  }
+
+  return false;
 }
