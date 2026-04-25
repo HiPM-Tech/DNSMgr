@@ -4,7 +4,7 @@
  */
 
 import { NSMonitorOperations, DomainOperations, AuditOperations, UserOperations, formatDateForDB } from '../db/business-adapter';
-import { resolveNsRecords, getNsStatus } from '../lib/dns/ns-lookup';
+import { resolveNsRecords, getNsStatus, validateNsRecords } from '../lib/dns/ns-lookup';
 import { sendNotification, sendEmailToUser } from './notification';
 import { log } from '../lib/logger';
 

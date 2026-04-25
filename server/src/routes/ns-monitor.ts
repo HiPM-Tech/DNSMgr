@@ -202,13 +202,13 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     try {
       const domain = await DomainOperations.getById(domain_id);
       if (domain && domain.name) {
-        const currentNs = await resolveNsRecords(domain.name as string);
-        if (currentNs.length > 0) {
-          finalExpectedNs = currentNs.join(', ');
+        const nsResult = await resolveNsRecords(domain.name as string);
+        if (nsResult.nsRecords.length > 0) {
+          finalExpectedNs = nsResult.nsRecords.join(', ');
           log.info('NSMonitor', 'Auto-filled expected NS', {
             domainId: domain_id,
             domainName: domain.name,
-            nsRecords: currentNs,
+            nsRecords: nsResult.nsRecords,
           });
         }
       }
