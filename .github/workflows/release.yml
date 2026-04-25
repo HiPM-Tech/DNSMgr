@@ -301,6 +301,20 @@ jobs:
           name: windows-package
           path: ./artifacts
 
+      - name: Read CHANGELOG
+        id: changelog
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          # 提取当前版本的 changelog（从 ## [版本号] 到下一个 ## [ 或文件结束）
+          CHANGELOG_CONTENT=$(awk "/^## \\[$VERSION\\]/ {flag=1; next} /^## \\[/ {flag=0} flag" docs/CHANGELOG.md)
+          if [ -z "$CHANGELOG_CONTENT" ]; then
+            CHANGELOG_CONTENT="详见 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/docs/CHANGELOG.md)"
+          fi
+          # 将多行内容写入 GitHub Actions 输出
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -309,6 +323,7 @@ jobs:
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
           files: ./artifacts/*.zip
+          body: ${{ steps.changelog.outputs.content }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
