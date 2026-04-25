@@ -4,14 +4,6 @@
 
 import { BaseQueryMethod, QueryMethodType, WhoisResult } from './base';
 
-// 使用 node-fetch 替代原生 fetch，避免 Node.js 兼容性问题
-let fetchImpl: typeof fetch;
-try {
-  fetchImpl = require('node-fetch');
-} catch {
-  fetchImpl = globalThis.fetch;
-}
-
 /**
  * RDAP 查询方式
  */
@@ -32,13 +24,12 @@ export class RdapMethod extends BaseQueryMethod {
     try {
       this.log('info', `Querying ${domain} via RDAP ${server}`);
       
-      const response = await fetchImpl(url, {
+      const response = await fetch(url, {
         headers: {
           'Accept': 'application/rdap+json',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
-        timeout: 10000,
-      } as any);
+      });
 
       if (!response.ok) {
         this.log('warn', `RDAP HTTP ${response.status} for ${domain}`, {
@@ -83,7 +74,7 @@ export class RdapMethod extends BaseQueryMethod {
         message: error.message,
         name: error.name,
         stack: error.stack?.substring(0, 500),
-      } : String(error);
+      } : { error: String(error) };
       this.log('error', `RDAP query error for ${domain}`, errorDetails);
       return null;
     }
