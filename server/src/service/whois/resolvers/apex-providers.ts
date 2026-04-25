@@ -4,6 +4,7 @@
  */
 
 import { QueryMethodType } from '../providers/base';
+import { findRdapServer, getRdapServerList } from '../rdap-server-list';
 
 /**
  * 查询商配置
@@ -17,6 +18,41 @@ export interface ProviderConfig {
   method: QueryMethodType;
   /** 服务器地址（WHOIS为host:port，RDAP为URL前缀） */
   server: string;
+}
+
+/**
+ * IANA RDAP 服务器缓存
+ */
+let ianaRdapCache: Map<string, string> | null = null;
+let ianaRdapCacheTime = 0;
+const CACHE_TTL = 60 * 60 * 1000; // 1小时内存缓存
+
+/**
+ * 加载 IANA RDAP 服务器到内存缓存
+ */
+async function loadIanaRdapCache(): Promise<Map<string, string>> {
+  const now = Date.now();
+  
+  // 如果缓存有效，直接返回
+  if (ianaRdapCache && (now - ianaRdapCacheTime) < CACHE_TTL) {
+    return ianaRdapCache;
+  }
+
+  // 重新加载缓存
+  const configs = await getRdapServerList();
+  const cache = new Map<string, string>();
+  
+  for (const config of configs) {
+    if (config.servers.length > 0) {
+      cache.set(config.tld, config.servers[0]);
+    }
+  }
+  
+  ianaRdapCache = cache;
+  ianaRdapCacheTime = now;
+  
+  console.log(`[ApexProviders] Loaded ${cache.size} RDAP servers from IANA cache`);
+  return cache;
 }
 
 /**
@@ -307,8 +343,52 @@ export function findApexWhoisProvider(domain: string): ProviderConfig | null {
 
 /**
  * 根据域名查找匹配的 RDAP 查询商
+ * 优先从 IANA 官方列表查找，未找到时回退到内置列表
  */
-export function findApexRdapProvider(domain: string): ProviderConfig | null {
+export async function findApexRdapProvider(domain: string): Promise<ProviderConfig | null> {
+  const lowerDomain = domain.toLowerCase();
+  
+  // 首先尝试从 IANA 缓存查找
+  try {
+    const ianaCache = await loadIanaRdapCache();
+    
+    // 提取 TLD
+    const parts = lowerDomain.split('.');
+    const tld = parts[parts.length - 1];
+    
+    const ianaServer = ianaCache.get(tld);
+    if (ianaServer) {
+      return {
+        name: `iana-rdap-${tld}`,
+        suffixes: [tld],
+        method: QueryMethodType.RDAP,
+        server: ianaServer,
+      };
+    }
+  } catch (error) {
+    console.warn('[ApexProviders] Failed to load IANA RDAP cache', error);
+  }
+  
+  // 回退到内置列表
+  for (const provider of APEX_RDAP_PROVIDERS) {
+    const isMatch = provider.suffixes.some(suffix => {
+      if (lowerDomain === suffix) return true;
+      return lowerDomain.endsWith('.' + suffix);
+    });
+
+    if (isMatch) {
+      return provider;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 同步版本：根据域名查找匹配的 RDAP 查询商（仅使用内置列表）
+ * @deprecated 请使用异步版本的 findApexRdapProvider
+ */
+export function findApexRdapProviderSync(domain: string): ProviderConfig | null {
   const lowerDomain = domain.toLowerCase();
 
   for (const provider of APEX_RDAP_PROVIDERS) {

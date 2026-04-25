@@ -40,12 +40,24 @@ export {
   APEX_RDAP_PROVIDERS,
   findApexWhoisProvider,
   findApexRdapProvider,
+  findApexRdapProviderSync,
   addApexWhoisProvider,
   addApexRdapProvider,
   removeApexWhoisProvider,
   removeApexRdapProvider,
   type ProviderConfig,
 } from './resolvers/apex-providers';
+
+// 导出 RDAP 服务器列表管理
+export {
+  getRdapServerList,
+  findRdapServer,
+  findRdapServerForDomain,
+  refreshRdapServerList,
+  getCacheStatus,
+  type RdapServerConfig,
+  type RdapCache,
+} from './rdap-server-list';
 
 // 导出第三方查询服务器
 export {
@@ -89,6 +101,7 @@ import {
   APEX_RDAP_PROVIDERS,
   findApexWhoisProvider,
   findApexRdapProvider,
+  findApexRdapProviderSync,
   type ProviderConfig,
 } from './resolvers/apex-providers';
 import {
@@ -463,22 +476,37 @@ class WhoisService {
   /**
    * 顶域RDAP 并行查询
    * 所有匹配的RDAP提供商同时查询，取最快结果
+   * 优先使用 IANA 官方 RDAP 服务器列表
    */
   private async queryApexRdapParallel(domain: string, timeout: number): Promise<WhoisResult | null> {
     const queries: Array<() => Promise<WhoisResult | null>> = [];
 
-    // Debug: 记录提供商数量
-    log.debug('WhoisService', `[APEX+RDAP] Provider count: ${APEX_RDAP_PROVIDERS.length} for ${domain}`);
+    // 首先尝试从 IANA RDAP 列表查找（异步）
+    const ianaProvider = await findApexRdapProvider(domain);
+    if (ianaProvider) {
+      log.debug('WhoisService', `[APEX+RDAP] Matched IANA provider: ${ianaProvider.name} for ${domain}`);
+      queries.push(() => this.queryWithProvider(
+        domain,
+        ianaProvider,
+        rdapMethod,
+        { level: 'apex', method: 'RDAP', providerName: ianaProvider.name }
+      ));
+    }
 
-    // 查找所有匹配的RDAP提供商
+    // 同时查找内置列表中的提供商作为后备
     for (const provider of APEX_RDAP_PROVIDERS) {
+      // 跳过已在 IANA 列表中找到的相同后缀
+      if (ianaProvider && provider.suffixes.some(s => ianaProvider.suffixes.includes(s))) {
+        continue;
+      }
+      
       const isMatch = provider.suffixes.some(suffix => {
         if (domain.toLowerCase() === suffix) return true;
         return domain.toLowerCase().endsWith('.' + suffix);
       });
 
       if (isMatch) {
-        log.debug('WhoisService', `[APEX+RDAP] Matched provider: ${provider.name} for ${domain}`);
+        log.debug('WhoisService', `[APEX+RDAP] Matched built-in provider: ${provider.name} for ${domain}`);
         queries.push(() => this.queryWithProvider(
           domain,
           provider,
@@ -493,6 +521,7 @@ class WhoisService {
       return null;
     }
 
+    log.info('WhoisService', `[APEX+RDAP] Starting parallel queries with ${queries.length} providers for ${domain}`);
     return this.raceQueries(queries, timeout, `[APEX+RDAP+PARALLEL]`);
   }
 
