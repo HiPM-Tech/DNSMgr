@@ -140,6 +140,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
 /**
  * 尝试从 DNS 提供商 API 获取域名到期时间
  * 目前只有 VPS8 支持此功能
+ * 注意：彩虹聚合DNS和DnsMgr的API返回的到期时间不准确，不使用
  */
 async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
   try {
@@ -156,6 +157,14 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
     const account = await DnsAccountOperations.getById(domain.account_id) as DnsAccount | undefined;
     if (!account) {
       log.debug('WhoisJob', `No account found for ID ${domain.account_id}`);
+      return null;
+    }
+
+    // 排除不支持或不准确的提供商
+    // 彩虹聚合DNS和DnsMgr的API返回的到期时间不准确，不使用
+    const excludedProviders = ['caihongdns', 'dnsmgr'];
+    if (excludedProviders.includes(account.type)) {
+      log.debug('WhoisJob', `Provider ${account.type} is excluded from expiry date check (inaccurate)`);
       return null;
     }
 
