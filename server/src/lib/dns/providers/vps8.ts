@@ -38,7 +38,8 @@ export class Vps8Adapter extends BaseAdapter {
     const body = JSON.stringify(params);
     
     try {
-      const credentials = Buffer.from(`${this.config.client}:${this.config.apiKey}`).toString('base64');
+      // HTTP Basic Auth: username="client" (fixed literal string), password=apiKey
+      const credentials = Buffer.from(`client:${this.config.apiKey}`).toString('base64');
       
       const res = await fetchWithFallback(url, {
         method: 'POST',
