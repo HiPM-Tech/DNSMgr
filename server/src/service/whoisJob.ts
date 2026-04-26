@@ -1,9 +1,10 @@
-import { WhoisOperations } from '../db/business-adapter';
-import { Domain } from '../types';
+import { WhoisOperations, DnsAccountOperations } from '../db/business-adapter';
+import { Domain, DnsAccount } from '../types';
 import { sendNotification } from './notification';
 import { connect } from '../db/core/connection';
 import { log } from '../lib/logger';
 import { queryWhois, getRootDomain, WhoisResult } from './whoisProvider';
+import { createAdapter } from '../lib/dns/DnsHelper';
 
 /**
  * 将日期格式化为 MySQL 兼容的格式 (YYYY-MM-DD HH:mm:ss)
@@ -77,7 +78,29 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       };
     }
 
-    // 查询 WHOIS
+    // 尝试从 DNS 提供商 API 获取到期时间（优先级高于 WHOIS）
+    const providerExpiryDate = await getExpiryFromProvider(domainName);
+    if (providerExpiryDate) {
+      log.info('WhoisJob', `Got expiry from DNS provider API for ${domainName}: ${providerExpiryDate.toISOString()}`);
+      const result: WhoisResult = {
+        domain: domainName,
+        expiryDate: providerExpiryDate,
+        apexExpiryDate: null,
+        registrar: null,
+        nameServers: [],
+        raw: '',
+      };
+      setCachedWhois(domainName, result);
+      return {
+        expiryDate: providerExpiryDate,
+        apexExpiryDate: null,
+        registrar: null,
+        nameServers: [],
+      };
+    }
+
+    // 如果 DNS 提供商没有返回到期时间，使用 WHOIS 查询
+    log.info('WhoisJob', `DNS provider did not return expiry, falling back to WHOIS for ${domainName}`);
     const result = await queryWhois(domainName);
 
     if (result?.expiryDate) {
@@ -112,6 +135,54 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
     registrar: null,
     nameServers: [],
   };
+}
+
+/**
+ * 尝试从 DNS 提供商 API 获取域名到期时间
+ * 目前只有 VPS8 支持此功能
+ */
+async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
+  try {
+    // 查找域名对应的账号
+    const allDomains = await WhoisOperations.getAllDomains() as unknown as Domain[];
+    const domain = allDomains.find(d => d.name === domainName);
+    
+    if (!domain || !domain.account_id) {
+      log.debug('WhoisJob', `No account_id found for ${domainName}, skipping provider check`);
+      return null;
+    }
+
+    // 获取账号信息
+    const account = await DnsAccountOperations.getById(domain.account_id) as DnsAccount | undefined;
+    if (!account) {
+      log.debug('WhoisJob', `No account found for ID ${domain.account_id}`);
+      return null;
+    }
+
+    // 创建 DNS 适配器
+    const config = JSON.parse(account.config);
+    const adapter = createAdapter(account.type, config, domainName);
+    
+    // 检查适配器是否支持获取域名列表（包含到期时间）
+    // 目前只有 VPS8 实现了 ExpiresAt 字段
+    const domainList = await adapter.getDomainList();
+    const domainInfo = domainList.list.find((d: any) => d.Domain.toLowerCase() === domainName.toLowerCase());
+    
+    if (domainInfo?.ExpiresAt) {
+      const expiryDate = new Date(domainInfo.ExpiresAt);
+      if (!isNaN(expiryDate.getTime())) {
+        log.info('WhoisJob', `Found expiry date from provider for ${domainName}: ${expiryDate.toISOString()}`);
+        return expiryDate;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    log.debug('WhoisJob', `Failed to get expiry from provider for ${domainName}:`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 /**

@@ -20,6 +20,7 @@ import {
   RainyunAdapter,
   DnsMgrAdapter,
   CaihongDnsAdapter,
+  Vps8Adapter,
 } from './index';
 
 export interface ProviderCapabilities {
@@ -260,6 +261,16 @@ const providerDefinitions: ProviderDefinition[] = [
       { key: 'apiKey', label: 'API Key', type: 'password', required: true },
     ],
     adapterFactory: (config) => new CaihongDnsAdapter(config),
+  },
+  {
+    type: 'vps8',
+    name: 'VPS8',
+    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false, line: true, cnameFlattening: false },
+    configFields: [
+      { key: 'client', label: 'Client ID', type: 'text', required: true },
+      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    ],
+    adapterFactory: (config) => new Vps8Adapter(config),
   },
 ];
 

@@ -2930,7 +2930,7 @@ export const WhoisOperations = {
   /** 根据ID获取域名 */
   async getDomainById(id: number): Promise<QueryResult | undefined> {
     return getInternal(
-      'SELECT id, name FROM domains WHERE id = ?',
+      'SELECT id, name, account_id FROM domains WHERE id = ?',
       [id],
       { operation: 'Whois.getDomainById', table: 'domains' }
     );

@@ -18,3 +18,4 @@ export { QingcloudAdapter } from './qingcloud';
 export { SpaceshipAdapter } from './spaceship';
 export { DnsMgrAdapter } from './dnsmgr';
 export { CaihongDnsAdapter } from './caihongdns';
+export { Vps8Adapter } from './vps8';
