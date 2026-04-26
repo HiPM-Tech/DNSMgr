@@ -33,6 +33,7 @@ import webauthnRouter from './routes/webauthn';
 import tokensRouter from './routes/tokens';
 import nsMonitorRouter from './routes/ns-monitor';
 import networkRouter from './routes/network';
+import rdapRouter from './routes/rdap';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
@@ -159,6 +160,7 @@ app.use('/api/teams', teamsRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/domains', domainsRouter);
 app.use('/api/domains/:domainId/records', recordsRouter);
+app.use('/api/rdap', rdapRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/security', securityRouter);
