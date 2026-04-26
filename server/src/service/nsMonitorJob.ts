@@ -268,29 +268,15 @@ async function sendNsAlert(
       shouldSendChannels = true;
     }
 
-    // 生成 HTML 格式的消息
-    let htmlMessage = `<h3>${title}</h3>
-<p><strong>域名:</strong> ${monitor.domain_name}</p>
-<p><strong>告警类型:</strong> ${alertTypeText}</p>
-<p><strong>当前 NS:</strong> ${currentNs.join(', ') || '无'}</p>
-<p><strong>预期 NS:</strong> ${expectedNs.join(', ') || '未配置'}</p>`;
-    
-    // 添加DNS污染检测详情到HTML
-    if (isPoisoned && encryptedNs && plainNs) {
-      htmlMessage += `<p><strong style="color: #9333ea;">⚠️ DNS 污染检测:</strong></p>
-<p><strong>加密 DNS 结果:</strong> ${encryptedNs.join(', ') || '无'}</p>
-<p><strong>明文 DNS 结果:</strong> ${plainNs.join(', ') || '无'}</p>
-<p style="color: #dc2626;"><strong>警告:</strong> 加密DNS与明文DNS查询结果不一致，可能存在DNS污染!</p>`;
-    }
-    
-    htmlMessage += `<p><strong>时间:</strong> ${new Date().toLocaleString('zh-CN')}</p>`;
+    // 使用纯文本格式，不使用HTML
+    const plainMessage = message;
 
     // 发送邮件通知到用户自己的邮箱（如果启用）
     if (shouldSendEmail && userId) {
       try {
         const user = await UserOperations.getPublicById(userId);
         if (user && user.email) {
-          const emailSent = await sendEmailToUser(user.email as string, title, message, htmlMessage);
+          const emailSent = await sendEmailToUser(user.email as string, title, plainMessage, plainMessage);
           if (emailSent) {
             log.info('NSMonitorJob', 'Email notification sent to user', {
               domain: monitor.domain_name,
@@ -324,7 +310,7 @@ async function sendNsAlert(
     // 发送渠道通知（如果启用）
     if (shouldSendChannels) {
       try {
-        await sendNotification(title, message, htmlMessage);
+        await sendNotification(title, plainMessage, plainMessage);
         log.info('NSMonitorJob', 'Channel notification sent', {
           domain: monitor.domain_name,
           status,
