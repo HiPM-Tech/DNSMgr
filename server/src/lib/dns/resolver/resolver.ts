@@ -435,8 +435,11 @@ export class DNSResolver {
     // 如果加密查询成功但明文查询失败，可能是网络问题
     // 如果两者都成功但结果不同，可能是 DNS 污染
     if (encryptedResult.success && plainResult.success) {
-      const encryptedNS = encryptedResult.records?.map(r => r.data).sort() || [];
-      const plainNS = plainResult.records?.map(r => r.data).sort() || [];
+      // 标准化 NS 记录：移除尾部点号并转为小写
+      const normalizeNS = (ns: string) => ns.replace(/\.$/, '').toLowerCase();
+      
+      const encryptedNS = encryptedResult.records?.map(r => normalizeNS(r.data)).sort() || [];
+      const plainNS = plainResult.records?.map(r => normalizeNS(r.data)).sort() || [];
 
       if (encryptedNS.length !== plainNS.length) {
         isPoisoned = true;
