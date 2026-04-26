@@ -1,12 +1,14 @@
 import { DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import { BaseAdapter, safeString, toNumber } from './common';
-import { requestJson, Dict } from './http';
+import { Dict } from './http';
+import { fetchWithFallback } from '../../proxy-http';
 import { log } from '../../logger';
 
 interface Vps8Config {
   apiKey: string;
   client: string;
   domain?: string;
+  useProxy?: boolean;
 }
 
 interface Vps8Response<T = unknown> {
@@ -27,16 +29,7 @@ export class Vps8Adapter extends BaseAdapter {
       apiKey: safeString(config.apiKey) || safeString(config.apikey),
       client: safeString(config.client),
       domain: safeString(config.domain),
-    };
-  }
-
-  private getHeaders(): Record<string, string> {
-    // HTTP Basic Auth: username=client ID, password=apiKey
-    // According to VPS8 documentation, 'client' refers to the client ID
-    const credentials = Buffer.from(`${this.config.client}:${this.config.apiKey}`).toString('base64');
-    return {
-      'Authorization': `Basic ${credentials}`,
-      'Content-Type': 'application/json',
+      useProxy: !!config.useProxy,
     };
   }
 
@@ -45,26 +38,36 @@ export class Vps8Adapter extends BaseAdapter {
     const body = JSON.stringify(params);
     
     try {
-      const response = await requestJson<Vps8Response<T>>(url, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body,
-        parseError: (payload) => {
-          const data = payload as Vps8Response;
-          if (data.error && data.error.code && data.error.code !== 200) {
-            return safeString(data.error.message) || `VPS8 API error: code ${data.error.code}`;
-          }
-          return undefined;
-        },
-      });
+      const credentials = Buffer.from(`${this.config.client}:${this.config.apiKey}`).toString('base64');
       
-      // 如果响应有 error 字段且不为 null，抛出错误
-      const resp = response as Vps8Response;
-      if (resp.error && resp.error.code && resp.error.code !== 200) {
-        throw new Error(safeString(resp.error.message) || 'VPS8 API request failed');
+      const res = await fetchWithFallback(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Content-Type': 'application/json',
+        },
+        body,
+      }, this.config.useProxy, 'VPS8');
+      
+      const text = await res.text();
+      let payload: unknown = undefined;
+      
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          throw new Error(`Invalid JSON response: ${text.slice(0, 200)}`);
+        }
       }
       
-      return (resp.result ?? {}) as T;
+      const data = payload as Vps8Response<T>;
+      
+      // 如果响应有 error 字段且不为 null，抛出错误
+      if (data.error && data.error.code && data.error.code !== 200) {
+        throw new Error(safeString(data.error.message) || 'VPS8 API request failed');
+      }
+      
+      return (data.result ?? {}) as T;
     } catch (error) {
       if (error instanceof Error) {
         throw error;
