@@ -968,15 +968,15 @@ export const AuditOperations = {
   /** 记录审计日志 */
   async log(data: { user_id: number; action: string; target_type?: string; target_id?: string; details?: string }): Promise<void> {
     return executeInternal(
-      'INSERT INTO audit_logs (user_id, action, target_type, target_id, details, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-      [data.user_id, data.action, data.target_type ?? null, data.target_id ?? null, data.details ?? null],
-      { operation: 'Audit.log', table: 'audit_logs' }
+      'INSERT INTO operation_logs (user_id, action, domain, data, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
+      [data.user_id, data.action, data.target_type ?? '', data.details ?? null],
+      { operation: 'Audit.log', table: 'operation_logs' }
     );
   },
 
   /** 获取审计日志 */
   async getLogs(options: { userId?: number; action?: string; limit?: number; offset?: number } = {}): Promise<QueryResult[]> {
-    let sql = 'SELECT * FROM audit_logs WHERE 1=1';
+    let sql = 'SELECT * FROM operation_logs WHERE 1=1';
     const params: unknown[] = [];
     
     if (options.userId) {
