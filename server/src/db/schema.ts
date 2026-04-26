@@ -23,6 +23,8 @@ async function handleMySQLMigrations(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
 ): Promise<void> {
   try {
+    log.info('Schema', 'Starting MySQL migrations...');
+    
     // Check if apex_expires_at column exists in domains table
     const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'apex_expires_at'`;
@@ -91,9 +93,11 @@ async function handleMySQLMigrations(
     await dropOldNsMonitorTables(conn);
 
     // 迁移：添加 encrypted_ns, plain_ns, is_poisoned 字段到 ns_monitor_domains
+    log.info('Schema', 'Starting ns_monitor_domains columns migration...');
     await addNsMonitorColumns(conn);
+    log.info('Schema', 'Completed ns_monitor_domains columns migration');
   } catch (error) {
-    log.warn('Schema', 'MySQL migration check failed', { error: (error as Error).message });
+    log.error('Schema', 'MySQL migration check failed', { error: (error as Error).message, stack: (error as Error).stack });
   }
 }
 
@@ -103,6 +107,8 @@ async function handleMySQLMigrations(
 async function addNsMonitorColumns(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
 ): Promise<void> {
+  log.info('Schema', 'addNsMonitorColumns called, checking ns_monitor_domains table');
+  
   const columns = [
     { name: 'encrypted_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN encrypted_ns TEXT' },
     { name: 'plain_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN plain_ns TEXT' },
@@ -111,6 +117,7 @@ async function addNsMonitorColumns(
 
   for (const column of columns) {
     try {
+      log.info('Schema', `Checking if column ${column.name} exists...`);
       // 检查列是否存在
       const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'ns_monitor_domains' AND COLUMN_NAME = '${column.name}'`;
