@@ -78,49 +78,55 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       };
     }
 
-    // 尝试从 DNS 提供商 API 获取到期时间
-    const providerExpiryDate = await getExpiryFromProvider(domainName);
-    
     // 使用 WHOIS 查询（包含顶域查询、第三方查询等多元查询）
     log.info('WhoisJob', `Querying WHOIS for ${domainName} (includes apex and third-party queries)`);
     const whoisResult = await queryWhois(domainName);
 
-    // 如果 DNS 提供商返回了到期时间，优先使用
-    if (providerExpiryDate) {
-      log.info('WhoisJob', `Got expiry from DNS provider API for ${domainName}: ${providerExpiryDate.toISOString()}`);
-      
-      // 如果是子域，还需要顶域的到期时间
-      let apexExpiryDate = whoisResult?.apexExpiryDate || null;
-      
+    // 尝试从 DNS 提供商 API 获取到期时间
+    const providerExpiryDate = await getExpiryFromProvider(domainName);
+
+    // 判断是否为顶域
+    const rootDomain = getRootDomain(domainName);
+    const isApexDomain = domainName.toLowerCase() === rootDomain.toLowerCase();
+
+    let finalExpiryDate: Date | null = null;
+    let finalApexExpiryDate: Date | null = whoisResult?.apexExpiryDate || null;
+
+    if (isApexDomain) {
+      // 顶域：顶域 WHOIS > DNS 提供商 API > 第三方
+      if (whoisResult?.expiryDate) {
+        finalExpiryDate = whoisResult.expiryDate;
+        log.info('WhoisJob', `Using apex WHOIS expiry for ${domainName}: ${finalExpiryDate.toISOString()}`);
+      } else if (providerExpiryDate) {
+        finalExpiryDate = providerExpiryDate;
+        log.info('WhoisJob', `Using DNS provider API expiry for ${domainName}: ${finalExpiryDate.toISOString()}`);
+      }
+    } else {
+      // 子域：DNS 提供商 API > 顶域 WHOIS > 第三方
+      if (providerExpiryDate) {
+        finalExpiryDate = providerExpiryDate;
+        log.info('WhoisJob', `Using DNS provider API expiry for ${domainName}: ${finalExpiryDate.toISOString()}`);
+      } else if (whoisResult?.expiryDate) {
+        finalExpiryDate = whoisResult.expiryDate;
+        log.info('WhoisJob', `Using WHOIS expiry for ${domainName}: ${finalExpiryDate.toISOString()}`);
+      }
+    }
+
+    if (finalExpiryDate) {
       const result: WhoisResult = {
         domain: domainName,
-        expiryDate: providerExpiryDate,
-        apexExpiryDate,
+        expiryDate: finalExpiryDate,
+        apexExpiryDate: finalApexExpiryDate,
         registrar: whoisResult?.registrar || null,
         nameServers: whoisResult?.nameServers || [],
         raw: whoisResult?.raw || '',
       };
       setCachedWhois(domainName, result);
       return {
-        expiryDate: providerExpiryDate,
-        apexExpiryDate,
+        expiryDate: finalExpiryDate,
+        apexExpiryDate: finalApexExpiryDate,
         registrar: whoisResult?.registrar || null,
         nameServers: whoisResult?.nameServers || [],
-      };
-    }
-
-    // DNS 提供商没有返回，使用 WHOIS 结果
-    if (whoisResult?.expiryDate) {
-      setCachedWhois(domainName, whoisResult);
-      log.info('WhoisJob', `Got expiry date for ${domainName}: ${whoisResult.expiryDate.toISOString()}`, {
-        hasApexExpiry: !!whoisResult.apexExpiryDate,
-        apexExpiryDate: whoisResult.apexExpiryDate?.toISOString(),
-      });
-      return {
-        expiryDate: whoisResult.expiryDate,
-        apexExpiryDate: whoisResult.apexExpiryDate || null,
-        registrar: whoisResult.registrar,
-        nameServers: whoisResult.nameServers,
       };
     }
 
