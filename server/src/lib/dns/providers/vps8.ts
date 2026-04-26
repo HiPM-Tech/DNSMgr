@@ -31,7 +31,8 @@ export class Vps8Adapter extends BaseAdapter {
   }
 
   private getHeaders(): Record<string, string> {
-    // HTTP Basic Auth: username=client, password=apiKey
+    // HTTP Basic Auth: username=client ID, password=apiKey
+    // According to VPS8 documentation, 'client' refers to the client ID
     const credentials = Buffer.from(`${this.config.client}:${this.config.apiKey}`).toString('base64');
     return {
       'Authorization': `Basic ${credentials}`,
@@ -84,6 +85,12 @@ export class Vps8Adapter extends BaseAdapter {
 
   async getDomainList(keyword?: string, _page = 1, _pageSize = 50): Promise<PageResult<DomainInfo>> {
     try {
+      log.debug('VPS8', 'Fetching domain list', { 
+        client: this.config.client,
+        apiKeyLength: this.config.apiKey.length,
+        baseUrl: this.baseUrl 
+      });
+      
       const response = await this.request<Array<{ 
         domain: string; 
         id?: string;
