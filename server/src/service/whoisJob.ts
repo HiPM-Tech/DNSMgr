@@ -78,49 +78,56 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       };
     }
 
-    // 尝试从 DNS 提供商 API 获取到期时间（优先级高于 WHOIS）
+    // 尝试从 DNS 提供商 API 获取到期时间
     const providerExpiryDate = await getExpiryFromProvider(domainName);
+    
+    // 使用 WHOIS 查询（包含顶域查询、第三方查询等多元查询）
+    log.info('WhoisJob', `Querying WHOIS for ${domainName} (includes apex and third-party queries)`);
+    const whoisResult = await queryWhois(domainName);
+
+    // 如果 DNS 提供商返回了到期时间，优先使用
     if (providerExpiryDate) {
       log.info('WhoisJob', `Got expiry from DNS provider API for ${domainName}: ${providerExpiryDate.toISOString()}`);
+      
+      // 如果是子域，还需要顶域的到期时间
+      let apexExpiryDate = whoisResult?.apexExpiryDate || null;
+      
       const result: WhoisResult = {
         domain: domainName,
         expiryDate: providerExpiryDate,
-        apexExpiryDate: null,
-        registrar: null,
-        nameServers: [],
-        raw: '',
+        apexExpiryDate,
+        registrar: whoisResult?.registrar || null,
+        nameServers: whoisResult?.nameServers || [],
+        raw: whoisResult?.raw || '',
       };
       setCachedWhois(domainName, result);
       return {
         expiryDate: providerExpiryDate,
-        apexExpiryDate: null,
-        registrar: null,
-        nameServers: [],
+        apexExpiryDate,
+        registrar: whoisResult?.registrar || null,
+        nameServers: whoisResult?.nameServers || [],
       };
     }
 
-    // 如果 DNS 提供商没有返回到期时间，使用 WHOIS 查询
-    log.info('WhoisJob', `DNS provider did not return expiry, falling back to WHOIS for ${domainName}`);
-    const result = await queryWhois(domainName);
-
-    if (result?.expiryDate) {
-      setCachedWhois(domainName, result);
-      log.info('WhoisJob', `Got expiry date for ${domainName}: ${result.expiryDate.toISOString()}`, {
-        hasApexExpiry: !!result.apexExpiryDate,
-        apexExpiryDate: result.apexExpiryDate?.toISOString(),
+    // DNS 提供商没有返回，使用 WHOIS 结果
+    if (whoisResult?.expiryDate) {
+      setCachedWhois(domainName, whoisResult);
+      log.info('WhoisJob', `Got expiry date for ${domainName}: ${whoisResult.expiryDate.toISOString()}`, {
+        hasApexExpiry: !!whoisResult.apexExpiryDate,
+        apexExpiryDate: whoisResult.apexExpiryDate?.toISOString(),
       });
       return {
-        expiryDate: result.expiryDate,
-        apexExpiryDate: result.apexExpiryDate || null,
-        registrar: result.registrar,
-        nameServers: result.nameServers,
+        expiryDate: whoisResult.expiryDate,
+        apexExpiryDate: whoisResult.apexExpiryDate || null,
+        registrar: whoisResult.registrar,
+        nameServers: whoisResult.nameServers,
       };
     }
 
     log.warn('WhoisJob', `No expiry date found for ${domainName}`, {
       domain: domainName,
-      hasResult: !!result,
-      resultKeys: result ? Object.keys(result) : null,
+      hasResult: !!whoisResult,
+      resultKeys: whoisResult ? Object.keys(whoisResult) : null,
     });
   } catch (error) {
     log.error('WhoisJob', `Error checking ${domainName}:`, {
