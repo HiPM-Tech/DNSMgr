@@ -27,6 +27,7 @@ MySQL数据库中`ns_monitor_domains`表缺少`encrypted_ns`、`plain_ns`和`is_
 
 **修改的文件：**
 - `server/src/db/schema.ts` - 添加了`addNsMonitorColumns()`函数来正确处理MySQL字段迁移
+- `server/src/db/schemas/mysql.ts` - 从alterTables中移除IF NOT EXISTS语法的SQL语句
 - `server/scripts/migrate-ns-monitor-fields.js` - 新增手动迁移脚本
 - `server/package.json` - 添加了`db:migrate:ns-monitor`脚本
 
