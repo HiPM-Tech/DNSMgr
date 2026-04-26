@@ -18,8 +18,8 @@ interface NSMonitorConfig {
   notify_email: boolean;
   notify_channels: boolean;
   current_ns?: string;
-  encrypted_ns?: string[];
-  plain_ns?: string[];
+  encrypted_ns?: string | string[];  // 支持字符串或数组
+  plain_ns?: string | string[];      // 支持字符串或数组
   is_poisoned?: boolean;
   status?: 'ok' | 'mismatch' | 'missing' | 'poisoned';
   last_check_at?: string;
@@ -145,6 +145,14 @@ export function NSMonitor() {
   const monitoredDomainIds = new Set(configs?.map((c: NSMonitorConfig) => c.domain_id) || []);
   const availableDomains = domains?.filter((d: Domain) => !monitoredDomainIds.has(d.id)) || [];
 
+  // 辅助函数：将 encrypted_ns 或 plain_ns 转换为数组
+  const parseNSField = (value: string | string[] | undefined): string[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    // 如果是字符串，按逗号分割
+    return value.split(',').map(s => s.trim()).filter(Boolean);
+  };
+
   const columns: { key: string; label: string; render?: (row: NSMonitorConfig) => ReactNode }[] = [
     {
       key: 'domain_name',
@@ -182,41 +190,46 @@ export function NSMonitor() {
     {
       key: 'current_ns',
       label: t('nsMonitor.currentNS'),
-      render: (row: NSMonitorConfig) => (
-        <div className="space-y-1">
-          {/* 加密查询结果 */}
-          {row.encrypted_ns && row.encrypted_ns.length > 0 && (
-            <div className="text-xs">
-              <span className="text-green-600 font-medium">{t('nsMonitor.encrypted')}:</span>
-              <span className="text-gray-600 dark:text-gray-400 ml-1">
-                {row.encrypted_ns.join(', ')}
-              </span>
-            </div>
-          )}
-          {/* 明文查询结果 */}
-          {row.plain_ns && row.plain_ns.length > 0 && (
-            <div className="text-xs">
-              <span className="text-blue-600 font-medium">{t('nsMonitor.plain')}:</span>
-              <span className="text-gray-600 dark:text-gray-400 ml-1">
-                {row.plain_ns.join(', ')}
-              </span>
-            </div>
-          )}
-          {/* 无结果 */}
-          {(!row.encrypted_ns || row.encrypted_ns.length === 0) && (!row.plain_ns || row.plain_ns.length === 0) && (
-            <div className="text-sm text-gray-400">
-              {row.current_ns || t('nsMonitor.notChecked')}
-            </div>
-          )}
-          {/* DNS 污染警告 */}
-          {row.is_poisoned && (
-            <div className="text-xs text-purple-600 font-medium flex items-center gap-1 mt-1">
-              <ShieldAlert className="w-3 h-3" />
-              {t('nsMonitor.dnsPoisoningDetected')}
-            </div>
-          )}
-        </div>
-      ),
+      render: (row: NSMonitorConfig) => {
+        const encryptedNS = parseNSField(row.encrypted_ns);
+        const plainNS = parseNSField(row.plain_ns);
+        
+        return (
+          <div className="space-y-1">
+            {/* 加密查询结果 */}
+            {encryptedNS.length > 0 && (
+              <div className="text-xs">
+                <span className="text-green-600 font-medium">{t('nsMonitor.encrypted')}:</span>
+                <span className="text-gray-600 dark:text-gray-400 ml-1">
+                  {encryptedNS.join(', ')}
+                </span>
+              </div>
+            )}
+            {/* 明文查询结果 */}
+            {plainNS.length > 0 && (
+              <div className="text-xs">
+                <span className="text-blue-600 font-medium">{t('nsMonitor.plain')}:</span>
+                <span className="text-gray-600 dark:text-gray-400 ml-1">
+                  {plainNS.join(', ')}
+                </span>
+              </div>
+            )}
+            {/* 无结果 */}
+            {encryptedNS.length === 0 && plainNS.length === 0 && (
+              <div className="text-sm text-gray-400">
+                {row.current_ns || t('nsMonitor.notChecked')}
+              </div>
+            )}
+            {/* DNS 污染警告 */}
+            {row.is_poisoned && (
+              <div className="text-xs text-purple-600 font-medium flex items-center gap-1 mt-1">
+                <ShieldAlert className="w-3 h-3" />
+                {t('nsMonitor.dnsPoisoningDetected')}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'expected_ns',
@@ -532,7 +545,7 @@ export function NSMonitor() {
                   name="expected_ns"
                   placeholder={t('nsMonitor.expectedNSPlaceholder')}
                   rows={3}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 />
                 <button
                   type="button"
@@ -544,11 +557,11 @@ export function NSMonitor() {
                     }
                   }}
                   disabled={!selectedDomainName || resolveNsMutation.isPending}
-                  className="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                   title={t('nsMonitor.autoFillTooltip')}
                 >
                   <Wand2 className={`w-4 h-4 ${resolveNsMutation.isPending ? 'animate-spin' : ''}`} />
-                  {t('nsMonitor.autoFill')}
+                  <span>{t('nsMonitor.autoFill')}</span>
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-1">

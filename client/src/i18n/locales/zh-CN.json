@@ -979,7 +979,13 @@
       "never": "从未",
       "deleteConfirm": "确认删除域名 \"{domain}\" 的 NS 监测配置？",
       "deleteSuccess": "监测配置已删除",
-      "deleteFailed": "删除监测配置失败"
+      "deleteFailed": "删除监测配置失败",
+      "autoFill": "自动获取",
+      "autoFillTooltip": "自动获取域名的 NS 记录（加密 DNS 优先）",
+      "autoFillSuccess": "已自动填充 {count} 条 NS 记录",
+      "noNsRecords": "未找到 NS 记录",
+      "resolveNsFailed": "获取 NS 记录失败",
+      "selectDomainFirst": "请先选择域名"
     },
     "tunnels": {
       "actions": "操作",
