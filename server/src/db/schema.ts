@@ -91,31 +91,36 @@ async function addNsMonitorColumns(
 
   for (const column of columns) {
     try {
-      // 检查列是否存在
-      const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_NAME = 'ns_monitor_domains' AND COLUMN_NAME = '${column.name}'`;
+      // 检查列是否存在 - 使用 SHOW COLUMNS 更可靠
+      const checkColumnSql = `SHOW COLUMNS FROM ns_monitor_domains LIKE '${column.name}'`;
 
       let columnExists = false;
       if (conn.execute) {
         const result = await conn.execute(checkColumnSql);
-        if (Array.isArray(result) && result.length > 0) {
-          const row = result[0] as Record<string, number>;
-          const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
-          columnExists = parseInt(String(count), 10) > 0;
+        // SHOW COLUMNS 返回空数组表示字段不存在，有数据表示存在
+        if (Array.isArray(result)) {
+          columnExists = result.length > 0;
+          log.debug('Schema', `Check ${column.name}: found ${result.length} rows, exists=${columnExists}`);
         }
+      } else if (conn.exec) {
+        // 对于同步exec方法，也尝试检查（虽然通常不会用到）
+        log.debug('Schema', `Skipping column existence check for ${column.name} (sync connection)`);
+        columnExists = false;  // 同步连接不做检查，直接尝试添加
       }
 
       if (columnExists) {
-        log.debug('Schema', `${column.name} column already exists in ns_monitor_domains table`);
-      } else {
-        // 只在字段不存在时才执行ALTER TABLE，避免触发驱动层ERROR日志
-        if (conn.execute) {
-          await conn.execute(column.sql);
-        } else if (conn.exec) {
-          conn.exec(column.sql);
-        }
-        log.info('Schema', `Added ${column.name} column to ns_monitor_domains table`);
+        log.info('Schema', `${column.name} column already exists in ns_monitor_domains table, skipping ALTER TABLE`);
+        continue;  // 跳过此列，不执行ALTER TABLE
       }
+      
+      // 只在字段不存在时才执行ALTER TABLE，避免触发驱动层ERROR日志
+      log.info('Schema', `Adding ${column.name} column to ns_monitor_domains table...`);
+      if (conn.execute) {
+        await conn.execute(column.sql);
+      } else if (conn.exec) {
+        conn.exec(column.sql);
+      }
+      log.info('Schema', `Successfully added ${column.name} column`);
     } catch (error) {
       const errorMsg = (error as Error).message || '';
       if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
