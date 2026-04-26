@@ -40,7 +40,10 @@ async function handleMySQLMigrations(
         }
       }
 
-      if (!columnExists) {
+      if (columnExists) {
+        log.debug('Schema', 'apex_expires_at column already exists in domains table');
+      } else {
+        // 只在字段不存在时才执行ALTER TABLE，避免触发驱动层ERROR日志
         const addColumnSql = `ALTER TABLE domains ADD COLUMN apex_expires_at DATETIME`;
         if (conn.execute) {
           await conn.execute(addColumnSql);
@@ -48,8 +51,6 @@ async function handleMySQLMigrations(
           conn.exec(addColumnSql);
         }
         log.info('Schema', 'Added apex_expires_at column to domains table');
-      } else {
-        log.debug('Schema', 'apex_expires_at column already exists in domains table');
       }
     } catch (error) {
       const errorMsg = (error as Error).message || '';
@@ -90,48 +91,38 @@ async function addNsMonitorColumns(
 
   for (const column of columns) {
     try {
-      log.info('Schema', `Checking if column ${column.name} exists...`);
       // 检查列是否存在
       const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'ns_monitor_domains' AND COLUMN_NAME = '${column.name}'`;
 
       let columnExists = false;
       if (conn.execute) {
-        try {
-          const result = await conn.execute(checkColumnSql);
-          if (Array.isArray(result) && result.length > 0) {
-            const row = result[0];
-            if (row && typeof row === 'object') {
-              const count = row.cnt ?? row.CNT ?? row['COUNT(*)'] ?? row.count ?? 0;
-              columnExists = parseInt(String(count), 10) > 0;
-            }
-          }
-        } catch (checkError) {
-          log.warn('Schema', `Failed to check if column ${column.name} exists`, { error: (checkError as Error).message });
+        const result = await conn.execute(checkColumnSql);
+        if (Array.isArray(result) && result.length > 0) {
+          const row = result[0] as Record<string, number>;
+          const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+          columnExists = parseInt(String(count), 10) > 0;
         }
       }
 
-      if (!columnExists) {
-        try {
-          if (conn.execute) {
-            await conn.execute(column.sql);
-          } else if (conn.exec) {
-            conn.exec(column.sql);
-          }
-          log.info('Schema', `Added ${column.name} column to ns_monitor_domains table`);
-        } catch (addError) {
-          const errorMsg = (addError as Error).message || '';
-          if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
-            log.info('Schema', `${column.name} column already exists`);
-          } else {
-            log.warn('Schema', `Failed to add ${column.name} column`, { error: errorMsg });
-          }
-        }
-      } else {
+      if (columnExists) {
         log.debug('Schema', `${column.name} column already exists in ns_monitor_domains table`);
+      } else {
+        // 只在字段不存在时才执行ALTER TABLE，避免触发驱动层ERROR日志
+        if (conn.execute) {
+          await conn.execute(column.sql);
+        } else if (conn.exec) {
+          conn.exec(column.sql);
+        }
+        log.info('Schema', `Added ${column.name} column to ns_monitor_domains table`);
       }
     } catch (error) {
-      log.warn('Schema', `Error processing column ${column.name}`, { error: (error as Error).message });
+      const errorMsg = (error as Error).message || '';
+      if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+        log.info('Schema', `${column.name} column already exists`);
+      } else {
+        log.warn('Schema', `Failed to add ${column.name} column`, { error: errorMsg });
+      }
     }
   }
 }
