@@ -25,79 +25,50 @@ async function handleMySQLMigrations(
   try {
     log.info('Schema', 'Starting MySQL migrations...');
     
-    // Check if apex_expires_at column exists in domains table
-    const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'apex_expires_at'`;
+    // 迁移1: 添加 apex_expires_at 字段到 domains 表
+    try {
+      const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'apex_expires_at'`;
 
-    let columnExists = false;
-    if (conn.execute) {
-      try {
+      let columnExists = false;
+      if (conn.execute) {
         const result = await conn.execute(checkColumnSql);
-        // Handle different result formats from different MySQL drivers
         if (Array.isArray(result) && result.length > 0) {
-          const row = result[0];
-          if (row && typeof row === 'object') {
-            // Try different possible property names
-            const count = row.cnt ?? row.CNT ?? row['COUNT(*)'] ?? row.count ?? 0;
-            columnExists = parseInt(String(count), 10) > 0;
-          }
+          const row = result[0] as Record<string, number>;
+          const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+          columnExists = parseInt(String(count), 10) > 0;
         }
-      } catch (checkError) {
-        log.warn('Schema', 'Failed to check if column exists, assuming it does not exist', { error: (checkError as Error).message });
       }
-    }
 
-    if (!columnExists) {
-      try {
+      if (!columnExists) {
         const addColumnSql = `ALTER TABLE domains ADD COLUMN apex_expires_at DATETIME`;
         if (conn.execute) {
-          try {
-            await conn.execute(addColumnSql);
-          } catch (execError) {
-            // Handle async execute error
-            const errorMsg = (execError as Error).message || '';
-            if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
-              log.info('Schema', 'apex_expires_at column already exists (detected during add)');
-              // Don't return, continue with other migrations
-            } else {
-              throw execError;
-            }
-          }
+          await conn.execute(addColumnSql);
         } else if (conn.exec) {
-          try {
-            conn.exec(addColumnSql);
-          } catch (execError) {
-            // Handle sync exec error
-            const errorMsg = (execError as Error).message || '';
-            if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
-              log.info('Schema', 'apex_expires_at column already exists (detected during add)');
-              // Don't return, continue with other migrations
-            } else {
-              throw execError;
-            }
-          }
+          conn.exec(addColumnSql);
         }
         log.info('Schema', 'Added apex_expires_at column to domains table');
-      } catch (error) {
-        // If error is duplicate column, just log it as info
-        const errorMsg = (error as Error).message || '';
-        if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
-          log.info('Schema', 'apex_expires_at column already exists (detected during add)');
-        } else {
-          log.warn('Schema', 'Failed to add apex_expires_at column', { error: errorMsg });
-        }
+      } else {
+        log.debug('Schema', 'apex_expires_at column already exists in domains table');
       }
-    } else {
-      log.debug('Schema', 'apex_expires_at column already exists in domains table');
+    } catch (error) {
+      const errorMsg = (error as Error).message || '';
+      if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+        log.info('Schema', 'apex_expires_at column already exists');
+      } else {
+        log.warn('Schema', 'Failed to add apex_expires_at column', { error: errorMsg });
+      }
     }
 
-    // 迁移：删除旧的域名级 NS 监测表（已废弃，改为用户级）
+    // 迁移2: 删除旧的域名级 NS 监测表（已废弃，改为用户级）
     await dropOldNsMonitorTables(conn);
 
-    // 迁移：添加 encrypted_ns, plain_ns, is_poisoned 字段到 ns_monitor_domains
+    // 迁移3: 添加 encrypted_ns, plain_ns, is_poisoned 字段到 ns_monitor_domains
     log.info('Schema', 'Starting ns_monitor_domains columns migration...');
     await addNsMonitorColumns(conn);
     log.info('Schema', 'Completed ns_monitor_domains columns migration');
+    
+    log.info('Schema', 'All MySQL migrations completed');
   } catch (error) {
     log.error('Schema', 'MySQL migration check failed', { error: (error as Error).message, stack: (error as Error).stack });
   }
