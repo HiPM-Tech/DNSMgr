@@ -17,7 +17,7 @@ interface NSMonitorConfig {
   enabled: boolean;
   notify_email: boolean;
   notify_channels: boolean;
-  current_ns?: string;
+  current_ns?: string | number;  // 支持字符串或数字（后端可能返回0）
   encrypted_ns?: string | string[];  // 支持字符串或数组
   plain_ns?: string | string[];      // 支持字符串或数组
   is_poisoned?: boolean;
@@ -146,11 +146,19 @@ export function NSMonitor() {
   const availableDomains = domains?.filter((d: Domain) => !monitoredDomainIds.has(d.id)) || [];
 
   // 辅助函数：将 encrypted_ns 或 plain_ns 转换为数组
-  const parseNSField = (value: string | string[] | undefined): string[] => {
-    if (!value) return [];
+  const parseNSField = (value: string | string[] | number | undefined): string[] => {
+    // 处理 undefined、null、空字符串、数字0等情况
+    if (value === undefined || value === null || value === '') return [];
+    if (typeof value === 'number') return [];  // 忽略数字类型
     if (Array.isArray(value)) return value;
     // 如果是字符串，按逗号分割
     return value.split(',').map(s => s.trim()).filter(Boolean);
+  };
+
+  // 辅助函数：安全地将值转换为字符串进行比较
+  const safeToString = (value: any): string => {
+    if (value === undefined || value === null) return '';
+    return String(value);
   };
 
   const columns: { key: string; label: string; render?: (row: NSMonitorConfig) => ReactNode }[] = [
@@ -217,11 +225,13 @@ export function NSMonitor() {
             {/* 无结果 */}
             {encryptedNS.length === 0 && plainNS.length === 0 && (
               <div className="text-sm text-gray-400">
-                {row.current_ns || t('nsMonitor.notChecked')}
+                {safeToString(row.current_ns) && safeToString(row.current_ns) !== '0'
+                  ? row.current_ns 
+                  : t('nsMonitor.notChecked')}
               </div>
             )}
             {/* DNS 污染警告 */}
-            {row.is_poisoned && (
+            {row.is_poisoned === true && (
               <div className="text-xs text-purple-600 font-medium flex items-center gap-1 mt-1">
                 <ShieldAlert className="w-3 h-3" />
                 {t('nsMonitor.dnsPoisoningDetected')}

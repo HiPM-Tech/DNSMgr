@@ -30,8 +30,8 @@ export function Dashboard() {
   });
 
   const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
-    queryKey: ['domains'],
-    queryFn: () => domainsApi.list({ pageSize: 1 }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
+    queryKey: ['domains-dashboard'],
+    queryFn: () => domainsApi.list({ pageSize: 100000 }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
   });
   const domains = domainsData?.list ?? [];
   const totalDomainsCount = domainsData?.total ?? 0;
