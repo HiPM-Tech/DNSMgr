@@ -593,6 +593,14 @@ export const nsMonitorApi = {
   updateUserPrefs: (data: { notify_email?: boolean; notify_channels?: boolean; check_interval?: number }) =>
     api.put<ApiResponse<null>>('/ns-monitor/user/prefs', data),
   check: (id: number) => api.post<ApiResponse<{ current_ns: string[]; expected_ns: string[]; status: string }>>(`/ns-monitor/${id}/check`, {}),
+  resolveNs: (domain: string) => api.post<ApiResponse<{
+    domain: string;
+    nsRecords: string[];
+    encryptedNs: string[];
+    plainNs: string[];
+    isPoisoned: boolean;
+    recommendedNs: string[];
+  }>>('/ns-monitor/resolve-ns', { domain }),
 };
 
 // ─── Network API ──────────────────────────────────────────────────────────────

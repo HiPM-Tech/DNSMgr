@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, ShieldAlert, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2 } from 'lucide-react';
+import { Shield, ShieldAlert, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2, Wand2 } from 'lucide-react';
 import { nsMonitorApi, domainsApi } from '../api';
 import type { Domain } from '../api';
 import { Table } from '../components/Table';
@@ -35,6 +35,7 @@ export function NSMonitor() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [deleteConfig, setDeleteConfig] = useState<NSMonitorConfig | null>(null);
+  const [selectedDomainName, setSelectedDomainName] = useState<string>('');
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],
@@ -111,6 +112,28 @@ export function NSMonitor() {
     },
     onError: () => {
       toast.error(t('nsMonitor.deleteFailed'));
+    },
+  });
+
+  const resolveNsMutation = useMutation({
+    mutationFn: (domainName: string) => nsMonitorApi.resolveNs(domainName),
+    onSuccess: (response) => {
+      const data = response.data.data;
+      // 自动填充预期 NS（使用加密优先策略）
+      if (data.recommendedNs && data.recommendedNs.length > 0) {
+        const expectedNs = data.recommendedNs.join(', ');
+        // 找到表单中的textarea并设置值
+        const textarea = document.querySelector('textarea[name="expected_ns"]') as HTMLTextAreaElement;
+        if (textarea) {
+          textarea.value = expectedNs;
+        }
+        toast.success(t('nsMonitor.autoFillSuccess', { count: data.recommendedNs.length }));
+      } else {
+        toast.info(t('nsMonitor.noNsRecords'));
+      }
+    },
+    onError: () => {
+      toast.error(t('nsMonitor.resolveNsFailed'));
     },
   });
 
@@ -483,6 +506,11 @@ export function NSMonitor() {
                 <select
                   name="domain_id"
                   required
+                  onChange={(e) => {
+                    const domainId = parseInt(e.target.value);
+                    const domain = availableDomains.find(d => d.id === domainId);
+                    setSelectedDomainName(domain?.name || '');
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
                   <option value="">{t('nsMonitor.selectDomainPlaceholder')}</option>
@@ -499,12 +527,30 @@ export function NSMonitor() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('nsMonitor.expectedNS')}
               </label>
-              <textarea
-                name="expected_ns"
-                placeholder={t('nsMonitor.expectedNSPlaceholder')}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
+              <div className="flex gap-2">
+                <textarea
+                  name="expected_ns"
+                  placeholder={t('nsMonitor.expectedNSPlaceholder')}
+                  rows={3}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedDomainName) {
+                      resolveNsMutation.mutate(selectedDomainName);
+                    } else {
+                      toast.error(t('nsMonitor.selectDomainFirst'));
+                    }
+                  }}
+                  disabled={!selectedDomainName || resolveNsMutation.isPending}
+                  className="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  title={t('nsMonitor.autoFillTooltip')}
+                >
+                  <Wand2 className={`w-4 h-4 ${resolveNsMutation.isPending ? 'animate-spin' : ''}`} />
+                  {t('nsMonitor.autoFill')}
+                </button>
+              </div>
               <p className="text-xs text-gray-500 mt-1">
                 {t('nsMonitor.expectedNSHint')}
               </p>

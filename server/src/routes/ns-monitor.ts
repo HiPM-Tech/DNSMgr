@@ -53,6 +53,67 @@ router.get('/user/prefs', authMiddleware, asyncHandler(async (req: Request, res:
 
 /**
  * @swagger
+ * /api/ns-monitor/resolve-ns:
+ *   post:
+ *     summary: Resolve NS records for a domain (encrypted DNS first, then fallback to plain)
+ *     tags: [NS Monitor]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               domain:
+ *                 type: string
+ *                 description: Domain name to resolve
+ *     responses:
+ *       200:
+ *         description: NS records with encrypted and plain results
+ */
+router.post('/resolve-ns', authMiddleware, asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { domain } = req.body;
+
+  if (!domain || typeof domain !== 'string') {
+    res.status(400).json({
+      success: false,
+      error: 'Domain is required',
+    });
+    return;
+  }
+
+  try {
+    // 使用加密优先策略解析NS记录
+    const nsResult = await resolveNsRecords(domain);
+
+    res.json({
+      success: true,
+      data: {
+        domain,
+        nsRecords: nsResult.nsRecords,
+        encryptedNs: nsResult.encryptedResult?.records?.map(r => r.data) || [],
+        plainNs: nsResult.plainResult?.records?.map(r => r.data) || [],
+        isPoisoned: nsResult.isPoisoned,
+        // 推荐使用加密查询结果，如果失败则使用明文结果
+        recommendedNs: nsResult.encryptedResult?.records?.map(r => r.data) || nsResult.plainResult?.records?.map(r => r.data) || [],
+      },
+    });
+  } catch (error) {
+    log.error('NSMonitor', 'Failed to resolve NS records', {
+      domain,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to resolve NS records',
+    });
+  }
+}));
+
+/**
+ * @swagger
  * /api/ns-monitor/user/prefs:
  *   put:
  *     summary: Update user's NS monitor preferences
