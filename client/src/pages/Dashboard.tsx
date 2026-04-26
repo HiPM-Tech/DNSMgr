@@ -31,9 +31,10 @@ export function Dashboard() {
 
   const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains'],
-    queryFn: () => domainsApi.list().then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
+    queryFn: () => domainsApi.list({ pageSize: 1 }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
   });
   const domains = domainsData?.list ?? [];
+  const totalDomainsCount = domainsData?.total ?? 0;
 
   const { data: users } = useQuery({
     queryKey: ['users'],
@@ -51,7 +52,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard icon={Globe} label={t('dashboard.totalDomains')} value={domains?.length ?? 0} color="bg-blue-600" />
+        <StatCard icon={Globe} label={t('dashboard.totalDomains')} value={totalDomainsCount} color="bg-blue-600" />
         <StatCard icon={Activity} label={t('dashboard.totalRecords')} value={totalRecords} color="bg-indigo-600" />
         <StatCard icon={Server} label={t('dashboard.dnsAccounts')} value={accounts?.length ?? 0} color="bg-violet-600" />
         {isAdmin && <StatCard icon={Users} label={t('dashboard.activeUsers')} value={users?.filter((u) => u.status !== 0).length ?? 0} color="bg-emerald-600" />}

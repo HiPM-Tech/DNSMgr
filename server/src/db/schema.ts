@@ -89,8 +89,70 @@ async function handleMySQLMigrations(
 
     // 迁移：删除旧的域名级 NS 监测表（已废弃，改为用户级）
     await dropOldNsMonitorTables(conn);
+
+    // 迁移：添加 encrypted_ns, plain_ns, is_poisoned 字段到 ns_monitor_domains
+    await addNsMonitorColumns(conn);
   } catch (error) {
     log.warn('Schema', 'MySQL migration check failed', { error: (error as Error).message });
+  }
+}
+
+/**
+ * 添加 NS 监测相关字段到 ns_monitor_domains 表 - MySQL
+ */
+async function addNsMonitorColumns(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  const columns = [
+    { name: 'encrypted_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN encrypted_ns TEXT' },
+    { name: 'plain_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN plain_ns TEXT' },
+    { name: 'is_poisoned', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN is_poisoned TINYINT NOT NULL DEFAULT 0' }
+  ];
+
+  for (const column of columns) {
+    try {
+      // 检查列是否存在
+      const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'ns_monitor_domains' AND COLUMN_NAME = '${column.name}'`;
+
+      let columnExists = false;
+      if (conn.execute) {
+        try {
+          const result = await conn.execute(checkColumnSql);
+          if (Array.isArray(result) && result.length > 0) {
+            const row = result[0];
+            if (row && typeof row === 'object') {
+              const count = row.cnt ?? row.CNT ?? row['COUNT(*)'] ?? row.count ?? 0;
+              columnExists = parseInt(String(count), 10) > 0;
+            }
+          }
+        } catch (checkError) {
+          log.warn('Schema', `Failed to check if column ${column.name} exists`, { error: (checkError as Error).message });
+        }
+      }
+
+      if (!columnExists) {
+        try {
+          if (conn.execute) {
+            await conn.execute(column.sql);
+          } else if (conn.exec) {
+            conn.exec(column.sql);
+          }
+          log.info('Schema', `Added ${column.name} column to ns_monitor_domains table`);
+        } catch (addError) {
+          const errorMsg = (addError as Error).message || '';
+          if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+            log.info('Schema', `${column.name} column already exists`);
+          } else {
+            log.warn('Schema', `Failed to add ${column.name} column`, { error: errorMsg });
+          }
+        }
+      } else {
+        log.debug('Schema', `${column.name} column already exists in ns_monitor_domains table`);
+      }
+    } catch (error) {
+      log.warn('Schema', `Error processing column ${column.name}`, { error: (error as Error).message });
+    }
   }
 }
 

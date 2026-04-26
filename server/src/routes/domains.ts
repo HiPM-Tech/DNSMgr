@@ -218,7 +218,8 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
           // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
           const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
           const dnsAdapter = createAdapter(account.type, cfg, domain.name, domain.third_id);
-          const result = await dnsAdapter.getDomainRecords(1, 1);
+          // Use pageSize=10 to ensure accurate total count (some providers have minimum page size)
+          const result = await dnsAdapter.getDomainRecords(1, 10);
           domain.record_count = result.total;
           await DomainOperations.updateRecordCount(domain.id, result.total);
         } catch {
