@@ -58,9 +58,10 @@ async function handleMySQLMigrations(
             const errorMsg = (execError as Error).message || '';
             if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
               log.info('Schema', 'apex_expires_at column already exists (detected during add)');
-              return;
+              // Don't return, continue with other migrations
+            } else {
+              throw execError;
             }
-            throw execError;
           }
         } else if (conn.exec) {
           try {
@@ -70,9 +71,10 @@ async function handleMySQLMigrations(
             const errorMsg = (execError as Error).message || '';
             if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
               log.info('Schema', 'apex_expires_at column already exists (detected during add)');
-              return;
+              // Don't return, continue with other migrations
+            } else {
+              throw execError;
             }
-            throw execError;
           }
         }
         log.info('Schema', 'Added apex_expires_at column to domains table');
