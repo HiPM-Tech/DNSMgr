@@ -311,8 +311,11 @@ export class Vps8Adapter extends BaseAdapter {
       mx = toNumber(r.mx, 0);
     }
 
+    // VPS8 API 返回的 id 是数字类型，需要转换为字符串
+    const recordId = r.id ? String(r.id) : (r.provider_record_id ? String(r.provider_record_id) : '');
+
     return {
-      RecordId: safeString(r.id) || `${type}|${host}|${value}`,
+      RecordId: recordId || `${type}|${host}|${value}`,
       Domain: domain,
       Name: host,
       Type: type,
