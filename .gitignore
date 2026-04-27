@@ -32,4 +32,4 @@ nohup.out
 Thumbs.db
 
 # PHP version (not part of this project)
-dnsmgr/
+/dnsmgr/

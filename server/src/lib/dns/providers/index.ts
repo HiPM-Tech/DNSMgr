@@ -12,7 +12,7 @@ export {
   type DnsheAuthConfig,
   type DnsheRenewalResult,
   type DnsheWhoisResult,
-} from './dnshe';
+} from './dnshe/index';
 export { RainyunAdapter } from './rainyun';
 export { WestAdapter } from './west';
 export { AliyunesaAdapter } from './aliyunesa';
