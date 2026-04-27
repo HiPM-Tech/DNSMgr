@@ -23,9 +23,15 @@ export {
 // 使用时直接导入: import { NSLookupResult } from '../ns-lookup';
 
 export {
-  dnsServerRegistry,
-  BUILTIN_DNS_SERVERS,
-  BUILTIN_PLAIN_DNS_SERVERS,
+  ENCRYPTED_DNS_SERVERS,
+  PLAIN_DNS_SERVERS,
+  findEncryptedServer,
+  findPlainServer,
+  getEncryptedServers,
+  getPlainServers,
+  addEncryptedServer,
+  addPlainServer,
+  removeServer,
 } from './servers';
 
 export {

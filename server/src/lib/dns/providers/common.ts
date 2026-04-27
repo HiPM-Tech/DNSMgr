@@ -73,12 +73,13 @@ export function buildSrvValue(port: unknown, target: unknown, fallback: unknown)
  * 当 config.domainId 未设置时，尝试通过域名搜索获取
  */
 export async function resolveDomainIdHelper(
-  config: { domainId?: string; domain?: string },
+  config: { domainId?: string; zoneId?: string; domain?: string },
   getDomainList: (keyword?: string, page?: number, pageSize?: number) => Promise<PageResult<DomainInfo>>,
   providerName: string
 ): Promise<string | null> {
-  if (config.domainId) {
-    return config.domainId;
+  // Support both domainId and zoneId fields
+  if (config.domainId || config.zoneId) {
+    return config.domainId || config.zoneId || null;
   }
 
   if (!config.domain) {
@@ -94,6 +95,13 @@ export async function resolveDomainIdHelper(
       // 缓存 domainId 避免重复查询
       config.domainId = domainId;
       return domainId;
+    } else {
+      log.warn(providerName, `No domain found for: ${config.domain}. Available domains will be listed.`);
+      // 尝试列出所有域名帮助调试
+      const allDomains = await getDomainList(undefined, 1, 10);
+      if (allDomains.list.length > 0) {
+        log.warn(providerName, `Available domains:`, allDomains.list.map(d => d.Domain).join(', '));
+      }
     }
   } catch (error) {
     log.error(providerName, `Failed to resolve domainId for domain: ${config.domain}`, { error });

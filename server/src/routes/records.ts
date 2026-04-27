@@ -223,7 +223,7 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
       sendError(res, 'Failed to add record');
       return;
     }
-    await logAuditOperation(req.user!.userId, 'add_record', access.domain.name, { name, type, value });
+    await logAuditOperation(req.user!.userId, 'add_record', access.domain.name, { name, type, value }, req);
     sendSuccess(res, { id: recordId });
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -285,7 +285,7 @@ router.post('/batch', authMiddleware, requireTokenDomainPermission('domainId'), 
   }
 
   if (addedIds.length > 0) {
-    await logAuditOperation(req.user!.userId, 'add_records_batch', access.domain.name, { count: addedIds.length });
+    await logAuditOperation(req.user!.userId, 'add_records_batch', access.domain.name, { count: addedIds.length }, req);
   }
     
   if (errors.length > 0) {
@@ -345,7 +345,7 @@ router.put('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'
       sendError(res, 'Failed to update record');
       return;
     }
-    await logAuditOperation(req.user!.userId, 'update_record', access.domain.name, { recordId, name, type, value });
+    await logAuditOperation(req.user!.userId, 'update_record', access.domain.name, { recordId, name, type, value }, req);
     sendSuccess(res);
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -393,7 +393,7 @@ router.delete('/:recordId', authMiddleware, requireTokenDomainPermission('domain
       sendError(res, 'Failed to delete record');
       return;
     }
-    await logAuditOperation(req.user!.userId, 'delete_record', access.domain.name, { recordId });
+    await logAuditOperation(req.user!.userId, 'delete_record', access.domain.name, { recordId }, req);
     sendSuccess(res);
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));

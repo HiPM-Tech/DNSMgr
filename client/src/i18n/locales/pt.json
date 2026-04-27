@@ -64,7 +64,10 @@
       "page": "página",
       "perPage": "por página",
       "pleaseSelect": "Por favor, selecione",
-      "clear": "Limpar"
+      "clear": "Limpar",
+      "default": "Padrão",
+      "custom": "Personalizado",
+      "auto": "Automático"
     },
     "mail": {
       "title": "Configuração de Email",
@@ -755,6 +758,10 @@
       "valuePlaceholder": "Valor do registro",
       "mxPriority": "Prioridade MX",
       "lineLabel": "Linha",
+      "defaultLine": "Padrão",
+      "cannotModifyHost": "Não modificável",
+      "vps8HostHint": "VPS8 não suporta modificação do nome do host",
+      "singleLineHint": "Este provedor suporta apenas a linha padrão",
       "allTypes": "Todos os Tipos",
       "deleteConfirm": "Excluir registro \"{name}\" ({type}: {value})?",
       "fixErrors": "Por favor, corrija os campos destacados antes de salvar",

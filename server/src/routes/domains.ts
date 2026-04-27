@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware, requireDomainPermission, requireTokenDomainPermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
+import { dnsheRenewSubdomain, dnsheGetWhois } from '../lib/dns/providers';
 import { createFailoverConfig, getFailoverConfigByDomain, getFailoverStatus, updateFailoverConfig, deleteFailoverConfig } from '../service/failover';
 import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
@@ -96,6 +97,14 @@ async function resolveDomainAccess(domain: Domain, userId: number, role: number)
   return { domain, canRead: false, canWrite: false, writeSubs: [], hasRules };
 }
 
+async function resolveDomainAccessById(domainId: number, userId: number, role: number): Promise<DomainAccess> {
+  const domain = await DomainOperations.getById(domainId) as Domain | undefined;
+  if (!domain) {
+    return { domain: null, canRead: false, canWrite: false, writeSubs: [], hasRules: false };
+  }
+  return resolveDomainAccess(domain, userId, role);
+}
+
 async function canAccessDomain(domainId: number, userId: number, role: number): Promise<Domain | null> {
   const domain = await DomainOperations.getById(domainId) as Domain | undefined;
   if (!domain) return null;
@@ -143,7 +152,14 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword, domain_type, page, pageSize } = req.query as { account_id?: string; keyword?: string; domain_type?: string; page?: string; pageSize?: string };
+  const { account_id, keyword, domain_type, page, pageSize, format } = req.query as { 
+    account_id?: string; 
+    keyword?: string; 
+    domain_type?: string; 
+    page?: string; 
+    pageSize?: string;
+    format?: string; // 'array' for direct array response (for external adapters)
+  };
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
 
@@ -228,7 +244,13 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       })
   );
 
-  sendSuccess(res, { list: paginatedDomains, total, page: currentPage, pageSize: size, totalPages });
+  // Return format based on query parameter or token usage
+  // For external adapters (ddns-go, certd), return direct array when format=array
+  if (format === 'array' || tokenPayload) {
+    sendSuccess(res, paginatedDomains);
+  } else {
+    sendSuccess(res, { list: paginatedDomains, total, page: currentPage, pageSize: size, totalPages });
+  }
 }));
 
 /**
@@ -345,7 +367,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
 
   const duplicateMsg = duplicates.length > 0 ? `, skipped ${duplicates.length} duplicate(s)` : '';
   for (const domainName of addedDomains) {
-    await logAuditOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id });
+    await logAuditOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id }, req);
   }
   sendSuccess(res, { id: firstId, added, skipped: duplicates.length, duplicates },
     added > 1 ? `Added ${added} domains${duplicateMsg}` : `Domain added successfully${duplicateMsg}`);
@@ -430,7 +452,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
           record_count: d.RecordCount ?? 0,
         });
         added++;
-        await logAuditOperation(req.user!.userId, 'sync_add_domain', normalizedName, { accountId: account_id });
+        await logAuditOperation(req.user!.userId, 'sync_add_domain', normalizedName, { accountId: account_id }, req);
 
         // 异步获取 WHOIS 信息（不阻塞响应）
         syncDomainWhois(id).catch(err => {
@@ -440,7 +462,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
         await DomainOperations.updateThirdIdAndRecordCount(existing.id as number, d.ThirdId || '', d.RecordCount ?? 0);
       }
     }
-    await logAuditOperation(req.user!.userId, 'sync_domains', '', { accountId: account_id, total: allDomains.length, added });
+    await logAuditOperation(req.user!.userId, 'sync_domains', '', { accountId: account_id, total: allDomains.length, added }, req);
     sendSuccess(res, { total: allDomains.length, added });
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -595,7 +617,7 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
   }
   const { remark, is_hidden } = req.body as { remark?: string; is_hidden?: number };
   await DomainOperations.updateRemarkAndHidden(id, remark, is_hidden);
-  await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden });
+  await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden }, req);
   sendSuccess(res);
 }));
 
@@ -629,7 +651,7 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
     return;
   }
   await DomainOperations.delete(id);
-  await logAuditOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id });
+  await logAuditOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id }, req);
   sendSuccess(res);
 }));
 
@@ -788,6 +810,134 @@ router.post('/:id/whois', authMiddleware, requireTokenDomainPermission(), asyncH
     }, 'WHOIS info refreshed successfully');
   } else {
     sendError(res, result.message || 'Failed to refresh WHOIS info');
+  }
+}));
+
+/**
+ * Renew a DNSHE subdomain
+ */
+router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id);
+  const { subdomain_id } = req.body;
+  
+  if (!id || !subdomain_id) {
+    sendError(res, 'Missing domain ID or subdomain ID');
+    return;
+  }
+  
+  const access = await resolveDomainAccessById(id, req.user!.userId, normalizeRole(req.user?.role));
+  if (!access.domain || !access.canWrite) {
+    sendError(res, 'Domain not found or no permission');
+    return;
+  }
+  
+  // Get the account
+  const account = await DnsAccountOperations.getById(access.domain.account_id) as DnsAccount | undefined;
+  if (!account) {
+    sendError(res, 'Account not found');
+    return;
+  }
+  
+  // Only support DNSHE provider
+  if (account.type !== 'dnshe') {
+    sendError(res, 'Renewal only supported for DNSHE provider');
+    return;
+  }
+  
+  try {
+    const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
+    const result = await dnsheRenewSubdomain(
+      {
+        apiKey: config.apiKey,
+        apiSecret: config.apiSecret,
+        useProxy: !!config.useProxy,
+      },
+      Number(subdomain_id)
+    );
+    
+    if (!result) {
+      sendError(res, 'Renewal failed');
+      return;
+    }
+    
+    // Log audit operation
+    await logAuditOperation(
+      req.user!.userId,
+      'renew_domain',
+      access.domain.name,
+      {
+        subdomain_id: result.subdomain_id,
+        subdomain: result.subdomain,
+        previous_expires_at: result.previous_expires_at,
+        new_expires_at: result.new_expires_at,
+        remaining_days: result.remaining_days,
+      },
+      req
+    );
+    
+    sendSuccess(res, result, 'Domain renewed successfully');
+  } catch (error) {
+    log.error('Domains', 'Renewal failed', { error });
+    sendError(res, error instanceof Error ? error.message : 'Renewal failed');
+  }
+}));
+
+/**
+ * Get WHOIS information for a domain (DNSHE only)
+ */
+router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const { domain } = req.query;
+  
+  if (!domain || typeof domain !== 'string') {
+    sendError(res, 'Domain parameter is required');
+    return;
+  }
+  
+  // Find the domain in database to check permissions
+  const dbDomain = await DomainOperations.getByName(domain) as Domain | undefined;
+  if (!dbDomain) {
+    sendError(res, 'Domain not found');
+    return;
+  }
+  const access = await resolveDomainAccessById(dbDomain.id, req.user!.userId, normalizeRole(req.user?.role));
+  if (!access.domain || !access.canRead) {
+    sendError(res, 'No permission to access this domain');
+    return;
+  }
+  
+  // Get the account
+  const account = await DnsAccountOperations.getById(dbDomain.account_id) as DnsAccount | undefined;
+  if (!account) {
+    sendError(res, 'Account not found');
+    return;
+  }
+  
+  // Only support DNSHE provider
+  if (account.type !== 'dnshe') {
+    sendError(res, 'WHOIS query only supported for DNSHE provider');
+    return;
+  }
+  
+  try {
+    const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
+    const result = await dnsheGetWhois(
+      {
+        apiKey: config.apiKey,
+        apiSecret: config.apiSecret,
+        useProxy: !!config.useProxy,
+      },
+      domain
+    );
+    
+    if (!result) {
+      sendError(res, 'WHOIS query failed');
+      return;
+    }
+    
+    sendSuccess(res, result);
+  } catch (error) {
+    log.error('Domains', 'WHOIS query failed', { error });
+    sendError(res, error instanceof Error ? error.message : 'WHOIS query failed');
   }
 }));
 

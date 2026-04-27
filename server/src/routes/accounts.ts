@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { DnsAccountOperations, TeamOperations } from '../db/business-adapter';
+import { DnsAccountOperations, TeamOperations, SettingsOperations } from '../db/business-adapter';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter, getProvider, getProviders, isStubProvider } from '../lib/dns/DnsHelper';
@@ -62,12 +62,31 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     const teamIds = teams.map(r => r.id as number);
     accounts = await DnsAccountOperations.getAccessibleByUserId(userId, teamIds) as unknown as DnsAccount[];
   }
-  // Mask config secrets
+  
+  // Check if showDnsProviderSecrets is enabled
+  let showSecrets = false;
+  try {
+    const securityConfigValue = await SettingsOperations.get('security_config');
+    if (securityConfigValue) {
+      const securityConfig = JSON.parse(securityConfigValue);
+      showSecrets = !!securityConfig.showDnsProviderSecrets;
+    }
+  } catch {
+    // Ignore errors, default to false
+  }
+  
+  // Mask config secrets unless showDnsProviderSecrets is enabled
   const safe = accounts.map(a => {
     // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
     const cfg = typeof a.config === 'string' ? JSON.parse(a.config) as Record<string, string> : a.config as Record<string, string>;
     const masked: Record<string, string> = {};
-    for (const k of Object.keys(cfg)) masked[k] = '***';
+    if (showSecrets) {
+      // Return actual values
+      for (const k of Object.keys(cfg)) masked[k] = cfg[k];
+    } else {
+      // Mask all values
+      for (const k of Object.keys(cfg)) masked[k] = '***';
+    }
     return { ...a, type: normalizeProviderType(a.type), config: masked };
   });
   sendSuccess(res, safe);

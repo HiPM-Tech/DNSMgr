@@ -8,6 +8,7 @@ import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface NSMonitorConfig {
   id: number;
@@ -28,6 +29,7 @@ interface NSMonitorConfig {
 
 export function NSMonitor() {
   const { t } = useI18n();
+  const { isAdmin } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [selectedConfig, setSelectedConfig] = useState<NSMonitorConfig | null>(null);
@@ -493,17 +495,28 @@ export function NSMonitor() {
                 </span>
               </label>
 
-              <label className="flex items-center gap-3 opacity-50 cursor-not-allowed" title="Contact admin to enable notification channels">
+              <label className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   name="notify_channels"
-                  defaultChecked={false}
-                  disabled
-                  className="w-4 h-4 text-gray-400 rounded focus:ring-gray-400 cursor-not-allowed"
+                  defaultChecked={userPrefs?.notify_channels ?? selectedConfig.notify_channels}
+                  disabled={!isAdmin}
+                  className={`w-4 h-4 rounded focus:ring-blue-500 ${
+                    isAdmin 
+                      ? 'text-blue-600 cursor-pointer' 
+                      : 'text-gray-400 cursor-not-allowed opacity-50'
+                  }`}
                 />
-                <span className="text-sm text-gray-500 dark:text-gray-500">
+                <span className={`text-sm ${
+                  isAdmin ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500'
+                }`}>
                   {t('nsMonitor.notifyChannels')}
                 </span>
+                {!isAdmin && (
+                  <span className="text-xs text-gray-400" title="Only admins can enable notification channels">
+                    (Admin only)
+                  </span>
+                )}
               </label>
             </div>
 
@@ -621,17 +634,28 @@ export function NSMonitor() {
                 </span>
               </label>
 
-              <label className="flex items-center gap-3 opacity-50 cursor-not-allowed" title="Contact admin to enable notification channels">
+              <label className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   name="notify_channels"
                   defaultChecked={false}
-                  disabled
-                  className="w-4 h-4 text-gray-400 rounded focus:ring-gray-400 cursor-not-allowed"
+                  disabled={!isAdmin}
+                  className={`w-4 h-4 rounded focus:ring-blue-500 ${
+                    isAdmin 
+                      ? 'text-blue-600 cursor-pointer' 
+                      : 'text-gray-400 cursor-not-allowed opacity-50'
+                  }`}
                 />
-                <span className="text-sm text-gray-500 dark:text-gray-500">
+                <span className={`text-sm ${
+                  isAdmin ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500'
+                }`}>
                   {t('nsMonitor.notifyChannels')}
                 </span>
+                {!isAdmin && (
+                  <span className="text-xs text-gray-400" title="Only admins can enable notification channels">
+                    (Admin only)
+                  </span>
+                )}
               </label>
             </div>
 

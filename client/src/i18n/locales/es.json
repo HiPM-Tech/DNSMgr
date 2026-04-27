@@ -105,7 +105,10 @@
       "items": "elementos",
       "page": "página",
       "perPage": "por página",
-      "pleaseSelect": "Por favor seleccione"
+      "pleaseSelect": "Por favor seleccione",
+      "default": "Predeterminado",
+      "custom": "Personalizado",
+      "auto": "Automático"
     },
     "mail": {
       "add": "Agregar registros",
@@ -595,6 +598,10 @@
       "valuePlaceholder": "Valor del registro",
       "mxPriority": "Prioridad MX",
       "lineLabel": "Línea",
+      "defaultLine": "Predeterminado",
+      "cannotModifyHost": "No modificable",
+      "vps8HostHint": "VPS8 no admite la modificación del nombre de host",
+      "singleLineHint": "Este proveedor solo admite la línea predeterminada",
       "allTypes": "Todos los tipos",
       "deleteConfirm": "¿Eliminar el registro \"{name}\" ({type}: {value})?",
       "fixErrors": "Por favor, corrige los campos resaltados antes de guardar",

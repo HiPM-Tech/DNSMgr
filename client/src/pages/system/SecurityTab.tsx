@@ -73,6 +73,15 @@ export function SecurityTab() {
     },
   });
 
+  const { data: securityConfig } = useQuery({
+    queryKey: ['security-config'],
+    queryFn: async () => {
+      const res = await settingsApi.getSecurityConfig();
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
+    },
+  });
+
   const updateSecurityPolicyMutation = useMutation({
     mutationFn: (data: Parameters<typeof securityApi.updatePolicy>[0]) => securityApi.updatePolicy(data),
     onSuccess: () => {
@@ -81,6 +90,17 @@ export function SecurityTab() {
     },
     onError: (error: Error) => {
       toast.error(error.message || t('system.configUpdateFailed'));
+    },
+  });
+
+  const updateSecurityConfigMutation = useMutation({
+    mutationFn: (data: Parameters<typeof settingsApi.updateSecurityConfig>[0]) => settingsApi.updateSecurityConfig(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['security-config'] });
+      toast.success(t('system.securitySaved'));
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t('system.securitySaveFailed'));
     },
   });
 
@@ -454,6 +474,23 @@ export function SecurityTab() {
                     />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                   </label>
+                </div>
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.showDnsProviderSecrets')}</p>
+                      <p className="text-xs text-gray-500">{t('system.showDnsProviderSecretsDesc')}</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={securityConfig?.showDnsProviderSecrets ?? false}
+                        onChange={(e) => updateSecurityConfigMutation.mutate({ showDnsProviderSecrets: e.target.checked })}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-red-600"></div>
+                    </label>
+                  </div>
                 </div>
               </div>
               <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">

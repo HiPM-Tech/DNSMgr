@@ -94,7 +94,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   // Add creator as admin
   await TeamOperations.addMember(id, userId, 'admin');
   
-  await logAuditOperation(userId, 'create_team', name.trim(), { teamId: id });
+  await logAuditOperation(userId, 'create_team', name.trim(), { teamId: id }, req as any);
   sendSuccess(res, { id }, 'Team created successfully');
 }));
 
@@ -193,7 +193,7 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   
   await TeamOperations.update(teamId, updates);
   
-  await logAuditOperation(userId, 'update_team', team.name, { teamId, ...updates });
+  await logAuditOperation(userId, 'update_team', team.name, { teamId, ...updates }, req as any);
   sendSuccess(res);
 }));
 
@@ -234,7 +234,7 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
   
   await TeamOperations.delete(teamId);
   
-  await logAuditOperation(userId, 'delete_team', team.name, { teamId });
+  await logAuditOperation(userId, 'delete_team', team.name, { teamId }, req as any);
   sendSuccess(res);
 }));
 
@@ -350,7 +350,7 @@ router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, re
   
   await TeamOperations.addMember(teamId, targetUserId, memberRole || 'member');
   
-  await logAuditOperation(userId, 'add_team_member', team.name, { teamId, targetUserId, role: memberRole });
+  await logAuditOperation(userId, 'add_team_member', team.name, { teamId, targetUserId, role: memberRole }, req as any);
   sendSuccess(res);
 }));
 
@@ -416,7 +416,7 @@ router.put('/:id/members/:userId', authMiddleware, asyncHandler(async (req: Requ
   
   await TeamOperations.updateMemberRole(teamId, targetUserId, newRole);
   
-  await logAuditOperation(userId, 'update_team_member_role', team.name, { teamId, targetUserId, newRole });
+  await logAuditOperation(userId, 'update_team_member_role', team.name, { teamId, targetUserId, newRole }, req as any);
   sendSuccess(res);
 }));
 
@@ -470,7 +470,7 @@ router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: R
   
   await TeamOperations.removeMember(teamId, targetUserId);
   
-  await logAuditOperation(userId, 'remove_team_member', team.name, { teamId, targetUserId });
+  await logAuditOperation(userId, 'remove_team_member', team.name, { teamId, targetUserId }, req as any);
   sendSuccess(res);
 }));
 
@@ -580,7 +580,7 @@ router.post('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: 
     sub: sub || '',
   });
   
-  await logAuditOperation(userId, 'add_team_domain_permission', team.name, { teamId, domainId: domain_id, permission, sub });
+  await logAuditOperation(userId, 'add_team_domain_permission', team.name, { teamId, domainId: domain_id, permission, sub }, req as any);
   sendSuccess(res);
 }));
 
@@ -640,7 +640,7 @@ router.put('/:id/domain-permissions/:permissionId', authMiddleware, asyncHandler
   
   await DomainPermissionOperations.updatePermission(permissionId, permission);
   
-  await logAuditOperation(userId, 'update_team_domain_permission', team.name, { teamId, permissionId, permission });
+  await logAuditOperation(userId, 'update_team_domain_permission', team.name, { teamId, permissionId, permission }, req as any);
   sendSuccess(res);
 }));
 
@@ -688,7 +688,7 @@ router.delete('/:id/domain-permissions/:permissionId', authMiddleware, asyncHand
   
   await DomainPermissionOperations.deleteByTeamAndId(permissionId, teamId);
   
-  await logAuditOperation(userId, 'remove_team_domain_permission', team.name, { teamId, permissionId });
+  await logAuditOperation(userId, 'remove_team_domain_permission', team.name, { teamId, permissionId }, req as any);
   sendSuccess(res);
 }));
 
@@ -825,7 +825,7 @@ router.post('/:id/members/:userId/domain-permissions', authMiddleware, asyncHand
     sub: sub || '',
   });
   
-  await logAuditOperation(userId, 'add_domain_permission', team.name, { teamId, targetUserId, domainId: domain_id, permission, sub });
+  await logAuditOperation(userId, 'add_domain_permission', team.name, { teamId, targetUserId, domainId: domain_id, permission, sub }, req as any);
   sendSuccess(res);
 }));
 
@@ -879,7 +879,7 @@ router.delete('/:id/members/:userId/domain-permissions/:permissionId', authMiddl
   
   await DomainPermissionOperations.deleteByUserAndId(permissionId, targetUserId);
   
-  await logAuditOperation(userId, 'remove_domain_permission', team.name, { teamId, targetUserId, permissionId });
+  await logAuditOperation(userId, 'remove_domain_permission', team.name, { teamId, targetUserId, permissionId }, req as any);
   sendSuccess(res);
 }));
 

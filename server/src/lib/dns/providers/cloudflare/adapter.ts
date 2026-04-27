@@ -1,16 +1,12 @@
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { resolveDomainIdHelper } from './common';
-import { log } from '../../logger';
-import { fetchWithFallback } from '../../proxy-http';
-
-interface CloudflareConfig {
-  email?: string;
-  apiKey?: string;
-  apiToken?: string;
-  zoneId?: string;
-  domain?: string;
-  useProxy?: boolean;
-}
+import { 
+  DnsAdapter, 
+  DnsRecord, 
+  DomainInfo, 
+  PageResult,
+  resolveDomainIdHelper,
+  log,
+} from '../internal';
+import { buildAuthHeaders, authenticatedRequest, type CloudflareAuthConfig } from './auth';
 
 interface CfZone {
   id: string;
@@ -50,38 +46,42 @@ interface CfApiResponse<T> {
 }
 
 export class CloudflareAdapter implements DnsAdapter {
-  private config: CloudflareConfig;
+  private config: CloudflareAuthConfig;
   private error: string = '';
   private baseUrl = 'https://api.cloudflare.com/client/v4';
 
-  constructor(config: CloudflareConfig) {
+  constructor(config: CloudflareAuthConfig) {
     this.config = config;
-  }
-
-  private getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.config.apiToken) {
-      headers['Authorization'] = `Bearer ${this.config.apiToken}`;
-    } else if (this.config.email && this.config.apiKey) {
-      headers['X-Auth-Email'] = this.config.email;
-      headers['X-Auth-Key'] = this.config.apiKey;
-    }
-    return headers;
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<CfApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
     log.providerRequest('Cloudflare', method, url, body);
-    const res = await fetchWithFallback(url, {
+    
+    const options: RequestInit = {
       method,
-      headers: this.getHeaders(),
+      headers: buildAuthHeaders(this.config),
       body: body ? JSON.stringify(body) : undefined,
-    }, this.config.useProxy, 'Cloudflare');
+    };
+    
+    const res = await authenticatedRequest(url, this.config, options);
     const data = (await res.json()) as CfApiResponse<T>;
     log.providerResponse('Cloudflare', res.status, data.success, { resultCount: Array.isArray(data.result) ? data.result.length : 0 });
-    if (!data.success && data.errors?.length) {
-      this.error = data.errors[0].message;
-      log.providerError('Cloudflare', data.errors);
+    if (!data.success) {
+      // Log detailed error information
+      if (data.errors?.length) {
+        this.error = data.errors[0].message;
+        log.providerError('Cloudflare', {
+          status: res.status,
+          errors: data.errors.map((e) => e.message),
+        });
+      } else if (res.status === 404) {
+        this.error = `Resource not found (404): ${path}`;
+        log.providerError('Cloudflare', { status: 404, path, message: 'Zone or record not found' });
+      } else {
+        this.error = `API request failed with status ${res.status}`;
+        log.providerError('Cloudflare', { status: res.status, path });
+      }
     }
     return data;
   }

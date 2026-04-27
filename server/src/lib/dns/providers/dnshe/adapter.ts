@@ -1,7 +1,20 @@
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { asArray, Dict, normalizeRrName, safeString, BaseAdapter, toNumber, toRecordStatus } from './common';
-import { log } from '../../logger';
-import { fetchWithFallback } from '../../proxy-http';
+import { 
+  DnsAdapter, 
+  DnsRecord, 
+  DomainInfo, 
+  PageResult,
+  asArray, 
+  Dict, 
+  normalizeRrName, 
+  safeString, 
+  BaseAdapter, 
+  toNumber, 
+  toRecordStatus,
+  log,
+  fetchWithFallback,
+} from '../internal';
+import { renewSubdomain as renewSubdomainApi } from './renewal';
+import { getWhois as getWhoisApi } from './whois';
 
 interface DnsheConfig {
   apiKey: string;
@@ -19,18 +32,23 @@ interface DnsheSubdomain {
   status: string;
   created_at: string;
   updated_at: string;
+  expires_at?: string;  // Added in V2.0
+  never_expires?: number;  // Added in V2.0
 }
 
 interface DnsheRecord {
   id: number;
+  record_id?: string;  // Cloud provider record ID (V2.0)
   name: string;
   type: string;
   content: string;
   ttl: number;
   priority: number | null;
+  line?: string | null;  // Added in V2.0
   proxied: boolean;
   status: string;
   created_at: string;
+  updated_at?: string;  // Added in V2.0
 }
 
 interface DnsheApiResponse<T> {
@@ -43,9 +61,18 @@ interface DnsheApiResponse<T> {
   dns_records?: DnsheRecord[];
   records?: DnsheRecord[];
   record_id?: number;
+  // V2.0: Pagination info
+  pagination?: {
+    page: number;
+    per_page: number;
+    has_more: boolean;
+    next_page?: number;
+    prev_page?: number;
+    total?: number;
+  };
 }
 
-export class DnsheAdapter extends BaseAdapter {
+export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
   private config: DnsheConfig;
   private baseUrl = 'https://api005.dnshe.com/index.php?m=domain_hub';
 
@@ -72,9 +99,19 @@ export class DnsheAdapter extends BaseAdapter {
     endpoint: string,
     action: string,
     method: 'GET' | 'POST' = 'GET',
-    body?: Dict
+    body?: Dict,
+    queryParams?: Record<string, string | number>
   ): Promise<DnsheApiResponse<T>> {
-    const url = `${this.baseUrl}&endpoint=${endpoint}&action=${action}`;
+    let url = `${this.baseUrl}&endpoint=${endpoint}&action=${action}`;
+    
+    // Add query parameters for GET requests
+    if (queryParams && method === 'GET') {
+      const params = new URLSearchParams();
+      Object.entries(queryParams).forEach(([key, value]) => {
+        params.append(key, String(value));
+      });
+      url += `&${params.toString()}`;
+    }
     
     const options: RequestInit = {
       method,
@@ -88,8 +125,9 @@ export class DnsheAdapter extends BaseAdapter {
     const res = await fetchWithFallback(url, options, this.config.useProxy, 'DNSHE');
     const data = (await res.json()) as DnsheApiResponse<T>;
     
-    if (!data.success && data.error) {
-      this.error = data.error;
+    if (!data.success) {
+      this.error = data.error || data.message || 'Unknown error';
+      log.error('DNSHE', `Request failed: ${endpoint}/${action}`, { error: this.error });
     }
     
     return data;
@@ -107,25 +145,29 @@ export class DnsheAdapter extends BaseAdapter {
 
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
     try {
-      const res = await this.request<DnsheSubdomain[]>('subdomains', 'list', 'GET');
+      // Use API pagination with include_total for accurate count
+      const res = await this.request<any>('subdomains', 'list', 'GET', undefined, {
+        page,
+        per_page: Math.min(pageSize, 500), // Max 500 per API docs
+        include_total: 1,
+        ...(keyword && { search: keyword }),
+      });
+      
       if (!res.success || !res.subdomains) {
         return { total: 0, list: [] };
       }
 
-      let list = res.subdomains.map((item) => ({
+      const list = res.subdomains.map((item: DnsheSubdomain) => ({
         Domain: item.full_domain,
         ThirdId: String(item.id),
         RecordCount: undefined as number | undefined,
+        // V2.0: Include expiry information if available
+        ExpiresAt: item.expires_at,
+        NeverExpires: item.never_expires === 1,
       }));
 
-      if (keyword) {
-        const lowerKeyword = keyword.toLowerCase();
-        list = list.filter((d) => d.Domain.toLowerCase().includes(lowerKeyword));
-      }
-
-      const total = list.length;
-      const offset = (page - 1) * pageSize;
-      list = list.slice(offset, offset + pageSize);
+      // API returns paginated results, use the total from response
+      const total = res.pagination?.total ?? list.length;
 
       return { total, list };
     } catch (e) {
@@ -147,11 +189,22 @@ export class DnsheAdapter extends BaseAdapter {
   ): Promise<PageResult<DnsRecord>> {
     try {
       if (!this.config.subdomainId) {
+        this.error = 'Subdomain ID not configured';
+        log.error('DNSHE', 'getDomainRecords failed: subdomainId not set');
         return { total: 0, list: [] };
       }
 
-      const res = await this.request<DnsheRecord[]>('dns_records', 'list', 'GET');
+      // Pass subdomain_id as query parameter
+      const res = await this.request<DnsheRecord[]>(
+        'dns_records',
+        'list',
+        'GET',
+        undefined,
+        { subdomain_id: toNumber(this.config.subdomainId, 0) }
+      );
+      
       if (!res.success || !res.records) {
+        log.error('DNSHE', 'getDomainRecords failed: API returned no records', { success: res.success });
         return { total: 0, list: [] };
       }
 
@@ -185,9 +238,11 @@ export class DnsheAdapter extends BaseAdapter {
       const offset = (page - 1) * pageSize;
       list = list.slice(offset, offset + pageSize);
 
+      log.info('DNSHE', 'getDomainRecords success', { total, page, pageSize });
       return { total, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      log.error('DNSHE', 'getDomainRecords exception', { error: this.error });
       return { total: 0, list: [] };
     }
   }
@@ -195,10 +250,19 @@ export class DnsheAdapter extends BaseAdapter {
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
       if (!this.config.subdomainId) {
+        this.error = 'Subdomain ID not configured';
         return null;
       }
 
-      const res = await this.request<DnsheRecord[]>('dns_records', 'list', 'GET');
+      // Get all records and find the specific one
+      const res = await this.request<DnsheRecord[]>(
+        'dns_records',
+        'list',
+        'GET',
+        undefined,
+        { subdomain_id: toNumber(this.config.subdomainId, 0) }
+      );
+      
       if (!res.success || !res.records) {
         return null;
       }
@@ -343,6 +407,34 @@ export class DnsheAdapter extends BaseAdapter {
       this.error = e instanceof Error ? e.message : String(e);
       return false;
     }
+  }
+
+  /**
+   * Renew a subdomain (using modular renewal function)
+   */
+  async renewSubdomain(subdomainId: number): Promise<any> {
+    return renewSubdomainApi(
+      {
+        apiKey: this.config.apiKey,
+        apiSecret: this.config.apiSecret,
+        useProxy: this.config.useProxy,
+      },
+      subdomainId
+    );
+  }
+
+  /**
+   * Get WHOIS information for a domain (using modular whois function)
+   */
+  async getWhois(domain: string): Promise<any> {
+    return getWhoisApi(
+      {
+        apiKey: this.config.apiKey,
+        apiSecret: this.config.apiSecret,
+        useProxy: this.config.useProxy,
+      },
+      domain
+    );
   }
 
   private mapRecord(r: DnsheRecord): DnsRecord {

@@ -117,15 +117,17 @@ export class DnsMgrAdapter implements DnsAdapter {
         path += `&keyword=${encodeURIComponent(keyword)}`;
       }
       
-      // DnsMgr API returns array directly in data, not { total, list } format
-      const res = await this.request<DnsMgrDomain[]>('GET', path);
+      // DnsMgr API can return either { total, list } or direct array
+      const res = await this.request<any>('GET', path);
       
       log.debug('DnsMgr', 'getDomainList response', { 
         code: res.code, 
         hasData: !!res.data, 
         dataType: typeof res.data,
+        isObject: typeof res.data === 'object' && !Array.isArray(res.data),
         isArray: Array.isArray(res.data),
-        dataLength: Array.isArray(res.data) ? res.data.length : 0,
+        hasList: res.data && typeof res.data === 'object' && 'list' in res.data,
+        dataLength: Array.isArray(res.data) ? res.data.length : (res.data?.list?.length || 0),
         rawData: JSON.stringify(res.data).substring(0, 200)
       });
       
@@ -134,29 +136,35 @@ export class DnsMgrAdapter implements DnsAdapter {
         return { total: 0, list: [] };
       }
 
-      // DnsMgr returns array directly, not { total, list } format
-      if (!res.data || !Array.isArray(res.data)) {
-        log.error('DnsMgr', 'getDomainList invalid data structure - expected array', { data: res.data });
+      let domains: DnsMgrDomain[];
+      let total: number;
+
+      // Smart detection: support both array and object formats
+      if (Array.isArray(res.data)) {
+        // Format 1: Direct array (when using API Token or format=array)
+        domains = res.data;
+        total = domains.length;
+        log.debug('DnsMgr', 'Detected array format response');
+      } else if (res.data && typeof res.data === 'object' && 'list' in res.data) {
+        // Format 2: Paginated object { total, list, page, pageSize }
+        domains = res.data.list;
+        total = res.data.total || domains.length;
+        log.debug('DnsMgr', 'Detected paginated object format response');
+      } else {
+        log.error('DnsMgr', 'getDomainList invalid data structure', { data: res.data });
         return { total: 0, list: [] };
       }
-
-      const domains = res.data;
       
       // Apply keyword filter if provided (server-side filtering may not work)
       let filteredDomains = domains;
       if (keyword) {
         const lowerKeyword = keyword.toLowerCase();
-        filteredDomains = domains.filter(d => d.name.toLowerCase().includes(lowerKeyword));
+        filteredDomains = domains.filter((d: DnsMgrDomain) => d.name.toLowerCase().includes(lowerKeyword));
       }
-
-      // Apply pagination
-      const start = (page - 1) * pageSize;
-      const end = start + pageSize;
-      const paginatedDomains = filteredDomains.slice(start, end);
 
       return {
         total: filteredDomains.length,
-        list: paginatedDomains.map((d) => ({
+        list: filteredDomains.map((d: DnsMgrDomain) => ({
           Domain: d.name,
           ThirdId: String(d.id),
           RecordCount: d.record_count || 0,

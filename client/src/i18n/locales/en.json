@@ -64,7 +64,10 @@
       "items": "items",
       "page": "page",
       "perPage": "per page",
-      "pleaseSelect": "Please select"
+      "pleaseSelect": "Please select",
+      "default": "Default",
+      "custom": "Custom",
+      "auto": "Auto"
     },
     "mail": {
       "title": "Email Setup",
@@ -485,6 +488,8 @@
       "require2FAGlobalDesc": "When enabled, all users must set up two-factor authentication to log in",
       "securityPolicy": "Security Policy",
       "securityPolicyDesc": "Configure system-level security policy settings",
+      "showDnsProviderSecrets": "Show DNS Provider Secrets in Plain Text",
+      "showDnsProviderSecretsDesc": "When enabled, sensitive information such as API keys and passwords for DNS providers will be returned and displayed in plain text. Use this feature with caution and ensure only trusted administrators have access.",
       "securitySaved": "Security settings saved",
       "securitySaveFailed": "Failed to save security settings",
       "oauthConfig": "OAuth2 / OIDC Configuration",
@@ -771,6 +776,10 @@
       "valuePlaceholder": "Record value",
       "mxPriority": "MX Priority",
       "lineLabel": "Line",
+      "defaultLine": "Default",
+      "cannotModifyHost": "Cannot modify",
+      "vps8HostHint": "VPS8 does not support modifying hostname",
+      "singleLineHint": "This provider only supports default line",
       "allTypes": "All Types",
       "deleteConfirm": "Delete record \"{name}\" ({type}: {value})?",
       "fixErrors": "Please fix the highlighted fields before saving",

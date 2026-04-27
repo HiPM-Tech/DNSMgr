@@ -64,7 +64,10 @@
       "page": "Seite",
       "perPage": "pro Seite",
       "pleaseSelect": "Bitte auswählen",
-      "clear": "Löschen"
+      "clear": "Löschen",
+      "default": "Standard",
+      "custom": "Benutzerdefiniert",
+      "auto": "Automatisch"
     },
     "mail": {
       "title": "E-Mail-Einrichtung",
@@ -755,6 +758,10 @@
       "valuePlaceholder": "Eintragswert",
       "mxPriority": "MX-Priorität",
       "lineLabel": "Linie",
+      "defaultLine": "Standard",
+      "cannotModifyHost": "Nicht änderbar",
+      "vps8HostHint": "VPS8 unterstützt das Ändern des Hostnamens nicht",
+      "singleLineHint": "Dieser Anbieter unterstützt nur die Standardlinie",
       "allTypes": "Alle Typen",
       "deleteConfirm": "Eintrag \"{name}\" ({type}: {value}) löschen?",
       "fixErrors": "Bitte korrigieren Sie die hervorgehobenen Felder vor dem Speichern",

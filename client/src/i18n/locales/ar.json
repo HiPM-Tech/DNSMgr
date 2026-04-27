@@ -64,7 +64,10 @@
       "page": "صفحة",
       "perPage": "لكل صفحة",
       "pleaseSelect": "الرجاء الاختيار",
-      "clear": "مسح"
+      "clear": "مسح",
+      "default": "افتراضي",
+      "custom": "مخصص",
+      "auto": "تلقائي"
     },
     "mail": {
       "title": "إعداد البريد الإلكتروني",
@@ -755,6 +758,10 @@
       "valuePlaceholder": "قيمة السجل",
       "mxPriority": "أولوية MX",
       "lineLabel": "السطر",
+      "defaultLine": "افتراضي",
+      "cannotModifyHost": "لا يمكن التعديل",
+      "vps8HostHint": "VPS8 لا يدعم تعديل اسم المضيف",
+      "singleLineHint": "يدعم هذا المزود السطر الافتراضي فقط",
       "allTypes": "جميع الأنواع",
       "deleteConfirm": "حذف السجل \"{name}\" ({type}: {value})؟",
       "fixErrors": "الرجاء تصحيح الحقول المُبرزّة قبل الحفظ",

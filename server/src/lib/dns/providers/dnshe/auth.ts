@@ -1,0 +1,64 @@
+import { fetchWithFallback } from '../internal';
+
+export interface DnsheAuthConfig {
+  apiKey: string;
+  apiSecret: string;
+  useProxy?: boolean;
+}
+
+/**
+ * Build authentication headers for DNSHE API
+ */
+export function buildAuthHeaders(config: DnsheAuthConfig): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'X-API-Key': config.apiKey,
+    'X-API-Secret': config.apiSecret,
+  };
+}
+
+/**
+ * Make an authenticated request to DNSHE API
+ */
+export async function authenticatedRequest(
+  url: string,
+  config: DnsheAuthConfig,
+  options: RequestInit = {}
+): Promise<Response> {
+  const headers = {
+    ...buildAuthHeaders(config),
+    ...options.headers,
+  };
+
+  return fetchWithFallback(
+    url,
+    {
+      ...options,
+      headers,
+    },
+    config.useProxy ?? false
+  );
+}
+
+/**
+ * Validate DNSHE credentials
+ */
+export async function validateCredentials(config: DnsheAuthConfig): Promise<boolean> {
+  try {
+    const baseUrl = 'https://api005.dnshe.com/index.php?m=domain_hub';
+    const url = `${baseUrl}&endpoint=subdomains&action=list`;
+    
+    const response = await authenticatedRequest(url, config, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json();
+    return data.success === true;
+  } catch {
+    return false;
+  }
+}

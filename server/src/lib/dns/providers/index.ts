@@ -3,6 +3,16 @@ export { AliyunAdapter } from './aliyun';
 export { DnspodAdapter } from './dnspod';
 export { TencenteoAdapter } from './tencenteo';
 export { DnsheAdapter } from './dnshe';
+export { 
+  buildAuthHeaders as dnsheBuildAuthHeaders,
+  authenticatedRequest as dnsheAuthenticatedRequest,
+  validateCredentials as dnsheValidateCredentials,
+  renewSubdomain as dnsheRenewSubdomain,
+  getWhois as dnsheGetWhois,
+  type DnsheAuthConfig,
+  type DnsheRenewalResult,
+  type DnsheWhoisResult,
+} from './dnshe';
 export { RainyunAdapter } from './rainyun';
 export { WestAdapter } from './west';
 export { AliyunesaAdapter } from './aliyunesa';

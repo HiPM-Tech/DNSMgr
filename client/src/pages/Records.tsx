@@ -41,7 +41,6 @@ export function Records() {
   // 分页状态
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [total, setTotal] = useState(0);
 
   const { data: domain } = useQuery({
     queryKey: ['domain', domainId],
@@ -83,13 +82,11 @@ export function Records() {
       keyword: keyword || undefined,
       page,
       pageSize,
-    }).then((r) => {
-      setTotal(r.data.data?.total ?? 0);
-      return r.data.data ?? { total: 0, list: [] };
-    }),
+    }).then((r) => r.data.data ?? { total: 0, list: [] }),
   });
   
   const records = recordsData?.list ?? [];
+  const total = recordsData?.total ?? 0;
   
   // 计算总页数
   const totalPages = Math.ceil(total / pageSize);
@@ -147,6 +144,12 @@ export function Records() {
   const lineMap = Object.fromEntries(lines.map((l) => [l.id, l.name]));
 
   const isCloudflare = account?.type === 'cloudflare';
+  const isAliyunESA = account?.type === 'aliyunesa';
+  // Providers with proxy mode (similar to Cloudflare)
+  const hasProxyMode = isCloudflare || isAliyunESA;
+  
+  // Check if provider supports multi-line routing
+  const hasMultiLine = lines.length > 1 && !hasProxyMode;
 
   const columns = [
     { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">{r.name}</span> },
@@ -170,13 +173,11 @@ export function Records() {
       ),
     },
     {
-      key: 'line', label: isCloudflare ? t('records.proxy') : t('common.line'),
+      key: 'line', label: hasProxyMode ? t('records.proxy') : (hasMultiLine ? t('common.line') : t('records.defaultLine')),
       render: (r: DnsRecord) => {
-        // Cloudflare: 显示代理状态（是/否）
-        if (isCloudflare) {
-          const proxiable = r.cloudflare?.proxiable ?? r.proxiable;
-          const proxied = r.cloudflare?.proxied ?? (r.line === '1');
-          if (proxiable === false) return <span className="text-gray-400 text-xs">-</span>;
+        // Cloudflare & Aliyun ESA: 显示代理状态（是/否）
+        if (hasProxyMode) {
+          const proxied = r.line === '1';
           return (
             <span className={`text-xs font-medium ${proxied ? 'text-orange-500' : 'text-gray-500'}`}>
               {proxied ? t('records.proxied') : t('records.dnsOnly')}
@@ -185,7 +186,19 @@ export function Records() {
         }
         // 其他提供商: 显示线路
         const effectiveLine = r.line;
-        return <span className="text-gray-500 text-xs">{effectiveLine ? (lineMap[effectiveLine] ?? effectiveLine) : '-'}</span>;
+        
+        // 当线路为 '0' 或空时，显示为"默认"
+        if (!effectiveLine || effectiveLine === '0') {
+          return <span className="text-gray-500 text-xs">{t('records.defaultLine') || '默认'}</span>;
+        }
+        
+        // 显示具体线路名称
+        const lineName = lineMap[effectiveLine];
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded text-xs font-medium border border-purple-200 dark:border-purple-800">
+            {lineName ?? effectiveLine}
+          </span>
+        );
       },
     },
     { key: 'ttl', label: t('common.ttl'), render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.ttl ?? '-'}</span> },

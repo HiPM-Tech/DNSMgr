@@ -90,6 +90,18 @@ function parseSrvValue(initial?: DnsRecord): SrvFields {
 export function RecordForm({ lines, recordTypes, provider, initial, existingRecords = [], onSubmit, isLoading }: RecordFormProps) {
   const toast = useToast();
   const { t } = useI18n();
+  
+  // 检测是否为 VPS8 提供商
+  const isVPS8 = provider?.type === 'vps8';
+  
+  // Detect proxy mode providers (Cloudflare & Aliyun ESA)
+  const isCloudflare = provider?.type === 'cloudflare';
+  const isAliyunESA = provider?.type === 'aliyunesa';
+  const hasProxyMode = isCloudflare || isAliyunESA;
+  
+  // Check if provider supports multi-line routing
+  const hasMultiLine = lines.length > 1 && !hasProxyMode;
+  
   const [form, setForm] = useState<Partial<DnsRecord>>({
     name: initial?.name ?? '@',
     type: initial?.type ?? 'A',
@@ -97,9 +109,9 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     ttl: initial?.ttl ?? 600,
     mx: initial?.mx ?? 10,
     weight: initial?.weight ?? 10,
-    line: initial?.cloudflare?.proxied !== undefined
-      ? (initial.cloudflare.proxied ? '1' : '0')
-      : (initial?.line ?? (lines[0]?.id ?? '')),
+    line: hasProxyMode
+      ? (initial?.line ?? '0') // Default to DNS only for proxy mode providers
+      : (initial?.line ?? (hasMultiLine ? (lines[0]?.id ?? '') : '')),
     remark: initial?.remark ?? '',
   });
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
@@ -112,17 +124,18 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
 
   const currentType = form.type ?? 'A';
   const isSrv = currentType === 'SRV';
-  const isCloudflare = provider?.type === 'cloudflare';
   
-  // Cloudflare 使用代理模式，不依赖 lines 数组
+  // Cloudflare & Aliyun ESA 使用代理模式，不依赖 lines 数组
   // 其他提供商需要 lines 数组支持
-  const canSelectProxy = isCloudflare
-    ? (initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
-      ? Boolean(initial.cloudflare.proxiable)
-      : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
-        ? Boolean(initial.proxiable)
-      : PROXIABLE_RECORD_TYPES.has(currentType))
-    : (lines.length > 0 && provider?.capabilities?.line);
+  const canSelectProxy = hasProxyMode
+    ? (isCloudflare
+      ? (initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
+        ? Boolean(initial.cloudflare.proxiable)
+        : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
+          ? Boolean(initial.proxiable)
+        : PROXIABLE_RECORD_TYPES.has(currentType))
+      : true) // Aliyun ESA always supports proxy toggle
+    : hasMultiLine; // Multi-line providers should always show line selector
 
   const normalizedSrvValue = useMemo(() => {
     const port = srv.port.trim();
@@ -195,7 +208,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       ttl: Number(form.ttl ?? 600),
       mx: currentType === 'MX' || currentType === 'SRV' ? Number(form.mx ?? 0) : undefined,
       weight: currentType === 'SRV' ? Number(form.weight ?? 0) : undefined,
-      // Cloudflare: 同时发送 line 和 cloudflare.proxied，确保兼容性
+      // Cloudflare & Aliyun ESA: send line for proxy mode
       line: lineValue,
       cloudflare: (isCloudflare && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
       remark: form.remark?.toString() ?? '',
@@ -211,14 +224,23 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.hostName')}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            {t('records.hostName')}
+            {isVPS8 && initial && (
+              <span className="ml-2 text-xs text-orange-500">({t('records.cannotModifyHost') || '不可修改'})</span>
+            )}
+          </label>
           <input
             required
             value={form.name ?? ''}
             onChange={(e) => set('name', e.target.value)}
             placeholder={t('records.hostPlaceholder')}
-            className={`${inputClass} ${errors.name ? errorClass : ''}`}
+            disabled={isVPS8 && !!initial}
+            className={`${inputClass} ${errors.name ? errorClass : ''} ${isVPS8 && initial ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed' : ''}`}
           />
+          {isVPS8 && initial && (
+            <p className="mt-1 text-xs text-gray-500">{t('records.vps8HostHint') || 'VPS8 不支持修改主机名'}</p>
+          )}
           {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
         </div>
         <div>
@@ -348,22 +370,29 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         {canSelectProxy && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              {isCloudflare ? t('records.proxy') : t('records.lineLabel')}
+              {hasProxyMode ? t('records.proxy') : (hasMultiLine ? t('common.line') : t('records.defaultLine'))}
             </label>
             <select 
-              value={form.line ?? (isCloudflare ? '0' : '')} 
+              value={form.line ?? (hasProxyMode ? '0' : '')} 
               onChange={(e) => set('line', e.target.value)} 
               className={inputClass}
             >
-              {isCloudflare ? (
+              {hasProxyMode ? (
                 <>
                   <option value="0">{t('records.dnsOnly')}</option>
                   <option value="1">{t('records.proxied')}</option>
                 </>
-              ) : (
+              ) : hasMultiLine ? (
+                // Multi-line providers: show all available lines
                 lines.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)
+              ) : (
+                // Single-line or no-line providers: show default option
+                <option value="">{t('records.defaultLine') || '默认'}</option>
               )}
             </select>
+            {!hasProxyMode && !hasMultiLine && (
+              <p className="mt-1 text-xs text-gray-500">{t('records.singleLineHint') || '该提供商仅支持默认线路'}</p>
+            )}
           </div>
         )}
       </div>

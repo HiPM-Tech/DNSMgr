@@ -64,7 +64,10 @@
       "page": "페이지",
       "perPage": "페이지당",
       "pleaseSelect": "선택하세요",
-      "clear": "지우기"
+      "clear": "지우기",
+      "default": "기본값",
+      "custom": "사용자 정의",
+      "auto": "자동"
     },
     "mail": {
       "title": "이메일 설정",
@@ -755,6 +758,10 @@
       "valuePlaceholder": "레코드 값",
       "mxPriority": "MX 우선순위",
       "lineLabel": "라인",
+      "defaultLine": "기본값",
+      "cannotModifyHost": "수정 불가",
+      "vps8HostHint": "VPS8은 호스트 이름 수정을 지원하지 않습니다",
+      "singleLineHint": "이 공급자는 기본 라인만 지원합니다",
       "allTypes": "모든 유형",
       "deleteConfirm": "레코드 \"{name}\" ({type}: {value})을(를) 삭제하시겠습니까?",
       "fixErrors": "저장하기 전에 강조된 필드를 수정하세요",
@@ -782,6 +789,13 @@
       "aaaaHelp": "AAAA 레코드는 IPv6 주소만 허용합니다.",
       "hostnameHelp": "{type} 레코드는 IP 대신 호스트 이름을 가리켜야 합니다.",
       "txtHelp": "TXT 레코드는 일반 텍스트 값을 허용합니다.",
+      "batchAdd": "일괄 추가",
+      "batchAddTitle": "레코드 일괄 추가 - {name}",
+      "batchAddSuccess": "일괄 추가 성공, 총 {success}개",
+      "batchAddFailed": "일괄 추가 실패",
+      "batchParseError": "구문 분석 실패, 형식을 확인하세요",
+      "batchPlaceholder": "줄당 하나의 레코드, 형식: 호스트 이름 유형 레코드 값 [TTL] [MX 우선순위]",
+      "batchHelp": "A, AAAA, CNAME, MX, TXT, SRV 레코드 지원",
       "fields": {
         "host": "호스트",
         "value": "값",

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ExternalLink, Search, Activity, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, Search, Activity, Layers, ChevronLeft, ChevronRight, List, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { domainsApi, accountsApi } from '../api';
 import type { Domain, DnsAccount } from '../api';
@@ -332,9 +332,7 @@ export function Domains() {
   // Pagination state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-
+  
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains', accountFilter, keyword, domainTypeFilter, page, pageSize],
     queryFn: () => domainsApi.list({
@@ -343,17 +341,12 @@ export function Domains() {
       domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
       page,
       pageSize,
-    }).then((r) => {
-      const data = r.data.data;
-      if (data) {
-        setTotal(data.total);
-        setTotalPages(data.totalPages);
-      }
-      return data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 };
-    }),
+    }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 }),
   });
 
   const domains = domainsData?.list ?? [];
+  const total = domainsData?.total ?? 0;
+  const totalPages = domainsData?.totalPages ?? 1;
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts'],
@@ -406,7 +399,19 @@ export function Domains() {
     },
     {
       key: 'account_id', label: t('domains.account'),
-      render: (row: Domain) => <span className="text-gray-700">{accountMap[row.account_id]?.name ?? `#${row.account_id}`}</span>,
+      render: (row: Domain) => {
+        const account = accountMap[row.account_id];
+        if (!account) return <span className="text-gray-700">#{row.account_id}</span>;
+        
+        return (
+          <div className="flex items-center gap-2">
+            <span className="text-gray-700">{account.name}</span>
+            <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded text-xs font-medium border border-blue-200 dark:border-blue-800">
+              {account.type}
+            </span>
+          </div>
+        );
+      },
     },
     {
       key: 'record_count', label: t('domains.records'),
@@ -462,22 +467,37 @@ export function Domains() {
     { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="text-gray-500">{row.remark || t('domains.emptyRemark')}</span> },
     {
       key: 'actions', label: t('domains.actions'),
-      render: (row: Domain) => (
-        <div className="flex items-center gap-2">
-          <button onClick={() => setEditing(row)} disabled={!canManage}
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button onClick={() => setConfiguringFailover(row)} disabled={!canManage} title="Failover Config"
-            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-            <Activity className="w-4 h-4" />
-          </button>
-          <button onClick={() => setDeleting(row)} disabled={!canManage}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      ),
+      render: (row: Domain) => {
+        const account = accountMap[row.account_id];
+        const isDnshe = account?.type === 'dnshe';
+        
+        return (
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(`/domains/${row.id}/records`)}
+              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={t('records.dnsRecords')}>
+              <List className="w-4 h-4" />
+            </button>
+            {isDnshe && (
+              <button onClick={() => navigate(`/domains/${row.id}/renewal`)}
+                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title={t('domainRenewal.title')}>
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={() => setEditing(row)} disabled={!canManage}
+              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button onClick={() => setConfiguringFailover(row)} disabled={!canManage} title="Failover Config"
+              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <Activity className="w-4 h-4" />
+            </button>
+            <button onClick={() => setDeleting(row)} disabled={!canManage}
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      },
     },
   ];
 

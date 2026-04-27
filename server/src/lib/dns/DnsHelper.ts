@@ -1,5 +1,5 @@
 import { DnsAdapter } from './DnsInterface';
-import { TencenteoAdapter } from './providers/tencenteo';
+import { TencenteoAdapter } from './providers/tencenteo/adapter';
 import {
   ProviderCapabilities,
   ProviderConfigField,

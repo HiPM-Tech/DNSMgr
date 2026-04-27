@@ -334,6 +334,32 @@ export const recordsApi = {
     api.put<ApiResponse<null>>(`/domains/${domainId}/records/${recordId}/status`, { status }),
 };
 
+export const domainRenewalApi = {
+  renew: (domainId: number, subdomainId: number) =>
+    api.post<ApiResponse<RenewalInfo>>(`/domains/${domainId}/renew`, { subdomain_id: subdomainId }),
+  getWhois: (domain: string) =>
+    api.get<ApiResponse<WhoisInfo>>(`/domains/whois`, { params: { domain } }),
+};
+
+export interface RenewalInfo {
+  subdomain_id: number;
+  subdomain: string;
+  full_domain: string;
+  previous_expires_at: string;
+  new_expires_at: string;
+  renewed_at: string;
+  never_expires: number;
+  status: string;
+  remaining_days: number;
+}
+
+export interface WhoisInfo {
+  domain: string;
+  expires_at?: string;
+  registrar?: string;
+  status?: string;
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export const usersApi = {
@@ -449,6 +475,7 @@ export interface SecurityConfig {
   jwtViewEmailNotify: boolean;
   domainExpiryNotify: boolean;
   domainExpiryDays: number;
+  showDnsProviderSecrets: boolean;
 }
 
 export interface OAuthStatus {

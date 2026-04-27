@@ -11,6 +11,7 @@ import { Audit } from './pages/Audit';
 import { Accounts } from './pages/Accounts';
 import { Domains } from './pages/Domains';
 import { Records } from './pages/Records';
+import { DomainRenewal } from './pages/DomainRenewal';
 import { Users } from './pages/Users';
 import { Teams } from './pages/Teams';
 import { Settings } from './pages/Settings';
@@ -44,6 +45,7 @@ function App() {
                   <Route path="accounts" element={<Accounts />} />
                   <Route path="domains" element={<Domains />} />
                   <Route path="domains/:id/records" element={<Records />} />
+                  <Route path="domains/:id/renewal" element={<DomainRenewal />} />
                   <Route path="tunnels" element={<Tunnels />} />
                   <Route path="tokens" element={<Tokens />} />
                   <Route path="ns-monitor" element={<NSMonitor />} />

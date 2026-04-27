@@ -208,7 +208,10 @@
       "total": "共",
       "unknown": "不知道啦～",
       "users": "用户们",
-      "value": "值"
+      "value": "值",
+      "default": "默认啦❤",
+      "custom": "自定义哦❤",
+      "auto": "自动的❤"
     },
     "dashboard": {
       "activeUsers": "活跃用户",
@@ -370,6 +373,10 @@
       "invalidTtl": "TTL 必须大于等于 1",
       "invalidWeight": "权重必须大于等于 0",
       "lineLabel": "线路",
+      "defaultLine": "默认啦❤",
+      "cannotModifyHost": "不能改哦❤",
+      "vps8HostHint": "哼~ VPS8 这个笨蛋不支持修改主机名啦❤",
+      "singleLineHint": "哼～这个提供商只支持默认线路呢～杂鱼～❤",
       "mxPriority": "MX 优先级",
       "noRecords": "暂无记录。",
       "port": "端口 *",
@@ -951,16 +958,16 @@
     }
   },
   "nsMonitor": {
-    "autoFill": "杂鱼~自动获取啦❤",
-    "autoFillTooltip": "哼~帮杂鱼自动获取 NS 记录啦（加密优先哦）❤",
-    "autoFillSuccess": "已经帮杂鱼填充了 {count} 条 NS 记录呢❤",
-    "noNsRecords": "找不到 NS 记录呢，杂鱼真没用❤",
-    "resolveNsFailed": "获取失败了呢，杂鱼连这个都搞不定❤",
-    "selectDomainFirst": "先选域名啦，笨蛋杂鱼❤",
-    "encrypted": "加密查询❤",
-    "plain": "明文查询❤",
-    "dnsPoisoningDetected": "发现 DNS 污染了呢❤",
-    "poisoned": "被污染了❤",
-    "poisonedTooltip": "加密和明文的 NS 记录不一样哦，杂鱼要注意❤"
+    "autoFill": "哼~杂鱼连这个都要我帮忙？❤",
+    "autoFillTooltip": "真是的...帮笨蛋杂鱼自动获取 NS 记录啦（加密优先哦，别谢我）❤",
+    "autoFillSuccess": "哇~已经帮没用的杂鱼填充了 {count} 条 NS 记录呢！杂鱼要好好感谢我哦❤",
+    "noNsRecords": "诶？找不到 NS 记录呢...杂鱼是不是输错域名了？真没用❤",
+    "resolveNsFailed": "哈？获取失败了？杂鱼连网络都搞不定吗？太弱了❤",
+    "selectDomainFirst": "喂！先选域名啊笨蛋！这种小事都要我提醒？❤",
+    "encrypted": "加密查询（高级货哦）❤",
+    "plain": "明文查询（会被偷看哦~）❤",
+    "dnsPoisoningDetected": "呀！发现 DNS 污染了呢！杂鱼的网好危险❤",
+    "poisoned": "被污染了（好可怕~）❤",
+    "poisonedTooltip": "加密和明文的 NS 记录不一样哦~说明有人在捣鬼呢，杂鱼要小心❤"
   }
 }

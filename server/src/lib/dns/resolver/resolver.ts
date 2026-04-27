@@ -3,7 +3,7 @@
  */
 
 import { DNSQueryType, DNSResponse, DNSQueryOptions, DNSResolverResult, DNSServerType } from './types';
-import { dnsServerRegistry } from './servers';
+import { getEncryptedServers, getPlainServers } from './servers';
 import { queryDoH } from './doh-resolver';
 import { queryDoT as queryDoTImpl } from './dot-resolver';
 import { queryPlainDNS as queryPlainDNSImpl } from './plain-resolver';
@@ -68,7 +68,8 @@ export class DNSResolver {
     timeout: number,
     useProxy: boolean
   ): Promise<DNSResolverResult> {
-    const servers = dnsServerRegistry.getEncryptedServers();
+    // 获取加密 DNS 服务器列表
+    const servers = getEncryptedServers();
 
     if (servers.length === 0) {
       return {
@@ -284,7 +285,8 @@ export class DNSResolver {
     type: DNSQueryType,
     timeout: number
   ): Promise<DNSResolverResult> {
-    const servers = dnsServerRegistry.getPlainServers();
+    // 获取明文 DNS 服务器列表
+    const servers = getPlainServers();
 
     if (servers.length === 0) {
       return {

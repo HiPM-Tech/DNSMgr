@@ -8,8 +8,8 @@ import { logAuditOperation } from '../service/audit';
 import { log } from '../lib/logger';
 
 const router = Router();
-type SecurityConfig = { jwtViewEmailNotify: boolean };
-const DEFAULT_SECURITY_CONFIG: SecurityConfig = { jwtViewEmailNotify: true };
+type SecurityConfig = { jwtViewEmailNotify: boolean; showDnsProviderSecrets: boolean };
+const DEFAULT_SECURITY_CONFIG: SecurityConfig = { jwtViewEmailNotify: true, showDnsProviderSecrets: false };
 type OAuthConfig = {
   enabled: boolean;
   template: 'generic' | 'logto';
@@ -188,7 +188,7 @@ router.post('/jwt-secret', authMiddleware, noTokenAuth('system settings'), admin
   }
 
   const jwtSecret = process.env.JWT_SECRET || '';
-  await logAuditOperation(req.user!.userId, 'view_jwt_secret', 'system', { success: true });
+  await logAuditOperation(req.user!.userId, 'view_jwt_secret', 'system', { success: true }, req);
   try {
     const secCfg = await getSecurityConfig();
     if (secCfg.jwtViewEmailNotify) {
@@ -288,8 +288,11 @@ router.get('/security', authMiddleware, noTokenAuth('system settings'), adminOnl
 });
 
 router.put('/security', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
-  const { jwtViewEmailNotify, domainExpiryNotify, domainExpiryDays } = req.body;
-  const config = { jwtViewEmailNotify: !!jwtViewEmailNotify };
+  const { jwtViewEmailNotify, domainExpiryNotify, domainExpiryDays, showDnsProviderSecrets } = req.body;
+  const config = { 
+    jwtViewEmailNotify: !!jwtViewEmailNotify,
+    showDnsProviderSecrets: !!showDnsProviderSecrets
+  };
 
   await SettingsOperations.set('security_config', JSON.stringify(config));
   if (domainExpiryNotify !== undefined) {
@@ -314,7 +317,7 @@ router.get('/smtp', authMiddleware, noTokenAuth('system settings'), adminOnly, a
 router.put('/smtp', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   try {
     const next = await updateSmtpConfig(req.body || {});
-    await logAuditOperation(req.user!.userId, 'update_smtp_config', 'system', { enabled: next.enabled, host: next.host, port: next.port });
+    await logAuditOperation(req.user!.userId, 'update_smtp_config', 'system', { enabled: next.enabled, host: next.host, port: next.port }, req);
     res.json({ code: 0, data: next, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update SMTP config' });
@@ -331,7 +334,7 @@ router.post('/smtp/test', authMiddleware, adminOnly, async (req: Request, res: R
       return;
     }
     await sendSmtpEmail(target, 'DNSMgr SMTP Test', 'This is a test email from DNSMgr SMTP settings.');
-    await logAuditOperation(req.user!.userId, 'smtp_test_email', 'system', { to: target });
+    await logAuditOperation(req.user!.userId, 'smtp_test_email', 'system', { to: target }, req);
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to send test email' });
@@ -350,7 +353,7 @@ router.get('/oauth', authMiddleware, noTokenAuth('system settings'), adminOnly, 
 router.put('/oauth', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   try {
     const config = await updateOAuthConfig({ ...(req.body || {}), template: 'generic' });
-    await logAuditOperation(req.user!.userId, 'update_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, issuer: config.issuer });
+    await logAuditOperation(req.user!.userId, 'update_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, issuer: config.issuer }, req);
     res.json({ code: 0, data: config, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update OAuth config' });
@@ -369,7 +372,7 @@ router.get('/oauth/logto', authMiddleware, noTokenAuth('system settings'), admin
 router.put('/oauth/logto', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   try {
     const config = await updateLogtoOAuthConfig(req.body || {});
-    await logAuditOperation(req.user!.userId, 'update_logto_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, logtoDomain: config.logtoDomain });
+    await logAuditOperation(req.user!.userId, 'update_logto_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, logtoDomain: config.logtoDomain }, req);
     res.json({ code: 0, data: config, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update Logto OAuth config' });
