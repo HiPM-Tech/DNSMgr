@@ -230,6 +230,8 @@ export class Vps8Adapter extends BaseAdapter {
         return false;
       }
 
+      log.debug('VPS8', 'Updating record', { recordId, domain: this.config.domain });
+
       const params: Record<string, unknown> = {
         domain: this.config.domain,
         id: recordId,
@@ -242,10 +244,14 @@ export class Vps8Adapter extends BaseAdapter {
       }
 
       await this.request('record_update', params);
+      log.debug('VPS8', 'Record updated successfully', { recordId });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('VPS8', 'updateDomainRecord failed', this.error);
+      log.error('VPS8', 'updateDomainRecord failed', { 
+        recordId, 
+        error: this.error 
+      });
       return false;
     }
   }
@@ -256,14 +262,21 @@ export class Vps8Adapter extends BaseAdapter {
         return false;
       }
 
+      log.debug('VPS8', 'Deleting record', { recordId, domain: this.config.domain });
+
       await this.request('record_delete', {
         domain: this.config.domain,
         id: recordId,
       });
+      
+      log.debug('VPS8', 'Record deleted successfully', { recordId });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('VPS8', 'deleteDomainRecord failed', this.error);
+      log.error('VPS8', 'deleteDomainRecord failed', { 
+        recordId, 
+        error: this.error 
+      });
       return false;
     }
   }
