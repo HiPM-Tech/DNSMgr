@@ -1057,5 +1057,18 @@
       "user2FAUpdated": "用户2FA设置已更新",
       "user2FAUpdateFailed": "更新用户2FA设置失败"
     }
+  },
+  "nsMonitor": {
+    "autoFill": "自动获取",
+    "autoFillTooltip": "自动获取域名的 NS 记录（加密 DNS 优先）",
+    "autoFillSuccess": "已自动填充 {count} 条 NS 记录",
+    "noNsRecords": "未找到 NS 记录",
+    "resolveNsFailed": "获取 NS 记录失败",
+    "selectDomainFirst": "请先选择域名",
+    "encrypted": "加密查询",
+    "plain": "明文查询",
+    "dnsPoisoningDetected": "检测到 DNS 污染",
+    "poisoned": "污染",
+    "poisonedTooltip": "加密和明文 DNS 查询的 NS 记录不一致"
   }
 }

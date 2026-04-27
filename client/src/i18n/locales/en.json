@@ -705,7 +705,18 @@
       "never": "Never",
       "deleteConfirm": "Delete NS monitor config for \"{domain}\"?",
       "deleteSuccess": "Monitor config deleted",
-      "deleteFailed": "Failed to delete monitor config"
+      "deleteFailed": "Failed to delete monitor config",
+      "autoFill": "Auto Fill",
+      "autoFillTooltip": "Automatically fetch NS records (encrypted DNS priority)",
+      "autoFillSuccess": "Auto-filled {count} NS records",
+      "noNsRecords": "No NS records found",
+      "resolveNsFailed": "Failed to fetch NS records",
+      "selectDomainFirst": "Please select a domain first",
+      "encrypted": "Encrypted",
+      "plain": "Plain",
+      "dnsPoisoningDetected": "DNS Poisoning Detected",
+      "poisoned": "Poisoned",
+      "poisonedTooltip": "NS records differ between encrypted and plain DNS queries"
     },
     "tunnels": {
       "title": "Cloudflare Tunnels",

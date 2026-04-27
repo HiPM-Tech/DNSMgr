@@ -113,7 +113,6 @@
       "teams": "チーム",
       "nsMonitor": "NS 監視",
       "tokens": "API トークン",
-
       "ttl": "TTL",
       "type": "タイプ",
       "unknown": "未知",
@@ -1063,5 +1062,18 @@
       "deleteFailed": "Tunnelの削除に失敗しました",
       "deleteConfirm": "Tunnel「{name}」を削除してもよろしいですか？この操作は元に戻せません。"
     }
+  },
+  "nsMonitor": {
+    "autoFill": "自動取得",
+    "autoFillTooltip": "ドメインのNSレコードを自動取得（暗号化DNS優先）",
+    "autoFillSuccess": "{count}件のNSレコードを自動入力しました",
+    "noNsRecords": "NSレコードが見つかりません",
+    "resolveNsFailed": "NSレコードの取得に失敗しました",
+    "selectDomainFirst": "先にドメインを選択してください",
+    "encrypted": "暗号化クエリ",
+    "plain": "平文クエリ",
+    "dnsPoisoningDetected": "DNSポイズニングを検出",
+    "poisoned": "汚染",
+    "poisonedTooltip": "暗号化と平文DNSクエリのNSレコードが一致しません"
   }
 }

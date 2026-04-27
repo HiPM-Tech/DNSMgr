@@ -947,5 +947,18 @@
       "updateSuccess": "Túnel actualizado exitosamente",
       "updateFailed": "Error al actualizar el túnel"
     }
+  },
+  "nsMonitor": {
+    "autoFill": "Rellenar auto",
+    "autoFillTooltip": "Obtener automáticamente registros NS (DNS cifrado prioritario)",
+    "autoFillSuccess": "{count} registros NS rellenados automáticamente",
+    "noNsRecords": "No se encontraron registros NS",
+    "resolveNsFailed": "Error al obtener registros NS",
+    "selectDomainFirst": "Seleccione primero un dominio",
+    "encrypted": "Consulta cifrada",
+    "plain": "Consulta en texto plano",
+    "dnsPoisoningDetected": "Envenenamiento DNS detectado",
+    "poisoned": "Envenenado",
+    "poisonedTooltip": "Los registros NS difieren entre consultas DNS cifradas y en texto plano"
   }
 }

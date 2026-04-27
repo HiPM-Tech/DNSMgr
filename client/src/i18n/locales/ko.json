@@ -947,5 +947,18 @@
       "smtpRecommended": "권장: 로그인 후 시스템 설정에서 SMTP를 구성하세요 (이메일 인증 및 테스트 메일에 필요).",
       "goToLogin": "로그인으로 이동"
     }
+  },
+  "nsMonitor": {
+    "autoFill": "자동 채우기",
+    "autoFillTooltip": "도메인의 NS 레코드 자동 가져오기 (암호화 DNS 우선)",
+    "autoFillSuccess": "{count}개의 NS 레코드를 자동으로 채웠습니다",
+    "noNsRecords": "NS 레코드를 찾을 수 없습니다",
+    "resolveNsFailed": "NS 레코드 가져오기 실패",
+    "selectDomainFirst": "먼저 도메인을 선택하세요",
+    "encrypted": "암호화 쿼리",
+    "plain": "일반 쿼리",
+    "dnsPoisoningDetected": "DNS 포이즈닝 감지",
+    "poisoned": "오염됨",
+    "poisonedTooltip": "암호화와 일반 DNS 쿼리의 NS 레코드가 일치하지 않습니다"
   }
 }

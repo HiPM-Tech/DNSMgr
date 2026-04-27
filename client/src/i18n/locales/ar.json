@@ -947,5 +947,18 @@
       "smtpRecommended": "موصى به: قم بتكوين SMTP في إعدادات النظام بعد تسجيل الدخول (اختياري الآن، مطلوب للتحقق من البريد الإلكتروني ورسائل الاختبار).",
       "goToLogin": "الذهاب لتسجيل الدخول"
     }
+  },
+  "nsMonitor": {
+    "autoFill": "ملء تلقائي",
+    "autoFillTooltip": "جلب سجلات NS تلقائياً (DNS مشفر ذو أولوية)",
+    "autoFillSuccess": "تم ملء {count} سجلات NS تلقائياً",
+    "noNsRecords": "لم يتم العثور على سجلات NS",
+    "resolveNsFailed": "فشل في جلب سجلات NS",
+    "selectDomainFirst": "يرجى تحديد نطاق أولاً",
+    "encrypted": "استعلام مشفر",
+    "plain": "استعلام نصي",
+    "dnsPoisoningDetected": "تم اكتشاف تسمم DNS",
+    "poisoned": "مسموم",
+    "poisonedTooltip": "تختلف سجلات NS بين استعلامات DNS المشفرة والنصية"
   }
 }

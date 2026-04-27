@@ -445,11 +445,27 @@ export function NSMonitor() {
                 defaultValue={selectedConfig.expected_ns}
                 placeholder={t('nsMonitor.expectedNSPlaceholder')}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-y"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                {t('nsMonitor.expectedNSHint')}
-              </p>
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-xs text-gray-500">
+                  {t('nsMonitor.expectedNSHint')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedConfig.domain_name) {
+                      resolveNsMutation.mutate(selectedConfig.domain_name);
+                    }
+                  }}
+                  disabled={resolveNsMutation.isPending}
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap"
+                  title={t('nsMonitor.autoFillTooltip')}
+                >
+                  <Wand2 className={`w-3.5 h-3.5 ${resolveNsMutation.isPending ? 'animate-spin' : ''}`} />
+                  <span>{t('nsMonitor.autoFill')}</span>
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -477,14 +493,15 @@ export function NSMonitor() {
                 </span>
               </label>
 
-              <label className="flex items-center gap-3">
+              <label className="flex items-center gap-3 opacity-50 cursor-not-allowed" title="Contact admin to enable notification channels">
                 <input
                   type="checkbox"
                   name="notify_channels"
-                  defaultChecked={userPrefs?.notify_channels ?? selectedConfig.notify_channels}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  defaultChecked={false}
+                  disabled
+                  className="w-4 h-4 text-gray-400 rounded focus:ring-gray-400 cursor-not-allowed"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
+                <span className="text-sm text-gray-500 dark:text-gray-500">
                   {t('nsMonitor.notifyChannels')}
                 </span>
               </label>
@@ -550,13 +567,16 @@ export function NSMonitor() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('nsMonitor.expectedNS')}
               </label>
-              <div className="flex gap-2">
-                <textarea
-                  name="expected_ns"
-                  placeholder={t('nsMonitor.expectedNSPlaceholder')}
-                  rows={3}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                />
+              <textarea
+                name="expected_ns"
+                placeholder={t('nsMonitor.expectedNSPlaceholder')}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-y"
+              />
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-xs text-gray-500">
+                  {t('nsMonitor.expectedNSHint')}
+                </p>
                 <button
                   type="button"
                   onClick={() => {
@@ -567,16 +587,13 @@ export function NSMonitor() {
                     }
                   }}
                   disabled={!selectedDomainName || resolveNsMutation.isPending}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap"
                   title={t('nsMonitor.autoFillTooltip')}
                 >
-                  <Wand2 className={`w-4 h-4 ${resolveNsMutation.isPending ? 'animate-spin' : ''}`} />
+                  <Wand2 className={`w-3.5 h-3.5 ${resolveNsMutation.isPending ? 'animate-spin' : ''}`} />
                   <span>{t('nsMonitor.autoFill')}</span>
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {t('nsMonitor.expectedNSHint')}
-              </p>
             </div>
 
             <div className="space-y-3">
@@ -596,7 +613,7 @@ export function NSMonitor() {
                 <input
                   type="checkbox"
                   name="notify_email"
-                  defaultChecked={true}
+                  defaultChecked={false}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
@@ -604,14 +621,15 @@ export function NSMonitor() {
                 </span>
               </label>
 
-              <label className="flex items-center gap-3">
+              <label className="flex items-center gap-3 opacity-50 cursor-not-allowed" title="Contact admin to enable notification channels">
                 <input
                   type="checkbox"
                   name="notify_channels"
-                  defaultChecked={true}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  defaultChecked={false}
+                  disabled
+                  className="w-4 h-4 text-gray-400 rounded focus:ring-gray-400 cursor-not-allowed"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
+                <span className="text-sm text-gray-500 dark:text-gray-500">
                   {t('nsMonitor.notifyChannels')}
                 </span>
               </label>

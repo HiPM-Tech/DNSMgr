@@ -947,5 +947,18 @@
       "smtpRecommended": "Recommandé : configurez SMTP dans les paramètres système après la connexion (optionnel maintenant, nécessaire pour la vérification email et les emails de test).",
       "goToLogin": "Aller à la connexion"
     }
+  },
+  "nsMonitor": {
+    "autoFill": "Remplissage auto",
+    "autoFillTooltip": "Récupérer automatiquement les enregistrements NS (DNS chiffré prioritaire)",
+    "autoFillSuccess": "{count} enregistrements NS remplis automatiquement",
+    "noNsRecords": "Aucun enregistrement NS trouvé",
+    "resolveNsFailed": "Échec de la récupération des enregistrements NS",
+    "selectDomainFirst": "Veuillez d'abord sélectionner un domaine",
+    "encrypted": "Requête chiffrée",
+    "plain": "Requête en clair",
+    "dnsPoisoningDetected": "Empoisonnement DNS détecté",
+    "poisoned": "Empoisonné",
+    "poisonedTooltip": "Les enregistrements NS diffèrent entre les requêtes DNS chiffrées et en clair"
   }
 }

@@ -949,5 +949,18 @@
       "user2FAUpdated": "用户的 2FA 设置更新好啦",
       "user2FAUpdateFailed": "更新用户的 2FA 设置失败，真是个废物"
     }
+  },
+  "nsMonitor": {
+    "autoFill": "杂鱼~自动获取啦❤",
+    "autoFillTooltip": "哼~帮杂鱼自动获取 NS 记录啦（加密优先哦）❤",
+    "autoFillSuccess": "已经帮杂鱼填充了 {count} 条 NS 记录呢❤",
+    "noNsRecords": "找不到 NS 记录呢，杂鱼真没用❤",
+    "resolveNsFailed": "获取失败了呢，杂鱼连这个都搞不定❤",
+    "selectDomainFirst": "先选域名啦，笨蛋杂鱼❤",
+    "encrypted": "加密查询❤",
+    "plain": "明文查询❤",
+    "dnsPoisoningDetected": "发现 DNS 污染了呢❤",
+    "poisoned": "被污染了❤",
+    "poisonedTooltip": "加密和明文的 NS 记录不一样哦，杂鱼要注意❤"
   }
 }

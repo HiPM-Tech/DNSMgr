@@ -947,5 +947,18 @@
       "smtpRecommended": "Empfohlen: Konfigurieren Sie SMTP in den Systemeinstellungen nach der Anmeldung (jetzt optional, für E-Mail-Verifizierung und Test-E-Mails erforderlich).",
       "goToLogin": "Zur Anmeldung"
     }
+  },
+  "nsMonitor": {
+    "autoFill": "Automatisch ausfüllen",
+    "autoFillTooltip": "NS-Einträge automatisch abrufen (verschlüsseltes DNS priorisiert)",
+    "autoFillSuccess": "{count} NS-Einträge automatisch ausgefüllt",
+    "noNsRecords": "Keine NS-Einträge gefunden",
+    "resolveNsFailed": "Abrufen der NS-Einträge fehlgeschlagen",
+    "selectDomainFirst": "Bitte zuerst eine Domain auswählen",
+    "encrypted": "Verschlüsselte Abfrage",
+    "plain": "Klartext-Abfrage",
+    "dnsPoisoningDetected": "DNS-Poisoning erkannt",
+    "poisoned": "Vergiftet",
+    "poisonedTooltip": "NS-Einträge unterscheiden sich zwischen verschlüsselten und Klartext-DNS-Abfragen"
   }
 }
