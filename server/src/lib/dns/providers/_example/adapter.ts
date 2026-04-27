@@ -1,22 +1,22 @@
-import { DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
-import { BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber } from './common';
-import { log } from '../../logger';
-import { fetchWithFallback } from '../../proxy-http';
-
 /**
- * Provider scaffold / 提供商脚手架
- *
+ * Example DNS Provider Adapter - 示例 DNS 提供商适配器
+ * 
  * 这个文件展示了如何实现一个新的 DNS 提供商适配器。
  * 复制此文件并重命名，然后按照注释实现各个方法。
- *
+ * 
  * 实现步骤：
  * 1) 定义配置接口（Config Interface）
  * 2) 实现适配器类，继承 BaseAdapter
  * 3) 实现抽象方法：mapRecord、normalizeLine、mapProviderError
  * 4) 实现必需方法：check、getDomainList、getDomainRecords 等
  * 5) 在 index.ts 中导出适配器
- * 6) 在 registry.ts 中注册提供商
  */
+
+import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
+import { log } from '../internal';
+import { fetchWithFallback } from '../internal';
+import { resolveDomainIdHelper, normalizeRrName, safeString, toNumber, Dict } from '../internal';
+import { buildAuthHeaders, authenticatedRequest, type ExampleAuthConfig } from './auth';
 
 // ==================== 配置接口示例 ====================
 
@@ -27,12 +27,9 @@ import { fetchWithFallback } from '../../proxy-http';
  * - apiKey/apiSecret: 提供商 API 凭证
  * - useProxy: 是否使用代理
  */
-interface ExampleConfig {
+interface ExampleConfig extends ExampleAuthConfig {
   domain?: string;
   domainId?: string;
-  apiKey: string;
-  apiSecret: string;
-  useProxy?: boolean;
 }
 
 // ==================== 适配器实现示例 ====================
@@ -43,33 +40,29 @@ interface ExampleConfig {
  * 命名规范：{ProviderName}Adapter
  * 例如：CloudflareAdapter、AliyunAdapter
  */
-export class ExampleAdapter extends BaseAdapter {
+export class ExampleAdapter implements DnsAdapter {
   private config: ExampleConfig;
   private baseUrl = 'https://api.example.com/v1';
+  private error: string = '';
 
   constructor(config: Record<string, string>) {
-    super();
     this.config = {
-      apiKey: safeString(config.apiKey),
-      apiSecret: safeString(config.apiSecret),
+      apiKey: safeString(config.apiKey || ''),
+      apiSecret: safeString(config.apiSecret || ''),
       domain: safeString(config.domain),
       domainId: safeString(config.zoneId), // zoneId 是前端表单字段名
       useProxy: !!config.useProxy,
     };
   }
 
-  // ==================== HTTP 请求工具方法 ====================
-
   /**
-   * 获取请求头
-   * 根据提供商的认证要求设置头部
+   * 获取最后的错误信息
    */
-  private getHeaders(): Record<string, string> {
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.config.apiKey}`,
-    };
+  getError(): string {
+    return this.error;
   }
+
+  // ==================== HTTP 请求工具方法 ====================
 
   /**
    * 发送 HTTP 请求
@@ -92,12 +85,14 @@ export class ExampleAdapter extends BaseAdapter {
     }
 
     log.providerRequest('Example', method, url);
-    const res = await fetchWithFallback(url, {
+    
+    const options: RequestInit = {
       method,
-      headers: this.getHeaders(),
+      headers: buildAuthHeaders(this.config),
       body,
-    }, this.config.useProxy, 'Example');
+    };
 
+    const res = await authenticatedRequest(url, this.config, options);
     const data = (await res.json()) as Dict;
 
     if (!res.ok) {
@@ -406,13 +401,13 @@ export class ExampleAdapter extends BaseAdapter {
     }
   }
 
-  // ==================== 抽象方法实现 ====================
+  // ==================== 私有辅助方法 ====================
 
   /**
    * 将提供商记录格式映射为统一格式
    * @param source 提供商返回的记录数据
    */
-  protected mapRecord(source: Dict): DnsRecord {
+  private mapRecord(source: Dict): DnsRecord {
     // 示例：根据提供商的实际返回格式调整
     return {
       RecordId: safeString(source.id),
@@ -435,7 +430,7 @@ export class ExampleAdapter extends BaseAdapter {
    * 将内部线路标识转换为提供商要求的格式
    * @param line 内部线路标识（如 '0', '10=0'）
    */
-  protected normalizeLine(line?: string): string {
+  private normalizeLine(line?: string): string {
     const lineMap: Record<string, string> = {
       '0': 'default',
       '10=0': 'telecom',
@@ -450,72 +445,8 @@ export class ExampleAdapter extends BaseAdapter {
    * 将提供商的错误响应转换为可读的错误信息
    * @param errorPayload 错误响应数据
    */
-  protected mapProviderError(errorPayload: unknown): string {
+  private mapProviderError(errorPayload: unknown): string {
     const data = errorPayload as Dict;
     return safeString(data.message) || safeString(data.error) || '';
   }
-}
-
-// ==================== 抽象模板类（保留用于参考）====================
-
-/**
- * Provider scaffold:
- * 1) 必须实现 mapRecord：将第三方记录映射为 DnsRecord。
- * 2) 必须实现 normalizeLine：统一线路参数。
- * 3) 必须实现 mapProviderError：将第三方错误映射为可读错误文本。
- */
-export abstract class ProviderTemplateAdapter extends BaseAdapter {
-  protected abstract mapRecord(source: Dict): DnsRecord;
-  protected abstract normalizeLine(line?: string): string;
-  protected abstract mapProviderError(errorPayload: unknown): string;
-
-  protected normalizeName(name: string): string {
-    return normalizeRrName(name);
-  }
-
-  protected toError(error: unknown): string {
-    if (error instanceof Error) return error.message;
-    const mapped = this.mapProviderError(error);
-    return mapped || safeString(error);
-  }
-
-  async check(): Promise<boolean> { throw new Error('Implement check()'); }
-  async getDomainList(_keyword?: string, _page?: number, _pageSize?: number): Promise<PageResult<DomainInfo>> { throw new Error('Implement getDomainList()'); }
-  async getDomainRecords(
-    _page?: number,
-    _pageSize?: number,
-    _keyword?: string,
-    _subdomain?: string,
-    _value?: string,
-    _type?: string,
-    _line?: string,
-    _status?: number
-  ): Promise<PageResult<DnsRecord>> { throw new Error('Implement getDomainRecords()'); }
-  async getDomainRecordInfo(_recordId: string): Promise<DnsRecord | null> { throw new Error('Implement getDomainRecordInfo()'); }
-  async addDomainRecord(
-    _name: string,
-    _type: string,
-    _value: string,
-    _line?: string,
-    _ttl?: number,
-    _mx?: number,
-    _weight?: number,
-    _remark?: string
-  ): Promise<string | null> { throw new Error('Implement addDomainRecord()'); }
-  async updateDomainRecord(
-    _recordId: string,
-    _name: string,
-    _type: string,
-    _value: string,
-    _line?: string,
-    _ttl?: number,
-    _mx?: number,
-    _weight?: number,
-    _remark?: string
-  ): Promise<boolean> { throw new Error('Implement updateDomainRecord()'); }
-  async deleteDomainRecord(_recordId: string): Promise<boolean> { throw new Error('Implement deleteDomainRecord()'); }
-  async setDomainRecordStatus(_recordId: string, _status: number): Promise<boolean> { throw new Error('Implement setDomainRecordStatus()'); }
-  async getRecordLines(): Promise<Array<{ id: string; name: string }>> { return [{ id: 'default', name: '默认' }]; }
-  async getMinTTL(): Promise<number> { return 600; }
-  async addDomain(_domain: string): Promise<boolean> { throw new Error('Implement addDomain()'); }
 }
