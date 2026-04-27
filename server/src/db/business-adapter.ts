@@ -3122,9 +3122,12 @@ export const NSMonitorOperations = {
   /** 创建域名监测配置 */
   async create(data: { user_id: number; domain_id: number; expected_ns?: string }): Promise<number> {
     const now = formatDateForDB(new Date());
+    // PostgreSQL requires explicit boolean cast for enabled field
+    const dbType = process.env.DB_TYPE || 'sqlite';
+    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
     return insertInternal(
       `INSERT INTO ns_monitor_domains (user_id, domain_id, expected_ns, current_ns, status, enabled, created_at, updated_at)
-       VALUES (?, ?, ?, '', 'ok', 1, ?, ?)`,
+       VALUES (?, ?, ?, '', 'ok', ${enabledValue}, ?, ?)`,
       [data.user_id, data.domain_id, data.expected_ns || '', now, now],
       { operation: 'NSMonitor.create', table: 'ns_monitor_domains' }
     );
