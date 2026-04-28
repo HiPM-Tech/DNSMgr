@@ -171,7 +171,7 @@ export function Records() {
       ),
     },
     {
-      key: 'line', label: t('common.line'),
+      key: 'line', label: hasProxyMode ? t('records.proxy') : t('common.line'),
       render: (r: DnsRecord) => {
         // Cloudflare & Aliyun ESA: 显示代理状态（是/否）
         if (hasProxyMode) {

@@ -293,7 +293,8 @@
       "tabs": {
         "list": "域名列表",
         "failover": "故障转移",
-        "nsMonitor": "NS 监测"
+        "nsMonitor": "NS 监测",
+        "renewal": "域名续期"
       },
       "account": "账号",
       "actions": "操作",

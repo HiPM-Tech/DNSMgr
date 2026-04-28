@@ -341,21 +341,12 @@ export function DomainListTab() {
     {
       key: 'actions', label: t('domains.actions'),
       render: (row: Domain) => {
-        const account = accountMap[row.account_id];
-        const isDnshe = account?.type === 'dnshe';
-        
         return (
           <div className="flex items-center gap-2">
             <button onClick={() => navigate(`/domains/${row.id}/records`)}
               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={t('records.dnsRecords')}>
               <List className="w-4 h-4" />
             </button>
-            {isDnshe && (
-              <button onClick={() => navigate(`/domains/${row.id}/renewal`)}
-                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title={t('domainRenewal.title')}>
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            )}
             <button onClick={() => setEditing(row)} disabled={!canManage}
               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <Edit2 className="w-4 h-4" />

@@ -43,6 +43,7 @@ loadEnv();
 import { startFailoverJob } from './service/failoverJob';
 import { startWhoisJob } from './service/whoisJob';
 import { startNsMonitorJob } from './service/nsMonitorJob';
+import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { initSecurityPolicyTable } from './service/securityPolicy';
 import { initTrustedDevicesTable } from './service/deviceTrust';
 import { log } from './lib/logger';
@@ -321,6 +322,7 @@ async function initializeApp() {
       startFailoverJob();
       startWhoisJob();
       startNsMonitorJob();
+      startDomainRenewalJob();
     } else {
       log.info('Server', 'System not initialized. Running in initialization mode.');
       log.info('Server', 'Please access the setup wizard to configure the system.');
@@ -349,6 +351,7 @@ async function initializeApp() {
           startFailoverJob();
           startWhoisJob();
           startNsMonitorJob();
+          startDomainRenewalJob();
         }
     }, 5000);
 
@@ -423,6 +426,7 @@ async function initializeApp() {
           startFailoverJob();
           startWhoisJob();
           startNsMonitorJob();
+          startDomainRenewalJob();
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');
           log.info('Server', 'You may need to refresh the page.');
         }

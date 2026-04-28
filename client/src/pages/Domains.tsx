@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { List, Activity, ShieldCheck } from 'lucide-react';
+import { List, Activity, ShieldCheck, Calendar } from 'lucide-react';
 import { useI18n } from '../contexts/I18nContext';
 import { DomainListTab } from './domains/DomainListTab';
 import { FailoverTab } from './domains/FailoverTab';
 import { NSMonitorTab } from './domains/NSMonitorTab';
+import { DomainRenewalTab } from './domains/DomainRenewalTab';
 
 export function Domains() {
   const { t } = useI18n();
-  const [activeTab, setActiveTab] = useState<'list' | 'failover' | 'ns-monitor'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'failover' | 'ns-monitor' | 'renewal'>('list');
 
   const tabs = [
     { id: 'list', label: t('domains.tabs.list'), icon: List },
     { id: 'failover', label: t('domains.tabs.failover'), icon: Activity },
     { id: 'ns-monitor', label: t('domains.tabs.nsMonitor'), icon: ShieldCheck },
+    { id: 'renewal', label: t('domainRenewal.title'), icon: Calendar },
   ];
 
   return (
@@ -45,6 +47,7 @@ export function Domains() {
       {activeTab === 'list' && <DomainListTab />}
       {activeTab === 'failover' && <FailoverTab />}
       {activeTab === 'ns-monitor' && <NSMonitorTab />}
+      {activeTab === 'renewal' && <DomainRenewalTab />}
     </div>
   );
 }
