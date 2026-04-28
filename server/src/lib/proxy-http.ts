@@ -282,7 +282,8 @@ export async function fetchWithFallback(
     return res;
   }
 
-  // 尝试使用代理
+  // 尝试使用代理（设置较短的超时时间）
+  const proxyStartTime = Date.now();
   try {
     log.info('ProxyHTTP', `[${providerName}] Trying proxy request to ${url}`);
     const agent = createProxyAgent(proxyConfig);
@@ -295,27 +296,37 @@ export async function fetchWithFallback(
       method: options.method || 'GET',
       headers: options.headers as Record<string, string> || {},
       body: options.body as string,
-      timeout: 30000,
+      timeout: 10000, // 代理超时缩短为 10 秒
     };
 
     const res = isHttps
       ? await httpsRequest(url, requestOptions, agent)
       : await httpRequest(url, requestOptions, agent);
 
-    log.info('ProxyHTTP', `[${providerName}] Proxy request successful`);
+    const proxyDuration = Date.now() - proxyStartTime;
+    log.info('ProxyHTTP', `[${providerName}] Proxy request successful`, { duration: `${proxyDuration}ms` });
     return new Response(res.data, {
       status: res.status,
       headers: res.headers,
     });
   } catch (proxyError) {
     // 代理请求失败，回退到直连
-    log.warn('ProxyHTTP', `[${providerName}] Proxy request failed, falling back to direct connection`, { error: proxyError });
+    const proxyDuration = Date.now() - proxyStartTime;
+    log.warn('ProxyHTTP', `[${providerName}] Proxy request failed after ${proxyDuration}ms, falling back to direct connection`, { 
+      error: proxyError instanceof Error ? proxyError.message : String(proxyError) 
+    });
+    
+    const directStartTime = Date.now();
     try {
       const res = await fetch(url, options);
-      log.info('ProxyHTTP', `[${providerName}] Direct connection successful`);
+      const directDuration = Date.now() - directStartTime;
+      log.info('ProxyHTTP', `[${providerName}] Direct connection successful`, { duration: `${directDuration}ms` });
       return res;
     } catch (directError) {
-      log.error('ProxyHTTP', `[${providerName}] Direct connection also failed`, { error: directError });
+      const directDuration = Date.now() - directStartTime;
+      log.error('ProxyHTTP', `[${providerName}] Direct connection also failed after ${directDuration}ms`, { 
+        error: directError instanceof Error ? directError.message : String(directError) 
+      });
       throw directError;
     }
   }
