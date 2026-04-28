@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ExternalLink, Search, Layers, ChevronLeft, ChevronRight, List, Activity } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, Search, Layers, ChevronLeft, ChevronRight, List, Activity, Pin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { domainsApi, accountsApi } from '../../api';
 import type { Domain, DnsAccount } from '../../api';
@@ -193,7 +193,7 @@ export function DomainListTab() {
   const toast = useToast();
   const { t } = useI18n();
   const navigate = useNavigate();
-  const { isAdmin: isActuallyAdmin } = useAuth();
+  const { isAdmin: isActuallyAdmin, user } = useAuth();
   const canManage = isActuallyAdmin;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
@@ -205,6 +205,13 @@ export function DomainListTab() {
   // Pagination state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
+  
+  // Pinned domains
+  const { data: pinnedDomainsData } = useQuery({
+    queryKey: ['pinnedDomains'],
+    queryFn: () => authApi.getPinnedDomains().then((r) => r.data.data?.pinnedDomains ?? []),
+  });
+  const pinnedDomains = pinnedDomainsData ?? [];
   
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains', accountFilter, keyword, domainTypeFilter, page, pageSize],
@@ -220,6 +227,16 @@ export function DomainListTab() {
   const domains = domainsData?.list ?? [];
   const total = domainsData?.total ?? 0;
   const totalPages = domainsData?.totalPages ?? 1;
+  
+  // Sort domains: pinned domains first, then by id
+  const sortedDomains = [...domains].sort((a, b) => {
+    const aPinned = pinnedDomains.includes(a.id);
+    const bPinned = pinnedDomains.includes(b.id);
+    
+    if (aPinned && !bPinned) return -1;  // a is pinned, b is not
+    if (!aPinned && bPinned) return 1;   // b is pinned, a is not
+    return 0;  // both pinned or both not pinned, keep original order
+  });
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts'],
@@ -246,6 +263,30 @@ export function DomainListTab() {
       toast.success(t('domains.deleteSuccess'));
     },
     onError: () => toast.error(t('domains.deleteFailed')),
+  });
+
+  // Pin/Unpin domain mutation
+  const pinMutation = useMutation({
+    mutationFn: async ({ domainId, isPinned }: { domainId: number; isPinned: boolean }) => {
+      const currentPinned = pinnedDomainsData ?? [];
+      let newPinned: number[];
+      
+      if (isPinned) {
+        // Add to pinned list
+        newPinned = [...currentPinned.filter(id => id !== domainId), domainId];
+      } else {
+        // Remove from pinned list
+        newPinned = currentPinned.filter(id => id !== domainId);
+      }
+      
+      return authApi.updatePinnedDomains(newPinned);
+    },
+    onSuccess: (res) => {
+      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      qc.invalidateQueries({ queryKey: ['pinnedDomains'] });
+      toast.success('操作成功');
+    },
+    onError: () => toast.error('操作失败'),
   });
 
   const accountMap = Object.fromEntries(accounts.map((a) => [a.id, a]));
@@ -341,8 +382,14 @@ export function DomainListTab() {
     {
       key: 'actions', label: t('domains.actions'),
       render: (row: Domain) => {
+        const isPinned = pinnedDomains.includes(row.id);
         return (
           <div className="flex items-center gap-2">
+            <button onClick={() => pinMutation.mutate({ domainId: row.id, isPinned: !isPinned })}
+              className={`p-1.5 rounded-lg transition-colors ${isPinned ? 'text-yellow-600 hover:bg-yellow-50' : 'text-gray-400 hover:text-yellow-600 hover:bg-yellow-50'}`}
+              title={isPinned ? t('domains.unpinDomain') : t('domains.pinDomain')}>
+              <Pin className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
+            </button>
             <button onClick={() => navigate(`/domains/${row.id}/records`)}
               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={t('records.dnsRecords')}>
               <List className="w-4 h-4" />
@@ -394,7 +441,7 @@ export function DomainListTab() {
       </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-        <Table columns={columns} data={domains} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.noDomainsFound')} />
+        <Table columns={columns} data={sortedDomains} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.noDomainsFound')} />
       </div>
 
       {/* Pagination */}

@@ -358,6 +358,9 @@
       "whoisInfo": "WHOIS 信息",
       "whoisUpdate": "更新 WHOIS",
       "whoisUpdating": "更新中...",
+      "pinDomain": "置顶域名",
+      "unpinDomain": "取消置顶",
+      "pinnedDomains": "已置顶的域名"
       "whoisUpdated": "WHOIS 已更新",
       "whoisUpdateFailed": "WHOIS 更新失败",
       "expiryAlert": "到期提醒",
