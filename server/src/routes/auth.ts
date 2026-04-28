@@ -13,7 +13,7 @@ import { loginLimiter, registerLimiter, emailLimiter } from '../middleware/rateL
 import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/totp';
 import { isValidUsername } from '../utils/validation';
 import { log } from '../lib/logger';
-import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations } from '../db/business-adapter';
+import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, UserPreferencesOperations } from '../db/business-adapter';
 import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, SecurityPolicy } from '../service/securityPolicy';
 import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/deviceTrust';
 
