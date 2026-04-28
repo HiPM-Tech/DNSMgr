@@ -9,6 +9,8 @@ export {
   validateCredentials as dnsheValidateCredentials,
   renewSubdomain as dnsheRenewSubdomain,
   getWhois as dnsheGetWhois,
+  DnsheRenewalScheduler,
+  dnsheRenewalScheduler,
   type DnsheAuthConfig,
   type DnsheRenewalResult,
   type DnsheWhoisResult,

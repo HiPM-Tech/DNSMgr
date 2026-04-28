@@ -3,8 +3,8 @@
  * 在应用启动时注册所有支持续期的 DNS 提供商调度器
  */
 
-import { renewalRegistry } from '../service/renewalScheduler';
-import { dnsheRenewalScheduler } from '../lib/dns/providers/dnshe/scheduler';
+import { renewalRegistry } from './renewalScheduler';
+import { dnsheRenewalScheduler } from '../lib/dns/providers';
 
 /**
  * 初始化续期调度器

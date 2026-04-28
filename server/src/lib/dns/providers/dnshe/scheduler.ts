@@ -3,9 +3,8 @@
  */
 
 import { RenewalScheduler, RenewableDomain, RenewalResult } from '../../../../service/renewalScheduler';
-import { listSubdomains, renewSubdomain } from './renewal';
-import { DnsheAuthConfig } from './auth';
-import { log } from '../../../logger';
+import { listSubdomains, renewSubdomain, DnsheAuthConfig } from './index';
+import { log } from '../internal';
 
 export class DnsheRenewalScheduler implements RenewalScheduler {
   readonly type = 'dnshe';

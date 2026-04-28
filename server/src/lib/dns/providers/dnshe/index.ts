@@ -22,7 +22,10 @@ export {
 // Domain renewal functionality
 export { 
   renewSubdomain,
+  listSubdomains,
   type DnsheRenewalResult,
+  type DnsheSubdomain,
+  type DnsheSubdomainListResult,
 } from './renewal';
 
 // WHOIS query functionality
@@ -30,3 +33,9 @@ export {
   getWhois,
   type DnsheWhoisResult,
 } from './whois';
+
+// Domain renewal scheduler
+export { 
+  DnsheRenewalScheduler,
+  dnsheRenewalScheduler,
+} from './scheduler';

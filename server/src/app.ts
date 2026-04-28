@@ -44,6 +44,7 @@ import { startFailoverJob } from './service/failoverJob';
 import { startWhoisJob } from './service/whoisJob';
 import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
+import { initRenewalSchedulers } from './service/renewalInit';
 import { initSecurityPolicyTable } from './service/securityPolicy';
 import { initTrustedDevicesTable } from './service/deviceTrust';
 import { log } from './lib/logger';
