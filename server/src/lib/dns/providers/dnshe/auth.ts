@@ -56,9 +56,20 @@ export async function validateCredentials(config: DnsheAuthConfig): Promise<bool
       return false;
     }
 
+    // 检查响应内容类型
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // 如果不是 JSON，可能是 HTML 错误页面
+      const text = await response.text();
+      console.error('[DNSHE] Credential check failed: Expected JSON but got:', contentType);
+      console.error('[DNSHE] Response preview:', text.substring(0, 200));
+      return false;
+    }
+
     const data = await response.json();
     return data.success === true;
-  } catch {
+  } catch (error) {
+    console.error('[DNSHE] Credential check error:', error instanceof Error ? error.message : String(error));
     return false;
   }
 }
