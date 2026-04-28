@@ -45,6 +45,7 @@ import { startWhoisJob } from './service/whoisJob';
 import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { initRenewalSchedulers } from './service/renewalInit';
+import { initWhoisSchedulers } from './service/whoisInit';
 import { initSecurityPolicyTable } from './service/securityPolicy';
 import { initTrustedDevicesTable } from './service/deviceTrust';
 import { log } from './lib/logger';
@@ -320,6 +321,11 @@ async function initializeApp() {
       // 初始化安全相关表
       await initSecurityPolicyTable();
       await initTrustedDevicesTable();
+      
+      // 初始化续期和 WHOIS 调度器
+      initRenewalSchedulers();
+      initWhoisSchedulers();
+      
       startFailoverJob();
       startWhoisJob();
       startNsMonitorJob();

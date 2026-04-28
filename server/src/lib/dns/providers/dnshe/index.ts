@@ -39,3 +39,9 @@ export {
   DnsheRenewalScheduler,
   dnsheRenewalScheduler,
 } from './scheduler';
+
+// WHOIS query scheduler
+export { 
+  DnsheWhoisScheduler,
+  dnsheWhoisScheduler,
+} from './whoisScheduler';

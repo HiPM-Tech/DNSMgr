@@ -11,6 +11,8 @@ export {
   getWhois as dnsheGetWhois,
   DnsheRenewalScheduler,
   dnsheRenewalScheduler,
+  DnsheWhoisScheduler,
+  dnsheWhoisScheduler,
   type DnsheAuthConfig,
   type DnsheRenewalResult,
   type DnsheWhoisResult,
