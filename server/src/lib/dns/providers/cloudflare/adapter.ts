@@ -77,7 +77,13 @@ export class CloudflareAdapter implements DnsAdapter {
         });
       } else if (res.status === 404) {
         this.error = `Resource not found (404): ${path}`;
-        log.providerError('Cloudflare', { status: 404, path, message: 'Zone or record not found' });
+        log.providerError('Cloudflare', { 
+          status: 404, 
+          path, 
+          message: 'Zone or record not found',
+          zoneId: this.config.zoneId,
+          domain: this.config.domain
+        });
       } else {
         this.error = `API request failed with status ${res.status}`;
         log.providerError('Cloudflare', { status: res.status, path });
@@ -102,10 +108,49 @@ export class CloudflareAdapter implements DnsAdapter {
   }
 
   /**
+   * 验证 Zone ID 是否有效
+   */
+  private async validateZone(zoneId: string): Promise<boolean> {
+    try {
+      log.debug('Cloudflare', `Validating zone: ${zoneId}`);
+      const res = await this.request<CfZone>('GET', `/zones/${zoneId}`);
+      if (!res.success) {
+        log.warn('Cloudflare', `Zone validation failed:`, res.errors);
+        return false;
+      }
+      log.debug('Cloudflare', `Zone validated successfully: ${res.result.name} (${zoneId})`);
+      return true;
+    } catch (e) {
+      log.error('Cloudflare', `Zone validation error:`, e);
+      return false;
+    }
+  }
+
+  /**
    * 根据域名查找 Zone ID
    * 当 config.zoneId 未设置时，尝试通过域名搜索获取
    */
   private async resolveZoneId(): Promise<string | null> {
+    log.debug('Cloudflare', `resolveZoneId called. Current config:`, {
+      zoneId: this.config.zoneId,
+      domainId: (this.config as any).domainId,
+      domain: this.config.domain
+    });
+    
+    // 如果已有 zoneId，先验证其格式是否正确
+    const existingZoneId = this.config.zoneId || (this.config as any).domainId;
+    if (existingZoneId) {
+      // Cloudflare Zone ID 应该是 32 或 40 位的十六进制字符串
+      // 如果是 32 位且看起来像 MD5（全部小写），可能需要重新获取
+      const isValidFormat = /^[a-f0-9]{32,40}$/i.test(existingZoneId);
+      if (!isValidFormat) {
+        log.warn('Cloudflare', `Existing zoneId has invalid format: ${existingZoneId}. Will attempt to fetch from API.`);
+        // 清除无效的 zoneId，强制重新获取
+        this.config.zoneId = undefined;
+        (this.config as any).domainId = undefined;
+      }
+    }
+    
     return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Cloudflare');
   }
 
@@ -141,7 +186,25 @@ export class CloudflareAdapter implements DnsAdapter {
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     const zoneId = await this.resolveZoneId();
-    if (!zoneId) return { total: 0, list: [] };
+    log.debug('Cloudflare', `getDomainRecords: zoneId=${zoneId || 'null'}, domain=${this.config.domain}, page=${page}, pageSize=${pageSize}`);
+    if (!zoneId) {
+      log.warn('Cloudflare', `getDomainRecords: zoneId is null, returning empty result. Config:`, {
+        zoneId: this.config.zoneId,
+        domainId: (this.config as any).domainId,
+        domain: this.config.domain
+      });
+      return { total: 0, list: [] };
+    }
+    
+    // 先验证 Zone ID 是否有效
+    log.debug('Cloudflare', `Validating zoneId: ${zoneId} for domain: ${this.config.domain}`);
+    const zoneValid = await this.validateZone(zoneId);
+    if (!zoneValid) {
+      log.error('Cloudflare', `Zone validation failed for zoneId: ${zoneId}. The zone may not exist or API token may lack permissions.`);
+      this.error = `Zone validation failed. Please check if zoneId '${zoneId}' is correct and API token has proper permissions.`;
+      return { total: 0, list: [] };
+    }
+    
     let path = `/zones/${zoneId}/dns_records?page=${page}&per_page=${pageSize}`;
     if (type) path += `&type=${encodeURIComponent(type)}`;
     // Cloudflare requires full record name for filtering (including zone name).

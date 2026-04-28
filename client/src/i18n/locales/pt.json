@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "pt",
   "label": "Português",
   "messages": {
@@ -576,7 +576,13 @@
       "saveConfig": "Salvar Config",
       "deleteConfig": "Excluir Config",
       "configSaved": "Config de failover salva",
-      "configDeleted": "Config de failover excluída"
+      "configDeleted": "Config de failover excluída",
+      "configureFailover": "Configurar Failover",
+      "tabs": {
+        "list": "Lista de Domínios",
+        "failover": "Failover",
+        "nsMonitor": "Monitor NS"
+      }
     },
     "tokens": {
       "title": "Gerenciamento de Tokens API",

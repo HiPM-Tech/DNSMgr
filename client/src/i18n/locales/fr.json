@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "fr",
   "label": "Français",
   "messages": {
@@ -576,7 +576,13 @@
       "saveConfig": "Enregistrer la config",
       "deleteConfig": "Supprimer la config",
       "configSaved": "Config de basculement enregistrée",
-      "configDeleted": "Config de basculement supprimée"
+      "configDeleted": "Config de basculement supprimée",
+      "configureFailover": "Configurer le basculement",
+      "tabs": {
+        "list": "Liste des domaines",
+        "failover": "Basculement",
+        "nsMonitor": "Surveillance NS"
+      }
     },
     "tokens": {
       "title": "Gestion des jetons API",

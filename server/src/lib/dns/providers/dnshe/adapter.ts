@@ -301,9 +301,11 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
         ttl,
       };
 
+      // DNSHE 支持根域 CNAME，name 为 @ 或不传都表示根域
       if (name && name !== '@') {
         body.name = name;
       }
+      // 如果 name 是 '@'，不传 name 字段，API 会默认为根域
 
       if (type.toUpperCase() === 'MX' && mx > 0) {
         body.priority = mx;

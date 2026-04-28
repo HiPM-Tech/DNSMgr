@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "es",
   "label": "Español",
   "messages": {
@@ -425,6 +425,13 @@
       "securityPolicyDesc": "Configurar los ajustes de política de seguridad a nivel del sistema"
     },
     "domains": {
+      "title": "Domains",
+      "subtitle": "Manage domains from all DNS providers",
+      "tabs": {
+        "list": "Domain List",
+        "failover": "Failover",
+        "nsMonitor": "NS Monitor"
+      },
       "account": "Cuenta",
       "actions": "Acciones",
       "addDomain": "Agregar dominio",
@@ -483,7 +490,8 @@
       "unhealthy": "No saludable",
       "unknown": "Desconocido",
       "updateFailed": "Error al actualizar dominio",
-      "updateSuccess": "Dominio actualizado"
+      "updateSuccess": "Dominio actualizado",
+      "configureFailover": "Configurar conmutación por error"
     },
     "setup": {
       "adminCreateFailed": "Error al crear admin",

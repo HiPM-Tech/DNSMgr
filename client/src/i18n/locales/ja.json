@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "ja",
   "label": "日本語",
   "messages": {
@@ -513,6 +513,13 @@
       "updateBackgroundImage": "背景画像を更新"
     },
     "domains": {
+      "title": "Domains",
+      "subtitle": "Manage domains from all DNS providers",
+      "tabs": {
+        "list": "Domain List",
+        "failover": "Failover",
+        "nsMonitor": "NS Monitor"
+      },
       "account": "アカウント",
       "actions": "アクション",
       "addDomain": "ドメインを追加",
@@ -580,7 +587,8 @@
       "expiryAlert": "期限切れアラート",
       "expiryAlertDesc": "ドメインの期限切れ前に通知を送信",
       "daysBefore": "日前",
-      "isHidden": "非表示"
+      "isHidden": "非表示",
+      "configureFailover": "フェイルオーバーを設定"
     },
     "setup": {
       "adminCreateFailed": "管理者の作成に失敗しました",

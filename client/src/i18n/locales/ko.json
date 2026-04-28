@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "ko",
   "label": "한국어",
   "messages": {
@@ -576,7 +576,13 @@
       "saveConfig": "구성 저장",
       "deleteConfig": "구성 삭제",
       "configSaved": "장애 조치 구성이 저장되었습니다",
-      "configDeleted": "장애 조치 구성이 삭제되었습니다"
+      "configDeleted": "장애 조치 구성이 삭제되었습니다",
+      "configureFailover": "장애 조치 구성",
+      "tabs": {
+        "list": "도메인 목록",
+        "failover": "장애 조치",
+        "nsMonitor": "NS 모니터링"
+      }
     },
     "tokens": {
       "title": "API 토큰 관리",

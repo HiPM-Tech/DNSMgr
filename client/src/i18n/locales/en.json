@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "en",
   "label": "English",
   "messages": {
@@ -580,7 +580,13 @@
       "saveConfig": "Save Config",
       "deleteConfig": "Delete Config",
       "configSaved": "Failover config saved",
-      "configDeleted": "Failover config deleted"
+      "configDeleted": "Failover config deleted",
+      "configureFailover": "Configure Failover",
+      "tabs": {
+        "list": "Domain List",
+        "failover": "Failover",
+        "nsMonitor": "NS Monitor"
+      }
     },
     "tokens": {
       "title": "API Token Management",

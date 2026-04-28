@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "zh-CN-Mesugaki",
   "label": "简体中文 (Mesugaki)",
   "messages": {
@@ -223,6 +223,13 @@
       "totalRecords": "记录总数"
     },
     "domains": {
+      "title": "域名（杂鱼专用）",
+      "subtitle": "管理所有 DNS 提供商的域名，别乱点哦",
+      "tabs": {
+        "list": "域名列表",
+        "failover": "故障转移",
+        "nsMonitor": "NS 监测"
+      },
       "account": "账号",
       "actions": "操作",
       "addDomain": "添加域名",
@@ -281,7 +288,8 @@
       "unhealthy": "快挂了",
       "unknown": "未知",
       "updateFailed": "像杂鱼酱这样废物又讨嫌的杂鱼，很恶心哦♡~嘻嘻嘻~",
-      "updateSuccess": "域名已更新"
+      "updateSuccess": "域名已更新",
+      "configureFailover": "配置故障转移啦，笨蛋"
     },
     "login": {
       "failed": "像杂鱼酱这样一副恶心样的人，除了我，谁还会和你聊天呢？嗯~♡呵呵呵~",

@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "de",
   "label": "Deutsch",
   "messages": {
@@ -576,7 +576,13 @@
       "saveConfig": "Konfiguration speichern",
       "deleteConfig": "Konfiguration löschen",
       "configSaved": "Failover-Konfiguration gespeichert",
-      "configDeleted": "Failover-Konfiguration gelöscht"
+      "configDeleted": "Failover-Konfiguration gelöscht",
+      "configureFailover": "Failover konfigurieren",
+      "tabs": {
+        "list": "Domain-Liste",
+        "failover": "Failover",
+        "nsMonitor": "NS-Monitor"
+      }
     },
     "tokens": {
       "title": "API-Token-Verwaltung",

@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "ru",
   "label": "Русский",
   "messages": {
@@ -576,7 +576,13 @@
       "saveConfig": "Сохранить конфиг",
       "deleteConfig": "Удалить конфиг",
       "configSaved": "Конфигурация failover сохранена",
-      "configDeleted": "Конфигурация failover удалена"
+      "configDeleted": "Конфигурация failover удалена",
+      "configureFailover": "Настроить Failover",
+      "tabs": {
+        "list": "Список доменов",
+        "failover": "Failover",
+        "nsMonitor": "Мониторинг NS"
+      }
     },
     "tokens": {
       "title": "Управление API-токенами",

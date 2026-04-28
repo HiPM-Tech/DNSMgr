@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "ar",
   "label": "العربية",
   "messages": {
@@ -576,7 +576,13 @@
       "saveConfig": "حفظ التكوين",
       "deleteConfig": "حذف التكوين",
       "configSaved": "تم حفظ تكوين الفانلوفر",
-      "configDeleted": "تم حذف تكوين الفانلوفر"
+      "configDeleted": "تم حذف تكوين الفانلوفر",
+      "configureFailover": "تكوين الفانلوفر",
+      "tabs": {
+        "list": "قائمة النطاقات",
+        "failover": "الفانلوفر",
+        "nsMonitor": "مراقبة NS"
+      }
     },
     "tokens": {
       "title": "إدارة رموز API",

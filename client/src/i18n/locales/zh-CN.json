@@ -288,6 +288,13 @@
       "totalRecords": "记录总数"
     },
     "domains": {
+      "title": "域名",
+      "subtitle": "管理所有 DNS 提供商的域名",
+      "tabs": {
+        "list": "域名列表",
+        "failover": "故障转移",
+        "nsMonitor": "NS 监测"
+      },
       "account": "账号",
       "actions": "操作",
       "addDomain": "添加域名",
@@ -354,7 +361,8 @@
       "whoisUpdateFailed": "WHOIS 更新失败",
       "expiryAlert": "到期提醒",
       "expiryAlertDesc": "在域名到期前发送通知",
-      "daysBefore": "提前天数"
+      "daysBefore": "提前天数",
+      "configureFailover": "配置故障转移"
     },
     "login": {
       "authCode": "验证码",
