@@ -977,6 +977,28 @@
       "completeSubtitle": "System initialized successfully. Please login with admin account.",
       "smtpRecommended": "Recommended: configure SMTP in System Settings after login (optional now, needed for email verification and test mails).",
       "goToLogin": "Go to Login"
+    },
+    "domainRenewal": {
+      "title": "Domain Renewal",
+      "subtitle": "Manage domain expiration and auto-renewal",
+      "renew": "Renew",
+      "renewing": "Renewing...",
+      "renewSuccess": "Domain renewed successfully",
+      "renewFailed": "Domain renewal failed",
+      "expiresAt": "Expires At",
+      "active": "Active",
+      "expiringSoon": "Expiring Soon",
+      "expiringMonth": "Expiring This Month",
+      "expired": "Expired",
+      "days": " days",
+      "activeDomains": "Active Domains",
+      "expiringDomains": "Expiring Soon",
+      "expiredDomains": "Expired Domains",
+      "noDomains": "No domains",
+      "notSupported": "Renewal Not Supported",
+      "notSupportedDesc": "Current DNS provider does not support domain renewal. Currently only DNSHE provider supports this feature.",
+      "autoRenewal": "Auto Renewal",
+      "autoRenewalDesc": "The system will automatically attempt to renew expiring domains every day at UTC 0:00. You can also manually click the renew button to renew immediately."
     }
   }
 }

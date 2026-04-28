@@ -1104,6 +1104,8 @@
     "expiredDomains": "已过期",
     "noDomains": "暂无域名",
     "notSupported": "不支持续期",
-    "notSupportedDesc": "当前 DNS 提供商不支持域名续期功能。目前仅 DNSHE 提供商支持此功能。"
+    "notSupportedDesc": "当前 DNS 提供商不支持域名续期功能。目前仅 DNSHE 提供商支持此功能。",
+    "autoRenewal": "自动续期",
+    "autoRenewalDesc": "系统将在每天 UTC 0:00 自动尝试续期即将到期的域名。您也可以手动点击续期按钮立即续期。"
   }
 }

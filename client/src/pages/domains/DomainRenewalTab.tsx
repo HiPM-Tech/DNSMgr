@@ -255,10 +255,10 @@ export function DomainRenewalTab() {
           <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
           <div>
             <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200">
-              自动续期
+              {t('domainRenewal.autoRenewal')}
             </h3>
             <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-              系统将在每天 UTC 0:00 自动尝试续期即将到期的域名。您也可以手动点击续期按钮立即续期。
+              {t('domainRenewal.autoRenewalDesc')}
             </p>
           </div>
         </div>
