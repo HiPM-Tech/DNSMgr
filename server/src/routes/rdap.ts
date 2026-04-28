@@ -14,10 +14,47 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { queryWhois } from '../service/whoisProvider';
+import { whoisService, getRootDomain } from '../service/whois';
 import { log } from '../lib/logger';
 
 const router = Router();
+
+/**
+ * 简化的 RDAP 查询函数（不使用内部分层查询）
+ * 
+ * 查询策略：
+ * - 顶域：顶域 > 第三方
+ * - 子域：仅查询子域（如果无法在子域名提供商直接查到则放弃）
+ */
+async function queryRdapSimple(domain: string): Promise<any | null> {
+  const rootDomain = getRootDomain(domain);
+  const isSubdomain = domain !== rootDomain;
+  
+  log.info('RDAP', `Simple RDAP query for ${domain} (isSubdomain: ${isSubdomain})`);
+  
+  if (!isSubdomain) {
+    // 顶域查询：顶域 > 第三方
+    log.info('RDAP', 'Querying apex domain with third-party fallback');
+    
+    // 使用 whoisService.query() 但禁用缓存
+    const result = await whoisService.query(domain, { 
+      preferSubdomain: false,
+      useCache: false 
+    });
+    
+    return result;
+  } else {
+    // 子域查询：仅查询子域，不查询父域
+    log.info('RDAP', 'Querying subdomain only (no parent domain query)');
+    
+    // 对于子域，我们只尝试直接查询子域本身
+    // 由于 whoisService.query() 会自动 fallback 到父域，我们需要手动控制
+    // 这里直接返回 null，表示不支持子域查询
+    // TODO: 未来可以添加专门的子域查询选项
+    log.warn('RDAP', `Subdomain query not supported in simple mode: ${domain}`);
+    return null;
+  }
+}
 
 /**
  * 将内部 WhoisResult 转换为标准 RDAP 格式 (RFC 7483)
@@ -151,8 +188,8 @@ router.get(
     try {
       log.info('RDAP', `Public RDAP query for domain: ${domain}`);
 
-      // 直接调用 WHOIS 查询系统（不走数据库，不使用缓存）
-      const whoisResult = await queryWhois(domain);
+      // 使用简化的 RDAP 查询（不使用内部分层查询）
+      const whoisResult = await queryRdapSimple(domain);
 
       if (!whoisResult || !whoisResult.expiryDate) {
         res.status(404).json({
