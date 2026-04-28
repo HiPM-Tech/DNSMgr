@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Calendar, AlertCircle, CheckCircle, Clock } from 'lucide-react';
-import { domainsApi, domainRenewalApi } from '../../api';
+import { domainRenewalApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -76,7 +76,7 @@ export function DomainRenewalTab() {
     {
       key: 'name',
       label: t('common.name'),
-      render: (row: Domain) => (
+      render: (row: any) => (
         <span className="font-medium text-gray-900 dark:text-white">
           {row.name}
         </span>
@@ -94,7 +94,7 @@ export function DomainRenewalTab() {
     {
       key: 'expires_at',
       label: t('domainRenewal.expiresAt'),
-      render: (row: Domain) => {
+      render: (row: any) => {
         const expiresAt = (row as any).expires_at;
         if (!expiresAt) {
           return <span className="text-gray-400">{t('common.unknown')}</span>;
@@ -112,7 +112,7 @@ export function DomainRenewalTab() {
     {
       key: 'status',
       label: t('common.status'),
-      render: (row: Domain) => {
+      render: (row: any) => {
         const expiresAt = (row as any).expires_at;
         const status = getExpiryStatus(expiresAt);
         return (
@@ -128,7 +128,7 @@ export function DomainRenewalTab() {
     {
       key: 'actions',
       label: t('common.actions'),
-      render: (row: Domain) => {
+      render: (row: any) => {
         const subdomainId = (row as any).third_id || row.id;
         
         return (
