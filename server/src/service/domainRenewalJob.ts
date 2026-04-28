@@ -75,10 +75,11 @@ export async function executeDomainRenewal(): Promise<void> {
               continue;
             }
 
-            log.info('DomainRenewalJob', 'Renewing domain via scheduler', {
+            log.info('DomainRenewalJob', 'Attempting domain renewal via scheduler', {
               domainName: domain.name || domain.full_domain,
               domainId,
-              expiresAt: domain.expires_at,
+              // Note: expires_at is not available from listSubdomains API
+              // The renewSubdomain API will handle expiry check server-side
             });
 
             const result = await scheduler.renewDomain(
