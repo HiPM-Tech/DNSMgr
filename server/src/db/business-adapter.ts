@@ -639,6 +639,15 @@ export const DomainOperations = {
     return getInternal('SELECT * FROM domains WHERE name = ?', [name], { operation: 'Domain.getByName', table: 'domains' });
   },
 
+  /** 根据名称和账号ID获取域名 */
+  async getByAccountIdAndName(accountId: number, name: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM domains WHERE account_id = ? AND name = ?',
+      [accountId, name],
+      { operation: 'Domain.getByAccountIdAndName', table: 'domains' }
+    );
+  },
+
   /** 获取所有域名 */
   async getAll(): Promise<QueryResult[]> {
     return queryInternal('SELECT * FROM domains ORDER BY id', [], { operation: 'Domain.getAll', table: 'domains' });

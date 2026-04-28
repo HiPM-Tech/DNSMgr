@@ -887,23 +887,63 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
  * Get WHOIS information for a domain (DNSHE only)
  */
 router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { domain } = req.query;
+  const { domain, accountId } = req.query;
   
   if (!domain || typeof domain !== 'string') {
     sendError(res, 'Domain parameter is required');
     return;
   }
   
-  // Find the domain in database to check permissions
-  const dbDomain = await DomainOperations.getByName(domain) as Domain | undefined;
-  if (!dbDomain) {
-    sendError(res, 'Domain not found');
-    return;
-  }
-  const access = await resolveDomainAccessById(dbDomain.id, req.user!.userId, normalizeRole(req.user?.role));
-  if (!access.domain || !access.canRead) {
-    sendError(res, 'No permission to access this domain');
-    return;
+  let dbDomain: Domain | undefined;
+  
+  if (accountId) {
+    // 如果指定了 accountId，精确查询
+    dbDomain = await DomainOperations.getByAccountIdAndName(
+      Number(accountId),
+      domain
+    ) as Domain | undefined;
+    
+    if (!dbDomain) {
+      sendError(res, 'Domain not found in specified account');
+      return;
+    }
+  } else {
+    // 未指定 accountId，查询第一条记录
+    dbDomain = await DomainOperations.getByName(domain) as Domain | undefined;
+    
+    if (!dbDomain) {
+      sendError(res, 'Domain not found');
+      return;
+    }
+    
+    // 检查用户是否有权限访问这个域名
+    const access = await resolveDomainAccessById(dbDomain.id, req.user!.userId, normalizeRole(req.user?.role));
+    
+    if (!access.domain || !access.canRead) {
+      // 如果第一条记录无权限，尝试查找用户有权限的其他同名域名
+      const userDomains = await DomainOperations.getAll() as Domain[];
+      const accessibleDomains = userDomains.filter((d: Domain) => d.name === domain);
+      
+      let foundAccessible = false;
+      for (const candidateDomain of accessibleDomains) {
+        const candidateAccess = await resolveDomainAccessById(
+          candidateDomain.id,
+          req.user!.userId,
+          normalizeRole(req.user?.role)
+        );
+        
+        if (candidateAccess.domain && candidateAccess.canRead) {
+          dbDomain = candidateDomain;
+          foundAccessible = true;
+          break;
+        }
+      }
+      
+      if (!foundAccessible) {
+        sendError(res, 'No permission to access this domain');
+        return;
+      }
+    }
   }
   
   // Get the account
