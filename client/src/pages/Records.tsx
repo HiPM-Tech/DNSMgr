@@ -148,8 +148,6 @@ export function Records() {
   // Providers with proxy mode (similar to Cloudflare)
   const hasProxyMode = isCloudflare || isAliyunESA;
   
-  // Check if provider supports multi-line routing
-  const hasMultiLine = lines.length > 1 && !hasProxyMode;
 
   const columns = [
     { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">{r.name}</span> },
