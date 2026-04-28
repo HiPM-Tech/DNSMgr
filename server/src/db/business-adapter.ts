@@ -700,15 +700,6 @@ export const DomainOperations = {
     );
   },
 
-  /** 根据账号ID和名称获取域名 */
-  async getByAccountIdAndName(accountId: number, name: string): Promise<QueryResult | undefined> {
-    return getInternal(
-      'SELECT * FROM domains WHERE account_id = ? AND name = ?',
-      [accountId, name],
-      { operation: 'Domain.getByAccountIdAndName', table: 'domains' }
-    );
-  },
-
   /** 更新域名的第三方ID和记录数 */
   async updateThirdIdAndRecordCount(id: number, thirdId: string, recordCount: number): Promise<void> {
     return executeInternal(

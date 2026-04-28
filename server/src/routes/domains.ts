@@ -921,7 +921,7 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     
     if (!access.domain || !access.canRead) {
       // 如果第一条记录无权限，尝试查找用户有权限的其他同名域名
-      const userDomains = await DomainOperations.getAll() as Domain[];
+      const userDomains = await DomainOperations.getAll() as unknown as Domain[];
       const accessibleDomains = userDomains.filter((d: Domain) => d.name === domain);
       
       let foundAccessible = false;
