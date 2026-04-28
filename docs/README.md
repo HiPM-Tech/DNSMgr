@@ -1,6 +1,6 @@
 # DNSMgr 文档中心
 
-> 🚀 现代化的 DNS 聚合管理平台 | 支持 18+ DNS 服务商 | v1.2.0
+> 🚀 现代化的 DNS 聚合管理平台 | 支持 18+ DNS 服务商 | v1.3.2
 
 <p align="center">
   <a href="api-reference.md">🔌 API 文档</a> •
