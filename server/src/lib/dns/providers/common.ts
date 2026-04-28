@@ -1,4 +1,4 @@
-import crypto from 'node:crypto';
+﻿import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import {
   Dict,
@@ -78,8 +78,12 @@ export async function resolveDomainIdHelper(
   providerName: string
 ): Promise<string | null> {
   // Support both domainId and zoneId fields
-  if (config.domainId || config.zoneId) {
-    return config.domainId || config.zoneId || null;
+  // Priority: zoneId > domainId (zoneId is the actual provider's zone/region ID)
+  if (config.zoneId) {
+    return config.zoneId;
+  }
+  if (config.domainId) {
+    return config.domainId;
   }
 
   if (!config.domain) {
