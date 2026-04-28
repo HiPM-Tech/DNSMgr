@@ -60,17 +60,9 @@ export async function executeDomainRenewal(): Promise<void> {
           count: renewableDomains.length,
         });
         
-        // 过滤出需要续期的域名（即将到期或已过期）
-        const now = new Date();
-        const domainsToRenew = renewableDomains.filter((d: any) => {
-          if (!d.expires_at) return false;
-          
-          const expiryDate = new Date(d.expires_at);
-          const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          
-          // 续期条件：剩余天数 <= 30 天或已过期
-          return daysLeft <= 30;
-        });
+        // 注意：DNSHE listSubdomains API 不返回 expires_at
+        // 所以我们对所有子域名尝试续期，让 API 自己判断是否需要续期
+        const domainsToRenew = renewableDomains;
 
         // 对每个需要续期的域名执行续期
         for (const domain of domainsToRenew) {

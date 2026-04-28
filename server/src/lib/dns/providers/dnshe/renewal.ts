@@ -9,7 +9,6 @@ export interface DnsheSubdomain {
   status: string;
   created_at: string;
   updated_at: string;
-  expires_at?: string;  // 到期时间（如果 API 返回）
 }
 
 export interface DnsheSubdomainListResult {

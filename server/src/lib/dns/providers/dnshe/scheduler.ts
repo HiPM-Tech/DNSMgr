@@ -11,6 +11,8 @@ export class DnsheRenewalScheduler implements RenewalScheduler {
 
   /**
    * 获取 DNSHE 账号下所有可续期的域名
+   * 注意：listSubdomains API 不返回 expires_at，所以返回所有子域名
+   * 实际续期时会通过 renewSubdomain API 获取到期时间
    */
   async listRenewableDomains(config: DnsheAuthConfig): Promise<RenewableDomain[]> {
     try {
@@ -21,13 +23,13 @@ export class DnsheRenewalScheduler implements RenewalScheduler {
         return [];
       }
 
-      // 转换为统一格式
+      // 转换为统一格式（不包含 expires_at，因为 API 不返回）
       return result.subdomains.map((sub: any) => ({
         id: sub.id,
         name: sub.full_domain,
         full_domain: sub.full_domain,
-        expires_at: sub.expires_at,
         status: sub.status,
+        // expires_at 将在续期时通过 renewSubdomain API 获取
       }));
     } catch (error) {
       log.error('DnsheRenewalScheduler', 'Error listing renewable domains', {
