@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Trash2, ExternalLink, Search, Layers, ChevronLeft, ChevronRight, List, Activity, Pin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { domainsApi, accountsApi } from '../../api';
+import { domainsApi, accountsApi, authApi } from '../../api';
 import type { Domain, DnsAccount } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
@@ -193,7 +193,7 @@ export function DomainListTab() {
   const toast = useToast();
   const { t } = useI18n();
   const navigate = useNavigate();
-  const { isAdmin: isActuallyAdmin, user } = useAuth();
+  const { isAdmin: isActuallyAdmin } = useAuth();
   const canManage = isActuallyAdmin;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
@@ -273,10 +273,10 @@ export function DomainListTab() {
       
       if (isPinned) {
         // Add to pinned list
-        newPinned = [...currentPinned.filter(id => id !== domainId), domainId];
+        newPinned = [...currentPinned.filter((id: number) => id !== domainId), domainId];
       } else {
         // Remove from pinned list
-        newPinned = currentPinned.filter(id => id !== domainId);
+        newPinned = currentPinned.filter((id: number) => id !== domainId);
       }
       
       return authApi.updatePinnedDomains(newPinned);
