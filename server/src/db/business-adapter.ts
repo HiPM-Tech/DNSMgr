@@ -2291,7 +2291,8 @@ export const UserPreferencesOperations = {
     }
     
     try {
-      return JSON.parse(result.pinned_domains);
+      const pinnedDomainsStr = result.pinned_domains as string;
+      return JSON.parse(pinnedDomainsStr);
     } catch {
       return [];
     }
