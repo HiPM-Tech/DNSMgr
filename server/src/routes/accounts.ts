@@ -143,6 +143,17 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     sendError(res, 'Provider is a stub and cannot be added');
     return;
   }
+  
+  // Check for duplicate account name under the same provider type
+  const existingAccounts = await DnsAccountOperations.getAll() as any[];
+  const duplicate = existingAccounts.find(
+    (acc) => acc.type === normalizedType && acc.name.toLowerCase() === name.toLowerCase()
+  );
+  if (duplicate) {
+    sendError(res, `Account name "${name}" already exists for provider ${normalizedType}`);
+    return;
+  }
+  
   try {
     const dnsAdapter = createAdapter(normalizedType, config);
     const ok = await dnsAdapter.check();
@@ -264,6 +275,24 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       return;
     }
   }
+  
+  // Check for duplicate account name when updating name or type
+  if (name !== undefined || normalizedType !== undefined) {
+    const newName = name ?? account.name;
+    const newType = normalizedType ?? account.type;
+    const existingAccounts = await DnsAccountOperations.getAll() as any[];
+    const duplicate = existingAccounts.find(
+      (acc) => 
+        acc.id !== id && 
+        acc.type === newType && 
+        acc.name.toLowerCase() === newName.toLowerCase()
+    );
+    if (duplicate) {
+      sendError(res, `Account name "${newName}" already exists for provider ${newType}`);
+      return;
+    }
+  }
+  
   const updates: Record<string, unknown> = {};
   if (normalizedType !== undefined) updates.type = normalizedType;
   if (name !== undefined) updates.name = name;
