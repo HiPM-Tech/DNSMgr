@@ -6,12 +6,12 @@ A modern DNS aggregation management platform built with React + TailwindCSS (fro
 
 ## Features
 
-- **Multi-provider Support**: Manage DNS records across 18 providers:
+- **Multi-provider Support**: Manage DNS records across 19 providers:
   - Aliyun (阿里云), DNSPod (腾讯云), Huawei Cloud (华为云), Baidu Cloud (百度云)
   - Volcengine (火山引擎), JD Cloud (京东云), Cloudflare, DNS.LA
   - West Digital (西部数码), Qingcloud (青云), NameSilo, BT Panel (宝塔)
   - Spaceship, PowerDNS, Aliyun ESA (阿里云 ESA), Tencent EdgeOne (腾讯 EdgeOne)
-  - DNSHE, Rainyun (雨云)
+  - DNSHE, Rainyun (雨云), VPS8
 
 - **Multi-user & Team Management**: Role-based access (admin/member), team-based domain sharing
 - **Full DNS Record Management**: CRUD for all record types (A, AAAA, CNAME, MX, TXT, SRV, CAA, etc.)

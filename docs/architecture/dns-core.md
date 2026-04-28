@@ -93,6 +93,7 @@ export interface ProviderConfigField {
 | `tencenteo` | 腾讯EdgeOne | status, line |
 | `dnshe` | DNSHE | line |
 | `rainyun` | 雨云 | line |
+| `vps8` | VPS8 | status, line |
 
 ## 服务商别名映射
 

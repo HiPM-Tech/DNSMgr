@@ -1,6 +1,6 @@
 # DNSMgr 文档中心
 
-> 🚀 现代化的 DNS 聚合管理平台 | 支持 18+ DNS 服务商 | v1.3.2
+> 🚀 现代化的 DNS 聚合管理平台 | 支持 19+ DNS 服务商 | v1.3.2
 
 <p align="center">
   <a href="api-reference.md">🔌 API 文档</a> •
@@ -56,7 +56,7 @@ DNSMgr 是一个现代化的 DNS 聚合管理平台，具有以下特点：
 
 | 特性 | 说明 |
 |------|------|
-| 🌐 **18+ DNS 服务商** | 阿里云、腾讯云、华为云、Cloudflare、GoDaddy 等 |
+| 🌐 **19+ DNS 服务商** | 阿里云、腾讯云、华为云、Cloudflare、VPS8 等 |
 | 🏗️ **三层数据库架构** | 业务适配器层 → 数据库抽象层 → 驱动层 |
 | 📝 **SQL 集中管理** | 所有 SQL 语句集成在业务适配器层 |
 | 💾 **多数据库支持** | SQLite、MySQL、PostgreSQL |

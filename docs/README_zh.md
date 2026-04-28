@@ -4,12 +4,12 @@
 
 ## 功能特性
 
-- **多服务商支持**: 可管理 18 家 DNS 服务商的解析记录：
+- **多服务商支持**: 可管理 19 家 DNS 服务商的解析记录：
   - 阿里云 (Aliyun), DNSPod (腾讯云), 华为云 (Huawei Cloud), 百度云 (Baidu Cloud)
   - 火山引擎 (Volcengine), 京东云 (JD Cloud), Cloudflare, DNS.LA
   - 西部数码 (West Digital), 青云 (Qingcloud), NameSilo, 宝塔面板 (BT Panel)
   - Spaceship, PowerDNS, 阿里云 ESA (Aliyun ESA), 腾讯 EdgeOne (Tencent EdgeOne)
-  - DNSHE, 雨云 (Rainyun)
+  - DNSHE, 雨云 (Rainyun), VPS8
 
 - **多用户与团队管理**: 基于角色的访问控制（admin/member），团队共享域名
 - **完整的 DNS 记录管理**: 支持所有记录类型的增删改查（A、AAAA、CNAME、MX、TXT、SRV、CAA 等）
