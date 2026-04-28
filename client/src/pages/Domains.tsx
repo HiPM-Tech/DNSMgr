@@ -14,7 +14,7 @@ export function Domains() {
     { id: 'list', label: t('domains.tabs.list'), icon: List },
     { id: 'failover', label: t('domains.tabs.failover'), icon: Activity },
     { id: 'ns-monitor', label: t('domains.tabs.nsMonitor'), icon: ShieldCheck },
-    { id: 'renewal', label: t('domainRenewal.title'), icon: Calendar },
+    // { id: 'renewal', label: t('domainRenewal.title'), icon: Calendar }, // Hidden in v1.3.2
   ];
 
   return (
