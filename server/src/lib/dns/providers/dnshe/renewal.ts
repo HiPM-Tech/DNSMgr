@@ -38,8 +38,8 @@ export async function listSubdomains(
   config: DnsheAuthConfig
 ): Promise<DnsheSubdomainListResult | null> {
   try {
-    const baseUrl = 'https://api005.dnshe.com/index.php?m=domain_hub';
-    const url = `${baseUrl}&endpoint=subdomains&action=list`;
+    const baseUrl = 'https://api005.dnshe.com/index.php';
+    const url = `${baseUrl}?m=domain_hub&endpoint=subdomains&action=list`;
     
     log.providerRequest('DNSHE', 'GET', 'subdomains/list');
     
@@ -79,8 +79,8 @@ export async function renewSubdomain(
   subdomainId: number
 ): Promise<DnsheRenewalResult | null> {
   try {
-    const baseUrl = 'https://api005.dnshe.com/index.php?m=domain_hub';
-    const url = `${baseUrl}&endpoint=subdomains&action=renew`;
+    const baseUrl = 'https://api005.dnshe.com/index.php';
+    const url = `${baseUrl}?m=domain_hub&endpoint=subdomains&action=renew`;
     
     log.providerRequest('DNSHE', 'POST', 'subdomains/renew', { subdomain_id: subdomainId });
     

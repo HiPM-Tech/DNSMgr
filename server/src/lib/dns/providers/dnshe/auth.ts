@@ -45,8 +45,8 @@ export async function authenticatedRequest(
  */
 export async function validateCredentials(config: DnsheAuthConfig): Promise<boolean> {
   try {
-    const baseUrl = 'https://api005.dnshe.com/index.php?m=domain_hub';
-    const url = `${baseUrl}&endpoint=subdomains&action=list`;
+    const baseUrl = 'https://api005.dnshe.com/index.php';
+    const url = `${baseUrl}?m=domain_hub&endpoint=subdomains&action=list`;
     
     const response = await authenticatedRequest(url, config, {
       method: 'GET',

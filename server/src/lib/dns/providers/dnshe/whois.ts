@@ -19,8 +19,8 @@ export async function getWhois(
   domain: string
 ): Promise<DnsheWhoisResult | null> {
   try {
-    const baseUrl = 'https://api005.dnshe.com/index.php?m=domain_hub';
-    const url = `${baseUrl}&endpoint=whois&domain=${encodeURIComponent(domain)}`;
+    const baseUrl = 'https://api005.dnshe.com/index.php';
+    const url = `${baseUrl}?m=domain_hub&endpoint=whois&domain=${encodeURIComponent(domain)}`;
     
     log.providerRequest('DNSHE', 'GET', 'whois', { domain });
     

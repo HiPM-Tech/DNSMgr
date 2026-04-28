@@ -74,7 +74,7 @@ interface DnsheApiResponse<T> {
 
 export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
   private config: DnsheConfig;
-  private baseUrl = 'https://api005.dnshe.com/index.php?m=domain_hub';
+  private baseUrl = 'https://api005.dnshe.com/index.php';
 
   constructor(config: Record<string, string>) {
     super();
@@ -102,7 +102,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
     body?: Dict,
     queryParams?: Record<string, string | number>
   ): Promise<DnsheApiResponse<T>> {
-    let url = `${this.baseUrl}&endpoint=${endpoint}&action=${action}`;
+    let url = `${this.baseUrl}?m=domain_hub&endpoint=${endpoint}&action=${action}`;
     
     // Add query parameters for GET requests
     if (queryParams && method === 'GET') {
