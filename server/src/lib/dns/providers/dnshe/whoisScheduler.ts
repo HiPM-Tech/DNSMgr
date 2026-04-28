@@ -32,7 +32,8 @@ export class DnsheWhoisScheduler implements WhoisScheduler {
         expiration_date: result.expiration_date,
         updated_date: result.updated_date,
         name_servers: result.name_servers,
-        status: result.status,
+        // DNSHE API 返回 status 为字符串，转换为数组以符合 WhoisResult 接口
+        status: result.status ? [result.status] : undefined,
         dnssec: result.dnssec,
         raw_data: result.raw_data,
       };
