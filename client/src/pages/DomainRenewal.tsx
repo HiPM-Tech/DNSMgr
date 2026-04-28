@@ -43,7 +43,8 @@ export function DomainRenewal() {
     queryFn: async () => {
       const res = await domainsApi.list({ 
         account_id: domain?.account_id ? Number(domain.account_id) : undefined,
-        keyword: domain?.name 
+        keyword: domain?.name,
+        pageSize: 1000
       });
       // 过滤出当前域名的所有子域名
       const allDomains = res.data.data?.list ?? [];

@@ -55,7 +55,7 @@ export function NSMonitorTab() {
 
   const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains'],
-    queryFn: () => domainsApi.list().then(r => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
+    queryFn: () => domainsApi.list({ pageSize: 1000 }).then(r => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
     enabled: isAddModalOpen,
   });
   const domains = domainsData?.list ?? [];
