@@ -219,36 +219,8 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   const endIndex = Math.min(startIndex + size, total);
   const paginatedDomains = domains.slice(startIndex, endIndex);
 
-  // Only refresh record_count if explicitly requested (to avoid slow queries)
-  const shouldRefreshCount = req.query.refresh_count === 'true';
-  
-  if (shouldRefreshCount) {
-    const accountCache = new Map<number, DnsAccount>();
-    await Promise.allSettled(
-      paginatedDomains
-        .filter((domain) => !domain.record_count)
-        .map(async (domain) => {
-          let account = accountCache.get(domain.account_id);
-          if (!account) {
-            account = await DnsAccountOperations.getById(domain.account_id) as DnsAccount | undefined;
-            if (!account) return;
-            accountCache.set(domain.account_id, account);
-          }
-
-          try {
-            // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
-            const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
-            const dnsAdapter = createAdapter(account.type, cfg, domain.name, domain.third_id);
-            // Use pageSize=10 to ensure accurate total count (some providers have minimum page size)
-            const result = await dnsAdapter.getDomainRecords(1, 10);
-            domain.record_count = result.total;
-            await DomainOperations.updateRecordCount(domain.id, result.total);
-          } catch {
-            // Keep the cached count if the provider is temporarily unavailable.
-          }
-        })
-    );
-  }
+  // Record count is cached in database and refreshed asynchronously by background job
+  // No need to query DNS provider API on every request
 
   // Return format based on query parameter or token usage
   // For external adapters (ddns-go, certd), return direct array when format=array

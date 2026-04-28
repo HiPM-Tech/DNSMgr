@@ -44,6 +44,7 @@ import { startFailoverJob } from './service/failoverJob';
 import { startWhoisJob } from './service/whoisJob';
 import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
+import { startRecordCountCacheRefresh } from './service/recordCountCache';
 import { initRenewalSchedulers } from './service/renewalInit';
 import { initWhoisSchedulers } from './service/whoisInit';
 import { initSecurityPolicyTable } from './service/securityPolicy';
@@ -330,6 +331,7 @@ async function initializeApp() {
       startWhoisJob();
       startNsMonitorJob();
       startDomainRenewalJob();
+      startRecordCountCacheRefresh(30); // Refresh every 30 minutes
     } else {
       log.info('Server', 'System not initialized. Running in initialization mode.');
       log.info('Server', 'Please access the setup wizard to configure the system.');
@@ -359,6 +361,7 @@ async function initializeApp() {
           startWhoisJob();
           startNsMonitorJob();
           startDomainRenewalJob();
+          startRecordCountCacheRefresh(30); // Refresh every 30 minutes
         }
     }, 5000);
 
@@ -434,6 +437,7 @@ async function initializeApp() {
           startWhoisJob();
           startNsMonitorJob();
           startDomainRenewalJob();
+          startRecordCountCacheRefresh(30); // Refresh every 30 minutes
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');
           log.info('Server', 'You may need to refresh the page.');
         }
