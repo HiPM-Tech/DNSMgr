@@ -57,7 +57,6 @@ export class DnsheRenewalScheduler implements RenewalScheduler {
         new_expires_at: result.new_expires_at,
         remaining_days: result.remaining_days,
         message: result.message,
-        ...result,
       };
     } catch (error) {
       log.error('DnsheRenewalScheduler', 'Error renewing domain', {
