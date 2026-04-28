@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ExternalLink, Search, Layers, ChevronLeft, ChevronRight, List, RefreshCw, Activity } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, Search, Layers, ChevronLeft, ChevronRight, List, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { domainsApi, accountsApi } from '../../api';
 import type { Domain, DnsAccount } from '../../api';
