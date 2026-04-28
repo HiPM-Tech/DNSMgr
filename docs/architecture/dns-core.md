@@ -215,3 +215,82 @@ DNS 记录仍保留通用 `line` 字段以兼容历史逻辑。对于 Cloudflare
 
 1. 如果提供 `cloudflare.proxied`，则优先使用
 2. 否则回退到 `line`（`'1'` = 代理，`'0'` = 仅 DNS）
+
+## WHOIS 查询调度器（v1.3.2+）
+
+**文件位置**: `server/src/service/whoisScheduler.ts`
+
+**职责**: 统一管理 DNS 提供商的 WHOIS 查询能力，支持注册商模式
+
+### 核心接口
+
+```typescript
+interface WhoisScheduler {
+  readonly type: string;
+  queryWhois(config: any, domain: string): Promise<WhoisResult | null>;
+}
+```
+
+### 查询策略
+
+WHOIS 服务支持两种查询策略：
+
+#### 1. 顶域查询策略（默认）
+
+```
+顶域 RDAP/WHOIS → DNS 提供商 WHOIS → 第三方查询
+```
+
+#### 2. 子域查询策略
+
+```
+DNS 提供商 WHOIS → 子域/顶域并行查询 → 第三方查询
+```
+
+### 禁用父域查询选项
+
+对于公开 RDAP 接口（`/api/rdap`），可以禁用父域 fallback 查询：
+
+```typescript
+const result = await whoisService.query('xxx.baidu.com', {
+  skipParentFallback: true  // 仅查询子域，不查询 baidu.com
+});
+```
+
+**查询顺序**：
+```
+子域 RDAP/WHOIS → 平级查询 → 第三方查询（仅子域）→ 放弃
+```
+
+### DNSHE WHOIS 调度器实现
+
+**文件位置**: `server/src/lib/dns/providers/dnshe/whoisScheduler.ts`
+
+DNSHE 提供商实现了 WHOIS 调度器接口，通过 DNSHE API 查询域名信息。
+
+## 域名续期调度器（v1.3.2+）
+
+**文件位置**: `server/src/service/renewalScheduler.ts`
+
+**职责**: 统一管理 DNS 提供商的域名续期能力，支持注册商模式
+
+### 核心接口
+
+```typescript
+interface RenewalScheduler {
+  readonly type: string;
+  listRenewableDomains(config: any): Promise<RenewableDomain[]>;
+  renewDomain(config: any, domainId: number | string): Promise<RenewalResult | null>;
+}
+```
+
+### DNSHE 续期调度器实现
+
+**文件位置**: `server/src/lib/dns/providers/dnshe/scheduler.ts`
+
+DNSHE 提供商实现了续期调度器接口：
+
+- **listRenewableDomains**: 调用 DNSHE API 获取可续期的子域名列表
+- **renewDomain**: 调用 DNSHE API 续期指定子域名
+
+**注意**: DNSHE API 的 `listSubdomains` 不返回 `expires_at` 字段，因此对所有子域名都会尝试续期，由 API 服务端判断是否已过期。
