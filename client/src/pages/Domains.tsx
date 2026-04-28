@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { List, Activity, ShieldCheck, Calendar } from 'lucide-react';
+import { List, Activity, ShieldCheck } from 'lucide-react';
 import { useI18n } from '../contexts/I18nContext';
 import { DomainListTab } from './domains/DomainListTab';
 import { FailoverTab } from './domains/FailoverTab';
