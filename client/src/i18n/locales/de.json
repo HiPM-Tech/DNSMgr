@@ -973,5 +973,27 @@
     "dnsPoisoningDetected": "DNS-Poisoning erkannt",
     "poisoned": "Vergiftet",
     "poisonedTooltip": "NS-Einträge unterscheiden sich zwischen verschlüsselten und Klartext-DNS-Abfragen"
+  },
+  "domainRenewal": {
+    "title": "Domainverlängerung",
+    "subtitle": "Verwalten Sie das Ablaufdatum und die automatische Verlängerung von Domains",
+    "renew": "Verlängern",
+    "renewing": "Wird verlängert...",
+    "renewSuccess": "Domain erfolgreich verlängert",
+    "renewFailed": "Domainverlängerung fehlgeschlagen",
+    "expiresAt": "Ablaufdatum",
+    "active": "Aktiv",
+    "expiringSoon": "Läuft bald ab",
+    "expiringMonth": "Läuft diesen Monat ab",
+    "expired": "Abgelaufen",
+    "days": " Tage",
+    "activeDomains": "Aktive Domains",
+    "expiringDomains": "Läuft bald ab",
+    "expiredDomains": "Abgelaufene Domains",
+    "noDomains": "Keine Domains",
+    "notSupported": "Verlängerung nicht unterstützt",
+    "notSupportedDesc": "Der aktuelle DNS-Anbieter unterstützt keine Domainverlängerung. Derzeit unterstützt nur der DNSHE-Anbieter diese Funktion.",
+    "autoRenewal": "Automatische Verlängerung",
+    "autoRenewalDesc": "Das System versucht täglich um 0:00 UTC automatisch, bald ablaufende Domains zu verlängern. Sie können auch manuell auf die Verlängern-Schaltfläche klicken, um sofort zu verlängern."
   }
 }

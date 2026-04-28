@@ -973,5 +973,27 @@
     "dnsPoisoningDetected": "Envenenamento DNS detectado",
     "poisoned": "Envenenado",
     "poisonedTooltip": "Os registros NS diferem entre consultas DNS criptografadas e em texto simples"
+  },
+  "domainRenewal": {
+    "title": "Renovação de Domínio",
+    "subtitle": "Gerenciar expiração e renovação automática de domínios",
+    "renew": "Renovar",
+    "renewing": "Renovando...",
+    "renewSuccess": "Domínio renovado com sucesso",
+    "renewFailed": "Falha na renovação do domínio",
+    "expiresAt": "Data de expiração",
+    "active": "Ativo",
+    "expiringSoon": "Expira em breve",
+    "expiringMonth": "Expira este mês",
+    "expired": "Expirado",
+    "days": " dias",
+    "activeDomains": "Domínios ativos",
+    "expiringDomains": "Expiram em breve",
+    "expiredDomains": "Domínios expirados",
+    "noDomains": "Sem domínios",
+    "notSupported": "Renovação não suportada",
+    "notSupportedDesc": "O provedor DNS atual não suporta renovação de domínio. Atualmente, apenas o provedor DNSHE suporta este recurso.",
+    "autoRenewal": "Renovação Automática",
+    "autoRenewalDesc": "O sistema tentará renovar automaticamente os domínios prestes a expirar todos os dias às 0:00 UTC. Você também pode clicar manualmente no botão de renovar para renovar imediatamente."
   }
 }

@@ -980,5 +980,27 @@
     "dnsPoisoningDetected": "DNS 포이즈닝 감지",
     "poisoned": "오염됨",
     "poisonedTooltip": "암호화와 일반 DNS 쿼리의 NS 레코드가 일치하지 않습니다"
+  },
+  "domainRenewal": {
+    "title": "도메인 갱신",
+    "subtitle": "도메인 만료 및 자동 갱신 관리",
+    "renew": "갱신",
+    "renewing": "갱신 중...",
+    "renewSuccess": "도메인 갱신 성공",
+    "renewFailed": "도메인 갱신 실패",
+    "expiresAt": "만료일",
+    "active": "활성",
+    "expiringSoon": "곧 만료",
+    "expiringMonth": "이번 달 만료",
+    "expired": "만료됨",
+    "days": "일",
+    "activeDomains": "활성 도메인",
+    "expiringDomains": "곧 만료",
+    "expiredDomains": "만료된 도메인",
+    "noDomains": "도메인 없음",
+    "notSupported": "갱신 지원 안 함",
+    "notSupportedDesc": "현재 DNS 제공업체는 도메인 갱신을 지원하지 않습니다. 현재 DNSHE 제공업체만 이 기능을 지원합니다.",
+    "autoRenewal": "자동 갱신",
+    "autoRenewalDesc": "시스템은 매일 UTC 0:00에 만료 예정 도메인을 자동으로 갱신하려고 시도합니다. 수동으로 갱신 버튼을 클릭하여 즉시 갱신할 수도 있습니다."
   }
 }

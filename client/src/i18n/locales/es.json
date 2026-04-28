@@ -975,5 +975,27 @@
     "dnsPoisoningDetected": "Envenenamiento DNS detectado",
     "poisoned": "Envenenado",
     "poisonedTooltip": "Los registros NS difieren entre consultas DNS cifradas y en texto plano"
+  },
+  "domainRenewal": {
+    "title": "Renovación de dominio",
+    "subtitle": "Gestionar la caducidad y renovación automática de dominios",
+    "renew": "Renovar",
+    "renewing": "Renovando...",
+    "renewSuccess": "Dominio renovado exitosamente",
+    "renewFailed": "Error al renovar el dominio",
+    "expiresAt": "Fecha de caducidad",
+    "active": "Activo",
+    "expiringSoon": "Caduca pronto",
+    "expiringMonth": "Caduca este mes",
+    "expired": "Caducado",
+    "days": " días",
+    "activeDomains": "Dominios activos",
+    "expiringDomains": "Caducan pronto",
+    "expiredDomains": "Dominios caducados",
+    "noDomains": "Sin dominios",
+    "notSupported": "Renovación no soportada",
+    "notSupportedDesc": "El proveedor DNS actual no admite la renovación de dominios. Actualmente, solo el proveedor DNSHE admite esta función.",
+    "autoRenewal": "Renovación automática",
+    "autoRenewalDesc": "El sistema intentará renovar automáticamente los dominios que están a punto de caducar todos los días a las 0:00 UTC. También puede hacer clic manualmente en el botón de renovar para renovar inmediatamente."
   }
 }

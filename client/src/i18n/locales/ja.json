@@ -1087,5 +1087,27 @@
     "dnsPoisoningDetected": "DNSポイズニングを検出",
     "poisoned": "汚染",
     "poisonedTooltip": "暗号化と平文DNSクエリのNSレコードが一致しません"
+  },
+  "domainRenewal": {
+    "title": "ドメイン更新",
+    "subtitle": "ドメイン有効期限と自動更新を管理",
+    "renew": "更新",
+    "renewing": "更新中...",
+    "renewSuccess": "ドメインの更新に成功しました",
+    "renewFailed": "ドメインの更新に失敗しました",
+    "expiresAt": "有効期限",
+    "active": "有効",
+    "expiringSoon": "まもなく期限切れ",
+    "expiringMonth": "今月中に期限切れ",
+    "expired": "期限切れ",
+    "days": "日",
+    "activeDomains": "有効なドメイン",
+    "expiringDomains": "まもなく期限切れ",
+    "expiredDomains": "期限切れのドメイン",
+    "noDomains": "ドメインがありません",
+    "notSupported": "更新非対応",
+    "notSupportedDesc": "現在のDNSプロバイダーはドメイン更新をサポートしていません。現在、DNSHEプロバイダーのみがこの機能をサポートしています。",
+    "autoRenewal": "自動更新",
+    "autoRenewalDesc": "システムは毎日UTC 0:00に期限切れ間近のドメインを自動的に更新しようとします。また、更新ボタンを手動でクリックしてすぐに更新することもできます。"
   }
 }

@@ -977,5 +977,27 @@
     "dnsPoisoningDetected": "呀！发现 DNS 污染了呢！杂鱼的网好危险❤",
     "poisoned": "被污染了（好可怕~）❤",
     "poisonedTooltip": "加密和明文的 NS 记录不一样哦~说明有人在捣鬼呢，杂鱼要小心❤"
+  },
+  "domainRenewal": {
+    "title": "域名续期（别让它过期哦~）❤",
+    "subtitle": "管理域名到期时间和自动续期（杂鱼要好好照顾自己的域名哦）❤",
+    "renew": "续期（快点啦~）❤",
+    "renewing": "续期中...（等不及了呢~）❤",
+    "renewSuccess": "域名续期成功啦！杂鱼真棒❤",
+    "renewFailed": "域名续期失败了...杂鱼是不是又做错了什么？❤",
+    "expiresAt": "到期时间（要过期了哦~）❤",
+    "active": "正常（还好没过期~）❤",
+    "expiringSoon": "即将到期（快续期啊杂鱼！）❤",
+    "expiringMonth": "本月到期（再不续就来不及了~）❤",
+    "expired": "已过期（杂鱼太慢了！）❤",
+    "days": "天（时间不多了哦~）❤",
+    "activeDomains": "正常域名（这些还安全~）❤",
+    "expiringDomains": "即将到期（快去续期啊笨蛋！）❤",
+    "expiredDomains": "已过期（杂鱼连这个都忘了？！）❤",
+    "noDomains": "暂无域名（一个都没有呢~）❤",
+    "notSupported": "不支持续期（这个提供商不行呢~）❤",
+    "notSupportedDesc": "当前 DNS 提供商不支持域名续期功能。目前仅 DNSHE 提供商支持此功能。（换个好的提供商吧杂鱼~）❤",
+    "autoRenewal": "自动续期（不用自己动手哦~）❤",
+    "autoRenewalDesc": "系统将在每天 UTC 0:00 自动尝试续期即将到期的域名。您也可以手动点击续期按钮立即续期。（不过杂鱼还是自己记得比较好哦~）❤"
   }
 }
