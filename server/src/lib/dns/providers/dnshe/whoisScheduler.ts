@@ -35,7 +35,6 @@ export class DnsheWhoisScheduler implements WhoisScheduler {
         status: result.status,
         dnssec: result.dnssec,
         raw_data: result.raw_data,
-        ...result,
       };
     } catch (error) {
       log.error('DnsheWhoisScheduler', 'Error querying WHOIS', {
