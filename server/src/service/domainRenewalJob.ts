@@ -4,7 +4,7 @@
  */
 
 import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
-import { renewSubdomain } from '../lib/dns/providers/dnshe/renewal';
+import { renewSubdomain, listSubdomains } from '../lib/dns/providers/dnshe/renewal';
 import { logAuditOperation } from './audit';
 import { log } from '../lib/logger';
 
@@ -34,12 +34,31 @@ export async function executeDomainRenewal(): Promise<void> {
       try {
         const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
         
-        // 获取该账号下的所有域名
-        const domains = await DomainOperations.getByAccountId(account.id) as any[];
+        // 从 DNSHE API 获取该账号下的所有子域名
+        const subdomainListResult = await listSubdomains({
+          apiKey: config.apiKey,
+          apiSecret: config.apiSecret,
+          useProxy: !!config.useProxy,
+        });
+        
+        if (!subdomainListResult || !subdomainListResult.success) {
+          log.error('DomainRenewalJob', 'Failed to fetch subdomains from DNSHE API', {
+            accountId: account.id,
+            accountName: account.name,
+          });
+          continue;
+        }
+        
+        const subdomains = subdomainListResult.subdomains;
+        log.info('DomainRenewalJob', 'Fetched subdomains from DNSHE API', {
+          accountId: account.id,
+          accountName: account.name,
+          count: subdomains.length,
+        });
         
         // 过滤出需要续期的域名（即将到期或已过期）
         const now = new Date();
-        const domainsToRenew = domains.filter((d: any) => {
+        const domainsToRenew = subdomains.filter((d: any) => {
           if (!d.expires_at) return false;
           
           const expiryDate = new Date(d.expires_at);
@@ -52,17 +71,16 @@ export async function executeDomainRenewal(): Promise<void> {
         // 对每个需要续期的域名执行续期
         for (const domain of domainsToRenew) {
           try {
-            const subdomainId = domain.third_id || domain.id;
+            const subdomainId = domain.id;
             if (!subdomainId) {
-              log.warn('DomainRenewalJob', 'Domain has no third_id, skipping', {
-                domainId: domain.id,
-                domainName: domain.name,
+              log.warn('DomainRenewalJob', 'Domain has no id, skipping', {
+                domainName: domain.full_domain,
               });
               continue;
             }
 
             log.info('DomainRenewalJob', 'Renewing domain', {
-              domainName: domain.name,
+              domainName: domain.full_domain,
               subdomainId,
               expiresAt: domain.expires_at,
             });
@@ -79,7 +97,7 @@ export async function executeDomainRenewal(): Promise<void> {
             if (result) {
               renewedCount++;
               log.info('DomainRenewalJob', 'Domain renewed successfully', {
-                domainName: domain.name,
+                domainName: domain.full_domain,
                 previousExpiresAt: result.previous_expires_at,
                 newExpiresAt: result.new_expires_at,
                 remainingDays: result.remaining_days,
@@ -90,7 +108,7 @@ export async function executeDomainRenewal(): Promise<void> {
                 await logAuditOperation(
                   0, // system user
                   'renew_domain',
-                  domain.name,
+                  domain.full_domain,
                   {
                     subdomain_id: result.subdomain_id,
                     subdomain: result.subdomain,
@@ -102,21 +120,21 @@ export async function executeDomainRenewal(): Promise<void> {
                 );
               } catch (auditError) {
                 log.error('DomainRenewalJob', 'Failed to log audit', { 
-                  domainName: domain.name, 
+                  domainName: domain.full_domain, 
                   error: auditError 
                 });
               }
             } else {
               failedCount++;
               log.error('DomainRenewalJob', 'Domain renewal failed', {
-                domainName: domain.name,
+                domainName: domain.full_domain,
                 subdomainId,
               });
             }
           } catch (error) {
             failedCount++;
             log.error('DomainRenewalJob', 'Domain renewal error', {
-              domainName: domain.name,
+              domainName: domain.full_domain,
               error: error instanceof Error ? error.message : String(error),
             });
           }

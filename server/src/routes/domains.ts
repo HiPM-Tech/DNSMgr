@@ -3,6 +3,7 @@ import { authMiddleware, requireDomainPermission, requireTokenDomainPermission }
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { dnsheRenewSubdomain, dnsheGetWhois } from '../lib/dns/providers';
+import { listSubdomains as dnsheListSubdomains } from '../lib/dns/providers/dnshe/renewal';
 import { createFailoverConfig, getFailoverConfigByDomain, getFailoverStatus, updateFailoverConfig, deleteFailoverConfig } from '../service/failover';
 import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
@@ -938,6 +939,69 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
   } catch (error) {
     log.error('Domains', 'WHOIS query failed', { error });
     sendError(res, error instanceof Error ? error.message : 'WHOIS query failed');
+  }
+}));
+
+/**
+ * Get DNSHE subdomains list for renewal tab (admin only)
+ */
+router.get('/dnshe-subdomains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  // Only allow admins and super admins
+  const role = normalizeRole(req.user?.role);
+  if (role < 2) {
+    sendError(res, 'Permission denied');
+    return;
+  }
+  
+  try {
+    // Get all DNSHE accounts
+    const accounts = await DnsAccountOperations.getAll() as any[];
+    const dnsheAccounts = accounts.filter((acc: any) => acc.type === 'dnshe');
+    
+    if (dnsheAccounts.length === 0) {
+      sendSuccess(res, []);
+      return;
+    }
+    
+    const allSubdomains: any[] = [];
+    
+    // Fetch subdomains from each DNSHE account
+    for (const account of dnsheAccounts) {
+      try {
+        const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
+        
+        const result = await dnsheListSubdomains({
+          apiKey: config.apiKey,
+          apiSecret: config.apiSecret,
+          useProxy: !!config.useProxy,
+        });
+        
+        if (result && result.success && result.subdomains) {
+          // Add account info to each subdomain
+          const subdomainsWithAccount = result.subdomains.map((sub: any) => ({
+            ...sub,
+            account_id: account.id,
+            account_name: account.name,
+            name: sub.full_domain,
+            id: sub.id, // Use DNSHE subdomain ID
+            third_id: String(sub.id), // Store as string for compatibility
+          }));
+          
+          allSubdomains.push(...subdomainsWithAccount);
+        }
+      } catch (error) {
+        log.error('Domains', 'Failed to fetch subdomains from DNSHE account', {
+          accountId: account.id,
+          accountName: account.name,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    
+    sendSuccess(res, allSubdomains);
+  } catch (error) {
+    log.error('Domains', 'Failed to fetch DNSHE subdomains', { error });
+    sendError(res, error instanceof Error ? error.message : 'Failed to fetch subdomains');
   }
 }));
 

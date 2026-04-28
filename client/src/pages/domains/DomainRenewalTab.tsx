@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Calendar, AlertCircle, CheckCircle, Clock } from 'lucide-react';
-import { domainsApi, accountsApi, domainRenewalApi, type Domain, type DnsAccount } from '../../api';
+import { domainsApi, domainRenewalApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -18,28 +18,18 @@ export function DomainRenewalTab() {
   // 检查是否为管理员或超级管理员
   const isAdmin = user?.role === 2 || user?.role === 3;
 
-  // 获取所有 DNS 账号
-  const { data: accounts = [] } = useQuery({
-    queryKey: ['dns-accounts'],
-    enabled: isAdmin,
-    queryFn: () => accountsApi.list().then(r => r.data.data ?? []),
-  });
-
-  // 获取支持续期的域名列表（仅 DNSHE 提供商）
+  // 获取支持续期的域名列表（从 DNSHE API 获取）
   const { data: renewableDomains = [], isLoading } = useQuery({
-    queryKey: ['renewable-domains', accounts],
+    queryKey: ['dnshe-subdomains'],
     enabled: isAdmin,
     queryFn: async () => {
-      const res = await domainsApi.list();
-      const allDomains = res.data.data?.list ?? [];
-      
-      // 获取 DNSHE 账号 ID 列表
-      const dnsheAccountIds = accounts
-        .filter((acc: DnsAccount) => acc.type === 'dnshe')
-        .map((acc: DnsAccount) => acc.id);
-      
-      // 过滤出 DNSHE 提供商的域名
-      return allDomains.filter((d: Domain) => dnsheAccountIds.includes(d.account_id)) as Domain[];
+      const res = await fetch('/api/domains/dnshe-subdomains', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      const data = await res.json();
+      return data.data || [];
     },
   });
 
@@ -95,14 +85,11 @@ export function DomainRenewalTab() {
     {
       key: 'account_name',
       label: t('accounts.provider'),
-      render: (row: Domain) => {
-        const account = accounts.find((acc: DnsAccount) => acc.id === row.account_id);
-        return (
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            {account?.name || 'DNSHE'}
-          </span>
-        );
-      },
+      render: (row: any) => (
+        <span className="text-sm text-gray-600 dark:text-gray-400">
+          {row.account_name || 'DNSHE'}
+        </span>
+      ),
     },
     {
       key: 'expires_at',
@@ -195,17 +182,17 @@ export function DomainRenewalTab() {
   }
 
   // 统计信息
-  const activeCount = renewableDomains.filter(d => {
+  const activeCount = renewableDomains.filter((d: any) => {
     const status = getExpiryStatus((d as any).expires_at);
     return status.color === 'green';
   }).length;
 
-  const expiringCount = renewableDomains.filter(d => {
+  const expiringCount = renewableDomains.filter((d: any) => {
     const status = getExpiryStatus((d as any).expires_at);
     return status.color === 'red' || status.color === 'yellow';
   }).length;
 
-  const expiredCount = renewableDomains.filter(d => {
+  const expiredCount = renewableDomains.filter((d: any) => {
     const status = getExpiryStatus((d as any).expires_at);
     return status.color === 'red' && (d as any).expires_at && new Date((d as any).expires_at) < new Date();
   }).length;
