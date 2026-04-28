@@ -210,6 +210,7 @@ export const mysqlSchema: SchemaDefinition = {
       notifications_enabled TINYINT NOT NULL DEFAULT 1,
       email_notifications TINYINT NOT NULL DEFAULT 1,
       background_image TEXT,
+      pinned_domains JSON DEFAULT (JSON_ARRAY()),
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

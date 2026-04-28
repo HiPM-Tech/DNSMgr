@@ -224,6 +224,7 @@ export const postgresqlSchema: SchemaDefinition = {
       notifications_enabled BOOLEAN NOT NULL DEFAULT true,
       email_notifications BOOLEAN NOT NULL DEFAULT true,
       background_image TEXT,
+      pinned_domains JSONB DEFAULT '[]'::jsonb,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

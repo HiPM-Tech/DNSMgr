@@ -1270,4 +1270,36 @@ router.put('/preferences', authMiddleware, async (req: Request, res: Response) =
   }
 });
 
+/**
+ * Get user's pinned domains
+ */
+router.get('/preferences/pinned-domains', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const pinnedDomains = await UserPreferencesOperations.getPinnedDomains(req.user!.userId);
+    res.json({ code: 0, data: { pinnedDomains } });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get pinned domains' });
+  }
+});
+
+/**
+ * Update user's pinned domains
+ */
+router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, res: Response) => {
+  const { domainIds } = req.body as { domainIds?: number[] };
+  
+  if (!Array.isArray(domainIds)) {
+    res.status(400).json({ code: 400, msg: 'domainIds must be an array' });
+    return;
+  }
+  
+  try {
+    await UserPreferencesOperations.updatePinnedDomains(req.user!.userId, domainIds);
+    await logAuditOperation(req.user!.userId, 'update_pinned_domains', 'system', { domainIds });
+    res.json({ code: 0, msg: 'success' });
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update pinned domains' });
+  }
+});
+
 export default router;

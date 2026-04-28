@@ -2277,6 +2277,62 @@ export const UserPreferencesOperations = {
       { operation: 'UserPreferences.upsertPostgreSQL', table: 'user_preferences' }
     );
   },
+
+  /** 获取用户置顶的域名列表 */
+  async getPinnedDomains(userId: number): Promise<number[]> {
+    const result = await getInternal(
+      'SELECT pinned_domains FROM user_preferences WHERE user_id = ?',
+      [userId],
+      { operation: 'UserPreferences.getPinnedDomains', table: 'user_preferences' }
+    );
+    
+    if (!result || !result.pinned_domains) {
+      return [];
+    }
+    
+    try {
+      return JSON.parse(result.pinned_domains);
+    } catch {
+      return [];
+    }
+  },
+
+  /** 更新用户置顶的域名列表 */
+  async updatePinnedDomains(userId: number, domainIds: number[]): Promise<void> {
+    const pinnedDomainsJson = JSON.stringify(domainIds);
+    
+    // SQLite
+    if (process.env.DB_TYPE === 'sqlite' || !process.env.DB_TYPE) {
+      await executeInternal(
+        `INSERT INTO user_preferences (user_id, pinned_domains, created_at, updated_at)
+         VALUES (?, ?, datetime('now'), datetime('now'))
+         ON CONFLICT(user_id) DO UPDATE SET
+          pinned_domains = excluded.pinned_domains, updated_at = datetime('now')`,
+        [userId, pinnedDomainsJson],
+        { operation: 'UserPreferences.updatePinnedDomains', table: 'user_preferences' }
+      );
+    } else if (process.env.DB_TYPE === 'mysql') {
+      // MySQL
+      await executeInternal(
+        `INSERT INTO user_preferences (user_id, pinned_domains)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE
+          pinned_domains = VALUES(pinned_domains)`,
+        [userId, pinnedDomainsJson],
+        { operation: 'UserPreferences.updatePinnedDomains', table: 'user_preferences' }
+      );
+    } else {
+      // PostgreSQL
+      await executeInternal(
+        `INSERT INTO user_preferences (user_id, pinned_domains)
+         VALUES ($1, $2::jsonb)
+         ON CONFLICT(user_id) DO UPDATE SET
+          pinned_domains = EXCLUDED.pinned_domains`,
+        [userId, pinnedDomainsJson],
+        { operation: 'UserPreferences.updatePinnedDomains', table: 'user_preferences' }
+      );
+    }
+  },
 };
 
 // ============================================================================

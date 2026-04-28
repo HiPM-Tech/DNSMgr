@@ -289,7 +289,7 @@
     },
     "domains": {
       "title": "域名",
-      "subtitle": "管理所有 DNS 提供商的域名",
+      "subtitle": "管理所有 DNS 提供商的域名，支持置顶常用域名以便快速访问",
       "tabs": {
         "list": "域名列表",
         "failover": "故障转移",

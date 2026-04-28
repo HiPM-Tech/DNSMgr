@@ -255,6 +255,9 @@ export const authApi = {
   getPreferences: () => api.get<ApiResponse<{ theme: string; language: string; notificationsEnabled: boolean; emailNotifications: boolean; backgroundImage?: string }>>('/auth/preferences'),
   updatePreferences: (data: { theme?: string; language?: string; notificationsEnabled?: boolean; emailNotifications?: boolean; backgroundImage?: string }) =>
     api.put<ApiResponse<null>>('/auth/preferences', data),
+  getPinnedDomains: () => api.get<ApiResponse<{ pinnedDomains: number[] }>>('/auth/preferences/pinned-domains'),
+  updatePinnedDomains: (domainIds: number[]) =>
+    api.put<ApiResponse<null>>('/auth/preferences/pinned-domains', { domainIds }),
 };
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
