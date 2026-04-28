@@ -1,4 +1,4 @@
-/**
+﻿/**
  * NS Record Lookup Utility
  * NS 记录查询工具 - 使用新的 DNS 解析模块（支持 DNS 污染检测）
  */
@@ -110,12 +110,19 @@ export function validateNsRecords(current: string[], expected: string[]): boolea
     return current.length > 0;
   }
 
-  // 统一转为小写后比较
-  const currentLower = current.map(ns => ns.toLowerCase());
-  const expectedLower = expected.map(ns => ns.toLowerCase());
+  // 标准化函数：转小写并移除尾随点号
+  const normalize = (ns: string): string => ns.toLowerCase().replace(/\.$/, '');
 
-  // 检查所有预期的 NS 是否都在当前记录中
-  return expectedLower.every(ns => currentLower.includes(ns));
+  // 标准化后排序比较（忽略顺序）
+  const currentNormalized = current.map(normalize).sort();
+  const expectedNormalized = expected.map(normalize).sort();
+
+  // 双向验证：长度相同且所有元素相同
+  if (currentNormalized.length !== expectedNormalized.length) {
+    return false;
+  }
+
+  return currentNormalized.every((ns, index) => ns === expectedNormalized[index]);
 }
 
 /**

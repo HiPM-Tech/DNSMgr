@@ -1,4 +1,4 @@
-/**
+﻿/**
  * NS Monitor Routes
  * NS 监测路由 - 新架构（用户级）
  */
@@ -9,7 +9,7 @@ import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { log } from '../lib/logger';
 import { normalizeRole, isSuper, isAdmin } from '../utils/roles';
-import { resolveNsRecords, NSLookupResult } from '../lib/dns/ns-lookup';
+import { resolveNsRecords, NSLookupResult, validateNsRecords } from '../lib/dns/ns-lookup';
 import { getDomainAccess } from './domains';
 
 const router = Router();
@@ -397,8 +397,8 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
     status = 'poisoned';
   } else if (expectedNs) {
     const expectedList = expectedNs.split(',').map(s => s.trim()).filter(Boolean);
-    const hasMismatch = expectedList.length > 0 && !expectedList.every(ns => currentNs.includes(ns));
-    if (hasMismatch) {
+    // 使用 validateNsRecords 进行标准化比较（忽略顺序和尾随点号）
+    if (!validateNsRecords(currentNs, expectedList)) {
       status = 'mismatch';
     }
   }
