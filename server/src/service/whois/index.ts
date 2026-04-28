@@ -131,6 +131,8 @@ export interface QueryOptions {
   timeout?: number;
   /** 是否使用缓存 */
   useCache?: boolean;
+  /** 是否禁用父域查询（仅用于子域查询场景） */
+  skipParentFallback?: boolean;
 }
 
 /**
@@ -172,9 +174,9 @@ class WhoisService {
    * 8. 第三方WHOIS 并行查询
    */
   async query(domain: string, options: QueryOptions = {}): Promise<WhoisResult | null> {
-    const { preferSubdomain = true, timeout = 30000 } = options;
+    const { preferSubdomain = true, timeout = 30000, skipParentFallback = false } = options;
 
-    log.info('WhoisService', `Querying ${domain}`, { preferSubdomain });
+    log.info('WhoisService', `Querying ${domain}`, { preferSubdomain, skipParentFallback });
 
     // 检查缓存
     const cached = this.getCached(domain);
@@ -192,7 +194,14 @@ class WhoisService {
       return this.queryApexOnly(domain, timeout);
     }
 
-    // ========== 子域名：顶域和子域并行查询 ==========
+    // ========== 子域名查询 ==========
+    if (skipParentFallback) {
+      // 禁用父域查询模式：仅查询子域，不查询父域
+      log.info('WhoisService', `[SKIP-PARENT] Querying subdomain only (no parent fallback) for ${domain}`);
+      return this.querySubdomainOnly(domain, timeout);
+    }
+
+    // 默认模式：顶域和子域并行查询
     log.info('WhoisService', `[PARALLEL] Starting parallel apex and subdomain queries for ${domain}`);
 
     // 并行启动顶域查询和子域查询
@@ -300,6 +309,56 @@ class WhoisService {
       return result;
     }
 
+    return null;
+  }
+
+  /**
+   * 仅查询子域（不查询父域）
+   * 用于 skipParentFallback 模式
+   */
+  private async querySubdomainOnly(domain: string, timeout: number): Promise<WhoisResult | null> {
+    log.info('WhoisService', `[SUBDOMAIN-ONLY] Querying subdomain only (no parent) ${domain}`);
+
+    // 1. 尝试子域 RDAP/WHOIS
+    let result = await this.querySubdomainRdapParallel(domain, timeout);
+    if (!result?.expiryDate) {
+      result = await this.querySubdomainWhoisParallel(domain, timeout);
+    }
+
+    if (result?.expiryDate) {
+      this.setCached(domain, result);
+      log.info('WhoisService', `[SUCCESS] Subdomain query succeeded for ${domain}`);
+      return result;
+    }
+
+    // 2. 尝试平级查询（uplevel）
+    log.info('WhoisService', `[SUBDOMAIN-ONLY] Trying uplevel queries for ${domain}`);
+    result = await this.queryUplevelRdapParallel(domain, timeout);
+    if (!result?.expiryDate) {
+      result = await this.queryUplevelWhoisParallel(domain, timeout);
+    }
+
+    if (result?.expiryDate) {
+      this.setCached(domain, result);
+      log.info('WhoisService', `[SUCCESS] Uplevel query succeeded for ${domain}`);
+      return result;
+    }
+
+    // 3. 尝试第三方查询（仅查询子域本身，不查询父域）
+    log.info('WhoisService', `[SUBDOMAIN-ONLY] Trying third-party for subdomain ${domain}`);
+    result = await this.queryThirdPartyRdapParallel(domain, timeout);
+    if (!result?.expiryDate) {
+      result = await this.queryThirdPartyWhoisParallel(domain, timeout);
+    }
+
+    if (result?.expiryDate) {
+      this.setCached(domain, result);
+      log.info('WhoisService', `[SUCCESS] Third-party subdomain query succeeded for ${domain}`);
+      return result;
+    }
+
+    // 放弃，不查询父域
+    log.warn('WhoisService', `[FAILED] All subdomain queries failed for ${domain} (no parent fallback)`);
     return null;
   }
 

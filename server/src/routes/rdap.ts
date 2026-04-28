@@ -45,14 +45,16 @@ async function queryRdapSimple(domain: string): Promise<any | null> {
     return result;
   } else {
     // 子域查询：仅查询子域，不查询父域
-    log.info('RDAP', 'Querying subdomain only (no parent domain query)');
+    log.info('RDAP', 'Querying subdomain only (skip parent fallback)');
     
-    // 对于子域，我们只尝试直接查询子域本身
-    // 由于 whoisService.query() 会自动 fallback 到父域，我们需要手动控制
-    // 这里直接返回 null，表示不支持子域查询
-    // TODO: 未来可以添加专门的子域查询选项
-    log.warn('RDAP', `Subdomain query not supported in simple mode: ${domain}`);
-    return null;
+    // 使用 skipParentFallback 选项禁用父域查询
+    const result = await whoisService.query(domain, {
+      preferSubdomain: true,
+      useCache: false,
+      skipParentFallback: true  // 关键：禁用父域查询
+    });
+    
+    return result;
   }
 }
 
