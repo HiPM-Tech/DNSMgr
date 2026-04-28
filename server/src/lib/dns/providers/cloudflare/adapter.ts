@@ -1,4 +1,4 @@
-import { 
+﻿import { 
   DnsAdapter, 
   DnsRecord, 
   DomainInfo, 
@@ -60,10 +60,10 @@ export class CloudflareAdapter implements DnsAdapter {
     
     const options: RequestInit = {
       method,
-      headers: buildAuthHeaders(this.config),
       body: body ? JSON.stringify(body) : undefined,
     };
     
+    // authenticatedRequest 会自动添加授权头
     const res = await authenticatedRequest(url, this.config, options);
     const data = (await res.json()) as CfApiResponse<T>;
     log.providerResponse('Cloudflare', res.status, data.success, { resultCount: Array.isArray(data.result) ? data.result.length : 0 });
