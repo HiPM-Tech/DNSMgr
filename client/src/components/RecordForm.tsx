@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { Info } from 'lucide-react';
 import type { DnsRecord, DnsLine, Provider } from '../api';
 import { useToast } from '../hooks/useToast';
@@ -135,7 +135,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           ? Boolean(initial.proxiable)
         : PROXIABLE_RECORD_TYPES.has(currentType))
       : true) // Aliyun ESA always supports proxy toggle
-    : hasMultiLine; // Multi-line providers should always show line selector
+    : true; // Always show line selector for non-proxy providers
 
   const normalizedSrvValue = useMemo(() => {
     const port = srv.port.trim();
@@ -370,7 +370,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         {canSelectProxy && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              {hasProxyMode ? t('records.proxy') : (hasMultiLine ? t('common.line') : t('records.defaultLine'))}
+              {hasProxyMode ? t('records.proxy') : t('common.line')}
             </label>
             <select 
               value={form.line ?? (hasProxyMode ? '0' : '')} 

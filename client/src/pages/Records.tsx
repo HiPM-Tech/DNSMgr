@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -173,7 +173,7 @@ export function Records() {
       ),
     },
     {
-      key: 'line', label: hasProxyMode ? t('records.proxy') : (hasMultiLine ? t('common.line') : t('records.defaultLine')),
+      key: 'line', label: t('common.line'),
       render: (r: DnsRecord) => {
         // Cloudflare & Aliyun ESA: 显示代理状态（是/否）
         if (hasProxyMode) {
