@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+﻿import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Shield, ShieldAlert, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2, Wand2 } from 'lucide-react';
 import { nsMonitorApi, domainsApi } from '../../api';
@@ -42,6 +42,9 @@ export function NSMonitorTab() {
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],
     queryFn: () => nsMonitorApi.list().then(r => r.data.data || []),
+    retry: 1,  // 只重试一次，避免多次失败导致失去登录状态
+    retryDelay: 1000,  // 重试间隔 1 秒
+    staleTime: 30000,  // 30 秒内认为数据是新鲜的，不重新获取
   });
 
   // 获取用户通知偏好设置
