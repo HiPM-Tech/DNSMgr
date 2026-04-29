@@ -69,6 +69,11 @@ async function handleMySQLMigrations(
     await addNsMonitorColumns(conn);
     log.info('Schema', 'Completed ns_monitor_domains columns migration');
     
+    // 迁移4: 创建 whois_cache 表
+    log.info('Schema', 'Starting whois_cache table migration...');
+    await ensureWhoisCacheTableMySQL(conn);
+    log.info('Schema', 'Completed whois_cache table migration');
+    
     log.info('Schema', 'All MySQL migrations completed');
   } catch (error) {
     log.error('Schema', 'MySQL migration check failed', { error: (error as Error).message, stack: (error as Error).stack });
@@ -187,6 +192,65 @@ async function dropOldNsMonitorTables(
       }
     } catch (error) {
       log.warn('Schema', `Error processing old NS monitor table ${tableName}`, { error: (error as Error).message });
+    }
+  }
+}
+
+/**
+ * 创建 whois_cache 表 - MySQL
+ */
+async function ensureWhoisCacheTableMySQL(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  try {
+    // 检查表是否存在
+    const checkTableSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES
+      WHERE TABLE_NAME = 'whois_cache'`;
+
+    let tableExists = false;
+    if (conn.execute) {
+      const result = await conn.execute(checkTableSql);
+      if (Array.isArray(result) && result.length > 0) {
+        const row = result[0] as Record<string, number>;
+        const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+        tableExists = parseInt(String(count), 10) > 0;
+      }
+    }
+
+    if (!tableExists) {
+      // 创建表
+      const createTableSql = `
+        CREATE TABLE whois_cache (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          domain VARCHAR(255) NOT NULL UNIQUE,
+          expiry_date DATETIME,
+          apex_expiry_date DATETIME,
+          registrar VARCHAR(255),
+          name_servers TEXT,
+          raw_data TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_domain (domain),
+          INDEX idx_updated (updated_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `;
+      
+      if (conn.execute) {
+        await conn.execute(createTableSql);
+      } else if (conn.exec) {
+        conn.exec(createTableSql);
+      }
+      
+      log.info('Schema', 'Created whois_cache table');
+    } else {
+      log.debug('Schema', 'whois_cache table already exists');
+    }
+  } catch (error) {
+    const errorMsg = (error as Error).message || '';
+    if (errorMsg.includes('already exists') || errorMsg.includes('ER_TABLE_EXISTS_ERROR')) {
+      log.info('Schema', 'whois_cache table already exists');
+    } else {
+      log.warn('Schema', 'Failed to create whois_cache table', { error: errorMsg });
     }
   }
 }
