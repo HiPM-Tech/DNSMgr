@@ -3003,23 +3003,25 @@ export const WhoisOperations = {
 
   /** 确保 whois_cache 表存在 */
   async ensureWhoisCacheTable(): Promise<void> {
+    const dbType = db.type;
+    
     try {
-      // SQLite 语法
-      await executeInternal(`
-        CREATE TABLE IF NOT EXISTS whois_cache (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          domain VARCHAR(255) NOT NULL UNIQUE,
-          expiry_date DATETIME,
-          apex_expiry_date DATETIME,
-          registrar VARCHAR(255),
-          name_servers TEXT,
-          raw_data TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
-    } catch (sqliteError) {
-      try {
+      if (dbType === 'sqlite') {
+        // SQLite 语法
+        await executeInternal(`
+          CREATE TABLE IF NOT EXISTS whois_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            domain VARCHAR(255) NOT NULL UNIQUE,
+            expiry_date DATETIME,
+            apex_expiry_date DATETIME,
+            registrar VARCHAR(255),
+            name_servers TEXT,
+            raw_data TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+      } else if (dbType === 'mysql') {
         // MySQL 语法
         await executeInternal(`
           CREATE TABLE IF NOT EXISTS whois_cache (
@@ -3036,31 +3038,33 @@ export const WhoisOperations = {
             INDEX idx_updated (updated_at)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
-      } catch (mysqlError) {
-        try {
-          // PostgreSQL 语法
-          await executeInternal(`
-            CREATE TABLE IF NOT EXISTS whois_cache (
-              id SERIAL PRIMARY KEY,
-              domain VARCHAR(255) NOT NULL UNIQUE,
-              expiry_date TIMESTAMP,
-              apex_expiry_date TIMESTAMP,
-              registrar VARCHAR(255),
-              name_servers TEXT,
-              raw_data TEXT,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-          `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
-          
-          // 创建索引
-          await executeInternal(`
-            CREATE INDEX IF NOT EXISTS idx_whois_cache_domain ON whois_cache(domain);
-            CREATE INDEX IF NOT EXISTS idx_whois_cache_updated ON whois_cache(updated_at);
-          `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
-        } catch (pgError) {
-          // 表可能已存在，忽略错误
-        }
+      } else if (dbType === 'postgresql') {
+        // PostgreSQL 语法
+        await executeInternal(`
+          CREATE TABLE IF NOT EXISTS whois_cache (
+            id SERIAL PRIMARY KEY,
+            domain VARCHAR(255) NOT NULL UNIQUE,
+            expiry_date TIMESTAMP,
+            apex_expiry_date TIMESTAMP,
+            registrar VARCHAR(255),
+            name_servers TEXT,
+            raw_data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+        
+        // 创建索引
+        await executeInternal(`
+          CREATE INDEX IF NOT EXISTS idx_whois_cache_domain ON whois_cache(domain);
+          CREATE INDEX IF NOT EXISTS idx_whois_cache_updated ON whois_cache(updated_at);
+        `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+      }
+    } catch (error) {
+      // 表可能已存在，忽略错误
+      const errorMsg = (error as Error).message || '';
+      if (!errorMsg.includes('already exists') && !errorMsg.includes('ER_TABLE_EXISTS_ERROR')) {
+        log.warn('BusinessAdapter', 'Failed to create whois_cache table', { error: errorMsg, dbType });
       }
     }
   },
