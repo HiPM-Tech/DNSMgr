@@ -117,6 +117,41 @@ export function DomainRenewalTab() {
     }
   };
 
+  // 处理添加续期域名
+  const handleAddDomain = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const accountId = parseInt(formData.get('account_id') as string);
+    const domainName = formData.get('domain_name') as string;
+    const thirdId = formData.get('third_id') as string;
+    const fullDomain = formData.get('full_domain') as string;
+    const expiresAt = formData.get('expires_at') as string;
+    const remark = formData.get('remark') as string;
+    
+    if (!accountId || !domainName || !thirdId || !fullDomain) {
+      toast.error(t('nsMonitor.selectDomain'));
+      return;
+    }
+    
+    // 获取账号的 provider_type
+    const account = accounts.find((a: any) => a.id === accountId);
+    if (!account) {
+      toast.error(t('accounts.notFound'));
+      return;
+    }
+    
+    addMutation.mutate({
+      account_id: accountId,
+      provider_type: account.type,
+      domain_name: domainName,
+      third_id: thirdId,
+      full_domain: fullDomain,
+      expires_at: expiresAt || undefined,
+      remark: remark || undefined,
+    });
+  };
+
   // 表格列定义
   const columns = [
     {
@@ -178,31 +213,41 @@ export function DomainRenewalTab() {
         const subdomainId = (row as any).third_id || row.id;
         
         return (
-          <button
-            onClick={() => {
-              if (subdomainId) {
-                setRenewing(Number(subdomainId));
-                renewMutation.mutate({ 
-                  domainId: row.id, 
-                  subdomainId: Number(subdomainId) 
-                });
-              }
-            }}
-            disabled={!subdomainId || renewing === Number(subdomainId)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm rounded-lg transition-colors"
-          >
-            {renewing === Number(subdomainId) ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                {t('domainRenewal.renewing')}
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4" />
-                {t('domainRenewal.renew')}
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (subdomainId) {
+                  setRenewing(Number(subdomainId));
+                  renewMutation.mutate({ 
+                    domainId: row.id, 
+                    subdomainId: Number(subdomainId) 
+                  });
+                }
+              }}
+              disabled={!subdomainId || renewing === Number(subdomainId)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm rounded-lg transition-colors"
+            >
+              {renewing === Number(subdomainId) ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  {t('domainRenewal.renewing')}
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  {t('domainRenewal.renew')}
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setDeleteDomain(row)}
+              disabled={deleteMutation.isPending}
+              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title={t('common.delete')}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         );
       },
     },
