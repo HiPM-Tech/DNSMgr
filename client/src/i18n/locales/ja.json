@@ -517,8 +517,10 @@
       "subtitle": "Manage domains from all DNS providers",
       "tabs": {
         "list": "Domain List",
+        "listSubtitle": "Various DNS providers' domain resolution records unified management",
         "failover": "Failover",
-        "nsMonitor": "NS Monitor"
+        "nsMonitor": "NS Monitor",
+        "renewal": "Domain Renewal"
       },
       "account": "アカウント",
       "actions": "アクション",
