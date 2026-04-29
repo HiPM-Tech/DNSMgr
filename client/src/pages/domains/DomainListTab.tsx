@@ -412,8 +412,8 @@ export function DomainListTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('domains.title')}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('domains.subtitle')}</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('domains.tabs.list')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('domains.tabs.listSubtitle')}</p>
         </div>
         <button onClick={() => setShowAdd(true)} disabled={!canManage}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
