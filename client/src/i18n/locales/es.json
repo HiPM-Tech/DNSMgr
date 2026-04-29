@@ -429,8 +429,10 @@
       "subtitle": "Manage domains from all DNS providers",
       "tabs": {
         "list": "Domain List",
+        "listSubtitle": "Unified management of DNS resolution records from various DNS providers",
         "failover": "Failover",
-        "nsMonitor": "NS Monitor"
+        "nsMonitor": "NS Monitor",
+        "renewal": "Domain Renewal"
       },
       "account": "Cuenta",
       "actions": "Acciones",
