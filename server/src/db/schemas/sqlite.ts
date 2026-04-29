@@ -448,6 +448,8 @@ export const sqliteSchema: SchemaDefinition = {
     // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
-    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS is_poisoned INTEGER NOT NULL DEFAULT 0`
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS is_poisoned INTEGER NOT NULL DEFAULT 0`,
+    // Migration: Add pinned_domains column to user_preferences table
+    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS pinned_domains TEXT DEFAULT '[]'`
   ],
 };

@@ -458,6 +458,8 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS is_poisoned BOOLEAN NOT NULL DEFAULT false`,
     // Migration: Update status check constraint to include 'poisoned'
     `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_status_check`,
-    `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_status_check CHECK (status IN ('ok', 'mismatch', 'missing', 'poisoned'))`
+    `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_status_check CHECK (status IN ('ok', 'mismatch', 'missing', 'poisoned'))`,
+    // Migration: Add pinned_domains column to user_preferences table
+    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS pinned_domains JSONB DEFAULT '[]'::jsonb`
   ],
 };
