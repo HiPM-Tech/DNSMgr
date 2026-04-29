@@ -33,6 +33,14 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
       return;
     }
 
+    // Get already added renewable domains to filter them out
+    const existingRenewableDomains = await RenewableDomainOperations.getAllEnabled();
+    const existingThirdIds = new Set(
+      existingRenewableDomains
+        .filter((d: any) => providerAccounts.some((acc: any) => acc.id === d.account_id))
+        .map((d: any) => String(d.third_id))
+    );
+
     let allDomains: any[] = [];
 
     // Call provider-specific function based on type
@@ -50,15 +58,17 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
             });
             
             if (result && result.success && result.subdomains) {
-              // Add account info to each domain
-              const domainsWithAccount = result.subdomains.map((sub: any) => ({
-                ...sub,
-                account_id: account.id,
-                account_name: account.name,
-                name: sub.full_domain,  // Use full_domain from DNSHE API directly
-                id: sub.id,
-                third_id: String(sub.id),
-              }));
+              // Filter out already added domains and add account info
+              const domainsWithAccount = result.subdomains
+                .filter((sub: any) => !existingThirdIds.has(String(sub.id)))  // Exclude already added
+                .map((sub: any) => ({
+                  ...sub,
+                  account_id: account.id,
+                  account_name: account.name,
+                  name: sub.full_domain,  // Use full_domain from DNSHE API directly
+                  id: sub.id,
+                  third_id: String(sub.id),
+                }));
               
               allDomains.push(...domainsWithAccount);
             }
