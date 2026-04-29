@@ -1000,7 +1000,17 @@
       "notSupported": "Renewal Not Supported",
       "notSupportedDesc": "Current DNS provider does not support domain renewal. Currently only DNSHE provider supports this feature.",
       "autoRenewal": "Auto Renewal",
-      "autoRenewalDesc": "The system will automatically attempt to renew expiring domains every day at UTC 0:00. You can also manually click the renew button to renew immediately."
+      "autoRenewalDesc": "The system will automatically attempt to renew expiring domains every day at UTC 0:00. You can also manually click the renew button to renew immediately.",
+      "addDomain": "Add Renewable Domain",
+      "selectProvider": "Select Provider",
+      "selectDomains": "Select Domains",
+      "addSuccess": "Added successfully",
+      "addFailed": "Failed to add",
+      "deleteConfirm": "Are you sure you want to remove {domain} from the renewable list?",
+      "deleteSuccess": "Deleted successfully",
+      "deleteFailed": "Failed to delete",
+      "noAvailableDomains": "No available domains",
+      "loadingDomains": "Loading domains..."
     }
   }
 }
