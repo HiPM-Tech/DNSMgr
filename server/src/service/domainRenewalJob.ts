@@ -5,6 +5,7 @@
 
 import { DnsAccountOperations } from '../db/business-adapter';
 import { renewalRegistry } from './renewalScheduler';
+import { taskManager } from './taskManager';
 import { logAuditOperation } from './audit';
 import { log } from '../lib/logger';
 
@@ -160,12 +161,7 @@ export async function executeDomainRenewal(): Promise<void> {
  * 启动域名续期定时任务
  * 每天 UTC 0:00 执行
  */
-export function startDomainRenewalJob(): void {
-  if (renewalInterval) {
-    log.warn('DomainRenewalJob', 'Renewal job already running');
-    return;
-  }
-
+export async function startDomainRenewalJob(): Promise<void> {
   // 计算到下一个 UTC 0:00 的时间
   const now = new Date();
   const nextRun = new Date(now);
@@ -180,11 +176,33 @@ export function startDomainRenewalJob(): void {
   });
 
   // 首次执行（在下一个 UTC 0:00）
-  renewalInterval = setTimeout(() => {
-    executeDomainRenewal();
+  setTimeout(() => {
+    taskManager.submit(
+      {
+        id: 'domain-renewal-initial',
+        name: 'Domain Renewal Initial',
+        concurrency: 1,       // 串行执行，避免并发续期
+        timeout: 300000,      // 5分钟超时
+        retries: 1,           // 失败重试1次
+        retryDelay: 60000,    // 重试间隔1分钟
+      },
+      executeDomainRenewal
+    ).catch(err => log.error('DomainRenewalJob', 'Initial renewal error:', { error: err }));
     
     // 之后每 24 小时执行一次
-    renewalInterval = setInterval(executeDomainRenewal, 24 * 60 * 60 * 1000);
+    setInterval(() => {
+      taskManager.submit(
+        {
+          id: `domain-renewal-${Date.now()}`,
+          name: 'Domain Renewal Scheduled',
+          concurrency: 1,       // 串行执行
+          timeout: 300000,      // 5分钟超时
+          retries: 1,           // 失败重试1次
+          retryDelay: 60000,    // 重试间隔1分钟
+        },
+        executeDomainRenewal
+      ).catch(err => log.error('DomainRenewalJob', 'Scheduled renewal error:', { error: err }));
+    }, 24 * 60 * 60 * 1000);
   }, initialDelay);
 }
 
