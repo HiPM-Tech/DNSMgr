@@ -51,14 +51,22 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
             
             if (result && result.success && result.subdomains) {
               // Add account info to each domain
-              const domainsWithAccount = result.subdomains.map((sub: any) => ({
-                ...sub,
-                account_id: account.id,
-                account_name: account.name,
-                name: sub.full_domain,
-                id: sub.id,
-                third_id: String(sub.id),
-              }));
+              const domainsWithAccount = result.subdomains.map((sub: any) => {
+                // Construct full_domain from subdomain and rootdomain to avoid duplication
+                const fullDomain = sub.subdomain === '@' 
+                  ? sub.rootdomain 
+                  : `${sub.subdomain}.${sub.rootdomain}`;
+                
+                return {
+                  ...sub,
+                  account_id: account.id,
+                  account_name: account.name,
+                  name: fullDomain,
+                  full_domain: fullDomain,  // Override potentially duplicated full_domain from API
+                  id: sub.id,
+                  third_id: String(sub.id),
+                };
+              });
               
               allDomains.push(...domainsWithAccount);
             }
