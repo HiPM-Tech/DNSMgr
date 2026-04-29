@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Calendar, AlertCircle, CheckCircle, Clock, Plus, Trash2 } from 'lucide-react';
-import { domainRenewalApi, accountsApi } from '../../api';
+import { domainRenewalApi, accountsApi, api } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,6 +19,8 @@ export function DomainRenewalTab() {
   
   // 添加续期域名相关状态
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [selectedDomainIds, setSelectedDomainIds] = useState<Set<string>>(new Set());
   const [deleteDomain, setDeleteDomain] = useState<any | null>(null);
 
   // 获取 DNS 账号列表（用于选择提供商）
@@ -26,6 +28,19 @@ export function DomainRenewalTab() {
     queryKey: ['dns-accounts'],
     queryFn: () => accountsApi.list().then(r => r.data.data || []),
     enabled: isAddModalOpen,
+  });
+
+  // 获取选中账号的 DNSHE 子域名列表
+  const { data: dnsheSubdomains = [], isLoading: isLoadingSubdomains } = useQuery({
+    queryKey: ['dnshe-subdomains', selectedAccountId],
+    queryFn: async () => {
+      if (!selectedAccountId) return [];
+      const res = await api.get('/domains/dnshe-subdomains');
+      const allSubdomains = res.data.data || [];
+      // 过滤出当前账号的子域名
+      return allSubdomains.filter((sub: any) => sub.account_id === selectedAccountId);
+    },
+    enabled: !!selectedAccountId && isAddModalOpen,
   });
 
   // 添加续期域名 mutation
@@ -43,6 +58,40 @@ export function DomainRenewalTab() {
       queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
       setIsAddModalOpen(false);
       toast.success(t('domainRenewal.addSuccess'));
+    },
+    onError: () => {
+      toast.error(t('domainRenewal.addFailed'));
+    },
+  });
+
+  // 批量添加续期域名 mutation
+  const batchAddMutation = useMutation({
+    mutationFn: async ({ accountId, subdomains }: { accountId: number; subdomains: any[] }) => {
+      const account = accounts.find((a: any) => a.id === accountId);
+      if (!account) throw new Error('Account not found');
+      
+      const promises = subdomains.map(sub => 
+        domainRenewalApi.addRenewableDomain({
+          account_id: accountId,
+          provider_type: account.type,
+          domain_name: sub.name || sub.full_domain.split('.')[0],
+          third_id: String(sub.id),
+          full_domain: sub.full_domain,
+          expires_at: sub.expires_at,
+          remark: `Added from ${account.name}`,
+        })
+      );
+      
+      const results = await Promise.allSettled(promises);
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      return { successCount, total: subdomains.length };
+    },
+    onSuccess: ({ successCount, total }) => {
+      queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
+      setIsAddModalOpen(false);
+      setSelectedAccountId(null);
+      setSelectedDomainIds(new Set());
+      toast.success(t('domainRenewal.addSuccess') + ` (${successCount}/${total})`);
     },
     onError: () => {
       toast.error(t('domainRenewal.addFailed'));
@@ -146,6 +195,43 @@ export function DomainRenewalTab() {
       expires_at: expiresAt || undefined,
       remark: remark || undefined,
     });
+  };
+
+  // 处理批量添加
+  const handleBatchAdd = () => {
+    if (!selectedAccountId || selectedDomainIds.size === 0) {
+      toast.error(t('domainRenewal.selectDomains'));
+      return;
+    }
+    
+    const selectedSubdomains = dnsheSubdomains.filter((sub: any) => 
+      selectedDomainIds.has(String(sub.id))
+    );
+    
+    batchAddMutation.mutate({
+      accountId: selectedAccountId,
+      subdomains: selectedSubdomains,
+    });
+  };
+
+  // 切换域名选择
+  const toggleDomainSelection = (domainId: string) => {
+    const newSet = new Set(selectedDomainIds);
+    if (newSet.has(domainId)) {
+      newSet.delete(domainId);
+    } else {
+      newSet.add(domainId);
+    }
+    setSelectedDomainIds(newSet);
+  };
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    if (selectedDomainIds.size === dnsheSubdomains.length) {
+      setSelectedDomainIds(new Set());
+    } else {
+      setSelectedDomainIds(new Set(dnsheSubdomains.map((sub: any) => String(sub.id))));
+    }
   };
 
   // 表格列定义
