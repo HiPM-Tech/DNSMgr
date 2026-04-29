@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Calendar, AlertCircle, CheckCircle, Clock } from 'lucide-react';
-import { domainRenewalApi } from '../../api';
+import { RefreshCw, Calendar, AlertCircle, CheckCircle, Clock, Plus, Trash2 } from 'lucide-react';
+import { domainRenewalApi, dnsAccountsApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Table } from '../../components/Table';
 import { Badge } from '../../components/Badge';
+import { Modal } from '../../components/Modal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { PaginatedSelect } from '../../components/PaginatedSelect';
 
 export function DomainRenewalTab() {
   const toast = useToast();
