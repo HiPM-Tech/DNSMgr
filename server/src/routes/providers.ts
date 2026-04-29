@@ -4,7 +4,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { normalizeRole } from '../utils/roles';
 import { sendError, sendSuccess } from '../utils/http';
 import { log } from '../lib/logger';
-import { DnsAccountOperations } from '../db/business-adapter';
+import { DnsAccountOperations, RenewableDomainOperations } from '../db/business-adapter';
 import { listSubdomains as dnsheListSubdomains } from '../lib/dns/providers/dnshe/renewal';
 
 const router = Router();
