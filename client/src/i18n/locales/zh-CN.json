@@ -1108,6 +1108,16 @@
     "notSupported": "不支持续期",
     "notSupportedDesc": "当前 DNS 提供商不支持域名续期功能。目前仅 DNSHE 提供商支持此功能。",
     "autoRenewal": "自动续期",
-    "autoRenewalDesc": "系统将在每天 UTC 0:00 自动尝试续期即将到期的域名。您也可以手动点击续期按钮立即续期。"
+    "autoRenewalDesc": "系统将在每天 UTC 0:00 自动尝试续期即将到期的域名。您也可以手动点击续期按钮立即续期。",
+    "addDomain": "添加续期域名",
+    "selectProvider": "选择提供商",
+    "selectDomains": "选择域名",
+    "addSuccess": "添加成功",
+    "addFailed": "添加失败",
+    "deleteConfirm": "确定要从续期列表中删除域名 {domain} 吗？",
+    "deleteSuccess": "删除成功",
+    "deleteFailed": "删除失败",
+    "noAvailableDomains": "没有可用的域名",
+    "loadingDomains": "加载域名中..."
   }
 }
