@@ -2299,8 +2299,17 @@ export const UserPreferencesOperations = {
     }
     
     try {
-      const pinnedDomainsStr = result.pinned_domains as string;
-      return JSON.parse(pinnedDomainsStr);
+      // MySQL JSON 类型直接返回数组，SQLite/PostgreSQL 返回字符串
+      const pinnedDomains = result.pinned_domains;
+      if (Array.isArray(pinnedDomains)) {
+        return pinnedDomains;
+      }
+      // 如果是字符串，解析 JSON
+      if (typeof pinnedDomains === 'string') {
+        const parsed = JSON.parse(pinnedDomains);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+      return [];
     } catch {
       return [];
     }
