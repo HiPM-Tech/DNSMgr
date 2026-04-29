@@ -1077,7 +1077,7 @@ router.delete('/renewable-domains/:id', authMiddleware, asyncHandler(async (req:
 
 /**
  * Get DNSHE subdomains list for renewal tab (admin only)
- * @deprecated Use /renewable-domains instead
+ * @deprecated Use /api/providers/:type/renewable-domains instead
  */
 router.get('/dnshe-subdomains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   // Only allow admins and super admins
