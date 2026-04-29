@@ -6,6 +6,7 @@ import type { Domain } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { PaginatedSelect } from '../components/PaginatedSelect';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,6 +39,7 @@ export function NSMonitor() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [deleteConfig, setDeleteConfig] = useState<NSMonitorConfig | null>(null);
   const [selectedDomainName, setSelectedDomainName] = useState<string>('');
+  const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null);
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],
@@ -556,23 +558,17 @@ export function NSMonitor() {
                   {t('nsMonitor.noAvailableDomains')}
                 </div>
               ) : (
-                <select
-                  name="domain_id"
-                  required
-                  onChange={(e) => {
-                    const domainId = parseInt(e.target.value);
-                    const domain = availableDomains.find(d => d.id === domainId);
+                <PaginatedSelect
+                  options={availableDomains.map(d => ({ id: d.id, name: d.name }))}
+                  value={selectedDomainId}
+                  onChange={(value) => {
+                    setSelectedDomainId(value);
+                    const domain = availableDomains.find(d => d.id === value);
                     setSelectedDomainName(domain?.name || '');
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                >
-                  <option value="">{t('nsMonitor.selectDomainPlaceholder')}</option>
-                  {availableDomains.map((domain: Domain) => (
-                    <option key={domain.id} value={domain.id}>
-                      {domain.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder={t('nsMonitor.selectDomainPlaceholder')}
+                  pageSize={20}
+                />
               )}
             </div>
 
