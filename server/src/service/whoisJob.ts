@@ -20,34 +20,52 @@ function formatDateForMySQL(date: Date): string {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-// 简单的内存缓存
-interface CacheEntry {
-  result: WhoisResult;
-  timestamp: number;
-}
-const whoisCache = new Map<string, CacheEntry>();
+// WHOIS 数据库缓存配置
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 小时
+const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL / 1000);
 
 /**
- * 获取缓存的 WHOIS 结果
+ * 从数据库获取缓存的 WHOIS 结果
  */
-function getCachedWhois(domain: string): WhoisResult | null {
-  const cached = whoisCache.get(domain);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    log.debug('WhoisJob', `Cache hit for ${domain}`);
-    return cached.result;
+async function getCachedWhois(domain: string): Promise<WhoisResult | null> {
+  try {
+    const row = await WhoisOperations.getCachedWhois(domain, CACHE_TTL_SECONDS);
+    
+    if (row) {
+      log.debug('WhoisJob', `Database cache hit for ${domain}`);
+      
+      return {
+        expiryDate: row.expiry_date ? new Date(row.expiry_date) : null,
+        apexExpiryDate: row.apex_expiry_date ? new Date(row.apex_expiry_date) : null,
+        registrar: row.registrar || null,
+        nameServers: row.name_servers ? JSON.parse(row.name_servers) : [],
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    log.error('WhoisJob', 'Failed to get cached WHOIS', { domain, error });
+    return null;
   }
-  return null;
 }
 
 /**
- * 缓存 WHOIS 结果
+ * 将 WHOIS 结果缓存到数据库
  */
-function setCachedWhois(domain: string, result: WhoisResult): void {
-  whoisCache.set(domain, {
-    result,
-    timestamp: Date.now(),
-  });
+async function setCachedWhois(domain: string, result: WhoisResult): Promise<void> {
+  try {
+    await WhoisOperations.setCachedWhois(
+      domain,
+      result.expiryDate ? formatDateForMySQL(result.expiryDate) : null,
+      result.apexExpiryDate ? formatDateForMySQL(result.apexExpiryDate) : null,
+      result.registrar || null,
+      JSON.stringify(result.nameServers || []),
+      JSON.stringify(result)
+    );
+    log.debug('WhoisJob', `Cached WHOIS result for ${domain}`);
+  } catch (error) {
+    log.error('WhoisJob', 'Failed to cache WHOIS result', { domain, error });
+  }
 }
 
 /**
@@ -67,8 +85,8 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
   try {
     log.info('WhoisJob', `Checking WHOIS for ${domainName}`);
     
-    // 检查缓存
-    const cached = getCachedWhois(domainName);
+    // 检查数据库缓存
+    const cached = await getCachedWhois(domainName);
     if (cached?.expiryDate) {
       log.info('WhoisJob', `Using cached expiry for ${domainName}: ${cached.expiryDate.toISOString()}`);
       return {
@@ -237,8 +255,9 @@ async function asyncPool<T, R>(concurrency: number, items: T[], fn: (item: T) =>
 export async function syncAllDomainsWhois() {
   log.info('WhoisJob', 'Starting WHOIS sync for all domains');
 
+  let domains: Domain[] = [];
   try {
-    const domains = await WhoisOperations.getAllDomains() as unknown as Domain[];
+    domains = await WhoisOperations.getAllDomains() as unknown as Domain[];
   } catch (error) {
     // Check if it's a connection error, try to reconnect
     if (error instanceof Error && error.message.includes('Database connection not initialized')) {
@@ -247,7 +266,7 @@ export async function syncAllDomainsWhois() {
         await connect();
         log.info('WhoisJob', 'Database reconnected successfully, retrying...');
         // Retry once
-        const domains = await WhoisOperations.getAllDomains() as unknown as Domain[];
+        domains = await WhoisOperations.getAllDomains() as unknown as Domain[];
       } catch (reconnectError) {
         log.error('WhoisJob', 'Failed to reconnect to database', { error: reconnectError });
         return;
@@ -257,60 +276,68 @@ export async function syncAllDomainsWhois() {
     }
   }
 
-  try {
-    const domains = await WhoisOperations.getAllDomains() as unknown as Domain[];
-    log.info('WhoisJob', `Found ${domains.length} domains to sync`, {
-      domainNames: domains.map(d => d.name),
-    });
+  log.info('WhoisJob', `Found ${domains.length} domains to sync`, {
+    domainNames: domains.map(d => d.name),
+  });
 
-    let successCount = 0;
-    let failCount = 0;
-    const failedDomains: string[] = [];
+  let successCount = 0;
+  let failCount = 0;
+  const failedDomains: string[] = [];
 
-    // 使用并发控制，最多 3 个并发请求
-    await asyncPool(3, domains, async (d) => {
-      try {
-        log.info('WhoisJob', `Processing domain: ${d.name}`);
-        const whoisResult = await checkWhoisForDomain(d.name);
+  // 使用任务管理器并发处理（最多3个并发）
+  const tasks = domains.map(d => {
+    return taskManager.submit(
+      {
+        id: `whois-${d.id}`,
+        name: `WHOIS Sync: ${d.name}`,
+        concurrency: 3,       // 允许最多3个并发
+        timeout: 60000,       // 60秒超时
+        retries: 1,           // 失败重试1次
+        retryDelay: 5000,     // 重试间隔5秒
+      },
+      async () => {
+        try {
+          log.info('WhoisJob', `Processing domain: ${d.name}`);
+          const whoisResult = await checkWhoisForDomain(d.name);
 
-        if (whoisResult.expiryDate) {
-          // 更新数据库
-          const formattedDate = formatDateForMySQL(whoisResult.expiryDate);
-          const formattedApexDate = whoisResult.apexExpiryDate 
-            ? formatDateForMySQL(whoisResult.apexExpiryDate) 
-            : null;
-          await WhoisOperations.updateExpiry(d.id, formattedDate, formattedApexDate);
+          if (whoisResult.expiryDate) {
+            // 更新数据库
+            const formattedDate = formatDateForMySQL(whoisResult.expiryDate);
+            const formattedApexDate = whoisResult.apexExpiryDate 
+              ? formatDateForMySQL(whoisResult.apexExpiryDate) 
+              : null;
+            await WhoisOperations.updateExpiry(d.id, formattedDate, formattedApexDate);
 
-          successCount++;
-          log.info('WhoisJob', `Updated expiry for ${d.name}: ${formattedDate}`, {
-            apexExpiryDate: formattedApexDate,
-          });
+            successCount++;
+            log.info('WhoisJob', `Updated expiry for ${d.name}: ${formattedDate}`, {
+              apexExpiryDate: formattedApexDate,
+            });
 
-          // 检查是否需要发送通知
-          await checkAndSendNotification(d, whoisResult.expiryDate);
-        } else {
+            // 检查是否需要发送通知
+            await checkAndSendNotification(d, whoisResult.expiryDate);
+          } else {
+            failCount++;
+            failedDomains.push(d.name);
+            log.warn('WhoisJob', `Failed to get expiry for ${d.name}`);
+          }
+        } catch (error) {
           failCount++;
           failedDomains.push(d.name);
-          log.warn('WhoisJob', `Failed to get expiry for ${d.name}`);
+          log.error('WhoisJob', `Error processing ${d.name}:`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-      } catch (error) {
-        failCount++;
-        failedDomains.push(d.name);
-        log.error('WhoisJob', `Error processing ${d.name}:`, {
-          error: error instanceof Error ? error.message : String(error),
-        });
       }
-    });
+    );
+  });
 
-    log.info('WhoisJob', `WHOIS sync completed: ${successCount} success, ${failCount} failed`, {
-      failedDomains: failedDomains.slice(0, 20), // 最多显示20个失败的域名
-      totalFailed: failedDomains.length,
-    });
-  } catch (error) {
-    log.error('WhoisJob', 'Sync failed:', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
+  // 等待所有任务完成
+  await Promise.all(tasks);
+
+  log.info('WhoisJob', `WHOIS sync completed: ${successCount} success, ${failCount} failed`, {
+    failedDomains: failedDomains.slice(0, 20), // 最多显示20个失败的域名
+    totalFailed: failedDomains.length,
+  });
 }
 
 /**
@@ -396,16 +423,44 @@ export async function syncDomainWhois(domainId: number): Promise<{ success: bool
 /**
  * 启动 WHOIS 定时任务
  */
-export function startWhoisJob() {
+export async function startWhoisJob() {
+  // 初始化 WHOIS 缓存表
+  try {
+    await WhoisOperations.ensureWhoisCacheTable();
+    log.info('WhoisJob', 'WHOIS cache table initialized');
+  } catch (error) {
+    log.error('WhoisJob', 'Failed to initialize WHOIS cache table', { error });
+  }
+
   // 启动后 30 秒运行第一次（给系统初始化时间）
   setTimeout(() => {
-    syncAllDomainsWhois().catch(err => log.error('WhoisJob', 'Initial sync error:', { error: err }));
+    taskManager.submit(
+      {
+        id: 'whois-sync-initial',
+        name: 'WHOIS Initial Sync',
+        concurrency: 3,       // 允许最多3个并发
+        timeout: 300000,      // 5分钟超时
+        retries: 1,           // 失败重试1次
+        retryDelay: 10000,    // 重试间隔10秒
+      },
+      syncAllDomainsWhois
+    ).catch(err => log.error('WhoisJob', 'Initial sync error:', { error: err }));
   }, 30 * 1000);
 
   // 每小时运行一次
   setInterval(() => {
-    syncAllDomainsWhois().catch(err => log.error('WhoisJob', 'Scheduled sync error:', { error: err }));
+    taskManager.submit(
+      {
+        id: `whois-sync-${Date.now()}`,
+        name: 'WHOIS Scheduled Sync',
+        concurrency: 3,       // 允许最多3个并发
+        timeout: 300000,      // 5分钟超时
+        retries: 1,           // 失败重试1次
+        retryDelay: 10000,    // 重试间隔10秒
+      },
+      syncAllDomainsWhois
+    ).catch(err => log.error('WhoisJob', 'Scheduled sync error:', { error: err }));
   }, 60 * 60 * 1000);
 
-  log.info('WhoisJob', 'WHOIS job scheduler started (every 1 hour)');
+  log.info('WhoisJob', 'WHOIS job scheduler started (every 1 hour, with task manager)');
 }

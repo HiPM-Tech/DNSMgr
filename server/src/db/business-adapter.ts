@@ -3000,6 +3000,101 @@ export const WhoisOperations = {
       { operation: 'Whois.getDomainById', table: 'domains' }
     );
   },
+
+  /** 确保 whois_cache 表存在 */
+  async ensureWhoisCacheTable(): Promise<void> {
+    try {
+      await executeInternal(`
+        CREATE TABLE IF NOT EXISTS whois_cache (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          domain VARCHAR(255) NOT NULL UNIQUE,
+          expiry_date DATETIME,
+          apex_expiry_date DATETIME,
+          registrar VARCHAR(255),
+          name_servers TEXT,
+          raw_data TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+    } catch (error) {
+      // MySQL 语法
+      try {
+        await executeInternal(`
+          CREATE TABLE IF NOT EXISTS whois_cache (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            domain VARCHAR(255) NOT NULL UNIQUE,
+            expiry_date DATETIME,
+            apex_expiry_date DATETIME,
+            registrar VARCHAR(255),
+            name_servers TEXT,
+            raw_data TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_domain (domain),
+            INDEX idx_updated (updated_at)
+          )
+        `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+      } catch (mysqlError) {
+        // 表可能已存在，忽略错误
+      }
+    }
+  },
+
+  /** 从数据库获取缓存的 WHOIS 结果 */
+  async getCachedWhois(domain: string, cacheTtlSeconds: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT * FROM whois_cache WHERE domain = ? AND 
+       updated_at > DATE_SUB(NOW(), INTERVAL ? SECOND)`,
+      [domain, cacheTtlSeconds],
+      { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
+    );
+  },
+
+  /** 将 WHOIS 结果缓存到数据库 */
+  async setCachedWhois(
+    domain: string,
+    expiryDate: string | null,
+    apexExpiryDate: string | null,
+    registrar: string | null,
+    nameServers: string,
+    rawData: string
+  ): Promise<void> {
+    try {
+      await executeInternal(
+        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE
+           expiry_date = VALUES(expiry_date),
+           apex_expiry_date = VALUES(apex_expiry_date),
+           registrar = VALUES(registrar),
+           name_servers = VALUES(name_servers),
+           raw_data = VALUES(raw_data),
+           updated_at = NOW()`,
+        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+        { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
+      );
+    } catch (error) {
+      // SQLite 语法
+      try {
+        await executeInternal(
+          `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT(domain) DO UPDATE SET
+             expiry_date = excluded.expiry_date,
+             apex_expiry_date = excluded.apex_expiry_date,
+             registrar = excluded.registrar,
+             name_servers = excluded.name_servers,
+             raw_data = excluded.raw_data,
+             updated_at = CURRENT_TIMESTAMP`,
+          [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+          { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
+        );
+      } catch (sqliteError) {
+        // 忽略错误
+      }
+    }
+  },
 };
 
 // ============================================================================
