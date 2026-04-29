@@ -35,10 +35,12 @@ async function getCachedWhois(domain: string): Promise<WhoisResult | null> {
       log.debug('WhoisJob', `Database cache hit for ${domain}`);
       
       return {
-        expiryDate: row.expiry_date ? new Date(row.expiry_date) : null,
-        apexExpiryDate: row.apex_expiry_date ? new Date(row.apex_expiry_date) : null,
-        registrar: row.registrar || null,
-        nameServers: row.name_servers ? JSON.parse(row.name_servers) : [],
+        domain: (row as any).domain || domain,
+        expiryDate: (row as any).expiry_date ? new Date((row as any).expiry_date) : null,
+        apexExpiryDate: (row as any).apex_expiry_date ? new Date((row as any).apex_expiry_date) : null,
+        registrar: (row as any).registrar || null,
+        nameServers: (row as any).name_servers ? JSON.parse((row as any).name_servers) : [],
+        raw: (row as any).raw_data || '',
       };
     }
     
