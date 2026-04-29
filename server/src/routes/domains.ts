@@ -11,7 +11,7 @@ import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { log } from '../lib/logger';
-import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations } from '../db/business-adapter';
+import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations } from '../db/business-adapter';
 import { syncDomainWhois } from '../service/whoisJob';
 import { getRootDomain } from '../service/whoisProvider';
 
@@ -973,26 +973,30 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
   }
   
   try {
-    // Query domains that have expiry information (i.e., support renewal)
-    // This includes domains with expires_at or apex_expires_at set
-    const domains = await DomainOperations.getAll() as any[];
+    // Query from renewable_domains table
+    const renewableDomains = await RenewableDomainOperations.getAllEnabled();
     
-    // Filter domains that have expiry information
-    const renewableDomains = domains.filter((d: any) => 
-      d.expires_at || d.apex_expires_at
-    ).map((d: any) => ({
-      id: d.id,
-      name: d.name,
-      full_domain: d.name,
-      account_id: d.account_id,
-      account_name: d.account_name,
-      provider_type: d.provider_type,
-      expires_at: d.expires_at || d.apex_expires_at,
-      third_id: d.third_id,
-      remark: d.remark,
-    }));
+    // Enrich with account information
+    const enrichedDomains = await Promise.all(
+      renewableDomains.map(async (domain: any) => {
+        const account = await DnsAccountOperations.getById(domain.account_id);
+        return {
+          id: domain.id,
+          name: domain.full_domain,
+          full_domain: domain.full_domain,
+          account_id: domain.account_id,
+          account_name: account?.name || 'Unknown',
+          provider_type: domain.provider_type,
+          expires_at: domain.expires_at,
+          third_id: domain.third_id,
+          remark: domain.remark,
+          enabled: domain.enabled,
+          last_renewed_at: domain.last_renewed_at,
+        };
+      })
+    );
     
-    sendSuccess(res, renewableDomains);
+    sendSuccess(res, enrichedDomains);
   } catch (error) {
     log.error('Domains', 'Failed to fetch renewable domains', { error });
     sendError(res, 'Failed to fetch renewable domains');
