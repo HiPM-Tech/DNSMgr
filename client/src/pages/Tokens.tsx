@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Key, Plus, Trash2, Copy, Check, X, Calendar, Globe, Infinity, Edit2 } from 'lucide-react';
+import { Key, Plus, Trash2, Copy, Check, X, Calendar, Globe, Infinity, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { tokensApi } from '../api';
 import { useI18n } from '../contexts/I18nContext';
@@ -27,6 +27,8 @@ export function Tokens() {
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [domainSearch, setDomainSearch] = useState('');
+  const [domainPage, setDomainPage] = useState(1);
+  const domainPageSize = 20;
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; tokenId: number | null }>({ show: false, tokenId: null });
 
   // Form state
@@ -219,6 +221,12 @@ export function Tokens() {
     d.name.toLowerCase().includes(domainSearch.toLowerCase()) ||
     d.account_name.toLowerCase().includes(domainSearch.toLowerCase())
   );
+  
+  // Calculate pagination for domains
+  const domainTotalPages = Math.ceil((filteredDomains?.length || 0) / domainPageSize);
+  const domainStartIndex = (domainPage - 1) * domainPageSize;
+  const domainEndIndex = Math.min(domainStartIndex + domainPageSize, filteredDomains?.length || 0);
+  const paginatedDomains = filteredDomains?.slice(domainStartIndex, domainEndIndex);
 
   // Select all domains in current filter
   const selectAllFiltered = () => {
