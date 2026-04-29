@@ -460,9 +460,124 @@ export function DomainRenewalTab() {
       {isAddModalOpen && (
         <Modal
           title={t('domainRenewal.addDomain')}
-          onClose={() => setIsAddModalOpen(false)}
+          onClose={() => {
+            setIsAddModalOpen(false);
+            setSelectedAccountId(null);
+            setSelectedDomainIds(new Set());
+          }}
         >
-          <form onSubmit={handleAddDomain} className="space-y-4">
+          {!selectedAccountId ? (
+            // 第一步：选择账号
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t('domainRenewal.selectProvider')} *
+                </label>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const id = parseInt(e.target.value);
+                    if (id) setSelectedAccountId(id);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                >
+                  <option value="">{t('common.pleaseSelect')}</option>
+                  {accounts.filter((a: any) => a.type === 'dnshe').map((account: any) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-2">
+                  Only DNSHE accounts are shown (currently the only provider supporting renewal)
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            // 第二步：选择子域名
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Select domains to add ({selectedDomainIds.size} selected)
+                </h3>
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="text-sm text-blue-600 hover:text-blue-700"
+                >
+                  {selectedDomainIds.size === dnsheSubdomains.length ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+
+              {isLoadingSubdomains ? (
+                <div className="text-center py-8 text-gray-500">
+                  {t('domainRenewal.loadingDomains')}
+                </div>
+              ) : dnsheSubdomains.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  {t('domainRenewal.noAvailableDomains')}
+                </div>
+              ) : (
+                <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                  {dnsheSubdomains.map((sub: any) => (
+                    <label
+                      key={sub.id}
+                      className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedDomainIds.has(String(sub.id))}
+                        onChange={() => toggleDomainSelection(String(sub.id))}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {sub.full_domain}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          ID: {sub.id}
+                          {sub.expires_at && ` | Expires: ${new Date(sub.expires_at).toLocaleDateString()}`}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAccountId(null);
+                    setSelectedDomainIds(new Set());
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBatchAdd}
+                  disabled={batchAddMutation.isPending || selectedDomainIds.size === 0}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {batchAddMutation.isPending ? 'Adding...' : `Add Selected (${selectedDomainIds.size})`}
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('domainRenewal.selectProvider')} *
