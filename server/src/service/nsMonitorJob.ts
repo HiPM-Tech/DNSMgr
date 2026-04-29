@@ -6,6 +6,7 @@
 import { NSMonitorOperations, DomainOperations, AuditOperations, UserOperations, formatDateForDB } from '../db/business-adapter';
 import { resolveNsRecords, getNsStatus, validateNsRecords } from '../lib/dns/ns-lookup';
 import { sendNotification, sendEmailToUser } from './notification';
+import { taskManager } from './taskManager';
 import { log } from '../lib/logger';
 
 let monitorInterval: NodeJS.Timeout | null = null;
@@ -366,10 +367,25 @@ async function runNsMonitorJob(): Promise<void> {
 
     log.info('NSMonitorJob', `Checking ${monitors.length} domains`);
 
-    // 逐个检查
-    for (const monitor of monitors) {
-      await checkDomainNs(monitor);
-    }
+    // 使用任务管理器并发检查（最多同时5个）
+    const tasks = monitors.map(monitor => {
+      return taskManager.submit(
+        {
+          id: `ns-monitor-${monitor.id}`,
+          name: `NS Monitor: ${monitor.domain_name}`,
+          concurrency: 5, // 允许最多5个并发
+          timeout: 30000, // 30秒超时
+          retries: 2, // 失败重试2次
+          retryDelay: 2000, // 重试间隔2秒
+        },
+        async () => {
+          await checkDomainNs(monitor);
+        }
+      );
+    });
+
+    // 等待所有任务完成
+    await Promise.all(tasks);
 
     log.info('NSMonitorJob', 'NS monitor job completed');
   } catch (error) {
