@@ -369,6 +369,8 @@
       "jwtSecretVerifyFailed": "パスワードの検証に失敗しました",
       "jwtViewNotify": "JWT シークレットを表示したときにメールで通知",
       "jwtViewNotifyDesc": "JWT シークレットの表示に成功した後、初期スーパー管理者のメールに通知を送信します",
+      "showDnsProviderSecrets": "DNSプロバイダーのシークレットをプレーンテキストで表示",
+      "showDnsProviderSecretsDesc": "有効にすると、DNSプロバイダーのAPIキーやパスワードなどの機密情報がプレーンテキストで返され、表示されます。この機能は慎重に使用し、信頼できる管理者のみがアクセスできるようにしてください。",
       "lockedAccounts": "ロックされたアカウント",
       "lockoutDuration": "ロック期間",
       "lockoutDurationDesc": "ロックされたアカウントが自動的にロック解除されるまでの時間",

@@ -306,6 +306,8 @@
       "jwtSecretVerifyFailed": "Error al verificar contraseña",
       "jwtViewNotify": "Notificar por correo cuando se vea el secreto JWT",
       "jwtViewNotifyDesc": "Enviar notificación al correo del super admin inicial después de ver el secreto JWT con éxito",
+      "showDnsProviderSecrets": "Mostrar secretos de proveedores DNS en texto plano",
+      "showDnsProviderSecretsDesc": "Cuando está habilitado, la información sensible como claves API y contraseñas de proveedores DNS se devolverá y mostrará en texto plano. Use esta función con precaución y asegúrese de que solo los administradores de confianza tengan acceso.",
       "lockedAccounts": "Cuentas bloqueadas",
       "lockoutDuration": "Duración del bloqueo",
       "lockoutDurationDesc": "Tiempo antes de que la cuenta bloqueada se desbloquee automáticamente",

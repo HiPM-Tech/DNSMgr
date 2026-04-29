@@ -482,6 +482,8 @@
       "smtpTestFailed": "SMTP 테스트 이메일 전송 실패",
       "jwtViewNotify": "JWT 시크릿을 볼 때 이메일로 알림",
       "jwtViewNotifyDesc": "JWT 시크릿 보기 성공 후 초기 최고 관리자 이메일로 알림を送信합니다",
+      "showDnsProviderSecrets": "DNS 공급자 비밀을 일반 텍스트로 표시",
+      "showDnsProviderSecretsDesc": "활성화되면 DNS 공급자의 API 키 및 비밀번호와 같은 민감한 정보가 일반 텍스트로 반환되고 표시됩니다. 이 기능을 주의해서 사용하고 신뢰할 수 있는 관리자만 액세스할 수 있도록 하십시오.",
       "securitySaved": "보안 설정이 저장되었습니다",
       "securitySaveFailed": "보안 설정 저장 실패",
       "oauthConfig": "OAuth2 / OIDC 구성",

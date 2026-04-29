@@ -482,6 +482,8 @@
       "smtpTestFailed": "فشل في إرسال بريد الاختبار SMTP",
       "jwtViewNotify": "إخطار عبر البريد الإلكتروني عند عرض سر JWT",
       "jwtViewNotifyDesc": "إرسال إشعار إلى بريد المسؤول الأعلى الأولي بعد عرض سر JWT بنجاح",
+      "showDnsProviderSecrets": "عرض أسرار موفري DNS كنص عادي",
+      "showDnsProviderSecretsDesc": "عند التمكين، سيتم إرجاع وعرض المعلومات الحساسة مثل مفاتيح API وكلمات المرور لموفري DNS كنص عادي. استخدم هذه الميزة بحذر وتأكد من أن المسؤولين الموثوقين فقط هم من يمكنهم الوصول.",
       "securitySaved": "تم حفظ إعدادات الأمان",
       "securitySaveFailed": "فشل في حفظ إعدادات الأمان",
       "oauthConfig": "تكوين OAuth2 / OIDC",

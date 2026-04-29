@@ -596,6 +596,8 @@
       "jwtSecretVerifyFailed": "密码验证失败",
       "jwtViewNotify": "查看 JWT 密钥后邮件通知",
       "jwtViewNotifyDesc": "查看成功后向初始化超管邮箱发送通知",
+      "showDnsProviderSecrets": "DNS提供商的秘密用明文显示啦~",
+      "showDnsProviderSecretsDesc": "开启后呢，DNS提供商的API密钥、密码等敏感信息就会以明文形式返回和显示哦。要谨慎使用这个功能呢，确保只有受信任的管理员可以访问哒~",
       "lockedAccounts": "已锁定账户",
       "lockoutDuration": "锁定时长",
       "lockoutDurationDesc": "账户锁定后自动解锁的时间",

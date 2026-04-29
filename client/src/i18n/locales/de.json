@@ -482,6 +482,8 @@
       "smtpTestFailed": "Fehler beim Senden der SMTP-Test-E-Mail",
       "jwtViewNotify": "Per E-Mail benachrichtigen, wenn JWT-Geheimnis angezeigt wird",
       "jwtViewNotifyDesc": "Benachrichtigung an die initiale Super-Admin-E-Mail senden nach erfolgreicher JWT-Geheimnis-Anzeige",
+      "showDnsProviderSecrets": "DNS-Anbieter-Geheimnisse im Klartext anzeigen",
+      "showDnsProviderSecretsDesc": "Wenn aktiviert, werden sensible Informationen wie API-Schlüssel und Passwörter für DNS-Anbieter im Klartext zurückgegeben und angezeigt. Verwenden Sie diese Funktion mit Vorsicht und stellen Sie sicher, dass nur vertrauenswürdige Administratoren Zugriff haben.",
       "securitySaved": "Sicherheitseinstellungen gespeichert",
       "securitySaveFailed": "Fehler beim Speichern der Sicherheitseinstellungen",
       "oauthConfig": "OAuth2 / OIDC-Konfiguration",
