@@ -19,7 +19,6 @@ export function DomainRenewalTab() {
   
   // 添加续期域名相关状态
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [deleteDomain, setDeleteDomain] = useState<any | null>(null);
 
   // 获取 DNS 账号列表（用于选择提供商）
@@ -43,7 +42,6 @@ export function DomainRenewalTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
       setIsAddModalOpen(false);
-      setSelectedAccountId(null);
       toast.success(t('domainRenewal.addSuccess'));
     },
     onError: () => {
@@ -387,7 +385,6 @@ export function DomainRenewalTab() {
                 name="account_id"
                 required
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                onChange={(e) => setSelectedAccountId(parseInt(e.target.value))}
               >
                 <option value="">{t('common.select')}</option>
                 {accounts.map((account: any) => (
