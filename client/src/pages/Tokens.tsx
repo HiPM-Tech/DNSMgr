@@ -491,7 +491,7 @@ export function Tokens() {
                           {domainTotalPages > 1 && (
                             <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                               <div className="text-xs text-gray-500">
-                                显示 {domainStartIndex + 1}-{domainEndIndex} / 共 {filteredDomains.length} 项
+                                显示 {domainStartIndex + 1}-{domainEndIndex} / 共 {filteredDomains?.length || 0} 项
                               </div>
                               <div className="flex items-center gap-2">
                                 <button
