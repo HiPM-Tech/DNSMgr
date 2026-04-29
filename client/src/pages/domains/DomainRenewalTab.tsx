@@ -290,6 +290,25 @@ export function DomainRenewalTab() {
 
   return (
     <div className="space-y-6">
+      {/* 标题和添加按钮 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {t('domainRenewal.title')}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {t('domainRenewal.subtitle')}
+          </p>
+        </div>
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          {t('domainRenewal.addDomain')}
+        </button>
+      </div>
+
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
