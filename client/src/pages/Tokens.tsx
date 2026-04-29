@@ -435,6 +435,7 @@ export function Tokens() {
                               checked={formData.allowed_domains.length === 0}
                               onChange={(e) => {
                                 if (e.target.checked) {
+                                  // 勾选“所有域名”时，清空指定域名列表
                                   setFormData({ ...formData, allowed_domains: [] });
                                 }
                               }}
@@ -449,9 +450,13 @@ export function Tokens() {
                                 checked={formData.allowed_domains.includes(domain.id)}
                                 onChange={(e) => {
                                   if (e.target.checked) {
+                                    // 勾选指定域名时，如果当前是“所有域名”状态（空数组），先初始化
+                                    const newAllowedDomains = formData.allowed_domains.length === 0 
+                                      ? [] 
+                                      : formData.allowed_domains;
                                     setFormData({
                                       ...formData,
-                                      allowed_domains: [...formData.allowed_domains, domain.id],
+                                      allowed_domains: [...newAllowedDomains, domain.id],
                                     });
                                   } else {
                                     setFormData({

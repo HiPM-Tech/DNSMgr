@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Activity } from 'lucide-react';
+import { Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 import { domainsApi } from '../../api';
 import type { Domain } from '../../api';
 import { Table } from '../../components/Table';
@@ -139,6 +139,8 @@ export function FailoverTab() {
   const { t } = useI18n();
   const { isAdmin: canManage } = useAuth();
   const [configuringFailover, setConfiguringFailover] = useState<Domain | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   // Get all domains
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number }>({
@@ -147,6 +149,12 @@ export function FailoverTab() {
   });
 
   const domains = domainsData?.list ?? [];
+  
+  // Calculate pagination
+  const totalPages = Math.ceil(domains.length / pageSize);
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, domains.length);
+  const paginatedDomains = domains.slice(startIndex, endIndex);
 
   const columns = [
     {
