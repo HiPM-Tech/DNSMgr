@@ -580,8 +580,10 @@
       "configureFailover": "Configurar Failover",
       "tabs": {
         "list": "Lista de Domínios",
+        "listSubtitle": "Gerenciamento unificado de registros de resolução DNS de vários provedores DNS",
         "failover": "Failover",
-        "nsMonitor": "Monitor NS"
+        "nsMonitor": "Monitor NS",
+        "renewal": "Renovação de Domínio"
       }
     },
     "tokens": {
