@@ -1010,6 +1010,16 @@
     "notSupported": "Renovação não suportada",
     "notSupportedDesc": "O provedor DNS atual não suporta renovação de domínio. Atualmente, apenas o provedor DNSHE suporta este recurso.",
     "autoRenewal": "Renovação Automática",
-    "autoRenewalDesc": "O sistema tentará renovar automaticamente os domínios prestes a expirar todos os dias às 0:00 UTC. Você também pode clicar manualmente no botão de renovar para renovar imediatamente."
+    "autoRenewalDesc": "O sistema tentará renovar automaticamente os domínios prestes a expirar todos os dias às 0:00 UTC. Você também pode clicar manualmente no botão de renovar para renovar imediatamente.",
+    "addDomain": "Adicionar domínio renovável",
+    "selectProvider": "Selecionar provedor",
+    "selectDomains": "Selecionar domínios",
+    "addSuccess": "Adicionado com sucesso",
+    "addFailed": "Falha ao adicionar",
+    "deleteConfirm": "Tem certeza de que deseja remover {domain} da lista de renovação?",
+    "deleteSuccess": "Removido com sucesso",
+    "deleteFailed": "Falha ao remover",
+    "noAvailableDomains": "Nenhum domínio disponível",
+    "loadingDomains": "Carregando domínios..."
   }
 }

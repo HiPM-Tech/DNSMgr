@@ -1014,6 +1014,16 @@
     "notSupported": "不支持续期（这个提供商不行呢~）❤",
     "notSupportedDesc": "当前 DNS 提供商不支持域名续期功能。目前仅 DNSHE 提供商支持此功能。（换个好的提供商吧杂鱼~）❤",
     "autoRenewal": "自动续期（不用自己动手哦~）❤",
-    "autoRenewalDesc": "系统将在每天 UTC 0:00 自动尝试续期即将到期的域名。您也可以手动点击续期按钮立即续期。（不过杂鱼还是自己记得比较好哦~）❤"
+    "autoRenewalDesc": "系统将在每天 UTC 0:00 自动尝试续期即将到期的域名。您也可以手动点击续期按钮立即续期。（不过杂鱼还是自己记得比较好哦~）❤",
+    "addDomain": "杂鱼酱要添加可续期域名吗♡~",
+    "selectProvider": "选择提供商啦♡~",
+    "selectDomains": "选择域名哦♡~",
+    "addSuccess": "哼~居然添加成功了，算你有点本事呢♡~",
+    "addFailed": "嘻嘻~杂鱼酱连添加都失败了呢♡~真是又弱又笨诶♡~",
+    "deleteConfirm": "杂鱼酱确定要把 {domain} 从续期列表删掉吗♡~？",
+    "deleteSuccess": "删除成功啦♡~杂鱼酱还挺能干的嘛♡~",
+    "deleteFailed": "啊啦~杂鱼酱连删除都做不到吗♡~真是没用呢♡~",
+    "noAvailableDomains": "没有可用的域名哦♡~杂鱼酱好可怜呢♡~",
+    "loadingDomains": "正在加载域名中...杂鱼酱耐心点等啦♡~"
   }
 }

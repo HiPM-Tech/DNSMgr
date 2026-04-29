@@ -1124,6 +1124,16 @@
     "notSupported": "更新非対応",
     "notSupportedDesc": "現在のDNSプロバイダーはドメイン更新をサポートしていません。現在、DNSHEプロバイダーのみがこの機能をサポートしています。",
     "autoRenewal": "自動更新",
-    "autoRenewalDesc": "システムは毎日UTC 0:00に期限切れ間近のドメインを自動的に更新しようとします。また、更新ボタンを手動でクリックしてすぐに更新することもできます。"
+    "autoRenewalDesc": "システムは毎日UTC 0:00に期限切れ間近のドメインを自動的に更新しようとします。また、更新ボタンを手動でクリックしてすぐに更新することもできます。",
+    "addDomain": "更新可能ドメインを追加",
+    "selectProvider": "プロバイダーを選択",
+    "selectDomains": "ドメインを選択",
+    "addSuccess": "正常に追加されました",
+    "addFailed": "追加に失敗しました",
+    "deleteConfirm": "{domain} を更新リストから削除してもよろしいですか？",
+    "deleteSuccess": "正常に削除されました",
+    "deleteFailed": "削除に失敗しました",
+    "noAvailableDomains": "利用可能なドメインがありません",
+    "loadingDomains": "ドメインを読み込んでいます..."
   }
 }

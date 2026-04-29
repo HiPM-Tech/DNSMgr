@@ -1017,6 +1017,16 @@
     "notSupported": "갱신 지원 안 함",
     "notSupportedDesc": "현재 DNS 제공업체는 도메인 갱신을 지원하지 않습니다. 현재 DNSHE 제공업체만 이 기능을 지원합니다.",
     "autoRenewal": "자동 갱신",
-    "autoRenewalDesc": "시스템은 매일 UTC 0:00에 만료 예정 도메인을 자동으로 갱신하려고 시도합니다. 수동으로 갱신 버튼을 클릭하여 즉시 갱신할 수도 있습니다."
+    "autoRenewalDesc": "시스템은 매일 UTC 0:00에 만료 예정 도메인을 자동으로 갱신하려고 시도합니다. 수동으로 갱신 버튼을 클릭하여 즉시 갱신할 수도 있습니다.",
+    "addDomain": "갱신 가능 도메인 추가",
+    "selectProvider": "공급자 선택",
+    "selectDomains": "도메인 선택",
+    "addSuccess": "성공적으로 추가됨",
+    "addFailed": "추가 실패",
+    "deleteConfirm": "{domain} 을(를) 갱신 목록에서 제거하시겠습니까?",
+    "deleteSuccess": "성공적으로 삭제됨",
+    "deleteFailed": "삭제 실패",
+    "noAvailableDomains": "사용 가능한 도메인이 없습니다",
+    "loadingDomains": "도메인 로딩 중..."
   }
 }
