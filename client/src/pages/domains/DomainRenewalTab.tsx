@@ -43,27 +43,6 @@ export function DomainRenewalTab() {
     enabled: !!selectedAccountId && isAddModalOpen,
   });
 
-  // 添加续期域名 mutation
-  const addMutation = useMutation({
-    mutationFn: (data: {
-      account_id: number;
-      provider_type: string;
-      domain_name: string;
-      third_id: string;
-      full_domain: string;
-      expires_at?: string;
-      remark?: string;
-    }) => domainRenewalApi.addRenewableDomain(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
-      setIsAddModalOpen(false);
-      toast.success(t('domainRenewal.addSuccess'));
-    },
-    onError: () => {
-      toast.error(t('domainRenewal.addFailed'));
-    },
-  });
-
   // 批量添加续期域名 mutation
   const batchAddMutation = useMutation({
     mutationFn: async ({ accountId, subdomains }: { accountId: number; subdomains: any[] }) => {
