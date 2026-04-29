@@ -74,6 +74,11 @@ async function handleMySQLMigrations(
     await ensureWhoisCacheTableMySQL(conn);
     log.info('Schema', 'Completed whois_cache table migration');
     
+    // 迁移5: 添加 pinned_domains 字段到 user_preferences 表
+    log.info('Schema', 'Starting user_preferences pinned_domains column migration...');
+    await addPinnedDomainsColumn(conn);
+    log.info('Schema', 'Completed user_preferences pinned_domains column migration');
+    
     log.info('Schema', 'All MySQL migrations completed');
   } catch (error) {
     log.error('Schema', 'MySQL migration check failed', { error: (error as Error).message, stack: (error as Error).stack });
@@ -251,6 +256,49 @@ async function ensureWhoisCacheTableMySQL(
       log.info('Schema', 'whois_cache table already exists');
     } else {
       log.warn('Schema', 'Failed to create whois_cache table', { error: errorMsg });
+    }
+  }
+}
+
+/**
+ * 添加 pinned_domains 字段到 user_preferences 表 - MySQL
+ */
+async function addPinnedDomainsColumn(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  try {
+    // 检查字段是否存在
+    const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'user_preferences' AND COLUMN_NAME = 'pinned_domains'`;
+
+    let columnExists = false;
+    if (conn.execute) {
+      const result = await conn.execute(checkColumnSql);
+      if (Array.isArray(result) && result.length > 0) {
+        const row = result[0] as Record<string, number>;
+        const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+        columnExists = parseInt(String(count), 10) > 0;
+      }
+    }
+
+    if (!columnExists) {
+      // 添加字段
+      const addColumnSql = `ALTER TABLE user_preferences ADD COLUMN pinned_domains JSON DEFAULT (JSON_ARRAY())`;
+      if (conn.execute) {
+        await conn.execute(addColumnSql);
+      } else if (conn.exec) {
+        conn.exec(addColumnSql);
+      }
+      log.info('Schema', 'Added pinned_domains column to user_preferences table');
+    } else {
+      log.debug('Schema', 'pinned_domains column already exists in user_preferences table');
+    }
+  } catch (error) {
+    const errorMsg = (error as Error).message || '';
+    if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+      log.info('Schema', 'pinned_domains column already exists');
+    } else {
+      log.warn('Schema', 'Failed to add pinned_domains column', { error: errorMsg });
     }
   }
 }
