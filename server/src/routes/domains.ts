@@ -1004,6 +1004,78 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
 }));
 
 /**
+ * Add a domain to renewable list (admin only)
+ */
+router.post('/renewable-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  // Only allow admins and super admins
+  const role = normalizeRole(req.user?.role);
+  if (role < 2) {
+    sendError(res, 'Permission denied');
+    return;
+  }
+  
+  const { account_id, provider_type, domain_name, third_id, full_domain, expires_at, remark } = req.body as {
+    account_id: number;
+    provider_type: string;
+    domain_name: string;
+    third_id: string;
+    full_domain: string;
+    expires_at?: string;
+    remark?: string;
+  };
+  
+  if (!account_id || !provider_type || !domain_name || !third_id || !full_domain) {
+    sendError(res, 'Missing required fields');
+    return;
+  }
+  
+  try {
+    const id = await RenewableDomainOperations.add({
+      account_id,
+      provider_type,
+      domain_name,
+      third_id,
+      full_domain,
+      expires_at,
+      remark,
+    });
+    
+    log.info('Domains', 'Added renewable domain', { id, full_domain });
+    sendSuccess(res, { id });
+  } catch (error) {
+    log.error('Domains', 'Failed to add renewable domain', { error });
+    sendError(res, 'Failed to add renewable domain');
+  }
+}));
+
+/**
+ * Delete a domain from renewable list (admin only)
+ */
+router.delete('/renewable-domains/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  // Only allow admins and super admins
+  const role = normalizeRole(req.user?.role);
+  if (role < 2) {
+    sendError(res, 'Permission denied');
+    return;
+  }
+  
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    sendError(res, 'Invalid ID');
+    return;
+  }
+  
+  try {
+    await RenewableDomainOperations.delete(id);
+    log.info('Domains', 'Deleted renewable domain', { id });
+    sendSuccess(res, null);
+  } catch (error) {
+    log.error('Domains', 'Failed to delete renewable domain', { error });
+    sendError(res, 'Failed to delete renewable domain');
+  }
+}));
+
+/**
  * Get DNSHE subdomains list for renewal tab (admin only)
  * @deprecated Use /renewable-domains instead
  */

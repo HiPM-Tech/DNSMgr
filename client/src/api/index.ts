@@ -344,6 +344,18 @@ export const domainRenewalApi = {
     api.get<ApiResponse<WhoisInfo>>(`/domains/whois`, { params: { domain } }),
   getRenewableDomains: () =>
     api.get<ApiResponse<any[]>>('/domains/renewable-domains'),
+  addRenewableDomain: (data: {
+    account_id: number;
+    provider_type: string;
+    domain_name: string;
+    third_id: string;
+    full_domain: string;
+    expires_at?: string;
+    remark?: string;
+  }) =>
+    api.post<ApiResponse<{ id: number }>>('/domains/renewable-domains', data),
+  deleteRenewableDomain: (id: number) =>
+    api.delete<ApiResponse<void>>(`/domains/renewable-domains/${id}`),
 };
 
 export interface RenewalInfo {
