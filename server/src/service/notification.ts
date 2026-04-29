@@ -1,6 +1,7 @@
 import { SettingsOperations } from '../db/business-adapter';
 import { sendSmtpEmail } from './smtp';
 import { log } from '../lib/logger';
+import { fetchWithFallback } from '../lib/proxy-http';
 
 export interface NotificationChannel {
   id: string;
@@ -117,21 +118,21 @@ export async function sendEmailToUser(
   }
 }
 
-// 发送Webhook通知（带重试）
+// 发送Webhook通知（带重试和代理回退）
 async function sendWebhookWithRetry(
   channel: NotificationChannel,
   title: string,
   message: string
 ): Promise<boolean> {
-  const { url, method = 'POST', headers = {} } = channel.config;
+  const { url, method = 'POST', headers = {}, useProxy } = channel.config;
   if (!url) return false;
   
   const result = await withRetry(
-    () => fetch(url, {
+    () => fetchWithFallback(url, {
       method,
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ title, message })
-    }).then(res => {
+    }, !!useProxy, `Webhook:${channel.name}`).then(res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       return res;
     }),
@@ -140,22 +141,22 @@ async function sendWebhookWithRetry(
   return result !== null;
 }
 
-// 发送Telegram通知（带重试）
+// 发送Telegram通知（带重试和代理回退）
 async function sendTelegramWithRetry(
   channel: NotificationChannel,
   title: string,
   message: string
 ): Promise<boolean> {
-  const { botToken, chatId } = channel.config;
+  const { botToken, chatId, useProxy } = channel.config;
   if (!botToken || !chatId) return false;
   
   const text = `*${title}*\n\n${message}`;
   const result = await withRetry(
-    () => fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    () => fetchWithFallback(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
-    }).then(res => {
+    }, !!useProxy, `Telegram:${channel.name}`).then(res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       return res.json();
     }).then(data => {
@@ -167,24 +168,24 @@ async function sendTelegramWithRetry(
   return result !== null;
 }
 
-// 发送钉钉通知（带重试）
+// 发送钉钉通知（带重试和代理回退）
 async function sendDingtalkWithRetry(
   channel: NotificationChannel,
   title: string,
   message: string
 ): Promise<boolean> {
-  const { webhook } = channel.config;
+  const { webhook, useProxy } = channel.config;
   if (!webhook) return false;
   
   const result = await withRetry(
-    () => fetch(webhook, {
+    () => fetchWithFallback(webhook, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         msgtype: 'markdown',
         markdown: { title, text: `### ${title}\n\n${message}` }
       })
-    }).then(res => {
+    }, !!useProxy, `DingTalk:${channel.name}`).then(res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       return res.json();
     }).then(data => {
