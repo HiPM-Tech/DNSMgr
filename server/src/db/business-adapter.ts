@@ -3004,6 +3004,7 @@ export const WhoisOperations = {
   /** 确保 whois_cache 表存在 */
   async ensureWhoisCacheTable(): Promise<void> {
     try {
+      // SQLite 语法
       await executeInternal(`
         CREATE TABLE IF NOT EXISTS whois_cache (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3017,9 +3018,9 @@ export const WhoisOperations = {
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
-    } catch (error) {
-      // MySQL 语法
+    } catch (sqliteError) {
       try {
+        // MySQL 语法
         await executeInternal(`
           CREATE TABLE IF NOT EXISTS whois_cache (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -3033,22 +3034,66 @@ export const WhoisOperations = {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_domain (domain),
             INDEX idx_updated (updated_at)
-          )
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
       } catch (mysqlError) {
-        // 表可能已存在，忽略错误
+        try {
+          // PostgreSQL 语法
+          await executeInternal(`
+            CREATE TABLE IF NOT EXISTS whois_cache (
+              id SERIAL PRIMARY KEY,
+              domain VARCHAR(255) NOT NULL UNIQUE,
+              expiry_date TIMESTAMP,
+              apex_expiry_date TIMESTAMP,
+              registrar VARCHAR(255),
+              name_servers TEXT,
+              raw_data TEXT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+          
+          // 创建索引
+          await executeInternal(`
+            CREATE INDEX IF NOT EXISTS idx_whois_cache_domain ON whois_cache(domain);
+            CREATE INDEX IF NOT EXISTS idx_whois_cache_updated ON whois_cache(updated_at);
+          `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+        } catch (pgError) {
+          // 表可能已存在，忽略错误
+        }
       }
     }
   },
 
   /** 从数据库获取缓存的 WHOIS 结果 */
   async getCachedWhois(domain: string, cacheTtlSeconds: number): Promise<QueryResult | undefined> {
-    return getInternal(
-      `SELECT * FROM whois_cache WHERE domain = ? AND 
-       updated_at > DATE_SUB(NOW(), INTERVAL ? SECOND)`,
-      [domain, cacheTtlSeconds],
-      { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
-    );
+    try {
+      // MySQL 语法
+      return await getInternal(
+        `SELECT * FROM whois_cache WHERE domain = ? AND 
+         updated_at > DATE_SUB(NOW(), INTERVAL ? SECOND)`,
+        [domain, cacheTtlSeconds],
+        { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
+      );
+    } catch (mysqlError) {
+      try {
+        // PostgreSQL 语法
+        return await getInternal(
+          `SELECT * FROM whois_cache WHERE domain = $1 AND 
+           updated_at > NOW() - INTERVAL '${cacheTtlSeconds} seconds'`,
+          [domain],
+          { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
+        );
+      } catch (pgError) {
+        // SQLite 语法
+        return await getInternal(
+          `SELECT * FROM whois_cache WHERE domain = ? AND 
+           updated_at > datetime('now', '-' || ? || ' seconds')`,
+          [domain, cacheTtlSeconds],
+          { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
+        );
+      }
+    }
   },
 
   /** 将 WHOIS 结果缓存到数据库 */
