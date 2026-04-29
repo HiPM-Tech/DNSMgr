@@ -7,10 +7,13 @@ import { log } from '../lib/logger';
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
+export type TaskPriority = 'low' | 'normal' | 'high' | 'critical';
+
 export interface TaskInfo {
   id: string;
   name: string;
   status: TaskStatus;
+  priority?: TaskPriority;
   startTime?: number;
   endTime?: number;
   duration?: number;
@@ -22,6 +25,8 @@ export interface TaskOptions {
   id: string;
   /** 任务名称 */
   name: string;
+  /** 任务优先级（默认 normal） */
+  priority?: TaskPriority;
   /** 最大并发数（默认1，即串行执行） */
   concurrency?: number;
   /** 超时时间（毫秒，0表示不超时） */
@@ -38,6 +43,7 @@ interface QueuedTask {
   resolve: () => void;
   reject: (error: Error) => void;
   attempts: number;
+  queuedAt: number; // 入队时间，用于排序
 }
 
 class TaskManager {
@@ -87,15 +93,59 @@ class TaskManager {
         resolve,
         reject,
         attempts: 0,
+        queuedAt: Date.now(),
       };
 
-      this.taskQueue.push(queuedTask);
+      // 根据优先级插入队列（高优先级插队）
+      this.insertTaskByPriority(queuedTask);
+      
       log.debug('TaskManager', `Task queued: ${options.name} (${options.id})`, {
         queueLength: this.taskQueue.length,
+        priority: options.priority || 'normal',
       });
 
       this.processQueue();
     });
+  }
+
+  /**
+   * 根据优先级插入任务到队列
+   * 优先级顺序：critical > high > normal > low
+   */
+  private insertTaskByPriority(task: QueuedTask): void {
+    const priorityValue = this.getPriorityValue(task.options.priority || 'normal');
+    
+    // 找到第一个优先级低于当前任务的位置
+    let insertIndex = this.taskQueue.length;
+    for (let i = 0; i < this.taskQueue.length; i++) {
+      const existingPriority = this.getPriorityValue(this.taskQueue[i].options.priority || 'normal');
+      if (priorityValue > existingPriority) {
+        insertIndex = i;
+        break;
+      }
+    }
+    
+    // 插入到合适的位置
+    this.taskQueue.splice(insertIndex, 0, task);
+    
+    if (insertIndex < this.taskQueue.length - 1) {
+      log.info('TaskManager', `High priority task inserted at position ${insertIndex}: ${task.options.name}`, {
+        priority: task.options.priority,
+      });
+    }
+  }
+
+  /**
+   * 获取优先级的数值表示（越大优先级越高）
+   */
+  private getPriorityValue(priority: TaskPriority): number {
+    switch (priority) {
+      case 'critical': return 4;
+      case 'high': return 3;
+      case 'normal': return 2;
+      case 'low': return 1;
+      default: return 2;
+    }
   }
 
   /**

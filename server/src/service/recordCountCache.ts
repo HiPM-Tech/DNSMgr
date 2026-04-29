@@ -1,5 +1,6 @@
 import { log } from '../lib/logger';
 import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
+import { taskManager } from './taskManager';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { Domain, DnsAccount } from '../types';
 
@@ -91,14 +92,36 @@ export function startRecordCountCacheRefresh(intervalMinutes: number = 30): void
   
   log.info('RecordCountCache', `Starting periodic cache refresh (interval: ${intervalMinutes} minutes)`);
   
-  // 立即执行一次
-  refreshAllDomainRecordCounts().catch(err => {
+  // 立即执行一次（高优先级）
+  taskManager.submit(
+    {
+      id: 'record-count-cache-initial',
+      name: 'Record Count Cache Initial Refresh',
+      priority: 'high',          // 高优先级，可以插队
+      concurrency: 1,            // 串行执行
+      timeout: 600000,           // 10分钟超时
+      retries: 1,                // 失败重试1次
+      retryDelay: 30000,         // 重试间隔30秒
+    },
+    refreshAllDomainRecordCounts
+  ).catch(err => {
     log.error('RecordCountCache', 'Initial cache refresh failed', { error: err });
   });
   
-  // 设置定时任务
+  // 设置定时任务（高优先级）
   setInterval(() => {
-    refreshAllDomainRecordCounts().catch(err => {
+    taskManager.submit(
+      {
+        id: `record-count-cache-${Date.now()}`,
+        name: 'Record Count Cache Periodic Refresh',
+        priority: 'high',        // 高优先级，可以插队
+        concurrency: 1,          // 串行执行
+        timeout: 600000,         // 10分钟超时
+        retries: 1,              // 失败重试1次
+        retryDelay: 30000,       // 重试间隔30秒
+      },
+      refreshAllDomainRecordCounts
+    ).catch(err => {
       log.error('RecordCountCache', 'Periodic cache refresh failed', { error: err });
     });
   }, intervalMs);
