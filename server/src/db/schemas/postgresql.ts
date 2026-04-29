@@ -430,7 +430,7 @@ export const postgresqlSchema: SchemaDefinition = {
       expires_at TIMESTAMP,
       never_expires BOOLEAN NOT NULL DEFAULT FALSE,
       status VARCHAR(20) NOT NULL DEFAULT 'active',
-      remark TEXT NOT NULL DEFAULT '',
+      remark TEXT,
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
       last_renewed_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
