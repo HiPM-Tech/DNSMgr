@@ -2,6 +2,7 @@ import { WhoisOperations, DnsAccountOperations } from '../db/business-adapter';
 import { Domain, DnsAccount } from '../types';
 import { sendNotification } from './notification';
 import { connect } from '../db/core/connection';
+import { taskManager } from './taskManager';
 import { log } from '../lib/logger';
 import { queryWhois, getRootDomain, WhoisResult } from './whoisProvider';
 import { createAdapter } from '../lib/dns/DnsHelper';
