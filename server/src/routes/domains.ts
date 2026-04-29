@@ -3,7 +3,6 @@ import { authMiddleware, requireDomainPermission, requireTokenDomainPermission }
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { dnsheRenewSubdomain, dnsheGetWhois } from '../lib/dns/providers';
-import { listSubdomains as dnsheListSubdomains } from '../lib/dns/providers/dnshe/renewal';
 import { renewalRegistry } from '../service/renewalScheduler';
 import { createFailoverConfig, getFailoverConfigByDomain, getFailoverStatus, updateFailoverConfig, deleteFailoverConfig } from '../service/failover';
 import { DnsAccount, Domain } from '../types';
