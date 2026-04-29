@@ -18,18 +18,13 @@ export function DomainRenewalTab() {
   // 检查是否为管理员或超级管理员
   const isAdmin = user?.role === 2 || user?.role === 3;
 
-  // 获取支持续期的域名列表（从 DNSHE API 获取）
+  // 获取支持续期的域名列表（从所有支持续期的提供商获取）
   const { data: renewableDomains = [], isLoading } = useQuery({
-    queryKey: ['dnshe-subdomains'],
+    queryKey: ['renewable-domains'],
     enabled: isAdmin,
     queryFn: async () => {
-      const res = await fetch('/api/domains/dnshe-subdomains', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      const data = await res.json();
-      return data.data || [];
+      const res = await domainRenewalApi.getRenewableDomains();
+      return res.data.data || [];
     },
   });
 
