@@ -3143,6 +3143,140 @@ export const WhoisOperations = {
 };
 
 // ============================================================================
+// Renewable Domain Operations - 续期域名操作
+// ============================================================================
+
+export const RenewableDomainOperations = {
+  /** 获取所有启用的续期域名 */
+  async getAllEnabled(): Promise<any[]> {
+    return await queryInternal(
+      'SELECT * FROM renewable_domains WHERE enabled = 1 ORDER BY expires_at ASC',
+      [],
+      { operation: 'RenewableDomain.getAllEnabled', table: 'renewable_domains' }
+    );
+  },
+
+  /** 根据账号 ID 获取续期域名列表 */
+  async getByAccountId(accountId: number): Promise<any[]> {
+    return await queryInternal(
+      'SELECT * FROM renewable_domains WHERE account_id = ? ORDER BY expires_at ASC',
+      [accountId],
+      { operation: 'RenewableDomain.getByAccountId', table: 'renewable_domains' }
+    );
+  },
+
+  /** 根据提供商类型获取续期域名列表 */
+  async getByProviderType(providerType: string): Promise<any[]> {
+    return await queryInternal(
+      'SELECT * FROM renewable_domains WHERE provider_type = ? AND enabled = 1 ORDER BY expires_at ASC',
+      [providerType],
+      { operation: 'RenewableDomain.getByProviderType', table: 'renewable_domains' }
+    );
+  },
+
+  /** 添加续期域名 */
+  async add(data: {
+    account_id: number;
+    provider_type: string;
+    domain_name: string;
+    third_id: string;
+    full_domain: string;
+    expires_at?: string;
+    never_expires?: boolean;
+    remark?: string;
+  }): Promise<number> {
+    const result = await insertInternal(
+      'INSERT INTO renewable_domains (account_id, provider_type, domain_name, third_id, full_domain, expires_at, never_expires, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        data.account_id,
+        data.provider_type,
+        data.domain_name,
+        data.third_id,
+        data.full_domain,
+        data.expires_at || null,
+        data.never_expires ? 1 : 0,
+        data.remark || '',
+      ],
+      { operation: 'RenewableDomain.add', table: 'renewable_domains' }
+    );
+    return result.lastInsertRowid || 0;
+  },
+
+  /** 批量添加续期域名 */
+  async addBatch(domains: Array<{
+    account_id: number;
+    provider_type: string;
+    domain_name: string;
+    third_id: string;
+    full_domain: string;
+    expires_at?: string;
+    never_expires?: boolean;
+    remark?: string;
+  }>): Promise<number> {
+    let addedCount = 0;
+    for (const domain of domains) {
+      try {
+        await this.add(domain);
+        addedCount++;
+      } catch (error) {
+        // 跳过重复的域名（UNIQUE 约束）
+        log.warn('RenewableDomain', 'Skip duplicate domain', { 
+          domain: domain.full_domain,
+          error: (error as Error).message 
+        });
+      }
+    }
+    return addedCount;
+  },
+
+  /** 更新续期域名的到期时间 */
+  async updateExpiry(id: number, expiresAt: string | null): Promise<void> {
+    await executeInternal(
+      'UPDATE renewable_domains SET expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [expiresAt, id],
+      { operation: 'RenewableDomain.updateExpiry', table: 'renewable_domains' }
+    );
+  },
+
+  /** 标记为已续期 */
+  async markAsRenewed(id: number, newExpiresAt: string): Promise<void> {
+    await executeInternal(
+      'UPDATE renewable_domains SET expires_at = ?, last_renewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [newExpiresAt, id],
+      { operation: 'RenewableDomain.markAsRenewed', table: 'renewable_domains' }
+    );
+  },
+
+  /** 删除续期域名 */
+  async delete(id: number): Promise<void> {
+    await executeInternal(
+      'DELETE FROM renewable_domains WHERE id = ?',
+      [id],
+      { operation: 'RenewableDomain.delete', table: 'renewable_domains' }
+    );
+  },
+
+  /** 禁用/启用续期域名 */
+  async toggleEnabled(id: number, enabled: boolean): Promise<void> {
+    await executeInternal(
+      'UPDATE renewable_domains SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [enabled ? 1 : 0, id],
+      { operation: 'RenewableDomain.toggleEnabled', table: 'renewable_domains' }
+    );
+  },
+
+  /** 检查域名是否已添加 */
+  async exists(accountId: number, thirdId: string): Promise<boolean> {
+    const result = await getInternal(
+      'SELECT COUNT(*) as count FROM renewable_domains WHERE account_id = ? AND third_id = ?',
+      [accountId, thirdId],
+      { operation: 'RenewableDomain.exists', table: 'renewable_domains' }
+    );
+    return (result as any)?.count > 0;
+  },
+};
+
+// ============================================================================
 // 审计规则业务操作
 // ============================================================================
 
@@ -3589,4 +3723,5 @@ export default {
   NSMonitor: NSMonitorOperations,
   RdapCache: RdapCacheOperations,
   SystemCache: SystemCacheOperations,
+  RenewableDomain: RenewableDomainOperations,
 };

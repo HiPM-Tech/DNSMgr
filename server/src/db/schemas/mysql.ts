@@ -420,6 +420,28 @@ export const mysqlSchema: SchemaDefinition = {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_expires_at (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS renewable_domains (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      account_id INT NOT NULL,
+      provider_type VARCHAR(50) NOT NULL,
+      domain_name VARCHAR(255) NOT NULL,
+      third_id VARCHAR(255) NOT NULL DEFAULT '',
+      full_domain VARCHAR(255) NOT NULL,
+      expires_at DATETIME,
+      never_expires TINYINT(1) NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      remark TEXT NOT NULL DEFAULT '',
+      enabled TINYINT(1) NOT NULL DEFAULT 1,
+      last_renewed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_account_third (account_id, third_id),
+      INDEX idx_account_id (account_id),
+      INDEX idx_provider_type (provider_type),
+      INDEX idx_expires_at (expires_at),
+      INDEX idx_enabled (enabled)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ],
   createIndexes: [

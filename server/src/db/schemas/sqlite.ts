@@ -392,6 +392,24 @@ export const sqliteSchema: SchemaDefinition = {
       expires_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS renewable_domains (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id INTEGER NOT NULL,
+      provider_type TEXT NOT NULL,
+      domain_name TEXT NOT NULL,
+      third_id TEXT NOT NULL DEFAULT '',
+      full_domain TEXT NOT NULL,
+      expires_at TEXT,
+      never_expires INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      remark TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_renewed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE,
+      UNIQUE(account_id, third_id)
     )`
   ],
   createIndexes: [
@@ -411,6 +429,10 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_id ON ns_monitor_domains(domain_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`,
+    `CREATE INDEX IF NOT EXISTS idx_renewable_domains_account_id ON renewable_domains(account_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_renewable_domains_provider_type ON renewable_domains(provider_type)`,
+    `CREATE INDEX IF NOT EXISTS idx_renewable_domains_expires_at ON renewable_domains(expires_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_renewable_domains_enabled ON renewable_domains(enabled)`,
   ],
   alterTables: [
     // SQLite 不支持直接修改 CHECK 约束

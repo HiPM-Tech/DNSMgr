@@ -419,7 +419,28 @@ export const postgresqlSchema: SchemaDefinition = {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS idx_system_cache_key ON system_cache(cache_key)`,
-    `CREATE INDEX IF NOT EXISTS idx_system_cache_expires ON system_cache(expires_at)`
+    `CREATE INDEX IF NOT EXISTS idx_system_cache_expires ON system_cache(expires_at)`,
+    `CREATE TABLE IF NOT EXISTS renewable_domains (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES dns_accounts(id) ON DELETE CASCADE,
+      provider_type VARCHAR(50) NOT NULL,
+      domain_name VARCHAR(255) NOT NULL,
+      third_id VARCHAR(255) NOT NULL DEFAULT '',
+      full_domain VARCHAR(255) NOT NULL,
+      expires_at TIMESTAMP,
+      never_expires BOOLEAN NOT NULL DEFAULT FALSE,
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      remark TEXT NOT NULL DEFAULT '',
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      last_renewed_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT unique_account_third UNIQUE (account_id, third_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_renewable_domains_account_id ON renewable_domains(account_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_renewable_domains_provider_type ON renewable_domains(provider_type)`,
+    `CREATE INDEX IF NOT EXISTS idx_renewable_domains_expires_at ON renewable_domains(expires_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_renewable_domains_enabled ON renewable_domains(enabled)`
   ],
   createIndexes: [
     // 索引已在 CREATE TABLE 中定义
