@@ -1139,5 +1139,65 @@ router.get('/dnshe-subdomains', authMiddleware, asyncHandler(async (req: Request
   }
 }));
 
+/**
+ * Sync domains from provider to renewable list (admin only)
+ */
+router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  // Only allow admins and super admins
+  const role = normalizeRole(req.user?.role);
+  if (role < 2) {
+    sendError(res, 'Permission denied');
+    return;
+  }
+  
+  const { account_id, domain_ids } = req.body as {
+    account_id: number;
+    domain_ids: Array<{
+      id: string | number;
+      full_domain: string;
+      name?: string;
+      expires_at?: string;
+    }>;
+  };
+  
+  if (!account_id || !Array.isArray(domain_ids) || domain_ids.length === 0) {
+    sendError(res, 'Missing required fields');
+    return;
+  }
+  
+  try {
+    // Get account info
+    const account = await DnsAccountOperations.getById(account_id);
+    if (!account) {
+      sendError(res, 'Account not found');
+      return;
+    }
+    
+    // Add domains to renewable list
+    const domainsToAdd = domain_ids.map(d => ({
+      account_id,
+      provider_type: account.type,
+      domain_name: d.name || d.full_domain.split('.')[0],
+      third_id: String(d.id),
+      full_domain: d.full_domain,
+      expires_at: d.expires_at,
+      remark: `Synced from ${account.name}`,
+    }));
+    
+    const addedCount = await RenewableDomainOperations.addBatch(domainsToAdd);
+    
+    log.info('Domains', 'Synced renewable domains', { 
+      accountId: account_id, 
+      addedCount,
+      totalCount: domain_ids.length 
+    });
+    
+    sendSuccess(res, { addedCount, total: domain_ids.length });
+  } catch (error) {
+    log.error('Domains', 'Failed to sync renewable domains', { error });
+    sendError(res, 'Failed to sync domains');
+  }
+}));
+
 export { canAccessDomain, getAccountForUser };
 export default router;
