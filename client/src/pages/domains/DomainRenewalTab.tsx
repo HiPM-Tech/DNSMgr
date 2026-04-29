@@ -17,6 +17,12 @@ export function DomainRenewalTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [renewing, setRenewing] = useState<number | null>(null);
+  
+  // 添加续期域名相关状态
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [selectedProviderType, setSelectedProviderType] = useState<string>('dnshe');
+  const [deleteDomain, setDeleteDomain] = useState<any | null>(null);
 
   // 检查是否为管理员或超级管理员
   const isAdmin = user?.role === 2 || user?.role === 3;
