@@ -5,7 +5,6 @@ import { createAdapter } from '../lib/dns/DnsHelper';
 import { dnsheRenewSubdomain, dnsheGetWhois } from '../lib/dns/providers';
 import { listSubdomains as dnsheListSubdomains } from '../lib/dns/providers/dnshe/renewal';
 import { renewalRegistry } from '../service/renewalScheduler';
-import { DnsAccountOperations, DomainOperations } from '../db/business-adapter';
 import { createFailoverConfig, getFailoverConfigByDomain, getFailoverStatus, updateFailoverConfig, deleteFailoverConfig } from '../service/failover';
 import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
@@ -963,7 +962,7 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
 
 /**
  * Get renewable domains from all providers that support renewal
- * This is a generic endpoint that uses the renewal scheduler registry
+ * This endpoint queries the database for domains with expiry information
  */
 router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   // Only allow admins and super admins
@@ -974,45 +973,24 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
   }
   
   try {
-    // Get all DNS accounts that have renewal schedulers registered
-    const accounts = await DnsAccountOperations.getAll() as any[];
+    // Query domains that have expiry information (i.e., support renewal)
+    // This includes domains with expires_at or apex_expires_at set
+    const domains = await DomainOperations.getAll() as any[];
     
-    const renewableDomains: any[] = [];
-    
-    // Iterate through all accounts and check if they have a renewal scheduler
-    for (const account of accounts) {
-      const scheduler = renewalRegistry.getScheduler(account.type);
-      
-      if (!scheduler) {
-        // This provider doesn't support renewal
-        continue;
-      }
-      
-      try {
-        const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
-        
-        // Get renewable domains from this provider
-        const domains = await scheduler.listRenewableDomains(config);
-        
-        // Add account info to each domain
-        const domainsWithAccount = domains.map((domain: any) => ({
-          ...domain,
-          account_id: account.id,
-          account_name: account.name,
-          provider_type: account.type,
-          name: domain.full_domain || domain.name,
-        }));
-        
-        renewableDomains.push(...domainsWithAccount);
-      } catch (error) {
-        log.error('Domains', 'Failed to fetch renewable domains from provider', {
-          accountId: account.id,
-          accountName: account.name,
-          type: account.type,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+    // Filter domains that have expiry information
+    const renewableDomains = domains.filter((d: any) => 
+      d.expires_at || d.apex_expires_at
+    ).map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      full_domain: d.name,
+      account_id: d.account_id,
+      account_name: d.account_name,
+      provider_type: d.provider_type,
+      expires_at: d.expires_at || d.apex_expires_at,
+      third_id: d.third_id,
+      remark: d.remark,
+    }));
     
     sendSuccess(res, renewableDomains);
   } catch (error) {
