@@ -403,7 +403,7 @@ export const sqliteSchema: SchemaDefinition = {
       expires_at TEXT,
       never_expires INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'active',
-      remark TEXT NOT NULL DEFAULT '',
+      remark TEXT,
       enabled INTEGER NOT NULL DEFAULT 1,
       last_renewed_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
