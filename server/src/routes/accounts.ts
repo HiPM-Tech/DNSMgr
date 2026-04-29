@@ -201,10 +201,29 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
     sendError(res, 'Account not found');
     return;
   }
+  
+  // Check if showDnsProviderSecrets is enabled
+  let showSecrets = false;
+  try {
+    const securityConfigValue = await SettingsOperations.get('security_config');
+    if (securityConfigValue) {
+      const securityConfig = JSON.parse(securityConfigValue);
+      showSecrets = !!securityConfig.showDnsProviderSecrets;
+    }
+  } catch {
+    // Ignore errors, default to false
+  }
+  
   // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
   const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
   const masked: Record<string, string> = {};
-  for (const k of Object.keys(cfg)) masked[k] = '***';
+  if (showSecrets) {
+    // Return actual values
+    for (const k of Object.keys(cfg)) masked[k] = cfg[k];
+  } else {
+    // Mask all values
+    for (const k of Object.keys(cfg)) masked[k] = '***';
+  }
   sendSuccess(res, { ...account, type: normalizeProviderType(account.type), config: masked });
 }));
 
