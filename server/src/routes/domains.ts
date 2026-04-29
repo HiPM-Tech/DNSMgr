@@ -1176,7 +1176,7 @@ router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: 
     // Add domains to renewable list
     const domainsToAdd = domain_ids.map(d => ({
       account_id,
-      provider_type: account.type,
+      provider_type: String(account.type),
       domain_name: d.name || d.full_domain.split('.')[0],
       third_id: String(d.id),
       full_domain: d.full_domain,
