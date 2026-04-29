@@ -450,14 +450,16 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
   }
 
   private mapRecord(r: DnsheRecord): DnsRecord {
-    // Use full_domain from API if available, otherwise construct it
+    // Always construct domain from subdomain and rootdomain to avoid duplication
+    // Do NOT use r.full_domain directly as it may contain duplicated domains from API
     let domain: string;
-    if (r.full_domain) {
-      domain = r.full_domain;
-    } else if (r.subdomain && r.rootdomain) {
+    if (r.subdomain && r.rootdomain) {
       domain = r.subdomain === '@' ? r.rootdomain : `${r.subdomain}.${r.rootdomain}`;
+    } else if (r.full_domain) {
+      // Fallback to full_domain if subdomain/rootdomain not available
+      domain = r.full_domain;
     } else {
-      // Fallback to config domain or construct from name
+      // Final fallback to config domain
       domain = this.config.domain || '';
     }
     
