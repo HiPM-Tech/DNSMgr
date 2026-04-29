@@ -227,8 +227,10 @@
       "subtitle": "管理所有 DNS 提供商的域名，别乱点哦",
       "tabs": {
         "list": "域名列表",
+        "listSubtitle": "杂鱼专用：统一管理各 DNS 服务商的域名的解析记录喵~",
         "failover": "故障转移",
-        "nsMonitor": "NS 监测"
+        "nsMonitor": "NS 监测",
+        "renewal": "域名续期"
       },
       "account": "账号",
       "actions": "操作",

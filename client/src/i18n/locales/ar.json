@@ -580,8 +580,10 @@
       "configureFailover": "تكوين الفانلوفر",
       "tabs": {
         "list": "قائمة النطاقات",
+        "listSubtitle": "الإدارة الموحدة لسجلات حل DNS من مختلف موفري DNS",
         "failover": "الفانلوفر",
-        "nsMonitor": "مراقبة NS"
+        "nsMonitor": "مراقبة NS",
+        "renewal": "تجديد النطاق"
       }
     },
     "tokens": {

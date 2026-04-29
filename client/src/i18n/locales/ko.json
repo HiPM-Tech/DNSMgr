@@ -580,8 +580,10 @@
       "configureFailover": "장애 조치 구성",
       "tabs": {
         "list": "도메인 목록",
+        "listSubtitle": "다양한 DNS 제공업체의 DNS 해결 기록 통합 관리",
         "failover": "장애 조치",
-        "nsMonitor": "NS 모니터링"
+        "nsMonitor": "NS 모니터링",
+        "renewal": "도메인 갱신"
       }
     },
     "tokens": {

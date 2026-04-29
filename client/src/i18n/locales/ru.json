@@ -580,8 +580,10 @@
       "configureFailover": "Настроить Failover",
       "tabs": {
         "list": "Список доменов",
+        "listSubtitle": "Единое управление записями разрешения DNS от различных провайдеров DNS",
         "failover": "Failover",
-        "nsMonitor": "Мониторинг NS"
+        "nsMonitor": "Мониторинг NS",
+        "renewal": "Продление домена"
       }
     },
     "tokens": {
