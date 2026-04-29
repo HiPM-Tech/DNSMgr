@@ -431,7 +431,7 @@ export const mysqlSchema: SchemaDefinition = {
       expires_at DATETIME,
       never_expires TINYINT(1) NOT NULL DEFAULT 0,
       status VARCHAR(20) NOT NULL DEFAULT 'active',
-      remark TEXT NOT NULL DEFAULT '',
+      remark TEXT,
       enabled TINYINT(1) NOT NULL DEFAULT 1,
       last_renewed_at DATETIME,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
