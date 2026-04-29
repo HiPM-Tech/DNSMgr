@@ -94,7 +94,8 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
             </select>
           ) : (
             <input
-              type={field.type === 'password' ? 'password' : 'text'}
+              // If the value is masked (***), use password type; otherwise use text to show actual value
+              type={field.type === 'password' && (config[field.key] ?? '') === '***' ? 'password' : 'text'}
               required={field.required !== false}
               value={config[field.key] ?? ''}
               onChange={(e) => setConfig((c) => ({ ...c, [field.key]: e.target.value }))}
