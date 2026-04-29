@@ -30,15 +30,19 @@ export function DomainRenewalTab() {
     enabled: isAddModalOpen,
   });
 
-  // 获取选中账号的 DNSHE 子域名列表
-  const { data: dnsheSubdomains = [], isLoading: isLoadingSubdomains } = useQuery({
-    queryKey: ['dnshe-subdomains', selectedAccountId],
+  // 获取选中账号的可续期域名列表
+  const { data: renewableDomains = [], isLoading: isLoadingDomains } = useQuery({
+    queryKey: ['provider-renewable-domains', selectedAccountId],
     queryFn: async () => {
       if (!selectedAccountId) return [];
-      const res = await api.get('/domains/dnshe-subdomains');
-      const allSubdomains = res.data.data || [];
-      // 过滤出当前账号的子域名
-      return allSubdomains.filter((sub: any) => sub.account_id === selectedAccountId);
+      const account = accounts.find((a: any) => a.id === selectedAccountId);
+      if (!account) return [];
+      
+      // Call the generic provider API
+      const res = await api.get(`/providers/${account.type}/renewable-domains`);
+      const allDomains = res.data.data || [];
+      // Filter domains for the selected account
+      return allDomains.filter((d: any) => d.account_id === selectedAccountId);
     },
     enabled: !!selectedAccountId && isAddModalOpen,
   });
@@ -148,7 +152,7 @@ export function DomainRenewalTab() {
       return;
     }
     
-    const selectedSubdomains = dnsheSubdomains.filter((sub: any) => 
+    const selectedSubdomains = renewableDomains.filter((sub: any) => 
       selectedDomainIds.has(String(sub.id))
     );
     
@@ -171,10 +175,10 @@ export function DomainRenewalTab() {
 
   // 全选/取消全选
   const toggleSelectAll = () => {
-    if (selectedDomainIds.size === dnsheSubdomains.length) {
+    if (selectedDomainIds.size === renewableDomains.length) {
       setSelectedDomainIds(new Set());
     } else {
-      setSelectedDomainIds(new Set(dnsheSubdomains.map((sub: any) => String(sub.id))));
+      setSelectedDomainIds(new Set(renewableDomains.map((sub: any) => String(sub.id))));
     }
   };
 
@@ -459,21 +463,21 @@ export function DomainRenewalTab() {
                   onClick={toggleSelectAll}
                   className="text-sm text-blue-600 hover:text-blue-700"
                 >
-                  {selectedDomainIds.size === dnsheSubdomains.length ? 'Deselect All' : 'Select All'}
+                  {selectedDomainIds.size === renewableDomains.length ? 'Deselect All' : 'Select All'}
                 </button>
               </div>
 
-              {isLoadingSubdomains ? (
+              {isLoadingDomains ? (
                 <div className="text-center py-8 text-gray-500">
                   {t('domainRenewal.loadingDomains')}
                 </div>
-              ) : dnsheSubdomains.length === 0 ? (
+              ) : renewableDomains.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   {t('domainRenewal.noAvailableDomains')}
                 </div>
               ) : (
                 <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                  {dnsheSubdomains.map((sub: any) => (
+                  {renewableDomains.map((sub: any) => (
                     <label
                       key={sub.id}
                       className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-b-0"
