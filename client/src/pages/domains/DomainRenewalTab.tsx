@@ -30,8 +30,8 @@ export function DomainRenewalTab() {
     enabled: isAddModalOpen,
   });
 
-  // 获取选中账号的可续期域名列表
-  const { data: renewableDomains = [], isLoading: isLoadingDomains } = useQuery({
+  // 获取选中账号的可续期域名列表（用于添加对话框）
+  const { data: availableDomains = [], isLoading: isLoadingAvailableDomains } = useQuery({
     queryKey: ['provider-renewable-domains', selectedAccountId],
     queryFn: async () => {
       if (!selectedAccountId) return [];
@@ -152,7 +152,7 @@ export function DomainRenewalTab() {
       return;
     }
     
-    const selectedSubdomains = renewableDomains.filter((sub: any) => 
+    const selectedSubdomains = availableDomains.filter((sub: any) => 
       selectedDomainIds.has(String(sub.id))
     );
     
@@ -175,10 +175,10 @@ export function DomainRenewalTab() {
 
   // 全选/取消全选
   const toggleSelectAll = () => {
-    if (selectedDomainIds.size === renewableDomains.length) {
+    if (selectedDomainIds.size === availableDomains.length) {
       setSelectedDomainIds(new Set());
     } else {
-      setSelectedDomainIds(new Set(renewableDomains.map((sub: any) => String(sub.id))));
+      setSelectedDomainIds(new Set(availableDomains.map((sub: any) => String(sub.id))));
     }
   };
 
@@ -463,21 +463,21 @@ export function DomainRenewalTab() {
                   onClick={toggleSelectAll}
                   className="text-sm text-blue-600 hover:text-blue-700"
                 >
-                  {selectedDomainIds.size === renewableDomains.length ? 'Deselect All' : 'Select All'}
+                  {selectedDomainIds.size === availableDomains.length ? 'Deselect All' : 'Select All'}
                 </button>
               </div>
 
-              {isLoadingDomains ? (
+              {isLoadingAvailableDomains ? (
                 <div className="text-center py-8 text-gray-500">
                   {t('domainRenewal.loadingDomains')}
                 </div>
-              ) : renewableDomains.length === 0 ? (
+              ) : availableDomains.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   {t('domainRenewal.noAvailableDomains')}
                 </div>
               ) : (
                 <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                  {renewableDomains.map((sub: any) => (
+                  {availableDomains.map((sub: any) => (
                     <label
                       key={sub.id}
                       className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-b-0"
