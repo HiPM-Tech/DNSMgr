@@ -1010,6 +1010,16 @@
     "notSupported": "Verlängerung nicht unterstützt",
     "notSupportedDesc": "Der aktuelle DNS-Anbieter unterstützt keine Domainverlängerung. Derzeit unterstützt nur der DNSHE-Anbieter diese Funktion.",
     "autoRenewal": "Automatische Verlängerung",
-    "autoRenewalDesc": "Das System versucht täglich um 0:00 UTC automatisch, bald ablaufende Domains zu verlängern. Sie können auch manuell auf die Verlängern-Schaltfläche klicken, um sofort zu verlängern."
+    "autoRenewalDesc": "Das System versucht täglich um 0:00 UTC automatisch, bald ablaufende Domains zu verlängern. Sie können auch manuell auf die Verlängern-Schaltfläche klicken, um sofort zu verlängern.",
+    "addDomain": "Verlängerbare Domain hinzufügen",
+    "selectProvider": "Anbieter auswählen",
+    "selectDomains": "Domains auswählen",
+    "addSuccess": "Erfolgreich hinzugefügt",
+    "addFailed": "Hinzufügen fehlgeschlagen",
+    "deleteConfirm": "Möchten Sie {domain} wirklich aus der Verlängerungsliste entfernen?",
+    "deleteSuccess": "Erfolgreich gelöscht",
+    "deleteFailed": "Löschen fehlgeschlagen",
+    "noAvailableDomains": "Keine verfügbaren Domains",
+    "loadingDomains": "Domains werden geladen..."
   }
 }
