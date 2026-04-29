@@ -160,21 +160,14 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
         return { total: 0, list: [] };
       }
 
-      const list = res.subdomains.map((item: DnsheSubdomain) => {
-        // Construct full domain from subdomain and rootdomain to avoid duplication
-        const fullDomain = item.subdomain === '@' 
-          ? item.rootdomain 
-          : `${item.subdomain}.${item.rootdomain}`;
-        
-        return {
-          Domain: fullDomain,
-          ThirdId: String(item.id),
-          RecordCount: undefined as number | undefined,
-          // V2.0: Include expiry information if available
-          ExpiresAt: item.expires_at,
-          NeverExpires: item.never_expires === 1,
-        };
-      });
+      const list = res.subdomains.map((item: DnsheSubdomain) => ({
+        Domain: item.full_domain,  // Use full_domain from DNSHE API directly
+        ThirdId: String(item.id),
+        RecordCount: undefined as number | undefined,
+        // V2.0: Include expiry information if available
+        ExpiresAt: item.expires_at,
+        NeverExpires: item.never_expires === 1,
+      }));
 
       // API returns paginated results, use the total from response
       const total = res.pagination?.total ?? list.length;
