@@ -3199,7 +3199,7 @@ export const RenewableDomainOperations = {
     remark?: string;
   }): Promise<number> {
     const result = await insertInternal(
-      'INSERT INTO renewable_domains (account_id, provider_type, domain_name, third_id, full_domain, expires_at, never_expires, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO renewable_domains (account_id, provider_type, domain_name, third_id, full_domain, expires_at, never_expires, enabled, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         data.account_id,
         data.provider_type,
@@ -3208,6 +3208,7 @@ export const RenewableDomainOperations = {
         data.full_domain,
         data.expires_at || null,
         data.never_expires ? 1 : 0,
+        1,  // enabled = 1 (always enable new domains)
         data.remark || '',
       ],
       { operation: 'RenewableDomain.add', table: 'renewable_domains' }
