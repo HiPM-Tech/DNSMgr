@@ -405,7 +405,10 @@ export function Tokens() {
                       type="text"
                       placeholder={t('tokens.searchDomains')}
                       value={domainSearch}
-                      onChange={(e) => setDomainSearch(e.target.value)}
+                      onChange={(e) => {
+                        setDomainSearch(e.target.value);
+                        setDomainPage(1); // Reset to first page when searching
+                      }}
                       className="w-full px-3 py-1.5 mb-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
                     />
                     
@@ -428,7 +431,7 @@ export function Tokens() {
                       </span>
                     </div>
 
-                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto">
+                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3">
                       {isLoadingDomains ? (
                         <p className="text-sm text-gray-500 text-center py-4">{t('common.loading')}</p>
                       ) : !domains || domains.length === 0 ? (
@@ -443,7 +446,7 @@ export function Tokens() {
                               checked={formData.allowed_domains.length === 0}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  // 勾选“所有域名”时，清空指定域名列表
+                                  // 勾选"所有域名"时，清空指定域名列表
                                   setFormData({ ...formData, allowed_domains: [] });
                                 }
                               }}
@@ -451,36 +454,70 @@ export function Tokens() {
                             />
                             <span className="text-sm font-medium">{t('tokens.allDomains')}</span>
                           </label>
-                          {filteredDomains?.map((domain) => (
-                            <label key={domain.id} className="flex items-center gap-2 mb-1 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
-                              <input
-                                type="checkbox"
-                                checked={formData.allowed_domains.includes(domain.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    // 勾选指定域名时，如果当前是“所有域名”状态（空数组），先初始化
-                                    const newAllowedDomains = formData.allowed_domains.length === 0 
-                                      ? [] 
-                                      : formData.allowed_domains;
-                                    setFormData({
-                                      ...formData,
-                                      allowed_domains: [...newAllowedDomains, domain.id],
-                                    });
-                                  } else {
-                                    setFormData({
-                                      ...formData,
-                                      allowed_domains: formData.allowed_domains.filter((id) => id !== domain.id),
-                                    });
-                                  }
-                                }}
-                                className="rounded"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <span className="text-sm block truncate">{domain.name}</span>
-                                <span className="text-xs text-gray-500">{domain.account_name}</span>
+                          <div className="max-h-48 overflow-y-auto">
+                            {paginatedDomains?.map((domain) => (
+                              <label key={domain.id} className="flex items-center gap-2 mb-1 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.allowed_domains.includes(domain.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      // 勾选指定域名时，如果当前是"所有域名"状态（空数组），先初始化
+                                      const newAllowedDomains = formData.allowed_domains.length === 0 
+                                        ? [] 
+                                        : formData.allowed_domains;
+                                      setFormData({
+                                        ...formData,
+                                        allowed_domains: [...newAllowedDomains, domain.id],
+                                      });
+                                    } else {
+                                      setFormData({
+                                        ...formData,
+                                        allowed_domains: formData.allowed_domains.filter((id) => id !== domain.id),
+                                      });
+                                    }
+                                  }}
+                                  className="rounded"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm block truncate">{domain.name}</span>
+                                  <span className="text-xs text-gray-500">{domain.account_name}</span>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                                              
+                          {/* Pagination Controls */}
+                          {domainTotalPages > 1 && (
+                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                              <div className="text-xs text-gray-500">
+                                显示 {domainStartIndex + 1}-{domainEndIndex} / 共 {filteredDomains.length} 项
                               </div>
-                            </label>
-                          ))}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setDomainPage((p) => Math.max(1, p - 1))}
+                                  disabled={domainPage === 1}
+                                  className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                >
+                                  <ChevronLeft className="w-3 h-3" />
+                                  上一页
+                                </button>
+                                <span className="text-xs text-gray-500">
+                                  第 {domainPage} / {domainTotalPages} 页
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setDomainPage((p) => Math.min(domainTotalPages, p + 1))}
+                                  disabled={domainPage === domainTotalPages}
+                                  className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                >
+                                  下一页
+                                  <ChevronRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
