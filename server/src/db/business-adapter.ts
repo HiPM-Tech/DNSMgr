@@ -3199,7 +3199,7 @@ export const RenewableDomainOperations = {
       ],
       { operation: 'RenewableDomain.add', table: 'renewable_domains' }
     );
-    return result.lastInsertRowid || 0;
+    return result;
   },
 
   /** 批量添加续期域名 */
