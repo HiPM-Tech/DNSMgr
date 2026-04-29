@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Calendar, AlertCircle, CheckCircle, Clock, Plus, Trash2 } from 'lucide-react';
-import { domainRenewalApi, dnsAccountsApi } from '../../api';
+import { domainRenewalApi, accountsApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -9,7 +9,6 @@ import { Table } from '../../components/Table';
 import { Badge } from '../../components/Badge';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { PaginatedSelect } from '../../components/PaginatedSelect';
 
 export function DomainRenewalTab() {
   const toast = useToast();
@@ -21,13 +20,12 @@ export function DomainRenewalTab() {
   // 添加续期域名相关状态
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [selectedProviderType, setSelectedProviderType] = useState<string>('dnshe');
   const [deleteDomain, setDeleteDomain] = useState<any | null>(null);
 
   // 获取 DNS 账号列表（用于选择提供商）
   const { data: accounts = [] } = useQuery({
     queryKey: ['dns-accounts'],
-    queryFn: () => dnsAccountsApi.list().then(r => r.data.data || []),
+    queryFn: () => accountsApi.list().then(r => r.data.data || []),
     enabled: isAddModalOpen,
   });
 
@@ -373,6 +371,126 @@ export function DomainRenewalTab() {
           </div>
         </div>
       </div>
+
+      {/* 添加续期域名对话框 */}
+      {isAddModalOpen && (
+        <Modal
+          title={t('domainRenewal.addDomain')}
+          onClose={() => setIsAddModalOpen(false)}
+        >
+          <form onSubmit={handleAddDomain} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('domainRenewal.selectProvider')} *
+              </label>
+              <select
+                name="account_id"
+                required
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                onChange={(e) => setSelectedAccountId(parseInt(e.target.value))}
+              >
+                <option value="">{t('common.select')}</option>
+                {accounts.map((account: any) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name} ({account.type})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('nsMonitor.domainName')} *
+              </label>
+              <input
+                type="text"
+                name="domain_name"
+                required
+                placeholder="example.com"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Third ID *
+              </label>
+              <input
+                type="text"
+                name="third_id"
+                required
+                placeholder="123456"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                DNSHE subdomain ID or other provider's domain identifier
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Full Domain *
+              </label>
+              <input
+                type="text"
+                name="full_domain"
+                required
+                placeholder="sub.example.com"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('domainRenewal.expiresAt')}
+              </label>
+              <input
+                type="datetime-local"
+                name="expires_at"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('common.remark')}
+              </label>
+              <textarea
+                name="remark"
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-y"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={addMutation.isPending}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {t('common.add')}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* 删除确认对话框 */}
+      {deleteDomain && (
+        <ConfirmDialog
+          message={t('domainRenewal.deleteConfirm', { domain: deleteDomain.full_domain || deleteDomain.name })}
+          onConfirm={() => deleteMutation.mutate(deleteDomain.id)}
+          onCancel={() => setDeleteDomain(null)}
+          isLoading={deleteMutation.isPending}
+        />
+      )}
     </div>
   );
 }
