@@ -49,6 +49,9 @@ interface DnsheRecord {
   status: string;
   created_at: string;
   updated_at?: string;  // Added in V2.0
+  subdomain?: string;  // Subdomain name
+  rootdomain?: string;  // Root domain
+  full_domain?: string;  // Full domain name
 }
 
 interface DnsheApiResponse<T> {
@@ -447,13 +450,31 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
   }
 
   private mapRecord(r: DnsheRecord): DnsRecord {
-    const domain = this.config.domain || '';
-    const name = r.name === domain ? '@' : r.name.replace(`.${domain}`, '');
+    // Use full_domain from API if available, otherwise construct it
+    let domain: string;
+    if (r.full_domain) {
+      domain = r.full_domain;
+    } else if (r.subdomain && r.rootdomain) {
+      domain = r.subdomain === '@' ? r.rootdomain : `${r.subdomain}.${r.rootdomain}`;
+    } else {
+      // Fallback to config domain or construct from name
+      domain = this.config.domain || '';
+    }
+    
+    // Extract record name from full domain
+    let name: string;
+    if (r.name === '@' || r.name === domain) {
+      name = '@';
+    } else if (domain && r.name.endsWith(`.${domain}`)) {
+      name = r.name.slice(0, -domain.length - 1);
+    } else {
+      name = r.name || '@';
+    }
 
     return {
       RecordId: String(r.id),
       Domain: domain,
-      Name: name || '@',
+      Name: name,
       Type: safeString(r.type).toUpperCase(),
       Value: safeString(r.content),
       Line: 'default',
