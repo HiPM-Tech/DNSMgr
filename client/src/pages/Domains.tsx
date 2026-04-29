@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { List, Activity, ShieldCheck } from 'lucide-react';
+import { List, Activity, ShieldCheck, Calendar } from 'lucide-react';
 import { useI18n } from '../contexts/I18nContext';
 import { DomainListTab } from './domains/DomainListTab';
 import { FailoverTab } from './domains/FailoverTab';
@@ -14,7 +14,7 @@ export function Domains() {
     { id: 'list', label: t('domains.tabs.list'), icon: List },
     { id: 'failover', label: t('domains.tabs.failover'), icon: Activity },
     { id: 'ns-monitor', label: t('domains.tabs.nsMonitor'), icon: ShieldCheck },
-    // { id: 'renewal', label: t('domainRenewal.title'), icon: Calendar }, // Hidden in v1.3.2
+    { id: 'renewal', label: t('domains.tabs.renewal'), icon: Calendar },
   ];
 
   return (
