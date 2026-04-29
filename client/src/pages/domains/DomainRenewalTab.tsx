@@ -24,6 +24,48 @@ export function DomainRenewalTab() {
   const [selectedProviderType, setSelectedProviderType] = useState<string>('dnshe');
   const [deleteDomain, setDeleteDomain] = useState<any | null>(null);
 
+  // 获取 DNS 账号列表（用于选择提供商）
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['dns-accounts'],
+    queryFn: () => dnsAccountsApi.list().then(r => r.data.data || []),
+    enabled: isAddModalOpen,
+  });
+
+  // 添加续期域名 mutation
+  const addMutation = useMutation({
+    mutationFn: (data: {
+      account_id: number;
+      provider_type: string;
+      domain_name: string;
+      third_id: string;
+      full_domain: string;
+      expires_at?: string;
+      remark?: string;
+    }) => domainRenewalApi.addRenewableDomain(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
+      setIsAddModalOpen(false);
+      setSelectedAccountId(null);
+      toast.success(t('domainRenewal.addSuccess'));
+    },
+    onError: () => {
+      toast.error(t('domainRenewal.addFailed'));
+    },
+  });
+
+  // 删除续期域名 mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => domainRenewalApi.deleteRenewableDomain(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
+      setDeleteDomain(null);
+      toast.success(t('domainRenewal.deleteSuccess'));
+    },
+    onError: () => {
+      toast.error(t('domainRenewal.deleteFailed'));
+    },
+  });
+
   // 检查是否为管理员或超级管理员
   const isAdmin = user?.role === 2 || user?.role === 3;
 
