@@ -2107,9 +2107,17 @@ export const SecurityPolicyOperations = {
 
   /** 检查用户是否有 2FA */
   async has2FA(userId: number): Promise<boolean> {
+    const dbType = process.env.DB_TYPE || 'sqlite';
+    const enabledValue = dbType === 'postgresql' ? '$4' : '?';
+    const enabledParam = dbType === 'postgresql' ? [userId, 'totp', 'webauthn', true] : [userId, 'totp', 'webauthn', 1];
+    
+    const sql = dbType === 'postgresql'
+      ? 'SELECT COUNT(*) as count FROM user_2fa WHERE user_id = $1 AND type IN ($2, $3) AND enabled = $4'
+      : 'SELECT COUNT(*) as count FROM user_2fa WHERE user_id = ? AND type IN (?, ?) AND enabled = ?';
+    
     const result = await getInternal<{ count: number }>(
-      'SELECT COUNT(*) as count FROM user_2fa WHERE user_id = ? AND type IN (?, ?) AND enabled = 1',
-      [userId, 'totp', 'webauthn'],
+      sql,
+      enabledParam,
       { operation: 'SecurityPolicy.has2FA', table: 'user_2fa' }
     );
     return (result?.count || 0) > 0;
@@ -2754,10 +2762,10 @@ export const TOTPOperations = {
   async enableSQLite(userId: number, secret: string, encryptedCodes: string): Promise<void> {
     return executeInternal(
       `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
-       VALUES (?, ?, ?, ?, 1, datetime('now'))
+       VALUES (?, ?, ?, ?, TRUE, datetime('now'))
        ON CONFLICT(user_id, type) DO UPDATE SET
         secret = excluded.secret, backup_codes = excluded.backup_codes,
-        enabled = 1, updated_at = datetime('now')`,
+        enabled = TRUE, updated_at = datetime('now')`,
       [userId, 'totp', secret, encryptedCodes],
       { operation: 'TOTP.enableSQLite', table: 'user_2fa' }
     );
@@ -2767,10 +2775,10 @@ export const TOTPOperations = {
   async enableMySQL(userId: number, secret: string, encryptedCodes: string): Promise<void> {
     return executeInternal(
       `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
-       VALUES (?, ?, ?, ?, 1, NOW())
+       VALUES (?, ?, ?, ?, TRUE, NOW())
        ON DUPLICATE KEY UPDATE
        secret = VALUES(secret), backup_codes = VALUES(backup_codes),
-       enabled = 1, updated_at = NOW()`,
+       enabled = TRUE, updated_at = NOW()`,
       [userId, 'totp', secret, encryptedCodes],
       { operation: 'TOTP.enableMySQL', table: 'user_2fa' }
     );
@@ -2894,7 +2902,7 @@ export const WebAuthnOperations = {
   /** 禁用 WebAuthn */
   async disable(userId: number): Promise<void> {
     return executeInternal(
-      'UPDATE user_2fa SET enabled = 0 WHERE user_id = ? AND type = ?',
+      'UPDATE user_2fa SET enabled = FALSE WHERE user_id = ? AND type = ?',
       [userId, 'webauthn'],
       { operation: 'WebAuthn.disable', table: 'user_2fa' }
     );
