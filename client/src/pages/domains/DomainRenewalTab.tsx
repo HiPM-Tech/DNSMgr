@@ -70,7 +70,9 @@ export function DomainRenewalTab() {
       return { successCount, total: subdomains.length };
     },
     onSuccess: ({ successCount, total }) => {
+      // Force refetch renewable domains list
       queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
+      queryClient.refetchQueries({ queryKey: ['renewable-domains'] });
       setIsAddModalOpen(false);
       setSelectedAccountId(null);
       setSelectedDomainIds(new Set());
