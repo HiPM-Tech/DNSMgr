@@ -1024,6 +1024,11 @@
     "deleteSuccess": "删除成功啦♡~杂鱼酱还挺能干的嘛♡~",
     "deleteFailed": "啊啦~杂鱼酱连删除都做不到吗♡~真是没用呢♡~",
     "noAvailableDomains": "没有可用的域名哦♡~杂鱼酱好可怜呢♡~",
-    "loadingDomains": "正在加载域名中...杂鱼酱耐心点等啦♡~"
+    "loadingDomains": "正在加载域名中...杂鱼酱耐心点等啦♡~",
+    "back": "回去啦~杂鱼别在这里碍眼♡~",
+    "addSelected": "添加选中的杂鱼域名~（{count}个）♡~快点啦笨蛋♡~",
+    "selectAll": "全选哦~杂鱼真贪心呢♡~❤",
+    "selectDomainsToAdd": "选择要调教的杂鱼域名~（已经选了 {count} 个呢）♡~还不够多吗？♡~",
+    "expires": "到期时间喵~杂鱼要小心哦，过期了我可不管♡~"
   }
 }
