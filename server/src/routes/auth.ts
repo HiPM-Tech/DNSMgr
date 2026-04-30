@@ -1295,7 +1295,6 @@ router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, r
   
   try {
     await UserPreferencesOperations.updatePinnedDomains(req.user!.userId, domainIds);
-    await logAuditOperation(req.user!.userId, 'update_pinned_domains', 'system', { domainIds });
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update pinned domains' });
