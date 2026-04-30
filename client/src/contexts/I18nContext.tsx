@@ -3,6 +3,17 @@ import type { ReactNode } from 'react';
 import { defaultLocale, locales } from '../i18n';
 import type { TranslationTree } from '../i18n/types';
 
+// 临时调试：检查 locales 对象
+console.log('[I18nContext] Available locales:', Object.keys(locales));
+console.log('[I18nContext] zh-CN exists:', 'zh-CN' in locales);
+if (locales['zh-CN']) {
+  console.log('[I18nContext] zh-CN messages keys:', Object.keys(locales['zh-CN'].messages).slice(0, 10));
+  console.log('[I18nContext] domainRenewal in zh-CN:', 'domainRenewal' in locales['zh-CN'].messages);
+  if (locales['zh-CN'].messages.domainRenewal) {
+    console.log('[I18nContext] domainRenewal.title:', (locales['zh-CN'].messages.domainRenewal as any).title);
+  }
+}
+
 const STORAGE_KEY = 'locale';
 
 interface I18nContextValue {
