@@ -1,6 +1,6 @@
 ﻿import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, ShieldAlert, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2, Wand2 } from 'lucide-react';
+import { Shield, ShieldAlert, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2, Wand2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { nsMonitorApi, domainsApi } from '../../api';
 import type { Domain } from '../../api';
 import { Table } from '../../components/Table';
@@ -38,6 +38,11 @@ export function NSMonitorTab() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [deleteConfig, setDeleteConfig] = useState<NSMonitorConfig | null>(null);
   const [selectedDomainName, setSelectedDomainName] = useState<string>('');
+  
+  // 分页状态
+  const [domainPage, setDomainPage] = useState(1);
+  const [domainPageSize] = useState(20);
+  const [domainSearchKeyword, setDomainSearchKeyword] = useState('');
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],
@@ -54,11 +59,17 @@ export function NSMonitorTab() {
   });
 
   const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
-    queryKey: ['domains'],
-    queryFn: () => domainsApi.list({ pageSize: 1000 }).then(r => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
+    queryKey: ['domains', domainPage, domainPageSize],
+    queryFn: () => domainsApi.list({ 
+      pageSize: domainPageSize,
+      page: domainPage,
+      keyword: domainSearchKeyword || undefined
+    }).then(r => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
     enabled: isAddModalOpen,
   });
   const domains = domainsData?.list ?? [];
+  const domainTotalPages = domainsData?.totalPages ?? 1;
+  const domainTotal = domainsData?.total ?? 0;
 
   const updateMutation = useMutation({
     mutationFn: (data: { id: number; expected_ns: string; enabled: boolean }) =>
@@ -145,10 +156,6 @@ export function NSMonitorTab() {
   const filteredConfigs = configs?.filter((c: NSMonitorConfig) =>
     c.domain_name?.toLowerCase().includes(searchKeyword.toLowerCase())
   ) || [];
-
-  // 获取尚未添加监测的域名
-  const monitoredDomainIds = new Set(configs?.map((c: NSMonitorConfig) => c.domain_id) || []);
-  const availableDomains = domains?.filter((d: Domain) => !monitoredDomainIds.has(d.id)) || [];
 
   // 辅助函数：将 encrypted_ns 或 plain_ns 转换为数组
   const parseNSField = (value: string | string[] | number | undefined): string[] => {
@@ -554,28 +561,77 @@ export function NSMonitorTab() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('nsMonitor.selectDomain')} *
               </label>
-              {availableDomains.length === 0 ? (
+              
+              {/* 搜索框 */}
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={domainSearchKeyword}
+                  onChange={(e) => {
+                    setDomainSearchKeyword(e.target.value);
+                    setDomainPage(1); // 重置到第一页
+                  }}
+                  placeholder={t('common.search')}
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+              </div>
+              
+              {/* 域名列表 */}
+              {domains.length === 0 ? (
                 <div className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                   {t('nsMonitor.noAvailableDomains')}
                 </div>
               ) : (
-                <select
-                  name="domain_id"
-                  required
-                  onChange={(e) => {
-                    const domainId = parseInt(e.target.value);
-                    const domain = availableDomains.find(d => d.id === domainId);
-                    setSelectedDomainName(domain?.name || '');
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                >
-                  <option value="">{t('nsMonitor.selectDomainPlaceholder')}</option>
-                  {availableDomains.map((domain: Domain) => (
-                    <option key={domain.id} value={domain.id}>
-                      {domain.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="border border-gray-300 dark:border-gray-600 rounded-lg max-h-64 overflow-y-auto">
+                  <select
+                    name="domain_id"
+                    required
+                    onChange={(e) => {
+                      const domainId = parseInt(e.target.value);
+                      const domain = domains.find(d => d.id === domainId);
+                      setSelectedDomainName(domain?.name || '');
+                    }}
+                    className="w-full px-3 py-2 bg-transparent focus:outline-none text-gray-900 dark:text-white"
+                  >
+                    <option value="">{t('nsMonitor.selectDomainPlaceholder')}</option>
+                    {domains.map((domain: Domain) => (
+                      <option key={domain.id} value={domain.id}>
+                        {domain.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {/* 分页控件 */}
+              {domainTotalPages > 0 && (
+                <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                  <div>
+                    {t('common.total')}: {domainTotal} {t('common.items')}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDomainPage(p => Math.max(1, p - 1))}
+                      disabled={domainPage === 1}
+                      className="p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span>
+                      {t('common.page')} {domainPage} / {domainTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDomainPage(p => Math.min(domainTotalPages, p + 1))}
+                      disabled={domainPage === domainTotalPages}
+                      className="p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -672,7 +728,7 @@ export function NSMonitorTab() {
               </button>
               <button
                 type="submit"
-                disabled={createMutation.isPending || availableDomains.length === 0}
+                disabled={createMutation.isPending || domains.length === 0}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 {t('common.add')}
