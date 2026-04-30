@@ -315,11 +315,23 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
       }
 
       const res = await this.request<{ record_id: number }>('dns_records', 'create', 'POST', body);
+      log.info('DNSHE', 'Add record response', { 
+        success: res.success, 
+        record_id: res.record_id,
+        fullResponse: JSON.stringify(res)
+      });
       if (!res.success) {
+        log.error('DNSHE', 'Add record failed', { response: res });
         return null;
       }
 
-      return String(res.record_id ?? '');
+      const recordId = res.record_id;
+      if (!recordId) {
+        log.error('DNSHE', 'No record_id in response', { response: res });
+        return null;
+      }
+
+      return String(recordId);
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return null;
