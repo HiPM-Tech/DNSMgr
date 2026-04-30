@@ -22,7 +22,7 @@ export function ConfirmDialog({ message, onConfirm, onCancel, isLoading, confirm
           </div>
           <h3 className="font-semibold text-gray-900 dark:text-white">{t('common.confirmAction')}</h3>
         </div>
-        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">{message}</p>
+        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6 line-clamp-3 break-all">{message}</p>
         <div className="flex gap-3 justify-end">
           <button onClick={onCancel} disabled={isLoading}
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50">
