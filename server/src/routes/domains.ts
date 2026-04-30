@@ -879,10 +879,26 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
   
   const access = await resolveDomainAccessById(id, req.user!.userId, normalizeRole(req.user?.role));
   if (!access.domain || !access.canWrite) {
-    log.warn('Domains', 'Domain access denied', { domainId: id, userId: req.user!.userId });
+    log.warn('Domains', 'Domain access denied', { 
+      domainId: id, 
+      userId: req.user!.userId,
+      userRole: req.user?.role,
+      normalizedRole: normalizeRole(req.user?.role),
+      hasDomain: !!access.domain,
+      canWrite: access.canWrite,
+      writeSubs: access.writeSubs,
+      hasRules: access.hasRules
+    });
     sendError(res, 'Domain not found or no permission');
     return;
   }
+  
+  log.info('Domains', 'Domain access granted', { 
+    domainId: id, 
+    userId: req.user!.userId,
+    domainName: access.domain.name,
+    canWrite: access.canWrite
+  });
   
   // Get the account
   const account = await DnsAccountOperations.getById(access.domain.account_id) as DnsAccount | undefined;
