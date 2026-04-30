@@ -3160,6 +3160,15 @@ export const WhoisOperations = {
 // ============================================================================
 
 export const RenewableDomainOperations = {
+  /** 根据 ID 获取续期域名 */
+  async getById(id: number): Promise<any | null> {
+    return await getInternal(
+      'SELECT * FROM renewable_domains WHERE id = ?',
+      [id],
+      { operation: 'RenewableDomain.getById', table: 'renewable_domains' }
+    );
+  },
+
   /** 获取所有启用的续期域名 */
   async getAllEnabled(): Promise<any[]> {
     return await queryInternal(
@@ -3250,6 +3259,11 @@ export const RenewableDomainOperations = {
       [expiresAt, id],
       { operation: 'RenewableDomain.updateExpiry', table: 'renewable_domains' }
     );
+  },
+
+  /** 更新续期域名的到期时间（别名） */
+  async updateExpiresAt(id: number, expiresAt: string): Promise<void> {
+    await this.updateExpiry(id, expiresAt);
   },
 
   /** 标记为已续期 */

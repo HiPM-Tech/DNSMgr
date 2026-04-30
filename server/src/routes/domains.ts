@@ -866,49 +866,58 @@ router.post('/:id/whois', authMiddleware, requireTokenDomainPermission(), asyncH
  * Renew a DNSHE subdomain
  */
 router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const id = parseInteger(req.params.id);
+  const renewableDomainId = parseInteger(req.params.id);
   const { subdomain_id } = req.body;
   
-  log.info('Domains', 'Renewal request received', { domainId: id, subdomainId: subdomain_id, userId: req.user?.userId });
+  log.info('Domains', 'Renewal request received', { 
+    renewableDomainId, 
+    subdomainId: subdomain_id, 
+    userId: req.user?.userId 
+  });
   
-  if (!id || !subdomain_id) {
-    log.error('Domains', 'Missing required parameters', { id, subdomain_id });
+  if (!renewableDomainId || !subdomain_id) {
+    log.error('Domains', 'Missing required parameters', { renewableDomainId, subdomain_id });
     sendError(res, 'Missing domain ID or subdomain ID');
     return;
   }
   
-  const access = await resolveDomainAccessById(id, req.user!.userId, normalizeRole(req.user?.role));
-  if (!access.domain || !access.canWrite) {
-    log.warn('Domains', 'Domain access denied', { 
-      domainId: id, 
-      userId: req.user!.userId,
-      userRole: req.user?.role,
-      normalizedRole: normalizeRole(req.user?.role),
-      hasDomain: !!access.domain,
-      canWrite: access.canWrite,
-      writeSubs: access.writeSubs,
-      hasRules: access.hasRules
-    });
-    sendError(res, 'Domain not found or no permission');
+  // Only allow admins and super admins
+  const role = normalizeRole(req.user?.role);
+  if (role < 2) {
+    log.warn('Domains', 'Unauthorized renewal attempt', { userId: req.user?.userId, role });
+    sendError(res, 'Permission denied');
     return;
   }
   
-  log.info('Domains', 'Domain access granted', { 
-    domainId: id, 
-    userId: req.user!.userId,
-    domainName: access.domain.name,
-    canWrite: access.canWrite
+  // Get the renewable domain from renewable_domains table
+  const renewableDomain = await RenewableDomainOperations.getById(renewableDomainId);
+  if (!renewableDomain) {
+    log.error('Domains', 'Renewable domain not found', { renewableDomainId });
+    sendError(res, 'Renewable domain not found');
+    return;
+  }
+  
+  log.info('Domains', 'Renewable domain retrieved', { 
+    id: renewableDomain.id,
+    full_domain: renewableDomain.full_domain,
+    account_id: renewableDomain.account_id,
+    provider_type: renewableDomain.provider_type,
+    third_id: renewableDomain.third_id
   });
   
   // Get the account
-  const account = await DnsAccountOperations.getById(access.domain.account_id) as DnsAccount | undefined;
+  const account = await DnsAccountOperations.getById(renewableDomain.account_id) as DnsAccount | undefined;
   if (!account) {
-    log.error('Domains', 'Account not found', { accountId: access.domain.account_id });
+    log.error('Domains', 'Account not found', { accountId: renewableDomain.account_id });
     sendError(res, 'Account not found');
     return;
   }
   
-  log.info('Domains', 'Account retrieved for renewal', { accountId: account.id, accountName: account.name, type: account.type });
+  log.info('Domains', 'Account retrieved for renewal', { 
+    accountId: account.id, 
+    accountName: account.name, 
+    type: account.type 
+  });
   
   // Only support DNSHE provider
   if (account.type !== 'dnshe') {
@@ -943,11 +952,20 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
       return;
     }
     
+    // Update expires_at in renewable_domains table
+    if (result.new_expires_at) {
+      await RenewableDomainOperations.updateExpiresAt(renewableDomainId, result.new_expires_at);
+      log.info('Domains', 'Updated expires_at in renewable_domains', { 
+        renewableDomainId,
+        newExpiresAt: result.new_expires_at
+      });
+    }
+    
     // Log audit operation
     await logAuditOperation(
       req.user!.userId,
       'renew_domain',
-      access.domain.name,
+      renewableDomain.full_domain,
       {
         subdomain_id: result.subdomain_id,
         subdomain: result.subdomain,
@@ -959,8 +977,9 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
     );
     
     log.info('Domains', 'Domain renewed successfully', { 
-      domainId: id, 
+      renewableDomainId, 
       subdomainId: result.subdomain_id,
+      fullDomain: renewableDomain.full_domain,
       previousExpiresAt: result.previous_expires_at,
       newExpiresAt: result.new_expires_at,
       remainingDays: result.remaining_days
