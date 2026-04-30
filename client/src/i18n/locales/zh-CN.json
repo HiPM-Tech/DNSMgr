@@ -1118,6 +1118,11 @@
     "deleteSuccess": "删除成功",
     "deleteFailed": "删除失败",
     "noAvailableDomains": "没有可用的域名",
-    "loadingDomains": "加载域名中..."
+    "loadingDomains": "加载域名中...",
+    "back": "返回",
+    "addSelected": "添加选中",
+    "selectAll": "全选",
+    "selectDomainsToAdd": "选择要添加的域名（已选 {count} 个）",
+    "expires": "到期时间"
   }
 }

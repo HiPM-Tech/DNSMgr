@@ -436,13 +436,10 @@ export function DomainRenewalTab() {
                   <option value="">{t('common.pleaseSelect')}</option>
                   {accounts.filter((a: any) => a.type === 'dnshe').map((account: any) => (
                     <option key={account.id} value={account.id}>
-                      {account.name}
+                      {account.name} ({account.type})
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-2">
-                  Only DNSHE accounts are shown (currently the only provider supporting renewal)
-                </p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
@@ -460,14 +457,14 @@ export function DomainRenewalTab() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Select domains to add ({selectedDomainIds.size} selected)
+                  {t('domainRenewal.selectDomainsToAdd', { count: selectedDomainIds.size })}
                 </h3>
                 <button
                   type="button"
                   onClick={toggleSelectAll}
                   className="text-sm text-blue-600 hover:text-blue-700"
                 >
-                  {selectedDomainIds.size === availableDomains.length ? 'Deselect All' : 'Select All'}
+                  {selectedDomainIds.size === availableDomains.length ? t('common.deselectAll') : t('domainRenewal.selectAll')}
                 </button>
               </div>
 
@@ -515,7 +512,7 @@ export function DomainRenewalTab() {
                   }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
-                  Back
+                  {t('domainRenewal.back')}
                 </button>
                 <button
                   type="button"
@@ -523,7 +520,7 @@ export function DomainRenewalTab() {
                   disabled={batchAddMutation.isPending || selectedDomainIds.size === 0}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {batchAddMutation.isPending ? 'Adding...' : `Add Selected (${selectedDomainIds.size})`}
+                  {batchAddMutation.isPending ? t('common.loading') : `${t('domainRenewal.addSelected')} (${selectedDomainIds.size})`}
                 </button>
               </div>
             </div>

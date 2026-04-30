@@ -1035,6 +1035,8 @@ router.post('/renewable-domains', authMiddleware, asyncHandler(async (req: Reque
   }
   
   try {
+    log.debug('Domains', 'Adding renewable domain', { account_id, provider_type, domain_name, third_id });
+    
     const id = await RenewableDomainOperations.add({
       account_id,
       provider_type,
