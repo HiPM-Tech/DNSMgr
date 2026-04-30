@@ -975,6 +975,8 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
     // Query from renewable_domains table
     const renewableDomains = await RenewableDomainOperations.getAllEnabled();
     
+    log.debug('Domains', 'Fetched renewable domains', { count: renewableDomains.length });
+    
     // Enrich with account information
     const enrichedDomains = await Promise.all(
       renewableDomains.map(async (domain: any) => {
@@ -995,6 +997,7 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
       })
     );
     
+    log.debug('Domains', 'Enriched domains', { count: enrichedDomains.length });
     sendSuccess(res, enrichedDomains);
   } catch (error) {
     log.error('Domains', 'Failed to fetch renewable domains', { error });

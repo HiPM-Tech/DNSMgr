@@ -105,6 +105,8 @@ export function DomainRenewalTab() {
     enabled: isAdmin,
     queryFn: async () => {
       const res = await domainRenewalApi.getRenewableDomains();
+      console.log('[DomainRenewalTab] API Response:', res.data);
+      console.log('[DomainRenewalTab] Renewable domains:', res.data.data);
       return res.data.data || [];
     },
   });
