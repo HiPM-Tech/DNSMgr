@@ -44,11 +44,16 @@ export function DomainRenewalTab() {
       const account = accounts.find((a: any) => a.id === selectedAccountId);
       if (!account) return [];
       
+      console.log('[DomainRenewalTab] Fetching provider renewable domains for account:', selectedAccountId, 'type:', account.type);
       // Call the generic provider API
       const res = await api.get(`/providers/${account.type}/renewable-domains`);
+      console.log('[DomainRenewalTab] Provider API response:', res.data);
       const allDomains = res.data.data || [];
+      console.log('[DomainRenewalTab] All domains from provider:', allDomains.length);
       // Filter domains for the selected account
-      return allDomains.filter((d: any) => d.account_id === selectedAccountId);
+      const filteredDomains = allDomains.filter((d: any) => d.account_id === selectedAccountId);
+      console.log('[DomainRenewalTab] Filtered domains for account:', filteredDomains.length);
+      return filteredDomains;
     },
     enabled: !!selectedAccountId && isAddModalOpen,
   });
@@ -56,11 +61,14 @@ export function DomainRenewalTab() {
   // 批量添加续期域名 mutation
   const batchAddMutation = useMutation({
     mutationFn: async ({ accountId, subdomains }: { accountId: number; subdomains: any[] }) => {
+      console.log('[DomainRenewalTab] Batch adding renewable domains:', { accountId, count: subdomains.length });
       const account = accounts.find((a: any) => a.id === accountId);
       if (!account) throw new Error('Account not found');
       
-      const promises = subdomains.map(sub => 
-        domainRenewalApi.addRenewableDomain({
+      console.log('[DomainRenewalTab] Account info:', { id: account.id, name: account.name, type: account.type });
+      
+      const promises = subdomains.map(sub => {
+        const requestData = {
           account_id: accountId,
           provider_type: account.type,
           domain_name: sub.name || sub.full_domain.split('.')[0],
@@ -68,14 +76,24 @@ export function DomainRenewalTab() {
           full_domain: sub.full_domain,
           expires_at: sub.expires_at,
           remark: `Added from ${account.name}`,
-        })
-      );
+        };
+        console.log('[DomainRenewalTab] Adding domain:', requestData);
+        return domainRenewalApi.addRenewableDomain(requestData);
+      });
       
       const results = await Promise.allSettled(promises);
       const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+      console.log('[DomainRenewalTab] Batch add results:', { successCount, failedCount, total: subdomains.length });
+      results.forEach((r, idx) => {
+        if (r.status === 'rejected') {
+          console.error('[DomainRenewalTab] Failed to add domain:', subdomains[idx].full_domain, r.reason);
+        }
+      });
       return { successCount, total: subdomains.length };
     },
     onSuccess: ({ successCount, total }) => {
+      console.log('[DomainRenewalTab] Batch add completed successfully:', { successCount, total });
       // Force refetch renewable domains list
       queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
       queryClient.refetchQueries({ queryKey: ['renewable-domains'] });
@@ -84,20 +102,26 @@ export function DomainRenewalTab() {
       setSelectedDomainIds(new Set());
       toast.success(t('domainRenewal.addSuccess') + ` (${successCount}/${total})`);
     },
-    onError: () => {
+    onError: (error: Error) => {
+      console.error('[DomainRenewalTab] Batch add failed:', error);
       toast.error(t('domainRenewal.addFailed'));
     },
   });
 
   // 删除续期域名 mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => domainRenewalApi.deleteRenewableDomain(id),
+    mutationFn: (id: number) => {
+      console.log('[DomainRenewalTab] Deleting renewable domain:', id);
+      return domainRenewalApi.deleteRenewableDomain(id);
+    },
     onSuccess: () => {
+      console.log('[DomainRenewalTab] Delete successful');
       queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
       setDeleteDomain(null);
       toast.success(t('domainRenewal.deleteSuccess'));
     },
-    onError: () => {
+    onError: (error: Error) => {
+      console.error('[DomainRenewalTab] Delete failed:', error);
       toast.error(t('domainRenewal.deleteFailed'));
     },
   });
@@ -110,27 +134,35 @@ export function DomainRenewalTab() {
     queryKey: ['renewable-domains'],
     enabled: isAdmin,
     queryFn: async () => {
+      console.log('[DomainRenewalTab] Fetching renewable domains...');
       const res = await domainRenewalApi.getRenewableDomains();
       console.log('[DomainRenewalTab] API Response:', res.data);
-      console.log('[DomainRenewalTab] Renewable domains:', res.data.data);
+      console.log('[DomainRenewalTab] Renewable domains count:', res.data.data?.length || 0);
+      console.log('[DomainRenewalTab] Renewable domains:', JSON.stringify(res.data.data, null, 2));
       return res.data.data || [];
     },
   });
 
   // 续期 mutation
   const renewMutation = useMutation({
-    mutationFn: ({ domainId, subdomainId }: { domainId: number; subdomainId: number }) => 
-      domainRenewalApi.renew(domainId, subdomainId),
+    mutationFn: ({ domainId, subdomainId }: { domainId: number; subdomainId: number }) => {
+      console.log('[DomainRenewalTab] Starting renewal request:', { domainId, subdomainId });
+      return domainRenewalApi.renew(domainId, subdomainId);
+    },
     onSuccess: (res) => {
+      console.log('[DomainRenewalTab] Renewal response:', res.data);
       if (res.data.code === 0) {
+        console.log('[DomainRenewalTab] Renewal successful:', res.data.data);
         toast.success(t('domainRenewal.renewSuccess'));
         queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
       } else {
+        console.error('[DomainRenewalTab] Renewal failed with code:', res.data.code, 'message:', res.data.msg);
         toast.error(res.data.msg || t('domainRenewal.renewFailed'));
       }
       setRenewing(null);
     },
     onError: (error: Error) => {
+      console.error('[DomainRenewalTab] Renewal error:', error);
       toast.error(error.message || t('domainRenewal.renewFailed'));
       setRenewing(null);
     },

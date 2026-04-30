@@ -82,33 +82,67 @@ export async function renewSubdomain(
     const baseUrl = 'https://api005.dnshe.com/index.php';
     const url = `${baseUrl}?m=domain_hub&endpoint=subdomains&action=renew`;
     
-    log.providerRequest('DNSHE', 'POST', 'subdomains/renew', { subdomain_id: subdomainId });
+    log.providerRequest('DNSHE', 'POST', 'subdomains/renew', { 
+      subdomain_id: subdomainId,
+      apiKeyPrefix: config.apiKey?.substring(0, 8) + '...',
+      useProxy: config.useProxy
+    });
     
+    const startTime = Date.now();
     const response = await authenticatedRequest(url, config, {
       method: 'POST',
       body: JSON.stringify({ subdomain_id: subdomainId }),
     });
+    const duration = Date.now() - startTime;
+    
+    log.info('DNSHE', 'Renewal API response time', { duration: `${duration}ms`, status: response.status });
 
     if (!response.ok) {
       const text = await response.text();
       log.providerError('DNSHE', { 
         status: response.status, 
-        error: `Renewal request failed: ${text}` 
+        error: `Renewal request failed: ${text}`,
+        duration: `${duration}ms`
       });
       return null;
     }
 
     const data = await response.json();
-    log.providerResponse('DNSHE', response.status, data.success, { subdomain_id: subdomainId });
+    log.providerResponse('DNSHE', response.status, data.success, { 
+      subdomain_id: subdomainId,
+      success: data.success,
+      message: data.message || data.error,
+      previous_expires_at: data.previous_expires_at,
+      new_expires_at: data.new_expires_at,
+      remaining_days: data.remaining_days,
+      charged_amount: data.charged_amount
+    });
     
     if (!data.success) {
-      log.providerError('DNSHE', { message: data.message || data.error });
+      log.providerError('DNSHE', { 
+        message: data.message || data.error,
+        subdomain_id: subdomainId
+      });
       return null;
     }
 
+    log.info('DNSHE', 'Renewal successful', {
+      subdomain_id: data.subdomain_id,
+      subdomain: data.subdomain,
+      previousExpiresAt: data.previous_expires_at,
+      newExpiresAt: data.new_expires_at,
+      remainingDays: data.remaining_days,
+      chargedAmount: data.charged_amount,
+      neverExpires: data.never_expires
+    });
+
     return data as DnsheRenewalResult;
   } catch (error) {
-    log.providerError('DNSHE', { error: error instanceof Error ? error.message : String(error) });
+    log.providerError('DNSHE', { 
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      subdomainId
+    });
     return null;
   }
 }

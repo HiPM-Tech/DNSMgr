@@ -552,17 +552,26 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
   // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
   if (role < 2) {
+    log.warn('Domains', 'Unauthorized attempt to fetch renewable domains', { userId: req.user?.userId, role });
     sendError(res, 'Permission denied');
     return;
   }
   
+  log.info('Domains', 'Fetching renewable domains', { userId: req.user?.userId });
+  
   try {
     // Query from renewable_domains table
+    const startTime = Date.now();
     const renewableDomains = await RenewableDomainOperations.getAllEnabled();
+    const queryDuration = Date.now() - startTime;
     
-    log.debug('Domains', 'Fetched renewable domains', { count: renewableDomains.length });
+    log.debug('Domains', 'Fetched renewable domains from database', { 
+      count: renewableDomains.length,
+      duration: `${queryDuration}ms`
+    });
     
     // Enrich with account information
+    const enrichStartTime = Date.now();
     const enrichedDomains = await Promise.all(
       renewableDomains.map(async (domain: any) => {
         const account = await DnsAccountOperations.getById(domain.account_id);
@@ -581,11 +590,24 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
         };
       })
     );
+    const enrichDuration = Date.now() - enrichStartTime;
     
-    log.debug('Domains', 'Enriched domains', { count: enrichedDomains.length });
+    log.debug('Domains', 'Enriched domains with account info', { 
+      count: enrichedDomains.length,
+      duration: `${enrichDuration}ms`
+    });
+    
+    log.info('Domains', 'Successfully fetched renewable domains', { 
+      total: enrichedDomains.length,
+      totalDuration: `${Date.now() - startTime}ms`
+    });
+    
     sendSuccess(res, enrichedDomains);
   } catch (error) {
-    log.error('Domains', 'Failed to fetch renewable domains', { error });
+    log.error('Domains', 'Failed to fetch renewable domains', { 
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     sendError(res, 'Failed to fetch renewable domains');
   }
 }));
@@ -847,13 +869,17 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
   const id = parseInteger(req.params.id);
   const { subdomain_id } = req.body;
   
+  log.info('Domains', 'Renewal request received', { domainId: id, subdomainId: subdomain_id, userId: req.user?.userId });
+  
   if (!id || !subdomain_id) {
+    log.error('Domains', 'Missing required parameters', { id, subdomain_id });
     sendError(res, 'Missing domain ID or subdomain ID');
     return;
   }
   
   const access = await resolveDomainAccessById(id, req.user!.userId, normalizeRole(req.user?.role));
   if (!access.domain || !access.canWrite) {
+    log.warn('Domains', 'Domain access denied', { domainId: id, userId: req.user!.userId });
     sendError(res, 'Domain not found or no permission');
     return;
   }
@@ -861,18 +887,24 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
   // Get the account
   const account = await DnsAccountOperations.getById(access.domain.account_id) as DnsAccount | undefined;
   if (!account) {
+    log.error('Domains', 'Account not found', { accountId: access.domain.account_id });
     sendError(res, 'Account not found');
     return;
   }
   
+  log.info('Domains', 'Account retrieved for renewal', { accountId: account.id, accountName: account.name, type: account.type });
+  
   // Only support DNSHE provider
   if (account.type !== 'dnshe') {
+    log.warn('Domains', 'Unsupported provider for renewal', { type: account.type });
     sendError(res, 'Renewal only supported for DNSHE provider');
     return;
   }
   
   try {
     const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
+    log.info('Domains', 'Calling DNSHE renewal API', { subdomainId: Number(subdomain_id), useProxy: !!config.useProxy });
+    
     const result = await dnsheRenewSubdomain(
       {
         apiKey: config.apiKey,
@@ -882,7 +914,10 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
       Number(subdomain_id)
     );
     
+    log.info('Domains', 'DNSHE renewal API response', { success: !!result, result });
+    
     if (!result) {
+      log.error('Domains', 'DNSHE renewal returned null result');
       sendError(res, 'Renewal failed');
       return;
     }
@@ -902,9 +937,20 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
       req
     );
     
+    log.info('Domains', 'Domain renewed successfully', { 
+      domainId: id, 
+      subdomainId: result.subdomain_id,
+      previousExpiresAt: result.previous_expires_at,
+      newExpiresAt: result.new_expires_at,
+      remainingDays: result.remaining_days
+    });
+    
     sendSuccess(res, result, 'Domain renewed successfully');
   } catch (error) {
-    log.error('Domains', 'Renewal failed', { error });
+    log.error('Domains', 'Renewal failed with exception', { 
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     sendError(res, error instanceof Error ? error.message : 'Renewal failed');
   }
 }));
@@ -1015,6 +1061,7 @@ router.post('/renewable-domains', authMiddleware, asyncHandler(async (req: Reque
   // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
   if (role < 2) {
+    log.warn('Domains', 'Unauthorized attempt to add renewable domain', { userId: req.user?.userId, role });
     sendError(res, 'Permission denied');
     return;
   }
@@ -1029,13 +1076,30 @@ router.post('/renewable-domains', authMiddleware, asyncHandler(async (req: Reque
     remark?: string;
   };
   
+  log.info('Domains', 'Add renewable domain request', { 
+    account_id, 
+    provider_type, 
+    domain_name, 
+    third_id,
+    full_domain,
+    expires_at,
+    userId: req.user?.userId
+  });
+  
   if (!account_id || !provider_type || !domain_name || !third_id || !full_domain) {
+    log.error('Domains', 'Missing required fields for adding renewable domain', { 
+      account_id, 
+      provider_type, 
+      domain_name, 
+      third_id,
+      full_domain
+    });
     sendError(res, 'Missing required fields');
     return;
   }
   
   try {
-    log.debug('Domains', 'Adding renewable domain', { account_id, provider_type, domain_name, third_id });
+    log.debug('Domains', 'Adding renewable domain to database', { account_id, provider_type, domain_name, third_id });
     
     const id = await RenewableDomainOperations.add({
       account_id,
@@ -1047,10 +1111,13 @@ router.post('/renewable-domains', authMiddleware, asyncHandler(async (req: Reque
       remark,
     });
     
-    log.info('Domains', 'Added renewable domain', { id, full_domain });
+    log.info('Domains', 'Successfully added renewable domain', { id, full_domain, userId: req.user?.userId });
     sendSuccess(res, { id });
   } catch (error) {
-    log.error('Domains', 'Failed to add renewable domain', { error });
+    log.error('Domains', 'Failed to add renewable domain', { 
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     sendError(res, 'Failed to add renewable domain');
   }
 }));
@@ -1062,22 +1129,30 @@ router.delete('/renewable-domains/:id', authMiddleware, asyncHandler(async (req:
   // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
   if (role < 2) {
+    log.warn('Domains', 'Unauthorized attempt to delete renewable domain', { userId: req.user?.userId, role });
     sendError(res, 'Permission denied');
     return;
   }
   
   const id = parseInt(req.params.id);
   if (isNaN(id)) {
+    log.error('Domains', 'Invalid renewable domain ID', { id: req.params.id });
     sendError(res, 'Invalid ID');
     return;
   }
   
+  log.info('Domains', 'Delete renewable domain request', { id, userId: req.user?.userId });
+  
   try {
     await RenewableDomainOperations.delete(id);
-    log.info('Domains', 'Deleted renewable domain', { id });
+    log.info('Domains', 'Successfully deleted renewable domain', { id, userId: req.user?.userId });
     sendSuccess(res, null);
   } catch (error) {
-    log.error('Domains', 'Failed to delete renewable domain', { error });
+    log.error('Domains', 'Failed to delete renewable domain', { 
+      id,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     sendError(res, 'Failed to delete renewable domain');
   }
 }));
