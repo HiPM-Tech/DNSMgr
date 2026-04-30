@@ -99,10 +99,22 @@ export async function renewSubdomain(
 
     if (!response.ok) {
       const text = await response.text();
+      
+      // Try to parse as JSON for better error details
+      let errorDetail = text;
+      try {
+        const errorJson = JSON.parse(text);
+        errorDetail = JSON.stringify(errorJson, null, 2);
+      } catch (e) {
+        // Keep original text if not JSON
+      }
+      
       log.providerError('DNSHE', { 
         status: response.status, 
-        error: `Renewal request failed: ${text}`,
-        duration: `${duration}ms`
+        error: `Renewal request failed: ${errorDetail}`,
+        duration: `${duration}ms`,
+        subdomainId,
+        responseBody: text
       });
       return null;
     }
