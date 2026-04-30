@@ -495,7 +495,7 @@ export function DomainRenewalTab() {
                         </div>
                         <div className="text-xs text-gray-500">
                           ID: {sub.id}
-                          {sub.expires_at && ` | Expires: ${new Date(sub.expires_at).toLocaleDateString()}`}
+                          {sub.expires_at && ` | ${t('domainRenewal.expires')}: ${new Date(sub.expires_at).toLocaleDateString()}`}
                         </div>
                       </div>
                     </label>
