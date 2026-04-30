@@ -37,7 +37,7 @@ export function NSMonitorTab() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [deleteConfig, setDeleteConfig] = useState<NSMonitorConfig | null>(null);
-  const [selectedDomainName, setSelectedDomainName] = useState<string>('');
+  const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null);
   
   // 分页状态
   const [domainPage, setDomainPage] = useState(1);
@@ -59,17 +59,25 @@ export function NSMonitorTab() {
   });
 
   const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
-    queryKey: ['domains', domainPage, domainPageSize],
+    queryKey: ['domains-for-ns-monitor'],
     queryFn: () => domainsApi.list({ 
-      pageSize: domainPageSize,
-      page: domainPage,
-      keyword: domainSearchKeyword || undefined
+      pageSize: 1000, // 获取所有域名，前端过滤
     }).then(r => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
     enabled: isAddModalOpen,
   });
+  
+  // 前端过滤域名
+  const filteredDomains = (domainsData?.list ?? []).filter(d => 
+    d.name.toLowerCase().includes(domainSearchKeyword.toLowerCase())
+  );
+  
+  // 计算分页
+  const domainTotalPages = Math.ceil(filteredDomains.length / domainPageSize);
+  const domainStartIndex = (domainPage - 1) * domainPageSize;
+  const domainEndIndex = Math.min(domainStartIndex + domainPageSize, filteredDomains.length);
+  const paginatedDomains = filteredDomains.slice(domainStartIndex, domainEndIndex);
+  
   const domains = domainsData?.list ?? [];
-  const domainTotalPages = domainsData?.totalPages ?? 1;
-  const domainTotal = domainsData?.total ?? 0;
 
   const updateMutation = useMutation({
     mutationFn: (data: { id: number; expected_ns: string; enabled: boolean }) =>
@@ -563,76 +571,74 @@ export function NSMonitorTab() {
               </label>
               
               {/* 搜索框 */}
-              <div className="relative mb-2">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={domainSearchKeyword}
-                  onChange={(e) => {
-                    setDomainSearchKeyword(e.target.value);
-                    setDomainPage(1); // 重置到第一页
-                  }}
-                  placeholder={t('common.search')}
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                />
-              </div>
+              <input
+                type="text"
+                placeholder={t('common.search')}
+                value={domainSearchKeyword}
+                onChange={(e) => {
+                  setDomainSearchKeyword(e.target.value);
+                  setDomainPage(1);
+                }}
+                className="w-full px-3 py-1.5 mb-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
               
               {/* 域名列表 */}
-              {domains.length === 0 ? (
-                <div className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                  {t('nsMonitor.noAvailableDomains')}
-                </div>
-              ) : (
-                <div className="border border-gray-300 dark:border-gray-600 rounded-lg max-h-64 overflow-y-auto">
-                  <select
-                    name="domain_id"
-                    required
-                    onChange={(e) => {
-                      const domainId = parseInt(e.target.value);
-                      const domain = domains.find(d => d.id === domainId);
-                      setSelectedDomainName(domain?.name || '');
-                    }}
-                    className="w-full px-3 py-2 bg-transparent focus:outline-none text-gray-900 dark:text-white"
-                  >
-                    <option value="">{t('nsMonitor.selectDomainPlaceholder')}</option>
-                    {domains.map((domain: Domain) => (
-                      <option key={domain.id} value={domain.id}>
-                        {domain.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              
-              {/* 分页控件 */}
-              {domainTotalPages > 0 && (
-                <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-                  <div>
-                    {t('common.total')}: {domainTotal} {t('common.items')}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDomainPage(p => Math.max(1, p - 1))}
-                      disabled={domainPage === 1}
-                      className="p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <span>
-                      {t('common.page')} {domainPage} / {domainTotalPages}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setDomainPage(p => Math.min(domainTotalPages, p + 1))}
-                      disabled={domainPage === domainTotalPages}
-                      className="p-1 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3">
+                {domains.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">{t('nsMonitor.noAvailableDomains')}</p>
+                ) : filteredDomains.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">{t('tokens.noMatchingDomains')}</p>
+                ) : (
+                  <>
+                    <div className="max-h-48 overflow-y-auto">
+                      {paginatedDomains.map((domain) => (
+                        <label key={domain.id} className="flex items-center gap-2 mb-1 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded cursor-pointer">
+                          <input
+                            type="radio"
+                            name="domain_id"
+                            value={domain.id}
+                            checked={selectedDomainId === domain.id}
+                            onChange={() => setSelectedDomainId(domain.id)}
+                            className="rounded"
+                            required
+                          />
+                          <span className="text-sm flex-1">{domain.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    
+                    {/* 分页控件 */}
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                      <div className="text-xs text-gray-500">
+                        显示 {domainStartIndex + 1}-{domainEndIndex} / 共 {filteredDomains.length} 项
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDomainPage(p => Math.max(1, p - 1))}
+                          disabled={domainPage === 1}
+                          className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                          <ChevronLeft className="w-3 h-3" />
+                          上一页
+                        </button>
+                        <span className="text-xs text-gray-500">
+                          第 {domainPage} / {domainTotalPages} 页
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setDomainPage(p => Math.min(domainTotalPages, p + 1))}
+                          disabled={domainPage === domainTotalPages}
+                          className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                          下一页
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             <div>
@@ -652,13 +658,14 @@ export function NSMonitorTab() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (selectedDomainName) {
-                      resolveNsMutation.mutate(selectedDomainName);
+                    const selectedDomain = paginatedDomains.find(d => d.id === selectedDomainId);
+                    if (selectedDomain) {
+                      resolveNsMutation.mutate(selectedDomain.name);
                     } else {
                       toast.error(t('nsMonitor.selectDomainFirst'));
                     }
                   }}
-                  disabled={!selectedDomainName || resolveNsMutation.isPending}
+                  disabled={!selectedDomainId || resolveNsMutation.isPending}
                   className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap"
                   title={t('nsMonitor.autoFillTooltip')}
                 >
