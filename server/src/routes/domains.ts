@@ -919,7 +919,12 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
   
   try {
     const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
-    log.info('Domains', 'Calling DNSHE renewal API', { subdomainId: Number(subdomain_id), useProxy: !!config.useProxy });
+    
+    log.info('Domains', 'Calling DNSHE renewal API', { 
+      subdomainId: Number(subdomain_id), 
+      useProxy: !!config.useProxy,
+      apiKeyPrefix: config.apiKey?.substring(0, 8) + '...'
+    });
     
     const result = await dnsheRenewSubdomain(
       {
