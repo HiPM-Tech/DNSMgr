@@ -1,5 +1,265 @@
 # 更新日志
 
+## [1.4.0] - 2026-04-30
+
+### ✨ 新增功能
+
+#### 域名续期系统重构
+- **独立续期域名管理表** (`renewable_domains`)
+  - 创建独立的 `renewable_domains` 表，实现续期域名的独立管理
+  - 支持多数据库（SQLite/MySQL/PostgreSQL）自动迁移
+  - 续期域名与核心域名表解耦，提升数据隔离性
+  
+- **范式化续期架构**
+  - 将域名续期页面改为范式实现，使用通用续期调度器架构
+  - 续期域名列表从数据库查询，使用 `domains` 表的 `expires_at` 字段
+  - 支持批量添加续期域名到列表
+  
+- **两步式添加续期域名对话框**
+  - 第一步：选择账号
+  - 第二步：选择子域名（分页式选择器）
+  - 过滤已添加的续期域名，只显示未添加的域名供选择
+  - 显式设置 `enabled=1`，修复启用状态问题
+  
+- **续期权限验证增强**
+  - 修复域名续期权限验证逻辑
+  - 增强权限检查日志，便于诊断问题
+  - 支持多账号权限隔离
+
+#### WHOIS 缓存数据库化
+- **WHOIS 缓存改用数据库存储**
+  - 创建 `whois_cache` 表，支持 SQLite/MySQL/PostgreSQL
+  - 完全接入任务管理器，后台定时刷新
+  - 补全 `WhoisResult` 类型所需的 `domain` 和 `raw` 字段
+  
+- **自动迁移支持**
+  - 添加 `whois_cache` 表自动迁移
+  - 根据数据库类型选择正确的 SQL 语法
+  - PostgreSQL 和 SQLite 支持 `pinned_domains` 字段迁移
+
+#### 任务管理器优化
+- **优先级插队机制**
+  - 任务管理器支持优先级插队
+  - 域名缓存刷新使用高优先级
+  - 域名续期和故障转移任务接入任务管理器
+  
+- **NS 监测并发控制**
+  - 引入任务管理器并优化 NS 监测并发控制
+  - 防止大量并发请求导致超时
+
+#### 用户置顶域名功能
+- **后端实现**
+  - 添加用户置顶域名功能（后端+API）
+  - 创建 `user_preferences` 表，支持 MySQL JSON 类型
+  - 为 PostgreSQL 和 SQLite 添加 `pinned_domains` 字段迁移
+  
+- **前端 UI**
+  - 完成用户置顶域名功能前端 UI
+  - 支持用户自定义域名排序
+
+#### DNS 提供商模块化重构
+- **DNS 提供商完全模块化**
+  - 将 `_template.ts` 转换为 `_example` 示例文件夹
+  - 统一 DNS 提供商接口规范
+  - 支持 VPS8 等新提供商
+  
+- **VPS8 支持**
+  - 添加 VPS8 提供商支持
+  - 修复 record ID 类型转换问题
+  - 添加详细操作日志
+
+### 🎨 UI/UX 改进
+
+#### 分页式域名选择器
+- **API 令牌域名选择**
+  - 为 API 令牌域名选择添加分页支持
+  - 完善搜索和过滤功能
+  - 每页显示 20 个域名
+  
+- **NS 监测域名选择**
+  - NS 监测添加域名对话框使用分页式选择器
+  - 将 `<select>` 下拉框改为单选按钮列表样式
+  - 添加搜索功能和分页控件
+  - 样式与 API 令牌完全一致
+  
+- **故障转移页面**
+  - 为故障转移页面添加前端分页功能
+  - 支持大数据量场景
+
+#### 分页底栏常驻显示
+- **统一分页体验**
+  - 所有涉及分页的页面，分页底栏常驻显示
+  - 即使只有一页数据也显示分页控件
+  - 保持界面一致性，避免布局跳动
+  - 影响页面：DomainListTab, FailoverTab, Tokens, Records
+
+#### 确认对话框优化
+- **文本长度限制**
+  - 限制确认对话框文本最多 3 行
+  - 超出显示省略号（使用 `line-clamp-3`）
+  - 避免长文本破坏布局
+
+### 🌍 国际化 (i18n)
+
+#### 全面补全翻译
+- **10 种语言完整翻译**
+  - 补全所有语言的域名续期 Tab 翻译（AR, DE, ES, FR, JA, KO, PT, RU, ZH-CN, Mesugaki）
+  - 补全所有语言的 NS 监测翻译键
+  - 补全雌小鬼语言翻译（超有味的杂鱼风格）
+  - 削弱了雌小鬼语言的干扰，保持趣味性但不过度
+  
+- **翻译键补充**
+  - 添加 `common.deselectAll` 翻译键
+  - 修复 `common.search` 在 Mesugaki 版本中未翻译的问题
+  - 补全英文 i18n 翻译（domainRenewal 和 common.deselectAll）
+
+#### 翻译质量优化
+- **人工修复缩进**
+  - 肉编模式：人工修复 i18n 缩进
+  - 确保 JSON 格式正确
+  
+- **调试支持**
+  - 添加 i18n 调试日志
+  - 便于诊断翻译加载问题
+
+### 🔧 技术优化
+
+#### 域名查询优化
+- **记录数缓存机制**
+  - 实现域名记录数缓存机制
+  - 后台定时刷新避免请求阻塞
+  - 提升域名列表加载速度
+  
+- **pageSize 优化**
+  - 修复多个页面域名列表只显示第一页的问题
+  - 设置 `pageSize=1000`，支持大数据量场景
+  
+- **accountId 参数支持**
+  - 优化域名查询逻辑，支持 `accountId` 参数
+  - 添加权限回退机制
+
+#### DNSHE 适配器优化
+- **域名拼接逻辑修复**
+  - 修复 DNSHE 适配器域名拼接逻辑
+  - 使用 API 返回的完整域名（`full_domain`）
+  - 避免域名重复问题（如 `xxx.xxx.example.com`）
+  
+- **恢复使用 full_domain**
+  - 从 subdomain 和 rootdomain 重新构建 full_domain
+  - 优先使用 API 返回的 `full_domain` 字段
+  - 不手动拼接，减少错误
+
+#### Cloudflare 修复
+- **zoneId 优先级修复**
+  - 修复 Cloudflare zoneId 优先级错误导致无法获取解析记录
+  - 修复授权头重复设置问题
+  
+- **配置字段匹配**
+  - 修复 `zoneId` 与 `domainId` 不匹配问题
+
+#### 路由顺序修复
+- **动态路由拦截问题**
+  - 修复路由顺序问题
+  - 将 `/renewable-domains` 移到 `/:id` 之前
+  - 避免被动态路由拦截
+
+#### TypeScript 类型修复
+- **多处类型错误修复**
+  - 修复 DomainListTab TypeScript 错误
+  - 修复 business-adapter.ts 中的 TypeScript 类型错误
+  - 修复 UserPreferencesOperations 导入问题
+  - 修复 RenewableDomainOperations.add 返回值类型错误
+  - 修复 filteredDomains TypeScript 类型错误
+  - 修复 getByAccountIdAndName 重复定义和类型转换错误
+
+#### 数据库兼容性
+- **PostgreSQL boolean 类型**
+  - 修复 PostgreSQL boolean 类型比较错误
+  - 统一使用 TRUE/FALSE
+  
+- **remark 字段统一**
+  - 统一三种数据库 `renewable_domains` 表 remark 字段定义（允许 NULL）
+  - 修复 PostgreSQL renewable_domains 表 remark 字段不能有默认值的问题
+  - 修复 MySQL renewable_domains 表 remark 字段不能有默认值的问题
+
+### 🐛 Bug 修复
+
+#### NS 监测修复
+- **误报问题修复**
+  - 修复 NS 监测误报问题
+  - 修复 NS 监测页面超时导致失去登录状态
+  
+- **PostgreSQL 类型错误**
+  - 修复 PostgreSQL NS monitor enabled field type error
+
+#### DNSHE 修复
+- **域名格式重复**
+  - 修复 DNSHE 域名格式重复问题
+  - 添加账号名称唯一性验证
+  
+- **API 文档对齐**
+  - 根据 DNSHE API 文档修复域名列表获取逻辑
+  - 移除 `expires_at` 字段，对所有子域名尝试续期
+
+#### 其他修复
+- **JSON 语法错误**
+  - 修复 zh-CN.json JSON 语法错误
+  - 删除 zh-CN.json 中重复的 title 和 subtitle 键
+  
+- **if 语句块缺失**
+  - 修复 domains.ts 中 if 语句块缺少闭合大括号的语法错误
+  
+- **未使用的导入**
+  - 移除未使用的 Calendar 导入以修复 Docker 构建
+  - 移除未使用的 RefreshCw 导入以修复 Docker 构建
+  - 移除未使用的 selectedAccountId 状态
+  - 删除未使用的 handleAddDomain 函数
+  - 删除未使用的 dnsheListSubdomains 导入
+
+### 🗑️ 清理和优化
+
+#### 废弃代码清理
+- **旧 API 删除**
+  - 删除废弃的 `/dnshe-subdomains` API
+  - 标记 `/dnshe-subdomains` 为 deprecated
+  
+- **旧页面删除**
+  - 删除旧的 DomainRenewal.tsx 页面和相关路由
+  - 删除旧的添加域名表单代码
+  - 删除临时脚本文件
+
+#### 通用 API 替代
+- **providers API**
+  - 前端改用通用 providers API 获取可续期域名
+  - 创建通用 providers 路由用于获取可续期域名列表
+  - 不再依赖 DNSHE 特定 API
+
+### 📝 文档更新
+
+- **架构文档更新**
+  - 更新架构文档，添加 WHOIS 和续期调度器说明
+  - 添加任务管理器使用文档
+  - 更新文档版本号为 v1.3.2
+  
+- **提供商文档**
+  - 更新文档添加 VPS8 提供商支持
+  
+- **Tab 文案优化**
+  - 修正域名页各 Tab 的标题和简介文案
+
+### 🚀 性能优化
+
+- **代理超时优化**
+  - 代理超时缩短为 10 秒
+  - 添加性能监控日志
+  
+- **后台刷新机制**
+  - 域名记录数后台定时刷新
+  - WHOIS 缓存后台定时刷新
+  - 避免前端请求阻塞
+
+---
+
 ## [1.3.2] - 2026-04-28
 
 ### ✨ 新增功能

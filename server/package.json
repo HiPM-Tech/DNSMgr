@@ -1,6 +1,6 @@
 {
   "name": "dnsmgr-server",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "description": "DNS aggregation management platform backend",
   "main": "dist/app.js",
   "bin": "dist/app.js",
