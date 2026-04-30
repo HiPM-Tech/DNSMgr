@@ -12,10 +12,16 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 export function DomainRenewalTab() {
   const toast = useToast();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [renewing, setRenewing] = useState<number | null>(null);
+  
+  // 临时调试：检查翻译是否正常工作
+  console.log('[DomainRenewalTab Debug] Current locale:', locale);
+  console.log('[DomainRenewalTab Debug] t("domainRenewal.title"):', t('domainRenewal.title'));
+  console.log('[DomainRenewalTab Debug] t("domainRenewal.autoRenewal"):', t('domainRenewal.autoRenewal'));
+  console.log('[DomainRenewalTab Debug] t("domainRenewal.subtitle"):', t('domainRenewal.subtitle'));
   
   // 添加续期域名相关状态
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
