@@ -1020,6 +1020,11 @@
     "deleteSuccess": "تم الحذف بنجاح",
     "deleteFailed": "فشل في الحذف",
     "noAvailableDomains": "لا توجد نطاقات متاحة",
-    "loadingDomains": "جاري تحميل النطاقات..."
+    "loadingDomains": "جاري تحميل النطاقات...",
+    "back": "رجوع",
+    "addSelected": "إضافة المحدد",
+    "selectAll": "تحديد الكل",
+    "selectDomainsToAdd": "حدد النطاقات المراد إضافتها ({count} محدد)",
+    "expires": "تنتهي"
   }
 }

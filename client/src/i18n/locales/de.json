@@ -1020,6 +1020,11 @@
     "deleteSuccess": "Erfolgreich gelöscht",
     "deleteFailed": "Löschen fehlgeschlagen",
     "noAvailableDomains": "Keine verfügbaren Domains",
-    "loadingDomains": "Domains werden geladen..."
+    "loadingDomains": "Domains werden geladen...",
+    "back": "Zurück",
+    "addSelected": "Ausgewählte hinzufügen",
+    "selectAll": "Alle auswählen",
+    "selectDomainsToAdd": "Domains zum Hinzufügen auswählen ({count} ausgewählt)",
+    "expires": "Läuft ab"
   }
 }

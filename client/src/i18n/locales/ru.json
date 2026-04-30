@@ -1020,6 +1020,11 @@
     "deleteSuccess": "Успешно удалено",
     "deleteFailed": "Не удалось удалить",
     "noAvailableDomains": "Нет доступных доменов",
-    "loadingDomains": "Загрузка доменов..."
+    "loadingDomains": "Загрузка доменов...",
+    "back": "Назад",
+    "addSelected": "Добавить выбранные",
+    "selectAll": "Выбрать все",
+    "selectDomainsToAdd": "Выберите домены для добавления (выбрано: {count})",
+    "expires": "Истекает"
   }
 }

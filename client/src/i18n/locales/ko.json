@@ -1027,6 +1027,11 @@
     "deleteSuccess": "성공적으로 삭제됨",
     "deleteFailed": "삭제 실패",
     "noAvailableDomains": "사용 가능한 도메인이 없습니다",
-    "loadingDomains": "도메인 로딩 중..."
+    "loadingDomains": "도메인 로딩 중...",
+    "back": "뒤로",
+    "addSelected": "선택 항목 추가",
+    "selectAll": "모두 선택",
+    "selectDomainsToAdd": "추가할 도메인 선택 ({count}개 선택)",
+    "expires": "만료"
   }
 }

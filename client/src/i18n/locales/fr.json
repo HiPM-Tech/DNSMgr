@@ -1020,6 +1020,11 @@
     "deleteSuccess": "Supprimé avec succès",
     "deleteFailed": "Échec de la suppression",
     "noAvailableDomains": "Aucun domaine disponible",
-    "loadingDomains": "Chargement des domaines..."
+    "loadingDomains": "Chargement des domaines...",
+    "back": "Retour",
+    "addSelected": "Ajouter la sélection",
+    "selectAll": "Tout sélectionner",
+    "selectDomainsToAdd": "Sélectionner les domaines à ajouter ({count} sélectionnés)",
+    "expires": "Expire"
   }
 }
