@@ -2,13 +2,22 @@ name: Telegram Release Notifier
 
 on:
   release:
-    types: [published, prereleased]
+    types: [published, prereleased]  # 包括正式发布和预发布
 
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Send release notification
+      - name: Determine release type
+        id: release-type
+        run: |
+          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+            echo "type=🚧 预发布版本" >> $GITHUB_OUTPUT
+          else
+            echo "type=🎉 正式版本发布" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send Telegram notification
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -16,7 +25,7 @@ jobs:
           message_thread_id: 14
           parse_mode: "HTML"
           message: |
-            <b>${{ github.event.release.prerelease && '🚧 预发布版本' || '🎉 正式版本发布' }}</b>
+            <b>${{ steps.release-type.outputs.type }}</b>
             <i>${{ github.repository }}</i>
             
             <b>🔖 版本标签：</b>
@@ -26,10 +35,10 @@ jobs:
             ${{ github.event.release.name }}
             
             <b>📝 更新日志：</b>
-            <pre>${{ format('{0}', github.event.release.body || '无详细描述') }}</pre>
+            <pre>${{ github.event.release.body || '无详细描述' }}</pre>
             
             <b>🔗 链接：</b>
             <a href="${{ github.event.release.html_url }}">GitHub Release 页面</a>
             
             <b>📅 发布时间：</b>
-            ${{ fromJSON(format('"{0}"', github.event.release.published_at)) }}
+            ${{ github.event.release.published_at }}
