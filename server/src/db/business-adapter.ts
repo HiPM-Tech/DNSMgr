@@ -3090,7 +3090,17 @@ export const WhoisOperations = {
 
   /** 从数据库获取缓存的 WHOIS 结果 */
   async getCachedWhois(domain: string, cacheTtlSeconds: number): Promise<QueryResult | undefined> {
-    try {
+    const dbType = getDbType();
+    
+    if (dbType === 'postgresql') {
+      // PostgreSQL 语法 - 使用参数化查询
+      return await getInternal(
+        `SELECT * FROM whois_cache WHERE domain = $1 AND 
+         updated_at > NOW() - ($2 || ' seconds')::interval`,
+        [domain, cacheTtlSeconds],
+        { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
+      );
+    } else if (dbType === 'mysql') {
       // MySQL 语法
       return await getInternal(
         `SELECT * FROM whois_cache WHERE domain = ? AND 
@@ -3098,24 +3108,14 @@ export const WhoisOperations = {
         [domain, cacheTtlSeconds],
         { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
       );
-    } catch (mysqlError) {
-      try {
-        // PostgreSQL 语法 - 使用参数化查询
-        return await getInternal(
-          `SELECT * FROM whois_cache WHERE domain = $1 AND 
-           updated_at > NOW() - ($2 || ' seconds')::interval`,
-          [domain, cacheTtlSeconds],
-          { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
-        );
-      } catch (pgError) {
-        // SQLite 语法
-        return await getInternal(
-          `SELECT * FROM whois_cache WHERE domain = ? AND 
-           updated_at > datetime('now', '-' || ? || ' seconds')`,
-          [domain, cacheTtlSeconds],
-          { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
-        );
-      }
+    } else {
+      // SQLite 语法
+      return await getInternal(
+        `SELECT * FROM whois_cache WHERE domain = ? AND 
+         updated_at > datetime('now', '-' || ? || ' seconds')`,
+        [domain, cacheTtlSeconds],
+        { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
+      );
     }
   },
 
@@ -3128,7 +3128,24 @@ export const WhoisOperations = {
     nameServers: string,
     rawData: string
   ): Promise<void> {
-    try {
+    const dbType = getDbType();
+    
+    if (dbType === 'postgresql') {
+      // PostgreSQL 语法
+      await executeInternal(
+        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+         ON CONFLICT(domain) DO UPDATE SET
+           expiry_date = EXCLUDED.expiry_date,
+           apex_expiry_date = EXCLUDED.apex_expiry_date,
+           registrar = EXCLUDED.registrar,
+           name_servers = EXCLUDED.name_servers,
+           raw_data = EXCLUDED.raw_data,
+           updated_at = NOW()`,
+        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+        { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
+      );
+    } else if (dbType === 'mysql') {
       // MySQL 语法
       await executeInternal(
         `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
@@ -3143,42 +3160,21 @@ export const WhoisOperations = {
         [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
         { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
       );
-    } catch (mysqlError) {
-      try {
-        // PostgreSQL 语法
-        await executeInternal(
-          `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())
-           ON CONFLICT(domain) DO UPDATE SET
-             expiry_date = EXCLUDED.expiry_date,
-             apex_expiry_date = EXCLUDED.apex_expiry_date,
-             registrar = EXCLUDED.registrar,
-             name_servers = EXCLUDED.name_servers,
-             raw_data = EXCLUDED.raw_data,
-             updated_at = NOW()`,
-          [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
-          { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
-        );
-      } catch (pgError) {
-        try {
-          // SQLite 语法
-          await executeInternal(
-            `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-             ON CONFLICT(domain) DO UPDATE SET
-               expiry_date = excluded.expiry_date,
-               apex_expiry_date = excluded.apex_expiry_date,
-               registrar = excluded.registrar,
-               name_servers = excluded.name_servers,
-               raw_data = excluded.raw_data,
-               updated_at = CURRENT_TIMESTAMP`,
-            [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
-            { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
-          );
-        } catch (sqliteError) {
-          // 忽略错误
-        }
-      }
+    } else {
+      // SQLite 语法
+      await executeInternal(
+        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(domain) DO UPDATE SET
+           expiry_date = excluded.expiry_date,
+           apex_expiry_date = excluded.apex_expiry_date,
+           registrar = excluded.registrar,
+           name_servers = excluded.name_servers,
+           raw_data = excluded.raw_data,
+           updated_at = CURRENT_TIMESTAMP`,
+        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+        { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
+      );
     }
   },
 };
