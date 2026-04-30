@@ -3199,8 +3199,10 @@ export const RenewableDomainOperations = {
 
   /** 获取所有启用的续期域名 */
   async getAllEnabled(): Promise<any[]> {
+    const dbType = getDbType();
+    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
     return await queryInternal(
-      'SELECT * FROM renewable_domains WHERE enabled = 1 ORDER BY expires_at ASC',
+      `SELECT * FROM renewable_domains WHERE enabled = ${enabledValue} ORDER BY expires_at ASC`,
       [],
       { operation: 'RenewableDomain.getAllEnabled', table: 'renewable_domains' }
     );
@@ -3217,8 +3219,10 @@ export const RenewableDomainOperations = {
 
   /** 根据提供商类型获取续期域名列表 */
   async getByProviderType(providerType: string): Promise<any[]> {
+    const dbType = getDbType();
+    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
     return await queryInternal(
-      'SELECT * FROM renewable_domains WHERE provider_type = ? AND enabled = 1 ORDER BY expires_at ASC',
+      `SELECT * FROM renewable_domains WHERE provider_type = ? AND enabled = ${enabledValue} ORDER BY expires_at ASC`,
       [providerType],
       { operation: 'RenewableDomain.getByProviderType', table: 'renewable_domains' }
     );
@@ -3235,6 +3239,10 @@ export const RenewableDomainOperations = {
     never_expires?: boolean;
     remark?: string;
   }): Promise<number> {
+    const dbType = getDbType();
+    const enabledValue = dbType === 'postgresql' ? true : 1;
+    const neverExpiresValue = dbType === 'postgresql' ? (data.never_expires ? true : false) : (data.never_expires ? 1 : 0);
+    
     const result = await insertInternal(
       'INSERT INTO renewable_domains (account_id, provider_type, domain_name, third_id, full_domain, expires_at, never_expires, enabled, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
@@ -3244,8 +3252,8 @@ export const RenewableDomainOperations = {
         data.third_id,
         data.full_domain,
         data.expires_at || null,
-        data.never_expires ? 1 : 0,
-        1,  // enabled = 1 (always enable new domains)
+        neverExpiresValue,
+        enabledValue,  // enabled (always enable new domains)
         data.remark || '',
       ],
       { operation: 'RenewableDomain.add', table: 'renewable_domains' }
