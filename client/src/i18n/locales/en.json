@@ -26,6 +26,7 @@
       "add": "Add",
       "edit": "Edit",
       "delete": "Delete",
+      "deselectAll": "Deselect All",
       "create": "Create",
       "cancel": "Cancel",
       "clear": "Clear",
@@ -1010,7 +1011,12 @@
       "deleteSuccess": "Deleted successfully",
       "deleteFailed": "Failed to delete",
       "noAvailableDomains": "No available domains",
-      "loadingDomains": "Loading domains..."
+      "loadingDomains": "Loading domains...",
+      "back": "Back",
+      "addSelected": "Add Selected",
+      "selectAll": "Select All",
+      "selectDomainsToAdd": "Select domains to add ({count} selected)",
+      "expires": "Expires"
     }
   }
 }

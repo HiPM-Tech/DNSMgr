@@ -168,6 +168,7 @@
       "createdAt": "创建时间",
       "dashboard": "仪表盘",
       "delete": "删除",
+      "deselectAll": "取消全选",
       "desc": "描述",
       "description": "描述",
       "disable": "停用",
