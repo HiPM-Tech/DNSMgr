@@ -445,8 +445,7 @@ export function DomainListTab() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
+      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <span>{t('common.total')}: {total} {t('common.items')}</span>
             <select
@@ -483,7 +482,6 @@ export function DomainListTab() {
             </button>
           </div>
         </div>
-      )}
 
       {showAdd && canManage && (
         <Modal title={t('domains.addDomain')} onClose={() => setShowAdd(false)}>

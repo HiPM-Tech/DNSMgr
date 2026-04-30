@@ -207,8 +207,7 @@ export function FailoverTab() {
       </div>
       
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
           <div className="text-sm text-gray-500">
             显示 {startIndex + 1}-{endIndex} / 共 {domains.length} 项
           </div>
@@ -234,7 +233,6 @@ export function FailoverTab() {
             </button>
           </div>
         </div>
-      )}
 
       {configuringFailover && canManage && (
         <Modal

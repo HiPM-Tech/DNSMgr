@@ -306,8 +306,7 @@ export function Records() {
           </div>
           
           {/* 分页控件 */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   {t('common.total')} {total} {t('common.items')}, {page} / {totalPages} {t('common.page')}
@@ -377,7 +376,6 @@ export function Records() {
                 </button>
               </div>
             </div>
-          )}
         </>
       )}
 
