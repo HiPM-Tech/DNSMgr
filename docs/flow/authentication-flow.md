@@ -1,5 +1,42 @@
 # 用户认证流程
 
+## 认证方式总览
+
+DNSMgr 支持多种认证方式，满足不同安全需求：
+
+```mermaid
+graph TB
+    A[用户访问] --> B{认证方式}
+    B -->|用户名密码| C[传统登录]
+    B -->|OAuth| D[OAuth2/OIDC]
+    B -->|Passkey| E[WebAuthn]
+    B -->|API Token| F[Token 认证]
+    
+    C --> G[验证用户名密码]
+    G --> H{2FA 启用?}
+    H -->|是| I[验证 TOTP]
+    H -->|否| J[生成 JWT]
+    I --> J
+    
+    D --> K[重定向到提供商]
+    K --> L[获取授权码]
+    L --> M[换取 Access Token]
+    M --> N[获取用户信息]
+    N --> O[查询绑定关系]
+    O --> J
+    
+    E --> P[生成 Challenge]
+    P --> Q[客户端签名]
+    Q --> R[验证签名]
+    R --> J
+    
+    F --> S[验证 Token]
+    S --> T[返回数据]
+    
+    J --> U[创建设备信任]
+    U --> V[返回 Token]
+```
+
 ## 完整调用链路
 
 ```mermaid

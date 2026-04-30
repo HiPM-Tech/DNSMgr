@@ -6,12 +6,25 @@ A modern DNS aggregation management platform built with React + TailwindCSS (fro
 
 ## Features
 
-- **Multi-provider Support**: Manage DNS records across 19 providers:
-  - Aliyun (阿里云), DNSPod (腾讯云), Huawei Cloud (华为云), Baidu Cloud (百度云)
-  - Volcengine (火山引擎), JD Cloud (京东云), Cloudflare, DNS.LA
-  - West Digital (西部数码), Qingcloud (青云), NameSilo, BT Panel (宝塔)
-  - Spaceship, PowerDNS, Aliyun ESA (阿里云 ESA), Tencent EdgeOne (腾讯 EdgeOne)
-  - DNSHE, Rainyun (雨云), VPS8
+- **Multi-provider Support**: Manage DNS records across 21+ providers:
+  - **Domestic (China)**: Aliyun (阿里云), DNSPod (腾讯云), Huawei Cloud (华为云), Baidu Cloud (百度云)
+    Volcengine (火山引擎), JD Cloud (京东云), West Digital (西部数码), Qingcloud (青云)
+    BT Panel (宝塔), Aliyun ESA (阿里云 ESA), Tencent EdgeOne (腾讯 EdgeOne), Rainyun (雨云), VPS8
+  - **International**: Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, DnsMgr, CaihongDNS (彩虹DNS聚合)
+
+- **Advanced Features**:
+  - WHOIS query with intelligent caching (registrar mode support)
+  - Domain renewal management (automated renewal scheduling)
+  - NS monitoring and failover (high availability保障)
+  - API Token management (fine-grained permission control)
+  - Cloudflare Tunnel integration
+  - Multi-language support (Chinese/English/Japanese/Spanish)
+  - OAuth2/OIDC single sign-on
+  - WebAuthn/Passkeys passwordless login
+  - TOTP two-factor authentication
+  - Complete audit logging system
+  - Security policies and login restrictions
+  - Email notification and template management
 
 - **Multi-user & Team Management**: Role-based access (admin/member), team-based domain sharing
 - **Full DNS Record Management**: CRUD for all record types (A, AAAA, CNAME, MX, TXT, SRV, CAA, etc.)
@@ -38,6 +51,14 @@ When creating/updating DNS accounts, the API normalizes lego-style provider name
 | `powerdns` | `powerdns`, `pdns` |
 | `dnspod` | `dnspod`, `tencentcloud` |
 | `tencenteo` | `tencenteo`, `edgeone` |
+| `dnsla` | `dnsla` |
+| `bt` | `bt` |
+| `qingcloud` | `qingcloud` |
+| `spaceship` | `spaceship` |
+| `dnshe` | `dnshe` |
+| `dnsmgr` | `dnsmgr` |
+| `caihongdns` | `caihongdns` |
+| `vps8` | `vps8` |
 
 ## Architecture
 
@@ -51,6 +72,16 @@ DNSMgr/
 │       ├── routes/  # REST API routes
 │       ├── middleware/ # Auth (JWT), validation
 │       ├── service/ # Business logic services
+│       │   ├── whoisService.ts      # WHOIS query service
+│       │   ├── whoisScheduler.ts    # WHOIS scheduler
+│       │   ├── renewalScheduler.ts  # Domain renewal scheduler
+│       │   ├── nsMonitorJob.ts      # NS monitoring task
+│       │   ├── failover.ts          # Failover service
+│       │   ├── taskManager.ts       # Task manager
+│       │   ├── notification.ts      # Notification service
+│       │   ├── audit.ts             # Audit service
+│       │   ├── token.ts             # API Token service
+│       │   └── session.ts           # Session management
 │       └── db/      # Three-layer database architecture
 │           ├── business-adapter.ts  # Business adapter layer (functional API)
 │           ├── core/                # Database abstraction layer
@@ -59,6 +90,11 @@ DNSMgr/
 └── client/          # React + Vite + TailwindCSS frontend
     └── src/
         ├── pages/   # All UI pages
+        │   ├── NSMonitor.tsx        # NS monitoring page
+        │   ├── Tokens.tsx           # API Token management
+        │   ├── Tunnels.tsx          # Tunnel management
+        │   ├── Security.tsx         # Security settings
+        │   └── OAuthCallback.tsx    # OAuth callback
         ├── components/ # Reusable components
         └── api/     # API client
 ```
@@ -284,6 +320,11 @@ interface DnsAdapter {
 - SQLite (better-sqlite3), MySQL (mysql2), PostgreSQL (pg)
 - JWT authentication
 - Swagger/OpenAPI documentation
+- node-cron / node-schedule: Task scheduling
+- nodemailer: Email sending
+- @simplewebauthn/server: WebAuthn support
+- speakeasy: TOTP generation and verification
+- axios: HTTP client
 
 **Frontend:**
 - React 18 + TypeScript
@@ -293,6 +334,10 @@ interface DnsAdapter {
 - @tanstack/react-query
 - Axios
 - lucide-react
+- react-hook-form: Form management
+- zod: Data validation
+- date-fns: Date handling
+- clsx / tailwind-merge: CSS class merging
 
 ## License
 

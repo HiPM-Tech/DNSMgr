@@ -36,12 +36,18 @@ DNSMgr/
 
 ## 核心特性
 
-- **多 DNS 服务商支持**：支持 18+ 个 DNS 服务商（阿里云、腾讯云、华为云、Cloudflare 等）
+- **多 DNS 服务商支持**：支持 21+ 个 DNS 服务商（阿里云、腾讯云、华为云、Cloudflare 等）
 - **多用户与团队管理**：基于角色的权限控制（RBAC）
 - **完整的 DNS 记录管理**：支持所有常见记录类型的 CRUD 操作
+- **WHOIS 查询系统**：智能缓存与注册商模式支持
+- **域名续期管理**：自动化续期调度与执行
+- **NS 监测与故障转移**：高可用保障机制
+- **API Token 管理**：细粒度权限控制
 - **审计日志**：完整的操作审计和导出功能
-- **高可用支持**：DNS 故障转移和监控
+- **安全认证**：OAuth2/OIDC、WebAuthn/Passkeys、TOTP 双因素认证
+- **通知系统**：邮件通知与模板管理
 - **现代化 UI**：React 18 + TailwindCSS 响应式设计
+- **多语言支持**：中/英/日/西四语言
 
 ## 技术栈
 
@@ -76,3 +82,29 @@ DNSMgr/
 3. **审计日志**：关键操作都记录审计日志
 4. **错误处理**：统一的错误处理机制
 5. **限流保护**：防止暴力破解和 DDoS 攻击
+
+## 高级功能架构
+
+### WHOIS 查询系统
+- **whoisService.ts**: WHOIS 查询核心服务
+- **whoisScheduler.ts**: WHOIS 调度器接口
+- **providers/dnshe/whoisScheduler.ts**: DNSHE WHOIS 实现
+- **whoisJob.ts**: 后台定时刷新任务
+- **whois_cache 表**: 数据库化缓存存储
+
+### 域名续期系统
+- **renewalScheduler.ts**: 续期调度器接口
+- **domainRenewalJob.ts**: 自动续期任务
+- **renewable_domains 表**: 独立续期域名管理
+- **范式化架构**: 解耦核心域名表
+
+### NS 监测与故障转移
+- **nsMonitorJob.ts**: NS 记录监测任务
+- **failover.ts**: 故障转移逻辑
+- **failoverJob.ts**: 故障转移执行任务
+- **failover_configs 表**: 故障转移配置
+
+### 任务管理器
+- **taskManager.ts**: 统一任务调度与并发控制
+- 优先级插队机制
+- 防止大量并发请求超时

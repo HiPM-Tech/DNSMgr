@@ -239,3 +239,22 @@ export const CustomOperations = {
   },
 };
 ```
+
+## 事务与并发控制
+
+### withTransaction 使用
+
+```typescript
+import { withTransaction } from '../db';
+
+await withTransaction(async (trx) => {
+  // 所有操作在同一事务中
+  await trx.execute('UPDATE users SET balance = ? WHERE id = ?', [newBalance, userId]);
+  await trx.execute('INSERT INTO audit_logs (...) VALUES (...)');
+});
+```
+
+### 并发控制
+- 任务管理器统一管理后台任务并发
+- NS 监测、WHOIS 刷新、域名续期都通过任务管理器调度
+- 防止大量并发请求导致超时或资源耗尽

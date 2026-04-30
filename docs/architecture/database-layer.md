@@ -207,6 +207,14 @@ export { initSchema, initSchemaAsync } from './schema';
 - `user_2fa`: 双因素认证表
 - `login_attempts`: 登录尝试表
 - `system_settings`: 系统设置表
+- `whois_cache`: WHOIS 缓存表
+- `renewable_domains`: 可续期域名表
+- `user_preferences`: 用户偏好设置（置顶域名）
+- `email_templates`: 邮件模板表
+- `security_policies`: 安全策略表
+- `device_trust`: 设备信任表
+- `ns_monitor_configs`: NS 监测配置表
+- `tunnels`: Cloudflare Tunnel 表
 
 ## 数据库初始化流程
 
@@ -259,3 +267,24 @@ const db = getAdapter();
 [BusinessAdapter] [DEBUG] Executing get {"sql":"SELECT * FROM users WHERE id = ?","params":[1]}
 [BusinessAdapter] [ERROR] Get failed {"sql":"...","error":"...","duration":"44ms"}
 ```
+
+## 数据库迁移
+
+### 迁移脚本位置
+```
+server/scripts/
+├── db-migrate.ts        # 数据库迁移主脚本
+├── db-rollback.ts       # 回滚脚本
+└── migrate-*.js         # 特定迁移脚本
+```
+
+### 迁移流程
+1. 检测数据库类型（SQLite/MySQL/PostgreSQL）
+2. 根据类型选择对应的 SQL 语法
+3. 执行迁移并记录版本
+4. 支持回滚操作
+
+### 自动迁移
+- `initSchemaAsync()`: 应用启动时自动检测并迁移
+- 幂等性保证：重复执行不会产生副作用
+- 增量迁移：只添加缺失的表和字段

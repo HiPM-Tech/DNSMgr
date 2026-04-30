@@ -94,6 +94,8 @@ export interface ProviderConfigField {
 | `dnshe` | DNSHE | line |
 | `rainyun` | 雨云 | line |
 | `vps8` | VPS8 | status, line |
+| `dnsmgr` | DnsMgr | remark, status, weight |
+| `caihongdns` | 彩虹DNS聚合 | remark, status, weight, line |
 
 ## 服务商别名映射
 
@@ -295,3 +297,36 @@ DNSHE 提供商实现了续期调度器接口：
 - **renewDomain**: 调用 DNSHE API 续期指定子域名
 
 **注意**: DNSHE API 的 `listSubdomains` 不返回 `expires_at` 字段，因此对所有子域名都会尝试续期，由 API 服务端判断是否已过期。
+
+## DNS 提供商模块化架构
+
+### 提供商目录结构
+```
+providers/
+├── registry.ts          # 服务商注册表（核心）
+├── index.ts             # 统一导出
+├── common.ts            # 公共工具函数
+├── http.ts              # HTTP 请求封装
+├── internal.ts          # 内部适配器
+├── stubs.ts             # Stub 适配器
+├── _example/            # 示例模板
+│   ├── adapter.ts       # 适配器实现示例
+│   ├── scheduler.ts     # 调度器实现示例（可选）
+│   └── whoisScheduler.ts # WHOIS 调度器示例（可选）
+├── aliyun/              # 阿里云
+│   ├── adapter.ts
+│   └── ...
+└── ...
+```
+
+### 注册表机制
+- **providerDefinitions**: 集中定义所有服务商
+- **capabilities**: 声明服务商能力（remark, status, redirect, log, weight, line, cnameFlattening）
+- **configFields**: 定义配置字段（text/password/select）
+- **adapterFactory**: 工厂函数创建适配器实例
+
+### 添加新提供商步骤
+1. 在 `providers/myprovider/` 创建适配器
+2. 在 `registry.ts` 注册服务商定义
+3. 在 `index.ts` 导出适配器
+4. （可选）实现 WHOIS/续期调度器

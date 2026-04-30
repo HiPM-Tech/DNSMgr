@@ -4,12 +4,25 @@
 
 ## 功能特性
 
-- **多服务商支持**: 可管理 19 家 DNS 服务商的解析记录：
-  - 阿里云 (Aliyun), DNSPod (腾讯云), 华为云 (Huawei Cloud), 百度云 (Baidu Cloud)
-  - 火山引擎 (Volcengine), 京东云 (JD Cloud), Cloudflare, DNS.LA
-  - 西部数码 (West Digital), 青云 (Qingcloud), NameSilo, 宝塔面板 (BT Panel)
-  - Spaceship, PowerDNS, 阿里云 ESA (Aliyun ESA), 腾讯 EdgeOne (Tencent EdgeOne)
-  - DNSHE, 雨云 (Rainyun), VPS8
+- **多服务商支持**: 可管理 21+ DNS 服务商的解析记录：
+  - **国内**：阿里云 (Aliyun), DNSPod (腾讯云), 华为云 (Huawei Cloud), 百度云 (Baidu Cloud)
+    火山引擎 (Volcengine), 京东云 (JD Cloud), 西部数码 (West Digital), 青云 (Qingcloud)
+    宝塔面板 (BT Panel), 阿里云 ESA (Aliyun ESA), 腾讯 EdgeOne (Tencent EdgeOne), 雨云 (Rainyun), VPS8
+  - **国际**：Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, DnsMgr, 彩虹DNS聚合 (CaihongDNS)
+
+- **高级功能**:
+  - WHOIS 查询与智能缓存（支持注册商模式）
+  - 域名续期管理（自动化续期调度）
+  - NS 监测与故障转移（高可用保障）
+  - API Token 管理（细粒度权限控制）
+  - Cloudflare Tunnel 集成
+  - 多语言支持（中/英/日/西）
+  - OAuth2/OIDC 单点登录
+  - WebAuthn/Passkeys 无密码登录
+  - TOTP 双因素认证
+  - 完整的审计日志系统
+  - 安全策略与登录限制
+  - 邮件通知与模板管理
 
 - **多用户与团队管理**: 基于角色的访问控制（admin/member），团队共享域名
 - **完整的 DNS 记录管理**: 支持所有记录类型的增删改查（A、AAAA、CNAME、MX、TXT、SRV、CAA 等）
@@ -29,6 +42,16 @@ DNSMgr/
 │   │   ├── routes/  # REST API 路由
 │   │   ├── middleware/ # 认证（JWT）、校验
 │   │   ├── service/ # 业务逻辑服务
+│   │   │   ├── whoisService.ts      # WHOIS 查询服务
+│   │   │   ├── whoisScheduler.ts    # WHOIS 调度器
+│   │   │   ├── renewalScheduler.ts  # 域名续期调度器
+│   │   │   ├── nsMonitorJob.ts      # NS 监测任务
+│   │   │   ├── failover.ts          # 故障转移服务
+│   │   │   ├── taskManager.ts       # 任务管理器
+│   │   │   ├── notification.ts      # 通知服务
+│   │   │   ├── audit.ts             # 审计服务
+│   │   │   ├── token.ts             # API Token 服务
+│   │   │   └── session.ts           # 会话管理
 │   │   └── db/      # 三层数据库架构
 │   │       ├── business-adapter.ts  # 业务适配器层（函数式 API）
 │   │       ├── core/                # 数据库抽象层
@@ -37,6 +60,11 @@ DNSMgr/
 ├── client/          # React + Vite + TailwindCSS 前端
     └── src/
         ├── pages/   # 页面
+        │   ├── NSMonitor.tsx        # NS 监测页面
+        │   ├── Tokens.tsx           # API Token 管理
+        │   ├── Tunnels.tsx          # Tunnel 管理
+        │   ├── Security.tsx         # 安全设置
+        │   └── OAuthCallback.tsx    # OAuth 回调
         ├── components/ # 复用组件
         └── api/     # API 客户端
 ```
@@ -273,6 +301,14 @@ interface DnsAdapter {
 | `powerdns` | `powerdns`, `pdns` |
 | `dnspod` | `dnspod`, `tencentcloud` |
 | `tencenteo` | `tencenteo`, `edgeone` |
+| `dnsla` | `dnsla` |
+| `bt` | `bt` |
+| `qingcloud` | `qingcloud` |
+| `spaceship` | `spaceship` |
+| `dnshe` | `dnshe` |
+| `dnsmgr` | `dnsmgr` |
+| `caihongdns` | `caihongdns` |
+| `vps8` | `vps8` |
 
 ## 技术栈
 
@@ -282,6 +318,11 @@ interface DnsAdapter {
 - SQLite (better-sqlite3)、MySQL (mysql2)、PostgreSQL (pg)
 - JWT 认证
 - Swagger/OpenAPI 文档
+- node-cron / node-schedule: 定时任务调度
+- nodemailer: 邮件发送
+- @simplewebauthn/server: WebAuthn 支持
+- speakeasy: TOTP 生成验证
+- axios: HTTP 客户端
 
 **前端:**
 - React 18 + TypeScript
@@ -291,6 +332,10 @@ interface DnsAdapter {
 - @tanstack/react-query
 - Axios
 - lucide-react
+- react-hook-form: 表单管理
+- zod: 数据验证
+- date-fns: 日期处理
+- clsx / tailwind-merge: CSS 类名合并
 
 ## License
 

@@ -1,5 +1,44 @@
 # DNS 记录管理流程
 
+## Cloudflare 特殊处理流程
+
+Cloudflare 提供商支持代理模式（Proxy）和 CNAME 拉平，需要特殊处理：
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Frontend as 前端
+    participant Backend as 后端
+    participant Adapter as 业务适配器
+    participant DnsHelper as DNS助手
+    Provider as Cloudflare适配器
+    participant Cache as 本地缓存
+    
+    User->>Frontend: 编辑记录
+    Frontend->>Backend: PUT /domains/:id/records/:rid
+    Backend->>Adapter: 验证权限
+    Adapter-->>Backend: 权限通过
+    
+    Backend->>DnsHelper: createAdapter('cloudflare')
+    DnsHelper->>Provider: 实例化适配器
+    
+    alt 提供 cloudflare.proxied
+        Provider->>Provider: 使用 proxied 字段
+        Provider->>Provider: 忽略 line 字段
+    else 未提供 proxied
+        Provider->>Provider: 转换 line 字段
+        Provider->>Provider: '1' = proxied, '0' = DNS only
+    end
+    
+    Provider->>Provider: 调用 Cloudflare API
+    Provider-->>Backend: 更新结果
+    
+    Backend->>Cache: 更新本地缓存
+    Backend->>Adapter: 记录审计日志
+    Backend-->>Frontend: 返回成功
+    Frontend-->>User: 刷新列表
+```
+
 ## 获取记录列表
 
 ```mermaid
