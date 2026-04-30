@@ -1134,6 +1134,11 @@
     "deleteSuccess": "正常に削除されました",
     "deleteFailed": "削除に失敗しました",
     "noAvailableDomains": "利用可能なドメインがありません",
-    "loadingDomains": "ドメインを読み込んでいます..."
+    "loadingDomains": "ドメインを読み込んでいます...",
+    "back": "戻る",
+    "addSelected": "選択したものを追加",
+    "selectAll": "すべて選択",
+    "selectDomainsToAdd": "追加するドメインを選択（{count}個選択）",
+    "expires": "有効期限"
   }
 }
