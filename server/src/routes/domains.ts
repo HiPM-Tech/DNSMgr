@@ -543,7 +543,56 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
  *       200:
  *         description: Domain info
  */
-router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+
+/**
+ * Get renewable domains from all providers that support renewal
+ * This endpoint queries the database for domains with expiry information
+ */
+router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  // Only allow admins and super admins
+  const role = normalizeRole(req.user?.role);
+  if (role < 2) {
+    sendError(res, 'Permission denied');
+    return;
+  }
+  
+  try {
+    // Query from renewable_domains table
+    const renewableDomains = await RenewableDomainOperations.getAllEnabled();
+    
+    log.debug('Domains', 'Fetched renewable domains', { count: renewableDomains.length });
+    
+    // Enrich with account information
+    const enrichedDomains = await Promise.all(
+      renewableDomains.map(async (domain: any) => {
+        const account = await DnsAccountOperations.getById(domain.account_id);
+        return {
+          id: domain.id,
+          name: domain.full_domain,
+          full_domain: domain.full_domain,
+          account_id: domain.account_id,
+          account_name: account?.name || 'Unknown',
+          provider_type: domain.provider_type,
+          expires_at: domain.expires_at,
+          third_id: domain.third_id,
+          remark: domain.remark,
+          enabled: domain.enabled,
+          last_renewed_at: domain.last_renewed_at,
+        };
+      })
+    );
+    
+    log.debug('Domains', 'Enriched domains', { count: enrichedDomains.length });
+    sendSuccess(res, enrichedDomains);
+  } catch (error) {
+    log.error('Domains', 'Failed to fetch renewable domains', { error });
+    sendError(res, 'Failed to fetch renewable domains');
+  }
+}));
+
+/**
+ * @swagger
+ * /api/domains/{id}:
   const id = parseInteger(req.params.id) ?? 0;
   const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
   if (!access.domain || !access.canRead) {
@@ -956,52 +1005,6 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
   } catch (error) {
     log.error('Domains', 'WHOIS query failed', { error });
     sendError(res, error instanceof Error ? error.message : 'WHOIS query failed');
-  }
-}));
-
-/**
- * Get renewable domains from all providers that support renewal
- * This endpoint queries the database for domains with expiry information
- */
-router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  // Only allow admins and super admins
-  const role = normalizeRole(req.user?.role);
-  if (role < 2) {
-    sendError(res, 'Permission denied');
-    return;
-  }
-  
-  try {
-    // Query from renewable_domains table
-    const renewableDomains = await RenewableDomainOperations.getAllEnabled();
-    
-    log.debug('Domains', 'Fetched renewable domains', { count: renewableDomains.length });
-    
-    // Enrich with account information
-    const enrichedDomains = await Promise.all(
-      renewableDomains.map(async (domain: any) => {
-        const account = await DnsAccountOperations.getById(domain.account_id);
-        return {
-          id: domain.id,
-          name: domain.full_domain,
-          full_domain: domain.full_domain,
-          account_id: domain.account_id,
-          account_name: account?.name || 'Unknown',
-          provider_type: domain.provider_type,
-          expires_at: domain.expires_at,
-          third_id: domain.third_id,
-          remark: domain.remark,
-          enabled: domain.enabled,
-          last_renewed_at: domain.last_renewed_at,
-        };
-      })
-    );
-    
-    log.debug('Domains', 'Enriched domains', { count: enrichedDomains.length });
-    sendSuccess(res, enrichedDomains);
-  } catch (error) {
-    log.error('Domains', 'Failed to fetch renewable domains', { error });
-    sendError(res, 'Failed to fetch renewable domains');
   }
 }));
 
