@@ -72,8 +72,10 @@ export async function updateSmtpConfig(input: Partial<SmtpConfig>): Promise<Smtp
   const dbType = getDbType();
   if (dbType === 'mysql') {
     await SmtpOperations.updateConfigMySQL(configJson);
+  } else if (dbType === 'postgresql') {
+    await SmtpOperations.updateConfigPostgreSQL(configJson);
   } else {
-    await SmtpOperations.updateConfig(configJson);
+    await SmtpOperations.updateConfigSQLite(configJson);
   }
   return next;
 }

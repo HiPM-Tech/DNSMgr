@@ -2942,13 +2942,23 @@ export const SmtpOperations = {
     );
   },
 
-  /** 更新 SMTP 配置 (SQLite/PostgreSQL) */
-  async updateConfig(configJson: string): Promise<void> {
+  /** 更新 SMTP 配置 (SQLite) */
+  async updateConfigSQLite(configJson: string): Promise<void> {
     return executeInternal(
       `INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ${now()})
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ${now()}`,
       ['smtp_config', configJson],
-      { operation: 'Smtp.updateConfig', table: 'system_settings' }
+      { operation: 'Smtp.updateConfigSQLite', table: 'system_settings' }
+    );
+  },
+
+  /** 更新 SMTP 配置 (PostgreSQL) */
+  async updateConfigPostgreSQL(configJson: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, ${now()})
+       ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = ${now()}`,
+      ['smtp_config', configJson],
+      { operation: 'Smtp.updateConfigPostgreSQL', table: 'system_settings' }
     );
   },
 };
@@ -3598,7 +3608,7 @@ export const RdapCacheOperations = {
         // PostgreSQL 使用 ON CONFLICT
         await executeInternal(
           `INSERT INTO rdap_server_cache (tld, servers, created_at, updated_at) 
-           VALUES (?, ?, ?, ?)
+           VALUES ($1, $2, $3, $4)
            ON CONFLICT (tld) DO UPDATE SET 
            servers = EXCLUDED.servers, updated_at = EXCLUDED.updated_at`,
           [entry.tld.toLowerCase(), serversJson, now, now],
