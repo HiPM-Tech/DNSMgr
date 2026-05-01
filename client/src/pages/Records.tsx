@@ -14,6 +14,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { TunnelList } from '../components/TunnelList';
 import { MailSetupModal } from './MailSetupModal';
 import { RecordForm, COMMON_RECORD_TYPES, CLOUDFLARE_RECORD_TYPES } from '../components/RecordForm';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 export function Records() {
   const { id } = useParams<{ id: string }>();
@@ -74,6 +75,13 @@ export function Records() {
       setTypeFilter('');
     }
   }, [providerRecordTypes, typeFilter]);
+
+  // 实时数据：DNS记录变更
+  useRealtimeData({
+    queryKey: ['records', domainId],
+    websocketEventTypes: ['record_created', 'record_updated', 'record_deleted', 'record_status_changed'],
+    pollingInterval: 30000, // 30秒（记录变化更频繁）
+  });
 
   const { data: recordsData, isLoading } = useQuery({
     queryKey: ['records', domainId, typeFilter, keyword, page, pageSize],

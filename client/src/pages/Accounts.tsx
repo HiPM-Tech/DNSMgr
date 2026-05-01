@@ -11,6 +11,7 @@ import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/roles';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 const PROVIDER_COLORS: Record<string, string> = {
   aliyun: 'blue', dnspod: 'blue', cloudflare: 'yellow', huaweicloud: 'red',
@@ -144,6 +145,13 @@ export function Accounts() {
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<DnsAccount | null>(null);
   const [deleting, setDeleting] = useState<DnsAccount | null>(null);
+
+  // 实时数据：账号变更
+  useRealtimeData({
+    queryKey: ['accounts'],
+    websocketEventTypes: ['account_created', 'account_updated', 'account_deleted'],
+    pollingInterval: 60000,
+  });
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts'],

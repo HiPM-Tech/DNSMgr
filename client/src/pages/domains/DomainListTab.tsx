@@ -12,6 +12,7 @@ import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { isApexDomain } from '../../utils/domain-utils';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -201,6 +202,13 @@ export function DomainListTab() {
   const [accountFilter, setAccountFilter] = useState('');
   const [keyword, setKeyword] = useState('');
   const [domainTypeFilter, setDomainTypeFilter] = useState<'all' | 'apex' | 'subdomain'>('all');
+  
+  // 实时数据：域名变更
+  useRealtimeData({
+    queryKey: ['domains'],
+    websocketEventTypes: ['domain_created', 'domain_updated', 'domain_deleted'],
+    pollingInterval: 60000, // 60秒轮询
+  });
   
   // Pagination state
   const [page, setPage] = useState(1);

@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.3.0",
+    "@types/ws": "^8.18.1",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.9.0",
     "cors": "^2.8.5",
@@ -62,6 +63,7 @@
     "socks-proxy-agent": "^10.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
+    "ws": "^8.20.0",
     "zxcvbn": "^4.4.2"
   },
   "devDependencies": {
