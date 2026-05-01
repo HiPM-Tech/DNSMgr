@@ -305,6 +305,13 @@
       "timezone": "Zeitzone",
       "currentTime": "Aktuelle Zeit",
       "language": "Sprache",
+      "repository": "Repository",
+      "repoSubtitle": "Quellcode anzeigen und beitragen",
+      "license": "Lizenz (GPL-3.0)",
+      "community": "Community",
+      "communitySubtitle": "Treten Sie unserer Diskussionsgruppe bei",
+      "contributors": "Mitwirkende",
+      "contributorsSubtitle": "Danke an die folgenden Mitwirkenden",
       "db": {
         "sqlite": "SQLite",
         "mysql": "MySQL",

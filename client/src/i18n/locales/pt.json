@@ -305,6 +305,13 @@
       "timezone": "Fuso Horário",
       "currentTime": "Hora Atual",
       "language": "Idioma",
+      "repository": "Repositório",
+      "repoSubtitle": "Ver código fonte e contribuir",
+      "license": "Licença (GPL-3.0)",
+      "community": "Comunidade",
+      "communitySubtitle": "Junte-se ao nosso grupo de discussão",
+      "contributors": "Contribuidores",
+      "contributorsSubtitle": "Obrigado aos seguintes contribuidores",
       "db": {
         "sqlite": "SQLite",
         "mysql": "MySQL",

@@ -305,6 +305,13 @@
       "timezone": "시간대",
       "currentTime": "현재 시간",
       "language": "언어",
+      "repository": "저장소",
+      "repoSubtitle": "소스 코드 보기 및 기여하기",
+      "license": "라이선스 (GPL-3.0)",
+      "community": "커뮤니티",
+      "communitySubtitle": "토론 그룹에 참여하세요",
+      "contributors": "기여자",
+      "contributorsSubtitle": "다음 기여자들에게 감사드립니다",
       "db": {
         "sqlite": "SQLite",
         "mysql": "MySQL",

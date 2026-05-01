@@ -3,6 +3,10 @@
   "label": "Español",
   "messages": {
     "about": {
+      "community": "Comunidad",
+      "communitySubtitle": "Únete a nuestro grupo de discusión",
+      "contributors": "Contribuidores",
+      "contributorsSubtitle": "Gracias a los siguientes contribuidores",
       "currentTime": "Hora actual",
       "databaseType": "Tipo de base de datos",
       "databaseVersion": "Versión de base de datos",
@@ -14,6 +18,9 @@
       },
       "driverVersion": "Versión del controlador",
       "language": "Idioma actual",
+      "license": "Licencia (GPL-3.0)",
+      "repoSubtitle": "Ver código fuente y contribuir",
+      "repository": "Repositorio",
       "subtitle": "Información del sistema y versión",
       "systemVersion": "Versión del sistema",
       "frontendVersion": "Versión del frontend",

@@ -305,6 +305,13 @@
       "timezone": "Часовой пояс",
       "currentTime": "Текущее время",
       "language": "Язык",
+      "repository": "Репозиторий",
+      "repoSubtitle": "Просмотреть исходный код и внести вклад",
+      "license": "Лицензия (GPL-3.0)",
+      "community": "Сообщество",
+      "communitySubtitle": "Присоединяйтесь к нашей группе обсуждения",
+      "contributors": "Участники",
+      "contributorsSubtitle": "Благодарность следующим участникам",
       "db": {
         "sqlite": "SQLite",
         "mysql": "MySQL",

@@ -3,6 +3,10 @@
   "label": "日本語",
   "messages": {
     "about": {
+      "community": "コミュニティ",
+      "communitySubtitle": "ディスカッショングループに参加する",
+      "contributors": "貢献者",
+      "contributorsSubtitle": "以下の貢献者に感謝します",
       "currentTime": "現在の時間",
       "databaseType": "データベースの種類",
       "databaseVersion": "データベースのバージョン",
@@ -14,6 +18,9 @@
       },
       "driverVersion": "ドライバーのバージョン",
       "language": "現在の言語",
+      "license": "ライセンス (GPL-3.0)",
+      "repoSubtitle": "ソースコードを表示して貢献する",
+      "repository": "リポジトリ",
       "subtitle": "システム情報とバージョン",
       "systemVersion": "システムバージョン",
       "frontendVersion": "フロントエンドバージョン",

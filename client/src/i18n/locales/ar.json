@@ -305,6 +305,13 @@
       "timezone": "المنطقة الزمنية",
       "currentTime": "الوقت الحالي",
       "language": "اللغة",
+      "repository": "المستودع",
+      "repoSubtitle": "عرض الكود المصدري والمساهمة",
+      "license": "الترخيص (GPL-3.0)",
+      "community": "المجتمع",
+      "communitySubtitle": "انضم إلى مجموعة النقاش الخاصة بنا",
+      "contributors": "المساهمون",
+      "contributorsSubtitle": "شكراً للمساهمين التاليين",
       "db": {
         "sqlite": "SQLite",
         "mysql": "MySQL",
