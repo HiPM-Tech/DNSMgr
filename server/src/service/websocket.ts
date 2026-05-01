@@ -48,6 +48,9 @@ class WSService {
    * 处理 WebSocket 连接
    */
   private async handleConnection(ws: WebSocket, req: IncomingMessage): Promise<void> {
+    const clientIp = req.socket.remoteAddress || 'unknown';
+    log.info('WSService', 'New WebSocket connection attempt', { ip: clientIp });
+    
     try {
       // 从 URL 参数或 Cookie 中获取 token
       const url = new URL(req.url || '', `http://${req.headers.host}`);
@@ -55,7 +58,7 @@ class WSService {
                     req.headers.cookie?.match(/token=([^;]+)/)?.[1];
 
       if (!token) {
-        log.warn('WSService', 'WebSocket connection rejected: no token');
+        log.warn('WSService', 'WebSocket connection rejected: no token', { ip: clientIp });
         ws.close(4001, 'Authentication required');
         return;
       }
@@ -63,13 +66,15 @@ class WSService {
       // 验证 token
       const payload = await verifyToken(token);
       if (!payload) {
-        log.warn('WSService', 'WebSocket connection rejected: invalid token');
+        log.warn('WSService', 'WebSocket connection rejected: invalid token', { ip: clientIp });
         ws.close(4002, 'Invalid token');
         return;
       }
 
       const userId = payload.userId;
       const role = String(payload.maxRole);
+      
+      log.info('WSService', 'WebSocket authentication successful', { userId, role, ip: clientIp });
 
       // 如果已存在连接，关闭旧连接
       const existingClient = this.clients.get(userId);
