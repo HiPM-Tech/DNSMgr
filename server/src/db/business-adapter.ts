@@ -662,6 +662,27 @@ export const DomainOperations = {
     );
   },
 
+  /** 根据ID列表获取域名（用于Token认证优化） */
+  async getByIds(ids: number[], options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
+    if (ids.length === 0) return [];
+    
+    const placeholders = ids.map(() => '?').join(',');
+    let sql = `SELECT * FROM domains WHERE id IN (${placeholders})`;
+    const params: unknown[] = [...ids];
+    
+    if (options?.accountId) {
+      sql += ' AND account_id = ?';
+      params.push(options.accountId);
+    }
+    if (options?.keyword) {
+      sql += ' AND name LIKE ?';
+      params.push(`%${options.keyword}%`);
+    }
+    sql += ' ORDER BY id';
+    
+    return queryInternal(sql, params, { operation: 'Domain.getByIds', table: 'domains' });
+  },
+
   /** 创建域名 */
   async create(data: { account_id: number; name: string; third_id?: string; record_count?: number }): Promise<number> {
     return insertInternal(

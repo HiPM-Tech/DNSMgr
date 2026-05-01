@@ -172,20 +172,26 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   const tokenPayload = (req as any).tokenPayload;
   const tokenAllowedDomains = tokenPayload?.allowedDomains as number[] | undefined;
 
-  const teamIds = isSuper(role) ? [] : await TeamOperations.getTeamIdsByUserId(userId);
-
-  let domains = await DomainOperations.getAccessibleDomains({
-    userId,
-    teamIds,
-    accountId: account_id ? parseInteger(account_id) : undefined,
-    keyword,
-    isSuper: isSuper(role),
-  }) as unknown as Domain[];
-
-  // Filter by token allowed domains if using token auth
-  // Empty allowed_domains array means all domains are allowed
-  if (tokenAllowedDomains && tokenAllowedDomains.length > 0) {
-    domains = domains.filter((domain) => tokenAllowedDomains.includes(domain.id));
+  let domains: Domain[];
+  
+  // Token 认证优化：直接使用 allowedDomains ID 列表查询，避免复杂子查询
+  if (tokenPayload && tokenAllowedDomains && tokenAllowedDomains.length > 0) {
+    // 直接根据 ID 列表查询域名，性能更好
+    domains = await DomainOperations.getByIds(tokenAllowedDomains, {
+      accountId: account_id ? parseInteger(account_id) : undefined,
+      keyword,
+    }) as unknown as Domain[];
+  } else {
+    // 非 Token 认证或允许所有域名的 Token，使用原有逻辑
+    const teamIds = isSuper(role) ? [] : await TeamOperations.getTeamIdsByUserId(userId);
+    
+    domains = await DomainOperations.getAccessibleDomains({
+      userId,
+      teamIds,
+      accountId: account_id ? parseInteger(account_id) : undefined,
+      keyword,
+      isSuper: isSuper(role),
+    }) as unknown as Domain[];
   }
 
   // 根据域名类型过滤
