@@ -5,6 +5,7 @@ import { domainRenewalApi, accountsApi, api } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { Table } from '../../components/Table';
 import { Badge } from '../../components/Badge';
 import { Modal } from '../../components/Modal';
@@ -16,6 +17,13 @@ export function DomainRenewalTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [renewing, setRenewing] = useState<number | null>(null);
+  
+  // 实时数据：域名续期变更
+  useRealtimeData({
+    queryKey: ['renewable-domains'],
+    websocketEventTypes: ['domain_renewed'],
+    pollingInterval: 120000, // 2分钟
+  });
   
   // 临时调试：检查翻译是否正常工作
   console.log('[DomainRenewalTab Debug] Current locale:', locale);

@@ -1116,6 +1116,21 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
       remainingDays: result.remaining_days
     });
     
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'domain_renewed',
+        data: {
+          renewableDomainId,
+          fullDomain: renewableDomain.full_domain,
+          newExpiresAt: result.new_expires_at,
+          remainingDays: result.remaining_days,
+        },
+      });
+    } catch (error) {
+      log.error('Domains', 'Failed to broadcast domain_renewed event', { error });
+    }
+    
     sendSuccess(res, result, 'Domain renewed successfully');
   } catch (error) {
     log.error('Domains', 'Renewal failed with exception', { 
