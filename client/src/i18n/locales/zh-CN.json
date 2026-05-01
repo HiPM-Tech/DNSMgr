@@ -3,6 +3,10 @@
   "label": "简体中文",
   "messages": {
     "about": {
+      "community": "社区",
+      "communitySubtitle": "加入我们的讨论组",
+      "contributors": "贡献者",
+      "contributorsSubtitle": "感谢以下贡献者的付出",
       "currentTime": "当前时间",
       "databaseType": "数据库类型",
       "databaseVersion": "数据库版本",
@@ -14,6 +18,9 @@
       },
       "driverVersion": "驱动版本",
       "language": "当前语言",
+      "license": "开源协议",
+      "repoSubtitle": "查看源代码和提交贡献",
+      "repository": "代码仓库",
       "subtitle": "系统信息和版本",
       "systemVersion": "系统版本",
       "frontendVersion": "前端版本",

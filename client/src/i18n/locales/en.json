@@ -306,6 +306,13 @@
       "timezone": "Timezone",
       "currentTime": "Current Time",
       "language": "Language",
+      "repository": "Repository",
+      "repoSubtitle": "View source code and contribute",
+      "license": "License",
+      "community": "Community",
+      "communitySubtitle": "Join our discussion group",
+      "contributors": "Contributors",
+      "contributorsSubtitle": "Thanks to the following contributors",
       "db": {
         "sqlite": "SQLite",
         "mysql": "MySQL",
