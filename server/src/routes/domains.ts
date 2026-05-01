@@ -10,7 +10,7 @@ import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { log } from '../lib/logger';
-import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations } from '../db/business-adapter';
+import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations } from '../db/business-adapter';
 import { syncDomainWhois } from '../service/whoisJob';
 import { getRootDomain } from '../service/whoisProvider';
 
@@ -211,6 +211,20 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       return access.canRead ? domain : null;
     })).then(results => results.filter((d): d is Domain => d !== null));
   }
+
+  // 获取用户的置顶域名列表并排序
+  const pinnedDomainIds = await UserPreferencesOperations.getPinnedDomains(userId);
+  const pinnedSet = new Set(pinnedDomainIds);
+  
+  // 排序：置顶域名在前，保持原有顺序；非置顶域名在后
+  domains.sort((a, b) => {
+    const aPinned = pinnedSet.has(a.id);
+    const bPinned = pinnedSet.has(b.id);
+    
+    if (aPinned && !bPinned) return -1;  // a 置顶，b 不置顶，a 在前
+    if (!aPinned && bPinned) return 1;   // a 不置顶，b 置顶，b 在前
+    return 0;  // 都置顶或都不置顶，保持原有顺序
+  });
 
   // Calculate pagination
   const total = domains.length;
