@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, roleLabelKey } from '../utils/roles';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 export function Users() {
   const { user: me } = useAuth();
@@ -23,6 +24,13 @@ export function Users() {
   const [editing, setEditing] = useState<User | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
   const [usernameInput, setUsernameInput] = useState('');
+
+  // 实时数据：用户变更
+  useRealtimeData({
+    queryKey: ['users'],
+    websocketEventTypes: ['user_created', 'user_updated', 'user_deleted'],
+    pollingInterval: 120000, // 2分钟
+  });
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],

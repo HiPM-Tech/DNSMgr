@@ -5,6 +5,7 @@ import type { Domain } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { AuditLogList } from '../components/AuditLogList';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: number | string; color: string }) {
   return (
@@ -23,6 +24,33 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 export function Dashboard() {
   const { isAdmin } = useAuth();
   const { t } = useI18n();
+
+  // 实时数据：仪表盘统计信息
+  useRealtimeData({
+    queryKey: ['accounts'],
+    websocketEventTypes: ['account_created', 'account_updated', 'account_deleted'],
+    pollingInterval: 120000, // 2分钟
+  });
+  
+  useRealtimeData({
+    queryKey: ['domains-dashboard'],
+    websocketEventTypes: ['domain_created', 'domain_updated', 'domain_deleted'],
+    pollingInterval: 60000, // 1分钟
+  });
+  
+  if (isAdmin) {
+    useRealtimeData({
+      queryKey: ['users'],
+      websocketEventTypes: ['user_created', 'user_updated', 'user_deleted'],
+      pollingInterval: 120000, // 2分钟
+    });
+    
+    useRealtimeData({
+      queryKey: ['audit-logs'],
+      websocketEventTypes: ['audit_log_created'],
+      pollingInterval: 60000, // 1分钟
+    });
+  }
 
   const { data: accounts } = useQuery({
     queryKey: ['accounts'],

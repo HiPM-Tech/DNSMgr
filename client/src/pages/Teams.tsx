@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { isAdmin } from '../utils/roles';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 export function Teams() {
   const { user: me } = useAuth();
@@ -33,6 +34,13 @@ export function Teams() {
   const [memberPermPermission, setMemberPermPermission] = useState<'read' | 'write'>('write');
   const [memberPermSub, setMemberPermSub] = useState('');
   const getDisplayName = (u: { nickname?: string; username: string }) => u.nickname || u.username;
+
+  // 实时数据：团队变更
+  useRealtimeData({
+    queryKey: ['teams'],
+    websocketEventTypes: ['team_created', 'team_updated', 'team_deleted', 'team_member_added', 'team_member_removed'],
+    pollingInterval: 120000, // 2分钟
+  });
 
   const { data: teams = [], isLoading } = useQuery({
     queryKey: ['teams'],

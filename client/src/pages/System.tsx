@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Info, Database, Shield, Bell, Key, Globe } from 'lucide-react';
 import { useI18n } from '../contexts/I18nContext';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 import { OverviewTab } from './system/OverviewTab';
 import { DatabaseTab } from './system/DatabaseTab';
@@ -12,6 +13,13 @@ import { NotificationChannels } from '../components/NotificationChannels';
 export function System() {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'overview' | 'database' | 'security' | 'access' | 'network' | 'notifications'>('overview');
+
+  // 实时数据：系统配置变更
+  useRealtimeData({
+    queryKey: ['system-config'],
+    websocketEventTypes: ['config_updated', 'smtp_updated', 'oauth_updated', 'security_config_updated'],
+    pollingInterval: 300000, // 5分钟
+  });
 
   const tabs = [
     { id: 'overview', label: t('system.tabs.overview'), icon: Info },

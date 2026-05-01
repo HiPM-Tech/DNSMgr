@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { startRegistration } from '@simplewebauthn/browser';
 import { authApi } from '../api';
 import type { WebAuthnResponse } from '../api';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 interface Session {
   id: string;
@@ -27,6 +28,13 @@ import { useI18n } from '../contexts/I18nContext';
 export function Security() {
   const { t } = useI18n();
   const toast = useToast();
+
+  // 实时数据：会话和安全设置变更
+  useRealtimeData({
+    queryKey: ['user-security'],
+    websocketEventTypes: ['session_logout', '2fa_enabled', '2fa_disabled', 'passkey_added', 'passkey_removed'],
+    pollingInterval: 120000, // 2分钟
+  });
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [totpEnabled, setTotpEnabled] = useState(false);

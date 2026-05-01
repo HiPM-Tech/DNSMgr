@@ -11,11 +11,20 @@ import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { localeOptions } from '../i18n';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 export function Settings() {
   const { user, updateUser } = useAuth();
   const toast = useToast();
   const { locale, setLocale, t } = useI18n();
+  
+  // 实时数据：用户信息更新
+  useRealtimeData({
+    queryKey: ['user-profile'],
+    websocketEventTypes: ['user_updated'],
+    pollingInterval: 300000, // 5分钟
+  });
+  
   const displayName = user?.nickname || user?.username;
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');

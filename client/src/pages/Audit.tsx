@@ -5,6 +5,7 @@ import { logsApi } from '../api';
 import { AuditLogList } from '../components/AuditLogList';
 import { getAuditActionOptions } from '../utils/auditLogs';
 import { useI18n } from '../contexts/I18nContext';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 const PAGE_SIZE = 20;
 
@@ -16,6 +17,13 @@ export function Audit() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [page, setPage] = useState(1);
+
+  // 实时数据：审计日志
+  useRealtimeData({
+    queryKey: ['audit-logs'],
+    websocketEventTypes: ['audit_log_created'],
+    pollingInterval: 60000, // 1分钟
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['audit-logs', page, domain, action, startDate, endDate],

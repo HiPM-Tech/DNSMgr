@@ -5,6 +5,7 @@ import { useToast } from '../hooks/useToast';
 import { tokensApi } from '../api';
 import { useI18n } from '../contexts/I18nContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 interface Token {
   id: number;
@@ -30,6 +31,13 @@ export function Tokens() {
   const [domainPage, setDomainPage] = useState(1);
   const domainPageSize = 20;
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; tokenId: number | null }>({ show: false, tokenId: null });
+
+  // 实时数据：Token变更
+  useRealtimeData({
+    queryKey: ['tokens'],
+    websocketEventTypes: ['token_created', 'token_revoked', 'token_updated'],
+    pollingInterval: 120000, // 2分钟
+  });
 
   // Form state
   const [formData, setFormData] = useState({
