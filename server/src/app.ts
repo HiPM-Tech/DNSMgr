@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+import http from 'http';
 import path from 'path';
 import { loadEnv } from './config/env';
 
@@ -48,6 +49,7 @@ import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { startRecordCountCacheRefresh } from './service/recordCountCache';
 import { initRenewalSchedulers } from './service/renewalInit';
+import { wsService } from './service/websocket';
 import { initWhoisSchedulers } from './service/whoisInit';
 import { initSecurityPolicyTable } from './service/securityPolicy';
 import { initTrustedDevicesTable } from './service/deviceTrust';
@@ -341,8 +343,13 @@ async function initializeApp() {
       log.info('Server', 'Please access the setup wizard to configure the system.');
     }
 
-    // Start server
-    const server = app.listen(PORT, () => {
+    // Start server with WebSocket support
+    const server = http.createServer(app);
+    
+    // Initialize WebSocket service
+    wsService.initialize(server);
+    
+    server.listen(PORT, () => {
       log.info('Server', `DNSMgr running on http://localhost:${PORT}`);
       log.info('Server', `API Docs: http://localhost:${PORT}/api/docs`);
       if (!isInitialized) {
@@ -386,6 +393,10 @@ async function initializeApp() {
       clearInterval(initCheckInterval);
       clearInterval(oauthStateCleanupInterval);
       log.info('Server', 'SIGTERM received, starting graceful shutdown...');
+      
+      // Shutdown WebSocket service
+      wsService.shutdown();
+      
       try {
         await disconnect();
         log.info('Server', 'Database disconnected gracefully');
@@ -402,6 +413,10 @@ async function initializeApp() {
       clearInterval(initCheckInterval);
       clearInterval(oauthStateCleanupInterval);
       log.info('Server', 'SIGINT received, starting graceful shutdown...');
+      
+      // Shutdown WebSocket service
+      wsService.shutdown();
+      
       try {
         await disconnect();
         log.info('Server', 'Database disconnected gracefully');
@@ -418,7 +433,12 @@ async function initializeApp() {
     log.info('Server', 'Database not configured. Running in initialization mode.');
     log.info('Server', 'Please access the setup wizard to configure the system.');
 
-    const server = app.listen(PORT, () => {
+    const server = http.createServer(app);
+    
+    // Initialize WebSocket service
+    wsService.initialize(server);
+    
+    server.listen(PORT, () => {
       log.info('Server', `DNSMgr running on http://localhost:${PORT}`);
       log.info('Server', `API Docs: http://localhost:${PORT}/api/docs`);
       log.info('Server', `Setup Wizard: http://localhost:${PORT}/setup`);
@@ -454,6 +474,10 @@ async function initializeApp() {
     process.on('SIGTERM', async () => {
       clearInterval(initCheckInterval);
       log.info('Server', 'SIGTERM received, starting graceful shutdown...');
+      
+      // Shutdown WebSocket service
+      wsService.shutdown();
+      
       try {
         await disconnect();
         log.info('Server', 'Database disconnected gracefully');
@@ -469,6 +493,10 @@ async function initializeApp() {
     process.on('SIGINT', async () => {
       clearInterval(initCheckInterval);
       log.info('Server', 'SIGINT received, starting graceful shutdown...');
+      
+      // Shutdown WebSocket service
+      wsService.shutdown();
+      
       try {
         await disconnect();
         log.info('Server', 'Database disconnected gracefully');
