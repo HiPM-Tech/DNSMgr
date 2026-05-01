@@ -290,6 +290,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      changelog_content: ${{ steps.changelog.outputs.content }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -327,3 +329,47 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================================
+  # 阶段 6: 发送 Telegram 通知
+  # ============================================================================
+  notify-telegram:
+    name: Send Telegram Notification
+    needs: [prepare, create-release]
+    if: always() && needs.create-release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine release type
+        id: release-type
+        run: |
+          if [ "${{ needs.prepare.outputs.is_prerelease }}" = "true" ]; then
+            echo "type=🚧 预发布版本" >> $GITHUB_OUTPUT
+          else
+            echo "type=🎉 正式版本发布" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send Telegram notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message_thread_id: 14
+          parse_mode: "HTML"
+          message: |
+            <b>${{ steps.release-type.outputs.type }}</b>
+            <i>${{ github.repository }}</i>
+            
+            <b>🔖 版本标签：</b>
+            <code>v${{ needs.prepare.outputs.version }}</code>
+            
+            <b>📄 发布标题：</b>
+            DNSMgr v${{ needs.prepare.outputs.version }}
+            
+            <b>📝 更新日志：</b>
+            <pre>${{ needs.create-release.outputs.changelog_content }}</pre>
+            
+            <b>🔗 链接：</b>
+            <a href="https://github.com/${{ github.repository }}/releases/tag/v${{ needs.prepare.outputs.version }}">GitHub Release 页面</a>
+            
+            <b>📅 发布时间：</b>
+            ${{ github.event.workflow_run.created_at || github.event.inputs._workflow_run_time || 'N/A' }}
