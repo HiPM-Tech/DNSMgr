@@ -353,23 +353,25 @@ jobs:
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          message_thread_id: 14
-          parse_mode: "HTML"
+          topic: 14
+          format: markdown
           message: |
-            <b>${{ steps.release-type.outputs.type }}</b>
-            <i>${{ github.repository }}</i>
+            *${{ steps.release-type.outputs.type }}*
+            _${{ github.repository }}_
             
-            <b>🔖 版本标签：</b>
-            <code>v${{ needs.prepare.outputs.version }}</code>
+            *🔖 版本标签：*
+            `v${{ needs.prepare.outputs.version }}`
             
-            <b>📄 发布标题：</b>
+            *📄 发布标题：*
             DNSMgr v${{ needs.prepare.outputs.version }}
             
-            <b>📝 更新日志：</b>
-            <pre>${{ needs.create-release.outputs.changelog_content }}</pre>
+            * 更新日志：*
+            ```
+            ${{ needs.create-release.outputs.changelog_content }}
+            ```
             
-            <b>🔗 链接：</b>
-            <a href="https://github.com/${{ github.repository }}/releases/tag/v${{ needs.prepare.outputs.version }}">GitHub Release 页面</a>
+            * 链接：*
+            [GitHub Release 页面](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.prepare.outputs.version }})
             
-            <b>📅 发布时间：</b>
+            *📅 发布时间：*
             ${{ github.event.workflow_run.created_at || github.event.inputs._workflow_run_time || 'N/A' }}
