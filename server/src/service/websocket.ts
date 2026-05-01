@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { verifyToken } from './token';
 import { log } from '../lib/logger';
+import { getClientIP } from '../middleware/clientIP';
 
 interface WSClient {
   ws: WebSocket;
