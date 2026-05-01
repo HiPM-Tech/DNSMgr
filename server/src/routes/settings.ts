@@ -303,6 +303,19 @@ router.put('/security', authMiddleware, noTokenAuth('system settings'), adminOnl
     await DomainExpiryOperations.saveDays(String(domainExpiryDays));
   }
 
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'security_config_updated',
+      data: {
+        updatedBy: req.user!.userId,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    log.error('Settings', 'Failed to broadcast security_config_updated event', { error });
+  }
+
   res.json({ code: 0, msg: 'success' });
 });
 
@@ -519,6 +532,21 @@ router.put('/login-limit', authMiddleware, noTokenAuth('system settings'), admin
     await updateLoginLimitConfig(updateData);
     
     const config = await getLoginLimitConfig();
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'config_updated',
+        data: {
+          configType: 'login_limit',
+          updatedBy: req.user!.userId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      log.error('Settings', 'Failed to broadcast config_updated event', { error });
+    }
+    
     res.json({
       code: 0,
       data: config,

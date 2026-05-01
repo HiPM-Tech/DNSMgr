@@ -344,6 +344,20 @@ router.put('/:id', authMiddleware, noTokenAuth('token management'), async (req: 
       start_time,
       end_time,
     });
+    
+    // 推送 WebSocket 消息给当前用户
+    try {
+      wsService.sendToClient(req.user!.userId, {
+        type: 'token_updated',
+        data: {
+          tokenId,
+          name,
+        },
+      });
+    } catch (error) {
+      log.error('Tokens', 'Failed to send token_updated event', { error });
+    }
+    
     res.json({ code: 0, msg: 'Token permissions updated successfully' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update token permissions' });

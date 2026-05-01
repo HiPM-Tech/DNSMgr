@@ -17,7 +17,7 @@ export function System() {
   // 实时数据：系统配置变更
   useRealtimeData({
     queryKey: ['system-config'],
-    websocketEventTypes: ['smtp_updated', 'oauth_updated'],
+    websocketEventTypes: ['config_updated', 'smtp_updated', 'oauth_updated', 'security_config_updated'],
     pollingInterval: 300000, // 5分钟
   });
 

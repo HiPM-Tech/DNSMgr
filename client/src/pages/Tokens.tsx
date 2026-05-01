@@ -35,7 +35,7 @@ export function Tokens() {
   // 实时数据：Token 变更
   useRealtimeData({
     queryKey: ['tokens'],
-    websocketEventTypes: ['token_created', 'token_revoked'],
+    websocketEventTypes: ['token_created', 'token_revoked', 'token_updated'],
     pollingInterval: 120000, // 2分钟
   });
 
