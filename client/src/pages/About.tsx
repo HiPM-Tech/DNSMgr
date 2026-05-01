@@ -5,6 +5,13 @@ import { systemApi } from '../api';
 import { useI18n } from '../contexts/I18nContext';
 import { localeOptions } from '../i18n';
 
+interface Contributor {
+  name: string;
+  avatar: string;
+  profile: string;
+  contributions: number;
+}
+
 export function About() {
   const { locale, t } = useI18n();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -33,11 +40,22 @@ export function About() {
   const telegramGroup = 'https://t.me/hipmdnsmgr';
   const license = 'GPL-3.0';
 
-  // Contributors list (randomly displayed)
-  const contributors = [
-    { name: 'HiPM Tech', avatar: 'https://avatars.githubusercontent.com/u/123456789?v=4' },
-    { name: 'Community', avatar: 'https://avatars.githubusercontent.com/u/987654321?v=4' },
-  ];
+  // Fetch contributors from GitHub API
+  const { data: contributors = [], isLoading: contributorsLoading } = useQuery<Contributor[]>({
+    queryKey: ['github-contributors'],
+    queryFn: async () => {
+      const res = await fetch('https://api.github.com/repos/HiPM-Tech/DNSMgr/contributors?per_page=100');
+      if (!res.ok) throw new Error('Failed to fetch contributors');
+      const data = await res.json();
+      return data.map((contributor: any) => ({
+        name: contributor.login,
+        avatar: contributor.avatar_url,
+        profile: contributor.html_url,
+        contributions: contributor.contributions,
+      }));
+    },
+    staleTime: 1000 * 60 * 60 * 24, // Cache for 24 hours
+  });
 
   const infoItems = [
     {
@@ -218,22 +236,38 @@ export function About() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {contributors.map((contributor, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <img
-                src={contributor.avatar}
-                alt={contributor.name}
-                className="w-6 h-6 rounded-full"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(contributor.name)}&background=random`;
-                }}
-              />
-              <span className="text-sm font-medium text-gray-900 dark:text-white">{contributor.name}</span>
-            </div>
-          ))}
+          {contributorsLoading ? (
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</div>
+          ) : contributors.length > 0 ? (
+            contributors.map((contributor: Contributor, index: number) => (
+              <a
+                key={index}
+                href={contributor.profile}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+              >
+                <img
+                  src={contributor.avatar}
+                  alt={contributor.name}
+                  className="w-6 h-6 rounded-full"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(contributor.name)}&background=random`;
+                  }}
+                />
+                <span className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                  {contributor.name}
+                </span>
+                {contributor.contributions > 0 && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    ({contributor.contributions})
+                  </span>
+                )}
+              </a>
+            ))
+          ) : (
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('about.noContributors')}</div>
+          )}
         </div>
       </div>
     </div>

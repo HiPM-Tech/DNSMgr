@@ -313,6 +313,7 @@
       "communitySubtitle": "Join our discussion group",
       "contributors": "Contributors",
       "contributorsSubtitle": "Thanks to the following contributors",
+      "noContributors": "No contributor data available",
       "db": {
         "sqlite": "SQLite",
         "mysql": "MySQL",
