@@ -207,9 +207,11 @@ export function DomainListTab() {
   const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
   
   // Pinned domains
+  // 并行查询：置顶域名、域名列表、账号列表
   const { data: pinnedDomainsData } = useQuery({
     queryKey: ['pinnedDomains'],
     queryFn: () => authApi.getPinnedDomains().then((r) => r.data.data?.pinnedDomains ?? []),
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
   });
   const pinnedDomains = pinnedDomainsData ?? [];
   
@@ -222,6 +224,7 @@ export function DomainListTab() {
       page,
       pageSize,
     }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 }),
+    staleTime: 30 * 1000, // 30秒内不重新请求
   });
 
   const domains = domainsData?.list ?? [];
@@ -241,6 +244,7 @@ export function DomainListTab() {
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsApi.list().then((r) => r.data.data ?? []),
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
   });
 
   const updateMutation = useMutation({
