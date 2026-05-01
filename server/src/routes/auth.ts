@@ -16,6 +16,7 @@ import { log } from '../lib/logger';
 import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, UserPreferencesOperations } from '../db/business-adapter';
 import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, SecurityPolicy } from '../service/securityPolicy';
 import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/deviceTrust';
+import { getRequestIP } from '../middleware/clientIP';
 
 
 const router = Router();
@@ -360,7 +361,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     let loginIdentifier = username.toLowerCase();
     
     // Check login limit
-    const ipAddress = req.ip || req.socket.remoteAddress || '';
+    const ipAddress = getRequestIP(req);
     const limitCheck = await checkLoginAllowed(loginIdentifier, ipAddress);
     if (!limitCheck.allowed) {
       res.json({ code: -1, msg: limitCheck.message || 'Account is temporarily locked' });
@@ -483,7 +484,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     if (trustDevice && has2FA) {
       const deviceInfo: DeviceInfo = {
         userAgent: req.headers['user-agent'] || '',
-        ipAddress: req.ip || req.socket.remoteAddress || '',
+        ipAddress: getRequestIP(req),
       };
       deviceId = await addTrustedDevice(user.id, deviceInfo);
     }

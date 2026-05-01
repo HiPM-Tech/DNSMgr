@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { log } from '../lib/logger';
+import { getRequestIP } from './clientIP';
 
 /**
  * Request logging middleware
@@ -24,7 +25,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     // 错误和警告才记录详细信息
     if (logLevel === 'error') {
       log.error('HTTP', baseLog, { 
-        ip: req.ip,
+        ip: getRequestIP(req),
         error: 'Server error'
       });
     } else if (logLevel === 'warn') {
@@ -32,7 +33,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
       if (statusCode === 404) {
         log.debug('HTTP', baseLog);
       } else {
-        log.warn('HTTP', baseLog, { ip: req.ip });
+        log.warn('HTTP', baseLog, { ip: getRequestIP(req) });
       }
     } else {
       // 正常请求使用 debug 级别

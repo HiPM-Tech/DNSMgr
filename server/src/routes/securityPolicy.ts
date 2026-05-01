@@ -19,6 +19,7 @@ import {
   verifyTrustedDevice,
   DeviceInfo,
 } from '../service/deviceTrust';
+import { getRequestIP } from '../middleware/clientIP';
 import { log } from '../lib/logger';
 
 const router = Router();
@@ -207,7 +208,7 @@ router.delete('/trusted-devices/:id', authMiddleware, asyncHandler(async (req: R
 router.post('/check-device', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const deviceInfo: DeviceInfo = {
     userAgent: req.headers['user-agent'] || '',
-    ipAddress: req.ip || req.socket.remoteAddress || '',
+    ipAddress: getRequestIP(req),
   };
   
   const result = await verifyTrustedDevice(req.user!.userId, deviceInfo);

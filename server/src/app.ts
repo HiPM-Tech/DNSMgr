@@ -14,6 +14,7 @@ import { disconnect } from './db/core/connection';
 import { authMiddleware, adminOnly } from './middleware/auth';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { requestLogger, requestIdMiddleware } from './middleware/requestLogger';
+import { clientIPMiddleware } from './middleware/clientIP';
 
 import authRouter from './routes/auth';
 import usersRouter from './routes/users';
@@ -68,6 +69,7 @@ async function checkInitialization(): Promise<boolean> {
 app.use(cors());
 app.use(express.json());
 app.use(requestIdMiddleware);
+app.use(clientIPMiddleware); // 必须在 requestLogger 之前，确保日志记录真实 IP
 app.use(requestLogger);
 
 // Content Security Policy

@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { Request, Response } from 'express';
+import { getRequestIP } from './clientIP';
 
 /**
  * 登录速率限制 - 防止暴力破解
@@ -13,7 +14,7 @@ export const loginLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
     // 使用用户名或邮箱作为 key，而不是 IP
-    return (req.body?.username || req.body?.email || req.ip || 'unknown').toLowerCase();
+    return (req.body?.username || req.body?.email || getRequestIP(req) || 'unknown').toLowerCase();
   },
 });
 
@@ -41,7 +42,7 @@ export const emailLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
     // 使用邮箱地址作为 key
-    return (req.body?.email || req.ip || 'unknown').toLowerCase();
+    return (req.body?.email || getRequestIP(req) || 'unknown').toLowerCase();
   },
 });
 
@@ -102,7 +103,7 @@ export function createUserLimiter(windowMs: number, max: number) {
     legacyHeaders: false,
     keyGenerator: (req: Request) => {
       // 使用用户 ID 作为 key（需要在 auth 中间件后使用）
-      return (req as any).user?.id?.toString() || req.ip || 'unknown';
+      return (req as any).user?.id?.toString() || getRequestIP(req) || 'unknown';
     },
   });
 }
