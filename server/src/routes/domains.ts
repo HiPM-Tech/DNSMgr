@@ -315,6 +315,77 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
  */
 
 /**
+ * Get renewable domains from all providers that support renewal
+ * This endpoint queries the database for domains with expiry information
+ */
+router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  // Only allow admins and super admins
+  const role = normalizeRole(req.user?.role);
+  log.info('Domains', 'Renewable domains request', { userId: req.user?.userId, role });
+  
+  if (role < 2) {
+    log.warn('Domains', 'Unauthorized attempt to fetch renewable domains', { userId: req.user?.userId, role });
+    sendError(res, 'Permission denied');
+    return;
+  }
+  
+  log.info('Domains', 'Fetching renewable domains', { userId: req.user?.userId });
+  
+  try {
+    // Query from renewable_domains table
+    const startTime = Date.now();
+    log.debug('Domains', 'Calling RenewableDomainOperations.getAllEnabled()');
+    const renewableDomains = await RenewableDomainOperations.getAllEnabled();
+    const queryDuration = Date.now() - startTime;
+    
+    log.info('Domains', 'Fetched renewable domains from database', { 
+      count: renewableDomains.length,
+      duration: `${queryDuration}ms`
+    });
+    
+    // Enrich with account information
+    const enrichStartTime = Date.now();
+    const enrichedDomains = await Promise.all(
+      renewableDomains.map(async (domain: any) => {
+        const account = await DnsAccountOperations.getById(domain.account_id);
+        return {
+          id: domain.id,
+          name: domain.full_domain,
+          full_domain: domain.full_domain,
+          account_id: domain.account_id,
+          account_name: account?.name || 'Unknown',
+          provider_type: domain.provider_type,
+          expires_at: domain.expires_at,
+          third_id: domain.third_id,
+          remark: domain.remark,
+          enabled: domain.enabled,
+          last_renewed_at: domain.last_renewed_at,
+        };
+      })
+    );
+    const enrichDuration = Date.now() - enrichStartTime;
+    
+    log.debug('Domains', 'Enriched domains with account info', { 
+      count: enrichedDomains.length,
+      duration: `${enrichDuration}ms`
+    });
+    
+    log.info('Domains', 'Successfully fetched renewable domains', { 
+      total: enrichedDomains.length,
+      totalDuration: `${Date.now() - startTime}ms`
+    });
+    
+    sendSuccess(res, enrichedDomains);
+  } catch (error) {
+    log.error('Domains', 'Failed to fetch renewable domains', { 
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    sendError(res, 'Failed to fetch renewable domains');
+  }
+}));
+
+/**
  * @swagger
  * /domains/{id}:
  *   get:
@@ -646,77 +717,6 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
  *       200:
  *         description: Domain info
  */
-
-/**
- * Get renewable domains from all providers that support renewal
- * This endpoint queries the database for domains with expiry information
- */
-router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  // Only allow admins and super admins
-  const role = normalizeRole(req.user?.role);
-  log.info('Domains', 'Renewable domains request', { userId: req.user?.userId, role });
-  
-  if (role < 2) {
-    log.warn('Domains', 'Unauthorized attempt to fetch renewable domains', { userId: req.user?.userId, role });
-    sendError(res, 'Permission denied');
-    return;
-  }
-  
-  log.info('Domains', 'Fetching renewable domains', { userId: req.user?.userId });
-  
-  try {
-    // Query from renewable_domains table
-    const startTime = Date.now();
-    log.debug('Domains', 'Calling RenewableDomainOperations.getAllEnabled()');
-    const renewableDomains = await RenewableDomainOperations.getAllEnabled();
-    const queryDuration = Date.now() - startTime;
-    
-    log.info('Domains', 'Fetched renewable domains from database', { 
-      count: renewableDomains.length,
-      duration: `${queryDuration}ms`
-    });
-    
-    // Enrich with account information
-    const enrichStartTime = Date.now();
-    const enrichedDomains = await Promise.all(
-      renewableDomains.map(async (domain: any) => {
-        const account = await DnsAccountOperations.getById(domain.account_id);
-        return {
-          id: domain.id,
-          name: domain.full_domain,
-          full_domain: domain.full_domain,
-          account_id: domain.account_id,
-          account_name: account?.name || 'Unknown',
-          provider_type: domain.provider_type,
-          expires_at: domain.expires_at,
-          third_id: domain.third_id,
-          remark: domain.remark,
-          enabled: domain.enabled,
-          last_renewed_at: domain.last_renewed_at,
-        };
-      })
-    );
-    const enrichDuration = Date.now() - enrichStartTime;
-    
-    log.debug('Domains', 'Enriched domains with account info', { 
-      count: enrichedDomains.length,
-      duration: `${enrichDuration}ms`
-    });
-    
-    log.info('Domains', 'Successfully fetched renewable domains', { 
-      total: enrichedDomains.length,
-      totalDuration: `${Date.now() - startTime}ms`
-    });
-    
-    sendSuccess(res, enrichedDomains);
-  } catch (error) {
-    log.error('Domains', 'Failed to fetch renewable domains', { 
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    sendError(res, 'Failed to fetch renewable domains');
-  }
-}));
 
 /**
  * @swagger
