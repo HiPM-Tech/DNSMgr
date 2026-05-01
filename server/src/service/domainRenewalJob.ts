@@ -3,7 +3,7 @@
  * 域名续期定时任务服务 - 每天 UTC 0:00 自动续期 DNSHE 域名
  */
 
-import { DnsAccountOperations } from '../db/business-adapter';
+import { DnsAccountOperations, RenewableDomainOperations } from '../db/business-adapter';
 import { renewalRegistry } from './renewalScheduler';
 import { taskManager } from './taskManager';
 import { logAuditOperation } from './audit';
@@ -101,25 +101,20 @@ export async function executeDomainRenewal(): Promise<void> {
                 remainingDays: result.remaining_days,
               });
 
-              // 记录审计日志
-              try {
-                await logAuditOperation(
-                  0, // system user
-                  'renew_domain',
-                  result.domain_name,
-                  {
-                    domain_id: result.domain_id,
-                    previous_expires_at: result.previous_expires_at,
-                    new_expires_at: result.new_expires_at,
-                    remaining_days: result.remaining_days,
-                    auto_renewal: true,
-                  }
-                );
-              } catch (auditError) {
-                log.error('DomainRenewalJob', 'Failed to log audit', { 
-                  domainName: result.domain_name, 
-                  error: auditError 
-                });
+              // 更新 renewable_domains 表中的 expires_at
+              if (result.new_expires_at) {
+                try {
+                  await RenewableDomainOperations.updateExpiresAt(Number(domainId), result.new_expires_at);
+                  log.debug('DomainRenewalJob', 'Updated expires_at in database', {
+                    domainId,
+                    newExpiresAt: result.new_expires_at,
+                  });
+                } catch (updateError) {
+                  log.error('DomainRenewalJob', 'Failed to update expires_at in database', {
+                    domainId,
+                    error: updateError instanceof Error ? updateError.message : String(updateError),
+                  });
+                }
               }
             } else {
               failedCount++;
