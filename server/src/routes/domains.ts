@@ -654,6 +654,8 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
 router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
+  log.info('Domains', 'Renewable domains request', { userId: req.user?.userId, role });
+  
   if (role < 2) {
     log.warn('Domains', 'Unauthorized attempt to fetch renewable domains', { userId: req.user?.userId, role });
     sendError(res, 'Permission denied');
@@ -665,10 +667,11 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
   try {
     // Query from renewable_domains table
     const startTime = Date.now();
+    log.debug('Domains', 'Calling RenewableDomainOperations.getAllEnabled()');
     const renewableDomains = await RenewableDomainOperations.getAllEnabled();
     const queryDuration = Date.now() - startTime;
     
-    log.debug('Domains', 'Fetched renewable domains from database', { 
+    log.info('Domains', 'Fetched renewable domains from database', { 
       count: renewableDomains.length,
       duration: `${queryDuration}ms`
     });
