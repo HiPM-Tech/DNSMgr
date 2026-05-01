@@ -160,7 +160,7 @@ export function Accounts() {
     mutationFn: (data: { type: string; name: string; config: Record<string, string | boolean>; remark: string }) => accountsApi.create(data),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
       setShowAdd(false);
       toast.success(t('accounts.addSuccess'));
     },
@@ -172,7 +172,7 @@ export function Accounts() {
       accountsApi.update(id, data),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
       setEditing(null);
       toast.success(t('accounts.updateSuccess'));
     },
@@ -183,7 +183,7 @@ export function Accounts() {
     mutationFn: (id: number) => accountsApi.delete(id),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
       setDeleting(null);
       toast.success(t('accounts.deleteSuccess'));
     },

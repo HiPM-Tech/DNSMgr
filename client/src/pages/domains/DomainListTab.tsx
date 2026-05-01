@@ -40,7 +40,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
     mutationFn: (data: Parameters<typeof domainsApi.create>[0]) => domainsApi.create(data),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['domains'] });
+      qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
       onClose();
       toast.success(res.data.msg || t('domains.addDomainSuccess'));
     },
@@ -251,7 +251,7 @@ export function DomainListTab() {
     mutationFn: ({ id, remark }: { id: number; remark: string }) => domainsApi.update(id, { remark }),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['domains'] });
+      qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
       setEditing(null);
       toast.success(t('domains.updateSuccess'));
     },
@@ -262,7 +262,7 @@ export function DomainListTab() {
     mutationFn: (id: number) => domainsApi.delete(id),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['domains'] });
+      qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
       setDeleting(null);
       toast.success(t('domains.deleteSuccess'));
     },
