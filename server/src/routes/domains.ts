@@ -176,6 +176,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   
   // Token 认证优化：根据 allowedDomains 是否为空选择不同策略
   if (tokenPayload) {
+    const queryStartTime = Date.now();
     if (tokenAllowedDomains && tokenAllowedDomains.length > 0) {
       // 有限制的 Token：直接根据 ID 列表查询，性能最优
       domains = await DomainOperations.getByIds(tokenAllowedDomains, {
@@ -207,6 +208,10 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
         }) as unknown as Domain[];
       }
     }
+    log.debug('Domains', 'Token auth domain query completed', { 
+      duration: `${Date.now() - queryStartTime}ms`, 
+      count: domains.length 
+    });
   } else {
     // 非 Token 认证或允许所有域名的 Token，使用原有逻辑
     const teamIds = isSuper(role) ? [] : await TeamOperations.getTeamIdsByUserId(userId);
