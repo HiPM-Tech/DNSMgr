@@ -259,6 +259,40 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
  *       200:
  *         description: Domain added
  */
+
+/**
+ * @swagger
+ * /domains/{id}:
+ *   get:
+ *     summary: Get domain by ID
+ *     tags: [Domains]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Domain details
+ */
+router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const domain = await DomainOperations.getById(Number(id));
+    if (!domain) {
+      sendError(res, 'Domain not found');
+      return;
+    }
+    sendSuccess(res, domain);
+  } catch (error) {
+    log.error('Domains', 'Failed to get domain', { error });
+    sendError(res, error instanceof Error ? error.message : 'Failed to get domain');
+  }
+}));
+
 router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const {
     account_id,

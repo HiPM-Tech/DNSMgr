@@ -122,6 +122,9 @@ export interface DnsRecord {
     proxied?: boolean;
     proxiable?: boolean;
   } | null;
+  aliyunesa?: {
+    proxied?: boolean;
+  } | null;
   ttl?: number;
   mx?: number;
   weight?: number;
