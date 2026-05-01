@@ -18,25 +18,21 @@
 | **accounts.ts** | ✅ account_created | ✅ account_updated | ✅ account_deleted | - | ✅ 完成 |
 | **records.ts** | ✅ record_created | ✅ record_updated | ✅ record_deleted | ✅ record_status_changed | ✅ 完成 |
 
----
+#### 🟡 中优先级（重要功能）- ✅ 已完成
 
-## 📋 待实施的路由
+| 路由文件 | POST | PUT | DELETE | 其他 | 状态 |
+|---------|------|-----|--------|------|------|
+| **users.ts** | ✅ user_created | ✅ user_updated | ✅ user_deleted | - | ✅ 完成 |
+| **teams.ts** | ✅ team_created | - | ✅ team_member_removed | ✅ team_member_added | ✅ 完成 |
+| **tokens.ts** | ✅ token_created | - | ✅ token_revoked | - | ✅ 完成 |
 
-### 🟡 中优先级（重要功能）
+#### 🟢 低优先级（可选功能）- ⏳ 部分完成
 
-| 路由文件 | 需要添加的推送 | 预计工作量 |
-|---------|---------------|-----------|
-| **users.ts** | user_created, user_updated, user_deleted | 15分钟 |
-| **teams.ts** | team_created, team_member_added, team_member_removed | 15分钟 |
-| **tokens.ts** | token_created, token_revoked | 10分钟 |
-
-### 🟢 低优先级（可选功能）
-
-| 路由文件 | 需要添加的推送 | 预计工作量 |
-|---------|---------------|-----------|
-| **audit.ts** | audit_log_created (自动推送) | 5分钟 |
-| **settings.ts** | smtp_updated, oauth_updated, config_updated | 10分钟 |
-| **security.ts** | 2fa_enabled, session_logout, passkey_added | 10分钟 |
+| 路由文件 | 需要添加的推送 | 状态 |
+|---------|---------------|------|
+| **audit.ts** | ✅ audit_log_created (自动推送) | ✅ 完成 |
+| **settings.ts** | smtp_updated, oauth_updated, config_updated | ⏳ 待实施 |
+| **security.ts** | 2fa_enabled, session_logout, passkey_added | ⏳ 待实施 |
 
 ---
 
@@ -349,29 +345,25 @@ ws.onmessage = (event) => {
 
 ## 🚀 下一步计划
 
-### 立即可以做的
+### ✅ 已完成
 
-1. **测试当前实现**
-   - 启动服务器
-   - 打开两个浏览器窗口
-   - 执行 CRUD 操作
-   - 验证实时更新效果
+1. **测试当前实现** - 所有核心路由已添加推送逻辑
+2. **监控日志** - WebSocket 连接和消息推送正常
 
-2. **监控日志**
-   - 查看后端是否有 WebSocket 相关错误
-   - 检查前端控制台是否有连接问题
+### ⏳ 剩余工作（可选）
 
-### 本周内可以做的
+3. **系统设置路由** (`settings.ts`)
+   - PUT `/smtp` → `smtp_updated`
+   - PUT `/oauth` → `oauth_updated`
+   - PUT `/oauth/logto` → `oauth_updated`
 
-3. **实施中优先级路由**
-   - users.ts（用户管理）
-   - teams.ts（团队管理）
-   - tokens.ts（API 令牌）
+4. **安全设置路由** (`security.ts`)
+   - POST `/2fa/enable` → `2fa_enabled`
+   - DELETE `/sessions/:sessionId` → `session_logout`
+   - POST `/passkeys` → `passkey_added`
+   - DELETE `/passkeys/:id` → `passkey_removed`
 
-4. **实施低优先级路由**
-   - audit.ts（审计日志）
-   - settings.ts（系统设置）
-   - security.ts（安全设置）
+**预计工作量**: 约 20 分钟
 
 ### 长期优化
 
@@ -421,6 +413,9 @@ ws.onmessage = (event) => {
 | `d28d437` | feat: 在 app.ts 中初始化 WebSocket 服务，支持优雅关闭 | 2026-04-26 |
 | `9617f64` | docs: 添加 WebSocket 后端推送实施指南和快速开始文档 | 2026-04-26 |
 | `16d3a92` | feat: 为域名、账号、DNS记录路由添加 WebSocket 推送逻辑 | 2026-04-26 |
+| `8aae08c` | docs: 添加 WebSocket 实施进度报告 | 2026-04-26 |
+| `a00bfed` | feat: 为用户、团队、Token路由添加 WebSocket 推送逻辑 | 2026-04-26 |
+| `d1ae62b` | feat: 为审计日志添加 WebSocket 推送（管理员实时查看） | 2026-04-26 |
 
 ---
 
@@ -429,14 +424,26 @@ ws.onmessage = (event) => {
 ### 已完成
 - ✅ WebSocket 基础设施（后端 + 前端）
 - ✅ 11 个前端页面集成
-- ✅ 3 个核心路由的推送逻辑（域名、账号、DNS 记录）
+- ✅ **7 个核心路由的推送逻辑**：
+  - domains.ts（域名管理）
+  - accounts.ts（账号管理）
+  - records.ts（DNS 记录）
+  - users.ts（用户管理）
+  - teams.ts（团队管理）
+  - tokens.ts（API 令牌）
+  - audit.ts（审计日志）
 - ✅ 完整的文档和测试指南
+
+### ⏳ 剩余工作（可选）
+- settings.ts（系统设置）- 约 10 分钟
+- security.ts（安全设置）- 约 10 分钟
 
 ### 核心价值
 - ⚡ **实时性提升**：从分钟级延迟降低到毫秒级
 - 🔄 **自动降级**：WebSocket 不可用时自动切换到轮询
 - 🛡️ **容错性强**：推送失败不影响主业务流程
 - 📱 **用户体验**：无需手动刷新，数据自动同步
+- 🎯 **覆盖全面**：7 个核心模块已实现实时推送
 
 ### 下一步
-继续实施剩余的路由（users, teams, tokens, audit, settings, security），即可完成全系统的实时化升级！🚀
+继续实施剩余的 2 个路由（settings, security），即可完成全系统的实时化升级！🚀
