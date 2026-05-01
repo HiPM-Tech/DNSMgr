@@ -629,6 +629,11 @@ export const DnsAccountOperations = {
 // ============================================================================
 
 export const DomainOperations = {
+  /** 执行原始 SQL 查询（用于特殊场景） */
+  async queryInternal(sql: string, params?: unknown[], context?: OperationContext): Promise<QueryResult[]> {
+    return queryInternal(sql, params, context);
+  },
+
   /** 根据ID获取域名 */
   async getById(id: number): Promise<QueryResult | undefined> {
     return getInternal('SELECT * FROM domains WHERE id = ?', [id], { operation: 'Domain.getById', table: 'domains' });

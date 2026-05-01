@@ -174,13 +174,39 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 
   let domains: Domain[];
   
-  // Token 认证优化：直接使用 allowedDomains ID 列表查询，避免复杂子查询
-  if (tokenPayload && tokenAllowedDomains && tokenAllowedDomains.length > 0) {
-    // 直接根据 ID 列表查询域名，性能更好
-    domains = await DomainOperations.getByIds(tokenAllowedDomains, {
-      accountId: account_id ? parseInteger(account_id) : undefined,
-      keyword,
-    }) as unknown as Domain[];
+  // Token 认证优化：根据 allowedDomains 是否为空选择不同策略
+  if (tokenPayload) {
+    if (tokenAllowedDomains && tokenAllowedDomains.length > 0) {
+      // 有限制的 Token：直接根据 ID 列表查询，性能最优
+      domains = await DomainOperations.getByIds(tokenAllowedDomains, {
+        accountId: account_id ? parseInteger(account_id) : undefined,
+        keyword,
+      }) as unknown as Domain[];
+    } else {
+      // 允许所有域名的 Token：根据角色选择查询方式
+      if (isSuper(role)) {
+        // 超管：直接查询所有域名
+        let sql = 'SELECT * FROM domains WHERE 1=1';
+        const queryParams: unknown[] = [];
+        if (account_id) { sql += ' AND account_id = ?'; queryParams.push(parseInteger(account_id)); }
+        if (keyword) { sql += ' AND name LIKE ?'; queryParams.push(`%${keyword}%`); }
+        sql += ' ORDER BY id';
+        domains = await DomainOperations.queryInternal(sql, queryParams, { 
+          operation: 'Domain.getAllForTokenSuper', 
+          table: 'domains' 
+        }) as unknown as Domain[];
+      } else {
+        // 普通用户 Token：使用原有权限检查逻辑
+        const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
+        domains = await DomainOperations.getAccessibleDomains({
+          userId,
+          teamIds,
+          accountId: account_id ? parseInteger(account_id) : undefined,
+          keyword,
+          isSuper: false,
+        }) as unknown as Domain[];
+      }
+    }
   } else {
     // 非 Token 认证或允许所有域名的 Token，使用原有逻辑
     const teamIds = isSuper(role) ? [] : await TeamOperations.getTeamIdsByUserId(userId);
