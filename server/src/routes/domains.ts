@@ -916,9 +916,37 @@ router.post('/:id/failover', authMiddleware, requireTokenDomainPermission(), asy
   };
   if (existing) {
     await updateFailoverConfig(existing.id, configData);
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'failover_config_updated',
+        data: {
+          domainId,
+          configId: existing.id,
+        },
+      });
+    } catch (error) {
+      log.error('Domains', 'Failed to broadcast failover_config_updated event', { error });
+    }
+    
     sendSuccess(res, { id: existing.id });
   } else {
     const configId = await createFailoverConfig(domainId, configData);
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'failover_config_created',
+        data: {
+          domainId,
+          configId,
+        },
+      });
+    } catch (error) {
+      log.error('Domains', 'Failed to broadcast failover_config_created event', { error });
+    }
+    
     sendSuccess(res, { id: configId });
   }
 }));
@@ -936,6 +964,20 @@ router.put('/:id/failover', authMiddleware, requireTokenDomainPermission(), asyn
     return;
   }
   await updateFailoverConfig(existing.id, req.body);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'failover_config_updated',
+      data: {
+        domainId,
+        configId: existing.id,
+      },
+    });
+  } catch (error) {
+    log.error('Domains', 'Failed to broadcast failover_config_updated event', { error });
+  }
+  
   sendSuccess(res);
 }));
 
@@ -952,6 +994,20 @@ router.delete('/:id/failover', authMiddleware, requireTokenDomainPermission(), a
     return;
   }
   await deleteFailoverConfig(existing.id);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'failover_config_deleted',
+      data: {
+        domainId,
+        configId: existing.id,
+      },
+    });
+  } catch (error) {
+    log.error('Domains', 'Failed to broadcast failover_config_deleted event', { error });
+  }
+  
   sendSuccess(res);
 }));
 

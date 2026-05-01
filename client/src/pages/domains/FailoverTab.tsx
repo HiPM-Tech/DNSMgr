@@ -8,11 +8,20 @@ import { Modal } from '../../components/Modal';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 
 function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const { t } = useI18n();
+  
+  // 实时数据：故障转移配置变更
+  useRealtimeData({
+    queryKey: ['failover', domain.id],
+    websocketEventTypes: ['failover_config_created', 'failover_config_updated', 'failover_config_deleted'],
+    pollingInterval: 60000, // 1分钟
+  });
+  
   const { data, isLoading } = useQuery({
     queryKey: ['failover', domain.id],
     queryFn: () => domainsApi.getFailover(domain.id).then(r => r.data.data),

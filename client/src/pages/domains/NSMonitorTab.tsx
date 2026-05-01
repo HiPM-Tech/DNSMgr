@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 
 interface NSMonitorConfig {
   id: number;
@@ -43,6 +44,13 @@ export function NSMonitorTab() {
   const [domainPage, setDomainPage] = useState(1);
   const [domainPageSize] = useState(20);
   const [domainSearchKeyword, setDomainSearchKeyword] = useState('');
+
+  // 实时数据：NS 监测配置变更
+  useRealtimeData({
+    queryKey: ['ns-monitor'],
+    websocketEventTypes: ['ns_monitor_created', 'ns_monitor_updated', 'ns_monitor_deleted'],
+    pollingInterval: 60000, // 1分钟
+  });
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],

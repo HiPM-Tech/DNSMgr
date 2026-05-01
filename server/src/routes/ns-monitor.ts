@@ -11,6 +11,7 @@ import { log } from '../lib/logger';
 import { normalizeRole, isSuper, isAdmin } from '../utils/roles';
 import { resolveNsRecords, NSLookupResult, validateNsRecords } from '../lib/dns/ns-lookup';
 import { getDomainAccess } from './domains';
+import { wsService } from '../service/websocket';
 
 const router = Router();
 
@@ -286,6 +287,20 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
 
   log.info('NSMonitor', 'Monitor created', { domainId: domain_id, userId, monitorId: id });
 
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'ns_monitor_created',
+      data: {
+        monitorId: id,
+        domainId: domain_id,
+        userId,
+      },
+    });
+  } catch (error) {
+    log.error('NSMonitor', 'Failed to broadcast ns_monitor_created event', { error });
+  }
+
   res.json({
     success: true,
     data: { id },
@@ -325,6 +340,20 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   await NSMonitorOperations.update(parseInt(id), userId, updates);
 
   log.info('NSMonitor', 'Monitor updated', { monitorId: id, userId, updates });
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'ns_monitor_updated',
+      data: {
+        monitorId: parseInt(id),
+        userId,
+      },
+    });
+  } catch (error) {
+    log.error('NSMonitor', 'Failed to broadcast ns_monitor_updated event', { error });
+  }
+  
   res.json({ success: true });
 }));
 
@@ -350,6 +379,20 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
   await NSMonitorOperations.delete(parseInt(id), userId);
 
   log.info('NSMonitor', 'Monitor deleted', { monitorId: id, userId });
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'ns_monitor_deleted',
+      data: {
+        monitorId: parseInt(id),
+        userId,
+      },
+    });
+  } catch (error) {
+    log.error('NSMonitor', 'Failed to broadcast ns_monitor_deleted event', { error });
+  }
+  
   res.json({ success: true });
 }));
 
