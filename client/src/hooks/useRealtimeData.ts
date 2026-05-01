@@ -79,7 +79,7 @@ export function useRealtimeData(options: UseRealtimeOptions) {
         startPolling();
       };
 
-      ws.onerror = (error) => {
+      ws.onerror = () => {
         console.warn('[Realtime] WebSocket error, falling back to polling');
         hasWsConnectionRef.current = false;
       };
