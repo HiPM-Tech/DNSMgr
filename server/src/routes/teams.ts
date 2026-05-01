@@ -209,6 +209,20 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   await TeamOperations.update(teamId, updates);
   
   await logAuditOperation(userId, 'update_team', team.name, { teamId, ...updates }, req as any);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'team_updated',
+      data: {
+        teamId,
+        name: name ?? team.name,
+      },
+    });
+  } catch (error) {
+    log.error('Teams', 'Failed to broadcast team_updated event', { error });
+  }
+  
   sendSuccess(res);
 }));
 
@@ -250,6 +264,20 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
   await TeamOperations.delete(teamId);
   
   await logAuditOperation(userId, 'delete_team', team.name, { teamId }, req as any);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'team_deleted',
+      data: {
+        teamId,
+        name: team.name,
+      },
+    });
+  } catch (error) {
+    log.error('Teams', 'Failed to broadcast team_deleted event', { error });
+  }
+  
   sendSuccess(res);
 }));
 
