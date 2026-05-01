@@ -6,6 +6,7 @@ import { SettingsOperations, NotificationOperations, AuditRuleOperations, Domain
 import { getSmtpConfig, updateSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { logAuditOperation } from '../service/audit';
 import { log } from '../lib/logger';
+import { wsService } from '../service/websocket';
 
 const router = Router();
 type SecurityConfig = { jwtViewEmailNotify: boolean; showDnsProviderSecrets: boolean };
@@ -318,6 +319,20 @@ router.put('/smtp', authMiddleware, noTokenAuth('system settings'), adminOnly, a
   try {
     const next = await updateSmtpConfig(req.body || {});
     await logAuditOperation(req.user!.userId, 'update_smtp_config', 'system', { enabled: next.enabled, host: next.host, port: next.port }, req);
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'smtp_updated',
+        data: {
+          updatedBy: req.user!.userId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      log.error('Settings', 'Failed to broadcast smtp_updated event', { error });
+    }
+    
     res.json({ code: 0, data: next, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update SMTP config' });
@@ -354,6 +369,20 @@ router.put('/oauth', authMiddleware, noTokenAuth('system settings'), adminOnly, 
   try {
     const config = await updateOAuthConfig({ ...(req.body || {}), template: 'generic' });
     await logAuditOperation(req.user!.userId, 'update_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, issuer: config.issuer }, req);
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'oauth_updated',
+        data: {
+          updatedBy: req.user!.userId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      log.error('Settings', 'Failed to broadcast oauth_updated event', { error });
+    }
+    
     res.json({ code: 0, data: config, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update OAuth config' });
@@ -373,6 +402,20 @@ router.put('/oauth/logto', authMiddleware, noTokenAuth('system settings'), admin
   try {
     const config = await updateLogtoOAuthConfig(req.body || {});
     await logAuditOperation(req.user!.userId, 'update_logto_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, logtoDomain: config.logtoDomain }, req);
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'oauth_updated',
+        data: {
+          updatedBy: req.user!.userId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      log.error('Settings', 'Failed to broadcast oauth_updated event', { error });
+    }
+    
     res.json({ code: 0, data: config, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update Logto OAuth config' });

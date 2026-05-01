@@ -4,6 +4,7 @@ import { SecurityPolicyOperations, TrustedDeviceOperations, getDbType, UserOpera
 import { getSecurityPolicy, updateSecurityPolicy, checkPasswordStrength, validatePassword, requires2FA, has2FAEnabled } from '../service/securityPolicy';
 import { generateTOTPSecret, enableTOTP, disableTOTP, getTOTPStatus, verifyTOTPToken } from '../service/totp';
 import { log } from '../lib/logger';
+import { wsService } from '../service/websocket';
 
 const router = Router();
 
@@ -122,6 +123,20 @@ router.post('/2fa/enable', authMiddleware, async (req, res) => {
     }
 
     await enableTOTP(userId, secret, backupCodes);
+    
+    // 推送 WebSocket 消息给当前用户
+    try {
+      wsService.sendToClient(userId, {
+        type: '2fa_enabled',
+        data: {
+          userId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      log.error('Security', 'Failed to send 2fa_enabled event', { error });
+    }
+    
     res.json({ code: 0, msg: '2FA enabled successfully' });
   } catch (error) {
     log.error('Security', 'Failed to enable 2FA:', { error });
@@ -142,6 +157,20 @@ router.post('/2fa/disable', authMiddleware, async (req, res) => {
     }
 
     await disableTOTP(userId);
+    
+    // 推送 WebSocket 消息给当前用户
+    try {
+      wsService.sendToClient(userId, {
+        type: '2fa_disabled',
+        data: {
+          userId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      log.error('Security', 'Failed to send 2fa_disabled event', { error });
+    }
+    
     res.json({ code: 0, msg: '2FA disabled successfully' });
   } catch (error) {
     log.error('Security', 'Failed to disable 2FA:', { error });
@@ -169,6 +198,20 @@ router.delete('/trusted-devices/:deviceId', authMiddleware, async (req, res) => 
     const changes = await TrustedDeviceOperations.deleteByUserAndId(userId, deviceId);
 
     if (changes > 0) {
+      // 推送 WebSocket 消息给当前用户
+      try {
+        wsService.sendToClient(userId, {
+          type: 'trusted_device_removed',
+          data: {
+            userId,
+            deviceId,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        log.error('Security', 'Failed to send trusted_device_removed event', { error });
+      }
+      
       res.json({ code: 0, msg: 'Device removed' });
     } else {
       res.status(404).json({ code: 1, msg: 'Device not found' });
