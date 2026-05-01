@@ -2,6 +2,7 @@
   "name": "dnsmgr-client",
   "private": true,
   "version": "1.4.0",
+  "license": "DPFL",
   "type": "module",
   "scripts": {
     "dev": "vite",

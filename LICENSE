@@ -1,0 +1,86 @@
+# DNSMgr Public Free License (DPFL)
+
+Version 1.0, January 2026
+
+## Preamble
+
+The DNSMgr Public Free License (DPFL) is designed to ensure that DNSMgr remains free and open for all users while protecting the integrity of the project and its community. This license grants broad permissions while maintaining certain restrictions to protect users and contributors.
+
+## Terms and Conditions
+
+### 1. Definitions
+
+- **"Software"** refers to DNSMgr and all its components, including but not limited to source code, documentation, configuration files, and associated assets.
+- **"You"** refers to any individual or entity exercising rights under this license.
+- **"Contribution"** refers to any work submitted to the Software, including bug fixes, features, documentation, or other modifications.
+- **"Derivative Works"** refers to works based on the Software, including modified versions, forks, or integrations.
+
+### 2. Grant of Rights
+
+Subject to the terms and conditions of this license, you are hereby granted a perpetual, worldwide, non-exclusive, royalty-free license to:
+
+a) **Use**: Use the Software for any purpose, including commercial purposes.
+
+b) **Modify**: Modify the Software to suit your needs.
+
+c) **Distribute**: Distribute copies of the original or modified Software.
+
+d) **Sublicense**: Sublicense the Software under the same terms as this license.
+
+### 3. Conditions
+
+When distributing the Software or Derivative Works, you must:
+
+a) **Include License**: Include a copy of this license with all distributions.
+
+b) **Preserve Notices**: Preserve all copyright, patent, trademark, and attribution notices from the original Software.
+
+c) **State Changes**: Clearly document any significant changes made to the Software.
+
+d) **Attribution**: Provide reasonable attribution to the original authors (HiPM Tech, PIMENG, HINSWU, and contributors).
+
+### 4. Restrictions
+
+You may NOT:
+
+a) **Remove Attribution**: Remove or alter any copyright notices, trademarks, or attributions.
+
+b) **Hold Liable**: Hold the authors or copyright holders liable for any damages arising from the use of the Software.
+
+c) **Misrepresent Origin**: Misrepresent the origin of the Software or claim endorsement by the original authors without explicit permission.
+
+d) **Use Trademarks**: Use the names "DNSMgr", "HiPM", or related trademarks to endorse or promote derived products without prior written permission.
+
+### 5. Contributions
+
+All contributions to the Software are subject to the following terms:
+
+a) **License Grant**: By submitting a contribution, you grant the project maintainers a perpetual, irrevocable license to use, modify, and distribute your contribution under this license.
+
+b) **Original Work**: You warrant that your contribution is your original work or that you have the right to submit it under this license.
+
+c) **No Warranty**: Contributions are provided "AS IS" without warranty of any kind.
+
+### 6. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+### 7. Termination
+
+Your rights under this license will terminate automatically if you fail to comply with any of its terms. Upon termination, you must cease all use and distribution of the Software.
+
+### 8. Governing Law
+
+This license shall be governed by and construed in accordance with the laws of the jurisdiction in which the primary maintainer resides, without regard to its conflict of law provisions.
+
+## Acceptance
+
+By using, modifying, or distributing the Software, you acknowledge that you have read, understood, and agree to be bound by the terms of this license.
+
+---
+
+**Copyright © 2026 HiPM Tech, PIMENG, HINSWU, and Contributors**
+
+For questions regarding this license, please contact: https://github.com/HiPM-Tech/DNSMgr
+
+Join our community: https://t.me/hipmdnsmgr
