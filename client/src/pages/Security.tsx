@@ -32,7 +32,7 @@ export function Security() {
   // 实时数据：会话和安全设置变更
   useRealtimeData({
     queryKey: ['user-security'],
-    websocketEventTypes: ['session_logout', '2fa_enabled', '2fa_disabled', 'passkey_added', 'passkey_removed'],
+    websocketEventTypes: ['2fa_enabled', '2fa_disabled', 'trusted_device_removed'],
     pollingInterval: 120000, // 2分钟
   });
 

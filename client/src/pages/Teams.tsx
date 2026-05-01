@@ -38,7 +38,7 @@ export function Teams() {
   // 实时数据：团队变更
   useRealtimeData({
     queryKey: ['teams'],
-    websocketEventTypes: ['team_created', 'team_updated', 'team_deleted', 'team_member_added', 'team_member_removed'],
+    websocketEventTypes: ['team_created', 'team_member_added', 'team_member_removed'],
     pollingInterval: 120000, // 2分钟
   });
 

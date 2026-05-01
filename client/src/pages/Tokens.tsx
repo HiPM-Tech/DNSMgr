@@ -32,10 +32,10 @@ export function Tokens() {
   const domainPageSize = 20;
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; tokenId: number | null }>({ show: false, tokenId: null });
 
-  // 实时数据：Token变更
+  // 实时数据：Token 变更
   useRealtimeData({
     queryKey: ['tokens'],
-    websocketEventTypes: ['token_created', 'token_revoked', 'token_updated'],
+    websocketEventTypes: ['token_created', 'token_revoked'],
     pollingInterval: 120000, // 2分钟
   });
 
