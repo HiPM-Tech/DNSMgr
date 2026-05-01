@@ -211,6 +211,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       // Cloudflare & Aliyun ESA: send line for proxy mode
       line: lineValue,
       cloudflare: (isCloudflare && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
+      aliyunesa: (isAliyunESA && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
       remark: form.remark?.toString() ?? '',
     };
 

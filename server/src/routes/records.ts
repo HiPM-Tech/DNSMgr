@@ -194,10 +194,11 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
     sendError(res, 'Permission denied');
     return;
   }
-  const { name, type, value, line, ttl, mx, weight, remark, cloudflare } = req.body as {
+  const { name, type, value, line, ttl, mx, weight, remark, cloudflare, aliyunesa } = req.body as {
     name: string; type: string; value: string; line?: string;
     ttl?: number; mx?: number; weight?: number; remark?: string;
     cloudflare?: { proxied?: boolean };
+    aliyunesa?: { proxied?: boolean };
   };
   if (!name || !type || !value) {
     sendError(res, 'name, type, and value are required');
@@ -213,11 +214,13 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
-    // 对于 Cloudflare，使用 cloudflare.proxied 决定 line 值
+    // 对于 Cloudflare/ESA，使用 cloudflare.proxied 或 aliyunesa.proxied 决定 line 值
     // 默认使用 '0' (仅DNS)，避免意外开启代理
     const effectiveLine = cloudflare?.proxied !== undefined
       ? (cloudflare.proxied ? '1' : '0')
-      : (line ?? '0');
+      : aliyunesa?.proxied !== undefined
+        ? (aliyunesa.proxied ? '1' : '0')
+        : (line ?? '0');
     const recordId = await dnsAdapter.addDomainRecord(name, type, value, effectiveLine, ttl, mx, weight, remark);
     if (!recordId) {
       sendError(res, 'Failed to add record');
@@ -316,10 +319,11 @@ router.put('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'
     sendError(res, 'Permission denied');
     return;
   }
-  const { name, type, value, line, ttl, mx, weight, remark, status, cloudflare } = req.body as {
+  const { name, type, value, line, ttl, mx, weight, remark, status, cloudflare, aliyunesa } = req.body as {
     name?: string; type?: string; value?: string; line?: string;
     ttl?: number; mx?: number; weight?: number; remark?: string; status?: number;
     cloudflare?: { proxied?: boolean };
+    aliyunesa?: { proxied?: boolean };
   };
   if (!name || !type || !value) {
     sendError(res, 'name, type, and value are required');
@@ -335,11 +339,13 @@ router.put('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
-    // 对于 Cloudflare，使用 cloudflare.proxied 决定 line 值
+    // 对于 Cloudflare/ESA，使用 cloudflare.proxied 或 aliyunesa.proxied 决定 line 值
     // 默认使用 '0' (仅DNS)，避免意外开启代理
     const effectiveLine = cloudflare?.proxied !== undefined
       ? (cloudflare.proxied ? '1' : '0')
-      : (line ?? '0');
+      : aliyunesa?.proxied !== undefined
+        ? (aliyunesa.proxied ? '1' : '0')
+        : (line ?? '0');
     const success = await dnsAdapter.updateDomainRecord(recordId, name, type, value, effectiveLine, ttl, mx, weight, remark);
     if (!success) {
       sendError(res, 'Failed to update record');
