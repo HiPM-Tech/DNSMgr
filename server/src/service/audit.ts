@@ -2,6 +2,7 @@ import { AuditLogOperations, UserOperations } from '../db/business-adapter';
 import { checkAuditRules } from './auditRules';
 import { log } from '../lib/logger';
 import { Request } from 'express';
+import { wsService } from './websocket';
 
 /**
  * 记录审计操作
@@ -68,4 +69,18 @@ export async function logAuditOperation(
   checkAuditRules(actualUserId, action, domain, auditData).catch(err => {
     log.error('Audit', 'Audit rule engine error', { error: err });
   });
+  
+  // 推送 WebSocket 消息给管理员（异步，不阻塞）
+  try {
+    wsService.broadcastToRole('3', {
+      type: 'audit_log_created',
+      data: {
+        action,
+        domain,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    log.warn('Audit', 'Failed to broadcast audit_log_created event', { error: err });
+  }
 }
