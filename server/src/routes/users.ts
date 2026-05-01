@@ -7,6 +7,8 @@ import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, normalizeRole } from '../utils/roles
 import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { isValidUsername } from '../utils/validation';
 import { UserOperations } from '../db/business-adapter';
+import { wsService } from '../service/websocket';
+import { log } from '../lib/logger';
 
 const router = Router();
 
@@ -92,6 +94,21 @@ router.post('/', authMiddleware, noTokenAuth('user management'), adminOnly, asyn
       role: roleText,
       role_level: roleLevel,
     });
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'user_created',
+        data: {
+          userId: id,
+          username: normalizedUsername,
+          role: roleText,
+        },
+      });
+    } catch (error) {
+      log.error('Users', 'Failed to broadcast user_created event', { error });
+    }
+    
     sendSuccess(res, { id });
   } catch {
     sendError(res, 'Username already exists');
@@ -191,6 +208,20 @@ router.put('/:id', authMiddleware, noTokenAuth('user management'), adminOnly, as
   if (password) { updates.password_hash = bcrypt.hashSync(password, 10); }
   
   await UserOperations.update(id, updates);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'user_updated',
+      data: {
+        userId: id,
+        username: user.username,
+      },
+    });
+  } catch (error) {
+    log.error('Users', 'Failed to broadcast user_updated event', { error });
+  }
+  
   sendSuccess(res);
 }));
 
@@ -218,7 +249,7 @@ router.delete('/:id', authMiddleware, noTokenAuth('user management'), adminOnly,
     sendError(res, 'Cannot delete yourself');
     return;
   }
-  const target = await UserOperations.getById(id) as { id: number; role: number } | undefined;
+  const target = await UserOperations.getById(id) as User | undefined;
   if (!target) {
     sendError(res, 'User not found');
     return;
@@ -239,6 +270,20 @@ router.delete('/:id', authMiddleware, noTokenAuth('user management'), adminOnly,
   }
   
   await UserOperations.delete(id);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'user_deleted',
+      data: {
+        userId: id,
+        username: target.username,
+      },
+    });
+  } catch (error) {
+    log.error('Users', 'Failed to broadcast user_deleted event', { error });
+  }
+  
   sendSuccess(res);
 }));
 

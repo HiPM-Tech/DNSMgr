@@ -3,6 +3,8 @@ import { authMiddleware, noTokenAuth } from '../middleware/auth';
 import { createUserToken, getUserTokens, deleteUserToken, toggleTokenStatus, updateTokenPermissions } from '../service/token';
 import { DomainOperations } from '../db/business-adapter';
 import { normalizeRole } from '../utils/roles';
+import { wsService } from '../service/websocket';
+import { log } from '../lib/logger';
 
 const router = Router();
 
@@ -154,6 +156,19 @@ router.post('/', authMiddleware, noTokenAuth('token management'), async (req: Re
       },
       msg: 'Token created successfully',
     });
+    
+    // 推送 WebSocket 消息给当前用户
+    try {
+      wsService.sendToClient(req.user!.userId, {
+        type: 'token_created',
+        data: {
+          tokenId: result.tokenData.id,
+          name,
+        },
+      });
+    } catch (error) {
+      log.error('Tokens', 'Failed to send token_created event', { error });
+    }
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to create token' });
   }
@@ -192,6 +207,18 @@ router.delete('/:id', authMiddleware, noTokenAuth('token management'), async (re
   try {
     await deleteUserToken(tokenId, req.user!.userId);
     res.json({ code: 0, msg: 'Token deleted successfully' });
+    
+    // 推送 WebSocket 消息给当前用户
+    try {
+      wsService.sendToClient(req.user!.userId, {
+        type: 'token_revoked',
+        data: {
+          tokenId,
+        },
+      });
+    } catch (error) {
+      log.error('Tokens', 'Failed to send token_revoked event', { error });
+    }
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to delete token' });
   }

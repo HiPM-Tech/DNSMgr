@@ -7,6 +7,7 @@ import { logAuditOperation } from '../service/audit';
 import { sendError, sendSuccess } from '../utils/http';
 import { log } from '../lib/logger';
 import { TeamOperations, DomainPermissionOperations, UserOperations } from '../db/business-adapter';
+import { wsService } from '../service/websocket';
 
 const router = Router();
 
@@ -95,6 +96,20 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   await TeamOperations.addMember(id, userId, 'admin');
   
   await logAuditOperation(userId, 'create_team', name.trim(), { teamId: id }, req as any);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'team_created',
+      data: {
+        teamId: id,
+        name: name.trim(),
+      },
+    });
+  } catch (error) {
+    log.error('Teams', 'Failed to broadcast team_created event', { error });
+  }
+  
   sendSuccess(res, { id }, 'Team created successfully');
 }));
 
@@ -351,6 +366,21 @@ router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, re
   await TeamOperations.addMember(teamId, targetUserId, memberRole || 'member');
   
   await logAuditOperation(userId, 'add_team_member', team.name, { teamId, targetUserId, role: memberRole }, req as any);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'team_member_added',
+      data: {
+        teamId,
+        userId: targetUserId,
+        role: memberRole || 'member',
+      },
+    });
+  } catch (error) {
+    log.error('Teams', 'Failed to broadcast team_member_added event', { error });
+  }
+  
   sendSuccess(res);
 }));
 
@@ -471,6 +501,20 @@ router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: R
   await TeamOperations.removeMember(teamId, targetUserId);
   
   await logAuditOperation(userId, 'remove_team_member', team.name, { teamId, targetUserId }, req as any);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'team_member_removed',
+      data: {
+        teamId,
+        userId: targetUserId,
+      },
+    });
+  } catch (error) {
+    log.error('Teams', 'Failed to broadcast team_member_removed event', { error });
+  }
+  
   sendSuccess(res);
 }));
 
