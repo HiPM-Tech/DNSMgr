@@ -2,7 +2,7 @@
   "name": "dnsmgr-server",
   "version": "1.4.0",
   "description": "DNS aggregation management platform backend",
-  "license": "DPFL",
+  "license": "GPL-3.0",
   "main": "dist/app.js",
   "bin": "dist/app.js",
   "pkg": {

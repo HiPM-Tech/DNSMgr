@@ -31,7 +31,7 @@ export function About() {
   // Repository and community links
   const repoUrl = 'https://github.com/HiPM-Tech/DNSMgr';
   const telegramGroup = 'https://t.me/hipmdnsmgr';
-  const license = 'DPFL';
+  const license = 'GPL-3.0';
 
   // Contributors list (randomly displayed)
   const contributors = [

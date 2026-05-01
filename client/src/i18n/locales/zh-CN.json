@@ -18,7 +18,7 @@
       },
       "driverVersion": "驱动版本",
       "language": "当前语言",
-      "license": "开源协议",
+      "license": "开源协议 (GPL-3.0)",
       "repoSubtitle": "查看源代码和提交贡献",
       "repository": "代码仓库",
       "subtitle": "系统信息和版本",
