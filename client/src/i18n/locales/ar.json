@@ -868,6 +868,7 @@
         "update_preferences": "تحديث التفضيلات",
         "bind_oauth_account": "ربط حساب OAuth",
         "oauth_login": "تسجيل دخول OAuth",
+        "renew_domain": "تجديد النطاق",
         "unbind_oauth_account": "إلغاء ربط حساب OAuth",
         "update_profile_email": "تحديث بريد الملف الشخصي",
         "send_email_verification_code": "إرسال رمز التحقق من البريد الإلكتروني",

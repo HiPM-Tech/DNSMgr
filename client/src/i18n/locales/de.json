@@ -868,6 +868,7 @@
         "update_preferences": "Präferenzen aktualisieren",
         "bind_oauth_account": "OAuth-Konto verbinden",
         "oauth_login": "OAuth-Anmeldung",
+        "renew_domain": "Domain erneuern",
         "unbind_oauth_account": "OAuth-Konto trennen",
         "update_profile_email": "Profil-E-Mail aktualisieren",
         "send_email_verification_code": "E-Mail-Bestätigungscode senden",

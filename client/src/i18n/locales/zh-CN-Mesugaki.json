@@ -67,6 +67,7 @@
         "logout_other_sessions": "注销其他会话",
         "logout_session": "注销会话",
         "oauth_login": "OAuth 登录",
+        "renew_domain": "续期域名喵~",
         "reset_password_by_email": "通过邮箱重置密码",
         "send_email_verification_code": "发送邮箱验证码",
         "send_password_reset_code": "发送密码重置验证码",

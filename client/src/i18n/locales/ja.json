@@ -809,6 +809,7 @@
         "update_preferences": "設定を更新",
         "bind_oauth_account": "OAuth アカウントをバインド",
         "oauth_login": "OAuth ログイン",
+        "renew_domain": "ドメインを更新",
         "unbind_oauth_account": "OAuth アカウントのバインドを解除",
         "update_profile_email": "プロファイルのメールを更新",
         "send_email_verification_code": "メール確認コードを送信",

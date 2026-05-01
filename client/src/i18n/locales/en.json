@@ -873,6 +873,7 @@
         "update_preferences": "Update Preferences",
         "bind_oauth_account": "Bind OAuth Account",
         "oauth_login": "OAuth Login",
+        "renew_domain": "Renew Domain",
         "unbind_oauth_account": "Unbind OAuth Account",
         "update_profile_email": "Update Profile Email",
         "send_email_verification_code": "Send Email Verification Code",

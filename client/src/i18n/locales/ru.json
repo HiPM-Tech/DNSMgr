@@ -868,6 +868,7 @@
         "update_preferences": "Обновить предпочтения",
         "bind_oauth_account": "Привязать OAuth-аккаунт",
         "oauth_login": "OAuth вход",
+        "renew_domain": "Продлить домен",
         "unbind_oauth_account": "Отвязать OAuth-аккаунт",
         "update_profile_email": "Обновить email профиля",
         "send_email_verification_code": "Отправить код подтверждения email",
