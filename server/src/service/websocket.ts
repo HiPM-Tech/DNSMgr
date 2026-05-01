@@ -48,7 +48,8 @@ class WSService {
    * 处理 WebSocket 连接
    */
   private async handleConnection(ws: WebSocket, req: IncomingMessage): Promise<void> {
-    const clientIp = req.socket.remoteAddress || 'unknown';
+    // 使用 getClientIP 获取真实客户端 IP（支持反向代理）
+    const clientIp = getClientIP(req as any);
     log.info('WSService', 'New WebSocket connection attempt', { ip: clientIp });
     
     try {
