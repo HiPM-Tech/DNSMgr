@@ -301,9 +301,15 @@ export class DnspodAdapter extends TencentCloudAdapter {
       };
 
       walk(asArray<Dict>(data.LineList));
-      if (lines.length > 0) return lines;
-    } catch {
-      // Fallback below.
+      if (lines.length > 0) {
+        log.info('Dnspod', 'getRecordLines success (category)', { domain: this.domain, count: lines.length });
+        return lines;
+      }
+    } catch (e) {
+      log.warn('Dnspod', 'getRecordLines category failed', { 
+        domain: this.domain, 
+        error: e instanceof Error ? e.message : String(e) 
+      });
     }
 
     try {
@@ -317,10 +323,19 @@ export class DnspodAdapter extends TencentCloudAdapter {
         name: safeString(item.Name),
       }));
       const merged = [...lines, ...groups].filter((x) => x.id && x.name);
-      return merged.length > 0 ? merged : [{ id: '0', name: '默认' }];
-    } catch {
-      return [{ id: '0', name: '默认' }];
+      if (merged.length > 0) {
+        log.info('Dnspod', 'getRecordLines success (list)', { domain: this.domain, count: merged.length });
+        return merged;
+      }
+    } catch (e) {
+      log.warn('Dnspod', 'getRecordLines list failed', { 
+        domain: this.domain, 
+        error: e instanceof Error ? e.message : String(e) 
+      });
     }
+
+    log.warn('Dnspod', 'getRecordLines fallback to default', { domain: this.domain });
+    return [{ id: '0', name: '默认' }];
   }
 
   async getMinTTL(): Promise<number> {
