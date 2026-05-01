@@ -173,7 +173,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
 
 /**
  * 尝试从 DNS 提供商 API 获取域名到期时间
- * 目前只有 VPS8 支持此功能
+ * 支持：VPS8, DNSHE
  * 注意：彩虹聚合DNS和DnsMgr的API返回的到期时间不准确，不使用
  */
 async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
@@ -202,12 +202,26 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
       return null;
     }
 
-    // 创建 DNS 适配器
+    // DNSHE 特殊处理：直接使用数据库中已存储的 expires_at
+    // DNSHE adapter 在 getDomainList 时已经同步了 expires_at 到数据库
+    if (account.type === 'dnshe') {
+      const domainWithExpiry = await WhoisOperations.getDomainById(domain.id) as any;
+      if (domainWithExpiry?.expires_at) {
+        const expiryDate = new Date(domainWithExpiry.expires_at);
+        if (!isNaN(expiryDate.getTime())) {
+          log.info('WhoisJob', `Using cached DNSHE expiry for ${domainName}: ${expiryDate.toISOString()}`);
+          return expiryDate;
+        }
+      }
+      log.debug('WhoisJob', `No cached expiry found for DNSHE domain ${domainName}`);
+      return null;
+    }
+
+    // 其他提供商：通过 adapter.getDomainList() 获取
     const config = JSON.parse(account.config);
     const adapter = createAdapter(account.type, config, domainName);
     
     // 检查适配器是否支持获取域名列表（包含到期时间）
-    // 目前只有 VPS8 实现了 ExpiresAt 字段
     const domainList = await adapter.getDomainList();
     const domainInfo = domainList.list.find((d: any) => d.Domain.toLowerCase() === domainName.toLowerCase());
     
