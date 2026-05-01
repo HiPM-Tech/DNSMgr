@@ -13,6 +13,7 @@ import { log } from '../lib/logger';
 import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations } from '../db/business-adapter';
 import { syncDomainWhois } from '../service/whoisJob';
 import { getRootDomain } from '../service/whoisProvider';
+import { wsService } from '../service/websocket';
 
 const router = Router();
 
@@ -434,6 +435,21 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   for (const domainName of addedDomains) {
     await logAuditOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id }, req);
   }
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'domain_created',
+      data: {
+        domainId: firstId,
+        name: addedDomains.length === 1 ? addedDomains[0] : `${addedDomains.length} domains`,
+        count: added,
+      },
+    });
+  } catch (error) {
+    log.error('Domains', 'Failed to broadcast domain_created event', { error });
+  }
+  
   sendSuccess(res, { id: firstId, added, skipped: duplicates.length, duplicates },
     added > 1 ? `Added ${added} domains${duplicateMsg}` : `Domain added successfully${duplicateMsg}`);
 }));
@@ -754,6 +770,20 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
   const { remark, is_hidden } = req.body as { remark?: string; is_hidden?: number };
   await DomainOperations.updateRemarkAndHidden(id, remark, is_hidden);
   await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden }, req);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'domain_updated',
+      data: {
+        domainId: id,
+        name: access.domain.name,
+      },
+    });
+  } catch (error) {
+    log.error('Domains', 'Failed to broadcast domain_updated event', { error });
+  }
+  
   sendSuccess(res);
 }));
 
@@ -788,6 +818,20 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
   }
   await DomainOperations.delete(id);
   await logAuditOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id }, req);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'domain_deleted',
+      data: {
+        domainId: id,
+        name: access.domain.name,
+      },
+    });
+  } catch (error) {
+    log.error('Domains', 'Failed to broadcast domain_deleted event', { error });
+  }
+  
   sendSuccess(res);
 }));
 

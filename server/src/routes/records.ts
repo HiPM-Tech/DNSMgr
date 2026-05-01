@@ -10,6 +10,7 @@ import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
+import { wsService } from '../service/websocket';
 
 const router = Router({ mergeParams: true });
 
@@ -227,6 +228,22 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
       return;
     }
     await logAuditOperation(req.user!.userId, 'add_record', access.domain.name, { name, type, value }, req);
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'record_created',
+        data: {
+          recordId,
+          domainId,
+          host: name,
+          type,
+        },
+      });
+    } catch (error) {
+      log.error('Records', 'Failed to broadcast record_created event', { error });
+    }
+    
     sendSuccess(res, { id: recordId });
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -352,6 +369,20 @@ router.put('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'
       return;
     }
     await logAuditOperation(req.user!.userId, 'update_record', access.domain.name, { recordId, name, type, value }, req);
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'record_updated',
+        data: {
+          recordId,
+          domainId,
+        },
+      });
+    } catch (error) {
+      log.error('Records', 'Failed to broadcast record_updated event', { error });
+    }
+    
     sendSuccess(res);
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -400,6 +431,20 @@ router.delete('/:recordId', authMiddleware, requireTokenDomainPermission('domain
       return;
     }
     await logAuditOperation(req.user!.userId, 'delete_record', access.domain.name, { recordId }, req);
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'record_deleted',
+        data: {
+          recordId,
+          domainId,
+        },
+      });
+    } catch (error) {
+      log.error('Records', 'Failed to broadcast record_deleted event', { error });
+    }
+    
     sendSuccess(res);
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -440,6 +485,21 @@ router.put('/:recordId/status', authMiddleware, requireTokenDomainPermission('do
       return;
     }
     await logAuditOperation(req.user!.userId, status === 1 ? 'enable_record' : 'disable_record', access.domain.name, { recordId });
+    
+    // 推送 WebSocket 消息
+    try {
+      wsService.broadcast({
+        type: 'record_status_changed',
+        data: {
+          recordId,
+          domainId,
+          status,
+        },
+      });
+    } catch (error) {
+      log.error('Records', 'Failed to broadcast record_status_changed event', { error });
+    }
+    
     sendSuccess(res);
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));

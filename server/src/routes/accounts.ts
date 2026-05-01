@@ -7,6 +7,8 @@ import { DnsAccount } from '../types';
 import { normalizeProviderType } from '../lib/dns/providerAlias';
 import { isAdmin, isSuper, normalizeRole, ROLE_ADMIN } from '../utils/roles';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
+import { wsService } from '../service/websocket';
+import { log } from '../lib/logger';
 
 const router = Router();
 
@@ -173,6 +175,21 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     created_by: req.user!.userId,
     team_id: team_id ?? null
   });
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'account_created',
+      data: {
+        accountId: id,
+        name,
+        type: normalizedType,
+      },
+    });
+  } catch (error) {
+    log.error('Accounts', 'Failed to broadcast account_created event', { error });
+  }
+  
   sendSuccess(res, { id });
 }));
 
@@ -325,6 +342,20 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   }
   
   await DnsAccountOperations.update(id, updates);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'account_updated',
+      data: {
+        accountId: id,
+        name: name ?? account.name,
+      },
+    });
+  } catch (error) {
+    log.error('Accounts', 'Failed to broadcast account_updated event', { error });
+  }
+  
   sendSuccess(res);
 }));
 
@@ -354,6 +385,20 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
     return;
   }
   await DnsAccountOperations.delete(id);
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'account_deleted',
+      data: {
+        accountId: id,
+        name: account.name,
+      },
+    });
+  } catch (error) {
+    log.error('Accounts', 'Failed to broadcast account_deleted event', { error });
+  }
+  
   sendSuccess(res);
 }));
 
