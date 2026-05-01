@@ -1,5 +1,141 @@
 # 更新日志
 
+## [1.4.1] - 2026-05-03
+
+### ✨ 新增功能
+
+#### WebSocket 实时通信系统
+- **全系统 WebSocket 支持**
+  - 实现单连接复用架构，所有组件共享一个 WS 连接
+  - 支持 38 种事件类型，覆盖所有核心功能
+  - 后端 12 个路由文件，45+ 个推送点
+  - 前端 15 个页面已集成实时数据支持
+  
+- **优雅降级机制**
+  - WebSocket 3 秒超时后自动降级到 React Query 轮询
+  - 不同页面有不同的轮询间隔（60秒 ~ 5分钟）
+  - 确保在网络不稳定时仍能正常刷新数据
+  
+- **事件推送覆盖**
+  - **域名管理**：`domain_created`/`updated`/`deleted`/`renewed`
+  - **账号管理**：`account_created`/`updated`/`deleted`
+  - **DNS 记录**：`record_created`/`updated`/`deleted`/`status_changed`
+  - **用户管理**：`user_created`/`updated`/`deleted`
+  - **团队管理**：`team_created`/`updated`/`deleted`/`member_added`/`removed`
+  - **Token 管理**：`token_created`/`revoked`/`updated`
+  - **审计日志**：`audit_log_created`（管理员实时查看）
+  - **系统设置**：`smtp_updated`/`oauth_updated`/`config_updated`/`security_config_updated`
+  - **安全设置**：`2fa_enabled`/`disabled`/`trusted_device_removed`
+  - **NS 监测**：`ns_monitor_created`/`updated`/`deleted`
+  - **故障转移**：`failover_config_created`/`updated`/`deleted`
+  - **隧道管理**：`tunnel_config_updated`/`deleted`
+
+#### 关于页面增强
+- **动态贡献者列表**
+  - 从 GitHub API 动态获取真实贡献者
+  - 显示贡献者头像、用户名和提交次数
+  - 点击可跳转到贡献者 GitHub 主页
+  - 24 小时缓存策略，减少 API 调用
+  
+- **信息完善**
+  - 添加 GitHub 仓库链接
+  - 显示开源协议（GPL-3.0）
+  - 添加 Telegram 社区群组链接
+  - 支持多语言翻译（10 种语言）
+
+### 🔧 问题修复
+
+#### 路由冲突修复
+- **Express 路由顺序问题**
+  - 修复 `/renewable-domains` 被 `/:id` 动态路由拦截的问题
+  - 将静态路由移到动态路由之前，确保优先匹配
+  - 添加路由顺序警告注释，防止未来再次出现
+  
+- **WebSocket Token 编码**
+  - 对 WebSocket token 进行 URL 编码，避免特殊字符导致连接失败
+  - 确保兼容性和安全性
+
+#### 数据库兼容性
+- **PostgreSQL 类型修复**
+  - 修复 `renewable_domains` boolean 类型比较错误（`TRUE` vs `1`）
+  - 修复 SMTP 和 RDAP 缓存 SQL 语法错误
+  - 修复 WHOIS 缓存 SQL 语法错误
+  
+- **WHOIS 缓存回退机制**
+  - 修复 try-catch 回退机制导致的 SQL 语法错误
+
+#### 性能优化
+- **域名列表查询优化**
+  - 超管 Token 域名列表查询：直接执行简单 SQL，避免权限检查
+  - Token 认证域名列表查询：使用 ID 列表直接查询，避免复杂子查询
+  - Token 认证跳过逐个权限检查，提升查询速度
+  
+- **DNSHE 域名到期时间**
+  - 优先使用数据库缓存，避免重复查询 API
+  - 通过 WHOIS 调度器获取，与续期功能保持一致
+
+### 🎨 UI/UX 改进
+
+#### 分页与排序优化
+- **置顶域名排序**
+  - 置顶域名在分页前排序，确保始终显示在第一页
+  - 用户体验提升，重要域名始终可见
+  
+- **DNSPod 线路获取**
+  - 添加详细日志以便调试
+  - 提升问题诊断效率
+
+#### 代理状态支持
+- **Cloudflare 和 Aliyun ESA**
+  - 支持代理状态管理
+  - 添加 `GET /domains/:id` 接口以支持代理状态显示
+
+###  国际化
+
+- **多语言翻译完善**
+  - 补全所有语言的关于页面翻译
+  - 添加 `renew_domain` 操作类型的多语言翻译
+  - 补全域名续期页 i18n 翻译
+  - 优化账号显示格式
+
+### 📚 文档
+
+- **WebSocket 实施文档**
+  - 添加 WebSocket 后端推送实施指南
+  - 添加 WebSocket 实时数据集成指南
+  - 添加快速开始文档
+  - 更新实施进度报告（100% 完成）
+
+- **开源协议变更**
+  - 更新开源协议为 GPL-3.0
+  - 更新 LICENSE 文件
+
+### 🧹 代码清理
+
+- **废弃代码移除**
+  - 删除已废弃的旧版 NSMonitor.tsx 页面（692 行）
+  - 保持代码库整洁
+
+- **自动续期优化**
+  - 自动续期添加数据库更新
+  - 移除审计日志（自动任务无需审计）
+
+### 🔒 安全增强
+
+- **Nginx 反向代理支持**
+  - 正确获取客户端真实 IP
+  - 优化客户端 IP 获取逻辑，自动信任内网 IP 段
+
+### 📊 统计数据
+
+- **提交数量**：50+ commits
+- **新增文件**：8 个
+- **修改文件**：35+ 个
+- **删除文件**：1 个（废弃代码）
+- **代码变更**：+3,500 / -1,200 行
+
+---
+
 ## [1.4.0] - 2026-04-30
 
 ### ✨ 新增功能
