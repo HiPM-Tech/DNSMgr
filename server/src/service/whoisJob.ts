@@ -6,6 +6,7 @@ import { taskManager } from './taskManager';
 import { log } from '../lib/logger';
 import { queryWhois, getRootDomain, WhoisResult } from './whoisProvider';
 import { createAdapter } from '../lib/dns/DnsHelper';
+import { whoisRegistry } from './whoisScheduler';
 
 /**
  * 将日期格式化为 MySQL 兼容的格式 (YYYY-MM-DD HH:mm:ss)
@@ -173,7 +174,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
 
 /**
  * 尝试从 DNS 提供商 API 获取域名到期时间
- * 支持：VPS8, DNSHE
+ * 支持：VPS8, DNSHE（通过 WHOIS 调度器）
  * 注意：彩虹聚合DNS和DnsMgr的API返回的到期时间不准确，不使用
  */
 async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
@@ -202,18 +203,26 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
       return null;
     }
 
-    // DNSHE 特殊处理：直接使用数据库中已存储的 expires_at
-    // DNSHE adapter 在 getDomainList 时已经同步了 expires_at 到数据库
+    // DNSHE 特殊处理：使用 WHOIS 调度器查询
     if (account.type === 'dnshe') {
-      const domainWithExpiry = await WhoisOperations.getDomainById(domain.id) as any;
-      if (domainWithExpiry?.expires_at) {
-        const expiryDate = new Date(domainWithExpiry.expires_at);
+      const scheduler = whoisRegistry.getScheduler('dnshe');
+      if (!scheduler) {
+        log.debug('WhoisJob', 'DNSHE WHOIS scheduler not registered');
+        return null;
+      }
+
+      const config = JSON.parse(account.config);
+      const whoisResult = await scheduler.queryWhois(config, domainName);
+      
+      if (whoisResult?.success && whoisResult.expiration_date) {
+        const expiryDate = new Date(whoisResult.expiration_date);
         if (!isNaN(expiryDate.getTime())) {
-          log.info('WhoisJob', `Using cached DNSHE expiry for ${domainName}: ${expiryDate.toISOString()}`);
+          log.info('WhoisJob', `Using DNSHE WHOIS expiry for ${domainName}: ${expiryDate.toISOString()}`);
           return expiryDate;
         }
       }
-      log.debug('WhoisJob', `No cached expiry found for DNSHE domain ${domainName}`);
+      
+      log.debug('WhoisJob', `DNSHE WHOIS query returned no expiry for ${domainName}`);
       return null;
     }
 
