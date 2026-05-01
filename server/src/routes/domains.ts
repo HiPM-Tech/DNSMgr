@@ -315,6 +315,17 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
  */
 
 /**
+ * ⚠️ IMPORTANT: Static routes MUST be defined BEFORE dynamic routes (/:id)
+ * Express matches routes in definition order. If /:id is defined first,
+ * it will match '/renewable-domains' as an ID parameter, causing 404 errors.
+ * 
+ * Route priority order:
+ * 1. Exact static routes (e.g., /renewable-domains)
+ * 2. Prefixed static routes (e.g., /renewable-domains/sync)
+ * 3. Dynamic routes (e.g., /:id) - should be last as fallback
+ */
+
+/**
  * Get renewable domains from all providers that support renewal
  * This endpoint queries the database for domains with expiry information
  */
@@ -403,6 +414,8 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
  *       200:
  *         description: Domain details
  */
+// ⚠️ WARNING: This dynamic route must be defined AFTER all static routes
+// to prevent it from matching paths like '/renewable-domains' as an ID parameter
 router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
