@@ -4,6 +4,8 @@ import { DnsAccountOperations, TeamOperations } from '../db/business-adapter';
 import { CloudflareAdapter } from '../lib/dns/providers';
 import { DnsAccount } from '../types';
 import { isSuper, normalizeRole } from '../utils/roles';
+import { wsService } from '../service/websocket';
+import { log } from '../lib/logger';
 
 const router = Router();
 
@@ -87,6 +89,19 @@ router.put('/:accountId/:tunnelId/config', authMiddleware, async (req: Request, 
     const cf = new CloudflareAdapter(cfg);
     const success = await cf.updateTunnelConfig(req.params.accountId, req.params.tunnelId, req.body.config);
     if (success) {
+      // 推送 WebSocket 消息
+      try {
+        wsService.broadcast({
+          type: 'tunnel_config_updated',
+          data: {
+            accountId: req.params.accountId,
+            tunnelId: req.params.tunnelId,
+          },
+        });
+      } catch (error) {
+        log.error('Tunnels', 'Failed to broadcast tunnel_config_updated event', { error });
+      }
+      
       res.json({ code: 0, msg: 'success' });
     } else {
       res.json({ code: -1, msg: 'Failed to update tunnel config' });
@@ -110,6 +125,19 @@ router.delete('/:accountId/:tunnelId', authMiddleware, async (req: Request, res:
     const cf = new CloudflareAdapter(cfg);
     const success = await cf.deleteTunnel(req.params.accountId, req.params.tunnelId);
     if (success) {
+      // 推送 WebSocket 消息
+      try {
+        wsService.broadcast({
+          type: 'tunnel_deleted',
+          data: {
+            accountId: req.params.accountId,
+            tunnelId: req.params.tunnelId,
+          },
+        });
+      } catch (error) {
+        log.error('Tunnels', 'Failed to broadcast tunnel_deleted event', { error });
+      }
+      
       res.json({ code: 0, msg: 'success' });
     } else {
       res.json({ code: -1, msg: 'Failed to delete tunnel' });

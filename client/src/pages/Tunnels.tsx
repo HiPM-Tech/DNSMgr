@@ -2,10 +2,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Globe } from 'lucide-react';
 import { useI18n } from '../contexts/I18nContext';
 import { TunnelList } from '../components/TunnelList';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 export function Tunnels() {
   const { t } = useI18n();
   const qc = useQueryClient();
+
+  // 实时数据：隧道配置变更
+  useRealtimeData({
+    queryKey: ['tunnels'],
+    websocketEventTypes: ['tunnel_config_updated', 'tunnel_deleted'],
+    pollingInterval: 60000, // 1分钟
+  });
 
   return (
     <div className="space-y-4">
