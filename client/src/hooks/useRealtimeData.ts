@@ -40,7 +40,9 @@ export function useRealtimeData(options: UseRealtimeOptions) {
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/ws?token=${token}`;
+      // 对 token 进行 URL 编码，避免特殊字符导致连接失败
+      const encodedToken = encodeURIComponent(token);
+      const wsUrl = `${protocol}//${host}/ws?token=${encodedToken}`;
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
