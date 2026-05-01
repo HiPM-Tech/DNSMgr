@@ -205,7 +205,9 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     });
   }
 
-  if (!isSuper(role)) {
+  // Token 认证已经在上面过滤了 allowedDomains，不需要再进行权限检查
+  // 只有非 Token 认证的非超级管理员才需要逐个检查权限
+  if (!isSuper(role) && !tokenPayload) {
     domains = await Promise.all(domains.map(async (domain) => {
       const access = await resolveDomainAccess(domain, userId, role);
       return access.canRead ? domain : null;
