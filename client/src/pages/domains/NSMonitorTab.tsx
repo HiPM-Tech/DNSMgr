@@ -74,9 +74,13 @@ export function NSMonitorTab() {
     enabled: isAddModalOpen,
   });
   
-  // 前端过滤域名
+  // 获取已添加监测的域名 ID 列表
+  const monitoredDomainIds = new Set((configs || []).map((c: NSMonitorConfig) => c.domain_id));
+  
+  // 前端过滤域名（排除已添加的）
   const filteredDomains = (domainsData?.list ?? []).filter(d => 
-    d.name.toLowerCase().includes(domainSearchKeyword.toLowerCase())
+    d.name.toLowerCase().includes(domainSearchKeyword.toLowerCase()) &&
+    !monitoredDomainIds.has(d.id) // 排除已添加监测的域名
   );
   
   // 计算分页
