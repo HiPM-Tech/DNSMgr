@@ -17,6 +17,31 @@ on:
         required: false
         default: true
         type: boolean
+      build_linux_x64:
+        description: 'Build Linux x64 package?'
+        required: false
+        default: true
+        type: boolean
+      build_linux_arm64:
+        description: 'Build Linux ARM64 package?'
+        required: false
+        default: true
+        type: boolean
+      build_macos_intel:
+        description: 'Build macOS Intel package?'
+        required: false
+        default: true
+        type: boolean
+      build_macos_arm:
+        description: 'Build macOS ARM package?'
+        required: false
+        default: true
+        type: boolean
+      build_windows_arm:
+        description: 'Build Windows ARM package?'
+        required: false
+        default: true
+        type: boolean
       build_docker:
         description: 'Build Docker image?'
         required: false
@@ -42,6 +67,11 @@ jobs:
       version: ${{ steps.get_version.outputs.version }}
       is_prerelease: ${{ inputs.prerelease }}
       build_exe: ${{ inputs.build_exe }}
+      build_linux_x64: ${{ inputs.build_linux_x64 }}
+      build_linux_arm64: ${{ inputs.build_linux_arm64 }}
+      build_macos_intel: ${{ inputs.build_macos_intel }}
+      build_macos_arm: ${{ inputs.build_macos_arm }}
+      build_windows_arm: ${{ inputs.build_windows_arm }}
       build_docker: ${{ inputs.build_docker }}
       image_name_lower: ${{ steps.get_version.outputs.image_name_lower }}
     steps:
@@ -136,6 +166,388 @@ jobs:
         with:
           name: windows-package
           path: DNSMgr-Windows-*.zip
+          retention-days: 7
+
+  # ============================================================================
+  # 阶段 2.1: 构建 Windows ARM64 安装包
+  # ============================================================================
+  build-windows-arm:
+    name: Build Windows ARM64 Package
+    if: inputs.build_windows_arm == true
+    runs-on: windows-latest
+    needs: prepare
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build server
+        run: pnpm --filter dnsmgr-server build
+
+      - name: Build client
+        run: pnpm --filter dnsmgr-client build
+
+      - name: Create Windows ARM64 ZIP Package
+        shell: pwsh
+        run: |
+          $VERSION = "${{ needs.prepare.outputs.version }}"
+          New-Item -ItemType Directory -Force -Path "release-dist"
+
+          # Download Node.js 20 ARM64
+          $nodeUrl = "https://nodejs.org/dist/v20.11.0/node-v20.11.0-win-arm64.zip"
+          Invoke-WebRequest -Uri $nodeUrl -OutFile "node.zip"
+          Expand-Archive -Path "node.zip" -DestinationPath "release-dist" -Force
+          Rename-Item -Path "release-dist/node-v20.11.0-win-arm64" -NewName "nodejs" -Force
+
+          # Copy files
+          New-Item -ItemType Directory -Force -Path "release-dist/server"
+          Copy-Item -Path "server/dist" -Destination "release-dist/server/" -Recurse -Force
+          Copy-Item -Path "server/package.json" -Destination "release-dist/server/" -Force
+
+          New-Item -ItemType Directory -Force -Path "release-dist/client"
+          Copy-Item -Path "client/dist" -Destination "release-dist/client/" -Recurse -Force
+
+          # Use npm to install dependencies in the release directory
+          Set-Location -Path "release-dist/server"
+          npm install --production --no-package-lock
+          Set-Location -Path "../../"
+
+          # Create start script (without BOM)
+          $batLines = @(
+            '@echo off',
+            'echo Starting DNSMgr Server...',
+            'set NODE_PATH=%~dp0server\node_modules',
+            'set PATH=%~dp0nodejs;%PATH%',
+            '"%~dp0nodejs\node.exe" "%~dp0server\dist\app.js"',
+            'pause'
+          )
+          $batContent = $batLines -join "`r`n"
+          [System.IO.File]::WriteAllText("release-dist/Start-DNSMgr.bat", $batContent, [System.Text.Encoding]::ASCII)
+
+          Compress-Archive -Path "release-dist/*" -DestinationPath "DNSMgr-Windows-ARM64-v$VERSION.zip" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm-package
+          path: DNSMgr-Windows-ARM64-*.zip
+          retention-days: 7
+
+  # ============================================================================
+  # 阶段 2.2: 构建 Linux x64 启动包
+  # ============================================================================
+  build-linux-x64:
+    name: Build Linux x64 Package
+    if: inputs.build_linux_x64 == true
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build server
+        run: pnpm --filter dnsmgr-server build
+
+      - name: Build client
+        run: pnpm --filter dnsmgr-client build
+
+      - name: Create Linux x64 Package
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          mkdir -p release-dist
+
+          # Download Node.js 20 x64
+          NODE_URL="https://nodejs.org/dist/v20.11.0/node-v20.11.0-linux-x64.tar.xz"
+          curl -L $NODE_URL -o node.tar.xz
+          tar -xf node.tar.xz -C release-dist
+          mv release-dist/node-v20.11.0-linux-x64 release-dist/nodejs
+
+          # Copy files
+          mkdir -p release-dist/server
+          cp -r server/dist release-dist/server/
+          cp server/package.json release-dist/server/
+
+          mkdir -p release-dist/client
+          cp -r client/dist release-dist/client/
+
+          # Install production dependencies
+          cd release-dist/server
+          npm install --production --no-package-lock
+          cd ../..
+
+          # Create start script
+          cat > release-dist/start-dnsmgr.sh << 'EOF'
+#!/bin/bash
+echo "Starting DNSMgr Server..."
+export NODE_PATH=$(dirname "$0")/server/node_modules
+export PATH=$(dirname "$0")/nodejs/bin:$PATH
+$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js
+EOF
+          chmod +x release-dist/start-dnsmgr.sh
+
+          # Create tar.gz package
+          tar -czf "DNSMgr-Linux-x64-v$VERSION.tar.gz" -C release-dist .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64-package
+          path: DNSMgr-Linux-x64-*.tar.gz
+          retention-days: 7
+
+  # ============================================================================
+  # 阶段 2.3: 构建 Linux ARM64 启动包
+  # ============================================================================
+  build-linux-arm64:
+    name: Build Linux ARM64 Package
+    if: inputs.build_linux_arm64 == true
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build server
+        run: pnpm --filter dnsmgr-server build
+
+      - name: Build client
+        run: pnpm --filter dnsmgr-client build
+
+      - name: Create Linux ARM64 Package
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          mkdir -p release-dist
+
+          # Download Node.js 20 ARM64
+          NODE_URL="https://nodejs.org/dist/v20.11.0/node-v20.11.0-linux-arm64.tar.xz"
+          curl -L $NODE_URL -o node.tar.xz
+          tar -xf node.tar.xz -C release-dist
+          mv release-dist/node-v20.11.0-linux-arm64 release-dist/nodejs
+
+          # Copy files
+          mkdir -p release-dist/server
+          cp -r server/dist release-dist/server/
+          cp server/package.json release-dist/server/
+
+          mkdir -p release-dist/client
+          cp -r client/dist release-dist/client/
+
+          # Install production dependencies
+          cd release-dist/server
+          npm install --production --no-package-lock
+          cd ../..
+
+          # Create start script
+          cat > release-dist/start-dnsmgr.sh << 'EOF'
+#!/bin/bash
+echo "Starting DNSMgr Server..."
+export NODE_PATH=$(dirname "$0")/server/node_modules
+export PATH=$(dirname "$0")/nodejs/bin:$PATH
+$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js
+EOF
+          chmod +x release-dist/start-dnsmgr.sh
+
+          # Create tar.gz package
+          tar -czf "DNSMgr-Linux-ARM64-v$VERSION.tar.gz" -C release-dist .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64-package
+          path: DNSMgr-Linux-ARM64-*.tar.gz
+          retention-days: 7
+
+  # ============================================================================
+  # 阶段 2.4: 构建 macOS Intel 启动包
+  # ============================================================================
+  build-macos-intel:
+    name: Build macOS Intel Package
+    if: inputs.build_macos_intel == true
+    runs-on: macos-latest
+    needs: prepare
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build server
+        run: pnpm --filter dnsmgr-server build
+
+      - name: Build client
+        run: pnpm --filter dnsmgr-client build
+
+      - name: Create macOS Intel Package
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          mkdir -p release-dist
+
+          # Download Node.js 20 x64 for macOS
+          NODE_URL="https://nodejs.org/dist/v20.11.0/node-v20.11.0-darwin-x64.tar.xz"
+          curl -L $NODE_URL -o node.tar.xz
+          tar -xf node.tar.xz -C release-dist
+          mv release-dist/node-v20.11.0-darwin-x64 release-dist/nodejs
+
+          # Copy files
+          mkdir -p release-dist/server
+          cp -r server/dist release-dist/server/
+          cp server/package.json release-dist/server/
+
+          mkdir -p release-dist/client
+          cp -r client/dist release-dist/client/
+
+          # Install production dependencies
+          cd release-dist/server
+          npm install --production --no-package-lock
+          cd ../..
+
+          # Create start script
+          cat > release-dist/start-dnsmgr.sh << 'EOF'
+#!/bin/bash
+echo "Starting DNSMgr Server..."
+export NODE_PATH=$(dirname "$0")/server/node_modules
+export PATH=$(dirname "$0")/nodejs/bin:$PATH
+$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js
+EOF
+          chmod +x release-dist/start-dnsmgr.sh
+
+          # Create tar.gz package
+          tar -czf "DNSMgr-macOS-Intel-v$VERSION.tar.gz" -C release-dist .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-intel-package
+          path: DNSMgr-macOS-Intel-*.tar.gz
+          retention-days: 7
+
+  # ============================================================================
+  # 阶段 2.5: 构建 macOS ARM 启动包
+  # ============================================================================
+  build-macos-arm:
+    name: Build macOS ARM Package
+    if: inputs.build_macos_arm == true
+    runs-on: macos-latest
+    needs: prepare
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build server
+        run: pnpm --filter dnsmgr-server build
+
+      - name: Build client
+        run: pnpm --filter dnsmgr-client build
+
+      - name: Create macOS ARM Package
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          mkdir -p release-dist
+
+          # Download Node.js 20 ARM64 for macOS
+          NODE_URL="https://nodejs.org/dist/v20.11.0/node-v20.11.0-darwin-arm64.tar.xz"
+          curl -L $NODE_URL -o node.tar.xz
+          tar -xf node.tar.xz -C release-dist
+          mv release-dist/node-v20.11.0-darwin-arm64 release-dist/nodejs
+
+          # Copy files
+          mkdir -p release-dist/server
+          cp -r server/dist release-dist/server/
+          cp server/package.json release-dist/server/
+
+          mkdir -p release-dist/client
+          cp -r client/dist release-dist/client/
+
+          # Install production dependencies
+          cd release-dist/server
+          npm install --production --no-package-lock
+          cd ../..
+
+          # Create start script
+          cat > release-dist/start-dnsmgr.sh << 'EOF'
+#!/bin/bash
+echo "Starting DNSMgr Server..."
+export NODE_PATH=$(dirname "$0")/server/node_modules
+export PATH=$(dirname "$0")/nodejs/bin:$PATH
+$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js
+EOF
+          chmod +x release-dist/start-dnsmgr.sh
+
+          # Create tar.gz package
+          tar -czf "DNSMgr-macOS-ARM-v$VERSION.tar.gz" -C release-dist .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm-package
+          path: DNSMgr-macOS-ARM-*.tar.gz
           retention-days: 7
 
   # ============================================================================
@@ -285,8 +697,8 @@ jobs:
   # ============================================================================
   create-release:
     name: Create GitHub Release
-    needs: [prepare, build-windows, merge-docker]
-    if: always() && (needs.build-windows.result == 'success' || needs.merge-docker.result == 'success')
+    needs: [prepare, build-windows, build-windows-arm, build-linux-x64, build-linux-arm64, build-macos-intel, build-macos-arm, merge-docker]
+    if: always() && (needs.build-windows.result == 'success' || needs.build-windows-arm.result == 'success' || needs.build-linux-x64.result == 'success' || needs.build-linux-arm64.result == 'success' || needs.build-macos-intel.result == 'success' || needs.build-macos-arm.result == 'success' || needs.merge-docker.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -296,11 +708,46 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download artifact
+      - name: Download Windows x64 artifact
         if: needs.build-windows.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: windows-package
+          path: ./artifacts
+
+      - name: Download Windows ARM64 artifact
+        if: needs.build-windows-arm.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-arm-package
+          path: ./artifacts
+
+      - name: Download Linux x64 artifact
+        if: needs.build-linux-x64.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-x64-package
+          path: ./artifacts
+
+      - name: Download Linux ARM64 artifact
+        if: needs.build-linux-arm64.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-arm64-package
+          path: ./artifacts
+
+      - name: Download macOS Intel artifact
+        if: needs.build-macos-intel.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-intel-package
+          path: ./artifacts
+
+      - name: Download macOS ARM artifact
+        if: needs.build-macos-arm.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-arm-package
           path: ./artifacts
 
       - name: Read CHANGELOG
@@ -324,7 +771,9 @@ jobs:
           name: DNSMgr v${{ needs.prepare.outputs.version }}
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
-          files: ./artifacts/*.zip
+          files: |
+            ./artifacts/*.zip
+            ./artifacts/*.tar.gz
           body: ${{ steps.changelog.outputs.content }}
           generate_release_notes: true
         env:
