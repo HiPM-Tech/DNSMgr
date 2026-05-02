@@ -304,13 +304,7 @@ jobs:
           cd ../..
 
           # Create start script
-          cat > release-dist/start-dnsmgr.sh << 'EOF'
-#!/bin/bash
-echo "Starting DNSMgr Server..."
-export NODE_PATH=$(dirname "$0")/server/node_modules
-export PATH=$(dirname "$0")/nodejs/bin:$PATH
-$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js
-EOF
+          printf '#!/bin/bash\necho "Starting DNSMgr Server..."\nexport NODE_PATH=$(dirname "$0")/server/node_modules\nexport PATH=$(dirname "$0")/nodejs/bin:$PATH\n$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js\n' > release-dist/start-dnsmgr.sh
           chmod +x release-dist/start-dnsmgr.sh
 
           # Create tar.gz package
@@ -380,13 +374,7 @@ EOF
           cd ../..
 
           # Create start script
-          cat > release-dist/start-dnsmgr.sh << 'EOF'
-#!/bin/bash
-echo "Starting DNSMgr Server..."
-export NODE_PATH=$(dirname "$0")/server/node_modules
-export PATH=$(dirname "$0")/nodejs/bin:$PATH
-$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js
-EOF
+          printf '#!/bin/bash\necho "Starting DNSMgr Server..."\nexport NODE_PATH=$(dirname "$0")/server/node_modules\nexport PATH=$(dirname "$0")/nodejs/bin:$PATH\n$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js\n' > release-dist/start-dnsmgr.sh
           chmod +x release-dist/start-dnsmgr.sh
 
           # Create tar.gz package
@@ -456,13 +444,7 @@ EOF
           cd ../..
 
           # Create start script
-          cat > release-dist/start-dnsmgr.sh << 'EOF'
-#!/bin/bash
-echo "Starting DNSMgr Server..."
-export NODE_PATH=$(dirname "$0")/server/node_modules
-export PATH=$(dirname "$0")/nodejs/bin:$PATH
-$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js
-EOF
+          printf '#!/bin/bash\necho "Starting DNSMgr Server..."\nexport NODE_PATH=$(dirname "$0")/server/node_modules\nexport PATH=$(dirname "$0")/nodejs/bin:$PATH\n$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js\n' > release-dist/start-dnsmgr.sh
           chmod +x release-dist/start-dnsmgr.sh
 
           # Create tar.gz package
@@ -532,13 +514,7 @@ EOF
           cd ../..
 
           # Create start script
-          cat > release-dist/start-dnsmgr.sh << 'EOF'
-#!/bin/bash
-echo "Starting DNSMgr Server..."
-export NODE_PATH=$(dirname "$0")/server/node_modules
-export PATH=$(dirname "$0")/nodejs/bin:$PATH
-$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js
-EOF
+          printf '#!/bin/bash\necho "Starting DNSMgr Server..."\nexport NODE_PATH=$(dirname "$0")/server/node_modules\nexport PATH=$(dirname "$0")/nodejs/bin:$PATH\n$(dirname "$0")/nodejs/bin/node $(dirname "$0")/server/dist/app.js\n' > release-dist/start-dnsmgr.sh
           chmod +x release-dist/start-dnsmgr.sh
 
           # Create tar.gz package
