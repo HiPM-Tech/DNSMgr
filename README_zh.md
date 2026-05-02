@@ -391,6 +391,16 @@ DNSMgr 项目采用严格的 AI 代码审核机制，确保代码质量和项目
 - [架构文档](docs/architecture/overview.md) - 系统架构设计
 - [API 文档](docs/api-reference.md) - 完整的 RESTful API 参考
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=HiPM-Tech%2FDNSMgr&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&legend=top-left" />
+ </picture>
+</a>
+
 ---
 
 <p align="center">

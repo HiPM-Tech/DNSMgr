@@ -393,6 +393,16 @@ DNSMgr adopts a strict AI code review mechanism to ensure code quality and proje
 - [Architecture Documentation](docs/architecture/overview.md) - System architecture design
 - [API Documentation](docs/api-reference.md) - Complete RESTful API reference
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=HiPM-Tech%2FDNSMgr&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&legend=top-left" />
+ </picture>
+</a>
+
 ---
 
 <p align="center">
