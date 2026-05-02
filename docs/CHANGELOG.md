@@ -1,5 +1,97 @@
 # 更新日志
 
+## [1.4.2] - 2026-05-04
+
+### ✨ 核心改进
+
+#### DNS线路系统全面优化
+- **统一线路ID规范**
+  - 统一所有DNS提供商默认线路ID为 `'0'`
+  - 修复 11+ 个提供商适配器的 fallback 值
+  - 确保前后端线路ID完全一致
+  
+- **前端显示优化**
+  - Records.tsx：支持 `'0'` 和 `'default'` 都显示为"默认"
+  - RecordForm.tsx：统一表单初始化默认值为 `'0'`
+  - 单线路和多线路提供商行为一致
+  
+- **阿里云适配器修复**
+  - normalizeLine 函数保留 `'0'` 不转换
+  - mapRecord 使用 normalizeLine 处理线路ID
+  - 添加/更新/查询记录的线路ID保持一致
+
+#### DNSHE功能增强
+- **CNAME拉平支持**
+  - 支持根域CNAME记录（@记录）
+  - registry.ts 设置 `cnameFlattening: true`
+  - 前端不再显示CNAME冲突错误
+  
+- **NS监测优化**
+  - NSMonitorTab.tsx 前端过滤已添加的域名
+  - 避免用户选择后提交遇到重复错误
+  - 与续期域名的去重逻辑保持一致
+
+### 🔧 CI/CD优化
+
+#### Telegram通知集成
+- **工作流整合**
+  - 将 release-tg.yml 集成到 release.yml
+  - Telegram通知作为发布流程的最后一步
+  - 删除独立的 release-tg.yml 文件
+  
+- **配置修复**
+  - 使用 `topic: 14` 参数（而非 message_thread_id）
+  - 使用 Markdown 格式（而非 HTML）
+  - 所有消息标签转换为 Markdown 语法
+
+### 🌐 网络层优化
+
+#### WebSocket真实IP获取
+- **反向代理支持**
+  - websocket.ts 使用 getClientIP 函数
+  - 支持 X-Forwarded-For 和 X-Real-IP 头部
+  - 日志正确记录真实客户端IP
+  
+- **TypeScript修复**
+  - 添加 getClientIP 导入语句
+  - 解决编译错误
+
+### 📦 技术细节
+
+#### 修改文件统计
+- **后端适配器**（11个）
+  - dnshe, vps8, west, huoshan, baidu, aliyun
+  - namesilo, powerdns, spaceship, common, _example
+  
+- **前端组件**（3个）
+  - Records.tsx（线路显示逻辑）
+  - RecordForm.tsx（表单初始化和选择器）
+  - NSMonitorTab.tsx（NS监测域名过滤）
+  
+- **CI/CD配置**
+  - .github/workflows/release.yml
+  
+- **中间件**
+  - server/src/service/websocket.ts
+
+#### 影响的DNS提供商
+阿里云、腾讯云、华为云、火山引擎、京东云、百度云、西部数码、宝塔、DNSHE、VPS8、NameSilo、PowerDNS、Spaceship等
+
+### 🐛 Bug修复
+- 修复线路fallback值不一致问题（'default' → '0'）
+- 修复前端线路选择器默认值问题（'' → '0'）
+- 修复WebSocket IP获取问题（remoteAddress → getClientIP）
+- 修复TypeScript编译错误（缺少import）
+- 修复阿里云normalizeLine转换问题（'0' → 'default'）
+
+### 🔧 兼容性
+- ✅ 完全向后兼容
+- ✅ 不影响现有配置和数据
+- ✅ 前端同时支持 '0' 和 'default' 显示
+- ✅ 自动适配新旧数据格式
+
+---
+
 ## [1.4.1] - 2026-05-03
 
 ### ✨ 新增功能
