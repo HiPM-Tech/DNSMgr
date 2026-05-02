@@ -193,8 +193,8 @@ export function Records() {
         // 其他提供商: 显示线路
         const effectiveLine = r.line;
         
-        // 当线路为 '0' 或空时，显示为"默认"
-        if (!effectiveLine || effectiveLine === '0') {
+        // 当线路为 '0'、'default' 或空时，显示为"默认"
+        if (!effectiveLine || effectiveLine === '0' || effectiveLine === 'default') {
           return <span className="text-gray-500 text-xs">{t('records.defaultLine') || '默认'}</span>;
         }
         
