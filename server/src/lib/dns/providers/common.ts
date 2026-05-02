@@ -342,7 +342,7 @@ export class StubAdapter extends BaseAdapter {
   async updateDomainRecord(): Promise<boolean> { throw this.err(); }
   async deleteDomainRecord(): Promise<boolean> { throw this.err(); }
   async setDomainRecordStatus(): Promise<boolean> { throw this.err(); }
-  async getRecordLines(): Promise<Array<{ id: string; name: string }>> { return [{ id: 'default', name: '默认' }]; }
+  async getRecordLines(): Promise<Array<{ id: string; name: string }>> { return [{ id: '0', name: '默认' }]; }
   async getMinTTL(): Promise<number> { return 600; }
   async addDomain(): Promise<boolean> { throw this.err(); }
 }

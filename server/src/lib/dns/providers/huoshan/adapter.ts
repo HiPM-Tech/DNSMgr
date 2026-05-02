@@ -352,7 +352,7 @@ export class HuoshanAdapter extends BaseAdapter {
       const level = tradeInfo.level;
 
       const data = await this.client.request<{ Lines: Array<{ Value: string; Name: string; Level: number; FatherValue?: string }> }>('GET', 'ListLines', {});
-      const list: Array<{ id: string; name: string }> = [{ id: 'default', name: '默认' }];
+      const list: Array<{ id: string; name: string }> = [{ id: '0', name: '默认' }];
 
       for (const row of data.Lines || []) {
         if (row.Value === 'default') continue;
@@ -422,7 +422,7 @@ export class HuoshanAdapter extends BaseAdapter {
 
   private getDefaultLines(): Array<{ id: string; name: string }> {
     return [
-      { id: 'default', name: '默认' },
+      { id: '0', name: '默认' },
       { id: 'telecom', name: '电信' },
       { id: 'unicom', name: '联通' },
       { id: 'mobile', name: '移动' },

@@ -392,7 +392,7 @@ export class PowerdnsAdapter extends BaseAdapter {
   }
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    return [{ id: 'default', name: '默认' }];
+    return [{ id: '0', name: '默认' }];
   }
 
   async getMinTTL(): Promise<number> {

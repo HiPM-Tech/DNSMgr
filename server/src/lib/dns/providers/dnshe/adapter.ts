@@ -394,7 +394,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
     // DNSHE 不支持线路选择，返回默认线路
-    return [{ id: 'default', name: '默认' }];
+    return [{ id: '0', name: '默认' }];
   }
 
   async getMinTTL(): Promise<number> {

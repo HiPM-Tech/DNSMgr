@@ -221,9 +221,9 @@ export class AliyunAdapter extends AliyunRpcAdapter {
         id: safeString(row.LineCode),
         name: safeString(row.LineDisplayName),
       }));
-      return lines.length > 0 ? lines : [{ id: 'default', name: '默认' }];
+      return lines.length > 0 ? lines : [{ id: '0', name: '默认' }];
     } catch {
-      return [{ id: 'default', name: '默认' }];
+      return [{ id: '0', name: '默认' }];
     }
   }
 

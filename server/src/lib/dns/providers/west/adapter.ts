@@ -395,7 +395,7 @@ export class WestAdapter extends BaseAdapter implements DnsAdapter {
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
     return [
-      { id: 'default', name: '默认' },
+      { id: '0', name: '默认' },
       { id: 'LTEL', name: '电信' },
       { id: 'LCNC', name: '联通' },
       { id: 'LMOB', name: '移动' },
@@ -441,7 +441,7 @@ export class WestAdapter extends BaseAdapter implements DnsAdapter {
       Name: name,
       Type: safeString(record.type).toUpperCase(),
       Value: safeString(record.value),
-      Line: line || 'default',
+      Line: line || '0',
       TTL: toNumber(record.ttl, 900),
       MX: toNumber(record.level, 0),
       Status: pause === 1 ? 0 : 1,

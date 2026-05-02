@@ -386,7 +386,7 @@ export class BaiduAdapter extends BaseAdapter {
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
     return [
-      { id: 'default', name: '默认' },
+      { id: '0', name: '默认' },
       { id: 'ct', name: '电信' },
       { id: 'cnc', name: '联通' },
       { id: 'cmnet', name: '移动' },
