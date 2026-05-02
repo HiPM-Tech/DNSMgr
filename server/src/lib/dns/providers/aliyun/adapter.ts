@@ -31,7 +31,7 @@ export class AliyunAdapter extends AliyunRpcAdapter {
       Name: normalizeRrName(safeString(item.RR)),
       Type: safeString(item.Type),
       Value: safeString(item.Value),
-      Line: safeString(item.Line) || '0',
+      Line: this.normalizeLine(safeString(item.Line)) ?? '0',
       TTL: toNumber(item.TTL, 600),
       MX: toNumber(item.Priority, 0),
       Status: toRecordStatus(item.Status),
@@ -43,7 +43,6 @@ export class AliyunAdapter extends AliyunRpcAdapter {
 
   private normalizeLine(line?: string): string | undefined {
     const convertDict: Record<string, string> = {
-      '0': 'default',
       '10=1': 'unicom',
       '10=0': 'telecom',
       '10=3': 'mobile',
@@ -54,6 +53,8 @@ export class AliyunAdapter extends AliyunRpcAdapter {
       '7=0': 'internal',
     };
     if (!line) return undefined;
+    // '0' 已经是标准格式，不需要转换
+    if (line === '0') return '0';
     return convertDict[line] ?? line;
   }
 
