@@ -18,7 +18,7 @@ async function seedTestData() {
     log.info('TestSeed', 'Creating test user');
     const hashedPassword = await bcrypt.hash('testpassword123', 10);
     const userId = await conn.insert(
-      `INSERT INTO users (username, email, password, role, status, created_at)
+      `INSERT INTO users (username, email, password_hash, role, status, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
       ['testuser', 'test@example.com', hashedPassword, 'admin', 1, new Date().toISOString()]
     );
