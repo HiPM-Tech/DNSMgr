@@ -124,14 +124,34 @@ export function Security() {
 
   const loadTotpStatus = async () => {
     try {
-      const response = await fetch('/api/security/2fa/status', {
+      // Check TOTP status
+      const totpResponse = await fetch('/api/security/2fa/status', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      if (response.ok) {
-        const data = await response.json();
-        setTotpEnabled(data.data.enabled);
-        setBackupCodesRemaining(data.data.backupCodesRemaining);
+      
+      // Check WebAuthn status
+      const webauthnResponse = await fetch('/api/webauthn/credentials', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      
+      let totpEnabled = false;
+      let backupCodesRemaining = 0;
+      let webauthnEnabled = false;
+      
+      if (totpResponse.ok) {
+        const totpData = await totpResponse.json();
+        totpEnabled = totpData.data.enabled;
+        backupCodesRemaining = totpData.data.backupCodesRemaining;
       }
+      
+      if (webauthnResponse.ok) {
+        const webauthnData = await webauthnResponse.json();
+        webauthnEnabled = webauthnData.data && webauthnData.data.length > 0;
+      }
+      
+      // 2FA is enabled if either TOTP or WebAuthn is enabled
+      setTotpEnabled(totpEnabled || webauthnEnabled);
+      setBackupCodesRemaining(backupCodesRemaining);
     } catch (error) {
       console.error('Failed to load 2FA status:', error);
     }
@@ -269,6 +289,29 @@ export function Security() {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  const downloadBackupCodes = () => {
+    if (!totpSetup || !totpSetup.backupCodes || totpSetup.backupCodes.length === 0) {
+      toast.error(t('security.noBackupCodes'));
+      return;
+    }
+
+    // Create text content with backup codes
+    const content = `DNSMgr Backup Codes\nGenerated: ${new Date().toLocaleString()}\n\n${totpSetup.backupCodes.join('\n')}\n\nImportant: Store these codes in a safe place. Each code can only be used once.`;
+    
+    // Create blob and download
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dnsmgr-backup-codes-${new Date().getTime()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    toast.success(t('security.backupCodesDownloaded'));
   };
 
   return (
@@ -469,6 +512,17 @@ export function Security() {
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
                 {t('security.backupCodesDesc')}
               </p>
+              
+              {/* Download button */}
+              <button
+                onClick={downloadBackupCodes}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                {t('security.downloadBackupCodes') || 'Download as .txt file'}
+              </button>
             </div>
 
             <div className="flex gap-3">

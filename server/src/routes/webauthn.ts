@@ -40,6 +40,10 @@ router.get('/registration-options', authMiddleware, async (req: Request, res: Re
     },
   });
 
+  if (!options.challenge) {
+    return res.status(500).json({ code: -1, msg: 'Failed to generate challenge' });
+  }
+
   userChallengeStore.set(userId, options.challenge);
   res.json({ code: 0, data: options, msg: 'success' });
 });
@@ -115,6 +119,10 @@ router.get('/login-options', async (req: Request, res: Response) => {
     })),
     userVerification: 'preferred',
   });
+  
+  if (!options.challenge) {
+    return res.status(500).json({ code: -1, msg: 'Failed to generate challenge' });
+  }
   
   loginChallengeStore.set(user.id, options.challenge);
   res.json({ code: 0, data: options, msg: 'success' });
