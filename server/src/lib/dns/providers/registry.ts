@@ -227,7 +227,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'dnshe',
     name: 'DNSHE',
-    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false , line: true, cnameFlattening: false },
+    capabilities: { remark: false, status: false, redirect: false, log: false, weight: false , line: true, cnameFlattening: true },
     configFields: [
       { key: 'apiKey', label: 'API Key', type: 'text', required: true },
       { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
