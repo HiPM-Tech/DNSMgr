@@ -432,7 +432,7 @@ export const UserOperations = {
   /** 根据ID获取用户完整信息 */
   async getById(id: number): Promise<QueryResult | undefined> {
     return getInternal(
-      'SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, username, nickname, email, password_hash, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users WHERE id = ?',
       [id],
       { operation: 'User.getById', table: 'users' }
     );
@@ -441,7 +441,7 @@ export const UserOperations = {
   /** 根据用户名获取用户完整信息 */
   async getByUsername(username: string): Promise<QueryResult | undefined> {
     return getInternal(
-      'SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE username = ?',
+      'SELECT id, username, nickname, email, password_hash, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users WHERE username = ?',
       [username],
       { operation: 'User.getByUsername', table: 'users' }
     );
@@ -450,7 +450,7 @@ export const UserOperations = {
   /** 根据邮箱获取用户完整信息 */
   async getByEmail(email: string): Promise<QueryResult | undefined> {
     return getInternal(
-      'SELECT id, username, nickname, email, password_hash, role_level as role, status, created_at, updated_at FROM users WHERE email = ?',
+      'SELECT id, username, nickname, email, password_hash, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users WHERE email = ?',
       [email],
       { operation: 'User.getByEmail', table: 'users' }
     );
@@ -459,7 +459,7 @@ export const UserOperations = {
   /** 根据ID获取用户公开信息（不含密码） */
   async getPublicById(id: number): Promise<QueryResult | undefined> {
     return getInternal(
-      'SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, username, nickname, email, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users WHERE id = ?',
       [id],
       { operation: 'User.getPublicById', table: 'users' }
     );
@@ -468,7 +468,7 @@ export const UserOperations = {
   /** 获取所有用户 */
   async getAll(): Promise<QueryResult[]> {
     return queryInternal(
-      'SELECT id, username, nickname, email, role_level as role, status, created_at, updated_at FROM users ORDER BY id',
+      'SELECT id, username, nickname, email, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users ORDER BY id',
       [],
       { operation: 'User.getAll', table: 'users' }
     );
@@ -1172,7 +1172,7 @@ export const OAuthOperations = {
   /** 根据 provider 和 subject 获取用户完整信息（包含 JOIN users） */
   async getUserByProviderSubject(provider: string, subject: string): Promise<QueryResult | undefined> {
     return getInternal(
-      `SELECT l.user_id, u.id, u.username, u.nickname, u.email, u.role_level as role, u.status
+      `SELECT l.user_id, u.id, u.username, u.nickname, u.email, u.role_level as role, u.role_level, u.role as role_name, u.status
        FROM oauth_user_links l
        INNER JOIN users u ON u.id = l.user_id
        WHERE l.provider = ? AND l.subject = ?`,

@@ -54,7 +54,8 @@ describe('Business Adapter Layer', () => {
       assert.strictEqual(user?.username, 'testuser');
       assert.strictEqual(user?.nickname, 'Test User');
       assert.strictEqual(user?.email, 'test@example.com');
-      assert.strictEqual(user?.role, 'member');
+      assert.strictEqual(user?.role, 1);
+      assert.strictEqual(user?.role_name, 'member');
     });
 
     it('should get user by username', async () => {
@@ -304,6 +305,7 @@ describe('Business Adapter Layer', () => {
       
       assert.ok(id > 0, 'Team ID should be greater than 0');
       testTeamId = id;
+      await TeamOperations.addMember(testTeamId, testUserId, 'admin');
     });
 
     it('should get team by ID', async () => {
