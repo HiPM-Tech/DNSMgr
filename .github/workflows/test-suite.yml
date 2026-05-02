@@ -204,7 +204,7 @@ jobs:
   test-sqlite:
     name: Test - SQLite
     needs: lint-and-build
-    if: ${{ github.event.inputs.database == 'all' || github.event.inputs.database == 'sqlite' || github.event.inputs.database == '' }}
+    if: ${{ !github.event.inputs || github.event.inputs.database == 'all' || github.event.inputs.database == 'sqlite' }}
     uses: ./.github/workflows/test-database.yml
     with:
       database: sqlite
@@ -213,7 +213,7 @@ jobs:
   test-postgresql:
     name: Test - PostgreSQL
     needs: lint-and-build
-    if: ${{ github.event.inputs.database == 'all' || github.event.inputs.database == 'postgresql' || github.event.inputs.database == '' }}
+    if: ${{ !github.event.inputs || github.event.inputs.database == 'all' || github.event.inputs.database == 'postgresql' }}
     uses: ./.github/workflows/test-database.yml
     with:
       database: postgresql
@@ -222,7 +222,7 @@ jobs:
   test-mysql:
     name: Test - MySQL
     needs: lint-and-build
-    if: ${{ github.event.inputs.database == 'all' || github.event.inputs.database == 'mysql' || github.event.inputs.database == '' }}
+    if: ${{ !github.event.inputs || github.event.inputs.database == 'all' || github.event.inputs.database == 'mysql' }}
     uses: ./.github/workflows/test-database.yml
     with:
       database: mysql
@@ -232,7 +232,7 @@ jobs:
     name: E2E Test
     runs-on: ubuntu-latest
     needs: [lint-and-build, test-sqlite]
-    if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'e2e' || github.event.inputs.test_type == '' }}
+    if: ${{ !github.event.inputs || github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'e2e' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
