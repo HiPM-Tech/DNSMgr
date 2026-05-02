@@ -111,7 +111,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     weight: initial?.weight ?? 10,
     line: hasProxyMode
       ? (initial?.line ?? '0') // Default to DNS only for proxy mode providers
-      : (initial?.line ?? (hasMultiLine ? (lines[0]?.id ?? '') : '')),
+      : (initial?.line ?? (hasMultiLine ? (lines[0]?.id ?? '0') : '0')),
     remark: initial?.remark ?? '',
   });
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
@@ -374,7 +374,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
               {hasProxyMode ? t('records.proxy') : t('common.line')}
             </label>
             <select 
-              value={form.line ?? (hasProxyMode ? '0' : '')} 
+              value={form.line ?? '0'} 
               onChange={(e) => set('line', e.target.value)} 
               className={inputClass}
             >
@@ -388,7 +388,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
                 lines.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)
               ) : (
                 // Single-line or no-line providers: show default option
-                <option value="">{t('records.defaultLine') || '默认'}</option>
+                <option value="0">{t('records.defaultLine') || '默认'}</option>
               )}
             </select>
             {!hasProxyMode && !hasMultiLine && (
