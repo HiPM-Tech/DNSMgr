@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { log } from '../lib/logger';
+import { getRequestIP } from './clientIP';
 
 /**
  * Standard API error response format
@@ -41,7 +42,7 @@ export function errorHandler(
     stack: err.stack,
     path: req.path,
     method: req.method,
-    ip: req.ip,
+    ip: getRequestIP(req),
   });
 
   if (err instanceof AppError) {

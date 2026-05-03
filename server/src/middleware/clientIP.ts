@@ -85,15 +85,11 @@ export function getClientIP(req: Request): string {
  */
 export function clientIPMiddleware(req: Request, res: Response, next: NextFunction): void {
   const clientIP = getClientIP(req);
-  
+
   // 将真实 IP 附加到 request 对象上
+  // 注意：不修改 req.ip，因为它是 Express 的只读属性
   (req as any).clientIP = clientIP;
-  
-  // 同时设置 req.ip，这样 Express 的其他中间件也能使用
-  if (!req.ip || req.ip === '127.0.0.1' || req.ip === '::1') {
-    (req as any).ip = clientIP;
-  }
-  
+
   next();
 }
 
