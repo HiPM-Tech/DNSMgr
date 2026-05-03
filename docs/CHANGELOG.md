@@ -1,5 +1,64 @@
 # 更新日志
 
+## [1.4.3] - 2026-05-03
+
+### 🐛 Bug修复
+
+#### 日志系统
+- **修复 `[object Object]` 输出问题**
+  - `logger.ts`: 改进 `formatError` 方法，正确处理普通对象类型错误
+  - 现在会显示对象内容而不是 `[object Object]`
+
+#### SQLite 迁移
+- **修复 `IF NOT EXISTS` 语法错误**
+  - `schema.ts`: 添加 `checkSQLiteColumnExists()` 函数，使用 `PRAGMA table_info()` 检查列是否存在
+  - `schema.ts`: 添加 `addSQLiteColumn()` 函数，带存在检查的列添加
+  - `schema.ts`: 添加 `handleSQLiteMigrations()` 函数，处理所有 SQLite 特定迁移
+  - `sqlite.ts`: 移除不支持的 `ALTER TABLE ADD COLUMN IF NOT EXISTS` SQL 语句
+
+#### 数据库架构
+- **修复架构违规问题**
+  - `business-adapter.ts`: 添加 `DomainOperations.getAllForSuperAdmin()` 专用方法
+  - `business-adapter.ts`: 删除暴露内部实现的 `queryInternal` 方法
+  - `domains.ts`: 路由现在使用专用方法而不是直接调用内部函数
+
+#### 初始化流程
+- **修复 Windows 环境下初始化路由 500 错误**
+  - `init.ts`: 修复 `/admin` 路由，添加 try-catch 处理数据库未连接的情况
+  - `init.ts`: 增强 `/test-db` 和 `/status` 路由的日志记录
+  - `business-adapter.ts`: `testSqliteConnection` 添加 Windows 路径处理（统一使用正斜杠）
+
+#### 用户偏好设置
+- **修复 `getPinnedDomains` 错误**
+  - `business-adapter.ts`: 添加 try-catch，当表或字段不存在时返回空数组
+
+#### Express 中间件
+- **修复 `req.ip` 只读属性错误**
+  - `clientIP.ts`: 移除设置 `req.ip` 的代码，只设置 `req.clientIP`
+  - `errorHandler.ts`: 使用 `getRequestIP()` 替代 `req.ip`
+
+#### 错误处理
+- **增强错误日志记录**
+  - `errorHandler.ts`: 添加错误堆栈信息、请求路径、方法、IP 地址
+  - `init.ts`: 改进数据库连接测试的错误日志
+
+### 📦 修改文件
+- `server/src/lib/logger.ts`
+- `server/src/middleware/errorHandler.ts`
+- `server/src/middleware/clientIP.ts`
+- `server/src/db/schema.ts`
+- `server/src/db/schemas/sqlite.ts`
+- `server/src/db/business-adapter.ts`
+- `server/src/routes/init.ts`
+- `server/src/routes/domains.ts`
+
+### 🔧 兼容性
+- ✅ 完全向后兼容
+- ✅ 支持旧版本 SQLite (< 3.2.0)
+- ✅ 修复 Windows 路径分隔符问题
+
+---
+
 ## [1.4.2] - 2026-05-04
 
 ### ✨ 核心改进
