@@ -304,6 +304,95 @@ async function addPinnedDomainsColumn(
 }
 
 /**
+ * 检查 SQLite 列是否存在
+ */
+async function checkSQLiteColumnExists(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> },
+  tableName: string,
+  columnName: string
+): Promise<boolean> {
+  try {
+    const sql = `PRAGMA table_info(${tableName})`;
+    let result: unknown;
+
+    if (conn.execute) {
+      result = await conn.execute(sql);
+    } else if (conn.exec) {
+      // 对于同步连接，需要特殊处理
+      return false; // 默认返回 false，让迁移尝试执行
+    }
+
+    if (Array.isArray(result)) {
+      return result.some((row: unknown) => {
+        const col = row as Record<string, string>;
+        return col.name === columnName;
+      });
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 添加列到 SQLite 表（带存在检查）
+ */
+async function addSQLiteColumn(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> },
+  tableName: string,
+  columnName: string,
+  columnDef: string
+): Promise<void> {
+  const exists = await checkSQLiteColumnExists(conn, tableName, columnName);
+  if (exists) {
+    log.debug('Schema', `Column ${columnName} already exists in ${tableName}, skipping`);
+    return;
+  }
+
+  try {
+    const sql = `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`;
+    if (conn.execute) {
+      await conn.execute(sql);
+    } else if (conn.exec) {
+      conn.exec(sql);
+    }
+    log.info('Schema', `Added column ${columnName} to ${tableName}`);
+  } catch (error) {
+    const errorMsg = (error as Error).message || '';
+    if (errorMsg.includes('duplicate column') || errorMsg.includes('already exists')) {
+      log.debug('Schema', `Column ${columnName} already exists in ${tableName}`);
+    } else {
+      throw error;
+    }
+  }
+}
+
+/**
+ * 处理 SQLite 特定的迁移
+ */
+async function handleSQLiteMigrations(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  log.info('Schema', 'Starting SQLite migrations...');
+
+  // Migration: Add apex_expires_at column to domains table
+  await addSQLiteColumn(conn, 'domains', 'apex_expires_at', 'TEXT');
+
+  // Migration: Add columns to ns_monitor_domains table
+  await addSQLiteColumn(conn, 'ns_monitor_domains', 'encrypted_ns', 'TEXT');
+  await addSQLiteColumn(conn, 'ns_monitor_domains', 'plain_ns', 'TEXT');
+  await addSQLiteColumn(conn, 'ns_monitor_domains', 'is_poisoned', 'INTEGER NOT NULL DEFAULT 0');
+
+  // Migration: Add pinned_domains column to user_preferences table
+  await addSQLiteColumn(conn, 'user_preferences', 'pinned_domains', "TEXT DEFAULT '[]'");
+
+  // 迁移：删除旧的域名级 NS 监测表
+  await dropOldNsMonitorTablesSQLite(conn);
+
+  log.info('Schema', 'SQLite migrations completed');
+}
+
+/**
  * 删除旧的域名级 NS 监测表（迁移到用户级）- SQLite
  */
 async function dropOldNsMonitorTablesSQLite(
@@ -541,23 +630,8 @@ export async function initSchemaAsync(
       }
     }
 
-    // Execute alter tables (migrations)
-    for (const sql of sqliteSchema.alterTables || []) {
-      try {
-        if (conn.execute) {
-          await conn.execute(sql);
-        } else if (conn.exec) {
-          conn.exec(sql);
-        }
-        log.info('Schema', 'Executed migration', { sql: sql.substring(0, 100) });
-      } catch (error) {
-        // Migration errors are logged but not thrown (idempotent)
-        log.warn('Schema', 'Migration skipped (may already be applied)', { error: (error as Error).message, sql: sql.substring(0, 100) });
-      }
-    }
-
-    // 迁移：删除旧的域名级 NS 监测表（已废弃，改为用户级）
-    await dropOldNsMonitorTablesSQLite(conn);
+    // Execute SQLite-specific migrations (with column existence checks)
+    await handleSQLiteMigrations(conn);
   } else if (dbType === 'mysql') {
     for (const sql of mysqlSchema.createTables) {
       try {

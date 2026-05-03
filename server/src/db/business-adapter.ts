@@ -629,11 +629,6 @@ export const DnsAccountOperations = {
 // ============================================================================
 
 export const DomainOperations = {
-  /** 执行原始 SQL 查询（用于特殊场景） */
-  async queryInternal(sql: string, params?: unknown[], context?: OperationContext): Promise<QueryResult[]> {
-    return queryInternal(sql, params, context);
-  },
-
   /** 根据ID获取域名 */
   async getById(id: number): Promise<QueryResult | undefined> {
     return getInternal('SELECT * FROM domains WHERE id = ?', [id], { operation: 'Domain.getById', table: 'domains' });
@@ -670,11 +665,11 @@ export const DomainOperations = {
   /** 根据ID列表获取域名（用于Token认证优化） */
   async getByIds(ids: number[], options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
     if (ids.length === 0) return [];
-    
+
     const placeholders = ids.map(() => '?').join(',');
     let sql = `SELECT * FROM domains WHERE id IN (${placeholders})`;
     const params: unknown[] = [...ids];
-    
+
     if (options?.accountId) {
       sql += ' AND account_id = ?';
       params.push(options.accountId);
@@ -684,8 +679,26 @@ export const DomainOperations = {
       params.push(`%${options.keyword}%`);
     }
     sql += ' ORDER BY id';
-    
+
     return queryInternal(sql, params, { operation: 'Domain.getByIds', table: 'domains' });
+  },
+
+  /** 获取所有域名（用于超级管理员Token认证） */
+  async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
+    let sql = 'SELECT * FROM domains WHERE 1=1';
+    const params: unknown[] = [];
+
+    if (options?.accountId) {
+      sql += ' AND account_id = ?';
+      params.push(options.accountId);
+    }
+    if (options?.keyword) {
+      sql += ' AND name LIKE ?';
+      params.push(`%${options.keyword}%`);
+    }
+    sql += ' ORDER BY id';
+
+    return queryInternal(sql, params, { operation: 'Domain.getAllForSuperAdmin', table: 'domains' });
   },
 
   /** 创建域名 */
@@ -1807,13 +1820,27 @@ export const SystemOperations = {
     const Database = require('better-sqlite3');
     const fs = require('fs');
     const path = require('path');
-    
-    const dir = path.dirname(sqlitePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+
+    // 统一使用正斜杠，避免 Windows 路径问题
+    const normalizedPath = sqlitePath.replace(/\\/g, '/');
+    const dir = path.dirname(normalizedPath);
+
+    // 确保目录存在
+    if (dir && dir !== '.' && !fs.existsSync(dir)) {
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch (err) {
+        log.warn('SystemOperations', 'Failed to create directory, may already exist', { dir, error: err });
+      }
     }
-    
-    const testDb = new Database(sqlitePath);
+
+    let testDb;
+    try {
+      testDb = new Database(normalizedPath);
+    } catch (err) {
+      log.error('SystemOperations', 'Failed to open SQLite database', { path: normalizedPath, error: err });
+      throw err;
+    }
     
     // Check if tables exist
     let hasData = false;
@@ -2314,17 +2341,17 @@ export const UserPreferencesOperations = {
 
   /** 获取用户置顶的域名列表 */
   async getPinnedDomains(userId: number): Promise<number[]> {
-    const result = await getInternal(
-      'SELECT pinned_domains FROM user_preferences WHERE user_id = ?',
-      [userId],
-      { operation: 'UserPreferences.getPinnedDomains', table: 'user_preferences' }
-    );
-    
-    if (!result || !result.pinned_domains) {
-      return [];
-    }
-    
     try {
+      const result = await getInternal(
+        'SELECT pinned_domains FROM user_preferences WHERE user_id = ?',
+        [userId],
+        { operation: 'UserPreferences.getPinnedDomains', table: 'user_preferences' }
+      );
+
+      if (!result || !result.pinned_domains) {
+        return [];
+      }
+
       // MySQL JSON 类型直接返回数组，SQLite/PostgreSQL 返回字符串
       const pinnedDomains = result.pinned_domains;
       if (Array.isArray(pinnedDomains)) {
@@ -2336,7 +2363,9 @@ export const UserPreferencesOperations = {
         return Array.isArray(parsed) ? parsed : [];
       }
       return [];
-    } catch {
+    } catch (error) {
+      // 表或字段不存在时返回空数组
+      log.warn('UserPreferences', 'Failed to get pinned domains, returning empty array', { userId, error });
       return [];
     }
   },

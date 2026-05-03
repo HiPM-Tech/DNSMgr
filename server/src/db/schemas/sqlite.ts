@@ -435,21 +435,8 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_renewable_domains_enabled ON renewable_domains(enabled)`,
   ],
   alterTables: [
-    // SQLite 不支持直接修改 CHECK 约束
-    // 对于已存在的数据库，需要手动重建表或使用迁移脚本
-    // 新创建的表将自动使用更新后的 CHECK 约束
-    // 注意：SQLite 迁移需要特殊处理，以下是一个示例迁移流程（需要手动执行）
-    // 1. 创建新表 team_members_new 带有新的 CHECK 约束
-    // 2. 复制数据
-    // 3. 删除旧表
-    // 4. 重命名新表
-    // Migration: Add apex_expires_at column to domains table for subdomain expiry tracking
-    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TEXT`,
-    // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
-    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
-    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
-    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS is_poisoned INTEGER NOT NULL DEFAULT 0`,
-    // Migration: Add pinned_domains column to user_preferences table
-    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS pinned_domains TEXT DEFAULT '[]'`
+    // SQLite 迁移现在在 schema.ts 中通过 handleSQLiteMigrations() 函数处理
+    // 该函数使用 PRAGMA table_info() 检查列是否存在，避免 IF NOT EXISTS 语法问题
+    // 旧版本 SQLite (< 3.2.0) 不支持 ALTER TABLE ADD COLUMN IF NOT EXISTS
   ],
 };

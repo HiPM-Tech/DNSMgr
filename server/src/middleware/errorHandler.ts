@@ -35,11 +35,13 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ): void {
-  log.error('Error', 'Request error', {
+  log.error('Error', `Request error: ${err.message}`, {
     name: err.name,
     message: err.message,
+    stack: err.stack,
     path: req.path,
     method: req.method,
+    ip: req.ip,
   });
 
   if (err instanceof AppError) {

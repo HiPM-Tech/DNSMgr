@@ -188,14 +188,9 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       // 允许所有域名的 Token：根据角色选择查询方式
       if (isSuper(role)) {
         // 超管：直接查询所有域名
-        let sql = 'SELECT * FROM domains WHERE 1=1';
-        const queryParams: unknown[] = [];
-        if (account_id) { sql += ' AND account_id = ?'; queryParams.push(parseInteger(account_id)); }
-        if (keyword) { sql += ' AND name LIKE ?'; queryParams.push(`%${keyword}%`); }
-        sql += ' ORDER BY id';
-        domains = await DomainOperations.queryInternal(sql, queryParams, { 
-          operation: 'Domain.getAllForTokenSuper', 
-          table: 'domains' 
+        domains = await DomainOperations.getAllForSuperAdmin({
+          accountId: account_id ? parseInteger(account_id) : undefined,
+          keyword,
         }) as unknown as Domain[];
       } else {
         // 普通用户 Token：使用原有权限检查逻辑

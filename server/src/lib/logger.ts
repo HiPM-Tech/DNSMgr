@@ -103,6 +103,15 @@ class Logger {
         ...(error as any).code && { code: (error as any).code },
       };
     }
+    // 处理普通对象类型的错误数据
+    if (error && typeof error === 'object') {
+      const obj = error as Record<string, unknown>;
+      return {
+        type: 'Object',
+        message: obj.message ? String(obj.message) : JSON.stringify(error),
+        ...obj,
+      };
+    }
     return {
       type: typeof error,
       message: String(error),

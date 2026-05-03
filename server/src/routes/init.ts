@@ -110,9 +110,11 @@ const router = Router();
 // Check system initialization status
 router.get('/status', async (req: Request, res: Response) => {
   try {
+    log.debug('Init', 'Checking system status...');
     const dbInitialized = await isDbInitialized();
     const hasAnyUsers = await hasUsers();
-    
+
+    log.debug('Init', 'Status check result', { dbInitialized, hasAnyUsers });
     res.json({
       code: 0,
       data: {
@@ -123,6 +125,7 @@ router.get('/status', async (req: Request, res: Response) => {
       msg: 'success',
     });
   } catch (error) {
+    log.warn('Init', 'Status check failed, returning uninitialized state', { error });
     // If database is not connected yet
     res.json({
       code: 0,
@@ -139,51 +142,58 @@ router.get('/status', async (req: Request, res: Response) => {
 // Test database connection and check for existing data
 router.post('/test-db', async (req: Request, res: Response) => {
   const { type, sqlite, mysql: mysqlConfig, postgresql: pgConfig } = req.body;
-  
+
+  log.info('Init', 'Received test-db request', { type, sqlitePath: sqlite?.path });
+
   if (!type || !['sqlite', 'mysql', 'postgresql'].includes(type)) {
     return res.status(400).json({ code: 400, msg: 'Invalid database type' });
   }
-  
+
   try {
     if (type === 'sqlite') {
       const sqlitePath = sqlite?.path || './data/dnsmgr.db';
-      
+      log.info('Init', 'Testing SQLite connection', { path: sqlitePath });
+
       const result = await SystemOperations.testSqliteConnection(sqlitePath);
-      return res.json({ 
-        code: 0, 
-        data: result, 
-        msg: 'success' 
+      log.info('Init', 'SQLite test result', { result });
+      return res.json({
+        code: 0,
+        data: result,
+        msg: 'success'
       });
     }
-    
+
     if (type === 'mysql') {
       if (!mysqlConfig) {
         return res.status(400).json({ code: 400, msg: 'MySQL configuration required' });
       }
-      
+
+      log.info('Init', 'Testing MySQL connection', { host: mysqlConfig.host, database: mysqlConfig.database });
       const result = await SystemOperations.testMysqlConnection(mysqlConfig);
-      return res.json({ 
-        code: 0, 
-        data: result, 
-        msg: 'success' 
+      return res.json({
+        code: 0,
+        data: result,
+        msg: 'success'
       });
     }
-    
+
     if (type === 'postgresql') {
       if (!pgConfig) {
         return res.status(400).json({ code: 400, msg: 'PostgreSQL configuration required' });
       }
-      
+
+      log.info('Init', 'Testing PostgreSQL connection', { host: pgConfig.host, database: pgConfig.database });
       const result = await SystemOperations.testPostgresqlConnection(pgConfig);
-      return res.json({ 
-        code: 0, 
-        data: result, 
-        msg: 'success' 
+      return res.json({
+        code: 0,
+        data: result,
+        msg: 'success'
       });
     }
   } catch (error) {
-    return res.status(400).json({ 
-      code: 400, 
+    log.error('Init', 'Test database connection failed', { error, type, sqlitePath: sqlite?.path });
+    return res.status(400).json({
+      code: 400,
       data: { success: false, message: error instanceof Error ? error.message : 'Connection failed' },
       msg: error instanceof Error ? error.message : 'Connection failed'
     });
@@ -202,8 +212,9 @@ router.post('/database', async (req: Request, res: Response) => {
   const testConfig = buildDbConfig(type, sqlite, mysqlConfig, pgConfig);
   let hasExistingData = false;
   let hasExistingUsers = false;
-  
+
   try {
+    log.info('Init', 'Testing database connection', { type, sqlitePath: sqlite?.path });
     const testResult = await SystemOperations.testConnection({
       type,
       sqlite: sqlite || { path: './data/dnsmgr.db' },
@@ -214,7 +225,8 @@ router.post('/database', async (req: Request, res: Response) => {
     hasExistingUsers = testResult.hasUsers || false;
     log.info('Init', 'Test connection result', { hasExistingData, hasExistingUsers, type });
   } catch (error) {
-    log.debug('Init', 'No existing database connection or no data found', { error });
+    log.warn('Init', 'Database connection test failed', { error, type, sqlitePath: sqlite?.path });
+    // 继续执行，因为这是新数据库的正常情况
   }
 
   // Step 2: Handle different scenarios based on existing data
@@ -327,41 +339,41 @@ router.post('/database', async (req: Request, res: Response) => {
 
 // Create admin user
 router.post('/admin', async (req: Request, res: Response) => {
-  // Check if database is initialized
-  const dbInitialized = await isDbInitialized();
-  if (!dbInitialized) {
-    return res.status(400).json({ code: 400, msg: 'Database not initialized. Please initialize database first.' });
-  }
-  
-  // Check if already initialized
-  const hasAnyUsers = await hasUsers();
-  if (hasAnyUsers) {
-    return res.status(400).json({ code: 400, msg: 'Admin user already exists' });
-  }
-  
-  const { username, email, password } = req.body;
-  
-  // Validate required fields
-  if (!username || !email || !password) {
-    return res.status(400).json({ code: 400, msg: 'Username, email and password are required' });
-  }
-  
-  // Validate username format
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-    return res.status(400).json({ code: 400, msg: 'Username must be 3-20 characters, alphanumeric and underscore only' });
-  }
-  
-  // Validate email format
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ code: 400, msg: 'Invalid email format' });
-  }
-  
-  // Validate password length
-  if (password.length < 6) {
-    return res.status(400).json({ code: 400, msg: 'Password must be at least 6 characters' });
-  }
-  
   try {
+    // Check if database is initialized
+    const dbInitialized = await isDbInitialized();
+    if (!dbInitialized) {
+      return res.status(400).json({ code: 400, msg: 'Database not initialized. Please initialize database first.' });
+    }
+
+    // Check if already initialized
+    const hasAnyUsers = await hasUsers();
+    if (hasAnyUsers) {
+      return res.status(400).json({ code: 400, msg: 'Admin user already exists' });
+    }
+
+    const { username, email, password } = req.body;
+
+    // Validate required fields
+    if (!username || !email || !password) {
+      return res.status(400).json({ code: 400, msg: 'Username, email and password are required' });
+    }
+
+    // Validate username format
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      return res.status(400).json({ code: 400, msg: 'Username must be 3-20 characters, alphanumeric and underscore only' });
+    }
+
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ code: 400, msg: 'Invalid email format' });
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({ code: 400, msg: 'Password must be at least 6 characters' });
+    }
+
     const hash = bcrypt.hashSync(password, 10);
 
     // 使用业务适配器创建用户，而不是直接调用数据库抽象层
@@ -378,14 +390,14 @@ router.post('/admin', async (req: Request, res: Response) => {
     await SecretOperations.rotateRuntimeSecrets();
 
     log.info('Init', 'Admin user created successfully', { username, email });
-    
+
     res.json({
       code: 0,
       data: { success: true },
       msg: 'Admin user created successfully',
     });
   } catch (error) {
-    log.error('Init', 'Failed to create admin user', { error, username, email });
+    log.error('Init', 'Failed to create admin user', { error });
     res.status(500).json({
       code: 500,
       msg: error instanceof Error ? error.message : 'Failed to create admin user',
