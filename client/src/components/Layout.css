@@ -139,6 +139,7 @@ body.app-has-background .app-td-dialog :where(
 .app-layout--with-background :where(
   .page-list-button:hover,
   .about-link:hover,
+  .about-open-source-card:hover,
   .about-contributor:hover
 ) {
   background: var(--app-glass-bg-hover);

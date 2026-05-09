@@ -1,15 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Loading, Space, Tag } from 'tdesign-react';
 import {
   ChatMessageIcon,
+  CodeIcon,
+  ComponentGridIcon,
   DataBaseIcon,
+  DataSearchIcon,
   FileIcon,
   InfoCircleIcon,
   InternetIcon,
   JumpIcon,
+  LogoTdesignIcon,
   LogoGithubIcon,
+  MapConnectionIcon,
   ModuleIcon,
+  RocketIcon,
   ServerIcon,
   TimeIcon,
   UsergroupIcon,
@@ -23,6 +29,13 @@ interface Contributor {
   avatar: string;
   profile: string;
   contributions: number;
+}
+
+interface OpenSourceReference {
+  name: string;
+  category: string;
+  url: string;
+  icon: ReactNode;
 }
 
 export function About() {
@@ -75,6 +88,45 @@ export function About() {
     { icon: <InternetIcon />, label: t('about.language'), value: localeOptions.find((option) => option.code === locale)?.label || locale },
   ];
 
+  const openSourceReferences: OpenSourceReference[] = [
+    {
+      name: 'React',
+      category: t('about.opensourceCategories.framework'),
+      url: 'https://github.com/facebook/react',
+      icon: <CodeIcon />,
+    },
+    {
+      name: 'TDesign React',
+      category: t('about.opensourceCategories.componentLibrary'),
+      url: 'https://github.com/Tencent/tdesign-react',
+      icon: <LogoTdesignIcon />,
+    },
+    {
+      name: 'TDesign Icons',
+      category: t('about.opensourceCategories.icons'),
+      url: 'https://github.com/Tencent/tdesign-icons',
+      icon: <ComponentGridIcon />,
+    },
+    {
+      name: 'Vite',
+      category: t('about.opensourceCategories.buildTool'),
+      url: 'https://github.com/vitejs/vite',
+      icon: <RocketIcon />,
+    },
+    {
+      name: 'TanStack Query',
+      category: t('about.opensourceCategories.stateData'),
+      url: 'https://github.com/TanStack/query',
+      icon: <DataSearchIcon />,
+    },
+    {
+      name: 'React Router',
+      category: t('about.opensourceCategories.routing'),
+      url: 'https://github.com/remix-run/react-router',
+      icon: <MapConnectionIcon />,
+    },
+  ];
+
   return (
     <div className="about-shell">
       <Card
@@ -92,6 +144,27 @@ export function About() {
               </Space>
               <strong>{item.value}</strong>
             </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card
+        bordered={false}
+        shadow={false}
+        title={<Space align="center"><ModuleIcon />{t('about.opensource')}</Space>}
+        subtitle={t('about.opensourceSubtitle')}
+      >
+        <div className="about-open-source-grid">
+          {openSourceReferences.map((item) => (
+            <a key={item.name} href={item.url} target="_blank" rel="noopener noreferrer" className="about-open-source-card">
+              <span className="about-open-source-card__icon">{item.icon}</span>
+              <span className="about-open-source-card__meta">
+                <strong>{item.name}</strong>
+                <span>{item.category}</span>
+                <small>{item.url}</small>
+              </span>
+              <JumpIcon />
+            </a>
           ))}
         </div>
       </Card>

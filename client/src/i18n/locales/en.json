@@ -352,6 +352,16 @@
       "repository": "Repository",
       "repoSubtitle": "View source code and contribute",
       "license": "License (GPL-3.0)",
+      "opensource": "Open Source References",
+      "opensourceSubtitle": "Primary frontend frameworks and component libraries used by this project",
+      "opensourceCategories": {
+        "framework": "Frontend framework",
+        "componentLibrary": "Component library",
+        "icons": "Icon library",
+        "buildTool": "Build tool",
+        "stateData": "Data state",
+        "routing": "Routing framework"
+      },
       "community": "Community",
       "communitySubtitle": "Join our discussion group",
       "contributors": "Contributors",

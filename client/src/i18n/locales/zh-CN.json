@@ -20,6 +20,16 @@
       "driverVersion": "驱动版本",
       "language": "当前语言",
       "license": "开源协议 (GPL-3.0)",
+      "opensource": "开源引用",
+      "opensourceSubtitle": "本项目使用的主要前端框架和组件库",
+      "opensourceCategories": {
+        "framework": "前端框架",
+        "componentLibrary": "组件库",
+        "icons": "图标库",
+        "buildTool": "构建工具",
+        "stateData": "数据状态",
+        "routing": "路由框架"
+      },
       "repoSubtitle": "查看源代码和提交贡献",
       "repository": "代码仓库",
       "subtitle": "系统信息和版本",
