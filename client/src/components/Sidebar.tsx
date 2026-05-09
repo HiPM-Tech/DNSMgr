@@ -1,253 +1,161 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import type { ReactElement } from 'react';
+import { useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Drawer, Menu } from 'tdesign-react';
+import type { MenuValue } from 'tdesign-react';
 import {
-  LayoutDashboard, Server, Globe, Users, UserCog, Settings, LogOut, Zap, FileText, Info, Cpu, Sun, Moon, Monitor, Key, X, Menu, Shield,
-} from 'lucide-react';
+  DashboardIcon,
+  FileSearchIcon,
+  InfoCircleIcon,
+  InternetIcon,
+  KeyIcon,
+  LinkIcon,
+  LockOnIcon,
+  ServerIcon,
+  SettingIcon,
+  SystemSettingIcon,
+  UserSettingIcon,
+  UsergroupIcon,
+} from 'tdesign-icons-react';
 import { useAuth } from '../contexts/AuthContext';
-import { roleLabelKey } from '../utils/roles';
-import { Avatar } from './Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import './Sidebar.css';
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, key: 'common.dashboard' },
-  { to: '/accounts', icon: Server, key: 'common.dnsAccounts' },
-  { to: '/domains', icon: Globe, key: 'common.domains' },
-  { to: '/teams', icon: Users, key: 'common.teams' },
-  { to: '/tokens', icon: Key, key: 'common.tokens' },
-];
+const { MenuItem, MenuGroup } = Menu;
 
-const adminItems = [
-  { to: '/users', icon: UserCog, key: 'common.users' },
-  { to: '/audit', icon: FileText, key: 'common.audit' },
-  { to: '/system', icon: Cpu, key: 'common.system' },
-];
-
-interface SidebarProps {
-  isOpen?: boolean;
-  onClose?: () => void;
-  isMobile?: boolean;
+interface NavItem {
+  to: string;
+  icon: ReactElement;
+  key: string;
+  end?: boolean;
 }
 
-export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
-  const { user, logout, isAdmin } = useAuth();
+const primaryItems: NavItem[] = [
+  { to: '/', icon: <DashboardIcon />, key: 'common.dashboard', end: true },
+  { to: '/accounts', icon: <ServerIcon />, key: 'common.dnsAccounts' },
+  { to: '/domains', icon: <InternetIcon />, key: 'common.domains' },
+  { to: '/teams', icon: <UsergroupIcon />, key: 'common.teams' },
+  { to: '/tokens', icon: <KeyIcon />, key: 'common.tokens' },
+];
+
+const adminItems: NavItem[] = [
+  { to: '/users', icon: <UserSettingIcon />, key: 'common.users' },
+  { to: '/audit', icon: <FileSearchIcon />, key: 'common.audit' },
+  { to: '/system', icon: <SystemSettingIcon />, key: 'common.system' },
+];
+
+const accountItems: NavItem[] = [
+  { to: '/settings', icon: <SettingIcon />, key: 'common.settings' },
+  { to: '/security', icon: <LockOnIcon />, key: 'common.security' },
+  { to: '/about', icon: <InfoCircleIcon />, key: 'common.about' },
+];
+
+function getActivePath(pathname: string, menuItems: NavItem[]) {
+  const match = [...menuItems]
+    .sort((a, b) => b.to.length - a.to.length)
+    .find((item) => (item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`)));
+
+  return match?.to ?? '/';
+}
+
+interface AppMenuProps {
+  collapsed: boolean;
+  onClose?: () => void;
+}
+
+function AppMenu({ collapsed, onClose }: AppMenuProps) {
+  const { isAdmin } = useAuth();
   const { t } = useI18n();
-  const { theme, setTheme } = useTheme();
+  const { isDark } = useTheme();
   const [showTunnels] = useLocalStorage('showTunnels', false);
   const navigate = useNavigate();
-  const displayName = user?.nickname || user?.username;
+  const location = useLocation();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const menuItems = useMemo(() => {
+    const items = [...primaryItems];
+    if (showTunnels) {
+      items.push({ to: '/tunnels', icon: <LinkIcon />, key: 'tunnels.title' });
+    }
+    return [...items, ...(isAdmin ? adminItems : []), ...accountItems];
+  }, [isAdmin, showTunnels]);
+
+  const activePath = getActivePath(location.pathname, menuItems);
+
+  const handleChange = (value: MenuValue) => {
+    const target = String(value);
+    navigate(target);
+    onClose?.();
   };
 
-  const cycleTheme = () => {
-    if (theme === 'auto') setTheme('light');
-    else if (theme === 'light') setTheme('dark');
-    else setTheme('auto');
-  };
+  const renderItems = (items: NavItem[]) => items.map((item) => (
+    <MenuItem key={item.to} value={item.to} icon={item.icon}>
+      {t(item.key)}
+    </MenuItem>
+  ));
 
-  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  return (
+    <Menu
+      width={['232px', '72px']}
+      className="app-sidebar__menu"
+      value={activePath}
+      collapsed={collapsed}
+      theme={isDark ? 'dark' : 'light'}
+      onChange={handleChange}
+    >
+      <MenuGroup title={!collapsed ? t('common.dashboard') : undefined}>
+        {renderItems(primaryItems)}
+        {showTunnels && (
+          <MenuItem value="/tunnels" icon={<LinkIcon />}>
+            {t('tunnels.title')}
+          </MenuItem>
+        )}
+      </MenuGroup>
 
-  const sidebarContent = (
-    <>
-      <div className="px-5 py-5 border-b border-gray-100 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 bg-blue-600 rounded-lg">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-gray-900 dark:text-white text-base">DNSMgr</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={cycleTheme}
-              title={theme === 'auto' ? 'Auto (system)' : theme === 'light' ? 'Light' : 'Dark'}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <ThemeIcon className="w-4 h-4" />
-            </button>
-            {isMobile && (
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      {isAdmin && (
+        <MenuGroup title={!collapsed ? t('common.admin') : undefined}>
+          {renderItems(adminItems)}
+        </MenuGroup>
+      )}
 
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        <div className="space-y-0.5">
-          {navItems.map(({ to, icon: Icon, key }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              onClick={isMobile ? onClose : undefined}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                }`
-              }
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              {t(key)}
-            </NavLink>
-          ))}
-
-          {showTunnels && (
-            <NavLink
-              to="/tunnels"
-              onClick={isMobile ? onClose : undefined}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                }`
-              }
-            >
-              <Globe className="w-4 h-4 flex-shrink-0" />
-              {t('tunnels.title')}
-            </NavLink>
-          )}
-
-          {isAdmin && (
-            <>
-              <div className="pt-3 pb-1 px-3">
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{t('common.admin')}</span>
-              </div>
-              {adminItems.map(({ to, icon: Icon, key }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  onClick={isMobile ? onClose : undefined}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                    }`
-                  }
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  {t(key)}
-                </NavLink>
-              ))}
-            </>
-          )}
-
-          <div className="pt-3 pb-1 px-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{t('common.account')}</span>
-          </div>
-          <NavLink
-            to="/settings"
-            onClick={isMobile ? onClose : undefined}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-              }`
-            }
-          >
-            <Settings className="w-4 h-4 flex-shrink-0" />
-            {t('common.settings')}
-          </NavLink>
-          <NavLink
-            to="/security"
-            onClick={isMobile ? onClose : undefined}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-              }`
-            }
-          >
-            <Shield className="w-4 h-4 flex-shrink-0" />
-            {t('common.security')}
-          </NavLink>
-          <NavLink
-            to="/about"
-            onClick={isMobile ? onClose : undefined}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-              }`
-            }
-          >
-            <Info className="w-4 h-4 flex-shrink-0" />
-            {t('common.about')}
-          </NavLink>
-        </div>
-      </nav>
-
-      <div className="px-3 py-3 border-t border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-2 px-2 py-2">
-          <Avatar username={displayName} email={user?.email} size={28} textClassName="text-xs" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{displayName}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t(roleLabelKey(user?.role))}</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            title={t('common.logout')}
-            className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </>
+      <MenuGroup title={!collapsed ? t('common.account') : undefined}>
+        {renderItems(accountItems)}
+      </MenuGroup>
+    </Menu>
   );
+}
 
-  // 移动端抽屉
+interface SidebarProps {
+  collapsed: boolean;
+  onCollapseChange?: (collapsed: boolean) => void;
+  isMobile?: boolean;
+  visible?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ collapsed, isMobile = false, visible = false, onClose }: SidebarProps) {
   if (isMobile) {
     return (
-      <>
-        {/* 遮罩层 */}
-        {isOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-            onClick={onClose}
-          />
-        )}
-        {/* 抽屉 */}
-        <aside
-          className={`fixed left-0 top-0 h-full w-[220px] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col z-50 transform transition-transform duration-300 lg:hidden ${
-            isOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          {sidebarContent}
-        </aside>
-      </>
+      <Drawer
+        className="app-sidebar-drawer"
+        visible={visible}
+        placement="left"
+        size="260px"
+        header={false}
+        footer={false}
+        closeBtn={false}
+        destroyOnClose
+        onClose={onClose}
+      >
+        <AppMenu collapsed={false} onClose={onClose} />
+      </Drawer>
     );
   }
 
-  // 桌面端固定侧边栏
   return (
-    <aside className="hidden lg:flex fixed left-0 top-0 h-full w-[220px] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-col z-30">
-      {sidebarContent}
+    <aside className={`app-sidebar ${collapsed ? 'app-sidebar--collapsed' : ''}`}>
+      <AppMenu collapsed={collapsed} />
     </aside>
-  );
-}
-
-export function MobileMenuButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="lg:hidden p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-    >
-      <Menu className="w-5 h-5" />
-    </button>
   );
 }

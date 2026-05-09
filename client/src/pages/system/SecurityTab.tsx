@@ -1,7 +1,16 @@
-
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, XCircle, Lock, Unlock, Users, Server, Smartphone } from 'lucide-react';
+import { Button, Card, Form, Input, Space, Switch, Tag, TimeRangePicker } from 'tdesign-react';
+import {
+  CloseCircleIcon,
+  LockOnIcon,
+  MailIcon,
+  MobileIcon,
+  SecuredIcon,
+  ServerIcon,
+  UserUnlockedIcon,
+  UsergroupIcon,
+} from 'tdesign-icons-react';
 import { settingsApi, securityApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
@@ -32,7 +41,7 @@ export function SecurityTab() {
     maxDeletionsPerHour: 10,
     maxFailedLogins: 5,
     offHoursStart: '22:00',
-    offHoursEnd: '06:00'
+    offHoursEnd: '06:00',
   });
 
   useQuery({
@@ -205,317 +214,221 @@ export function SecurityTab() {
     onError: (error: Error) => toast.error(error.message || t('system.auditRulesSaveFailed')),
   });
 
+  const saveAuditRules = (next: typeof auditRules) => {
+    setAuditRules(next);
+    updateAuditRulesMutation.mutate(next);
+  };
+
+  const cardTitle = (icon: React.ReactNode, title: string, subtitle: string) => (
+    <Space size="small" align="start">
+      <span className="metric-icon metric-icon--primary">{icon}</span>
+      <span>
+        <span className="page-card-title">{title}</span>
+        <span className="page-card-subtitle">{subtitle}</span>
+      </span>
+    </Space>
+  );
+
   return (
-    <div className="columns-1 xl:columns-3 xl:[column-gap:1.5rem]">
-          <div className="contents">
-            {/* Login Limit Configuration */}
-            <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <Lock className="w-5 h-5 text-orange-600" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.loginLimitConfig')}</h3>
-                <p className="text-sm text-gray-500">{t('system.loginLimitConfigDesc')}</p>
-              </div>
+    <div className="page-shell">
+      <div className="access-grid">
+        <Card bordered={false} shadow={false} title={cardTitle(<LockOnIcon />, t('system.loginLimitConfig'), t('system.loginLimitConfigDesc'))}>
+          <div className="settings-switch-row">
+            <div>
+              <strong>{t('system.enableLoginLimit')}</strong>
+              <span>{t('system.enableLoginLimitDesc')}</span>
             </div>
+            <Switch
+              value={Boolean(loginLimitConfig?.enabled)}
+              loading={updateLoginLimitMutation.isPending}
+              onChange={handleToggleLoginLimit}
+            />
+          </div>
 
-            {/* Enable/Disable Toggle */}
-            <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.enableLoginLimit')}</p>
-                <p className="text-xs text-gray-500">{t('system.enableLoginLimitDesc')}</p>
-              </div>
-              <button
-                onClick={handleToggleLoginLimit}
-                disabled={updateLoginLimitMutation.isPending}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  loginLimitConfig?.enabled ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    loginLimitConfig?.enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
+          <Form layout="vertical" colon={false} requiredMark={false} className="notification-form-grid">
+            <Form.FormItem label={t('system.maxAttempts')} help={t('system.maxAttemptsDesc')}>
+              <Input
+                type="number"
+                value={String(loginLimitConfig?.maxAttempts || 10)}
+                suffix={t('system.attempts')}
+                disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
+                onChange={(value) => handleUpdateMaxAttempts(Number(value))}
+              />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.lockoutDuration')} help={t('system.lockoutDurationDesc')}>
+              <Input
+                type="number"
+                value={String(loginLimitConfig?.lockoutDuration || 60)}
+                suffix={t('system.minutes')}
+                disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
+                onChange={(value) => handleUpdateLockoutDuration(Number(value))}
+              />
+            </Form.FormItem>
+          </Form>
+        </Card>
+
+        <Card bordered={false} shadow={false} title={cardTitle(<SecuredIcon />, t('system.auditRules'), t('system.auditRulesDesc'))}>
+          <div className="settings-switch-row">
+            <div>
+              <strong>{t('system.enableAlerts')}</strong>
+              <span>{t('system.enableAlertsDesc')}</span>
             </div>
+            <Switch
+              value={auditRules.enabled}
+              loading={updateAuditRulesMutation.isPending}
+              onChange={(checked) => saveAuditRules({ ...auditRules, enabled: Boolean(checked) })}
+            />
+          </div>
 
-            {/* Max Attempts */}
-            <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.maxAttempts')}</p>
-                <p className="text-xs text-gray-500">{t('system.maxAttemptsDesc')}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={loginLimitConfig?.maxAttempts || 10}
-                  onChange={(e) => handleUpdateMaxAttempts(parseInt(e.target.value))}
-                  disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
-                  className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-700"
-                />
-                <span className="text-sm text-gray-500">{t('system.attempts')}</span>
-              </div>
+          <Form layout="vertical" colon={false} requiredMark={false} className="notification-form-grid">
+            <Form.FormItem label={t('system.maxDeletions')} help={t('system.maxDeletionsDesc')}>
+              <Input
+                type="number"
+                value={String(auditRules.maxDeletionsPerHour)}
+                onChange={(value) => setAuditRules({ ...auditRules, maxDeletionsPerHour: Number(value) || 0 })}
+                onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+              />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.maxFailedLogins')} help={t('system.maxFailedLoginsDesc')}>
+              <Input
+                type="number"
+                value={String(auditRules.maxFailedLogins)}
+                onChange={(value) => setAuditRules({ ...auditRules, maxFailedLogins: Number(value) || 0 })}
+                onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+              />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.offHoursAlert')} help={t('system.offHoursAlertDesc')}>
+              <TimeRangePicker
+                allowInput
+                format="HH:mm"
+                value={[auditRules.offHoursStart, auditRules.offHoursEnd]}
+                onChange={(value) => setAuditRules({
+                  ...auditRules,
+                  offHoursStart: value?.[0] || '22:00',
+                  offHoursEnd: value?.[1] || '06:00',
+                })}
+                onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+              />
+            </Form.FormItem>
+          </Form>
+        </Card>
+
+        <Card bordered={false} shadow={false} title={cardTitle(<UsergroupIcon />, t('system.loginStats'), t('system.loginStatsDesc'))}>
+          <div className="metric-grid">
+            <div className="metric-tile metric-tile--danger">
+              <span>{t('system.lockedAccounts')}</span>
+              <strong>{loginStats?.totalLocked || 0}</strong>
             </div>
-
-            {/* Lockout Duration */}
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.lockoutDuration')}</p>
-                <p className="text-xs text-gray-500">{t('system.lockoutDurationDesc')}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={1440}
-                  value={loginLimitConfig?.lockoutDuration || 60}
-                  onChange={(e) => handleUpdateLockoutDuration(parseInt(e.target.value))}
-                  disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
-                  className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-700"
-                />
-                <span className="text-sm text-gray-500">{t('system.minutes')}</span>
-              </div>
-            </div>
-            </div>
-            
-            {/* Audit Rules */}
-            <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <Shield className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.auditRules')}</h3>
-                  <p className="text-sm text-gray-500">{t('system.auditRulesDesc')}</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.enableAlerts')}</p>
-                    <p className="text-xs text-gray-500">{t('system.enableAlertsDesc')}</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const next = { ...auditRules, enabled: !auditRules.enabled };
-                      setAuditRules(next);
-                      updateAuditRulesMutation.mutate(next);
-                    }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      auditRules.enabled ? 'bg-blue-600' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        auditRules.enabled ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <div className="w-2/3">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.maxDeletions')}</p>
-                    <p className="text-xs text-gray-500">{t('system.maxDeletionsDesc')}</p>
-                  </div>
-                  <input
-                    type="number"
-                    value={auditRules.maxDeletionsPerHour}
-                    onChange={(e) => setAuditRules({ ...auditRules, maxDeletionsPerHour: parseInt(e.target.value) || 0 })}
-                    onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
-                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <div className="w-2/3">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.maxFailedLogins')}</p>
-                    <p className="text-xs text-gray-500">{t('system.maxFailedLoginsDesc')}</p>
-                  </div>
-                  <input
-                    type="number"
-                    value={auditRules.maxFailedLogins}
-                    onChange={(e) => setAuditRules({ ...auditRules, maxFailedLogins: parseInt(e.target.value) || 0 })}
-                    onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
-                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <div className="w-2/3">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.offHoursAlert')}</p>
-                    <p className="text-xs text-gray-500">{t('system.offHoursAlertDesc')}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="time"
-                      value={auditRules.offHoursStart}
-                      onChange={(e) => setAuditRules({ ...auditRules, offHoursStart: e.target.value })}
-                      onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
-                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    />
-                    <span className="text-gray-500">-</span>
-                    <input
-                      type="time"
-                      value={auditRules.offHoursEnd}
-                      onChange={(e) => setAuditRules({ ...auditRules, offHoursEnd: e.target.value })}
-                      onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
-                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Login Attempt Statistics */}
-            <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Users className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.loginStats')}</h3>
-                <p className="text-sm text-gray-500">{t('system.loginStatsDesc')}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <p className="text-xs text-gray-500 mb-1">{t('system.lockedAccounts')}</p>
-                <p className="text-lg font-semibold text-red-600">{loginStats?.totalLocked || 0}</p>
-              </div>
-              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                <p className="text-xs text-gray-500 mb-1">{t('system.recentFailedAttempts')}</p>
-                <p className="text-lg font-semibold text-yellow-600">{loginStats?.recentAttempts || 0}</p>
-              </div>
-            </div>
-
-            {/* Unlock Account */}
-            <div className="border-t border-gray-100 pt-4">
-              <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">{t('system.manualUnlock')}</p>
-              <p className="text-xs text-gray-500 mb-3">{t('system.manualUnlockDesc')}</p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={unlockIdentifier}
-                  onChange={(e) => setUnlockIdentifier(e.target.value)}
-                  placeholder={t('system.unlockPlaceholder')}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                />
-                <button
-                  onClick={handleUnlockAccount}
-                  disabled={unlockAccountMutation.isPending || !unlockIdentifier.trim()}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <Unlock className="w-4 h-4" />
-                  {t('system.unlock')}
-                </button>
-              </div>
-            </div>
+            <div className="metric-tile metric-tile--warning">
+              <span>{t('system.recentFailedAttempts')}</span>
+              <strong>{loginStats?.recentAttempts || 0}</strong>
             </div>
           </div>
 
-          <div className="contents">
-            <div className="contents">
-              <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
-                    <Server className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.smtpConfig')}</h3>
-                    <p className="text-sm text-gray-500">{t('system.smtpConfigDesc')}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input value={smtpForm.host} onChange={(e) => setSmtpForm((v) => ({ ...v, host: e.target.value }))} placeholder={t('system.smtpHost')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-                  <input type="number" value={smtpForm.port} onChange={(e) => setSmtpForm((v) => ({ ...v, port: Number(e.target.value) || 0 }))} placeholder={t('system.smtpPort')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-                  <input value={smtpForm.username} onChange={(e) => setSmtpForm((v) => ({ ...v, username: e.target.value }))} placeholder={t('system.smtpUser')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-                  <input type="password" value={smtpForm.password} onChange={(e) => setSmtpForm((v) => ({ ...v, password: e.target.value }))} placeholder={t('system.smtpPass')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-                  <input value={smtpForm.fromEmail} onChange={(e) => setSmtpForm((v) => ({ ...v, fromEmail: e.target.value }))} placeholder={t('system.smtpFromEmail')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-                  <input value={smtpForm.fromName} onChange={(e) => setSmtpForm((v) => ({ ...v, fromName: e.target.value }))} placeholder={t('system.smtpFromName')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-                </div>
-                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input type="checkbox" checked={smtpForm.enabled} onChange={(e) => setSmtpForm((v) => ({ ...v, enabled: e.target.checked }))} />
-                  {t('system.smtpEnabled')}
-                </label>
-                <div className="flex gap-2">
-                  <button onClick={() => updateSmtpMutation.mutate()} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">{t('system.smtpSave')}</button>
-                  <input value={smtpForm.testTo} onChange={(e) => setSmtpForm((v) => ({ ...v, testTo: e.target.value }))} placeholder={user?.email || t('system.smtpTestTo')} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-                  <button onClick={() => testSmtpMutation.mutate()} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg">{t('system.smtpTest')}</button>
-                </div>
-              </div>
-              <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                    <Smartphone className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.securityPolicy')}</h3>
-                    <p className="text-sm text-gray-500">{t('system.securityPolicyDesc')}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.require2FAGlobal')}</p>
-                    <p className="text-xs text-gray-500">{t('system.require2FAGlobalDesc')}</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={securityPolicy?.require2FAGlobal ?? false}
-                      onChange={(e) => updateSecurityPolicyMutation.mutate({ require2FAGlobal: e.target.checked })}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.showDnsProviderSecrets')}</p>
-                      <p className="text-xs text-gray-500">{t('system.showDnsProviderSecretsDesc')}</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={securityConfig?.showDnsProviderSecrets ?? false}
-                        onChange={(e) => updateSecurityConfigMutation.mutate({ showDnsProviderSecrets: e.target.checked })}
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-red-600"></div>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                    <XCircle className="w-5 h-5 text-gray-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.comingSoon')}</h3>
-                    <p className="text-sm text-gray-500">{t('system.comingSoonDesc')}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t('system.forceHttps')}</p>
-                    <p className="text-xs text-gray-500">{t('system.forceHttpsDesc')}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <XCircle className="w-5 h-5 text-gray-400" />
-                    <span className="text-sm text-gray-500">{t('system.comingSoon')}</span>
-                  </div>
-                </div>
-              </div>
+          <Form layout="vertical" colon={false} requiredMark={false}>
+            <Form.FormItem label={t('system.manualUnlock')} help={t('system.manualUnlockDesc')}>
+              <Input
+                value={unlockIdentifier}
+                placeholder={t('system.unlockPlaceholder')}
+                onChange={(value) => setUnlockIdentifier(String(value))}
+                suffixIcon={(
+                  <Button
+                    shape="square"
+                    variant="text"
+                    theme="primary"
+                    icon={<UserUnlockedIcon />}
+                    loading={unlockAccountMutation.isPending}
+                    disabled={!unlockIdentifier.trim()}
+                    onClick={handleUnlockAccount}
+                  />
+                )}
+              />
+            </Form.FormItem>
+          </Form>
+        </Card>
+
+        <Card bordered={false} shadow={false} title={cardTitle(<ServerIcon />, t('system.smtpConfig'), t('system.smtpConfigDesc'))}>
+          <Form layout="vertical" colon={false} requiredMark={false}>
+            <div className="notification-form-grid">
+              <Form.FormItem label={t('system.smtpHost')}>
+                <Input value={smtpForm.host} onChange={(value) => setSmtpForm((v) => ({ ...v, host: String(value) }))} placeholder={t('system.smtpHost')} />
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpPort')}>
+                <Input type="number" value={String(smtpForm.port)} onChange={(value) => setSmtpForm((v) => ({ ...v, port: Number(value) || 0 }))} placeholder={t('system.smtpPort')} />
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpUser')}>
+                <Input value={smtpForm.username} onChange={(value) => setSmtpForm((v) => ({ ...v, username: String(value) }))} placeholder={t('system.smtpUser')} />
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpPass')}>
+                <Input type="password" value={smtpForm.password} onChange={(value) => setSmtpForm((v) => ({ ...v, password: String(value) }))} placeholder={t('system.smtpPass')} />
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpFromEmail')}>
+                <Input value={smtpForm.fromEmail} onChange={(value) => setSmtpForm((v) => ({ ...v, fromEmail: String(value) }))} placeholder={t('system.smtpFromEmail')} />
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpFromName')}>
+                <Input value={smtpForm.fromName} onChange={(value) => setSmtpForm((v) => ({ ...v, fromName: String(value) }))} placeholder={t('system.smtpFromName')} />
+              </Form.FormItem>
             </div>
+
+            <div className="settings-switch-row">
+              <div>
+                <strong>{t('system.smtpEnabled')}</strong>
+                <span>{t('system.smtpConfigDesc')}</span>
+              </div>
+              <Switch value={smtpForm.enabled} onChange={(checked) => setSmtpForm((v) => ({ ...v, enabled: Boolean(checked) }))} />
+            </div>
+
+            <Space breakLine className="record-form__actions">
+              <Button theme="primary" icon={<MailIcon />} loading={updateSmtpMutation.isPending} onClick={() => updateSmtpMutation.mutate()}>
+                {t('system.smtpSave')}
+              </Button>
+              <Input
+                value={smtpForm.testTo}
+                onChange={(value) => setSmtpForm((v) => ({ ...v, testTo: String(value) }))}
+                placeholder={user?.email || t('system.smtpTestTo')}
+              />
+              <Button theme="success" variant="outline" loading={testSmtpMutation.isPending} onClick={() => testSmtpMutation.mutate()}>
+                {t('system.smtpTest')}
+              </Button>
+            </Space>
+          </Form>
+        </Card>
+
+        <Card bordered={false} shadow={false} title={cardTitle(<MobileIcon />, t('system.securityPolicy'), t('system.securityPolicyDesc'))}>
+          <div className="settings-switch-row">
+            <div>
+              <strong>{t('system.require2FAGlobal')}</strong>
+              <span>{t('system.require2FAGlobalDesc')}</span>
+            </div>
+            <Switch
+              value={securityPolicy?.require2FAGlobal ?? false}
+              loading={updateSecurityPolicyMutation.isPending}
+              onChange={(checked) => updateSecurityPolicyMutation.mutate({ require2FAGlobal: Boolean(checked) })}
+            />
           </div>
-        </div>
+          <div className="settings-switch-row">
+            <div>
+              <strong>{t('system.showDnsProviderSecrets')}</strong>
+              <span>{t('system.showDnsProviderSecretsDesc')}</span>
+            </div>
+            <Switch
+              value={securityConfig?.showDnsProviderSecrets ?? false}
+              loading={updateSecurityConfigMutation.isPending}
+              onChange={(checked) => updateSecurityConfigMutation.mutate({ showDnsProviderSecrets: Boolean(checked) })}
+            />
+          </div>
+        </Card>
+
+        <Card bordered={false} shadow={false} title={cardTitle(<CloseCircleIcon />, t('system.comingSoon'), t('system.comingSoonDesc'))}>
+          <div className="settings-switch-row">
+            <div>
+              <strong>{t('system.forceHttps')}</strong>
+              <span>{t('system.forceHttpsDesc')}</span>
+            </div>
+            <Tag theme="default" variant="light">{t('system.comingSoon')}</Tag>
+          </div>
+        </Card>
+      </div>
+    </div>
   );
 }

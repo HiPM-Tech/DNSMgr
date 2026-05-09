@@ -1,0 +1,6 @@
+.app-avatar {
+  flex: 0 0 auto;
+  background: var(--td-brand-color);
+  color: var(--td-text-color-anti);
+  font-weight: 600;
+}

@@ -1,12 +1,13 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button, Card, Input, Pagination, Select, Space, Switch, Tabs, Tag } from 'tdesign-react';
+import type { SelectValue } from 'tdesign-react/es/select';
+import { AddIcon, ArrowLeftIcon, DeleteIcon, EditIcon, MailIcon, RefreshIcon, SearchIcon } from 'tdesign-icons-react';
 import { recordsApi, domainsApi, accountsApi } from '../api';
 import type { DnsRecord } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
-import { Badge } from '../components/Badge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
@@ -15,6 +16,10 @@ import { TunnelList } from '../components/TunnelList';
 import { MailSetupModal } from './MailSetupModal';
 import { RecordForm, COMMON_RECORD_TYPES, CLOUDFLARE_RECORD_TYPES } from '../components/RecordForm';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+
+function selectToString(value: SelectValue) {
+  return String(Array.isArray(value) ? value[0] ?? '' : value);
+}
 
 export function Records() {
   const { id } = useParams<{ id: string }>();
@@ -96,9 +101,6 @@ export function Records() {
   const records = recordsData?.list ?? [];
   const total = recordsData?.total ?? 0;
   
-  // 计算总页数
-  const totalPages = Math.ceil(total / pageSize);
-
   const { data: lines = [] } = useQuery({
     queryKey: ['lines', domainId],
     queryFn: () => domainsApi.lines(domainId).then((r) => r.data.data ?? []),
@@ -158,24 +160,17 @@ export function Records() {
   
 
   const columns = [
-    { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">{r.name}</span> },
-    {
-      key: 'type', label: t('common.type'),
-      render: (r: DnsRecord) => (
-        <span className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-xs font-bold">{r.type}</span>
-      ),
-    },
+    { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="record-mono record-mono--strong">{r.name}</span> },
+    { key: 'type', label: t('common.type'), render: (r: DnsRecord) => <Tag theme="primary" variant="light">{r.type}</Tag> },
     {
       key: 'value', label: t('common.value'),
       render: (r: DnsRecord) => (
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs text-gray-700 max-w-xs truncate block" title={r.value}>{r.value}</span>
+        <Space size="small">
+          <span className="record-mono record-mono--value" title={r.value}>{r.value}</span>
           {r.type === 'MX' && r.mx !== undefined && (
-            <span className="inline-flex items-center px-1.5 py-0.5 bg-orange-50 text-orange-600 rounded text-xs font-medium" title={t('records.mxPriority')}>
-              {r.mx}
-            </span>
+            <Tag theme="warning" variant="light" title={t('records.mxPriority')}>{r.mx}</Tag>
           )}
-        </div>
+        </Space>
       ),
     },
     {
@@ -184,206 +179,128 @@ export function Records() {
         // Cloudflare & Aliyun ESA: 显示代理状态（是/否）
         if (hasProxyMode) {
           const proxied = r.line === '1';
-          return (
-            <span className={`text-xs font-medium ${proxied ? 'text-orange-500' : 'text-gray-500'}`}>
-              {proxied ? t('records.proxied') : t('records.dnsOnly')}
-            </span>
-          );
+          return <Tag theme={proxied ? 'warning' : 'default'} variant="light">{proxied ? t('records.proxied') : t('records.dnsOnly')}</Tag>;
         }
         // 其他提供商: 显示线路
         const effectiveLine = r.line;
         
         // 当线路为 '0'、'default' 或空时，显示为"默认"
         if (!effectiveLine || effectiveLine === '0' || effectiveLine === 'default') {
-          return <span className="text-gray-500 text-xs">{t('records.defaultLine') || '默认'}</span>;
+          return <Tag theme="default" variant="light">{t('records.defaultLine') || '默认'}</Tag>;
         }
         
         // 显示具体线路名称
         const lineName = lineMap[effectiveLine];
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded text-xs font-medium border border-purple-200 dark:border-purple-800">
-            {lineName ?? effectiveLine}
-          </span>
-        );
+        return <Tag theme="primary" variant="light">{lineName ?? effectiveLine}</Tag>;
       },
     },
-    { key: 'ttl', label: t('common.ttl'), render: (r: DnsRecord) => <span className="text-gray-500 text-xs">{r.ttl ?? '-'}</span> },
+    { key: 'ttl', label: t('common.ttl'), render: (r: DnsRecord) => <span className="page-muted">{r.ttl ?? '-'}</span> },
     {
       key: 'status', label: t('common.status'),
-      render: (r: DnsRecord) => <Badge variant={r.status === 1 ? 'green' : 'red'}>{r.status === 1 ? t('common.enabled') : t('common.disabled')}</Badge>,
+      render: (r: DnsRecord) => (
+        <Tag theme={r.status === 1 ? 'success' : 'danger'} variant="light">
+          {r.status === 1 ? t('common.enabled') : t('common.disabled')}
+        </Tag>
+      ),
     },
     {
       key: 'actions', label: t('common.actions'),
       render: (r: DnsRecord) => (
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => statusMutation.mutate({ recordId: r.id, status: r.status === 1 ? 0 : 1 })}
-            title={r.status === 1 ? t('common.disable') : t('common.enable')}
-            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-            {r.status === 1 ? <ToggleRight className="w-4 h-4 text-green-500" /> : <ToggleLeft className="w-4 h-4" />}
-          </button>
-          <button onClick={() => setEditing(r)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button onClick={() => setDeleting(r)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+        <Space size="small">
+          <Switch
+            size="small"
+            value={r.status === 1}
+            onChange={(checked) => statusMutation.mutate({ recordId: r.id, status: checked ? 1 : 0 })}
+          />
+          <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => setEditing(r)} />
+          <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} onClick={() => setDeleting(r)} />
+        </Space>
       ),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/domains')} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+    <div className="page-shell">
+      <section className="page-heading">
+        <div className="page-actions">
+          <Button shape="square" variant="text" icon={<ArrowLeftIcon />} onClick={() => navigate('/domains')} />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{domain?.name ?? t('records.title')}</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('records.subtitle')}</p>
+            <h1>{domain?.name ?? t('records.title')}</h1>
+            <p>{t('records.subtitle')}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {activeTab === 'records' && (
-            <>
-              <button
-                onClick={() => qc.invalidateQueries({ queryKey: ['records', domainId] })}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors"
-              >
-                <RefreshCw className="w-4 h-4" /> {t('records.refresh')}
-              </button>
-              <button onClick={() => setShowAdd(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-                <Plus className="w-4 h-4" /> {t('records.addRecord')}
-              </button>
-              <button onClick={() => setShowMailSetup(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
-                {t('mail.title')}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+        {activeTab === 'records' && (
+          <Space>
+            <Button variant="outline" icon={<RefreshIcon />} onClick={() => qc.invalidateQueries({ queryKey: ['records', domainId] })}>
+              {t('records.refresh')}
+            </Button>
+            <Button theme="primary" icon={<AddIcon />} onClick={() => setShowAdd(true)}>
+              {t('records.addRecord')}
+            </Button>
+            <Button variant="outline" icon={<MailIcon />} onClick={() => setShowMailSetup(true)}>
+              {t('mail.title')}
+            </Button>
+          </Space>
+        )}
+      </section>
 
       {showTunnels && currentProvider?.type === 'cloudflare' && (
-        <div className="border-b border-gray-200 dark:border-gray-700">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('records')}
-              className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'records'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-500'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-              }`}
-            >
-              {t('records.dnsRecords')}
-            </button>
-            <button
-              onClick={() => setActiveTab('tunnels')}
-              className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'tunnels'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-500'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-              }`}
-            >
-              {t('records.tunnels')}
-            </button>
-          </nav>
-        </div>
+        <Tabs
+          className="page-tabs"
+          theme="card"
+          value={activeTab}
+          list={[
+            { value: 'records', label: t('records.dnsRecords') },
+            { value: 'tunnels', label: t('records.tunnels') },
+          ]}
+          onChange={(value) => setActiveTab(value as 'records' | 'tunnels')}
+        />
       )}
 
       {activeTab === 'records' && (
         <>
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input value={keyword} onChange={(e) => setKeyword(e.target.value)}
-                placeholder={t('common.searchRecords')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+          <Card bordered={false} shadow={false}>
+            <div className="records-toolbar">
+              <Input
+                clearable
+                value={keyword}
+                prefixIcon={<SearchIcon />}
+                placeholder={t('common.searchRecords')}
+                onChange={(value) => {
+                  setKeyword(String(value));
+                  setPage(1);
+                }}
+              />
+              <Select
+                value={typeFilter}
+                options={[
+                  { label: t('records.allTypes'), value: '' },
+                  ...providerRecordTypes.map((type) => ({ label: type, value: type })),
+                ]}
+                onChange={(value) => {
+                  setTypeFilter(selectToString(value));
+                  setPage(1);
+                }}
+              />
             </div>
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-              <option value="">{t('records.allTypes')}</option>
-              {providerRecordTypes.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </div>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+          <Card bordered={false} shadow={false} className="page-card">
             <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} />
-          </div>
-          
-          {/* 分页控件 */}
-          <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {t('common.total')} {total} {t('common.items')}, {page} / {totalPages} {t('common.page')}
-                </span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setPage(1);
-                  }}
-                  className="ml-2 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                >
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('common.perPage')}</span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                
-                {/* 页码按钮 */}
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    // 显示当前页附近的页码
-                    let pageNum = i + 1;
-                    if (totalPages > 5) {
-                      if (page > 3) {
-                        pageNum = page - 3 + i;
-                      }
-                      if (pageNum > totalPages - 4 && page > totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      }
-                    }
-                    if (pageNum < 1 || pageNum > totalPages) return null;
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setPage(pageNum)}
-                        className={`min-w-[2rem] px-2 py-1 text-sm rounded-lg ${
-                          page === pageNum
-                            ? 'bg-blue-600 text-white'
-                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
+            <div className="records-pagination">
+              <Pagination
+                current={page}
+                pageSize={pageSize}
+                total={total}
+                pageSizeOptions={[10, 20, 50, 100]}
+                onCurrentChange={(current) => setPage(current)}
+                onPageSizeChange={(nextPageSize) => {
+                  setPageSize(nextPageSize);
+                  setPage(1);
+                }}
+              />
             </div>
+          </Card>
         </>
       )}
 

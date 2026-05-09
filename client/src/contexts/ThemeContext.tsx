@@ -2,59 +2,85 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 type Theme = 'light' | 'dark' | 'auto';
+type ResolvedTheme = 'light' | 'dark';
 
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   isDark: boolean;
+  resolvedTheme: ResolvedTheme;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-function applyTheme(theme: Theme): boolean {
-  const shouldBeDark =
-    theme === 'dark' ||
-    (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+const THEME_STORAGE_KEY = 'theme';
+const THEME_MEDIA_QUERY = '(prefers-color-scheme: dark)';
 
-  if (shouldBeDark) {
-    document.documentElement.classList.add('dark');
-    document.documentElement.style.colorScheme = 'dark';
-  } else {
-    document.documentElement.classList.remove('dark');
-    document.documentElement.style.colorScheme = 'light';
+function getStoredTheme(): Theme {
+  const saved = localStorage.getItem(THEME_STORAGE_KEY);
+  return saved === 'light' || saved === 'dark' || saved === 'auto' ? saved : 'auto';
+}
+
+function getSystemTheme(): ResolvedTheme {
+  return window.matchMedia(THEME_MEDIA_QUERY).matches ? 'dark' : 'light';
+}
+
+function resolveTheme(theme: Theme): ResolvedTheme {
+  return theme === 'auto' ? getSystemTheme() : theme;
+}
+
+function syncThemeTarget(element: HTMLElement, theme: Theme, resolvedTheme: ResolvedTheme) {
+  element.classList.toggle('dark', resolvedTheme === 'dark');
+  element.classList.toggle('light', resolvedTheme === 'light');
+  element.style.colorScheme = resolvedTheme;
+  element.setAttribute('theme-mode', resolvedTheme);
+  element.dataset.theme = theme;
+  element.dataset.resolvedTheme = resolvedTheme;
+}
+
+function applyTheme(theme: Theme): ResolvedTheme {
+  const resolvedTheme = resolveTheme(theme);
+
+  syncThemeTarget(document.documentElement, theme, resolvedTheme);
+  if (document.body) {
+    syncThemeTarget(document.body, theme, resolvedTheme);
   }
-  return shouldBeDark;
+
+  return resolvedTheme;
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // 惰性初始化：直接从 localStorage 读，避免两个 useEffect 的竞态
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const saved = localStorage.getItem('theme') as Theme | null;
-    return saved ?? 'auto';
-  });
+  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme());
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => applyTheme(getStoredTheme()));
+  const isDark = resolvedTheme === 'dark';
 
-  const [isDark, setIsDark] = useState(() => applyTheme(
-    (localStorage.getItem('theme') as Theme | null) ?? 'auto'
-  ));
-
-  // 监听系统主题变化（仅 auto 模式下有意义）
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => {
-      setIsDark(applyTheme(theme));
+    const mediaQuery = window.matchMedia(THEME_MEDIA_QUERY);
+    const handleSystemThemeChange = () => {
+      setResolvedTheme(applyTheme(theme));
     };
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+
+    handleSystemThemeChange();
+
+    if (theme !== 'auto') return undefined;
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleSystemThemeChange);
+      return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
+    }
+
+    mediaQuery.addListener(handleSystemThemeChange);
+    return () => mediaQuery.removeListener(handleSystemThemeChange);
   }, [theme]);
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
-    localStorage.setItem('theme', newTheme);
-    setIsDark(applyTheme(newTheme));
+    localStorage.setItem(THEME_STORAGE_KEY, newTheme);
+    setResolvedTheme(applyTheme(newTheme));
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, isDark }}>
+    <ThemeContext.Provider value={{ theme, setTheme, isDark, resolvedTheme }}>
       {children}
     </ThemeContext.Provider>
   );

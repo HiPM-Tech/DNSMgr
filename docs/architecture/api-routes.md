@@ -23,7 +23,6 @@
 ### 公开端点
 
 - `POST /api/auth/login` - 用户登录
-- `POST /api/auth/register` - 用户注册（如开启）
 - `GET /api/auth/oauth/status` - 获取 OAuth 状态
 - `POST /api/auth/oauth/start` - 开始 OAuth 流程
 - `POST /api/auth/oauth/callback` - OAuth 回调

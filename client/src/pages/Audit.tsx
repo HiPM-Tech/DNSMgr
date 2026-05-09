@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Search } from 'lucide-react';
+import { Button, Card, DateRangePicker, Empty, Input, Loading, Pagination, Select, Space } from 'tdesign-react';
+import type { DateRangeValue } from 'tdesign-react/es/date-picker';
+import type { SelectValue } from 'tdesign-react/es/select';
+import { FileSearchIcon, SearchIcon } from 'tdesign-icons-react';
 import { logsApi } from '../api';
 import { AuditLogList } from '../components/AuditLogList';
 import { getAuditActionOptions } from '../utils/auditLogs';
@@ -8,6 +11,10 @@ import { useI18n } from '../contexts/I18nContext';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 
 const PAGE_SIZE = 20;
+
+function selectToString(value: SelectValue) {
+  return String(Array.isArray(value) ? value[0] ?? '' : value);
+}
 
 export function Audit() {
   const { t } = useI18n();
@@ -18,11 +25,10 @@ export function Audit() {
   const [endDate, setEndDate] = useState('');
   const [page, setPage] = useState(1);
 
-  // 实时数据：审计日志
   useRealtimeData({
     queryKey: ['audit-logs'],
     websocketEventTypes: ['audit_log_created'],
-    pollingInterval: 60000, // 1分钟
+    pollingInterval: 60000,
   });
 
   const { data, isLoading } = useQuery({
@@ -40,134 +46,101 @@ export function Audit() {
 
   const total = data?.total ?? 0;
   const logs = data?.list ?? [];
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const clearFilters = () => {
+    setDomain('');
+    setAction('');
+    setStartDate('');
+    setEndDate('');
+    setPage(1);
+  };
+
+  const handleDateChange = (value: DateRangeValue) => {
+    setStartDate(String(value[0] ?? ''));
+    setEndDate(String(value[1] ?? ''));
+    setPage(1);
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('audit.title')}</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('audit.subtitle')}</p>
-        </div>
-
-        <div className="grid w-full gap-4 lg:grid-cols-3">
+    <div className="page-shell">
+      <Card bordered={false} shadow={false}>
+        <section className="page-heading">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('audit.filterDomain')}</label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                value={domain}
-                onChange={(e) => {
-                  setDomain(e.target.value);
-                  setPage(1);
-                }}
-                placeholder={t('audit.domainPlaceholder')}
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 py-2 pl-9 pr-3 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 outline-none transition-colors focus:border-blue-500"
-              />
-            </div>
+            <h1>{t('audit.title')}</h1>
+            <p>{t('audit.subtitle')}</p>
           </div>
+        </section>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('audit.actionType')}</label>
-            <select
-              value={action}
-              onChange={(e) => {
-                setAction(e.target.value);
-                setPage(1);
-              }}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none transition-colors focus:border-blue-500"
-            >
-              <option value="">{t('audit.allActions')}</option>
-              {actionOptions.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('audit.dateRange')}</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none transition-colors focus:border-blue-500"
-              />
-              <span className="text-sm text-gray-400">{t('audit.to')}</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none transition-colors focus:border-blue-500"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setDomain('');
-                setAction('');
-                setStartDate('');
-                setEndDate('');
-                setPage(1);
-              }}
-              className="mt-3 w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              {t('audit.clearFilters')}
-            </button>
-          </div>
+        <div className="audit-filter-grid">
+          <Input
+            clearable
+            value={domain}
+            prefixIcon={<SearchIcon />}
+            placeholder={t('audit.domainPlaceholder')}
+            label={t('audit.filterDomain')}
+            onChange={(value) => {
+              setDomain(String(value));
+              setPage(1);
+            }}
+          />
+          <Select
+            value={action}
+            options={[
+              { label: t('audit.allActions'), value: '' },
+              ...actionOptions.map((item) => ({ label: item.label, value: item.value })),
+            ]}
+            label={t('audit.actionType')}
+            onChange={(value) => {
+              setAction(selectToString(value));
+              setPage(1);
+            }}
+          />
+          <DateRangePicker
+            clearable
+            value={startDate || endDate ? [startDate, endDate] : []}
+            valueType="YYYY-MM-DD"
+            placeholder={[t('audit.dateRange'), t('audit.dateRange')]}
+            onChange={handleDateChange}
+            onClear={clearFilters}
+          />
+          <Button variant="outline" onClick={clearFilters}>
+            {t('audit.clearFilters')}
+          </Button>
         </div>
-      </div>
+      </Card>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 px-6 py-4">
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-gray-400" />
-            <h3 className="font-semibold text-gray-900 dark:text-white">{t('audit.detailTitle')}</h3>
-          </div>
-          <span className="text-sm text-gray-500 dark:text-gray-400">{t('audit.totalCount', { total })}</span>
-        </div>
-
+      <Card
+        bordered={false}
+        shadow={false}
+        title={(
+          <Space align="center">
+            <FileSearchIcon />
+            <span>{t('audit.detailTitle')}</span>
+          </Space>
+        )}
+        actions={<span className="page-muted">{t('audit.totalCount', { total })}</span>}
+        className="page-card"
+      >
         {isLoading ? (
-          <div className="flex justify-center py-10">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-          </div>
+          <div className="page-state"><Loading loading text={t('common.loading')} /></div>
         ) : logs.length === 0 ? (
-          <p className="py-10 text-center text-sm text-gray-400">{t('audit.noLogs')}</p>
+          <Empty description={t('audit.noLogs')} />
         ) : (
           <>
             <AuditLogList logs={logs} />
-            <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-700 px-6 py-4">
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                {t('audit.pageInfo', { page, totalPages })}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  disabled={page <= 1}
-                  className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {t('audit.prevPage')}
-                </button>
-                <button
-                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  disabled={page >= totalPages}
-                  className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {t('audit.nextPage')}
-                </button>
-              </div>
+            <div className="audit-pagination">
+              <Pagination
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={total}
+                showPageSize={false}
+                showJumper={false}
+                onCurrentChange={(current) => setPage(current)}
+              />
             </div>
           </>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

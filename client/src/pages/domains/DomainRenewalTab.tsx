@@ -1,218 +1,166 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Calendar, AlertCircle, CheckCircle, Clock, Plus, Trash2 } from 'lucide-react';
+import { Alert, Button, Card, Checkbox, Empty, Loading, Select, Space, Tag } from 'tdesign-react';
+import { AddIcon, CalendarIcon, CheckCircleIcon, DeleteIcon, ErrorCircleIcon, RefreshIcon, TimeIcon } from 'tdesign-icons-react';
 import { domainRenewalApi, accountsApi, api } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { Table } from '../../components/Table';
-import { Badge } from '../../components/Badge';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 
+function selectValue(value: unknown) {
+  return String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
+}
+
 export function DomainRenewalTab() {
   const toast = useToast();
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [renewing, setRenewing] = useState<number | null>(null);
-  
-  // 实时数据：域名续期变更
+
   useRealtimeData({
     queryKey: ['renewable-domains'],
     websocketEventTypes: ['domain_renewed'],
-    pollingInterval: 120000, // 2分钟
+    pollingInterval: 120000,
   });
-  
-  // 临时调试：检查翻译是否正常工作
-  console.log('[DomainRenewalTab Debug] Current locale:', locale);
-  console.log('[DomainRenewalTab Debug] t("domainRenewal.title"):', t('domainRenewal.title'));
-  console.log('[DomainRenewalTab Debug] t("domainRenewal.autoRenewal"):', t('domainRenewal.autoRenewal'));
-  console.log('[DomainRenewalTab Debug] t("domainRenewal.subtitle"):', t('domainRenewal.subtitle'));
-  
-  // 添加续期域名相关状态
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [selectedDomainIds, setSelectedDomainIds] = useState<Set<string>>(new Set());
   const [deleteDomain, setDeleteDomain] = useState<any | null>(null);
 
-  // 获取 DNS 账号列表（用于选择提供商）
   const { data: accounts = [] } = useQuery({
     queryKey: ['dns-accounts'],
-    queryFn: () => accountsApi.list().then(r => r.data.data || []),
+    queryFn: () => accountsApi.list().then((r) => r.data.data || []),
     enabled: isAddModalOpen,
   });
 
-  // 获取选中账号的可续期域名列表（用于添加对话框）
   const { data: availableDomains = [], isLoading: isLoadingAvailableDomains } = useQuery({
     queryKey: ['provider-renewable-domains', selectedAccountId],
     queryFn: async () => {
       if (!selectedAccountId) return [];
       const account = accounts.find((a: any) => a.id === selectedAccountId);
       if (!account) return [];
-      
-      console.log('[DomainRenewalTab] Fetching provider renewable domains for account:', selectedAccountId, 'type:', account.type);
-      // Call the generic provider API
       const res = await api.get(`/providers/${account.type}/renewable-domains`);
-      console.log('[DomainRenewalTab] Provider API response:', res.data);
       const allDomains = res.data.data || [];
-      console.log('[DomainRenewalTab] All domains from provider:', allDomains.length);
-      // Filter domains for the selected account
-      const filteredDomains = allDomains.filter((d: any) => d.account_id === selectedAccountId);
-      console.log('[DomainRenewalTab] Filtered domains for account:', filteredDomains.length);
-      return filteredDomains;
+      return allDomains.filter((domain: any) => domain.account_id === selectedAccountId);
     },
     enabled: !!selectedAccountId && isAddModalOpen,
   });
 
-  // 批量添加续期域名 mutation
   const batchAddMutation = useMutation({
     mutationFn: async ({ accountId, subdomains }: { accountId: number; subdomains: any[] }) => {
-      console.log('[DomainRenewalTab] Batch adding renewable domains:', { accountId, count: subdomains.length });
       const account = accounts.find((a: any) => a.id === accountId);
       if (!account) throw new Error('Account not found');
-      
-      console.log('[DomainRenewalTab] Account info:', { id: account.id, name: account.name, type: account.type });
-      
-      const promises = subdomains.map(sub => {
-        const requestData = {
-          account_id: accountId,
-          provider_type: account.type,
-          domain_name: sub.name || sub.full_domain.split('.')[0],
-          third_id: String(sub.id),
-          full_domain: sub.full_domain,
-          expires_at: sub.expires_at,
-          remark: `Added from ${account.name}`,
-        };
-        console.log('[DomainRenewalTab] Adding domain:', requestData);
-        return domainRenewalApi.addRenewableDomain(requestData);
-      });
-      
+
+      const promises = subdomains.map((sub) => domainRenewalApi.addRenewableDomain({
+        account_id: accountId,
+        provider_type: account.type,
+        domain_name: sub.name || sub.full_domain.split('.')[0],
+        third_id: String(sub.id),
+        full_domain: sub.full_domain,
+        expires_at: sub.expires_at,
+        remark: `Added from ${account.name}`,
+      }));
+
       const results = await Promise.allSettled(promises);
-      const successCount = results.filter(r => r.status === 'fulfilled').length;
-      const failedCount = results.filter(r => r.status === 'rejected').length;
-      console.log('[DomainRenewalTab] Batch add results:', { successCount, failedCount, total: subdomains.length });
-      results.forEach((r, idx) => {
-        if (r.status === 'rejected') {
-          console.error('[DomainRenewalTab] Failed to add domain:', subdomains[idx].full_domain, r.reason);
-        }
-      });
+      const successCount = results.filter((result) => result.status === 'fulfilled').length;
       return { successCount, total: subdomains.length };
     },
     onSuccess: ({ successCount, total }) => {
-      console.log('[DomainRenewalTab] Batch add completed successfully:', { successCount, total });
-      // Force refetch renewable domains list
       queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
       queryClient.refetchQueries({ queryKey: ['renewable-domains'] });
       setIsAddModalOpen(false);
       setSelectedAccountId(null);
       setSelectedDomainIds(new Set());
-      toast.success(t('domainRenewal.addSuccess') + ` (${successCount}/${total})`);
+      toast.success(`${t('domainRenewal.addSuccess')} (${successCount}/${total})`);
     },
-    onError: (error: Error) => {
-      console.error('[DomainRenewalTab] Batch add failed:', error);
+    onError: () => {
       toast.error(t('domainRenewal.addFailed'));
     },
   });
 
-  // 删除续期域名 mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => {
-      console.log('[DomainRenewalTab] Deleting renewable domain:', id);
-      return domainRenewalApi.deleteRenewableDomain(id);
-    },
+    mutationFn: (id: number) => domainRenewalApi.deleteRenewableDomain(id),
     onSuccess: () => {
-      console.log('[DomainRenewalTab] Delete successful');
       queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
       setDeleteDomain(null);
       toast.success(t('domainRenewal.deleteSuccess'));
     },
-    onError: (error: Error) => {
-      console.error('[DomainRenewalTab] Delete failed:', error);
+    onError: () => {
       toast.error(t('domainRenewal.deleteFailed'));
     },
   });
 
-  // 检查是否为管理员或超级管理员
   const isAdmin = user?.role === 2 || user?.role === 3;
 
-  // 获取支持续期的域名列表（从所有支持续期的提供商获取）
   const { data: renewableDomains = [], isLoading } = useQuery({
     queryKey: ['renewable-domains'],
     enabled: isAdmin,
     queryFn: async () => {
-      console.log('[DomainRenewalTab] Fetching renewable domains...');
       const res = await domainRenewalApi.getRenewableDomains();
-      console.log('[DomainRenewalTab] API Response:', res.data);
-      console.log('[DomainRenewalTab] Renewable domains count:', res.data.data?.length || 0);
-      console.log('[DomainRenewalTab] Renewable domains:', JSON.stringify(res.data.data, null, 2));
       return res.data.data || [];
     },
   });
 
-  // 续期 mutation
   const renewMutation = useMutation({
-    mutationFn: ({ domainId, subdomainId }: { domainId: number; subdomainId: number }) => {
-      console.log('[DomainRenewalTab] Starting renewal request:', { domainId, subdomainId });
-      return domainRenewalApi.renew(domainId, subdomainId);
-    },
+    mutationFn: ({ domainId, subdomainId }: { domainId: number; subdomainId: number }) => domainRenewalApi.renew(domainId, subdomainId),
     onSuccess: (res) => {
-      console.log('[DomainRenewalTab] Renewal response:', res.data);
       if (res.data.code === 0) {
-        console.log('[DomainRenewalTab] Renewal successful:', res.data.data);
         toast.success(t('domainRenewal.renewSuccess'));
         queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
       } else {
-        console.error('[DomainRenewalTab] Renewal failed with code:', res.data.code, 'message:', res.data.msg);
         toast.error(res.data.msg || t('domainRenewal.renewFailed'));
       }
       setRenewing(null);
     },
     onError: (error: Error) => {
-      console.error('[DomainRenewalTab] Renewal error:', error);
       toast.error(error.message || t('domainRenewal.renewFailed'));
       setRenewing(null);
     },
   });
 
-  // 计算到期状态
-  const getExpiryStatus = (expiresAt: string) => {
-    if (!expiresAt) return { label: t('common.unknown'), color: 'gray' as const };
-    
+  const getDaysLeft = (expiresAt?: string | null) => {
+    if (!expiresAt) return null;
+
     const expiryDate = new Date(expiresAt);
-    const now = new Date();
-    const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (daysLeft < 0) {
-      return { label: t('domains.expired'), color: 'red' as const, daysLeft };
-    } else if (daysLeft <= 7) {
-      return { label: t('domainRenewal.expiringSoon'), color: 'red' as const, daysLeft };
-    } else if (daysLeft <= 30) {
-      return { label: t('domainRenewal.expiringMonth'), color: 'yellow' as const, daysLeft };
-    } else {
-      return { label: t('domainRenewal.active'), color: 'green' as const, daysLeft };
-    }
+    if (Number.isNaN(expiryDate.getTime())) return null;
+
+    return Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   };
 
-  // 处理批量添加
+  const getExpiryStatus = (expiresAt?: string | null) => {
+    if (!expiresAt) return { label: t('common.unknown'), theme: 'default' as const };
+
+    const daysLeft = getDaysLeft(expiresAt);
+    if (daysLeft === null) return { label: t('common.unknown'), theme: 'default' as const };
+
+    if (daysLeft < 0) {
+      return { label: t('domains.expired'), theme: 'danger' as const, daysLeft };
+    }
+    if (daysLeft <= 7) {
+      return { label: t('domainRenewal.expiringSoon'), theme: 'danger' as const, daysLeft };
+    }
+    if (daysLeft <= 30) {
+      return { label: t('domainRenewal.expiringMonth'), theme: 'warning' as const, daysLeft };
+    }
+    return { label: t('domainRenewal.active'), theme: 'success' as const, daysLeft };
+  };
+
   const handleBatchAdd = () => {
     if (!selectedAccountId || selectedDomainIds.size === 0) {
       toast.error(t('domainRenewal.selectDomains'));
       return;
     }
-    
-    const selectedSubdomains = availableDomains.filter((sub: any) => 
-      selectedDomainIds.has(String(sub.id))
-    );
-    
-    batchAddMutation.mutate({
-      accountId: selectedAccountId,
-      subdomains: selectedSubdomains,
-    });
+
+    const selectedSubdomains = availableDomains.filter((sub: any) => selectedDomainIds.has(String(sub.id)));
+    batchAddMutation.mutate({ accountId: selectedAccountId, subdomains: selectedSubdomains });
   };
 
-  // 切换域名选择
   const toggleDomainSelection = (domainId: string) => {
     const newSet = new Set(selectedDomainIds);
     if (newSet.has(domainId)) {
@@ -223,7 +171,6 @@ export function DomainRenewalTab() {
     setSelectedDomainIds(newSet);
   };
 
-  // 全选/取消全选
   const toggleSelectAll = () => {
     if (selectedDomainIds.size === availableDomains.length) {
       setSelectedDomainIds(new Set());
@@ -232,41 +179,28 @@ export function DomainRenewalTab() {
     }
   };
 
-  // 表格列定义
   const columns = [
     {
       key: 'name',
       label: t('common.name'),
-      render: (row: any) => (
-        <span className="font-medium text-gray-900 dark:text-white">
-          {row.name}
-        </span>
-      ),
+      render: (row: any) => <span className="page-strong">{row.name}</span>,
     },
     {
       key: 'account_name',
       label: t('accounts.provider'),
-      render: (row: any) => (
-        <span className="text-sm text-gray-600 dark:text-gray-400">
-          {row.account_name || 'DNSHE'}
-        </span>
-      ),
+      render: (row: any) => <Tag theme="primary" variant="light">{row.account_name || 'DNSHE'}</Tag>,
     },
     {
       key: 'expires_at',
       label: t('domainRenewal.expiresAt'),
       render: (row: any) => {
-        const expiresAt = (row as any).expires_at;
-        if (!expiresAt) {
-          return <span className="text-gray-400">{t('common.unknown')}</span>;
-        }
+        const expiresAt = row.expires_at;
+        if (!expiresAt) return <span className="page-muted">{t('common.unknown')}</span>;
         return (
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-gray-900 dark:text-white">
-              {new Date(expiresAt).toLocaleDateString()}
-            </span>
-          </div>
+          <Space size="small">
+            <CalendarIcon />
+            <span>{new Date(expiresAt).toLocaleDateString()}</span>
+          </Space>
         );
       },
     },
@@ -274,15 +208,12 @@ export function DomainRenewalTab() {
       key: 'status',
       label: t('common.status'),
       render: (row: any) => {
-        const expiresAt = (row as any).expires_at;
-        const status = getExpiryStatus(expiresAt);
+        const status = getExpiryStatus(row.expires_at);
         return (
-          <Badge variant={status.color}>
+          <Tag theme={status.theme} variant="light">
             {status.label}
-            {status.daysLeft !== undefined && status.daysLeft >= 0 && (
-              <span className="ml-1">({status.daysLeft}{t('domainRenewal.days')})</span>
-            )}
-          </Badge>
+            {status.daysLeft !== undefined && status.daysLeft >= 0 && ` (${status.daysLeft}${t('domainRenewal.days')})`}
+          </Tag>
         );
       },
     },
@@ -290,171 +221,131 @@ export function DomainRenewalTab() {
       key: 'actions',
       label: t('common.actions'),
       render: (row: any) => {
-        const subdomainId = (row as any).third_id || row.id;
-        
+        const subdomainId = row.third_id || row.id;
+        const isRenewing = renewing === Number(subdomainId);
+
         return (
-          <div className="flex items-center gap-2">
-            <button
+          <Space size="small">
+            <Button
+              theme="primary"
+              variant="text"
+              icon={<RefreshIcon />}
+              loading={isRenewing}
+              disabled={!subdomainId}
               onClick={() => {
                 if (subdomainId) {
                   setRenewing(Number(subdomainId));
-                  renewMutation.mutate({ 
-                    domainId: row.id, 
-                    subdomainId: Number(subdomainId) 
-                  });
+                  renewMutation.mutate({ domainId: row.id, subdomainId: Number(subdomainId) });
                 }
               }}
-              disabled={!subdomainId || renewing === Number(subdomainId)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm rounded-lg transition-colors"
             >
-              {renewing === Number(subdomainId) ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  {t('domainRenewal.renewing')}
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4" />
-                  {t('domainRenewal.renew')}
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => setDeleteDomain(row)}
+              {isRenewing ? t('domainRenewal.renewing') : t('domainRenewal.renew')}
+            </Button>
+            <Button
+              shape="square"
+              variant="text"
+              theme="danger"
+              icon={<DeleteIcon />}
               disabled={deleteMutation.isPending}
-              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title={t('common.delete')}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+              onClick={() => setDeleteDomain(row)}
+            />
+          </Space>
         );
       },
     },
   ];
 
-  // 非管理员显示无权限提示
   if (!isAdmin) {
     return (
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-6">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
-          <div>
-            <h3 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
-              {t('common.permissionDenied')}
-            </h3>
-            <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-              {t('domainRenewal.notSupportedDesc')}
-            </p>
-          </div>
-        </div>
-      </div>
+      <Alert
+        theme="warning"
+        title={t('common.permissionDenied')}
+        message={t('domainRenewal.notSupportedDesc')}
+      />
     );
   }
 
-  // 统计信息
-  const activeCount = renewableDomains.filter((d: any) => {
-    const status = getExpiryStatus((d as any).expires_at);
-    return status.color === 'green';
+  const activeCount = renewableDomains.filter((domain: any) => {
+    const daysLeft = getDaysLeft(domain.expires_at);
+    return daysLeft !== null && daysLeft > 30;
   }).length;
-
-  const expiringCount = renewableDomains.filter((d: any) => {
-    const status = getExpiryStatus((d as any).expires_at);
-    return status.color === 'red' || status.color === 'yellow';
+  const expiringCount = renewableDomains.filter((domain: any) => {
+    const daysLeft = getDaysLeft(domain.expires_at);
+    return daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
   }).length;
-
-  const expiredCount = renewableDomains.filter((d: any) => {
-    const status = getExpiryStatus((d as any).expires_at);
-    return status.color === 'red' && (d as any).expires_at && new Date((d as any).expires_at) < new Date();
+  const expiredCount = renewableDomains.filter((domain: any) => {
+    const daysLeft = getDaysLeft(domain.expires_at);
+    return daysLeft !== null && daysLeft < 0;
   }).length;
+  const renewalMetrics = [
+    {
+      key: 'success',
+      icon: <CheckCircleIcon />,
+      label: t('domainRenewal.activeDomains'),
+      value: activeCount,
+    },
+    {
+      key: 'warning',
+      icon: <TimeIcon />,
+      label: t('domainRenewal.expiringDomains'),
+      value: expiringCount,
+    },
+    {
+      key: 'danger',
+      icon: <ErrorCircleIcon />,
+      label: t('domainRenewal.expiredDomains'),
+      value: expiredCount,
+    },
+  ] as const;
 
   return (
-    <div className="space-y-6">
-      {/* 标题和添加按钮 */}
-      <div className="flex items-center justify-between">
+    <div className="page-shell">
+      <section className="page-heading">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {t('domainRenewal.title')}
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t('domainRenewal.subtitle')}
-          </p>
+          <h2>{t('domainRenewal.title')}</h2>
+          <p>{t('domainRenewal.subtitle')}</p>
         </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
+        <Button theme="primary" icon={<AddIcon />} onClick={() => setIsAddModalOpen(true)}>
           {t('domainRenewal.addDomain')}
-        </button>
+        </Button>
+      </section>
+
+      <div className="domain-renewal-metrics">
+        {renewalMetrics.map((metric) => (
+          <Card
+            key={metric.key}
+            bordered={false}
+            shadow={false}
+            className={`domain-renewal-metric domain-renewal-metric--${metric.key}`}
+          >
+            <div className="domain-renewal-metric__content">
+              <span className="domain-renewal-metric__label">
+                {metric.icon}
+                <span>{metric.label}</span>
+              </span>
+              <strong className="domain-renewal-metric__value">{metric.value}</strong>
+            </div>
+          </Card>
+        ))}
       </div>
 
-      {/* 统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">{t('domainRenewal.activeDomains')}</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{activeCount}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-              <Clock className="w-5 h-5 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">{t('domainRenewal.expiringDomains')}</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{expiringCount}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">{t('domainRenewal.expiredDomains')}</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{expiredCount}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 域名列表 */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+      <Card bordered={false} shadow={false} className="page-card">
         <Table
           columns={columns}
           data={renewableDomains}
           loading={isLoading}
-          rowKey={(r) => r.id}
+          rowKey={(row) => row.id}
           emptyText={t('domainRenewal.noDomains')}
         />
-      </div>
+      </Card>
 
-      {/* 自动续期说明 */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-          <div>
-            <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200">
-              {t('domainRenewal.autoRenewal')}
-            </h3>
-            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-              {t('domainRenewal.autoRenewalDesc')}
-            </p>
-          </div>
-        </div>
-      </div>
+      <Alert
+        theme="info"
+        title={t('domainRenewal.autoRenewal')}
+        message={t('domainRenewal.autoRenewalDesc')}
+        icon={<TimeIcon />}
+      />
 
-      {/* 添加续期域名对话框 */}
       {isAddModalOpen && (
         <Modal
           title={t('domainRenewal.addDomain')}
@@ -463,118 +354,87 @@ export function DomainRenewalTab() {
             setSelectedAccountId(null);
             setSelectedDomainIds(new Set());
           }}
+          size="lg"
         >
           {!selectedAccountId ? (
-            // 第一步：选择账号
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('domainRenewal.selectProvider')} *
-                </label>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const id = parseInt(e.target.value);
-                    if (id) setSelectedAccountId(id);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                >
-                  <option value="">{t('common.pleaseSelect')}</option>
-                  {accounts.filter((a: any) => a.type === 'dnshe').map((account: any) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name} ({account.type})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
+            <div className="page-shell">
+              <Select
+                value=""
+                placeholder={t('domainRenewal.selectProvider')}
+                options={accounts
+                  .filter((account: any) => account.type === 'dnshe')
+                  .map((account: any) => ({ label: `${account.name} (${account.type})`, value: account.id }))}
+                onChange={(value) => {
+                  const id = Number(selectValue(value));
+                  if (id) setSelectedAccountId(id);
+                }}
+              />
+              <Space className="record-form__actions">
+                <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
                   {t('common.cancel')}
-                </button>
-              </div>
+                </Button>
+              </Space>
             </div>
           ) : (
-            // 第二步：选择子域名
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t('domainRenewal.selectDomainsToAdd', { count: selectedDomainIds.size })}
-                </h3>
-                <button
-                  type="button"
-                  onClick={toggleSelectAll}
-                  className="text-sm text-blue-600 hover:text-blue-700"
-                >
+            <div className="page-shell">
+              <section className="page-heading page-heading--compact">
+                <div>
+                  <h3>{t('domainRenewal.selectDomainsToAdd', { count: selectedDomainIds.size })}</h3>
+                  <p>{accounts.find((account: any) => account.id === selectedAccountId)?.name}</p>
+                </div>
+                <Button variant="text" theme="primary" onClick={toggleSelectAll}>
                   {selectedDomainIds.size === availableDomains.length ? t('common.deselectAll') : t('domainRenewal.selectAll')}
-                </button>
-              </div>
+                </Button>
+              </section>
 
               {isLoadingAvailableDomains ? (
-                <div className="text-center py-8 text-gray-500">
-                  {t('domainRenewal.loadingDomains')}
-                </div>
+                <div className="page-state"><Loading loading text={t('domainRenewal.loadingDomains')} /></div>
               ) : availableDomains.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  {t('domainRenewal.noAvailableDomains')}
-                </div>
+                <Empty description={t('domainRenewal.noAvailableDomains')} />
               ) : (
-                <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                <div className="page-list page-list--scroll">
                   {availableDomains.map((sub: any) => (
-                    <label
-                      key={sub.id}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-b-0"
-                    >
-                      <input
-                        type="checkbox"
+                    <label key={sub.id} className="token-domain-option">
+                      <Checkbox
                         checked={selectedDomainIds.has(String(sub.id))}
                         onChange={() => toggleDomainSelection(String(sub.id))}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                       />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {sub.full_domain}
-                        </div>
-                        <div className="text-xs text-gray-500">
+                      <span className="page-list-item__main">
+                        <strong>{sub.full_domain}</strong>
+                        <span>
                           ID: {sub.id}
                           {sub.expires_at && ` | ${t('domainRenewal.expires')}: ${new Date(sub.expires_at).toLocaleDateString()}`}
-                        </div>
-                      </div>
+                        </span>
+                      </span>
                     </label>
                   ))}
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
+              <Space className="record-form__actions">
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setSelectedAccountId(null);
                     setSelectedDomainIds(new Set());
                   }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   {t('domainRenewal.back')}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  theme="primary"
+                  loading={batchAddMutation.isPending}
+                  disabled={selectedDomainIds.size === 0}
                   onClick={handleBatchAdd}
-                  disabled={batchAddMutation.isPending || selectedDomainIds.size === 0}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {batchAddMutation.isPending ? t('common.loading') : `${t('domainRenewal.addSelected')} (${selectedDomainIds.size})`}
-                </button>
-              </div>
+                  {`${t('domainRenewal.addSelected')} (${selectedDomainIds.size})`}
+                </Button>
+              </Space>
             </div>
           )}
         </Modal>
       )}
 
-      {/* 删除确认对话框 */}
       {deleteDomain && (
         <ConfirmDialog
           message={t('domainRenewal.deleteConfirm', { domain: deleteDomain.full_domain || deleteDomain.name })}

@@ -3,15 +3,13 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { authMiddleware, signToken } from '../middleware/auth';
 import { User } from '../types';
-import { ROLE_SUPER, ROLE_USER } from '../utils/roles';
 import { checkLoginAllowed, recordFailedAttempt, clearLoginAttempts } from '../service/loginLimit';
 import { sendEmailVerificationCode, verifyEmailVerificationCode } from '../service/emailVerification';
 import { logAuditOperation } from '../service/audit';
 import { getSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { getUserPreferences, updateUserPreferences, UserPreferences } from '../service/userPreferences';
-import { loginLimiter, registerLimiter, emailLimiter } from '../middleware/rateLimit';
+import { loginLimiter, emailLimiter } from '../middleware/rateLimit';
 import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/totp';
-import { isValidUsername } from '../utils/validation';
 import { log } from '../lib/logger';
 import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, UserPreferencesOperations } from '../db/business-adapter';
 import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, SecurityPolicy } from '../service/securityPolicy';
@@ -890,74 +888,6 @@ router.delete('/oauth/bindings/:provider', authMiddleware, async (req: Request, 
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to unbind oauth account' });
-  }
-});
-
-/**
- * @swagger
- * /api/auth/register:
- *   post:
- *     summary: Register a new user (first user becomes admin)
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [username, password]
- *             properties:
- *               username:
- *                 type: string
- *               nickname:
- *                 type: string
- *               email:
- *                 type: string
- *               password:
- *                 type: string
- *     responses:
- *       200:
- *         description: User created
- */
-router.post('/register', registerLimiter, async (req: Request, res: Response) => {
-  const { username, nickname, email = '', password } = req.body as { username: string; nickname?: string; email?: string; password: string };
-  const normalizedUsername = (username ?? '').trim();
-  if (!normalizedUsername || !password) {
-    res.json({ code: -1, msg: 'Username and password are required' });
-    return;
-  }
-  if (!isValidUsername(normalizedUsername)) {
-    res.json({ code: -1, msg: 'Username must use letters, numbers, "_" or "-"' });
-    return;
-  }
-
-  // 验证密码强度
-  const passwordCheck = await validatePassword(password);
-  if (!passwordCheck.valid) {
-    res.json({ code: -1, msg: passwordCheck.message });
-    return;
-  }
-
-  try {
-    const count = await UserOperations.getCount();
-
-    const role = count === 0 ? ROLE_SUPER : ROLE_USER;
-    const hash = bcrypt.hashSync(password, 10);
-    const resolvedNickname = (nickname ?? '').trim() || normalizedUsername;
-
-    const roleText = role >= 2 ? 'admin' : 'member';
-
-    const id = await UserOperations.create({
-      username: normalizedUsername,
-      nickname: resolvedNickname,
-      email: email,
-      password_hash: hash,
-      role: roleText,
-      role_level: role
-    });
-    res.json({ code: 0, data: { id, username: normalizedUsername, nickname: resolvedNickname, role }, msg: 'success' });
-  } catch {
-    res.json({ code: -1, msg: 'Username already exists' });
   }
 });
 

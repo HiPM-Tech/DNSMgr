@@ -17,7 +17,9 @@
     "lucide-react": "^0.511.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.2.0"
+    "react-router-dom": "^7.2.0",
+    "tdesign-icons-react": "^0.6.4",
+    "tdesign-react": "^1.16.9"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
