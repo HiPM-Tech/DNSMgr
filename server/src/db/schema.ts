@@ -82,6 +82,9 @@ async function handleMySQLMigrations(
     log.info('Schema', 'Starting user_preferences avatar_image column migration...');
     await addUserPreferencesTextColumn(conn, 'avatar_image');
     log.info('Schema', 'Completed user_preferences avatar_image column migration');
+
+    // Migration: Update dns_accounts type from dnsmgr to hidns
+    await migrateDnsAccountType(conn);
     
     log.info('Schema', 'All MySQL migrations completed');
   } catch (error) {
@@ -414,6 +417,27 @@ async function addSQLiteColumn(
 }
 
 /**
+ * 迁移 DNS 账号类型从 dnsmgr 到 hidns
+ */
+async function migrateDnsAccountType(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  try {
+    log.info('Schema', 'Migrating dns_accounts type from dnsmgr to hidns...');
+    const sql = "UPDATE dns_accounts SET type = 'hidns' WHERE type = 'dnsmgr'";
+    if (conn.execute) {
+      const result = await conn.execute(sql);
+      log.info('Schema', 'DNS account type migration completed', { result });
+    } else if (conn.exec) {
+      conn.exec(sql);
+      log.info('Schema', 'DNS account type migration completed');
+    }
+  } catch (error) {
+    log.warn('Schema', 'Failed to migrate dns_accounts type', { error: (error as Error).message });
+  }
+}
+
+/**
  * 处理 SQLite 特定的迁移
  */
 async function handleSQLiteMigrations(
@@ -435,6 +459,9 @@ async function handleSQLiteMigrations(
 
   // 迁移：删除旧的域名级 NS 监测表
   await dropOldNsMonitorTablesSQLite(conn);
+
+  // Migration: Update dns_accounts type from dnsmgr to hidns
+  await migrateDnsAccountType(conn);
 
   log.info('Schema', 'SQLite migrations completed');
 }
@@ -768,6 +795,9 @@ export async function initSchemaAsync(
 
     // 迁移：删除旧的域名级 NS 监测表（已废弃，改为用户级）
     await dropOldNsMonitorTablesPostgreSQL(conn);
+
+    // Migration: Update dns_accounts type from dnsmgr to hidns
+    await migrateDnsAccountType(conn);
   } else {
     throw new Error(`Unsupported database type: ${dbType}`);
   }

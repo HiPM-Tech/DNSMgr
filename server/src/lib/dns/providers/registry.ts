@@ -18,7 +18,7 @@ import {
   TencenteoAdapter,
   DnsheAdapter,
   RainyunAdapter,
-  DnsMgrAdapter,
+  HiDNSAdapter,
   CaihongDnsAdapter,
   Vps8Adapter,
 } from './index';
@@ -242,14 +242,14 @@ const providerDefinitions: ProviderDefinition[] = [
     adapterFactory: (config) => new RainyunAdapter(config),
   },
   {
-    type: 'dnsmgr',
-    name: 'DnsMgr',
+    type: 'hidns',
+    name: 'HiDNS',
     capabilities: { remark: true, status: true, redirect: false, log: false, weight: true, line: false, cnameFlattening: false },
     configFields: [
-      { key: 'baseUrl', label: 'DnsMgr URL', type: 'text', required: true },
+      { key: 'baseUrl', label: 'HiDNS URL', type: 'text', required: true },
       { key: 'apiToken', label: 'API Token', type: 'password', required: true },
     ],
-    adapterFactory: (config) => new DnsMgrAdapter(config),
+    adapterFactory: (config) => new HiDNSAdapter(config),
   },
   {
     type: 'caihongdns',

@@ -1,13 +1,13 @@
-# DNSMgr 架构概览
+# HiDNS 架构概览
 
 ## 项目概述
 
-DNSMgr 是一个现代化的 DNS 聚合管理平台，支持管理多个 DNS 服务商的域名解析记录。项目采用前后端分离架构，使用 TypeScript 全栈开发。
+HiDNS 是一个现代化的 DNS 聚合管理平台，支持管理多个 DNS 服务商的域名解析记录。项目采用前后端分离架构，使用 TypeScript 全栈开发。
 
 ## 系统架构图
 
 ```
-DNSMgr/
+HiDNS/
 ├── server/                    # 后端服务
 │   └── src/
 │       ├── config/           # 配置文件

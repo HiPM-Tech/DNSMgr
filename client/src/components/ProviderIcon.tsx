@@ -20,7 +20,7 @@ const providerIcons: Record<string, string> = {
   tencenteo: new URL('../assets/providers/tencenteo.png', import.meta.url).href,
   dnshe: new URL('../assets/providers/dnshe.ico', import.meta.url).href,
   rainyun: new URL('../assets/providers/rainyun.ico', import.meta.url).href,
-  dnsmgr: new URL('../assets/providers/dnsmgr.svg', import.meta.url).href,
+  hidns: new URL('../assets/providers/hidns.svg', import.meta.url).href,
   caihongdns: new URL('../assets/providers/caihongdns.svg', import.meta.url).href,
   vps8: new URL('../assets/providers/vps8.svg', import.meta.url).href,
 };

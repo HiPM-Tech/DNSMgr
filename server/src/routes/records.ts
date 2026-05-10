@@ -102,12 +102,12 @@ async function getAdapterForDomain(domain: Domain) {
   // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
   const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
   
-  // For DnsMgr provider, use third_id (remote domain ID) as domainId
+  // For HiDNS provider, use third_id (remote domain ID) as domainId
   // For other providers, use local domain.id
-  const isDnsMgr = account.type === 'dnsmgr';
-  const domainId = isDnsMgr && domain.third_id ? domain.third_id : String(domain.id);
+  const isHiDNS = account.type === 'hidns';
+  const domainId = isHiDNS && domain.third_id ? domain.third_id : String(domain.id);
   
-  log.info('Records', 'Creating adapter', { type: account.type, domain: domain.name, thirdId: domain.third_id, localDomainId: domain.id, effectiveDomainId: domainId, isDnsMgr });
+  log.info('Records', 'Creating adapter', { type: account.type, domain: domain.name, thirdId: domain.third_id, localDomainId: domain.id, effectiveDomainId: domainId, isHiDNS });
   const adapter = createAdapter(account.type, cfg, domain.name, domain.third_id, domainId);
   log.info('Records', 'Adapter created');
   return adapter;

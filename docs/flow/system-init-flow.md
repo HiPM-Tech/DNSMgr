@@ -258,7 +258,7 @@ GET /api/init/status
 ```bash
 # 数据库配置
 DB_TYPE=sqlite          # sqlite / mysql / postgresql
-DB_PATH=./dnsmgr.db     # SQLite 数据库路径
+DB_PATH=./hidns.db     # SQLite 数据库路径
 
 # JWT 配置（生产环境必须设置）
 JWT_SECRET=your-secret-key-here
@@ -274,7 +274,7 @@ NODE_ENV=production
 # MySQL / PostgreSQL 配置
 DB_HOST=localhost
 DB_PORT=3306
-DB_NAME=dnsmgr
+DB_NAME=hidns
 DB_USER=root
 DB_PASSWORD=password
 DB_SSL=false
@@ -326,8 +326,8 @@ SMTP_PASSWORD=password
 ### 日志位置
 
 ```
-server/data/dnsmgr.log      # 应用日志
-server/data/dnsmgr.db       # SQLite 数据库
+server/data/hidns.log      # 应用日志
+server/data/hidns.db       # SQLite 数据库
 ```
 
 ## 安全注意事项

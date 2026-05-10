@@ -1,15 +1,15 @@
 import { fetchWithFallback } from '../internal';
 
-export interface DnsMgrAuthConfig {
+export interface HiDNSAuthConfig {
   baseUrl: string;
   apiToken: string;
   useProxy?: boolean;
 }
 
 /**
- * Build authentication headers for DNSMgr API
+ * Build authentication headers for HiDNS API
  */
-export function buildAuthHeaders(config: DnsMgrAuthConfig): Record<string, string> {
+export function buildAuthHeaders(config: HiDNSAuthConfig): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${config.apiToken}`,
@@ -17,11 +17,11 @@ export function buildAuthHeaders(config: DnsMgrAuthConfig): Record<string, strin
 }
 
 /**
- * Make an authenticated request to DNSMgr API
+ * Make an authenticated request to HiDNS API
  */
 export async function authenticatedRequest(
   url: string,
-  config: DnsMgrAuthConfig,
+  config: HiDNSAuthConfig,
   options: RequestInit = {}
 ): Promise<Response> {
   const headers = {
@@ -36,14 +36,14 @@ export async function authenticatedRequest(
       headers,
     },
     config.useProxy ?? false,
-    'DnsMgr'
+    'HiDNS'
   );
 }
 
 /**
- * Validate DNSMgr credentials by listing domains
+ * Validate HiDNS credentials by listing domains
  */
-export async function validateCredentials(config: DnsMgrAuthConfig): Promise<boolean> {
+export async function validateCredentials(config: HiDNSAuthConfig): Promise<boolean> {
   try {
     const baseUrl = config.baseUrl.replace(/\/api\/?$/, '');
     const url = `${baseUrl}/api/domains?page=1&pageSize=1`;

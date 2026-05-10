@@ -196,8 +196,8 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
     }
 
     // 排除不支持或不准确的提供商
-    // 彩虹聚合DNS和DnsMgr的API返回的到期时间不准确，不使用
-    const excludedProviders = ['caihongdns', 'dnsmgr'];
+    // 彩虹聚合DNS和HiDNS的API返回的到期时间不准确，不使用
+    const excludedProviders = ['caihongdns', 'hidns'];
     if (excludedProviders.includes(account.type)) {
       log.debug('WhoisJob', `Provider ${account.type} is excluded from expiry date check (inaccurate)`);
       return null;

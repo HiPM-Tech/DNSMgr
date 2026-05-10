@@ -311,7 +311,7 @@ const providerAuthTypes = {
   jdcloud: { type: 'accessKey' },
   caihongdns: { type: 'apiKey' },
   dnsla: { type: 'apiKey' },
-  dnsmgr: { type: 'usernamePassword' },
+  hidns: { type: 'usernamePassword' },
   aliyunesa: { type: 'accessKey' },
 };
 

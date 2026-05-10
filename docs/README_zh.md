@@ -1,4 +1,4 @@
-# DNSMgr - DNS 聚合管理平台
+# HiDNS - DNS 聚合管理平台
 
 一个现代化的 DNS 聚合管理平台，前端使用 React + TailwindCSS，后端使用 Node.js + TypeScript。
 
@@ -22,7 +22,7 @@
 ### 系统架构
 
 ```
-DNSMgr/
+HiDNS/
 ├── server/          # Node.js + TypeScript 后端
 │   ├── src/
 │   │   ├── lib/dns/ # DNS 服务商适配器（抽象接口）
@@ -43,7 +43,7 @@ DNSMgr/
 
 ### 数据库架构（三层设计）
 
-DNSMgr 实现了严格的三层数据库架构：
+HiDNS 实现了严格的三层数据库架构：
 
 ```
 路由/服务层 → 业务适配器层 → 核心层 → 驱动层 → 数据库
@@ -156,15 +156,15 @@ Docker 部署使用一体化模式（前后端合并在一个容器中）。
 docker run -d \
   -p 3001:3001 \
   -v $(pwd)/data:/app/data \
-  --name dnsmgr \
-  ghcr.io/hipm-tech/dnsmgr:latest
+  --name hidns \
+  ghcr.io/hipm-tech/hidns:latest
 ```
 
 或使用 Docker Compose：
 
 ```bash
 # 下载编排文件
-curl -O https://raw.githubusercontent.com/HiPM-Tech/DNSMgr/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/HiPM-Tech/HiDNS/main/docker-compose.yml
 
 # 启动服务
 docker-compose up -d
@@ -174,12 +174,12 @@ docker-compose up -d
 
 ```bash
 # 构建并运行
-docker build -t dnsmgr .
+docker build -t hidns .
 docker run -d \
   -p 3001:3001 \
   -v $(pwd)/data:/app/data \
-  --name dnsmgr \
-  dnsmgr
+  --name hidns \
+  hidns
 ```
 
 访问地址：http://localhost:3001
@@ -197,7 +197,7 @@ cp server/.env.example server/.env
 | `PORT` | `3001` | 服务端端口 |
 | `NODE_ENV` | `development` | 运行环境 |
 | `JWT_SECRET` | 未设置 | JWT 基础密钥；若不设置会回退到不安全默认值（生产环境必须设置） |
-| `DB_PATH` | `./dnsmgr.db` | SQLite 数据库路径 |
+| `DB_PATH` | `./hidns.db` | SQLite 数据库路径 |
 | `DB_TYPE` | `sqlite` | 数据库类型：`sqlite`、`mysql` 或 `postgresql` |
 | `DB_HOST` | - | 数据库主机（MySQL/PostgreSQL 使用） |
 | `DB_PORT` | - | 数据库端口（MySQL/PostgreSQL 使用） |
@@ -299,7 +299,7 @@ MIT
 
 ## 多语言支持 (i18n) 与贡献指南
 
-DNSMgr 使用 `react-i18next` 进行国际化（i18n）支持。目前已支持的语言包括：英文、简体中文、西班牙语和日语。
+HiDNS 使用 `react-i18next` 进行国际化（i18n）支持。目前已支持的语言包括：英文、简体中文、西班牙语和日语。
 
 我们非常欢迎社区参与多语言的共建！如果你想添加新的语言支持，请参考以下步骤：
 

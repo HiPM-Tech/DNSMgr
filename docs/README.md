@@ -1,6 +1,6 @@
-# DNSMgr 文档中心
+# HiDNS 文档中心
 
-> 🚀 现代化的 DNS 聚合管理平台 | 支持 19+ DNS 服务商 | v1.3.2
+> 🚀 现代化的 DNS 聚合管理平台 | 支持 19+ DNS 服务商 | v1.4.3
 
 <p align="center">
   <a href="api-reference.md">🔌 API 文档</a> •
@@ -52,7 +52,7 @@
 
 ## 🎯 项目特点
 
-DNSMgr 是一个现代化的 DNS 聚合管理平台，具有以下特点：
+HiDNS 是一个现代化的 DNS 聚合管理平台，具有以下特点：
 
 | 特性 | 说明 |
 |------|------|
@@ -73,7 +73,7 @@ DNSMgr 是一个现代化的 DNS 聚合管理平台，具有以下特点：
 
 ### 业务适配器层（核心创新）
 
-业务适配器层是 DNSMgr 的核心设计，所有 SQL 语句都集中管理在此层：
+业务适配器层是 HiDNS 的核心设计，所有 SQL 语句都集中管理在此层：
 
 ```typescript
 // 业务代码只能通过 API 调用
@@ -119,16 +119,16 @@ Content-Type: application/json
 ### 2. 使用 Token 调用 API
 
 ```bash
-curl -X GET "https://dnsmgr.example.com/api/domains" \
-  -H "Authorization: Bearer dnsmgr_xxx..."
+curl -X GET "https://hidns.example.com/api/domains" \
+  -H "Authorization: Bearer hidns_xxx..."
 ```
 
 ### 3. Python SDK 示例
 
 ```python
-from dnsmgr import DNSMgrClient
+from hidns import HiDNSClient
 
-client = DNSMgrClient('https://dnsmgr.example.com', 'dnsmgr_xxx...')
+client = HiDNSClient('https://hidns.example.com', 'hidns_xxx...')
 domains = client.get_domains()
 ```
 
@@ -142,18 +142,18 @@ domains = client.get_domains()
 
 ```bash
 docker run -d \
-  --name dnsmgr \
+  --name hidns \
   -p 3001:3001 \
   -v $(pwd)/data:/app/data \
-  ghcr.io/hipm-tech/dnsmgr:latest
+  ghcr.io/hipm-tech/hidns:latest
 ```
 
 ### 开发环境
 
 ```bash
 # 克隆仓库
-git clone https://github.com/HiPM-Tech/DNSMgr.git
-cd DNSMgr
+git clone https://github.com/HiPM-Tech/HiDNS.git
+cd HiDNS
 
 # 安装依赖
 pnpm install
@@ -168,7 +168,7 @@ pnpm dev
 
 ## 🌍 多语言支持
 
-DNSMgr 支持以下语言：
+HiDNS 支持以下语言：
 
 | 语言 | 代码 | 状态 |
 |------|------|------|
@@ -199,7 +199,7 @@ DNSMgr 支持以下语言：
 
 ## 🛡️ AI 审核团
 
-DNSMgr 项目采用严格的 AI 代码审核机制，确保代码质量和项目规范：
+HiDNS 项目采用严格的 AI 代码审核机制，确保代码质量和项目规范：
 
 ### 审核标准
 
@@ -221,8 +221,8 @@ DNSMgr 项目采用严格的 AI 代码审核机制，确保代码质量和项目
 
 ## 🔗 相关链接
 
-- [GitHub 仓库](https://github.com/HiPM-Tech/DNSMgr)
-- [问题反馈](https://github.com/HiPM-Tech/DNSMgr/issues)
+- [GitHub 仓库](https://github.com/HiPM-Tech/HiDNS)
+- [问题反馈](https://github.com/HiPM-Tech/HiDNS/issues)
 - [MIT 协议](../LICENSE)
 
 ---

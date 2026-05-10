@@ -3,7 +3,7 @@ import { log } from '../internal';
 import { fetchWithFallback } from '../internal';
 import { resolveDomainIdHelper } from '../internal';
 
-interface DnsMgrConfig {
+interface HiDNSConfig {
   baseUrl: string;
   apiToken: string;
   domain?: string;
@@ -11,13 +11,13 @@ interface DnsMgrConfig {
   useProxy?: boolean;
 }
 
-interface DnsMgrApiResponse<T> {
+interface HiDNSApiResponse<T> {
   code: number;
   data: T;
   msg: string;
 }
 
-interface DnsMgrDomain {
+interface HiDNSDomain {
   id: number;
   name: string;
   account_id: number;
@@ -25,7 +25,7 @@ interface DnsMgrDomain {
   record_count: number;
 }
 
-interface DnsMgrRecord {
+interface HiDNSRecord {
   id: string;
   name: string;
   type: string;
@@ -44,8 +44,8 @@ interface DnsMgrRecord {
   } | null;
 }
 
-export class DnsMgrAdapter implements DnsAdapter {
-  private config: DnsMgrConfig;
+export class HiDNSAdapter implements DnsAdapter {
+  private config: HiDNSConfig;
   private error: string = '';
 
   constructor(config: Record<string, string>) {
@@ -65,32 +65,32 @@ export class DnsMgrAdapter implements DnsAdapter {
     };
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<DnsMgrApiResponse<T>> {
+  private async request<T>(method: string, path: string, body?: unknown): Promise<HiDNSApiResponse<T>> {
     // Ensure baseUrl doesn't end with /api and path starts with /
     const baseUrl = this.config.baseUrl.replace(/\/api\/?$/, '');
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
     const url = `${baseUrl}/api${normalizedPath}`;
-    log.providerRequest('DnsMgr', method, url, body);
+    log.providerRequest('HiDNS', method, url, body);
     
     try {
       const res = await fetchWithFallback(url, {
         method,
         headers: this.getHeaders(),
         body: body ? JSON.stringify(body) : undefined,
-      }, this.config.useProxy, 'DnsMgr');
+      }, this.config.useProxy, 'HiDNS');
       
-      const data = (await res.json()) as DnsMgrApiResponse<T>;
-      log.providerResponse('DnsMgr', res.status, data.code === 0, { resultCount: data.data && typeof data.data === 'object' && 'list' in data.data ? (data.data as any).list?.length : 0 });
+      const data = (await res.json()) as HiDNSApiResponse<T>;
+      log.providerResponse('HiDNS', res.status, data.code === 0, { resultCount: data.data && typeof data.data === 'object' && 'list' in data.data ? (data.data as any).list?.length : 0 });
       
       if (data.code !== 0) {
         this.error = data.msg || 'API error';
-        log.providerError('DnsMgr', [{ message: this.error }]);
+        log.providerError('HiDNS', [{ message: this.error }]);
       }
       
       return data;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.providerError('DnsMgr', [{ message: this.error }]);
+      log.providerError('HiDNS', [{ message: this.error }]);
       return { code: -1, data: {} as T, msg: this.error };
     }
   }
@@ -98,7 +98,7 @@ export class DnsMgrAdapter implements DnsAdapter {
   async check(): Promise<boolean> {
     try {
       // 尝试获取域名列表来验证连接
-      const res = await this.request<{ total: number; list: DnsMgrDomain[] }>('GET', '/domains?page=1&pageSize=1');
+      const res = await this.request<{ total: number; list: HiDNSDomain[] }>('GET', '/domains?page=1&pageSize=1');
       return res.code === 0;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -117,10 +117,10 @@ export class DnsMgrAdapter implements DnsAdapter {
         path += `&keyword=${encodeURIComponent(keyword)}`;
       }
       
-      // DnsMgr API can return either { total, list } or direct array
+      // HiDNS API can return either { total, list } or direct array
       const res = await this.request<any>('GET', path);
       
-      log.debug('DnsMgr', 'getDomainList response', { 
+      log.debug('HiDNS', 'getDomainList response', { 
         code: res.code, 
         hasData: !!res.data, 
         dataType: typeof res.data,
@@ -132,11 +132,11 @@ export class DnsMgrAdapter implements DnsAdapter {
       });
       
       if (res.code !== 0) {
-        log.error('DnsMgr', 'getDomainList failed', { code: res.code, msg: res.msg });
+        log.error('HiDNS', 'getDomainList failed', { code: res.code, msg: res.msg });
         return { total: 0, list: [] };
       }
 
-      let domains: DnsMgrDomain[];
+      let domains: HiDNSDomain[];
       let total: number;
 
       // Smart detection: support both array and object formats
@@ -144,14 +144,14 @@ export class DnsMgrAdapter implements DnsAdapter {
         // Format 1: Direct array (when using API Token or format=array)
         domains = res.data;
         total = domains.length;
-        log.debug('DnsMgr', 'Detected array format response');
+        log.debug('HiDNS', 'Detected array format response');
       } else if (res.data && typeof res.data === 'object' && 'list' in res.data) {
         // Format 2: Paginated object { total, list, page, pageSize }
         domains = res.data.list;
         total = res.data.total || domains.length;
-        log.debug('DnsMgr', 'Detected paginated object format response');
+        log.debug('HiDNS', 'Detected paginated object format response');
       } else {
-        log.error('DnsMgr', 'getDomainList invalid data structure', { data: res.data });
+        log.error('HiDNS', 'getDomainList invalid data structure', { data: res.data });
         return { total: 0, list: [] };
       }
       
@@ -159,12 +159,12 @@ export class DnsMgrAdapter implements DnsAdapter {
       let filteredDomains = domains;
       if (keyword) {
         const lowerKeyword = keyword.toLowerCase();
-        filteredDomains = domains.filter((d: DnsMgrDomain) => d.name.toLowerCase().includes(lowerKeyword));
+        filteredDomains = domains.filter((d: HiDNSDomain) => d.name.toLowerCase().includes(lowerKeyword));
       }
 
       return {
         total: filteredDomains.length,
-        list: filteredDomains.map((d: DnsMgrDomain) => ({
+        list: filteredDomains.map((d: HiDNSDomain) => ({
           Domain: d.name,
           ThirdId: String(d.id),
           RecordCount: d.record_count || 0,
@@ -172,7 +172,7 @@ export class DnsMgrAdapter implements DnsAdapter {
       };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('DnsMgr', 'getDomainList exception', { error: this.error });
+      log.error('HiDNS', 'getDomainList exception', { error: this.error });
       return { total: 0, list: [] };
     }
   }
@@ -182,7 +182,7 @@ export class DnsMgrAdapter implements DnsAdapter {
    * 当 config.domainId 未设置时，尝试通过域名搜索获取
    */
   private async resolveDomainId(): Promise<string | null> {
-    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'DnsMgr');
+    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'HiDNS');
   }
 
   async getDomainRecords(
@@ -209,7 +209,7 @@ export class DnsMgrAdapter implements DnsAdapter {
       if (type) path += `&type=${encodeURIComponent(type)}`;
       if (status !== undefined) path += `&status=${status}`;
 
-      const res = await this.request<{ total: number; list: DnsMgrRecord[] }>('GET', path);
+      const res = await this.request<{ total: number; list: HiDNSRecord[] }>('GET', path);
 
       if (res.code !== 0) {
         return { total: 0, list: [] };
@@ -225,7 +225,7 @@ export class DnsMgrAdapter implements DnsAdapter {
     }
   }
 
-  private mapRecord(r: DnsMgrRecord): DnsRecord {
+  private mapRecord(r: HiDNSRecord): DnsRecord {
     return {
       RecordId: r.id,
       Domain: this.config.domain || '',
@@ -252,8 +252,8 @@ export class DnsMgrAdapter implements DnsAdapter {
         return null;
       }
 
-      // DnsMgr API 没有单独的获取单条记录接口，从列表中查找
-      const res = await this.request<{ total: number; list: DnsMgrRecord[] }>('GET', `/domains/${domainId}/records?page=1&pageSize=1000`);
+      // HiDNS API 没有单独的获取单条记录接口，从列表中查找
+      const res = await this.request<{ total: number; list: HiDNSRecord[] }>('GET', `/domains/${domainId}/records?page=1&pageSize=1000`);
       
       if (res.code !== 0) {
         return null;
@@ -378,7 +378,7 @@ export class DnsMgrAdapter implements DnsAdapter {
   }
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    // DnsMgr 默认线路
+    // HiDNS 默认线路
     return [
       { id: '0', name: '默认' },
     ];
@@ -389,8 +389,8 @@ export class DnsMgrAdapter implements DnsAdapter {
   }
 
   async addDomain(domain: string): Promise<boolean> {
-    // DnsMgr 作为提供商，不支持通过 API 添加域名到对方系统
-    this.error = 'Adding domains is not supported for DnsMgr provider';
+    // HiDNS 作为提供商，不支持通过 API 添加域名到对方系统
+    this.error = 'Adding domains is not supported for HiDNS provider';
     return false;
   }
 }

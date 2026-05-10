@@ -1,18 +1,18 @@
 /**
- * Dnsmgr Provider Module
+ * HiDNS Provider Module
  * 
- * This module exports all dnsmgr provider components:
+ * This module exports all HiDNS provider components:
  * - Adapter: DNS record management
  * - Auth: Authentication utilities
  */
 
 // Main adapter for DNS record operations
-export { DnsMgrAdapter } from './adapter';
+export { HiDNSAdapter } from './adapter';
 
 // Authentication utilities
 export {
-  buildAuthHeaders as dnsmgrBuildAuthHeaders,
-  authenticatedRequest as dnsmgrAuthenticatedRequest,
-  validateCredentials as dnsmgrValidateCredentials,
-  type DnsMgrAuthConfig,
+  buildAuthHeaders as hidnsBuildAuthHeaders,
+  authenticatedRequest as hidnsAuthenticatedRequest,
+  validateCredentials as hidnsValidateCredentials,
+  type HiDNSAuthConfig,
 } from './auth';

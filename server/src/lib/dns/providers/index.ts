@@ -30,6 +30,6 @@ export { JdcloudAdapter } from './jdcloud';
 export { PowerdnsAdapter } from './powerdns';
 export { QingcloudAdapter } from './qingcloud';
 export { SpaceshipAdapter } from './spaceship';
-export { DnsMgrAdapter } from './dnsmgr';
+export { HiDNSAdapter } from './dnsmgr';
 export { CaihongDnsAdapter } from './caihongdns';
 export { Vps8Adapter } from './vps8';
