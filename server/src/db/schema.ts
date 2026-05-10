@@ -78,6 +78,10 @@ async function handleMySQLMigrations(
     log.info('Schema', 'Starting user_preferences pinned_domains column migration...');
     await addPinnedDomainsColumn(conn);
     log.info('Schema', 'Completed user_preferences pinned_domains column migration');
+
+    log.info('Schema', 'Starting user_preferences avatar_image column migration...');
+    await addUserPreferencesTextColumn(conn, 'avatar_image');
+    log.info('Schema', 'Completed user_preferences avatar_image column migration');
     
     log.info('Schema', 'All MySQL migrations completed');
   } catch (error) {
@@ -304,6 +308,48 @@ async function addPinnedDomainsColumn(
 }
 
 /**
+ * 添加文本字段到 user_preferences 表 - MySQL
+ */
+async function addUserPreferencesTextColumn(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> },
+  columnName: string
+): Promise<void> {
+  try {
+    const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_NAME = 'user_preferences' AND COLUMN_NAME = '${columnName}'`;
+
+    let columnExists = false;
+    if (conn.execute) {
+      const result = await conn.execute(checkColumnSql);
+      if (Array.isArray(result) && result.length > 0) {
+        const row = result[0] as Record<string, number>;
+        const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+        columnExists = parseInt(String(count), 10) > 0;
+      }
+    }
+
+    if (!columnExists) {
+      const addColumnSql = `ALTER TABLE user_preferences ADD COLUMN ${columnName} TEXT`;
+      if (conn.execute) {
+        await conn.execute(addColumnSql);
+      } else if (conn.exec) {
+        conn.exec(addColumnSql);
+      }
+      log.info('Schema', `Added ${columnName} column to user_preferences table`);
+    } else {
+      log.debug('Schema', `${columnName} column already exists in user_preferences table`);
+    }
+  } catch (error) {
+    const errorMsg = (error as Error).message || '';
+    if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+      log.info('Schema', `${columnName} column already exists`);
+    } else {
+      log.warn('Schema', `Failed to add ${columnName} column`, { error: errorMsg });
+    }
+  }
+}
+
+/**
  * 检查 SQLite 列是否存在
  */
 async function checkSQLiteColumnExists(
@@ -385,6 +431,7 @@ async function handleSQLiteMigrations(
 
   // Migration: Add pinned_domains column to user_preferences table
   await addSQLiteColumn(conn, 'user_preferences', 'pinned_domains', "TEXT DEFAULT '[]'");
+  await addSQLiteColumn(conn, 'user_preferences', 'avatar_image', 'TEXT');
 
   // 迁移：删除旧的域名级 NS 监测表
   await dropOldNsMonitorTablesSQLite(conn);

@@ -22,48 +22,62 @@ import { About } from './pages/About';
 import { System } from './pages/System';
 import { I18nProvider } from './contexts/I18nContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { UiScaleProvider } from './contexts/UiScaleContext';
+import { useDialogAutoHideScrollbar } from './hooks/useDialogAutoHideScrollbar';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
 
 function App() {
+  useDialogAutoHideScrollbar();
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <I18nProvider>
-          <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/setup" element={<Setup />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/oauth/callback" element={<OAuthCallback />} />
-              <Route element={<ProtectedRoute />}>
-                <Route element={<Layout />}>
-                  <Route index element={<Dashboard />} />
-                  <Route path="accounts" element={<Accounts />} />
-                  <Route path="domains" element={<Domains />} />
-                  <Route path="domains/:id/records" element={<Records />} />
-                  <Route path="tunnels" element={<Tunnels />} />
-                  <Route path="tokens" element={<Tokens />} />
-                  <Route path="teams" element={<Teams />} />
-                  <Route path="settings" element={<Settings />} />
-                  <Route path="security" element={<Security />} />
-                  <Route path="about" element={<About />} />
-                  <Route element={<AdminRoute />}>
-                    <Route path="users" element={<Users />} />
-                    <Route path="audit" element={<Audit />} />
-                    <Route path="system" element={<System />} />
+    <UiScaleProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <I18nProvider>
+            <AuthProvider>
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/setup" element={<Setup />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/oauth/callback" element={<OAuthCallback />} />
+                  <Route element={<ProtectedRoute />}>
+                    <Route element={<Layout />}>
+                      <Route index element={<Dashboard />} />
+                      <Route path="accounts" element={<Accounts />} />
+                      <Route path="domains" element={<Domains activeTab="list" />} />
+                      <Route path="domains/failover" element={<Domains activeTab="failover" />} />
+                      <Route path="domains/ns-monitor" element={<Domains activeTab="ns-monitor" />} />
+                      <Route path="domains/renewal" element={<Domains activeTab="renewal" />} />
+                      <Route path="domains/:id/records" element={<Records />} />
+                      <Route path="tunnels" element={<Tunnels />} />
+                      <Route path="tokens" element={<Tokens />} />
+                      <Route path="teams" element={<Teams />} />
+                      <Route path="settings" element={<Settings />} />
+                      <Route path="security" element={<Security />} />
+                      <Route path="about" element={<About />} />
+                      <Route element={<AdminRoute />}>
+                        <Route path="users" element={<Users />} />
+                        <Route path="audit" element={<Audit />} />
+                        <Route path="system" element={<System activeTab="overview" />} />
+                        <Route path="system/database" element={<System activeTab="database" />} />
+                        <Route path="system/security" element={<System activeTab="security" />} />
+                        <Route path="system/access" element={<System activeTab="access" />} />
+                        <Route path="system/network" element={<System activeTab="network" />} />
+                        <Route path="system/notifications" element={<System activeTab="notifications" />} />
+                      </Route>
+                    </Route>
                   </Route>
-                </Route>
-              </Route>
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
-        </AuthProvider>
-      </I18nProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </BrowserRouter>
+            </AuthProvider>
+          </I18nProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </UiScaleProvider>
   );
 }
 

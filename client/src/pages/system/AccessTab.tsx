@@ -1,7 +1,7 @@
-
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Lock, Shield, Settings, Eye, EyeOff, Copy } from 'lucide-react';
+import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
+import { BrowseIcon, BrowseOffIcon, CopyIcon, LockOnIcon, SecuredIcon, SettingIcon } from 'tdesign-icons-react';
 import { settingsApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
@@ -83,37 +83,12 @@ export function AccessTab() {
         toast.error(res.data.msg || t('system.jwtSecretVerifyFailed'));
       }
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('system.jwtSecretVerifyFailed'));
-    },
+    onError: (error: Error) => toast.error(error.message || t('system.jwtSecretVerifyFailed')),
   });
-
-  const handleVerifyAndRevealJwtSecret = () => {
-    if (!jwtPassword.trim()) {
-      toast.error(t('system.jwtPasswordRequired'));
-      return;
-    }
-    revealJwtSecretMutation.mutate(jwtPassword.trim());
-  };
-
-  const handleCopyJwtSecret = async () => {
-    const value = jwtSecretValue || '';
-    if (!value) {
-      toast.error(t('system.jwtSecretEmpty'));
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success(t('system.jwtSecretCopied'));
-    } catch {
-      toast.error(t('system.jwtSecretCopyFailed'));
-    }
-  };
 
   const updateOauthMutation = useMutation({
     mutationFn: () => settingsApi.updateOAuthConfig({
       ...oauthForm,
-      template: oauthForm.template,
       providerName: oauthForm.providerName.trim(),
       subjectKey: oauthForm.subjectKey.trim(),
       emailKey: oauthForm.emailKey.trim(),
@@ -174,141 +149,161 @@ export function AccessTab() {
     onError: (error: Error) => toast.error(error.message || t('system.oauthSaveFailed')),
   });
 
+  const handleVerifyAndRevealJwtSecret = () => {
+    if (!jwtPassword.trim()) {
+      toast.error(t('system.jwtPasswordRequired'));
+      return;
+    }
+    revealJwtSecretMutation.mutate(jwtPassword.trim());
+  };
+
+  const handleCopyJwtSecret = async () => {
+    if (!jwtSecretValue) {
+      toast.error(t('system.jwtSecretEmpty'));
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(jwtSecretValue);
+      toast.success(t('system.jwtSecretCopied'));
+    } catch {
+      toast.error(t('system.jwtSecretCopyFailed'));
+    }
+  };
+
+  const redirectUri = `${window.location.origin}/oauth/callback`;
+  const setOauthField = (key: keyof typeof oauthForm, value: string | boolean) => setOauthForm((form) => ({ ...form, [key]: value }));
+  const setLogtoField = (key: keyof typeof logtoForm, value: string | boolean) => setLogtoForm((form) => ({ ...form, [key]: value }));
+
   return (
-    <div className="columns-1 xl:columns-2 xl:[column-gap:1.5rem]">
-      <div className="contents">
-        {/* JWT Secret */}
-        <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Lock className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.jwtSecret')}</h3>
-              <p className="text-sm text-gray-500">{t('system.jwtSecretDesc')}</p>
-            </div>
-          </div>
-          <div className="flex gap-2 mb-3">
-            <input
+    <div className="access-grid">
+      <Card bordered={false} shadow={false} title={<Space align="center"><LockOnIcon />{t('system.jwtSecret')}</Space>} subtitle={t('system.jwtSecretDesc')}>
+        <div className="page-shell">
+          <Space>
+            <Input
               type="password"
               value={jwtPassword}
-              onChange={(e) => setJwtPassword(e.target.value)}
+              onChange={(value) => setJwtPassword(String(value))}
               placeholder={t('system.jwtPasswordPlaceholder')}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             />
-            <button
-              onClick={handleVerifyAndRevealJwtSecret}
-              disabled={revealJwtSecretMutation.isPending}
-              className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm rounded-lg"
-            >
+            <Button theme="primary" loading={revealJwtSecretMutation.isPending} onClick={handleVerifyAndRevealJwtSecret}>
               {t('system.verifyAndViewJwt')}
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <input
-              type={showJwtSecret ? 'text' : 'password'}
-              readOnly
-              value={jwtSecretValue}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
-            />
-            <button
-              onClick={() => setShowJwtSecret((v) => !v)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+            </Button>
+          </Space>
+          <Space>
+            <Input type={showJwtSecret ? 'text' : 'password'} readonly value={jwtSecretValue} />
+            <Button
+              shape="square"
+              variant="outline"
+              icon={showJwtSecret ? <BrowseOffIcon /> : <BrowseIcon />}
               title={showJwtSecret ? t('system.hideJwtSecret') : t('system.showJwtSecret')}
-            >
-              {showJwtSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={handleCopyJwtSecret}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-              title={t('system.copyJwtSecret')}
-            >
-              <Copy className="w-4 h-4" />
-            </button>
-          </div>
+              onClick={() => setShowJwtSecret((value) => !value)}
+            />
+            <Button shape="square" variant="outline" icon={<CopyIcon />} title={t('system.copyJwtSecret')} onClick={handleCopyJwtSecret} />
+          </Space>
         </div>
+      </Card>
 
-        {/* OAuth2 / OIDC Config */}
-        <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-              <Shield className="w-5 h-5 text-indigo-600" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.oauthConfig')}</h3>
-              <p className="text-sm text-gray-500">{t('system.oauthConfigDesc')}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <select value={oauthForm.template} onChange={(e) => setOauthForm((v) => ({ ...v, template: e.target.value as 'generic' | 'logto' }))} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500">
-              <option value="generic">{t('system.oauthTemplateGeneric')}</option>
-              <option value="logto">{t('system.oauthTemplateLogto')}</option>
-            </select>
-            <input value={oauthForm.providerName} onChange={(e) => setOauthForm((v) => ({ ...v, providerName: e.target.value }))} placeholder={t('system.oauthProvider')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+      <Card bordered={false} shadow={false} title={<Space align="center"><SecuredIcon />{t('system.oauthConfig')}</Space>} subtitle={t('system.oauthConfigDesc')}>
+        <Form layout="vertical" colon={false} requiredMark={false} className="page-shell">
+          <div className="access-form-grid">
+            <Form.FormItem label={t('system.oauthTemplateGeneric')}>
+              <Select
+                value={oauthForm.template}
+                options={[
+                  { label: t('system.oauthTemplateGeneric'), value: 'generic' },
+                  { label: t('system.oauthTemplateLogto'), value: 'logto' },
+                ]}
+                onChange={(value) => setOauthField('template', String(Array.isArray(value) ? value[0] : value) as 'generic' | 'logto')}
+              />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthProvider')}>
+              <Input value={oauthForm.providerName} onChange={(value) => setOauthField('providerName', String(value))} />
+            </Form.FormItem>
             {oauthForm.template === 'logto' && (
-              <input value={oauthForm.logtoDomain} onChange={(e) => setOauthForm((v) => ({ ...v, logtoDomain: e.target.value }))} placeholder={t('system.oauthLogtoDomain')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+              <Form.FormItem label={t('system.oauthLogtoDomain')}>
+                <Input value={oauthForm.logtoDomain} onChange={(value) => setOauthField('logtoDomain', String(value))} />
+              </Form.FormItem>
             )}
-            <input value={oauthForm.issuer} onChange={(e) => setOauthForm((v) => ({ ...v, issuer: e.target.value }))} placeholder={t('system.oauthIssuer')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={oauthForm.subjectKey} onChange={(e) => setOauthForm((v) => ({ ...v, subjectKey: e.target.value }))} placeholder={t('system.oauthSubjectKey')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={oauthForm.emailKey} onChange={(e) => setOauthForm((v) => ({ ...v, emailKey: e.target.value }))} placeholder={t('system.oauthEmailKey')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={oauthForm.clientId} onChange={(e) => setOauthForm((v) => ({ ...v, clientId: e.target.value }))} placeholder={t('system.oauthClientId')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input type="password" value={oauthForm.clientSecret} onChange={(e) => setOauthForm((v) => ({ ...v, clientSecret: e.target.value }))} placeholder={t('system.oauthClientSecret')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={oauthForm.authorizationEndpoint} onChange={(e) => setOauthForm((v) => ({ ...v, authorizationEndpoint: e.target.value }))} placeholder={t('system.oauthAuthEndpoint')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={oauthForm.tokenEndpoint} onChange={(e) => setOauthForm((v) => ({ ...v, tokenEndpoint: e.target.value }))} placeholder={t('system.oauthTokenEndpoint')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={oauthForm.userInfoEndpoint} onChange={(e) => setOauthForm((v) => ({ ...v, userInfoEndpoint: e.target.value }))} placeholder={t('system.oauthUserInfoEndpoint')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={oauthForm.jwksUri} onChange={(e) => setOauthForm((v) => ({ ...v, jwksUri: e.target.value }))} placeholder={t('system.oauthJwksUri')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={oauthForm.scopes} onChange={(e) => setOauthForm((v) => ({ ...v, scopes: e.target.value }))} placeholder={t('system.oauthScopes')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 flex items-center overflow-hidden">
-              <span className="truncate" title={`${window.location.origin}/oauth/callback`}>
-                {t('system.oauthRedirectUri')}: {window.location.origin}/oauth/callback
-              </span>
-            </div>
+            <Form.FormItem label={t('system.oauthIssuer')}>
+              <Input value={oauthForm.issuer} onChange={(value) => setOauthField('issuer', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthSubjectKey')}>
+              <Input value={oauthForm.subjectKey} onChange={(value) => setOauthField('subjectKey', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthEmailKey')}>
+              <Input value={oauthForm.emailKey} onChange={(value) => setOauthField('emailKey', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthClientId')}>
+              <Input value={oauthForm.clientId} onChange={(value) => setOauthField('clientId', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthClientSecret')}>
+              <Input type="password" value={oauthForm.clientSecret} onChange={(value) => setOauthField('clientSecret', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthAuthEndpoint')}>
+              <Input value={oauthForm.authorizationEndpoint} onChange={(value) => setOauthField('authorizationEndpoint', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthTokenEndpoint')}>
+              <Input value={oauthForm.tokenEndpoint} onChange={(value) => setOauthField('tokenEndpoint', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthUserInfoEndpoint')}>
+              <Input value={oauthForm.userInfoEndpoint} onChange={(value) => setOauthField('userInfoEndpoint', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthJwksUri')}>
+              <Input value={oauthForm.jwksUri} onChange={(value) => setOauthField('jwksUri', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthScopes')}>
+              <Input value={oauthForm.scopes} onChange={(value) => setOauthField('scopes', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthRedirectUri')}>
+              <Input readonly value={redirectUri} />
+            </Form.FormItem>
           </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input type="checkbox" checked={oauthForm.enabled} onChange={(e) => setOauthForm((v) => ({ ...v, enabled: e.target.checked }))} />
-            {t('system.oauthEnabled')}
-          </label>
-          <div className="flex gap-2">
-            <button onClick={() => discoverOidcMutation.mutate()} className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg">{t('system.oidcAutoDiscover')}</button>
-            <button onClick={() => updateOauthMutation.mutate()} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">{t('system.oauthSave')}</button>
-          </div>
-        </div>
+          <Form.FormItem label={t('system.oauthEnabled')}>
+            <Switch value={oauthForm.enabled} onChange={(checked) => setOauthField('enabled', Boolean(checked))} />
+          </Form.FormItem>
+          <Space className="record-form__actions">
+            <Button variant="outline" loading={discoverOidcMutation.isPending} onClick={() => discoverOidcMutation.mutate()}>
+              {t('system.oidcAutoDiscover')}
+            </Button>
+            <Button theme="primary" loading={updateOauthMutation.isPending} onClick={() => updateOauthMutation.mutate()}>
+              {t('system.oauthSave')}
+            </Button>
+          </Space>
+        </Form>
+      </Card>
 
-        {/* Logto OAuth Config */}
-        <div className="break-inside-avoid mb-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
-              <Settings className="w-5 h-5 text-violet-600" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.oauthLogtoConfig')}</h3>
-              <p className="text-sm text-gray-500">{t('system.oauthLogtoConfigDesc')}</p>
-            </div>
+      <Card bordered={false} shadow={false} title={<Space align="center"><SettingIcon />{t('system.oauthLogtoConfig')}</Space>} subtitle={t('system.oauthLogtoConfigDesc')}>
+        <Form layout="vertical" colon={false} requiredMark={false} className="page-shell">
+          <div className="access-form-grid">
+            <Form.FormItem label={t('system.oauthProvider')}>
+              <Input readonly value={`Logto (${t('system.oauthProviderFixed')})`} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthLogtoDomain')}>
+              <Input value={logtoForm.logtoDomain} onChange={(value) => setLogtoField('logtoDomain', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthClientId')}>
+              <Input value={logtoForm.clientId} onChange={(value) => setLogtoField('clientId', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthClientSecret')}>
+              <Input type="password" value={logtoForm.clientSecret} onChange={(value) => setLogtoField('clientSecret', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthScopes')}>
+              <Input value={logtoForm.scopes} onChange={(value) => setLogtoField('scopes', String(value))} />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.oauthRedirectUri')}>
+              <Input readonly value={redirectUri} />
+            </Form.FormItem>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center">
-              <span className="font-medium">Logto</span>
-              <span className="text-xs text-gray-500 ml-2">({t('system.oauthProviderFixed')})</span>
-            </div>
-            <input value={logtoForm.logtoDomain} onChange={(e) => setLogtoForm((v) => ({ ...v, logtoDomain: e.target.value }))} placeholder={t('system.oauthLogtoDomain')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={logtoForm.clientId} onChange={(e) => setLogtoForm((v) => ({ ...v, clientId: e.target.value }))} placeholder={t('system.oauthClientId')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input type="password" value={logtoForm.clientSecret} onChange={(e) => setLogtoForm((v) => ({ ...v, clientSecret: e.target.value }))} placeholder={t('system.oauthClientSecret')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <input value={logtoForm.scopes} onChange={(e) => setLogtoForm((v) => ({ ...v, scopes: e.target.value }))} placeholder={t('system.oauthScopes')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
-            <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 flex items-center overflow-hidden">
-              <span className="truncate" title={`${window.location.origin}/oauth/callback`}>
-                {t('system.oauthRedirectUri')}: {window.location.origin}/oauth/callback
-              </span>
-            </div>
-          </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input type="checkbox" checked={logtoForm.enabled} onChange={(e) => setLogtoForm((v) => ({ ...v, enabled: e.target.checked }))} />
-            {t('system.oauthEnabled')}
-          </label>
-          <div className="flex gap-2">
-            <button onClick={() => updateLogtoOauthMutation.mutate()} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">{t('system.oauthSave')}</button>
-          </div>
-        </div>
-      </div>
+          <Form.FormItem label={t('system.oauthEnabled')}>
+            <Switch value={logtoForm.enabled} onChange={(checked) => setLogtoField('enabled', Boolean(checked))} />
+          </Form.FormItem>
+          <Space className="record-form__actions">
+            <Button theme="primary" loading={updateLogtoOauthMutation.isPending} onClick={() => updateLogtoOauthMutation.mutate()}>
+              {t('system.oauthSave')}
+            </Button>
+          </Space>
+        </Form>
+      </Card>
     </div>
   );
 }

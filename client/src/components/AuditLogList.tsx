@@ -1,5 +1,5 @@
+import { Tag } from 'tdesign-react';
 import type { LogEntry } from '../api';
-import { Badge } from './Badge';
 import { useI18n } from '../contexts/I18nContext';
 import {
   getAuditActionLabel,
@@ -13,57 +13,64 @@ interface AuditLogListProps {
   compact?: boolean;
 }
 
+function tagTheme(variant: string) {
+  if (variant === 'green') return 'success';
+  if (variant === 'red') return 'danger';
+  if (variant === 'yellow') return 'warning';
+  if (variant === 'blue') return 'primary';
+  return 'default';
+}
+
 export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
   const { t } = useI18n();
 
   return (
-    <div className="divide-y divide-gray-100 dark:divide-gray-700">
+    <div className={compact ? 'audit-log-list audit-log-list--compact' : 'audit-log-list'}>
       {logs.map((log) => {
         const displayName = log.nickname || log.username;
         const fields = getAuditFields(log, t);
+        const actionTag = (
+          <Tag theme={tagTheme(getAuditActionVariant(log)) as any} variant="light">
+            {getAuditActionLabel(log, t)}
+          </Tag>
+        );
 
         if (compact) {
           return (
-            <div key={log.id} className="px-6 py-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0 flex flex-wrap items-center gap-2">
-                  <Badge variant={getAuditActionVariant(log)}>{getAuditActionLabel(log, t)}</Badge>
-                  {displayName && <span className="text-sm text-gray-700 dark:text-gray-300">{displayName}</span>}
-                  {log.domain && <span className="truncate text-sm text-gray-500 dark:text-gray-400">{log.domain}</span>}
-                </div>
-                <span className="flex-shrink-0 text-xs text-gray-400">{new Date(log.created_at).toLocaleString()}</span>
+            <div key={log.id} className="audit-log-item audit-log-item--compact">
+              <div className="audit-log-tags">
+                {actionTag}
+                {displayName && <span className="page-strong">{displayName}</span>}
+                {log.domain && <span className="page-muted">{log.domain}</span>}
               </div>
+              <span className="page-muted">{new Date(log.created_at).toLocaleString()}</span>
             </div>
           );
         }
 
         return (
-          <div key={log.id} className="px-6 py-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1 space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={getAuditActionVariant(log)}>{getAuditActionLabel(log, t)}</Badge>
-                  {displayName && <Badge variant="blue">{displayName}</Badge>}
-                  {log.domain && <Badge variant="gray">{log.domain}</Badge>}
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{getAuditSummary(log, t)}</p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{new Date(log.created_at).toLocaleString()}</p>
-                </div>
-
-                {fields.length > 0 && (
-                  <div className="grid grid-cols-1 gap-2 text-xs text-gray-600 sm:grid-cols-2 xl:grid-cols-3">
-                    {fields.map((field) => (
-                      <div key={`${log.id}-${field.label}`} className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2">
-                        <span className="text-gray-400">{field.label}</span>
-                        <p className="mt-1 break-all text-gray-700 dark:text-gray-300">{field.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+          <div key={log.id} className="audit-log-item">
+            <div className="audit-log-tags">
+              {actionTag}
+              {displayName && <Tag theme="primary" variant="light">{displayName}</Tag>}
+              {log.domain && <Tag variant="light">{log.domain}</Tag>}
             </div>
+
+            <div>
+              <p className="audit-log-summary">{getAuditSummary(log, t)}</p>
+              <p className="page-muted">{new Date(log.created_at).toLocaleString()}</p>
+            </div>
+
+            {fields.length > 0 && (
+              <div className="audit-log-fields">
+                {fields.map((field) => (
+                  <div key={`${log.id}-${field.label}`} className="audit-log-field">
+                    <span>{field.label}</span>
+                    <p>{field.value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}

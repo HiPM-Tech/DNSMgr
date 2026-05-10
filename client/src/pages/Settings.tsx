@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Lock, CheckCircle, Image, X } from 'lucide-react';
+import { Alert, Button, Card, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
+import { ClearIcon, ImageIcon, LockOnIcon, UserSettingIcon } from 'tdesign-icons-react';
 import { authApi } from '../api';
 import type { OAuthBinding } from '../api';
 import { useToast } from '../hooks/useToast';
@@ -9,22 +9,23 @@ import { useAuth } from '../contexts/AuthContext';
 import { roleLabelKey } from '../utils/roles';
 import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
-import { localeOptions } from '../i18n';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+import { useUiScale } from '../contexts/UiScaleContext';
+import type { UiScale } from '../contexts/UiScaleContext';
 
 export function Settings() {
   const { user, updateUser } = useAuth();
   const toast = useToast();
-  const { locale, setLocale, t } = useI18n();
-  
-  // 实时数据：用户信息更新
+  const { t } = useI18n();
+  const { uiScale, setUiScale } = useUiScale();
+
   useRealtimeData({
     queryKey: ['user-profile'],
     websocketEventTypes: ['user_updated'],
-    pollingInterval: 300000, // 5分钟
+    pollingInterval: 300000,
   });
-  
+
   const displayName = user?.nickname || user?.username;
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');
@@ -41,26 +42,26 @@ export function Settings() {
   const [selectedOauthProvider, setSelectedOauthProvider] = useState<'custom' | 'logto'>('custom');
   const [oauthBindings, setOauthBindings] = useState<OAuthBinding[]>([]);
   const [backgroundImage, setBackgroundImage] = useState('');
+  const [avatarImage, setAvatarImage] = useState('');
 
   useEffect(() => {
     setNickname(user?.nickname ?? '');
     setEmail(user?.email ?? '');
   }, [user?.id, user?.nickname, user?.email]);
 
-  // 获取用户偏好设置
   const preferencesQuery = useQuery({
     queryKey: ['userPreferences'],
     queryFn: async () => {
       const res = await authApi.getPreferences();
       if (res.data.code === 0) {
         setBackgroundImage(res.data.data.backgroundImage || '');
+        setAvatarImage(res.data.data.avatarImage || '');
         return res.data.data;
       }
       return null;
     },
   });
 
-  // 更新背景图
   const updateBackgroundMutation = useMutation({
     mutationFn: (imageUrl: string) => authApi.updatePreferences({ backgroundImage: imageUrl }),
     onSuccess: (res) => {
@@ -103,14 +104,33 @@ export function Settings() {
   }, []);
 
   const profileMutation = useMutation({
-    mutationFn: () => authApi.updateProfile({ nickname: nickname.trim(), email: email.trim(), emailCode: emailCode.trim() || undefined }),
-    onSuccess: (res) => {
-      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      if (res.data.data) updateUser(res.data.data);
+    mutationFn: async () => {
+      let updatedUser = null;
+
+      if (profileFieldsChanged) {
+        const res = await authApi.updateProfile({ nickname: nickname.trim(), email: email.trim(), emailCode: emailCode.trim() || undefined });
+        if (res.data.code !== 0) {
+          throw new Error(res.data.msg || t('settings.profileUpdateFailed'));
+        }
+        updatedUser = res.data.data;
+      }
+
+      if (avatarChanged) {
+        const res = await authApi.updatePreferences({ avatarImage });
+        if (res.data.code !== 0) {
+          throw new Error(res.data.msg || t('settings.profileUpdateFailed'));
+        }
+      }
+
+      return updatedUser;
+    },
+    onSuccess: (updatedUser) => {
+      if (updatedUser) updateUser(updatedUser);
       setEmailCode('');
       toast.success(t('settings.profileUpdated'));
+      preferencesQuery.refetch();
     },
-    onError: () => toast.error(t('settings.profileUpdateFailed')),
+    onError: (err) => toast.error(err instanceof Error ? err.message : t('settings.profileUpdateFailed')),
   });
 
   const sendEmailCodeMutation = useMutation({
@@ -125,7 +145,7 @@ export function Settings() {
     onError: () => toast.error(t('settings.emailCodeSendFailed')),
   });
 
-  const mutation = useMutation({
+  const passwordMutation = useMutation({
     mutationFn: () => authApi.changePassword(oldPassword, newPassword),
     onSuccess: (res) => {
       if (res.data.code !== 0) { setError(res.data.msg); return; }
@@ -164,22 +184,25 @@ export function Settings() {
     onError: () => toast.error(t('settings.oauthUnbindFailed')),
   });
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (newPassword.length < 6) { setError(t('settings.passwordTooShort')); return; }
-    if (newPassword !== confirmPassword) { setError(t('settings.passwordMismatch')); return; }
-    mutation.mutate();
-  };
+  const profileFieldsChanged = (nickname !== (user?.nickname ?? '')) || (email !== (user?.email ?? ''));
+  const avatarChanged = avatarImage !== (preferencesQuery.data?.avatarImage || '');
+  const hasProfileChanges = profileFieldsChanged || avatarChanged;
+  const emailChanged = email.trim() !== (user?.email ?? '');
 
-  const handleProfileSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  const handleProfileSubmit = () => {
     if (!user) return;
-    if (email.trim() !== (user.email || '') && !emailCode.trim()) {
+    if (emailChanged && !emailCode.trim()) {
       toast.error(t('settings.emailCodeRequired'));
       return;
     }
     profileMutation.mutate();
+  };
+
+  const handlePasswordSubmit = () => {
+    setError('');
+    if (newPassword.length < 6) { setError(t('settings.passwordTooShort')); return; }
+    if (newPassword !== confirmPassword) { setError(t('settings.passwordMismatch')); return; }
+    passwordMutation.mutate();
   };
 
   const handleSendEmailCode = () => {
@@ -190,290 +213,211 @@ export function Settings() {
     sendEmailCodeMutation.mutate();
   };
 
-  const inputClass = 'w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-  const hasProfileChanges = (nickname !== (user?.nickname ?? '')) || (email !== (user?.email ?? ''));
-
   return (
-    <div className="max-w-6xl">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="space-y-6">
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.profile')}</h3>
-            <div className="flex items-center gap-4">
-              <Avatar username={displayName} email={user?.email} size={56} textClassName="text-xl" />
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white">{displayName}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{user?.email || t('common.noEmailSet')}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t(roleLabelKey(user?.role))}</p>
-              </div>
-            </div>
-            <form onSubmit={handleProfileSubmit} className="mt-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.nickname')}</label>
-                <input
-                  type="text"
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  placeholder={t('settings.nicknamePlaceholder')}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.email')}</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('settings.emailPlaceholder')}
-                  className={inputClass}
-                />
-              </div>
-              {email.trim() !== (user?.email ?? '') && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.emailCode')}</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={emailCode}
-                      onChange={(e) => setEmailCode(e.target.value)}
-                      placeholder={t('settings.emailCodePlaceholder')}
-                      className={inputClass}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSendEmailCode}
-                      disabled={sendEmailCodeMutation.isPending}
-                      className="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm whitespace-nowrap"
-                    >
-                      {t('settings.sendEmailCode')}
-                    </button>
-                  </div>
-                </div>
-              )}
-              <div className="pt-1">
-                <button
-                  type="submit"
-                  disabled={profileMutation.isPending || !hasProfileChanges}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
-                >
-                  {profileMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                  {t('settings.updateProfile')}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <Lock className="w-4 h-4 text-gray-400" />
-              <h3 className="text-base font-semibold text-gray-900">{t('settings.changePassword')}</h3>
-            </div>
-
-            {success && (
-              <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg mb-4">
-                <CheckCircle className="w-4 h-4" />
-                {t('settings.passwordChanged')}
-              </div>
-            )}
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.currentPassword')}</label>
-                <input
-                  type="password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  required
-                  placeholder={t('settings.currentPasswordPlaceholder')}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.newPassword')}</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  placeholder={t('settings.newPasswordPlaceholder')}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('settings.confirmPassword')}</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder={t('settings.confirmPasswordPlaceholder')}
-                  className={inputClass}
-                />
-              </div>
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={mutation.isPending}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
-                >
-                  {mutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                  {t('settings.updatePassword')}
-                </button>
-              </div>
-            </form>
-          </div>
+    <div className="page-shell">
+      <section className="page-heading">
+        <div>
+          <h1>{t('nav.settings')}</h1>
+          <p>{t('settings.profileSubtitle')}</p>
         </div>
+      </section>
 
-        <div className="space-y-6">
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.cloudflareTunnels')}</h3>
-            <div className="flex items-center justify-between">
+      <div className="settings-grid">
+        <div className="page-shell">
+          <Card
+            bordered={false}
+            shadow={false}
+            title={<Space align="center"><UserSettingIcon />{t('settings.profileTitle')}</Space>}
+          >
+            <div className="settings-profile">
+              <Avatar username={displayName} email={user?.email} image={avatarImage} size={56} textClassName="text-xl" />
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('settings.showTunnels')}</p>
-                <p className="text-sm text-gray-500">{t('settings.showTunnelsDesc')}</p>
+                <strong>{displayName}</strong>
+                <span>{user?.email || t('common.noEmailSet')}</span>
+                <Tag theme="primary" variant="light">{t(roleLabelKey(user?.role))}</Tag>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowTunnels(!showTunnels)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
-                  showTunnels ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    showTunnels ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
             </div>
-          </div>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.language')}</h3>
-            <div className="space-y-2">
-              <select value={locale} onChange={(e) => setLocale(e.target.value)} className={inputClass}>
-                {localeOptions.map((option) => (
-                  <option key={option.code} value={option.code}>{option.label}</option>
-                ))}
-              </select>
-              <p className="text-sm text-gray-500">{t('settings.languageHint')}</p>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Image className="w-4 h-4" />
-              {t('settings.backgroundImage')}
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  {t('settings.backgroundImageUrl')}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={backgroundImage}
-                    onChange={(e) => setBackgroundImage(e.target.value)}
-                    placeholder={t('settings.backgroundImagePlaceholder')}
-                    className={inputClass}
+            <Form layout="vertical" colon={false} requiredMark={false} className="settings-form" onSubmit={({ e }) => { e?.preventDefault(); handleProfileSubmit(); }}>
+              <Form.FormItem label={t('settings.avatarImageUrl')} tips={t('settings.avatarImageHint')}>
+                <div className="settings-background-input">
+                  <Input
+                    clearable
+                    value={avatarImage}
+                    onChange={(value) => setAvatarImage(String(value))}
+                    placeholder={t('settings.avatarImagePlaceholder')}
                   />
-                  {backgroundImage && (
-                    <button
-                      type="button"
-                      onClick={() => setBackgroundImage('')}
-                      className="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-sm"
-                      title={t('common.clear')}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                  {avatarImage && (
+                    <Button type="button" shape="square" variant="outline" icon={<ClearIcon />} onClick={() => setAvatarImage('')} />
                   )}
                 </div>
-                <p className="text-sm text-gray-500 mt-1.5">{t('settings.backgroundImageHint')}</p>
+              </Form.FormItem>
+              <Form.FormItem label={t('settings.nickname')}>
+                <Input clearable value={nickname} onChange={(value) => setNickname(String(value))} placeholder={t('settings.nicknamePlaceholder')} />
+              </Form.FormItem>
+              <Form.FormItem label={t('settings.email')}>
+                <Input clearable value={email} onChange={(value) => setEmail(String(value))} placeholder={t('settings.emailPlaceholder')} />
+              </Form.FormItem>
+              {emailChanged && (
+                <Form.FormItem label={t('settings.emailCode')}>
+                  <Space>
+                    <Input value={emailCode} onChange={(value) => setEmailCode(String(value))} placeholder={t('settings.emailCodePlaceholder')} />
+                    <Button variant="outline" loading={sendEmailCodeMutation.isPending} onClick={handleSendEmailCode}>
+                      {t('settings.sendEmailCode')}
+                    </Button>
+                  </Space>
+                </Form.FormItem>
+              )}
+              <Space className="record-form__actions">
+                <Button type="submit" theme="primary" loading={profileMutation.isPending} disabled={!hasProfileChanges}>
+                  {t('settings.updateProfile')}
+                </Button>
+              </Space>
+            </Form>
+          </Card>
+
+          <Card
+            bordered={false}
+            shadow={false}
+            title={<Space align="center"><LockOnIcon />{t('settings.changePassword')}</Space>}
+          >
+            <div className="page-shell">
+              {success && <Alert theme="success" message={t('settings.passwordChanged')} />}
+              {error && <Alert theme="error" message={error} />}
+              <Form layout="vertical" colon={false} requiredMark={false} onSubmit={({ e }) => { e?.preventDefault(); handlePasswordSubmit(); }}>
+                <Form.FormItem label={t('settings.currentPassword')}>
+                  <Input type="password" value={oldPassword} onChange={(value) => setOldPassword(String(value))} placeholder={t('settings.currentPasswordPlaceholder')} />
+                </Form.FormItem>
+                <Form.FormItem label={t('settings.newPassword')}>
+                  <Input type="password" value={newPassword} onChange={(value) => setNewPassword(String(value))} placeholder={t('settings.newPasswordPlaceholder')} />
+                </Form.FormItem>
+                <Form.FormItem label={t('settings.confirmPassword')}>
+                  <Input type="password" value={confirmPassword} onChange={(value) => setConfirmPassword(String(value))} placeholder={t('settings.confirmPasswordPlaceholder')} />
+                </Form.FormItem>
+                <Space className="record-form__actions">
+                  <Button type="submit" theme="primary" loading={passwordMutation.isPending}>
+                    {t('settings.updatePassword')}
+                  </Button>
+                </Space>
+              </Form>
+            </div>
+          </Card>
+        </div>
+
+        <div className="page-shell">
+          <Card bordered={false} shadow={false} title={t('settings.displayScale')}>
+            <div className="settings-switch-row settings-scale-row">
+              <div>
+                <strong>{t('settings.displayScale')}</strong>
+                <span>{t('settings.displayScaleDesc')}</span>
               </div>
-              
+              <Select
+                className="settings-scale-select"
+                value={uiScale}
+                options={[
+                  { label: t('settings.scaleLarge'), value: 'large' },
+                  { label: t('settings.scaleSmall'), value: 'small' },
+                ]}
+                onChange={(value) => setUiScale(String(value) as UiScale)}
+              />
+            </div>
+          </Card>
+
+          <Card bordered={false} shadow={false} title={t('settings.cloudflareTunnels')}>
+            <div className="settings-switch-row">
+              <div>
+                <strong>{t('settings.showTunnels')}</strong>
+                <span>{t('settings.showTunnelsDesc')}</span>
+              </div>
+              <Switch value={showTunnels} onChange={(checked) => setShowTunnels(Boolean(checked))} />
+            </div>
+          </Card>
+
+          <Card
+            bordered={false}
+            shadow={false}
+            title={<Space align="center"><ImageIcon />{t('settings.backgroundImage')}</Space>}
+          >
+            <Form layout="vertical" colon={false} requiredMark={false} className="page-shell">
+              <Form.FormItem label={t('settings.backgroundImageUrl')} tips={t('settings.backgroundImageHint')}>
+                <div className="settings-background-input">
+                  <Input
+                    clearable
+                    value={backgroundImage}
+                    onChange={(value) => setBackgroundImage(String(value))}
+                    placeholder={t('settings.backgroundImagePlaceholder')}
+                  />
+                  {backgroundImage && (
+                    <Button shape="square" variant="outline" icon={<ClearIcon />} onClick={() => setBackgroundImage('')} />
+                  )}
+                </div>
+              </Form.FormItem>
               {backgroundImage && (
-                <div className="relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div className="settings-image-preview">
                   <img
                     src={backgroundImage}
                     alt="Background preview"
-                    className="w-full h-32 object-cover"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="%23f3f4f6"/%3E%3Ctext x="50" y="50" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12"%3EInvalid Image%3C/text%3E%3C/svg%3E';
                     }}
                   />
                 </div>
               )}
-              
-              <div className="pt-1">
-                <button
-                  type="button"
+              <Space className="record-form__actions">
+                <Button
+                  theme="primary"
+                  loading={updateBackgroundMutation.isPending}
+                  disabled={backgroundImage === (preferencesQuery.data?.backgroundImage || '')}
                   onClick={() => updateBackgroundMutation.mutate(backgroundImage)}
-                  disabled={updateBackgroundMutation.isPending || backgroundImage === (preferencesQuery.data?.backgroundImage || '')}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
                 >
-                  {updateBackgroundMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                   {t('settings.updateBackgroundImage')}
-                </button>
-              </div>
-            </div>
-          </div>
+                </Button>
+              </Space>
+            </Form>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{t('settings.oauthBindingTitle')}</h3>
+          <Card bordered={false} shadow={false} title={t('settings.oauthBindingTitle')}>
             {!oauthEnabled ? (
-              <p className="text-sm text-gray-500">{t('settings.oauthDisabledTip')}</p>
+              <p className="page-muted">{t('settings.oauthDisabledTip')}</p>
             ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-gray-600">{t('settings.oauthBindingDesc', { provider: oauthProviderName })}</p>
+              <div className="page-shell">
+                <p className="page-muted">{t('settings.oauthBindingDesc', { provider: oauthProviderName })}</p>
                 {oauthProviders.length > 1 && (
-                  <select
+                  <Select
                     value={selectedOauthProvider}
-                    onChange={(e) => setSelectedOauthProvider(e.target.value as 'custom' | 'logto')}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  >
-                    {oauthProviders.map((provider) => (
-                      <option key={provider.key} value={provider.key}>{provider.providerName}</option>
-                    ))}
-                  </select>
+                    options={oauthProviders.map((provider) => ({ label: provider.providerName, value: provider.key }))}
+                    onChange={(value) => setSelectedOauthProvider(String(Array.isArray(value) ? value[0] : value) as 'custom' | 'logto')}
+                  />
                 )}
-                <button
-                  type="button"
-                  onClick={() => bindOauthMutation.mutate()}
-                  disabled={bindOauthMutation.isPending}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg disabled:opacity-60"
-                >
-                  {t('settings.bindOauth')}
-                </button>
-                <div className="space-y-2">
+                <Space>
+                  <Button theme="primary" loading={bindOauthMutation.isPending} onClick={() => bindOauthMutation.mutate()}>
+                    {t('settings.bindOauth')}
+                  </Button>
+                </Space>
+                <div className="page-list">
                   {oauthBindings.length === 0 ? (
-                    <p className="text-sm text-gray-500">{t('settings.noOauthBound')}</p>
+                    <p className="page-muted">{t('settings.noOauthBound')}</p>
                   ) : oauthBindings.map((binding) => (
-                    <div key={`${binding.provider}:${binding.subject}`} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                      <div className="text-sm">
-                        <p className="font-medium text-gray-900 dark:text-white">{binding.provider}</p>
-                        <p className="text-gray-500">{binding.email || binding.subject}</p>
+                    <div key={`${binding.provider}:${binding.subject}`} className="page-list-item">
+                      <div className="page-list-item__main">
+                        <strong>{binding.provider}</strong>
+                        <span>{binding.email || binding.subject}</span>
                       </div>
-                      <button
-                        type="button"
+                      <Button
+                        variant="outline"
+                        theme="danger"
+                        size="small"
+                        loading={unbindOauthMutation.isPending}
                         onClick={() => unbindOauthMutation.mutate(binding.provider)}
-                        disabled={unbindOauthMutation.isPending}
-                        className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100 disabled:opacity-60"
                       >
                         {t('settings.unbindOauth')}
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-          </div>
+          </Card>
         </div>
       </div>
     </div>

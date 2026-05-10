@@ -1,26 +1,27 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
+import type { SelectValue } from 'tdesign-react/es/select';
+import { AddIcon, DeleteIcon, EditIcon } from 'tdesign-icons-react';
 import { accountsApi } from '../api';
 import type { DnsAccount, Provider, ProviderField } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
-import { Badge } from '../components/Badge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ProviderIcon, ProviderSelectLabel } from '../components/ProviderIcon';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 
-const PROVIDER_COLORS: Record<string, string> = {
-  aliyun: 'blue', dnspod: 'blue', cloudflare: 'yellow', huaweicloud: 'red',
-  tencentcloud: 'blue', route53: 'yellow', godaddy: 'green', namesilo: 'gray',
-};
-
 function ProviderBadge({ type }: { type: string }) {
-  const color = (PROVIDER_COLORS[type] ?? 'gray') as 'blue' | 'yellow' | 'green' | 'gray' | 'red';
-  return <Badge variant={color}>{type}</Badge>;
+  return (
+    <span className="provider-badge">
+      <ProviderIcon type={type} size={16} />
+      <span className="provider-badge__text">{type}</span>
+    </span>
+  );
 }
 
 interface AccountFormProps {
@@ -30,12 +31,15 @@ interface AccountFormProps {
   isLoading: boolean;
 }
 
+function selectToString(value: SelectValue) {
+  return String(Array.isArray(value) ? value[0] ?? '' : value);
+}
+
 function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormProps) {
   const { t } = useI18n();
   const [type, setType] = useState(initial?.type ?? providers[0]?.type ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [remark, setRemark] = useState(initial?.remark ?? '');
-  // 统一使用布尔值处理 useProxy，支持从字符串和布尔值初始化
   const [useProxy, setUseProxy] = useState(() => {
     const raw = initial?.config?.useProxy;
     if (typeof raw === 'boolean') return raw;
@@ -43,10 +47,11 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
     return false;
   });
   const [config, setConfig] = useState<Record<string, string>>(
-    initial?.config ? Object.fromEntries(Object.keys(initial.config).filter(k => k !== 'useProxy').map((k) => [k, String(initial.config[k] || '')])) : {}
+    initial?.config ? Object.fromEntries(Object.keys(initial.config).filter((key) => key !== 'useProxy').map((key) => [key, String(initial.config[key] || '')])) : {}
   );
 
-  const provider = providers.find((p) => p.type === type);
+  const provider = providers.find((item) => item.type === type);
+  const providerOptions = providers.map((item) => ({ label: <ProviderSelectLabel provider={item} />, value: item.type }));
 
   const handleTypeChange = (nextType: string) => {
     setType(nextType);
@@ -54,85 +59,80 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
     setUseProxy(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // 统一使用布尔值提交 useProxy
+  const submitAccount = () => {
     onSubmit({ type, name, config: { ...config, useProxy }, remark });
   };
 
-  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const renderField = (field: ProviderField) => {
+    const required = field.required !== false;
+    const value = config[field.key] ?? '';
+
+    return (
+      <Form.FormItem key={field.key} label={`${field.label}${required ? ' *' : ''}`}>
+        {field.type === 'select' && field.options ? (
+          <Select
+            value={value}
+            options={[
+              { label: t('common.pleaseSelect'), value: '' },
+              ...field.options.map((option) => ({ label: option.label, value: option.value })),
+            ]}
+            onChange={(nextValue) => setConfig((current) => ({ ...current, [field.key]: selectToString(nextValue) }))}
+          />
+        ) : (
+          <Input
+            clearable
+            type={field.type === 'password' && value === '***' ? 'password' : 'text'}
+            value={value}
+            onChange={(nextValue) => setConfig((current) => ({ ...current, [field.key]: String(nextValue) }))}
+            placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
+          />
+        )}
+      </Form.FormItem>
+    );
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('accounts.providerType')}</label>
-        <select value={type} onChange={(e) => handleTypeChange(e.target.value)} className={inputClass}>
-          {providers.map((p) => (
-            <option key={p.type} value={p.type}>{p.name}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('accounts.accountName')}</label>
-        <input required value={name} onChange={(e) => setName(e.target.value)} placeholder={t('accounts.accountNamePlaceholder')} className={inputClass} />
-      </div>
-      {(provider?.configFields ?? []).map((field: ProviderField) => (
-        <div key={field.key}>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            {field.label}{field.required !== false && ' *'}
-          </label>
-          {field.type === 'select' && field.options ? (
-            <select
-              required={field.required !== false}
-              value={config[field.key] ?? ''}
-              onChange={(e) => setConfig((c) => ({ ...c, [field.key]: e.target.value }))}
-              className={inputClass}
-            >
-              <option value="">{t('common.pleaseSelect')}</option>
-              {field.options.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              // If the value is masked (***), use password type; otherwise use text to show actual value
-              type={field.type === 'password' && (config[field.key] ?? '') === '***' ? 'password' : 'text'}
-              required={field.required !== false}
-              value={config[field.key] ?? ''}
-              onChange={(e) => setConfig((c) => ({ ...c, [field.key]: e.target.value }))}
-              placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
-              className={inputClass}
-            />
-          )}
-        </div>
-      ))}
-      <div className="flex items-center gap-3 py-2">
-        <input
-          type="checkbox"
-          id="useProxy"
-          checked={useProxy}
-          onChange={(e) => setUseProxy(e.target.checked)}
-          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+    <Form
+      layout="vertical"
+      colon={false}
+      requiredMark={false}
+      className="page-shell"
+      onSubmit={({ e }) => {
+        e?.preventDefault();
+        submitAccount();
+      }}
+    >
+      <Form.FormItem label={t('accounts.providerType')}>
+        <Select value={type} options={providerOptions} onChange={(value) => handleTypeChange(selectToString(value))} />
+      </Form.FormItem>
+      <Form.FormItem label={t('accounts.accountName')}>
+        <Input
+          clearable
+          value={name}
+          onChange={(value) => setName(String(value))}
+          placeholder={t('accounts.accountNamePlaceholder')}
         />
-        <label htmlFor="useProxy" className="text-sm text-gray-700 dark:text-gray-300">
-          {t('accounts.useProxy')}
-        </label>
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          ({t('accounts.useProxyHint')})
-        </span>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('common.remark')}</label>
-        <input value={remark} onChange={(e) => setRemark(e.target.value)} placeholder={t('common.optionalRemark')} className={inputClass} />
-      </div>
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="submit" disabled={isLoading}
-          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
-          {isLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+      </Form.FormItem>
+
+      {(provider?.configFields ?? []).map(renderField)}
+
+      <Form.FormItem label={t('accounts.useProxy')} help={t('accounts.useProxyHint')}>
+        <Switch value={useProxy} onChange={setUseProxy} />
+      </Form.FormItem>
+      <Form.FormItem label={t('common.remark')}>
+        <Input
+          clearable
+          value={remark}
+          onChange={(value) => setRemark(String(value))}
+          placeholder={t('common.optionalRemark')}
+        />
+      </Form.FormItem>
+      <Space className="record-form__actions">
+        <Button type="submit" theme="primary" loading={isLoading}>
           {initial ? t('accounts.saveChanges') : t('accounts.addAccount')}
-        </button>
-      </div>
-    </form>
+        </Button>
+      </Space>
+    </Form>
   );
 }
 
@@ -146,7 +146,6 @@ export function Accounts() {
   const [editing, setEditing] = useState<DnsAccount | null>(null);
   const [deleting, setDeleting] = useState<DnsAccount | null>(null);
 
-  // 实时数据：账号变更
   useRealtimeData({
     queryKey: ['accounts'],
     websocketEventTypes: ['account_created', 'account_updated', 'account_deleted'],
@@ -162,7 +161,7 @@ export function Accounts() {
     queryKey: ['providers'],
     queryFn: () => accountsApi.providers().then((r) => r.data.data ?? []),
   });
-  const visibleProviders = providers.filter((p) => !p.isStub);
+  const visibleProviders = providers.filter((provider) => !provider.isStub);
 
   const createMutation = useMutation({
     mutationFn: (data: { type: string; name: string; config: Record<string, string | boolean>; remark: string }) => accountsApi.create(data),
@@ -199,49 +198,43 @@ export function Accounts() {
   });
 
   const columns = [
-    { key: 'name', label: t('common.name'), render: (row: DnsAccount) => <span className="font-medium text-gray-900 dark:text-white">{row.name}</span> },
+    { key: 'name', label: t('common.name'), render: (row: DnsAccount) => <span className="page-strong">{row.name}</span> },
     { key: 'type', label: t('accounts.provider'), render: (row: DnsAccount) => <ProviderBadge type={row.type} /> },
-    { key: 'remark', label: t('common.remark'), render: (row: DnsAccount) => <span className="text-gray-500">{row.remark || '-'}</span> },
-    { key: 'created_at', label: t('common.created'), render: (row: DnsAccount) => <span className="text-gray-500 text-xs">{new Date(row.created_at).toLocaleDateString()}</span> },
+    { key: 'remark', label: t('common.remark'), render: (row: DnsAccount) => <span className="page-muted">{row.remark || '-'}</span> },
+    { key: 'created_at', label: t('common.created'), render: (row: DnsAccount) => <span className="page-muted">{new Date(row.created_at).toLocaleDateString()}</span> },
     {
-      key: 'actions', label: t('common.actions'),
+      key: 'actions',
+      label: t('common.actions'),
       render: (row: DnsAccount) => (
-        <div className="flex items-center gap-2">
-          <button onClick={() => setEditing(row)} disabled={!canManage}
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button onClick={() => setDeleting(row)} disabled={!canManage}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+        <Space size="small">
+          <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => setEditing(row)} />
+          <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(row)} />
+        </Space>
       ),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="page-shell">
+      <section className="page-heading">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('accounts.title')}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('accounts.subtitle')}</p>
+          <h1>{t('accounts.title')}</h1>
+          <p>{t('accounts.subtitle')}</p>
         </div>
-        <button onClick={() => setShowAdd(true)} disabled={!canManage}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-          <Plus className="w-4 h-4" /> {t('accounts.addAccount')}
-        </button>
-      </div>
+        <Button theme="primary" icon={<AddIcon />} disabled={!canManage} onClick={() => setShowAdd(true)}>
+          {t('accounts.addAccount')}
+        </Button>
+      </section>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+      <Card bordered={false} shadow={false} className="page-card">
         <Table
           columns={columns}
           data={accounts}
           loading={isLoading}
-          rowKey={(r) => r.id}
+          rowKey={(row) => row.id}
           emptyText={t('accounts.noAccounts')}
         />
-      </div>
+      </Card>
 
       {showAdd && canManage && visibleProviders.length > 0 && (
         <Modal title={t('accounts.addDnsAccount')} onClose={() => setShowAdd(false)}>

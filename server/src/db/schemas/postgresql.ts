@@ -224,6 +224,7 @@ export const postgresqlSchema: SchemaDefinition = {
       notifications_enabled BOOLEAN NOT NULL DEFAULT true,
       email_notifications BOOLEAN NOT NULL DEFAULT true,
       background_image TEXT,
+      avatar_image TEXT,
       pinned_domains JSONB DEFAULT '[]'::jsonb,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -460,6 +461,7 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_status_check`,
     `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_status_check CHECK (status IN ('ok', 'mismatch', 'missing', 'poisoned'))`,
     // Migration: Add pinned_domains column to user_preferences table
-    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS pinned_domains JSONB DEFAULT '[]'::jsonb`
+    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS pinned_domains JSONB DEFAULT '[]'::jsonb`,
+    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS avatar_image TEXT`
   ],
 };

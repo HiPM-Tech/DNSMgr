@@ -19,18 +19,6 @@ export const loginLimiter = rateLimit({
 });
 
 /**
- * 注册速率限制 - 防止滥用注册
- * 默认：1 小时内最多 3 个注册
- */
-export const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 小时
-  max: 3, // 限制注册次数
-  message: 'Too many accounts created from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-/**
  * 邮件发送速率限制 - 防止邮件轰炸
  * 默认：1 小时内最多 5 封邮件
  */

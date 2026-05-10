@@ -1,13 +1,36 @@
 import { useState, useEffect } from 'react';
-import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap } from 'lucide-react';
+import { Alert, Button, Dialog, Divider, Form, Input, Loading, Space } from 'tdesign-react';
+import {
+  FingerprintIcon,
+  KeyIcon,
+  LockOnIcon,
+  MailIcon,
+  SecuredIcon,
+  UserIcon,
+} from 'tdesign-icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { authApi, initApi } from '../api';
 import type { WebAuthnResponse } from '../api';
 import { useToast } from '../hooks/useToast';
 import { startAuthentication } from '@simplewebauthn/browser';
+import './Login.css';
+
+type ApiErrorPayload = {
+  msg?: string;
+  message?: string;
+};
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: ApiErrorPayload } }).response;
+    const message = response?.data?.msg ?? response?.data?.message;
+    if (message) return message;
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
 
 export function Login() {
   const { login } = useAuth();
@@ -27,9 +50,13 @@ export function Login() {
   const [oauthEnabled, setOauthEnabled] = useState(false);
   const [oauthProviders, setOauthProviders] = useState<Array<{ key: 'custom' | 'logto'; providerName: string }>>([]);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [require2FA, setRequire2FA] = useState(false);
+  const [supported2FATypes, setSupported2FATypes] = useState<string[]>([]);
+  const [totpCode, setTotpCode] = useState('');
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [backupCode, setBackupCode] = useState('');
 
   useEffect(() => {
-    // Check if system needs initialization
     initApi.status()
       .then((res) => {
         if (!res.data.data.initialized) {
@@ -37,7 +64,7 @@ export function Login() {
         }
       })
       .catch(() => {
-        // If we can't check status, continue to login
+        // If status cannot be checked, keep the login page available.
       })
       .finally(() => {
         setChecking(false);
@@ -55,25 +82,35 @@ export function Login() {
           setOauthProviders([]);
         }
       })
-      .catch(() => setOauthEnabled(false));
+      .catch(() => {
+        setOauthEnabled(false);
+        setOauthProviders([]);
+      });
   }, []);
 
-  const [require2FA, setRequire2FA] = useState(false);
-  const [supported2FATypes, setSupported2FATypes] = useState<string[]>([]);
-  const [totpCode, setTotpCode] = useState('');
-  const [useBackupCode, setUseBackupCode] = useState(false);
-  const [backupCode, setBackupCode] = useState('');
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!username || !password) { setError(t('login.required')); return; }
-    if (require2FA && !useBackupCode && !totpCode) { setError('TOTP code is required'); return; }
-    if (require2FA && useBackupCode && !backupCode) { setError('Backup code is required'); return; }
+  const submitLogin = async () => {
+    if (!username || !password) {
+      setError(t('login.required'));
+      return;
+    }
+    if (require2FA && !useBackupCode && !totpCode) {
+      setError(t('login.authCodeRequired'));
+      return;
+    }
+    if (require2FA && useBackupCode && !backupCode) {
+      setError(t('login.backupCodeRequired'));
+      return;
+    }
 
     setError('');
     setLoading(true);
     try {
-      await login(username, password, require2FA && !useBackupCode ? totpCode : undefined, require2FA && useBackupCode ? backupCode : undefined);
+      await login(
+        username,
+        password,
+        require2FA && !useBackupCode ? totpCode : undefined,
+        require2FA && useBackupCode ? backupCode : undefined,
+      );
       navigate('/');
     } catch (err: any) {
       if (err.message === '2FA_REQUIRED') {
@@ -94,7 +131,7 @@ export function Login() {
       setError('');
       const optsRes = await authApi.webauthnLoginOptions(username);
       if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
-      
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as any });
       await login(username, password, undefined, undefined, attResp as unknown as WebAuthnResponse);
@@ -150,8 +187,17 @@ export function Login() {
   };
 
   const startOauthLogin = async (provider?: 'custom' | 'logto') => {
-    setOauthLoading(true);
     setError('');
+    const isProviderReady = oauthEnabled && (
+      provider ? oauthProviders.some((item) => item.key === provider) : oauthProviders.length > 0
+    );
+
+    if (!isProviderReady) {
+      setError(provider === 'logto' ? t('login.logtoUnavailable') : t('login.oauthUnavailable'));
+      return;
+    }
+
+    setOauthLoading(true);
     try {
       const res = await authApi.oauthStart(provider);
       if (res.data.code !== 0) {
@@ -160,193 +206,257 @@ export function Login() {
       }
       window.location.href = res.data.data.authUrl;
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('login.oauthFailed'));
+      setError(getApiErrorMessage(e, t('login.oauthFailed')));
+    } finally {
       setOauthLoading(false);
     }
   };
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex items-center justify-center p-4">
-        <div className="flex flex-col items-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">{t('common.loading')}</p>
-        </div>
-      </div>
+      <main className="login-page login-page--checking">
+        <Loading loading size="large" text={t('common.loading')} />
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-sm p-8">
-        <div className="flex flex-col items-center mb-8">
-          <div className="p-3 bg-blue-600 rounded-xl mb-3">
-            <Zap className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">DNSMgr</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('login.subtitle')}</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm px-4 py-3 rounded-lg">
-              {error}
+    <main className="login-page">
+      <div className="login-shell">
+        <section className="login-identity" aria-label="HiDNS">
+          <div className="login-brand">
+            <span className="login-brand__mark">
+              <img src="/favicon.ico" alt="" />
+            </span>
+            <div>
+              <strong>HiDNS</strong>
+              <span>{t('login.subtitle')}</span>
             </div>
-          )}
-          {!require2FA ? (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.usernameOrEmail')}</label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder={t('login.usernameOrEmailPlaceholder')}
-                  autoComplete="username"
-                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.password')}</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t('login.passwordPlaceholder')}
-                  autoComplete="current-password"
-                  className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-center text-sm text-gray-600 dark:text-gray-400 mb-2">
-                {t('login.verify2FA')}
-              </div>
-              
-              {supported2FATypes.includes('webauthn') && (
-                <button
-                  type="button"
-                  onClick={handlePasskeyLogin}
-                  disabled={loading}
-                  className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2 mb-4"
-                >
-                  {t('passkeys.usePasskey')}
-                </button>
-              )}
+          </div>
 
-              {supported2FATypes.includes('webauthn') && supported2FATypes.includes('totp') && (
-                <div className="relative mb-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white dark:bg-gray-900 text-gray-500">OR</span>
-                  </div>
+          <div className="login-identity__copy">
+            <h1>{t('login.consoleTitle')}</h1>
+            <p>{t('login.consoleSubtitle')}</p>
+          </div>
+        </section>
+
+        <section className="login-panel" aria-labelledby="login-title">
+          <div className="login-panel__heading">
+            <h2 id="login-title">{require2FA ? t('login.verify2FA') : t('login.title')}</h2>
+            <p>{require2FA ? t('login.twoFactorHint') : t('login.accountHint')}</p>
+          </div>
+
+          <Form
+            className="login-form"
+            layout="vertical"
+            labelAlign="top"
+            labelWidth={0}
+            requiredMark={false}
+            onSubmit={() => {
+              void submitLogin();
+            }}
+          >
+            <Space direction="vertical" size={18} className="login-form__stack">
+              {error && <Alert theme="error" message={error} />}
+
+              {!require2FA ? (
+                <>
+                  <Form.FormItem label={t('login.usernameOrEmail')}>
+                    <Input
+                      size="large"
+                      clearable
+                      value={username}
+                      onChange={(value) => setUsername(value)}
+                      placeholder={t('login.usernameOrEmailPlaceholder')}
+                      autocomplete="username"
+                      prefixIcon={<UserIcon />}
+                    />
+                  </Form.FormItem>
+
+                  <Form.FormItem label={t('login.password')}>
+                    <Input
+                      size="large"
+                      type="password"
+                      clearable
+                      value={password}
+                      onChange={(value) => setPassword(value)}
+                      placeholder={t('login.passwordPlaceholder')}
+                      autocomplete="current-password"
+                      prefixIcon={<LockOnIcon />}
+                    />
+                  </Form.FormItem>
+                </>
+              ) : (
+                <div className="login-two-factor">
+                  {supported2FATypes.includes('webauthn') && (
+                    <Button
+                      type="button"
+                      theme="success"
+                      variant="outline"
+                      size="large"
+                      block
+                      icon={<FingerprintIcon />}
+                      loading={loading}
+                      onClick={handlePasskeyLogin}
+                    >
+                      {t('passkeys.usePasskey')}
+                    </Button>
+                  )}
+
+                  {supported2FATypes.includes('webauthn') && supported2FATypes.includes('totp') && (
+                    <Divider>OR</Divider>
+                  )}
+
+                  {supported2FATypes.includes('totp') && (
+                    <>
+                      {!useBackupCode ? (
+                        <Form.FormItem label={t('login.authCode')}>
+                          <Input
+                            size="large"
+                            align="center"
+                            value={totpCode}
+                            onChange={(value) => setTotpCode(value.replace(/\D/g, ''))}
+                            placeholder={t('login.enterAuthCode')}
+                            autocomplete="one-time-code"
+                            maxlength={6}
+                            prefixIcon={<KeyIcon />}
+                            inputClass="login-code-input"
+                          />
+                          <Button
+                            type="button"
+                            variant="text"
+                            theme="primary"
+                            className="login-switch-code"
+                            onClick={() => setUseBackupCode(true)}
+                          >
+                            {t('login.useBackupCode')}
+                          </Button>
+                        </Form.FormItem>
+                      ) : (
+                        <Form.FormItem label={t('login.backupCode')}>
+                          <Input
+                            size="large"
+                            align="center"
+                            value={backupCode}
+                            onChange={(value) => setBackupCode(value)}
+                            placeholder={t('login.enterBackupCode')}
+                            prefixIcon={<KeyIcon />}
+                            inputClass="login-code-input"
+                          />
+                          <Button
+                            type="button"
+                            variant="text"
+                            theme="primary"
+                            className="login-switch-code"
+                            onClick={() => setUseBackupCode(false)}
+                          >
+                            {t('login.useAuthCode')}
+                          </Button>
+                        </Form.FormItem>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
 
-              {supported2FATypes.includes('totp') && (
-                  <>
-                    {!useBackupCode ? (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.authCode')}</label>
-                        <input
-                          type="text"
-                          value={totpCode}
-                          onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                          placeholder={t('login.enterAuthCode')}
-                          autoComplete="one-time-code"
-                          className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-center tracking-widest text-lg"
-                          maxLength={6}
-                        />
-                        <button type="button" onClick={() => setUseBackupCode(true)} className="mt-2 text-sm text-blue-600 hover:text-blue-700 w-full text-center">{t('login.useBackupCode')}</button>
-                      </div>
-                    ) : (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('login.backupCode')}</label>
-                        <input
-                          type="text"
-                          value={backupCode}
-                          onChange={(e) => setBackupCode(e.target.value)}
-                          placeholder={t('login.enterBackupCode')}
-                          className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-center tracking-widest text-lg"
-                        />
-                        <button type="button" onClick={() => setUseBackupCode(false)} className="mt-2 text-sm text-blue-600 hover:text-blue-700 w-full text-center">{t('login.useAuthCode')}</button>
-                      </div>
-                    )}
-                  </>
-                )}
-            </>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
-          >
-            {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-            {t('login.signIn')}
-          </button>
-          {oauthEnabled && (
-            <div className="space-y-2 mt-2">
-              {oauthProviders.map((provider) => (
-                <button
+              <Button type="submit" theme="primary" size="large" block loading={loading}>
+                {t('login.signIn')}
+              </Button>
+            </Space>
+          </Form>
+
+          <div className="login-panel__footer">
+            <Button type="button" variant="text" theme="primary" className="login-footer-action" onClick={() => setShowReset(true)}>
+              {t('login.forgotPassword')}
+            </Button>
+            <Button
+              type="button"
+              variant="text"
+              theme="primary"
+              className="login-footer-action"
+              disabled={oauthLoading}
+              title={oauthEnabled && oauthProviders.some((provider) => provider.key === 'logto') ? undefined : t('login.logtoUnavailable')}
+              onClick={() => startOauthLogin('logto')}
+            >
+              <SecuredIcon />
+              <span>{t('login.logtoSignIn')}</span>
+            </Button>
+          </div>
+
+          {oauthEnabled && oauthProviders.some((provider) => provider.key !== 'logto') && (
+            <div className="login-external-providers" aria-label="OAuth">
+              {oauthProviders.filter((provider) => provider.key !== 'logto').map((provider) => (
+                <Button
                   key={provider.key}
                   type="button"
-                  onClick={() => startOauthLogin(provider.key)}
+                  variant="text"
+                  theme="primary"
+                  className="login-footer-action"
                   disabled={oauthLoading}
-                  className="w-full py-2.5 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                  onClick={() => startOauthLogin(provider.key)}
                 >
-                  {oauthLoading && <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />}
                   {t('login.oauthSignIn', { provider: provider.providerName })}
-                </button>
+                </Button>
               ))}
             </div>
           )}
-        </form>
-        <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-          <button
-            type="button"
-            onClick={() => setShowReset((v) => !v)}
-            className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-          >
-            {t('login.forgotPassword')}
-          </button>
-          {showReset && (
-            <div className="mt-3 space-y-2">
-              <input
-                type="email"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                placeholder={t('login.resetEmailPlaceholder')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={resetCode}
-                  onChange={(e) => setResetCode(e.target.value)}
-                  placeholder={t('login.resetCodePlaceholder')}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800"
-                />
-                <button type="button" onClick={sendResetCode} disabled={resetLoading} className="px-3 py-2 bg-gray-100 dark:bg-gray-700 dark:text-gray-300 rounded-lg text-sm">
-                  {t('login.sendResetCode')}
-                </button>
-              </div>
-              <input
-                type="password"
-                value={resetNewPassword}
-                onChange={(e) => setResetNewPassword(e.target.value)}
-                placeholder={t('login.resetNewPasswordPlaceholder')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800"
-              />
-              <button type="button" onClick={confirmReset} disabled={resetLoading} className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm">
-                {t('login.resetPassword')}
-              </button>
-            </div>
-          )}
-        </div>
+        </section>
       </div>
-    </div>
+
+      <Dialog
+        visible={showReset}
+        header={t('login.resetPassword')}
+        width={460}
+        placement="center"
+        dialogClassName="app-td-dialog app-login-dialog"
+        confirmBtn={{ content: t('login.resetPassword'), theme: 'primary' }}
+        cancelBtn={t('common.cancel')}
+        confirmLoading={resetLoading}
+        onClose={() => setShowReset(false)}
+        onCancel={() => setShowReset(false)}
+        onConfirm={() => {
+          void confirmReset();
+        }}
+      >
+        <Space direction="vertical" size={16} className="login-reset-dialog">
+          <Input
+            size="large"
+            type="text"
+            value={resetEmail}
+            onChange={(value) => setResetEmail(value)}
+            placeholder={t('login.resetEmailPlaceholder')}
+            autocomplete="email"
+            prefixIcon={<MailIcon />}
+          />
+          <div className="login-reset-code-row">
+            <Input
+              size="large"
+              value={resetCode}
+              onChange={(value) => setResetCode(value)}
+              placeholder={t('login.resetCodePlaceholder')}
+            />
+            <Button
+              type="button"
+              size="large"
+              variant="outline"
+              loading={resetLoading}
+              className="login-reset-code-button"
+              onClick={sendResetCode}
+            >
+              {t('login.sendResetCode')}
+            </Button>
+          </div>
+          <Input
+            size="large"
+            type="password"
+            value={resetNewPassword}
+            onChange={(value) => setResetNewPassword(value)}
+            placeholder={t('login.resetNewPasswordPlaceholder')}
+            autocomplete="new-password"
+            prefixIcon={<LockOnIcon />}
+          />
+        </Space>
+      </Dialog>
+    </main>
   );
 }

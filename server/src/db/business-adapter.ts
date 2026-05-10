@@ -2291,50 +2291,50 @@ export const UserPreferencesOperations = {
   /** 获取用户偏好设置 */
   async get(userId: number): Promise<QueryResult | undefined> {
     return getInternal(
-      'SELECT user_id, theme, language, notifications_enabled, email_notifications, background_image FROM user_preferences WHERE user_id = ?',
+      'SELECT user_id, theme, language, notifications_enabled, email_notifications, background_image, avatar_image FROM user_preferences WHERE user_id = ?',
       [userId],
       { operation: 'UserPreferences.get', table: 'user_preferences' }
     );
   },
 
   /** 更新用户偏好设置 (SQLite) */
-  async upsertSQLite(userId: number, theme: string, language: string, notificationsEnabled: number, emailNotifications: number, backgroundImage: string | null): Promise<void> {
+  async upsertSQLite(userId: number, theme: string, language: string, notificationsEnabled: number, emailNotifications: number, backgroundImage: string | null, avatarImage: string | null): Promise<void> {
     return executeInternal(
-      `INSERT INTO user_preferences (user_id, theme, language, notifications_enabled, email_notifications, background_image, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `INSERT INTO user_preferences (user_id, theme, language, notifications_enabled, email_notifications, background_image, avatar_image, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
        ON CONFLICT(user_id) DO UPDATE SET
         theme = excluded.theme, language = excluded.language,
         notifications_enabled = excluded.notifications_enabled, email_notifications = excluded.email_notifications,
-        background_image = excluded.background_image, updated_at = datetime('now')`,
-      [userId, theme, language, notificationsEnabled, emailNotifications, backgroundImage],
+        background_image = excluded.background_image, avatar_image = excluded.avatar_image, updated_at = datetime('now')`,
+      [userId, theme, language, notificationsEnabled, emailNotifications, backgroundImage, avatarImage],
       { operation: 'UserPreferences.upsertSQLite', table: 'user_preferences' }
     );
   },
 
   /** 更新用户偏好设置 (MySQL) */
-  async upsertMySQL(userId: number, theme: string, language: string, notificationsEnabled: number, emailNotifications: number, backgroundImage: string | null): Promise<void> {
+  async upsertMySQL(userId: number, theme: string, language: string, notificationsEnabled: number, emailNotifications: number, backgroundImage: string | null, avatarImage: string | null): Promise<void> {
     return executeInternal(
-      `INSERT INTO user_preferences (user_id, theme, language, notifications_enabled, email_notifications, background_image)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO user_preferences (user_id, theme, language, notifications_enabled, email_notifications, background_image, avatar_image)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
         theme = VALUES(theme), language = VALUES(language),
         notifications_enabled = VALUES(notifications_enabled), email_notifications = VALUES(email_notifications),
-        background_image = VALUES(background_image)`,
-      [userId, theme, language, notificationsEnabled, emailNotifications, backgroundImage],
+        background_image = VALUES(background_image), avatar_image = VALUES(avatar_image)`,
+      [userId, theme, language, notificationsEnabled, emailNotifications, backgroundImage, avatarImage],
       { operation: 'UserPreferences.upsertMySQL', table: 'user_preferences' }
     );
   },
 
   /** 更新用户偏好设置 (PostgreSQL) */
-  async upsertPostgreSQL(userId: number, theme: string, language: string, notificationsEnabled: number, emailNotifications: number, backgroundImage: string | null): Promise<void> {
+  async upsertPostgreSQL(userId: number, theme: string, language: string, notificationsEnabled: number, emailNotifications: number, backgroundImage: string | null, avatarImage: string | null): Promise<void> {
     return executeInternal(
-      `INSERT INTO user_preferences (user_id, theme, language, notifications_enabled, email_notifications, background_image)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO user_preferences (user_id, theme, language, notifications_enabled, email_notifications, background_image, avatar_image)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT(user_id) DO UPDATE SET
         theme = EXCLUDED.theme, language = EXCLUDED.language,
         notifications_enabled = EXCLUDED.notifications_enabled, email_notifications = EXCLUDED.email_notifications,
-        background_image = EXCLUDED.background_image`,
-      [userId, theme, language, notificationsEnabled, emailNotifications, backgroundImage],
+        background_image = EXCLUDED.background_image, avatar_image = EXCLUDED.avatar_image`,
+      [userId, theme, language, notificationsEnabled, emailNotifications, backgroundImage, avatarImage],
       { operation: 'UserPreferences.upsertPostgreSQL', table: 'user_preferences' }
     );
   },

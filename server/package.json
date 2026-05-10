@@ -25,7 +25,7 @@
     ]
   },
   "scripts": {
-    "dev": "ts-node src/app.ts",
+    "dev": "ts-node --files src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
     "test": "node --require ts-node/register --test src/**/*.test.ts",

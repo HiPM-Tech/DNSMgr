@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, Trash2, Edit2, Save } from 'lucide-react';
+import { Button, Card, Empty, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
+import { AddIcon, DeleteIcon, EditIcon, NotificationIcon, SaveIcon } from 'tdesign-icons-react';
 import { settingsApi } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export interface NotificationChannel {
   id: string;
@@ -19,6 +21,7 @@ export function NotificationChannels() {
   const qc = useQueryClient();
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<NotificationChannel | null>(null);
 
   useQuery({
@@ -29,7 +32,7 @@ export function NotificationChannels() {
         setChannels(res.data.data || []);
       }
       return res.data.data;
-    }
+    },
   });
 
   const saveMutation = useMutation({
@@ -42,20 +45,21 @@ export function NotificationChannels() {
       toast.success(t('system.notifications.saved'));
       qc.invalidateQueries({ queryKey: ['notification-channels'] });
       setEditingId(null);
+      setDeletingId(null);
     },
-    onError: () => toast.error(t('system.notifications.saveFailed'))
+    onError: () => toast.error(t('system.notifications.saveFailed')),
   });
 
-  const handleAdd = (type: 'webhook' | 'telegram' | 'dingtalk' | 'email') => {
+  const handleAdd = (type: NotificationChannel['type']) => {
     const newChannel: NotificationChannel = {
       id: Date.now().toString(),
       type,
       name: `New ${type}`,
       enabled: true,
-      config: type === 'webhook' ? { url: '', method: 'POST' } 
-            : type === 'telegram' ? { botToken: '', chatId: '' }
-            : type === 'dingtalk' ? { webhook: '' }
-            : { to: '' }
+      config: type === 'webhook' ? { url: '', method: 'POST' }
+        : type === 'telegram' ? { botToken: '', chatId: '' }
+          : type === 'dingtalk' ? { webhook: '' }
+            : { to: '' },
     };
     setChannels([...channels, newChannel]);
     setEditingId(newChannel.id);
@@ -64,130 +68,146 @@ export function NotificationChannels() {
 
   const handleSave = () => {
     if (!editForm) return;
-    const newChannels = channels.map(c => c.id === editForm.id ? editForm : c);
+    const newChannels = channels.map((channel) => channel.id === editForm.id ? editForm : channel);
     setChannels(newChannels);
     saveMutation.mutate(newChannels);
   };
 
   const handleToggle = (id: string, enabled: boolean) => {
-    const newChannels = channels.map(c => c.id === id ? { ...c, enabled } : c);
+    const newChannels = channels.map((channel) => channel.id === id ? { ...channel, enabled } : channel);
     setChannels(newChannels);
     saveMutation.mutate(newChannels);
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm(t('system.notifications.deleteConfirm'))) return;
-    const newChannels = channels.filter(c => c.id !== id);
+  const handleDelete = () => {
+    if (!deletingId) return;
+    const newChannels = channels.filter((channel) => channel.id !== deletingId);
     setChannels(newChannels);
     saveMutation.mutate(newChannels);
   };
+
+  const updateConfig = (key: string, value: string) => {
+    if (!editForm) return;
+    setEditForm({ ...editForm, config: { ...editForm.config, [key]: value } });
+  };
+
+  const renderEditFields = (channel: NotificationChannel) => (
+    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell">
+      <Form.FormItem label={t('system.notifications.name')}>
+        <Input value={editForm?.name} onChange={(value) => setEditForm({ ...editForm!, name: String(value) })} />
+      </Form.FormItem>
+
+      {channel.type === 'webhook' && (
+        <div className="notification-form-grid notification-form-grid--webhook">
+          <Form.FormItem label={t('system.notifications.method')}>
+            <Select
+              value={editForm?.config.method}
+              options={[
+                { label: 'POST', value: 'POST' },
+                { label: 'GET', value: 'GET' },
+              ]}
+              onChange={(value) => updateConfig('method', String(Array.isArray(value) ? value[0] : value))}
+            />
+          </Form.FormItem>
+          <Form.FormItem label={t('system.notifications.url')}>
+            <Input value={editForm?.config.url} onChange={(value) => updateConfig('url', String(value))} placeholder="https://..." />
+          </Form.FormItem>
+        </div>
+      )}
+
+      {channel.type === 'telegram' && (
+        <div className="notification-form-grid">
+          <Form.FormItem label={t('system.notifications.botToken')}>
+            <Input value={editForm?.config.botToken} onChange={(value) => updateConfig('botToken', String(value))} />
+          </Form.FormItem>
+          <Form.FormItem label={t('system.notifications.chatId')}>
+            <Input value={editForm?.config.chatId} onChange={(value) => updateConfig('chatId', String(value))} />
+          </Form.FormItem>
+        </div>
+      )}
+
+      {channel.type === 'dingtalk' && (
+        <Form.FormItem label={t('system.notifications.webhookUrl')}>
+          <Input value={editForm?.config.webhook} onChange={(value) => updateConfig('webhook', String(value))} />
+        </Form.FormItem>
+      )}
+
+      {channel.type === 'email' && (
+        <Form.FormItem label={t('system.notifications.emailAddress')}>
+          <Input value={editForm?.config.to} onChange={(value) => updateConfig('to', String(value))} placeholder="admin@example.com" />
+        </Form.FormItem>
+      )}
+
+      <Space className="record-form__actions">
+        <Button variant="outline" onClick={() => setEditingId(null)}>
+          {t('system.notifications.cancel')}
+        </Button>
+        <Button theme="primary" icon={<SaveIcon />} loading={saveMutation.isPending} onClick={handleSave}>
+          {t('system.notifications.save')}
+        </Button>
+      </Space>
+    </Form>
+  );
+
+  const addActions = (
+    <div className="notification-add-actions">
+      <Button size="small" variant="outline" icon={<AddIcon />} onClick={() => handleAdd('webhook')}>{t('system.notifications.addWebhook')}</Button>
+      <Button size="small" variant="outline" icon={<AddIcon />} onClick={() => handleAdd('telegram')}>{t('system.notifications.addTelegram')}</Button>
+      <Button size="small" variant="outline" icon={<AddIcon />} onClick={() => handleAdd('dingtalk')}>{t('system.notifications.addDingtalk')}</Button>
+      <Button size="small" variant="outline" icon={<AddIcon />} onClick={() => handleAdd('email')}>{t('system.notifications.addEmail')}</Button>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('system.notifications.title')}</h3>
-          <p className="text-sm text-gray-500">{t('system.notifications.desc')}</p>
+    <Card
+      bordered={false}
+      shadow={false}
+      title={<Space align="center"><NotificationIcon />{t('system.notifications.title')}</Space>}
+      subtitle={t('system.notifications.desc')}
+      actions={addActions}
+    >
+      {channels.length === 0 ? (
+        <Empty description={t('system.notifications.empty')} />
+      ) : (
+        <div className="page-list">
+          {channels.map((channel) => (
+            <div key={channel.id} className="page-list-item notification-channel">
+              {editingId === channel.id ? (
+                renderEditFields(channel)
+              ) : (
+                <>
+                  <div className="team-member">
+                    <NotificationIcon />
+                    <div className="page-list-item__main">
+                      <strong>{channel.name} <Tag size="small" variant="light">{channel.type}</Tag></strong>
+                      <span>
+                        {channel.type === 'webhook' ? channel.config.url
+                          : channel.type === 'telegram' ? channel.config.chatId
+                            : channel.type === 'dingtalk' ? 'DingTalk Webhook'
+                              : channel.config.to}
+                      </span>
+                    </div>
+                  </div>
+                  <Space size="small">
+                    <Switch size="small" value={channel.enabled} onChange={(checked) => handleToggle(channel.id, Boolean(checked))} />
+                    <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => { setEditingId(channel.id); setEditForm(channel); }} />
+                    <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} onClick={() => setDeletingId(channel.id)} />
+                  </Space>
+                </>
+              )}
+            </div>
+          ))}
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => handleAdd('webhook')} className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300">{t('system.notifications.addWebhook')}</button>
-          <button onClick={() => handleAdd('telegram')} className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-400">{t('system.notifications.addTelegram')}</button>
-          <button onClick={() => handleAdd('dingtalk')} className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-400">{t('system.notifications.addDingtalk')}</button>
-          <button onClick={() => handleAdd('email')} className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300">{t('system.notifications.addEmail')}</button>
-        </div>
-      </div>
+      )}
 
-      <div className="space-y-4">
-        {channels.length === 0 && <div className="text-center text-gray-500 py-8 text-sm">{t('system.notifications.empty')}</div>}
-        {channels.map(channel => (
-          <div key={channel.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-900">
-            {editingId === channel.id ? (
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.name')}</label>
-                    <input type="text" value={editForm?.name} onChange={e => setEditForm({ ...editForm!, name: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-                  </div>
-                </div>
-
-                {channel.type === 'webhook' && (
-                  <div className="flex gap-4">
-                    <div className="w-1/4">
-                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.method')}</label>
-                      <select value={editForm?.config.method} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, method: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
-                        <option>POST</option>
-                        <option>GET</option>
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.url')}</label>
-                      <input type="text" value={editForm?.config.url} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, url: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" placeholder="https://..." />
-                    </div>
-                  </div>
-                )}
-
-                {channel.type === 'telegram' && (
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.botToken')}</label>
-                      <input type="text" value={editForm?.config.botToken} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, botToken: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.chatId')}</label>
-                      <input type="text" value={editForm?.config.chatId} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, chatId: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-                    </div>
-                  </div>
-                )}
-
-                {channel.type === 'dingtalk' && (
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.webhookUrl')}</label>
-                      <input type="text" value={editForm?.config.webhook} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, webhook: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-                    </div>
-                  </div>
-                )}
-
-                {channel.type === 'email' && (
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">{t('system.notifications.emailAddress')}</label>
-                      <input type="email" value={editForm?.config.to} onChange={e => setEditForm({ ...editForm!, config: { ...editForm!.config, to: e.target.value } })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" placeholder="admin@example.com" />
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2 mt-4">
-                  <button onClick={() => { setEditingId(null); if (!channels.find(c => c.id === channel.id)?.name) setChannels(channels.filter(c => c.id !== channel.id)); }} className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400">{t('system.notifications.cancel')}</button>
-                  <button onClick={handleSave} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"><Save className="w-4 h-4"/> {t('system.notifications.save')}</button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Bell className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">{channel.name} <span className="text-xs text-gray-400 uppercase ml-2">{channel.type}</span></h4>
-                    <p className="text-xs text-gray-500 truncate max-w-md">
-                      {channel.type === 'webhook' ? channel.config.url : channel.type === 'telegram' ? channel.config.chatId : channel.type === 'dingtalk' ? 'DingTalk Webhook' : channel.config.to}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => handleToggle(channel.id, !channel.enabled)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${channel.enabled ? 'bg-blue-600' : 'bg-gray-200'}`}
-                  >
-                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${channel.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                  <button onClick={() => { setEditingId(channel.id); setEditForm(channel); }} className="text-gray-400 hover:text-blue-500"><Edit2 className="w-4 h-4" /></button>
-                  <button onClick={() => handleDelete(channel.id)} className="text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+      {deletingId && (
+        <ConfirmDialog
+          message={t('system.notifications.deleteConfirm')}
+          onConfirm={handleDelete}
+          onCancel={() => setDeletingId(null)}
+          isLoading={saveMutation.isPending}
+        />
+      )}
+    </Card>
   );
 }

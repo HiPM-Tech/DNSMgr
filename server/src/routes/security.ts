@@ -79,11 +79,82 @@ router.get('/requires-2fa', authMiddleware, async (req, res) => {
 router.get('/2fa-status', authMiddleware, async (req, res) => {
   try {
     const userId = (req as any).user.userId;
+    const policy = await getSecurityPolicy();
     const status = await getTOTPStatus(userId);
-    res.json({ code: 0, data: status, msg: 'success' });
+    const validationEnabled = Boolean(policy.require2FAGlobal);
+    res.json({
+      code: 0,
+      data: {
+        ...status,
+        configured: status.enabled,
+        enabled: validationEnabled && status.enabled,
+        validationEnabled,
+      },
+      msg: 'success',
+    });
   } catch (error) {
     log.error('Security', 'Failed to check 2FA status:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to check 2FA status' });
+  }
+});
+
+// 获取指定用户的 2FA 生效状态（管理员功能）
+router.get('/users/:userId/require-2fa', authMiddleware, noTokenAuth('security settings'), adminOnly, async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ code: 1, msg: 'Invalid userId' });
+    }
+
+    const policy = await getSecurityPolicy();
+    const userSetting = await SecurityPolicyOperations.getUserSecuritySetting(userId);
+    const configuredRequire2FA = userSetting?.require_2fa === 1 || userSetting?.require_2fa === true;
+    const global2FAEnabled = Boolean(policy.require2FAGlobal);
+
+    res.json({
+      code: 0,
+      data: {
+        require2FA: global2FAEnabled,
+        configuredRequire2FA,
+        global2FAEnabled,
+      },
+      msg: 'success',
+    });
+  } catch (error) {
+    log.error('Security', 'Failed to get user 2FA requirement:', { error });
+    res.status(500).json({ code: 1, msg: 'Failed to get user 2FA requirement' });
+  }
+});
+
+// 更新指定用户的 2FA 配置状态（管理员功能）
+router.put('/users/:userId/require-2fa', authMiddleware, noTokenAuth('security settings'), adminOnly, async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ code: 1, msg: 'Invalid userId' });
+    }
+
+    const { require2FA } = req.body;
+    if (require2FA === undefined) {
+      return res.status(400).json({ code: 1, msg: 'require2FA is required' });
+    }
+
+    await SecurityPolicyOperations.updateUser2FARequirement(userId, Boolean(require2FA));
+
+    const policy = await getSecurityPolicy();
+    const global2FAEnabled = Boolean(policy.require2FAGlobal);
+    res.json({
+      code: 0,
+      data: {
+        require2FA: global2FAEnabled,
+        configuredRequire2FA: Boolean(require2FA),
+        global2FAEnabled,
+      },
+      msg: 'User 2FA requirement updated',
+    });
+  } catch (error) {
+    log.error('Security', 'Failed to update user 2FA requirement:', { error });
+    res.status(500).json({ code: 1, msg: 'Failed to update user 2FA requirement' });
   }
 });
 
