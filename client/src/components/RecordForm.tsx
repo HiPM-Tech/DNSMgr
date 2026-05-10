@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Alert, Button, Form, Input, Select, Space } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
@@ -45,28 +45,84 @@ function isIPv6(value: string): boolean {
   }
 }
 
+/**
+ * Check if value is a valid hostname (supports IDN/Unicode domains)
+ * Uses URL API for Punycode conversion and validation
+ */
 function isHostname(value: string): boolean {
   const normalized = value.trim().replace(/\.$/, '');
   if (!normalized || normalized.length > 253) return false;
-  const labels = normalized.split('.');
-  return labels.every((label) =>
-    label.length > 0 &&
-    label.length <= 63 &&
-    /^[a-zA-Z0-9-]+$/.test(label) &&
-    !label.startsWith('-') &&
-    !label.endsWith('-')
-  );
+
+  try {
+    // Use URL API for IDN to Punycode conversion and validation
+    const url = new URL(`http://${normalized}`);
+    const hostname = url.hostname;
+
+    // Validate Punycode format
+    const labels = hostname.split('.');
+
+    for (const label of labels) {
+      if (label.length === 0 || label.length > 63) {
+        return false;
+      }
+
+      // Punycode labels start with xn--
+      if (label.startsWith('xn--')) {
+        // Validate Punycode format
+        if (!/^xn--[a-z0-9-]+$/i.test(label)) {
+          return false;
+        }
+      } else {
+        // Standard ASCII label validation
+        if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
+/**
+ * Check if value is a valid record host/subdomain (supports IDN)
+ * Supports Unicode subdomains like 子域名, サブドメイン, 🎉
+ */
 function isRecordHost(value: string): boolean {
   const normalized = value.trim();
   if (normalized === '@') return true;
-  return normalized.split('.').every((label) =>
-    label.length > 0 &&
-    /^[a-zA-Z0-9_-]+$/.test(label) &&
-    !label.startsWith('-') &&
-    !label.endsWith('-')
-  );
+
+  try {
+    // Use URL API for IDN to Punycode conversion
+    const url = new URL(`http://${normalized}.example.com`);
+    const subdomain = url.hostname.replace('.example.com', '');
+
+    // Validate each label
+    const labels = subdomain.split('.');
+    for (const label of labels) {
+      if (label.length === 0 || label.length > 63) {
+        return false;
+      }
+
+      // Punycode labels start with xn--
+      if (label.startsWith('xn--')) {
+        if (!/^xn--[a-z0-9-]+$/i.test(label)) {
+          return false;
+        }
+      } else {
+        // Standard ASCII label validation (allow underscore for some providers)
+        if (!/^[a-z0-9_]([a-z0-9-_]{0,61}[a-z0-9_])?$/i.test(label)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function parseSrvValue(initial?: DnsRecord): SrvFields {
