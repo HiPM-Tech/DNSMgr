@@ -606,6 +606,16 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
     let added = 0;
     for (const d of allDomains) {
       const normalizedName = normalizeDomainName(d.Domain);
+      
+      // 记录 IDN 域名转换信息
+      if (normalizedName !== d.Domain.toLowerCase()) {
+        log.debug('Domains', 'IDN domain normalized during sync', {
+          original: d.Domain,
+          normalized: normalizedName,
+          accountId: account_id,
+        });
+      }
+      
       const existing = await DomainOperations.getByAccountIdAndName(account_id, normalizedName);
       if (!existing) {
         const id = await DomainOperations.create({
@@ -615,6 +625,11 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
           record_count: d.RecordCount ?? 0,
         });
         added++;
+        log.info('Domains', `Domain added during sync: ${normalizedName}`, {
+          originalName: d.Domain,
+          accountId: account_id,
+          isIdn: normalizedName !== d.Domain.toLowerCase(),
+        });
         await logAuditOperation(req.user!.userId, 'sync_add_domain', normalizedName, { accountId: account_id }, req);
 
         // 异步获取 WHOIS 信息（不阻塞响应）
