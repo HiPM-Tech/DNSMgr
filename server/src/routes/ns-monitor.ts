@@ -1,4 +1,4 @@
-﻿/**
+/**
  * NS Monitor Routes
  * NS 监测路由 - 新架构（用户级）
  */
@@ -12,6 +12,7 @@ import { normalizeRole, isSuper, isAdmin } from '../utils/roles';
 import { resolveNsRecords, NSLookupResult, validateNsRecords } from '../lib/dns/ns-lookup';
 import { getDomainAccess } from './domains';
 import { wsService } from '../service/websocket';
+import { normalizeDomain, isValidDomain, toUnicode } from '../utils/domain';
 
 const router = Router();
 
@@ -85,14 +86,27 @@ router.post('/resolve-ns', authMiddleware, asyncHandler(async (req: Request, res
     return;
   }
 
+  // 验证域名格式（支持 IDN）
+  if (!isValidDomain(domain)) {
+    res.status(400).json({
+      success: false,
+      error: 'Invalid domain format',
+    });
+    return;
+  }
+
   try {
     // 使用加密优先策略解析NS记录
     const nsResult = await resolveNsRecords(domain);
 
+    // 获取 Unicode 格式的域名用于显示
+    const unicodeDomain = toUnicode(domain);
+
     res.json({
       success: true,
       data: {
-        domain,
+        domain: unicodeDomain,
+        punycodeDomain: normalizeDomain(domain),
         nsRecords: nsResult.nsRecords,
         encryptedNs: nsResult.encryptedResult?.records?.map(r => r.data) || [],
         plainNs: nsResult.plainResult?.records?.map(r => r.data) || [],

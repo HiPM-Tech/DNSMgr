@@ -1,10 +1,12 @@
-﻿/**
+/**
  * NS Record Lookup Utility
  * NS 记录查询工具 - 使用新的 DNS 解析模块（支持 DNS 污染检测）
+ * 支持国际化域名(IDN)和 Punycode 域名
  */
 
 import { dnsResolver, DNSQueryType, DNSResolverResult } from './resolver';
 import { log } from '../logger';
+import { normalizeDomain } from '../../utils/domain';
 
 // 查询超时时间（毫秒）
 const DNS_TIMEOUT = 10000;
@@ -19,15 +21,16 @@ export interface NSLookupResult {
 /**
  * 解析域名的 NS 记录（带 DNS 污染检测）
  * 同时使用加密 DNS 和明文 DNS 查询，检测是否被污染
- * @param domain 域名
+ * 支持国际化域名(IDN)：中文、日文、Emoji 等 Unicode 域名会自动转换为 Punycode
+ * @param domain 域名（支持 Unicode 或 Punycode 格式）
  * @returns NS 查询结果（包含污染检测信息）
  */
 export async function resolveNsRecords(domain: string): Promise<NSLookupResult> {
-  // 移除可能的尾部点号并转为小写
-  const normalizedDomain = domain.replace(/\.$/, '').toLowerCase();
+  // 使用 IDN-aware 归一化（将 Unicode 转换为 Punycode）
+  const normalizedDomain = normalizeDomain(domain).replace(/\.$/, '');
 
   if (!normalizedDomain || normalizedDomain.includes(' ')) {
-    log.warn('NSLookup', 'Invalid domain provided', { domain });
+    log.warn('NSLookup', 'Invalid domain provided', { domain, normalizedDomain });
     return { nsRecords: [], isPoisoned: false };
   }
 
