@@ -92,7 +92,8 @@ jobs:
           echo "Building version: $VERSION"
 
   # ============================================================================
-  # 阶段 2: 构建 Windows 安装�?  # ============================================================================
+  # 阶段 2: 构建 Windows 安装包
+  # ============================================================================
   build-windows:
     name: Build Windows Package
     if: inputs.build_exe == true
@@ -169,7 +170,8 @@ jobs:
           retention-days: 7
 
   # ============================================================================
-  # 阶段 2.1: 构建 Windows ARM64 安装�?  # ============================================================================
+  # 阶段 2.1: 构建 Windows ARM64 安装包
+  # ============================================================================
   build-windows-arm:
     name: Build Windows ARM64 Package
     if: inputs.build_windows_arm == true
@@ -246,7 +248,8 @@ jobs:
           retention-days: 7
 
   # ============================================================================
-  # 阶段 2.2: 构建 Linux x64 启动�?  # ============================================================================
+  # 阶段 2.2: 构建 Linux x64 启动包
+  # ============================================================================
   build-linux-x64:
     name: Build Linux x64 Package
     if: inputs.build_linux_x64 == true
@@ -315,7 +318,8 @@ jobs:
           retention-days: 7
 
   # ============================================================================
-  # 阶段 2.3: 构建 Linux ARM64 启动�?  # ============================================================================
+  # 阶段 2.3: 构建 Linux ARM64 启动包
+  # ============================================================================
   build-linux-arm64:
     name: Build Linux ARM64 Package
     if: inputs.build_linux_arm64 == true
@@ -384,7 +388,8 @@ jobs:
           retention-days: 7
 
   # ============================================================================
-  # 阶段 2.4: 构建 macOS Intel 启动�?  # ============================================================================
+  # 阶段 2.4: 构建 macOS Intel 启动包
+  # ============================================================================
   build-macos-intel:
     name: Build macOS Intel Package
     if: inputs.build_macos_intel == true
@@ -453,7 +458,8 @@ jobs:
           retention-days: 7
 
   # ============================================================================
-  # 阶段 2.5: 构建 macOS ARM 启动�?  # ============================================================================
+  # 阶段 2.5: 构建 macOS ARM 启动包
+  # ============================================================================
   build-macos-arm:
     name: Build macOS ARM Package
     if: inputs.build_macos_arm == true
@@ -522,7 +528,7 @@ jobs:
           retention-days: 7
 
   # ============================================================================
-  # 阶段 3: 并行构建 Docker AMD64 �?ARM64
+  # 阶段 3: 并行构建 Docker AMD64 & ARM64
   # ============================================================================
   build-docker-amd64:
     name: Build Docker AMD64
@@ -557,11 +563,12 @@ jobs:
           IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
           
           if [ "$IS_PRERELEASE" = "true" ]; then
-            # 预发布版本使�?pre 标签
+            # 预发布版本使用 pre 标签
             echo "tag=${IMAGE_BASE}:pre-${VERSION}-amd64" >> $GITHUB_OUTPUT
             echo "manifest_tag=${IMAGE_BASE}:pre-${VERSION}" >> $GITHUB_OUTPUT
           else
-            # 正式版本使用版本号标�?            echo "tag=${IMAGE_BASE}:${VERSION}-amd64" >> $GITHUB_OUTPUT
+            # 正式版本使用版本号标签
+            echo "tag=${IMAGE_BASE}:${VERSION}-amd64" >> $GITHUB_OUTPUT
             echo "manifest_tag=${IMAGE_BASE}:${VERSION}" >> $GITHUB_OUTPUT
           fi
 
@@ -616,11 +623,12 @@ jobs:
           IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
           
           if [ "$IS_PRERELEASE" = "true" ]; then
-            # 预发布版本使�?pre 标签
+            # 预发布版本使用 pre 标签
             echo "tag=${IMAGE_BASE}:pre-${VERSION}-arm64" >> $GITHUB_OUTPUT
             echo "manifest_tag=${IMAGE_BASE}:pre-${VERSION}" >> $GITHUB_OUTPUT
           else
-            # 正式版本使用版本号标�?            echo "tag=${IMAGE_BASE}:${VERSION}-arm64" >> $GITHUB_OUTPUT
+            # 正式版本使用版本号标签
+            echo "tag=${IMAGE_BASE}:${VERSION}-arm64" >> $GITHUB_OUTPUT
             echo "manifest_tag=${IMAGE_BASE}:${VERSION}" >> $GITHUB_OUTPUT
           fi
 
@@ -643,7 +651,7 @@ jobs:
           echo "Tag: ${{ steps.docker-tags.outputs.tag }}"
 
   # ============================================================================
-  # 阶段 4: 创建多架�?manifest
+  # 阶段 4: 创建多架构 manifest
   # ============================================================================
   merge-docker:
     name: Create Release Multi-Arch Manifest
@@ -672,13 +680,14 @@ jobs:
           IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
           
           if [ "$IS_PRERELEASE" = "true" ]; then
-            # 预发布版本使�?pre 标签
+            # 预发布版本使用 pre 标签
             echo "version_tag=${IMAGE_BASE}:pre-${VERSION}" >> $GITHUB_OUTPUT
             echo "amd64_tag=${IMAGE_BASE}:pre-${VERSION}-amd64" >> $GITHUB_OUTPUT
             echo "arm64_tag=${IMAGE_BASE}:pre-${VERSION}-arm64" >> $GITHUB_OUTPUT
             echo "latest_tag=" >> $GITHUB_OUTPUT
           else
-            # 正式版本使用版本号标�?            echo "version_tag=${IMAGE_BASE}:${VERSION}" >> $GITHUB_OUTPUT
+            # 正式版本使用版本号标签
+            echo "version_tag=${IMAGE_BASE}:${VERSION}" >> $GITHUB_OUTPUT
             echo "amd64_tag=${IMAGE_BASE}:${VERSION}-amd64" >> $GITHUB_OUTPUT
             echo "arm64_tag=${IMAGE_BASE}:${VERSION}-arm64" >> $GITHUB_OUTPUT
             echo "latest_tag=${IMAGE_BASE}:latest" >> $GITHUB_OUTPUT
@@ -691,7 +700,7 @@ jobs:
           ARM64_TAG="${{ steps.manifest-tags.outputs.arm64_tag }}"
           LATEST_TAG="${{ steps.manifest-tags.outputs.latest_tag }}"
 
-          # 创建版本 tag �?manifest
+          # 创建版本 tag 和 manifest
           docker buildx imagetools create \
             --tag "${VERSION_TAG}" \
             "${AMD64_TAG}" \
@@ -776,12 +785,12 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
-          # 提取当前版本�?changelog（从 ## [版本号] 到下一�?## [ 或文件结束）
+          # 提取当前版本的 changelog（从 ## [版本号] 到下一个 ## [ 或文件结束）
           CHANGELOG_CONTENT=$(awk "/^## \\[$VERSION\\]/ {flag=1; next} /^## \\[/ {flag=0} flag" docs/CHANGELOG.md)
           if [ -z "$CHANGELOG_CONTENT" ]; then
             CHANGELOG_CONTENT="详见 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/docs/CHANGELOG.md)"
           fi
-          # 将多行内容写�?GitHub Actions 输出
+          # 将多行内容写入 GitHub Actions 输出
           echo "content<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -802,7 +811,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ============================================================================
-  # 阶段 6: 发�?Telegram 通知
+  # 阶段 6: 发送 Telegram 通知
   # ============================================================================
   notify-telegram:
     name: Send Telegram Notification
@@ -814,7 +823,7 @@ jobs:
         id: release-type
         run: |
           if [ "${{ needs.prepare.outputs.is_prerelease }}" = "true" ]; then
-            echo "type=🚧 预发布版�? >> $GITHUB_OUTPUT
+            echo "type=🚧 预发布版本" >> $GITHUB_OUTPUT
           else
             echo "type=🎉 正式版本发布" >> $GITHUB_OUTPUT
           fi
@@ -830,19 +839,19 @@ jobs:
             *${{ steps.release-type.outputs.type }}*
             _${{ github.repository }}_
             
-            *🔖 版本标签�?
+            *🔖 版本标签：*
             `v${{ needs.prepare.outputs.version }}`
             
-            *📄 发布标题�?
+            *📄 发布标题：*
             HiDNS v${{ needs.prepare.outputs.version }}
             
-            * 更新日志�?
+            *📝 更新日志：*
             ```
             ${{ needs.create-release.outputs.changelog_content }}
             ```
             
-            * 链接�?
+            *🔗 链接：*
             [GitHub Release 页面](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.prepare.outputs.version }})
             
-            *📅 发布时间�?
+            *📅 发布时间：*
             ${{ github.event.workflow_run.created_at || github.event.inputs._workflow_run_time || 'N/A' }}
