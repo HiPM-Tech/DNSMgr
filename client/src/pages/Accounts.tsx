@@ -56,14 +56,16 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
       setType(initial.type);
       setName(initial.name);
       setRemark(initial.remark);
+      // Handle useProxy - backend returns string values in config
       const raw = initial.config?.useProxy;
       if (typeof raw === 'boolean') {
         setUseProxy(raw);
       } else if (typeof raw === 'string') {
-        setUseProxy(raw === 'true');
+        setUseProxy(raw === 'true' || raw === '1');
       } else {
         setUseProxy(false);
       }
+      // Convert all config values to strings for form display
       setConfig(
         initial.config
           ? Object.fromEntries(
@@ -74,7 +76,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
           : {}
       );
     }
-  }, [initial]);
+  }, [initial?.id, initial?.type, initial?.name, initial?.remark]);
 
   const provider = providers.find((item) => item.type === type);
   const providerOptions = providers.map((item) => ({ label: <ProviderSelectLabel provider={item} />, value: item.type }));

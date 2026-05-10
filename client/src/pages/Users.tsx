@@ -101,6 +101,17 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
   const toast = useToast();
   const qc = useQueryClient();
 
+  // Sync form data when user prop changes
+  useEffect(() => {
+    setNickname(user.nickname || user.username);
+    setEmail(user.email || '');
+    setPassword('');
+    setRole(user.role);
+    setStatus(user.status);
+    setRequire2FA(false);
+    setIsLoading2FA(true);
+  }, [user.id, user.nickname, user.username, user.email, user.role, user.status]);
+
   useEffect(() => {
     const load2FAStatus = async () => {
       try {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Checkbox, DatePicker, Empty, Form, Input, Loading, Pagination, Space, Switch, Tag } from 'tdesign-react';
 import { CalendarIcon, CheckIcon, CopyIcon, DeleteIcon, EditIcon, InternetIcon, KeyIcon } from 'tdesign-icons-react';
@@ -162,18 +162,26 @@ export function Tokens() {
     setShowCreateModal(true);
   };
 
+  // Sync formData when editingToken changes
+  useEffect(() => {
+    if (editingToken) {
+      setFormData({
+        name: editingToken.name,
+        allowed_domains: editingToken.allowed_domains,
+        start_time: editingToken.start_time || '',
+        end_time: editingToken.end_time || '',
+        no_expiry: !editingToken.end_time,
+      });
+      setNewToken(null);
+      setDomainSearch('');
+      setDomainPage(1);
+    } else {
+      resetForm();
+    }
+  }, [editingToken?.id]);
+
   const handleEdit = (token: Token) => {
     setEditingToken(token);
-    setNewToken(null);
-    setDomainSearch('');
-    setDomainPage(1);
-    setFormData({
-      name: token.name,
-      allowed_domains: token.allowed_domains,
-      start_time: token.start_time || '',
-      end_time: token.end_time || '',
-      no_expiry: !token.end_time,
-    });
   };
 
   const buildPayload = () => ({

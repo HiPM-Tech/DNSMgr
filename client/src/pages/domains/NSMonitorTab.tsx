@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, Form, Input, Pagination, Radio, Space, Switch, Tag, Textarea } from 'tdesign-react';
 import {
@@ -192,12 +192,18 @@ export function NSMonitorTab() {
     return String(value);
   };
 
+  // Sync edit form data when selectedConfig changes
+  useEffect(() => {
+    if (selectedConfig) {
+      setEditExpectedNs(selectedConfig.expected_ns || '');
+      setEditEnabled(selectedConfig.enabled);
+      setEditNotifyEmail(Boolean(userPrefs?.notify_email ?? selectedConfig.notify_email));
+      setEditNotifyChannels(Boolean(userPrefs?.notify_channels ?? selectedConfig.notify_channels));
+    }
+  }, [selectedConfig?.id, userPrefs?.notify_email, userPrefs?.notify_channels]);
+
   const openEditModal = (row: NSMonitorConfig) => {
     setSelectedConfig(row);
-    setEditExpectedNs(row.expected_ns || '');
-    setEditEnabled(row.enabled);
-    setEditNotifyEmail(Boolean(userPrefs?.notify_email ?? row.notify_email));
-    setEditNotifyChannels(Boolean(userPrefs?.notify_channels ?? row.notify_channels));
     setIsEditModalOpen(true);
   };
 

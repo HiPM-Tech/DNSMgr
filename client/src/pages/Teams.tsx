@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, Form, Input, Loading, Select, Space, Tag } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
@@ -221,13 +221,21 @@ export function Teams() {
   const myMember = members.find((m) => m.user_id === me?.id);
   const canManageTeam = isAdmin(me?.role) || myMember?.role === 'owner';
 
+  // Sync teamForm when editTeam changes
+  useEffect(() => {
+    if (editTeam) {
+      setTeamForm({ name: editTeam.name, description: editTeam.description || '' });
+    } else {
+      setTeamForm({ name: '', description: '' });
+    }
+  }, [editTeam?.id]);
+
   const openCreate = () => {
     setTeamForm({ name: '', description: '' });
     setShowCreate(true);
   };
 
   const openEdit = (team: Team) => {
-    setTeamForm({ name: team.name, description: team.description || '' });
     setEditTeam(team);
   };
 

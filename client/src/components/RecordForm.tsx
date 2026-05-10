@@ -196,7 +196,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       });
       setSrv(parseSrvValue(initial));
     }
-  }, [initial]);
+  }, [initial?.id, initial?.name, initial?.type, initial?.value]);
 
   const set = (k: keyof DnsRecord, v: unknown) => {
     setForm((f) => ({ ...f, [k]: v }));

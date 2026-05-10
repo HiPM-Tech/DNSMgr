@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Checkbox, Empty, Form, Input, Loading, Pagination, Radio, Select, Space, Tag } from 'tdesign-react';
 import {
@@ -292,9 +292,18 @@ export function DomainListTab() {
   });
 
   const accountMap = Object.fromEntries(accounts.map((account) => [account.id, account]));
+
+  // Sync editRemark when editing domain changes
+  useEffect(() => {
+    if (editing) {
+      setEditRemark(editing.remark || '');
+    } else {
+      setEditRemark('');
+    }
+  }, [editing?.id]);
+
   const openEdit = (domain: Domain) => {
     setEditing(domain);
-    setEditRemark(domain.remark || '');
   };
 
   const columns = [
