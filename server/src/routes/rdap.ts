@@ -16,6 +16,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { whoisService, getRootDomain } from '../service/whois';
 import { log } from '../lib/logger';
+import { normalizeDomain, isValidDomain, toUnicode } from '../utils/domain';
 
 const router = Router();
 
@@ -60,11 +61,18 @@ async function queryRdapSimple(domain: string): Promise<any | null> {
 
 /**
  * 将内部 WhoisResult 转换为标准 RDAP 格式 (RFC 7483)
+ * 支持国际化域名(IDN)
  */
 function convertToRdapFormat(domain: string, whoisResult: any): any {
+  // 获取 Unicode 格式的域名用于显示
+  const unicodeDomain = toUnicode(domain);
+  
   const rdapResponse: any = {
     objectClassName: 'domain',
+    // ldhName: 字母-数字-连字符格式（Punycode）
     ldhName: domain.toLowerCase(),
+    // 如果域名包含非 ASCII 字符，添加 unicodeName 字段
+    ...(unicodeDomain !== domain.toLowerCase() && { unicodeName: unicodeDomain }),
     handle: domain.toUpperCase(),
     
     // 事件信息
@@ -174,11 +182,14 @@ function convertToRdapFormat(domain: string, whoisResult: any): any {
 router.get(
   '/domain/:domain',
   asyncHandler(async (req, res, next): Promise<void> => {
-    const domain = req.params.domain.toLowerCase().trim();
+    // 获取原始域名参数（可能是 Unicode 或 Punycode）
+    const rawDomain = req.params.domain.trim();
+    
+    // 使用 IDN-aware 归一化（将 Unicode 转换为 Punycode）
+    const domain = normalizeDomain(rawDomain);
 
-    // 验证域名格式
-    const domainRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
-    if (!domain || !domainRegex.test(domain)) {
+    // 验证域名格式（支持 ASCII 和 Unicode/IDN 域名）
+    if (!domain || !isValidDomain(domain)) {
       res.status(400).json({
         errorCode: 400,
         title: 'Bad Request',
