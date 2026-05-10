@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Alert, Button, Form, Input, Select, Space } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
@@ -180,6 +180,23 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   });
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
+
+  // Sync form data when initial prop changes (for editing different records)
+  useEffect(() => {
+    if (initial) {
+      setForm({
+        name: initial.name ?? '@',
+        type: initial.type ?? 'A',
+        value: initial.value ?? '',
+        ttl: initial.ttl ?? 600,
+        mx: initial.mx ?? 10,
+        weight: initial.weight ?? 10,
+        line: initial.line ?? '0',
+        remark: initial.remark ?? '',
+      });
+      setSrv(parseSrvValue(initial));
+    }
+  }, [initial]);
 
   const set = (k: keyof DnsRecord, v: unknown) => {
     setForm((f) => ({ ...f, [k]: v }));

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
@@ -49,6 +49,32 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
   const [config, setConfig] = useState<Record<string, string>>(
     initial?.config ? Object.fromEntries(Object.keys(initial.config).filter((key) => key !== 'useProxy').map((key) => [key, String(initial.config[key] || '')])) : {}
   );
+
+  // Sync form data when initial prop changes (for editing)
+  useEffect(() => {
+    if (initial) {
+      setType(initial.type);
+      setName(initial.name);
+      setRemark(initial.remark);
+      const raw = initial.config?.useProxy;
+      if (typeof raw === 'boolean') {
+        setUseProxy(raw);
+      } else if (typeof raw === 'string') {
+        setUseProxy(raw === 'true');
+      } else {
+        setUseProxy(false);
+      }
+      setConfig(
+        initial.config
+          ? Object.fromEntries(
+              Object.keys(initial.config)
+                .filter((key) => key !== 'useProxy')
+                .map((key) => [key, String(initial.config[key] || '')])
+            )
+          : {}
+      );
+    }
+  }, [initial]);
 
   const provider = providers.find((item) => item.type === type);
   const providerOptions = providers.map((item) => ({ label: <ProviderSelectLabel provider={item} />, value: item.type }));
