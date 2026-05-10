@@ -41,7 +41,7 @@ export function NetworkTab() {
     if (proxyConfig) {
       setProxyForm(proxyConfig);
     }
-  }, [proxyConfig]);
+  }, [proxyConfig?.host, proxyConfig?.port, proxyConfig?.type]);
 
   const [shouldTest, setShouldTest] = useState(false);
   const { data: connectivityData, isLoading: isTesting, error: connectivityError } = useQuery({
@@ -150,7 +150,7 @@ export function NetworkTab() {
       >
         <Form layout="vertical" colon={false} requiredMark={false} className="page-shell">
           <Form.FormItem label={t('network.proxyEnabled')}>
-            <Switch value={proxyForm.enabled} onChange={(checked) => setProxyForm({ ...proxyForm, enabled: Boolean(checked) })} />
+            <Switch value={proxyForm.enabled} onChange={(checked: any) => setProxyForm({ ...proxyForm, enabled: Boolean(checked) })} />
           </Form.FormItem>
           <div className="notification-form-grid">
             <Form.FormItem label="Proxy Type">
@@ -160,20 +160,20 @@ export function NetworkTab() {
                   { label: 'HTTP(S) Proxy', value: 'http' },
                   { label: 'SOCKS5 Proxy', value: 'socks5' },
                 ]}
-                onChange={(value) => setProxyForm({ ...proxyForm, type: String(Array.isArray(value) ? value[0] : value) as 'socks5' | 'http' })}
+                onChange={(value: any) => setProxyForm({ ...proxyForm, type: String(Array.isArray(value) ? value[0] : value) as 'socks5' | 'http' })}
               />
             </Form.FormItem>
             <Form.FormItem label={t('network.proxyHost')}>
-              <Input value={proxyForm.host} onChange={(value) => setProxyForm({ ...proxyForm, host: String(value) })} placeholder={t('network.proxyHost')} />
+              <Input value={proxyForm.host} onChange={(value: any) => setProxyForm({ ...proxyForm, host: String(value) })} placeholder={t('network.proxyHost')} />
             </Form.FormItem>
             <Form.FormItem label={t('network.proxyPort')}>
-              <Input type="number" value={String(proxyForm.port)} onChange={(value) => setProxyForm({ ...proxyForm, port: parseInt(String(value), 10) || 0 })} />
+              <Input type="number" value={String(proxyForm.port)} onChange={(value: any) => setProxyForm({ ...proxyForm, port: parseInt(String(value), 10) || 0 })} />
             </Form.FormItem>
             <Form.FormItem label={t('network.proxyUsername')}>
-              <Input value={proxyForm.username || ''} onChange={(value) => setProxyForm({ ...proxyForm, username: String(value) })} />
+              <Input value={proxyForm.username || ''} onChange={(value: any) => setProxyForm({ ...proxyForm, username: String(value) })} />
             </Form.FormItem>
             <Form.FormItem label={t('network.proxyPassword')}>
-              <Input type="password" value={proxyForm.password || ''} onChange={(value) => setProxyForm({ ...proxyForm, password: String(value) })} />
+              <Input type="password" value={proxyForm.password || ''} onChange={(value: any) => setProxyForm({ ...proxyForm, password: String(value) })} />
             </Form.FormItem>
           </div>
           <Space className="record-form__actions">

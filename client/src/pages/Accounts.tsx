@@ -55,7 +55,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
     if (initial) {
       setType(initial.type);
       setName(initial.name);
-      setRemark(initial.remark);
+      setRemark(initial.remark || '');
       // Handle useProxy - backend returns string values in config
       const raw = initial.config?.useProxy;
       if (typeof raw === 'boolean') {
@@ -66,17 +66,18 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
         setUseProxy(false);
       }
       // Convert all config values to strings for form display
-      setConfig(
-        initial.config
-          ? Object.fromEntries(
-              Object.keys(initial.config)
-                .filter((key) => key !== 'useProxy')
-                .map((key) => [key, String(initial.config[key] || '')])
-            )
-          : {}
-      );
+      const newConfig: Record<string, string> = {};
+      if (initial.config) {
+        Object.keys(initial.config).forEach((key) => {
+          if (key !== 'useProxy') {
+            const val = initial.config![key];
+            newConfig[key] = val === null || val === undefined ? '' : String(val);
+          }
+        });
+      }
+      setConfig(newConfig);
     }
-  }, [initial?.id, initial?.type, initial?.name, initial?.remark]);
+  }, [initial]);
 
   const provider = providers.find((item) => item.type === type);
   const providerOptions = providers.map((item) => ({ label: <ProviderSelectLabel provider={item} />, value: item.type }));
@@ -104,14 +105,14 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
               { label: t('common.pleaseSelect'), value: '' },
               ...field.options.map((option) => ({ label: option.label, value: option.value })),
             ]}
-            onChange={(nextValue) => setConfig((current) => ({ ...current, [field.key]: selectToString(nextValue) }))}
+            onChange={(nextValue: any) => setConfig((current) => ({ ...current, [field.key]: selectToString(nextValue) }))}
           />
         ) : (
           <Input
             clearable
             type={field.type === 'password' && value === '***' ? 'password' : 'text'}
             value={value}
-            onChange={(nextValue) => setConfig((current) => ({ ...current, [field.key]: String(nextValue) }))}
+            onChange={(nextValue: any) => setConfig((current) => ({ ...current, [field.key]: String(nextValue) }))}
             placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
           />
         )}
@@ -125,19 +126,19 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
       colon={false}
       requiredMark={false}
       className="page-shell"
-      onSubmit={({ e }) => {
+      onSubmit={({ e }: any) => {
         e?.preventDefault();
         submitAccount();
       }}
     >
       <Form.FormItem label={t('accounts.providerType')}>
-        <Select value={type} options={providerOptions} onChange={(value) => handleTypeChange(selectToString(value))} />
+        <Select value={type} options={providerOptions} onChange={(value: any) => handleTypeChange(selectToString(value))} />
       </Form.FormItem>
       <Form.FormItem label={t('accounts.accountName')}>
         <Input
           clearable
           value={name}
-          onChange={(value) => setName(String(value))}
+          onChange={(value: any) => setName(String(value))}
           placeholder={t('accounts.accountNamePlaceholder')}
         />
       </Form.FormItem>
@@ -151,7 +152,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
         <Input
           clearable
           value={remark}
-          onChange={(value) => setRemark(String(value))}
+          onChange={(value: any) => setRemark(String(value))}
           placeholder={t('common.optionalRemark')}
         />
       </Form.FormItem>

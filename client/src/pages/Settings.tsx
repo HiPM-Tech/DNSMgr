@@ -232,13 +232,13 @@ export function Settings() {
               </div>
             </div>
 
-            <Form layout="vertical" colon={false} requiredMark={false} className="settings-form" onSubmit={({ e }) => { e?.preventDefault(); handleProfileSubmit(); }}>
+            <Form layout="vertical" colon={false} requiredMark={false} className="settings-form" onSubmit={({ e }: any) => { e?.preventDefault(); handleProfileSubmit(); }}>
               <Form.FormItem label={t('settings.avatarImageUrl')} tips={t('settings.avatarImageHint')}>
                 <div className="settings-background-input">
                   <Input
                     clearable
                     value={avatarImage}
-                    onChange={(value) => setAvatarImage(String(value))}
+                    onChange={(value: any) => setAvatarImage(String(value))}
                     placeholder={t('settings.avatarImagePlaceholder')}
                   />
                   {avatarImage && (
@@ -247,15 +247,15 @@ export function Settings() {
                 </div>
               </Form.FormItem>
               <Form.FormItem label={t('settings.nickname')}>
-                <Input clearable value={nickname} onChange={(value) => setNickname(String(value))} placeholder={t('settings.nicknamePlaceholder')} />
+                <Input clearable value={nickname} onChange={(value: any) => setNickname(String(value))} placeholder={t('settings.nicknamePlaceholder')} />
               </Form.FormItem>
               <Form.FormItem label={t('settings.email')}>
-                <Input clearable value={email} onChange={(value) => setEmail(String(value))} placeholder={t('settings.emailPlaceholder')} />
+                <Input clearable value={email} onChange={(value: any) => setEmail(String(value))} placeholder={t('settings.emailPlaceholder')} />
               </Form.FormItem>
               {emailChanged && (
                 <Form.FormItem label={t('settings.emailCode')}>
                   <Space>
-                    <Input value={emailCode} onChange={(value) => setEmailCode(String(value))} placeholder={t('settings.emailCodePlaceholder')} />
+                    <Input value={emailCode} onChange={(value: any) => setEmailCode(String(value))} placeholder={t('settings.emailCodePlaceholder')} />
                     <Button variant="outline" loading={sendEmailCodeMutation.isPending} onClick={handleSendEmailCode}>
                       {t('settings.sendEmailCode')}
                     </Button>
@@ -278,15 +278,15 @@ export function Settings() {
             <div className="page-shell">
               {success && <Alert theme="success" message={t('settings.passwordChanged')} />}
               {error && <Alert theme="error" message={error} />}
-              <Form layout="vertical" colon={false} requiredMark={false} onSubmit={({ e }) => { e?.preventDefault(); handlePasswordSubmit(); }}>
+              <Form layout="vertical" colon={false} requiredMark={false} onSubmit={({ e }: any) => { e?.preventDefault(); handlePasswordSubmit(); }}>
                 <Form.FormItem label={t('settings.currentPassword')}>
-                  <Input type="password" value={oldPassword} onChange={(value) => setOldPassword(String(value))} placeholder={t('settings.currentPasswordPlaceholder')} />
+                  <Input type="password" value={oldPassword} onChange={(value: any) => setOldPassword(String(value))} placeholder={t('settings.currentPasswordPlaceholder')} />
                 </Form.FormItem>
                 <Form.FormItem label={t('settings.newPassword')}>
-                  <Input type="password" value={newPassword} onChange={(value) => setNewPassword(String(value))} placeholder={t('settings.newPasswordPlaceholder')} />
+                  <Input type="password" value={newPassword} onChange={(value: any) => setNewPassword(String(value))} placeholder={t('settings.newPasswordPlaceholder')} />
                 </Form.FormItem>
                 <Form.FormItem label={t('settings.confirmPassword')}>
-                  <Input type="password" value={confirmPassword} onChange={(value) => setConfirmPassword(String(value))} placeholder={t('settings.confirmPasswordPlaceholder')} />
+                  <Input type="password" value={confirmPassword} onChange={(value: any) => setConfirmPassword(String(value))} placeholder={t('settings.confirmPasswordPlaceholder')} />
                 </Form.FormItem>
                 <Space className="record-form__actions">
                   <Button type="submit" theme="primary" loading={passwordMutation.isPending}>
@@ -338,7 +338,7 @@ export function Settings() {
                   <Input
                     clearable
                     value={backgroundImage}
-                    onChange={(value) => setBackgroundImage(String(value))}
+                    onChange={(value: any) => setBackgroundImage(String(value))}
                     placeholder={t('settings.backgroundImagePlaceholder')}
                   />
                   {backgroundImage && (

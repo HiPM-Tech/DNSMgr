@@ -197,10 +197,11 @@ export function NSMonitorTab() {
     if (selectedConfig) {
       setEditExpectedNs(selectedConfig.expected_ns || '');
       setEditEnabled(selectedConfig.enabled);
+      // Ensure boolean values for switches
       setEditNotifyEmail(Boolean(userPrefs?.notify_email ?? selectedConfig.notify_email));
       setEditNotifyChannels(Boolean(userPrefs?.notify_channels ?? selectedConfig.notify_channels));
     }
-  }, [selectedConfig?.id, userPrefs?.notify_email, userPrefs?.notify_channels]);
+  }, [selectedConfig]);
 
   const openEditModal = (row: NSMonitorConfig) => {
     setSelectedConfig(row);
@@ -397,7 +398,7 @@ export function NSMonitorTab() {
             value={searchKeyword}
             prefixIcon={<SearchIcon />}
             placeholder={t('nsMonitor.searchPlaceholder')}
-            onChange={(value) => setSearchKeyword(String(value))}
+            onChange={(value: any) => setSearchKeyword(String(value))}
           />
         </div>
         <Table
@@ -411,7 +412,7 @@ export function NSMonitorTab() {
 
       {isEditModalOpen && selectedConfig && (
         <Modal title={t('nsMonitor.editConfig')} onClose={() => setIsEditModalOpen(false)} size="lg">
-          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form ns-monitor-dialog" onSubmit={({ e }) => { e?.preventDefault(); handleSave(); }}>
+          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form ns-monitor-dialog" onSubmit={({ e }: any) => { e?.preventDefault(); handleSave(); }}>
             <Form.FormItem label={t('nsMonitor.domainName')}>
               <Input value={selectedConfig.domain_name} disabled />
             </Form.FormItem>
@@ -421,7 +422,7 @@ export function NSMonitorTab() {
                 value={editExpectedNs}
                 placeholder={t('nsMonitor.expectedNSPlaceholder')}
                 autosize={{ minRows: 3, maxRows: 6 }}
-                onChange={(value) => setEditExpectedNs(String(value))}
+                onChange={(value: any) => setEditExpectedNs(String(value))}
               />
               <Space className="record-form__actions dialog-inline-actions">
                 <Button
@@ -441,7 +442,7 @@ export function NSMonitorTab() {
                 <strong>{t('nsMonitor.enableMonitoring')}</strong>
                 <span>{t('nsMonitor.monitoring')}</span>
               </div>
-              <Switch value={editEnabled} onChange={(checked) => setEditEnabled(Boolean(checked))} />
+              <Switch value={editEnabled} onChange={(checked: any) => setEditEnabled(Boolean(checked))} />
             </div>
 
             <div className="dialog-switch-row">
@@ -449,7 +450,7 @@ export function NSMonitorTab() {
                 <strong>{t('nsMonitor.notifyEmail')}</strong>
                 <span>{t('nsMonitor.notifications')}</span>
               </div>
-              <Switch value={editNotifyEmail} onChange={(checked) => setEditNotifyEmail(Boolean(checked))} />
+              <Switch value={editNotifyEmail} onChange={(checked: any) => setEditNotifyEmail(Boolean(checked))} />
             </div>
 
             <div className="dialog-switch-row">
@@ -460,7 +461,7 @@ export function NSMonitorTab() {
               <Switch
                 value={editNotifyChannels}
                 disabled={!isAdmin}
-                onChange={(checked) => setEditNotifyChannels(Boolean(checked))}
+                onChange={(checked: any) => setEditNotifyChannels(Boolean(checked))}
               />
             </div>
 
@@ -478,14 +479,14 @@ export function NSMonitorTab() {
 
       {isAddModalOpen && (
         <Modal title={t('nsMonitor.addMonitor')} onClose={closeAddModal} size="lg">
-          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form ns-monitor-dialog" onSubmit={({ e }) => { e?.preventDefault(); handleAdd(); }}>
+          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form ns-monitor-dialog" onSubmit={({ e }: any) => { e?.preventDefault(); handleAdd(); }}>
             <Form.FormItem label={t('nsMonitor.selectDomain')}>
               <Input
                 clearable
                 value={domainSearchKeyword}
                 prefixIcon={<SearchIcon />}
                 placeholder={t('common.search')}
-                onChange={(value) => {
+                onChange={(value: any) => {
                   setDomainSearchKeyword(String(value));
                   setDomainPage(1);
                 }}
@@ -531,7 +532,7 @@ export function NSMonitorTab() {
                 value={addExpectedNs}
                 placeholder={t('nsMonitor.expectedNSPlaceholder')}
                 autosize={{ minRows: 3, maxRows: 6 }}
-                onChange={(value) => setAddExpectedNs(String(value))}
+                onChange={(value: any) => setAddExpectedNs(String(value))}
               />
               <Space className="record-form__actions dialog-inline-actions">
                 <Button
@@ -558,7 +559,7 @@ export function NSMonitorTab() {
                 <strong>{t('nsMonitor.enableMonitoring')}</strong>
                 <span>{t('nsMonitor.monitoring')}</span>
               </div>
-              <Switch value={addEnabled} onChange={(checked) => setAddEnabled(Boolean(checked))} />
+              <Switch value={addEnabled} onChange={(checked: any) => setAddEnabled(Boolean(checked))} />
             </div>
 
             <div className="dialog-switch-row">
@@ -566,7 +567,7 @@ export function NSMonitorTab() {
                 <strong>{t('nsMonitor.notifyEmail')}</strong>
                 <span>{t('nsMonitor.notifications')}</span>
               </div>
-              <Switch value={addNotifyEmail} onChange={(checked) => setAddNotifyEmail(Boolean(checked))} />
+              <Switch value={addNotifyEmail} onChange={(checked: any) => setAddNotifyEmail(Boolean(checked))} />
             </div>
 
             <div className="dialog-switch-row">
@@ -577,7 +578,7 @@ export function NSMonitorTab() {
               <Switch
                 value={addNotifyChannels}
                 disabled={!isAdmin}
-                onChange={(checked) => setAddNotifyChannels(Boolean(checked))}
+                onChange={(checked: any) => setAddNotifyChannels(Boolean(checked))}
               />
             </div>
 

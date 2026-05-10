@@ -167,7 +167,7 @@ export function Tokens() {
     if (editingToken) {
       setFormData({
         name: editingToken.name,
-        allowed_domains: editingToken.allowed_domains,
+        allowed_domains: editingToken.allowed_domains || [],
         start_time: editingToken.start_time || '',
         end_time: editingToken.end_time || '',
         no_expiry: !editingToken.end_time,
@@ -178,7 +178,7 @@ export function Tokens() {
     } else {
       resetForm();
     }
-  }, [editingToken?.id]);
+  }, [editingToken?.id, editingToken?.name, editingToken?.allowed_domains, editingToken?.start_time, editingToken?.end_time]);
 
   const handleEdit = (token: Token) => {
     setEditingToken(token);
@@ -372,11 +372,11 @@ export function Tokens() {
   );
 
   const renderTokenForm = (mode: 'create' | 'edit') => (
-    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell token-form" onSubmit={({ e }) => { e?.preventDefault(); mode === 'create' ? handleCreate() : handleUpdate(); }}>
+    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell token-form" onSubmit={({ e }: any) => { e?.preventDefault(); mode === 'create' ? handleCreate() : handleUpdate(); }}>
       <Form.FormItem label={t('tokens.tokenName')}>
         <Input
           value={formData.name}
-          onChange={(value) => setFormData((data) => ({ ...data, name: String(value) }))}
+          onChange={(value: any) => setFormData((data) => ({ ...data, name: String(value) }))}
           placeholder={t('tokens.tokenNamePlaceholder')}
         />
       </Form.FormItem>
@@ -393,7 +393,7 @@ export function Tokens() {
             format="YYYY-MM-DD HH:mm:ss"
             valueType="YYYY-MM-DD HH:mm:ss"
             value={formData.start_time}
-            onChange={(value) => setFormData((data) => ({ ...data, start_time: String(value ?? '') }))}
+            onChange={(value: any) => setFormData((data) => ({ ...data, start_time: String(value ?? '') }))}
           />
         </Form.FormItem>
         <Form.FormItem label={<Space size="small"><CalendarIcon />{t('tokens.endTime')}</Space>} tips={t('tokens.endTimeHint')}>
@@ -404,13 +404,13 @@ export function Tokens() {
             format="YYYY-MM-DD HH:mm:ss"
             valueType="YYYY-MM-DD HH:mm:ss"
             value={formData.end_time}
-            onChange={(value) => setFormData((data) => ({ ...data, end_time: String(value ?? ''), no_expiry: false }))}
+            onChange={(value: any) => setFormData((data) => ({ ...data, end_time: String(value ?? ''), no_expiry: false }))}
           />
         </Form.FormItem>
         <Form.FormItem className="token-no-expiry-item" label=" ">
           <Checkbox
             checked={formData.no_expiry}
-            onChange={(checked) => setFormData((data) => ({
+            onChange={(checked: any) => setFormData((data) => ({
               ...data,
               no_expiry: Boolean(checked),
               end_time: checked ? '' : data.end_time,

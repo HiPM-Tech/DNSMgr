@@ -47,28 +47,28 @@ function UserCreateForm({ roleOptions, isPending, onSubmit }: UserCreateFormProp
   };
 
   return (
-    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }) => { e?.preventDefault(); submit(); }}>
+    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
       <Form.FormItem label={t('users.nicknameRequired')}>
-        <Input clearable value={nickname} onChange={(value) => setNickname(String(value))} placeholder={t('users.nicknamePlaceholder')} />
+        <Input clearable value={nickname} onChange={(value: any) => setNickname(String(value))} placeholder={t('users.nicknamePlaceholder')} />
       </Form.FormItem>
       <Form.FormItem
         label={t('users.usernameRequired')}
         status={usernameInvalid ? 'error' : undefined}
         tips={usernameInvalid ? t('users.usernameInvalid') : t('users.usernameHelp')}
       >
-        <Input clearable value={username} onChange={(value) => setUsername(String(value))} placeholder={t('users.usernamePlaceholder')} status={usernameInvalid ? 'error' : undefined} />
+        <Input clearable value={username} onChange={(value: any) => setUsername(String(value))} placeholder={t('users.usernamePlaceholder')} status={usernameInvalid ? 'error' : undefined} />
       </Form.FormItem>
       <Form.FormItem label={t('users.email')}>
-        <Input clearable type="text" value={email} onChange={(value) => setEmail(String(value))} placeholder={t('users.emailPlaceholder')} />
+        <Input clearable type="text" value={email} onChange={(value: any) => setEmail(String(value))} placeholder={t('users.emailPlaceholder')} />
       </Form.FormItem>
       <Form.FormItem label={t('users.password')}>
-        <Input type="password" value={password} onChange={(value) => setPassword(String(value))} placeholder={t('users.passwordPlaceholder')} />
+        <Input type="password" value={password} onChange={(value: any) => setPassword(String(value))} placeholder={t('users.passwordPlaceholder')} />
       </Form.FormItem>
       <Form.FormItem label={t('users.role')}>
         <Select
           value={role}
           options={roleOptions.map((item) => ({ label: t(roleLabelKey(item)), value: item }))}
-          onChange={(value) => setRole(selectToNumber(value))}
+          onChange={(value: any) => setRole(selectToNumber(value))}
         />
       </Form.FormItem>
       <Space className="record-form__actions">
@@ -162,24 +162,24 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
 
   return (
     <Modal title={t('users.editUser')} onClose={onClose} size="sm">
-      <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }) => { e?.preventDefault(); submit(); }}>
+      <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
         <Form.FormItem label={t('users.nickname')}>
-          <Input clearable value={nickname} onChange={(value) => setNickname(String(value))} />
+          <Input clearable value={nickname} onChange={(value: any) => setNickname(String(value))} />
         </Form.FormItem>
         <Form.FormItem label={t('users.username')}>
           <span className="page-strong">{user.username}</span>
         </Form.FormItem>
         <Form.FormItem label={t('users.email')}>
-          <Input clearable value={email} onChange={(value) => setEmail(String(value))} />
+          <Input clearable value={email} onChange={(value: any) => setEmail(String(value))} />
         </Form.FormItem>
         <Form.FormItem label={t('users.newPassword')}>
-          <Input type="password" value={password} onChange={(value) => setPassword(String(value))} placeholder={t('users.newPasswordPlaceholder')} />
+          <Input type="password" value={password} onChange={(value: any) => setPassword(String(value))} placeholder={t('users.newPasswordPlaceholder')} />
         </Form.FormItem>
         <Form.FormItem label={t('users.role')}>
           <Select
             value={role}
             options={roleOptions.map((item) => ({ label: t(roleLabelKey(item)), value: item }))}
-            onChange={(value) => setRole(selectToNumber(value))}
+            onChange={(value: any) => setRole(selectToNumber(value))}
           />
         </Form.FormItem>
         <Form.FormItem label={t('users.status')}>
@@ -189,7 +189,7 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
               { label: t('users.active'), value: 1 },
               { label: t('users.disabled'), value: 0 },
             ]}
-            onChange={(value) => setStatus(selectToNumber(value))}
+            onChange={(value: any) => setStatus(selectToNumber(value))}
           />
         </Form.FormItem>
 

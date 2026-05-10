@@ -57,7 +57,7 @@ export function SecurityTab() {
     if (smtpConfig) {
       setSmtpForm((prev) => ({ ...prev, ...smtpConfig }));
     }
-  }, [smtpConfig]);
+  }, [smtpConfig?.host]);
 
   const { data: loginLimitConfig } = useQuery({
     queryKey: ['login-limit-config'],
@@ -258,7 +258,7 @@ export function SecurityTab() {
                 value={String(loginLimitConfig?.maxAttempts || 10)}
                 suffix={t('system.attempts')}
                 disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
-                onChange={(value) => handleUpdateMaxAttempts(Number(value))}
+                onChange={(value: any) => handleUpdateMaxAttempts(Number(value))}
               />
             </Form.FormItem>
             <Form.FormItem label={t('system.lockoutDuration')} help={t('system.lockoutDurationDesc')}>
@@ -267,7 +267,7 @@ export function SecurityTab() {
                 value={String(loginLimitConfig?.lockoutDuration || 60)}
                 suffix={t('system.minutes')}
                 disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
-                onChange={(value) => handleUpdateLockoutDuration(Number(value))}
+                onChange={(value: any) => handleUpdateLockoutDuration(Number(value))}
               />
             </Form.FormItem>
           </Form>
@@ -282,7 +282,7 @@ export function SecurityTab() {
             <Switch
               value={auditRules.enabled}
               loading={updateAuditRulesMutation.isPending}
-              onChange={(checked) => saveAuditRules({ ...auditRules, enabled: Boolean(checked) })}
+              onChange={(checked: any) => saveAuditRules({ ...auditRules, enabled: Boolean(checked) })}
             />
           </div>
 
@@ -291,7 +291,7 @@ export function SecurityTab() {
               <Input
                 type="number"
                 value={String(auditRules.maxDeletionsPerHour)}
-                onChange={(value) => setAuditRules({ ...auditRules, maxDeletionsPerHour: Number(value) || 0 })}
+                onChange={(value: any) => setAuditRules({ ...auditRules, maxDeletionsPerHour: Number(value) || 0 })}
                 onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
               />
             </Form.FormItem>
@@ -299,7 +299,7 @@ export function SecurityTab() {
               <Input
                 type="number"
                 value={String(auditRules.maxFailedLogins)}
-                onChange={(value) => setAuditRules({ ...auditRules, maxFailedLogins: Number(value) || 0 })}
+                onChange={(value: any) => setAuditRules({ ...auditRules, maxFailedLogins: Number(value) || 0 })}
                 onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
               />
             </Form.FormItem>
@@ -308,7 +308,7 @@ export function SecurityTab() {
                 allowInput
                 format="HH:mm"
                 value={[auditRules.offHoursStart, auditRules.offHoursEnd]}
-                onChange={(value) => setAuditRules({
+                onChange={(value: any) => setAuditRules({
                   ...auditRules,
                   offHoursStart: value?.[0] || '22:00',
                   offHoursEnd: value?.[1] || '06:00',
@@ -336,7 +336,7 @@ export function SecurityTab() {
               <Input
                 value={unlockIdentifier}
                 placeholder={t('system.unlockPlaceholder')}
-                onChange={(value) => setUnlockIdentifier(String(value))}
+                onChange={(value: any) => setUnlockIdentifier(String(value))}
                 suffixIcon={(
                   <Button
                     shape="square"
@@ -357,22 +357,22 @@ export function SecurityTab() {
           <Form layout="vertical" colon={false} requiredMark={false}>
             <div className="notification-form-grid">
               <Form.FormItem label={t('system.smtpHost')}>
-                <Input value={smtpForm.host} onChange={(value) => setSmtpForm((v) => ({ ...v, host: String(value) }))} placeholder={t('system.smtpHost')} />
+                <Input value={smtpForm.host} onChange={(value: any) => setSmtpForm((v) => ({ ...v, host: String(value) }))} placeholder={t('system.smtpHost')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpPort')}>
-                <Input type="number" value={String(smtpForm.port)} onChange={(value) => setSmtpForm((v) => ({ ...v, port: Number(value) || 0 }))} placeholder={t('system.smtpPort')} />
+                <Input type="number" value={String(smtpForm.port)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, port: Number(value) || 0 }))} placeholder={t('system.smtpPort')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpUser')}>
-                <Input value={smtpForm.username} onChange={(value) => setSmtpForm((v) => ({ ...v, username: String(value) }))} placeholder={t('system.smtpUser')} />
+                <Input value={smtpForm.username} onChange={(value: any) => setSmtpForm((v) => ({ ...v, username: String(value) }))} placeholder={t('system.smtpUser')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpPass')}>
-                <Input type="password" value={smtpForm.password} onChange={(value) => setSmtpForm((v) => ({ ...v, password: String(value) }))} placeholder={t('system.smtpPass')} />
+                <Input type="password" value={smtpForm.password} onChange={(value: any) => setSmtpForm((v) => ({ ...v, password: String(value) }))} placeholder={t('system.smtpPass')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpFromEmail')}>
-                <Input value={smtpForm.fromEmail} onChange={(value) => setSmtpForm((v) => ({ ...v, fromEmail: String(value) }))} placeholder={t('system.smtpFromEmail')} />
+                <Input value={smtpForm.fromEmail} onChange={(value: any) => setSmtpForm((v) => ({ ...v, fromEmail: String(value) }))} placeholder={t('system.smtpFromEmail')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpFromName')}>
-                <Input value={smtpForm.fromName} onChange={(value) => setSmtpForm((v) => ({ ...v, fromName: String(value) }))} placeholder={t('system.smtpFromName')} />
+                <Input value={smtpForm.fromName} onChange={(value: any) => setSmtpForm((v) => ({ ...v, fromName: String(value) }))} placeholder={t('system.smtpFromName')} />
               </Form.FormItem>
             </div>
 
@@ -381,7 +381,7 @@ export function SecurityTab() {
                 <strong>{t('system.smtpEnabled')}</strong>
                 <span>{t('system.smtpConfigDesc')}</span>
               </div>
-              <Switch value={smtpForm.enabled} onChange={(checked) => setSmtpForm((v) => ({ ...v, enabled: Boolean(checked) }))} />
+              <Switch value={smtpForm.enabled} onChange={(checked: any) => setSmtpForm((v) => ({ ...v, enabled: Boolean(checked) }))} />
             </div>
 
             <Space breakLine className="record-form__actions">
@@ -390,7 +390,7 @@ export function SecurityTab() {
               </Button>
               <Input
                 value={smtpForm.testTo}
-                onChange={(value) => setSmtpForm((v) => ({ ...v, testTo: String(value) }))}
+                onChange={(value: any) => setSmtpForm((v) => ({ ...v, testTo: String(value) }))}
                 placeholder={user?.email || t('system.smtpTestTo')}
               />
               <Button theme="success" variant="outline" loading={testSmtpMutation.isPending} onClick={() => testSmtpMutation.mutate()}>
@@ -414,7 +414,7 @@ export function SecurityTab() {
             <Switch
               value={require2FAEnabled}
               loading={updateSecurityPolicyMutation.isPending}
-              onChange={(checked) => updateSecurityPolicyMutation.mutate({ require2FAGlobal: Boolean(checked) })}
+              onChange={(checked: any) => updateSecurityPolicyMutation.mutate({ require2FAGlobal: Boolean(checked) })}
             />
           </div>
           <div className="settings-switch-row">
@@ -425,7 +425,7 @@ export function SecurityTab() {
             <Switch
               value={securityConfig?.showDnsProviderSecrets ?? false}
               loading={updateSecurityConfigMutation.isPending}
-              onChange={(checked) => updateSecurityConfigMutation.mutate({ showDnsProviderSecrets: Boolean(checked) })}
+              onChange={(checked: any) => updateSecurityConfigMutation.mutate({ showDnsProviderSecrets: Boolean(checked) })}
             />
           </div>
         </Card>

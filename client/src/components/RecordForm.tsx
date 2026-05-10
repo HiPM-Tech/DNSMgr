@@ -191,12 +191,14 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         ttl: initial.ttl ?? 600,
         mx: initial.mx ?? 10,
         weight: initial.weight ?? 10,
-        line: initial.line ?? '0',
+        line: hasProxyMode
+          ? (initial.line ?? '0')
+          : (initial.line ?? (hasMultiLine ? (lines[0]?.id ?? '0') : '0')),
         remark: initial.remark ?? '',
       });
       setSrv(parseSrvValue(initial));
     }
-  }, [initial?.id, initial?.name, initial?.type, initial?.value]);
+  }, [initial?.id, initial?.name, initial?.type, initial?.value, initial?.line]);
 
   const set = (k: keyof DnsRecord, v: unknown) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -324,7 +326,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       colon={false}
       requiredMark={false}
       className="record-form"
-      onSubmit={({ e }) => {
+      onSubmit={({ e }: any) => {
         e?.preventDefault();
         submitRecord();
       }}
@@ -343,7 +345,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Input
             clearable
             value={String(form.name ?? '')}
-            onChange={(value) => set('name', value)}
+            onChange={(value: any) => set('name', value)}
             placeholder={t('records.hostPlaceholder')}
             disabled={isVPS8 && !!initial}
             status={errors.name ? 'error' : undefined}
@@ -353,7 +355,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Select
             value={String(form.type ?? 'A')}
             options={recordTypeOptions}
-            onChange={(value) => {
+            onChange={(value: any) => {
               const nextType = toSelectString(value);
               set('type', nextType);
               if (nextType !== 'SRV') setErrors((current) => ({ ...current, srvPort: undefined, srvTarget: undefined, weight: undefined }));
@@ -370,7 +372,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
               <Input
                 type="number"
                 value={String(form.mx ?? 10)}
-                onChange={(value) => set('mx', Number(value))}
+                onChange={(value: any) => set('mx', Number(value))}
                 status={errors.mx ? 'error' : undefined}
               />
             </Form.FormItem>
@@ -378,7 +380,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
               <Input
                 type="number"
                 value={String(form.weight ?? 10)}
-                onChange={(value) => set('weight', Number(value))}
+                onChange={(value: any) => set('weight', Number(value))}
                 status={errors.weight ? 'error' : undefined}
               />
             </Form.FormItem>
@@ -388,7 +390,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
               <Input
                 type="number"
                 value={srv.port}
-                onChange={(value) => {
+                onChange={(value: any) => {
                   setSrv((current) => ({ ...current, port: String(value) }));
                   setErrors((current) => ({ ...current, srvPort: undefined, value: undefined }));
                 }}
@@ -400,7 +402,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
               <Input
                 clearable
                 value={srv.target}
-                onChange={(value) => {
+                onChange={(value: any) => {
                   setSrv((current) => ({ ...current, target: String(value) }));
                   setErrors((current) => ({ ...current, srvTarget: undefined, value: undefined }));
                 }}
@@ -420,7 +422,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Input
             clearable
             value={String(form.value ?? '')}
-            onChange={(value) => set('value', value)}
+            onChange={(value: any) => set('value', value)}
             placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}
             status={errors.value ? 'error' : undefined}
           />
@@ -432,7 +434,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Input
             type="number"
             value={String(form.ttl ?? 600)}
-            onChange={(value) => set('ttl', Number(value))}
+            onChange={(value: any) => set('ttl', Number(value))}
             status={errors.ttl ? 'error' : undefined}
           />
         </Form.FormItem>
@@ -441,7 +443,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Input
               type="number"
               value={String(form.mx ?? 10)}
-              onChange={(value) => set('mx', Number(value))}
+              onChange={(value: any) => set('mx', Number(value))}
               status={errors.mx ? 'error' : undefined}
             />
           </Form.FormItem>
@@ -454,7 +456,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Select
               value={String(form.line ?? '0')}
               options={lineOptions}
-              onChange={(value) => set('line', toSelectString(value))}
+              onChange={(value: any) => set('line', toSelectString(value))}
             />
           </Form.FormItem>
         )}
@@ -464,7 +466,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         <Input
           clearable
           value={String(form.remark ?? '')}
-          onChange={(value) => set('remark', value)}
+          onChange={(value: any) => set('remark', value)}
           placeholder={t('common.optionalRemark')}
         />
       </Form.FormItem>

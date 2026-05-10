@@ -72,13 +72,13 @@ export function AccessTab() {
     if (logtoConfig) {
       setLogtoForm((prev) => ({ ...prev, ...logtoConfig }));
     }
-  }, [logtoConfig]);
+  }, [logtoConfig?.clientId]);
 
   useEffect(() => {
     if (oauthConfigData) {
       setOauthForm((prev) => ({ ...prev, ...oauthConfigData }));
     }
-  }, [oauthConfigData]);
+  }, [oauthConfigData?.clientId]);
 
   const revealJwtSecretMutation = useMutation({
     mutationFn: (password: string) => settingsApi.getJwtSecret(password),
@@ -190,7 +190,7 @@ export function AccessTab() {
             <Input
               type="password"
               value={jwtPassword}
-              onChange={(value) => setJwtPassword(String(value))}
+              onChange={(value: any) => setJwtPassword(String(value))}
               placeholder={t('system.jwtPasswordPlaceholder')}
             />
             <Button theme="primary" loading={revealJwtSecretMutation.isPending} onClick={handleVerifyAndRevealJwtSecret}>
@@ -221,53 +221,53 @@ export function AccessTab() {
                   { label: t('system.oauthTemplateGeneric'), value: 'generic' },
                   { label: t('system.oauthTemplateLogto'), value: 'logto' },
                 ]}
-                onChange={(value) => setOauthField('template', String(Array.isArray(value) ? value[0] : value) as 'generic' | 'logto')}
+                onChange={(value: any) => setOauthField('template', String(Array.isArray(value) ? value[0] : value) as 'generic' | 'logto')}
               />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthProvider')}>
-              <Input value={oauthForm.providerName} onChange={(value) => setOauthField('providerName', String(value))} />
+              <Input value={oauthForm.providerName} onChange={(value: any) => setOauthField('providerName', String(value))} />
             </Form.FormItem>
             {oauthForm.template === 'logto' && (
               <Form.FormItem label={t('system.oauthLogtoDomain')}>
-                <Input value={oauthForm.logtoDomain} onChange={(value) => setOauthField('logtoDomain', String(value))} />
+                <Input value={oauthForm.logtoDomain} onChange={(value: any) => setOauthField('logtoDomain', String(value))} />
               </Form.FormItem>
             )}
             <Form.FormItem label={t('system.oauthIssuer')}>
-              <Input value={oauthForm.issuer} onChange={(value) => setOauthField('issuer', String(value))} />
+              <Input value={oauthForm.issuer} onChange={(value: any) => setOauthField('issuer', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthSubjectKey')}>
-              <Input value={oauthForm.subjectKey} onChange={(value) => setOauthField('subjectKey', String(value))} />
+              <Input value={oauthForm.subjectKey} onChange={(value: any) => setOauthField('subjectKey', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthEmailKey')}>
-              <Input value={oauthForm.emailKey} onChange={(value) => setOauthField('emailKey', String(value))} />
+              <Input value={oauthForm.emailKey} onChange={(value: any) => setOauthField('emailKey', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthClientId')}>
-              <Input value={oauthForm.clientId} onChange={(value) => setOauthField('clientId', String(value))} />
+              <Input value={oauthForm.clientId} onChange={(value: any) => setOauthField('clientId', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthClientSecret')}>
-              <Input type="password" value={oauthForm.clientSecret} onChange={(value) => setOauthField('clientSecret', String(value))} />
+              <Input type="password" value={oauthForm.clientSecret} onChange={(value: any) => setOauthField('clientSecret', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthAuthEndpoint')}>
-              <Input value={oauthForm.authorizationEndpoint} onChange={(value) => setOauthField('authorizationEndpoint', String(value))} />
+              <Input value={oauthForm.authorizationEndpoint} onChange={(value: any) => setOauthField('authorizationEndpoint', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthTokenEndpoint')}>
-              <Input value={oauthForm.tokenEndpoint} onChange={(value) => setOauthField('tokenEndpoint', String(value))} />
+              <Input value={oauthForm.tokenEndpoint} onChange={(value: any) => setOauthField('tokenEndpoint', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthUserInfoEndpoint')}>
-              <Input value={oauthForm.userInfoEndpoint} onChange={(value) => setOauthField('userInfoEndpoint', String(value))} />
+              <Input value={oauthForm.userInfoEndpoint} onChange={(value: any) => setOauthField('userInfoEndpoint', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthJwksUri')}>
-              <Input value={oauthForm.jwksUri} onChange={(value) => setOauthField('jwksUri', String(value))} />
+              <Input value={oauthForm.jwksUri} onChange={(value: any) => setOauthField('jwksUri', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthScopes')}>
-              <Input value={oauthForm.scopes} onChange={(value) => setOauthField('scopes', String(value))} />
+              <Input value={oauthForm.scopes} onChange={(value: any) => setOauthField('scopes', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthRedirectUri')}>
               <Input readonly value={redirectUri} />
             </Form.FormItem>
           </div>
           <Form.FormItem label={t('system.oauthEnabled')}>
-            <Switch value={oauthForm.enabled} onChange={(checked) => setOauthField('enabled', Boolean(checked))} />
+            <Switch value={oauthForm.enabled} onChange={(checked: any) => setOauthField('enabled', Boolean(checked))} />
           </Form.FormItem>
           <Space className="record-form__actions">
             <Button variant="outline" loading={discoverOidcMutation.isPending} onClick={() => discoverOidcMutation.mutate()}>
@@ -287,23 +287,23 @@ export function AccessTab() {
               <Input readonly value={`Logto (${t('system.oauthProviderFixed')})`} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthLogtoDomain')}>
-              <Input value={logtoForm.logtoDomain} onChange={(value) => setLogtoField('logtoDomain', String(value))} />
+              <Input value={logtoForm.logtoDomain} onChange={(value: any) => setLogtoField('logtoDomain', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthClientId')}>
-              <Input value={logtoForm.clientId} onChange={(value) => setLogtoField('clientId', String(value))} />
+              <Input value={logtoForm.clientId} onChange={(value: any) => setLogtoField('clientId', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthClientSecret')}>
-              <Input type="password" value={logtoForm.clientSecret} onChange={(value) => setLogtoField('clientSecret', String(value))} />
+              <Input type="password" value={logtoForm.clientSecret} onChange={(value: any) => setLogtoField('clientSecret', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthScopes')}>
-              <Input value={logtoForm.scopes} onChange={(value) => setLogtoField('scopes', String(value))} />
+              <Input value={logtoForm.scopes} onChange={(value: any) => setLogtoField('scopes', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('system.oauthRedirectUri')}>
               <Input readonly value={redirectUri} />
             </Form.FormItem>
           </div>
           <Form.FormItem label={t('system.oauthEnabled')}>
-            <Switch value={logtoForm.enabled} onChange={(checked) => setLogtoField('enabled', Boolean(checked))} />
+            <Switch value={logtoForm.enabled} onChange={(checked: any) => setLogtoField('enabled', Boolean(checked))} />
           </Form.FormItem>
           <Space className="record-form__actions">
             <Button theme="primary" loading={updateLogtoOauthMutation.isPending} onClick={() => updateLogtoOauthMutation.mutate()}>
