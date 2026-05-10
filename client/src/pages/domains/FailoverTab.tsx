@@ -37,13 +37,13 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
 
   useEffect(() => {
     if (data?.config) {
-      setPrimaryIp(data.config.primaryIp);
-      setBackupIps(data.config.backupIps);
-      setCheckMethod(data.config.checkMethod);
-      setCheckInterval(data.config.checkInterval);
-      setCheckPort(data.config.checkPort);
-      setCheckPath(data.config.checkPath || '');
-      setAutoSwitchBack(data.config.autoSwitchBack);
+      setPrimaryIp(String(data.config.primaryIp ?? ''));
+      setBackupIps(Array.isArray(data.config.backupIps) ? data.config.backupIps.map(String) : []);
+      setCheckMethod(String(data.config.checkMethod ?? 'http') as 'http' | 'tcp' | 'ping');
+      setCheckInterval(Number(data.config.checkInterval ?? 300));
+      setCheckPort(Number(data.config.checkPort ?? 80));
+      setCheckPath(String(data.config.checkPath ?? ''));
+      setAutoSwitchBack(Boolean(data.config.autoSwitchBack));
     }
   }, [data]);
 
@@ -75,12 +75,12 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
   if (isLoading) return <div className="page-state"><Loading loading text={t('common.loading')} /></div>;
 
   return (
-    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form failover-dialog" onSubmit={({ e }) => { e?.preventDefault(); handleSave(); }}>
+    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form failover-dialog" onSubmit={({ e }: any) => { e?.preventDefault(); handleSave(); }}>
       <Form.FormItem label={t('domains.primaryIp')}>
-        <Input value={primaryIp} onChange={(value) => setPrimaryIp(String(value))} />
+        <Input value={primaryIp} onChange={(value: any) => setPrimaryIp(String(value))} />
       </Form.FormItem>
       <Form.FormItem label={t('domains.backupIps')}>
-        <Input value={backupIps.join(',')} onChange={(value) => setBackupIps(String(value).split(',').map((item) => item.trim()).filter(Boolean))} />
+        <Input value={backupIps.join(',')} onChange={(value: any) => setBackupIps(String(value).split(',').map((item) => item.trim()).filter(Boolean))} />
       </Form.FormItem>
       <div className="dialog-form-grid">
         <Form.FormItem label={t('domains.checkMethod')}>
@@ -91,26 +91,26 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
               { label: 'TCP', value: 'tcp' },
               { label: 'PING', value: 'ping' },
             ]}
-            onChange={(value) => setCheckMethod(String(Array.isArray(value) ? value[0] : value) as 'http' | 'tcp' | 'ping')}
+            onChange={(value: any) => setCheckMethod(String(Array.isArray(value) ? value[0] : value) as 'http' | 'tcp' | 'ping')}
           />
         </Form.FormItem>
         <Form.FormItem label={t('domains.checkPort')}>
-          <Input type="number" value={String(checkPort)} onChange={(value) => setCheckPort(Number(value) || 0)} />
+          <Input type="number" value={String(checkPort)} onChange={(value: any) => setCheckPort(Number(value) || 0)} />
         </Form.FormItem>
       </div>
       {checkMethod === 'http' && (
         <Form.FormItem label={t('domains.checkPath')}>
-          <Input value={checkPath} onChange={(value) => setCheckPath(String(value))} placeholder="/" />
+          <Input value={checkPath} onChange={(value: any) => setCheckPath(String(value))} placeholder="/" />
         </Form.FormItem>
       )}
       <Form.FormItem label={t('domains.checkInterval')}>
-        <Input type="number" value={String(checkInterval)} onChange={(value) => setCheckInterval(Number(value) || 0)} />
+        <Input type="number" value={String(checkInterval)} onChange={(value: any) => setCheckInterval(Number(value) || 0)} />
       </Form.FormItem>
       <div className="dialog-switch-row">
         <div>
           <strong>{t('domains.autoSwitchBack')}</strong>
         </div>
-        <Switch value={autoSwitchBack} onChange={(checked) => setAutoSwitchBack(Boolean(checked))} />
+        <Switch value={autoSwitchBack} onChange={(checked: any) => setAutoSwitchBack(Boolean(checked))} />
       </div>
 
       {data?.status && (
@@ -203,7 +203,7 @@ export function FailoverTab() {
             value={keyword}
             prefixIcon={<SearchIcon />}
             placeholder={t('domains.searchPlaceholder')}
-            onChange={(value) => {
+            onChange={(value: any) => {
               setKeyword(String(value));
               setPage(1);
             }}
@@ -225,7 +225,7 @@ export function FailoverTab() {
             totalContent={false}
             showPageSize={false}
             showJumper={false}
-            onCurrentChange={(current) => setPage(current)}
+            onCurrentChange={(current: number) => setPage(current)}
           />
         </div>
       </Card>

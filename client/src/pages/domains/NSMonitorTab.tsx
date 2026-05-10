@@ -195,13 +195,12 @@ export function NSMonitorTab() {
   // Sync edit form data when selectedConfig changes
   useEffect(() => {
     if (selectedConfig) {
-      setEditExpectedNs(selectedConfig.expected_ns || '');
-      setEditEnabled(selectedConfig.enabled);
-      // Ensure boolean values for switches
+      setEditExpectedNs(String(selectedConfig.expected_ns || ''));
+      setEditEnabled(Boolean(selectedConfig.enabled));
       setEditNotifyEmail(Boolean(userPrefs?.notify_email ?? selectedConfig.notify_email));
       setEditNotifyChannels(Boolean(userPrefs?.notify_channels ?? selectedConfig.notify_channels));
     }
-  }, [selectedConfig]);
+  }, [selectedConfig?.id, selectedConfig?.expected_ns, selectedConfig?.enabled, selectedConfig?.notify_email, selectedConfig?.notify_channels, userPrefs]);
 
   const openEditModal = (row: NSMonitorConfig) => {
     setSelectedConfig(row);
@@ -314,7 +313,7 @@ export function NSMonitorTab() {
       label: t('nsMonitor.monitoring'),
       render: (row: NSMonitorConfig) => (
         <Switch
-          value={row.enabled}
+          value={Boolean(row.enabled)}
           loading={updateMutation.isPending}
           onChange={() => handleToggleEnabled(row)}
         />
@@ -414,7 +413,7 @@ export function NSMonitorTab() {
         <Modal title={t('nsMonitor.editConfig')} onClose={() => setIsEditModalOpen(false)} size="lg">
           <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form ns-monitor-dialog" onSubmit={({ e }: any) => { e?.preventDefault(); handleSave(); }}>
             <Form.FormItem label={t('nsMonitor.domainName')}>
-              <Input value={selectedConfig.domain_name} disabled />
+              <Input value={String(selectedConfig.domain_name)} disabled />
             </Form.FormItem>
 
             <Form.FormItem label={t('nsMonitor.expectedNS')} help={t('nsMonitor.expectedNSHint')}>
@@ -499,7 +498,7 @@ export function NSMonitorTab() {
                   <Empty description={t('tokens.noMatchingDomains')} />
                 ) : (
                   <>
-                    <Radio.Group value={selectedDomainId ?? undefined} onChange={(value) => setSelectedDomainId(Number(value))}>
+                    <Radio.Group value={selectedDomainId ?? undefined} onChange={(value: any) => setSelectedDomainId(Number(value))}>
                       <div className="page-list page-list--scroll">
                         {paginatedDomains.map((domain) => (
                           <label key={domain.id} className="token-domain-option">
@@ -519,7 +518,7 @@ export function NSMonitorTab() {
                         total={filteredDomains.length}
                         showPageSize={false}
                         showJumper={false}
-                        onCurrentChange={(current) => setDomainPage(current)}
+                        onCurrentChange={(current: number) => setDomainPage(current)}
                       />
                     </div>
                   </>

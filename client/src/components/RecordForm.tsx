@@ -166,7 +166,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   // Check if provider supports multi-line routing
   const hasMultiLine = lines.length > 1 && !hasProxyMode;
   
-  const [form, setForm] = useState<Partial<DnsRecord>>({
+  const [form, setForm] = useState<Partial<DnsRecord>>(() => ({
     name: initial?.name ?? '@',
     type: initial?.type ?? 'A',
     value: initial?.value ?? '',
@@ -174,10 +174,10 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     mx: initial?.mx ?? 10,
     weight: initial?.weight ?? 10,
     line: hasProxyMode
-      ? (initial?.line ?? '0') // Default to DNS only for proxy mode providers
+      ? (initial?.line ?? '0')
       : (initial?.line ?? (hasMultiLine ? (lines[0]?.id ?? '0') : '0')),
     remark: initial?.remark ?? '',
-  });
+  }));
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
 
@@ -185,20 +185,20 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   useEffect(() => {
     if (initial) {
       setForm({
-        name: initial.name ?? '@',
-        type: initial.type ?? 'A',
-        value: initial.value ?? '',
+        name: String(initial.name ?? '@'),
+        type: String(initial.type ?? 'A'),
+        value: String(initial.value ?? ''),
         ttl: initial.ttl ?? 600,
         mx: initial.mx ?? 10,
         weight: initial.weight ?? 10,
         line: hasProxyMode
-          ? (initial.line ?? '0')
-          : (initial.line ?? (hasMultiLine ? (lines[0]?.id ?? '0') : '0')),
-        remark: initial.remark ?? '',
+          ? String(initial.line ?? '0')
+          : String(initial.line ?? (hasMultiLine ? (lines[0]?.id ?? '0') : '0')),
+        remark: String(initial.remark ?? ''),
       });
       setSrv(parseSrvValue(initial));
     }
-  }, [initial?.id, initial?.name, initial?.type, initial?.value, initial?.line]);
+  }, [initial?.id, initial?.name, initial?.type, initial?.value, initial?.line, initial?.ttl, initial?.mx, initial?.weight, initial?.remark]);
 
   const set = (k: keyof DnsRecord, v: unknown) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -345,7 +345,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Input
             clearable
             value={String(form.name ?? '')}
-            onChange={(value: any) => set('name', value)}
+            onChange={(value: any) => setForm((f) => ({ ...f, name: String(value) }))}
             placeholder={t('records.hostPlaceholder')}
             disabled={isVPS8 && !!initial}
             status={errors.name ? 'error' : undefined}

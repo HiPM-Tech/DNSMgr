@@ -146,7 +146,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
       {(provider?.configFields ?? []).map(renderField)}
 
       <Form.FormItem label={t('accounts.useProxy')} help={t('accounts.useProxyHint')}>
-        <Switch value={useProxy} onChange={setUseProxy} />
+        <Switch value={Boolean(useProxy)} onChange={(checked: any) => setUseProxy(Boolean(checked))} />
       </Form.FormItem>
       <Form.FormItem label={t('common.remark')}>
         <Input

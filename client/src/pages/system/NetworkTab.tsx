@@ -19,14 +19,14 @@ export function NetworkTab() {
   const { t } = useI18n();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [proxyForm, setProxyForm] = useState<ProxyConfig>({
+  const [proxyForm, setProxyForm] = useState<ProxyConfig>(() => ({
     enabled: false,
     type: 'http',
     host: '',
     port: 8080,
     username: '',
     password: '',
-  });
+  }));
 
   const { data: proxyConfig } = useQuery<ProxyConfig | null>({
     queryKey: ['proxy-config'],
@@ -39,9 +39,16 @@ export function NetworkTab() {
 
   useEffect(() => {
     if (proxyConfig) {
-      setProxyForm(proxyConfig);
+      setProxyForm({
+        enabled: Boolean(proxyConfig.enabled),
+        type: String(proxyConfig.type ?? 'http') as 'socks5' | 'http',
+        host: String(proxyConfig.host ?? ''),
+        port: Number(proxyConfig.port ?? 0),
+        username: String(proxyConfig.username ?? ''),
+        password: String(proxyConfig.password ?? ''),
+      });
     }
-  }, [proxyConfig]);
+  }, [proxyConfig?.host, proxyConfig?.port, proxyConfig?.type, proxyConfig?.enabled, proxyConfig?.username, proxyConfig?.password]);
 
   const [shouldTest, setShouldTest] = useState(false);
   const { data: connectivityData, isLoading: isTesting, error: connectivityError } = useQuery({

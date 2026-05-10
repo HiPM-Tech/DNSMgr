@@ -275,8 +275,8 @@ export function Tokens() {
       render: (token: Token) => (
         <Switch
           size="small"
-          value={token.is_active}
-          onChange={(checked) => toggleMutation.mutate({ id: token.id, is_active: Boolean(checked) })}
+          value={Boolean(token.is_active)}
+          onChange={(checked: any) => toggleMutation.mutate({ id: token.id, is_active: Boolean(checked) })}
         />
       ),
     },

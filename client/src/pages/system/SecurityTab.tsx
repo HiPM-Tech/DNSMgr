@@ -55,9 +55,19 @@ export function SecurityTab() {
 
   useEffect(() => {
     if (smtpConfig) {
-      setSmtpForm((prev) => ({ ...prev, ...smtpConfig }));
+      setSmtpForm({
+        enabled: Boolean(smtpConfig.enabled),
+        host: String(smtpConfig.host ?? ''),
+        port: Number(smtpConfig.port ?? 587),
+        secure: Boolean(smtpConfig.secure),
+        username: String(smtpConfig.username ?? ''),
+        password: String(smtpConfig.password ?? ''),
+        fromEmail: String(smtpConfig.fromEmail ?? ''),
+        fromName: String(smtpConfig.fromName ?? 'HiDNS'),
+        testTo: '',
+      });
     }
-  }, [smtpConfig]);
+  }, [smtpConfig?.host, smtpConfig?.port, smtpConfig?.enabled, smtpConfig?.username, smtpConfig?.password, smtpConfig?.fromEmail, smtpConfig?.fromName, smtpConfig?.secure]);
 
   const { data: loginLimitConfig } = useQuery({
     queryKey: ['login-limit-config'],
