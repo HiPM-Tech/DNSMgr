@@ -87,42 +87,48 @@ function isHostname(value: string): boolean {
 }
 
 /**
- * Check if value is a valid record host/subdomain (supports IDN)
+ * Check if value is a valid record host/subdomain (supports IDN and underscore)
  * Supports Unicode subdomains like 子域名, サブドメイン, 🎉
+ * Supports underscore-prefixed labels like _dmarc, _acme-challenge
  */
 function isRecordHost(value: string): boolean {
   const normalized = value.trim();
   if (normalized === '@') return true;
 
-  try {
-    // Use URL API for IDN to Punycode conversion
-    const url = new URL(`http://${normalized}.example.com`);
-    const subdomain = url.hostname.replace('.example.com', '');
+  // Split by dot and validate each label
+  const labels = normalized.split('.');
 
-    // Validate each label
-    const labels = subdomain.split('.');
-    for (const label of labels) {
-      if (label.length === 0 || label.length > 63) {
-        return false;
-      }
-
-      // Punycode labels start with xn--
-      if (label.startsWith('xn--')) {
-        if (!/^xn--[a-z0-9-]+$/i.test(label)) {
-          return false;
-        }
-      } else {
-        // Standard ASCII label validation (allow underscore for some providers)
-        if (!/^[a-z0-9_]([a-z0-9-_]{0,61}[a-z0-9_])?$/i.test(label)) {
-          return false;
-        }
-      }
+  for (const label of labels) {
+    if (label.length === 0 || label.length > 63) {
+      return false;
     }
 
-    return true;
-  } catch {
-    return false;
+    // Check if label contains Unicode characters
+    if (/[^\x00-\x7F]/.test(label)) {
+      // Unicode label - use URL API for validation
+      try {
+        const url = new URL(`http://${label}.example.com`);
+        const punycodeLabel = url.hostname.replace('.example.com', '');
+
+        if (punycodeLabel.startsWith('xn--')) {
+          if (!/^xn--[a-z0-9-]+$/i.test(punycodeLabel)) {
+            return false;
+          }
+        }
+      } catch {
+        return false;
+      }
+    } else {
+      // ASCII label - allow underscore for DNS records like _dmarc, _acme-challenge
+      // Allow: alphanumeric, hyphen, underscore
+      // Must not start or end with hyphen
+      if (!/^[a-zA-Z0-9_]([a-zA-Z0-9-_]{0,61}[a-zA-Z0-9_])?$/i.test(label)) {
+        return false;
+      }
+    }
   }
+
+  return true;
 }
 
 function parseSrvValue(initial?: DnsRecord): SrvFields {

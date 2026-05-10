@@ -163,7 +163,8 @@ export function areDomainsEqual(domain1: string, domain2: string): boolean {
 
 /**
  * Validate subdomain name
- * Supports Unicode subdomains
+ * Supports Unicode subdomains and underscore-prefixed labels
+ * Examples: www, blog, _dmarc, _acme-challenge, 子域名
  */
 export function isValidSubdomain(subdomain: string): boolean {
   if (!subdomain || typeof subdomain !== 'string') {
@@ -171,7 +172,7 @@ export function isValidSubdomain(subdomain: string): boolean {
   }
 
   const trimmed = subdomain.trim();
-  
+
   // Special case for @ (root)
   if (trimmed === '@') {
     return true;
@@ -182,22 +183,90 @@ export function isValidSubdomain(subdomain: string): boolean {
     return false;
   }
 
-  try {
-    // Convert to Punycode for validation
-    const punycode = toPunycode(trimmed);
-    
-    // Validate Punycode format
-    if (punycode.startsWith('xn--')) {
-      return /^xn--[a-z0-9-]+$/i.test(punycode);
+  // Split by dot for multi-level subdomains
+  const labels = trimmed.split('.');
+
+  for (const label of labels) {
+    if (label.length === 0 || label.length > 63) {
+      return false;
     }
-    
-    // Standard ASCII validation
-    // Allow: alphanumeric, hyphen, underscore (for some providers)
-    // Must start and end with alphanumeric
-    return /^[a-z0-9]([a-z0-9-_]{0,61}[a-z0-9])?$/i.test(punycode);
-  } catch {
+
+    // Check if label contains Unicode characters
+    if (/[^\x00-\x7F]/.test(label)) {
+      // Unicode label - convert to Punycode for validation
+      try {
+        const punycode = toPunycode(label);
+        if (punycode.startsWith('xn--')) {
+          if (!/^xn--[a-z0-9-]+$/i.test(punycode)) {
+            return false;
+          }
+        }
+      } catch {
+        return false;
+      }
+    } else {
+      // ASCII label - allow underscore for DNS records like _dmarc, _acme-challenge
+      // Allow: alphanumeric, hyphen, underscore
+      // Must not start or end with hyphen
+      if (!/^[a-zA-Z0-9_]([a-zA-Z0-9-_]{0,61}[a-zA-Z0-9_])?$/i.test(label)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Validate hostname for DNS record values (CNAME, MX, NS, etc.)
+ * Supports:
+ * - Standard domains: example.com
+ * - IDN domains: 例子.测试
+ * - Underscore-prefixed labels: _dmarc.example.com, _acme-challenge.example.com
+ * - Punycode domains: xn--fsq092h.xn--0zwm56d
+ */
+export function isValidHostname(hostname: string): boolean {
+  if (!hostname || typeof hostname !== 'string') {
     return false;
   }
+
+  const trimmed = hostname.trim().replace(/\.$/, ''); // Remove trailing dot
+  if (trimmed.length === 0 || trimmed.length > 253) {
+    return false;
+  }
+
+  // Split by dot for validation
+  const labels = trimmed.split('.');
+
+  for (const label of labels) {
+    if (label.length === 0 || label.length > 63) {
+      return false;
+    }
+
+    // Check if label contains Unicode characters
+    if (/[^\x00-\x7F]/.test(label)) {
+      // Unicode label - convert to Punycode for validation
+      try {
+        const punycode = toPunycode(label);
+        if (punycode.startsWith('xn--')) {
+          if (!/^xn--[a-z0-9-]+$/i.test(punycode)) {
+            return false;
+          }
+        }
+      } catch {
+        return false;
+      }
+    } else {
+      // ASCII label - allow underscore for DNS records like _dmarc, _acme-challenge, _cf
+      // Allow: alphanumeric, hyphen, underscore
+      // Must not start or end with hyphen
+      if (!/^[a-zA-Z0-9_]([a-zA-Z0-9-_]{0,61}[a-zA-Z0-9_])?$/i.test(label)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 /**

@@ -11,7 +11,7 @@ import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 import { wsService } from '../service/websocket';
-import { normalizeDomain, isValidDomain } from '../utils/domain';
+import { normalizeDomain, isValidDomain, isValidHostname } from '../utils/domain';
 
 const router = Router({ mergeParams: true });
 
@@ -54,11 +54,8 @@ function isIPv6(value: string): boolean {
 }
 
 function isHostname(value: string): boolean {
-  const normalized = normalizeDomain(value).replace(/\.$/, '');
-  if (!normalized || normalized.length > 253) return false;
-  
-  // Use the domain validation utility which supports IDN
-  return isValidDomain(normalized);
+  // Use isValidHostname which supports IDN and underscore-prefixed labels
+  return isValidHostname(value);
 }
 
 function isValidRecordValue(type: string, value: string): boolean {
