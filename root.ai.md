@@ -89,7 +89,7 @@
 1. 日志架构
     - 日志系统实现为单例模式（`server/src/lib/logger.ts`），使用 `log` 对象进行记录。
     - 支持的日志级别：`debug` < `info` < `warn` < `error`。
-    - 日志级别通过环境变量 `DNSMGR_LOG_LEVEL` 配置，默认为 `info`。
+    - 日志级别通过环境变量 `HIDNS_LOG_LEVEL` 配置，默认为 `info`。
     - 每一条日志自动捕获调用者上下文信息（函数名、文件名、行号、列号）。
 2. 日志分类
     - 通用日志：`log.debug(module, message, data?)`、`log.info(module, message, data?)`、`log.warn(module, message, data?)`、`log.error(module, message, data?)`
@@ -144,7 +144,7 @@
     - `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`：数据库连接配置。
     - `JWT_SECRET`：JWT 签名密钥，生产环境要求至少32个字符。
     - `PORT`：服务端口，默认 3001。
-    - `DNSMGR_LOG_LEVEL`：日志级别（debug | info | warn | error），默认 info。
+    - `HIDNS_LOG_LEVEL`：日志级别（debug | info | warn | error），默认 info。
 3. 环境验证
     - 生产环境强制检查 JWT_SECRET 强度。
     - MySQL/PostgreSQL 配置验证必需的连接参数。

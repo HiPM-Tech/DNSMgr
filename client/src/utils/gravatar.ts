@@ -2,7 +2,7 @@ import { gravatarMirrors, gravatarProbeConfig } from '../config/gravatar';
 import { md5 } from './md5';
 
 const STORAGE_KEY = 'gravatar-mirror-health';
-const PROBE_HASH = md5('dnsmgr@example.com');
+const PROBE_HASH = md5('hidns@example.com');
 
 type MirrorHealth = Record<string, { ok: boolean; checkedAt: number }>;
 

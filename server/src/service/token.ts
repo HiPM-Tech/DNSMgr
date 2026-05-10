@@ -3,7 +3,7 @@ import { TokenOperations, DomainOperations } from '../db/business-adapter';
 import { UserToken, UserTokenCreate, UserTokenResponse, TokenPayload } from '../types/token';
 import { isAdmin } from '../utils/roles';
 
-const TOKEN_PREFIX = 'dnsmgr_';
+const TOKEN_PREFIX = 'hidns_';
 
 // Generate a new token
 export function generateToken(): string {

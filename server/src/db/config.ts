@@ -62,7 +62,7 @@ export function getDatabaseConfig(): DatabaseConfig {
       return {
         type: 'sqlite',
         sqlite: {
-          path: process.env.DB_PATH || './data/dnsmgr.db',
+          path: process.env.DB_PATH || './data/hidns.db',
         },
       };
   }

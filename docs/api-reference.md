@@ -585,8 +585,8 @@ jobs:
     steps:
       - name: Update DNS Record
         run: |
-          curl -X POST "${{ secrets.DNSMGR_URL }}/api/domains/${{ secrets.DOMAIN_ID }}/records" \
-            -H "Authorization: Bearer ${{ secrets.DNSMGR_TOKEN }}" \
+          curl -X POST "${{ secrets.HIDNS_URL }}/api/domains/${{ secrets.DOMAIN_ID }}/records" \
+            -H "Authorization: Bearer ${{ secrets.HIDNS_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d "{
               \"host\": \"deploy\",
@@ -604,7 +604,7 @@ jobs:
 
 ```bash
 # ✅ 正确：使用环境变量
-export DNSMGR_TOKEN=dnsmgr_xxx...
+export HIDNS_TOKEN=hidns_xxx...
 
 # ❌ 错误：硬编码
 const token = "dnsmgr_xxx..."

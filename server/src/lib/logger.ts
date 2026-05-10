@@ -41,8 +41,8 @@ class Logger {
   private logLevel: LogLevel;
 
   private constructor() {
-    // 从独立的环境变量 DNSMGR_LOG_LEVEL 读取日志级别，默认为 'info'
-    const envLevel = (typeof process !== 'undefined' && process.env?.DNSMGR_LOG_LEVEL) as LogLevel | undefined;
+    // 从独立的环境变量 HIDNS_LOG_LEVEL 读取日志级别，默认为 'info'
+    const envLevel = (typeof process !== 'undefined' && process.env?.HIDNS_LOG_LEVEL) as LogLevel | undefined;
     const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
     this.logLevel = envLevel && validLevels.includes(envLevel) ? envLevel : 'info';
     

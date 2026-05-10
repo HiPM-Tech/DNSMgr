@@ -12,11 +12,11 @@ interface I18nContextValue {
 }
 
 const globalI18n = globalThis as typeof globalThis & {
-  __DNSMGR_I18N_CONTEXT__?: Context<I18nContextValue | null>;
+  __HIDNS_I18N_CONTEXT__?: Context<I18nContextValue | null>;
 };
 
-const I18nContext = globalI18n.__DNSMGR_I18N_CONTEXT__ ?? createContext<I18nContextValue | null>(null);
-globalI18n.__DNSMGR_I18N_CONTEXT__ = I18nContext;
+const I18nContext = globalI18n.__HIDNS_I18N_CONTEXT__ ?? createContext<I18nContextValue | null>(null);
+globalI18n.__HIDNS_I18N_CONTEXT__ = I18nContext;
 
 function resolveMessage(key: string, locale: string): string | undefined {
   const segments = key.split('.');

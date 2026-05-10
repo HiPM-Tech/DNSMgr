@@ -196,8 +196,8 @@ const effectiveDomains = intersection(tokenDomains, userDomains);
 # 在 GitHub Actions 中使用
 - name: Update DNS Record
   run: |
-    curl -X POST https://dnsmgr.example.com/api/domains/1/records \
-      -H "Authorization: Bearer ${{ secrets.DNSMGR_TOKEN }}" \
+    curl -X POST https://hidns.example.com/api/domains/1/records \
+      -H "Authorization: Bearer ${{ secrets.HIDNS_TOKEN }}" \
       -H "Content-Type: application/json" \
       -d '{"name": "deploy", "type": "A", "content": "1.2.3.4"}'
 ```
@@ -276,7 +276,7 @@ ci-cd-github-20250101
 
 ```bash
 # ✅ 正确：使用环境变量或密钥管理系统
-export DNSMGR_TOKEN=dnsmgr_xxx...
+export HIDNS_TOKEN=hidns_xxx...
 
 # ❌ 错误：硬编码在代码中
 const token = "dnsmgr_xxx...";

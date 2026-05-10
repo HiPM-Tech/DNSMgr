@@ -179,7 +179,7 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
     await waitForCode('220');
     log.info('SMTP', 'Got 220 greeting');
 
-    let ehloResp = await sendCmd('EHLO dnsmgr.local', '250');
+    let ehloResp = await sendCmd('EHLO hidns.local', '250');
     log.info('SMTP', 'EHLO response received');
 
     // If server supports STARTTLS, upgrade plaintext connection before AUTH/MAIL.
@@ -191,7 +191,7 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
         tlsSocket.once('error', reject);
       });
       log.info('SMTP', 'STARTTLS upgrade complete');
-      ehloResp = await sendCmd('EHLO dnsmgr.local', '250');
+      ehloResp = await sendCmd('EHLO hidns.local', '250');
     }
 
     if (config.username && config.password) {
