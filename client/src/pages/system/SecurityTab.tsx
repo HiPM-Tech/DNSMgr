@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Space, Switch, Tag, TimeRangePicker } from 'tdesign-react';
 import {
@@ -32,7 +32,7 @@ export function SecurityTab() {
     username: '',
     password: '',
     fromEmail: '',
-    fromName: 'DNSMgr',
+    fromName: 'HiDNS',
     testTo: '',
   });
 
@@ -44,16 +44,20 @@ export function SecurityTab() {
     offHoursEnd: '06:00',
   });
 
-  useQuery({
+  const { data: smtpConfig } = useQuery({
     queryKey: ['smtp-config'],
     queryFn: async () => {
       const res = await settingsApi.getSmtpConfig();
-      if (res.data.code === 0 && res.data.data) {
-        setSmtpForm((prev) => ({ ...prev, ...res.data.data }));
-      }
-      return res.data.data;
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
     },
   });
+
+  useEffect(() => {
+    if (smtpConfig) {
+      setSmtpForm((prev) => ({ ...prev, ...smtpConfig }));
+    }
+  }, [smtpConfig]);
 
   const { data: loginLimitConfig } = useQuery({
     queryKey: ['login-limit-config'],

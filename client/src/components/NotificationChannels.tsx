@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
 import { AddIcon, DeleteIcon, EditIcon, NotificationIcon, SaveIcon } from 'tdesign-icons-react';
@@ -24,16 +24,20 @@ export function NotificationChannels() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<NotificationChannel | null>(null);
 
-  useQuery({
+  const { data: channelsData } = useQuery({
     queryKey: ['notification-channels'],
     queryFn: async () => {
       const res = await settingsApi.getNotificationChannels();
-      if (res.data.code === 0) {
-        setChannels(res.data.data || []);
-      }
-      return res.data.data;
+      if (res.data.code === 0) return res.data.data || [];
+      throw new Error(res.data.msg);
     },
   });
+
+  useEffect(() => {
+    if (channelsData) {
+      setChannels(channelsData);
+    }
+  }, [channelsData]);
 
   const saveMutation = useMutation({
     mutationFn: (newChannels: NotificationChannel[]) => settingsApi.updateNotificationChannels(newChannels),

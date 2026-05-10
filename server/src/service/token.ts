@@ -4,10 +4,16 @@ import { UserToken, UserTokenCreate, UserTokenResponse, TokenPayload } from '../
 import { isAdmin } from '../utils/roles';
 
 const TOKEN_PREFIX = 'hidns_';
+const LEGACY_TOKEN_PREFIX = 'dnsmgr_'; // 旧格式前缀，用于兼容
 
 // Generate a new token
 export function generateToken(): string {
   return TOKEN_PREFIX + crypto.randomBytes(32).toString('hex');
+}
+
+// Check if token has valid prefix (supports both new and legacy formats)
+function hasValidTokenPrefix(token: string): boolean {
+  return token.startsWith(TOKEN_PREFIX) || token.startsWith(LEGACY_TOKEN_PREFIX);
 }
 
 // Hash token for storage
@@ -54,7 +60,7 @@ export async function createUserToken(
 
 // Verify a token and return payload
 export async function verifyToken(plainToken: string): Promise<TokenPayload | null> {
-  if (!plainToken.startsWith(TOKEN_PREFIX)) return null;
+  if (!hasValidTokenPrefix(plainToken)) return null;
 
   const tokenHash = hashToken(plainToken);
 

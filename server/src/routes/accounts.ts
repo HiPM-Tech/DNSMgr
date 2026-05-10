@@ -214,7 +214,8 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
 router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
   const account = await DnsAccountOperations.getById(id) as DnsAccount | undefined;
-  if (!account || !(await canReadAccount(account, req.user!.userId, normalizeRole(req.user?.role)))) {
+  const userRole = normalizeRole(req.user?.role);
+  if (!account || !(await canReadAccount(account, req.user!.userId, userRole))) {
     sendError(res, 'Account not found');
     return;
   }
@@ -235,7 +236,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
   const masked: Record<string, string> = {};
   if (showSecrets) {
-    // Return actual values
+    // Return actual values only when showDnsProviderSecrets is enabled
     for (const k of Object.keys(cfg)) masked[k] = cfg[k];
   } else {
     // Mask all values

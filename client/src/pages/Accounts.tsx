@@ -143,8 +143,8 @@ export function Accounts() {
   const { user: me } = useAuth();
   const canManage = isAdmin(me?.role);
   const [showAdd, setShowAdd] = useState(false);
-  const [editing, setEditing] = useState<DnsAccount | null>(null);
   const [deleting, setDeleting] = useState<DnsAccount | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   useRealtimeData({
     queryKey: ['accounts'],
@@ -163,6 +163,18 @@ export function Accounts() {
   });
   const visibleProviders = providers.filter((provider) => !provider.isStub);
 
+  // Fetch account details when editing
+  const { data: editingAccount, isLoading: isLoadingEditing } = useQuery({
+    queryKey: ['account', editingId],
+    queryFn: async () => {
+      if (!editingId) return null;
+      const res = await accountsApi.get(editingId);
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
+    },
+    enabled: !!editingId,
+  });
+
   const createMutation = useMutation({
     mutationFn: (data: { type: string; name: string; config: Record<string, string | boolean>; remark: string }) => accountsApi.create(data),
     onSuccess: (res) => {
@@ -180,7 +192,7 @@ export function Accounts() {
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
-      setEditing(null);
+      setEditingId(null);
       toast.success(t('accounts.updateSuccess'));
     },
     onError: () => toast.error(t('accounts.updateFailed')),
@@ -207,7 +219,7 @@ export function Accounts() {
       label: t('common.actions'),
       render: (row: DnsAccount) => (
         <Space size="small">
-          <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => setEditing(row)} />
+          <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => setEditingId(row.id)} />
           <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(row)} />
         </Space>
       ),
@@ -246,14 +258,20 @@ export function Accounts() {
         </Modal>
       )}
 
-      {editing && canManage && visibleProviders.length > 0 && (
-        <Modal title={t('accounts.editDnsAccount')} onClose={() => setEditing(null)}>
-          <AccountForm
-            providers={visibleProviders}
-            initial={editing}
-            onSubmit={(data) => updateMutation.mutate({ id: editing.id, data })}
-            isLoading={updateMutation.isPending}
-          />
+      {editingId && canManage && visibleProviders.length > 0 && (
+        <Modal title={t('accounts.editDnsAccount')} onClose={() => setEditingId(null)}>
+          {isLoadingEditing ? (
+            <div style={{ padding: '40px', textAlign: 'center' }}>Loading...</div>
+          ) : editingAccount ? (
+            <AccountForm
+              providers={visibleProviders}
+              initial={editingAccount}
+              onSubmit={(data) => updateMutation.mutate({ id: editingId, data })}
+              isLoading={updateMutation.isPending}
+            />
+          ) : (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'red' }}>Failed to load account details</div>
+          )}
         </Modal>
       )}
 

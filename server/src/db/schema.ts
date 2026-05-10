@@ -215,9 +215,21 @@ async function ensureWhoisCacheTableMySQL(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
 ): Promise<void> {
   try {
+    // Get current database name
+    let dbName = '';
+    if (conn.execute) {
+      const dbResult = await conn.execute('SELECT DATABASE() as db');
+      if (Array.isArray(dbResult) && dbResult.length > 0) {
+        dbName = (dbResult[0] as Record<string, string>)?.db || '';
+      }
+    }
+
     // 检查表是否存在
-    const checkTableSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES
-      WHERE TABLE_NAME = 'whois_cache'`;
+    const checkTableSql = dbName
+      ? `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES
+          WHERE TABLE_SCHEMA = '${dbName}' AND TABLE_NAME = 'whois_cache'`
+      : `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES
+          WHERE TABLE_NAME = 'whois_cache'`;
 
     let tableExists = false;
     if (conn.execute) {
@@ -260,7 +272,7 @@ async function ensureWhoisCacheTableMySQL(
   } catch (error) {
     const errorMsg = (error as Error).message || '';
     if (errorMsg.includes('already exists') || errorMsg.includes('ER_TABLE_EXISTS_ERROR')) {
-      log.info('Schema', 'whois_cache table already exists');
+      log.info('Schema', 'whois_cache table already already exists');
     } else {
       log.warn('Schema', 'Failed to create whois_cache table', { error: errorMsg });
     }
@@ -274,9 +286,21 @@ async function addPinnedDomainsColumn(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
 ): Promise<void> {
   try {
+    // Get current database name
+    let dbName = '';
+    if (conn.execute) {
+      const dbResult = await conn.execute('SELECT DATABASE() as db');
+      if (Array.isArray(dbResult) && dbResult.length > 0) {
+        dbName = (dbResult[0] as Record<string, string>)?.db || '';
+      }
+    }
+
     // 检查字段是否存在
-    const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_NAME = 'user_preferences' AND COLUMN_NAME = 'pinned_domains'`;
+    const checkColumnSql = dbName
+      ? `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = '${dbName}' AND TABLE_NAME = 'user_preferences' AND COLUMN_NAME = 'pinned_domains'`
+      : `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_NAME = 'user_preferences' AND COLUMN_NAME = 'pinned_domains'`;
 
     let columnExists = false;
     if (conn.execute) {
@@ -318,8 +342,20 @@ async function addUserPreferencesTextColumn(
   columnName: string
 ): Promise<void> {
   try {
-    const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_NAME = 'user_preferences' AND COLUMN_NAME = '${columnName}'`;
+    // Get current database name
+    let dbName = '';
+    if (conn.execute) {
+      const dbResult = await conn.execute('SELECT DATABASE() as db');
+      if (Array.isArray(dbResult) && dbResult.length > 0) {
+        dbName = (dbResult[0] as Record<string, string>)?.db || '';
+      }
+    }
+
+    const checkColumnSql = dbName
+      ? `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = '${dbName}' AND TABLE_NAME = 'user_preferences' AND COLUMN_NAME = '${columnName}'`
+      : `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_NAME = 'user_preferences' AND COLUMN_NAME = '${columnName}'`;
 
     let columnExists = false;
     if (conn.execute) {
@@ -356,16 +392,16 @@ async function addUserPreferencesTextColumn(
  * 检查 SQLite 列是否存在
  */
 async function checkSQLiteColumnExists(
-  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> },
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> },
   tableName: string,
   columnName: string
 ): Promise<boolean> {
   try {
     const sql = `PRAGMA table_info(${tableName})`;
-    let result: unknown;
+    let result: unknown[] | undefined;
 
-    if (conn.execute) {
-      result = await conn.execute(sql);
+    if (conn.query) {
+      result = await conn.query(sql);
     } else if (conn.exec) {
       // 对于同步连接，需要特殊处理
       return false; // 默认返回 false，让迁移尝试执行
@@ -387,7 +423,7 @@ async function checkSQLiteColumnExists(
  * 添加列到 SQLite 表（带存在检查）
  */
 async function addSQLiteColumn(
-  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> },
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> },
   tableName: string,
   columnName: string,
   columnDef: string
@@ -420,7 +456,7 @@ async function addSQLiteColumn(
  * 迁移 DNS 账号类型从 dnsmgr 到 hidns
  */
 async function migrateDnsAccountType(
-  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> }
 ): Promise<void> {
   try {
     log.info('Schema', 'Migrating dns_accounts type from dnsmgr to hidns...');
@@ -441,7 +477,7 @@ async function migrateDnsAccountType(
  * 处理 SQLite 特定的迁移
  */
 async function handleSQLiteMigrations(
-  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> }
 ): Promise<void> {
   log.info('Schema', 'Starting SQLite migrations...');
 
@@ -470,7 +506,7 @@ async function handleSQLiteMigrations(
  * 删除旧的域名级 NS 监测表（迁移到用户级）- SQLite
  */
 async function dropOldNsMonitorTablesSQLite(
-  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> }
 ): Promise<void> {
   const oldTables = [
     'ns_monitor_configs',
@@ -628,7 +664,7 @@ export async function initSchema(): Promise<void> {
  * @param reset Whether to reset (drop and recreate) existing tables
  */
 export async function initSchemaAsync(
-  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<void> },
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<void>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> },
   reset: boolean = false
 ): Promise<void> {
   const dbType = conn.type || 'sqlite';

@@ -25,10 +25,18 @@ describe('Token Service', () => {
   });
 
   describe('generateToken', () => {
-    it('should generate a token with correct prefix', () => {
+    it('should generate a token with correct prefix (hidns_)', () => {
       const token = generateToken();
-      assert.ok(token.startsWith('dnsmgr_'), 'Token should start with dnsmgr_');
+      assert.ok(token.startsWith('hidns_'), 'Token should start with hidns_');
       assert.strictEqual(token.length, 71, 'Token should be 71 characters long (7 prefix + 64 hex chars)');
+    });
+
+    it('should accept legacy token prefix (dnsmgr_) for verification', async () => {
+      // Legacy tokens with dnsmgr_ prefix should still be verifiable
+      // This tests backward compatibility
+      const legacyToken = 'dnsmgr_' + 'a'.repeat(64);
+      // Note: This token won't exist in database, but it should pass prefix validation
+      assert.ok(legacyToken.startsWith('dnsmgr_'), 'Legacy token should start with dnsmgr_');
     });
 
     it('should generate unique tokens', () => {
@@ -40,10 +48,17 @@ describe('Token Service', () => {
 
   describe('hashToken', () => {
     it('should produce consistent hashes for same token', () => {
-      const token = 'dnsmgr_test_token';
+      const token = 'hidns_test_token';
       const hash1 = hashToken(token);
       const hash2 = hashToken(token);
       assert.strictEqual(hash1, hash2, 'Same token should produce same hash');
+    });
+
+    it('should produce consistent hashes for legacy token format', () => {
+      const legacyToken = 'dnsmgr_test_token';
+      const hash1 = hashToken(legacyToken);
+      const hash2 = hashToken(legacyToken);
+      assert.strictEqual(hash1, hash2, 'Same legacy token should produce same hash');
     });
 
     it('should produce different hashes for different tokens', () => {

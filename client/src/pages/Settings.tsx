@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
 import { ClearIcon, ImageIcon, LockOnIcon, UserSettingIcon } from 'tdesign-icons-react';
 import { authApi } from '../api';
@@ -19,6 +19,7 @@ export function Settings() {
   const toast = useToast();
   const { t } = useI18n();
   const { uiScale, setUiScale } = useUiScale();
+  const queryClient = useQueryClient();
 
   useRealtimeData({
     queryKey: ['user-profile'],
@@ -36,11 +37,7 @@ export function Settings() {
   const [emailCode, setEmailCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [oauthProviderName, setOauthProviderName] = useState('OIDC');
-  const [oauthEnabled, setOauthEnabled] = useState(false);
-  const [oauthProviders, setOauthProviders] = useState<Array<{ key: 'custom' | 'logto'; providerName: string }>>([]);
   const [selectedOauthProvider, setSelectedOauthProvider] = useState<'custom' | 'logto'>('custom');
-  const [oauthBindings, setOauthBindings] = useState<OAuthBinding[]>([]);
   const [backgroundImage, setBackgroundImage] = useState('');
   const [avatarImage, setAvatarImage] = useState('');
 
@@ -49,18 +46,21 @@ export function Settings() {
     setEmail(user?.email ?? '');
   }, [user?.id, user?.nickname, user?.email]);
 
-  const preferencesQuery = useQuery({
+  const { data: preferencesData } = useQuery({
     queryKey: ['userPreferences'],
     queryFn: async () => {
       const res = await authApi.getPreferences();
-      if (res.data.code === 0) {
-        setBackgroundImage(res.data.data.backgroundImage || '');
-        setAvatarImage(res.data.data.avatarImage || '');
-        return res.data.data;
-      }
-      return null;
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
     },
   });
+
+  useEffect(() => {
+    if (preferencesData) {
+      setBackgroundImage(preferencesData.backgroundImage || '');
+      setAvatarImage(preferencesData.avatarImage || '');
+    }
+  }, [preferencesData]);
 
   const updateBackgroundMutation = useMutation({
     mutationFn: (imageUrl: string) => authApi.updatePreferences({ backgroundImage: imageUrl }),
@@ -70,38 +70,32 @@ export function Settings() {
         return;
       }
       toast.success(t('settings.backgroundImageUpdated'));
-      preferencesQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ['userPreferences'] });
     },
     onError: () => toast.error(t('settings.backgroundImageUpdateFailed')),
   });
 
-  useEffect(() => {
-    authApi.oauthStatus()
-      .then((res) => {
-        if (res.data.code === 0) {
-          setOauthEnabled(res.data.data.enabled);
-          setOauthProviderName(res.data.data.providerName || 'OIDC');
-          const providers = res.data.data.providers || [];
-          setOauthProviders(providers);
-          if (providers.length > 0) setSelectedOauthProvider(providers[0].key);
-        }
-      })
-      .catch(() => undefined);
-  }, []);
+  const { data: oauthStatusData } = useQuery({
+    queryKey: ['oauth-status'],
+    queryFn: async () => {
+      const res = await authApi.oauthStatus();
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
+    },
+  });
 
-  const loadBindings = () => {
-    authApi.oauthBindings()
-      .then((res) => {
-        if (res.data.code === 0) {
-          setOauthBindings(res.data.data || []);
-        }
-      })
-      .catch(() => undefined);
-  };
+  const { data: oauthBindings = [], refetch: refetchBindings } = useQuery({
+    queryKey: ['oauth-bindings'],
+    queryFn: async () => {
+      const res = await authApi.oauthBindings();
+      if (res.data.code === 0) return res.data.data || [];
+      throw new Error(res.data.msg);
+    },
+  });
 
-  useEffect(() => {
-    loadBindings();
-  }, []);
+  const oauthEnabled = oauthStatusData?.enabled ?? false;
+  const oauthProviderName = oauthStatusData?.providerName || 'OIDC';
+  const oauthProviders = oauthStatusData?.providers || [];
 
   const profileMutation = useMutation({
     mutationFn: async () => {
@@ -128,7 +122,7 @@ export function Settings() {
       if (updatedUser) updateUser(updatedUser);
       setEmailCode('');
       toast.success(t('settings.profileUpdated'));
-      preferencesQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ['userPreferences'] });
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : t('settings.profileUpdateFailed')),
   });
@@ -179,13 +173,13 @@ export function Settings() {
         return;
       }
       toast.success(t('settings.oauthUnbound'));
-      loadBindings();
+      refetchBindings();
     },
     onError: () => toast.error(t('settings.oauthUnbindFailed')),
   });
 
   const profileFieldsChanged = (nickname !== (user?.nickname ?? '')) || (email !== (user?.email ?? ''));
-  const avatarChanged = avatarImage !== (preferencesQuery.data?.avatarImage || '');
+  const avatarChanged = avatarImage !== (preferencesData?.avatarImage || '');
   const hasProfileChanges = profileFieldsChanged || avatarChanged;
   const emailChanged = email.trim() !== (user?.email ?? '');
 
@@ -367,7 +361,7 @@ export function Settings() {
                 <Button
                   theme="primary"
                   loading={updateBackgroundMutation.isPending}
-                  disabled={backgroundImage === (preferencesQuery.data?.backgroundImage || '')}
+                  disabled={backgroundImage === (preferencesData?.backgroundImage || '')}
                   onClick={() => updateBackgroundMutation.mutate(backgroundImage)}
                 >
                   {t('settings.updateBackgroundImage')}

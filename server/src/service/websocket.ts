@@ -5,9 +5,40 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
+import jwt from 'jsonwebtoken';
 import { verifyToken } from './token';
 import { log } from '../lib/logger';
 import { getClientIP } from '../middleware/clientIP';
+import { JwtPayload } from '../types';
+import { TokenPayload } from '../types/token';
+import crypto from 'crypto';
+
+// JWT密钥配置
+const BASE_JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+const RUNTIME_SECRET_KEY = 'jwt_runtime';
+let runtimeSecretCache: string | null = null;
+
+async function getRuntimeSecret(): Promise<string> {
+  if (runtimeSecretCache) return runtimeSecretCache;
+  
+  try {
+    const { SecretOperations } = await import('../db/business-adapter');
+    const value = await SecretOperations.getRuntimeSecret(RUNTIME_SECRET_KEY);
+    if (value) {
+      runtimeSecretCache = value;
+      return value;
+    }
+  } catch {
+    // Table might not exist
+  }
+  
+  return crypto.randomBytes(32).toString('hex');
+}
+
+async function getJwtSecret(): Promise<string> {
+  const runtimeSecret = await getRuntimeSecret();
+  return `${BASE_JWT_SECRET}:${runtimeSecret}`;
+}
 
 interface WSClient {
   ws: WebSocket;
@@ -65,18 +96,31 @@ class WSService {
         return;
       }
 
-      // 验证 token
-      const payload = await verifyToken(token);
-      if (!payload) {
-        log.warn('WSService', 'WebSocket connection rejected: invalid token', { ip: clientIp });
-        ws.close(4002, 'Invalid token');
-        return;
-      }
+      let userId: number;
+      let role: string;
+      let authType: 'jwt' | 'api';
 
-      const userId = payload.userId;
-      const role = String(payload.maxRole);
-      
-      log.info('WSService', 'WebSocket authentication successful', { userId, role, ip: clientIp });
+      // 首先尝试验证为 JWT
+      try {
+        const jwtSecret = await getJwtSecret();
+        const payload = jwt.verify(token, jwtSecret) as JwtPayload;
+        userId = payload.userId;
+        role = String(payload.role);
+        authType = 'jwt';
+        log.info('WSService', 'JWT authentication successful', { userId, role, ip: clientIp });
+      } catch (jwtError) {
+        // JWT 验证失败，尝试验证为 API Token
+        const tokenPayload = await verifyToken(token);
+        if (!tokenPayload) {
+          log.warn('WSService', 'WebSocket connection rejected: invalid token', { ip: clientIp });
+          ws.close(4002, 'Invalid token');
+          return;
+        }
+        userId = tokenPayload.userId;
+        role = String(tokenPayload.maxRole);
+        authType = 'api';
+        log.info('WSService', 'API token authentication successful', { userId, role, ip: clientIp });
+      }
 
       // 如果已存在连接，关闭旧连接
       const existingClient = this.clients.get(userId);
@@ -98,13 +142,14 @@ class WSService {
       log.info('WSService', 'WebSocket client connected', { 
         userId, 
         role,
+        authType,
         totalClients: this.clients.size 
       });
 
       // 发送欢迎消息
       this.sendToClient(userId, {
         type: 'connected',
-        data: { message: 'WebSocket connected successfully' },
+        data: { message: 'WebSocket connected successfully', authType },
       });
 
       // 处理消息

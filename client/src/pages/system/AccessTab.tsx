@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
 import { BrowseIcon, BrowseOffIcon, CopyIcon, LockOnIcon, SecuredIcon, SettingIcon } from 'tdesign-icons-react';
@@ -50,27 +50,35 @@ export function AccessTab() {
     redirectUri: '',
   });
 
-  useQuery({
+  const { data: logtoConfig } = useQuery({
     queryKey: ['oauth-logto-config'],
     queryFn: async () => {
       const res = await settingsApi.getLogtoOAuthConfig();
-      if (res.data.code === 0 && res.data.data) {
-        setLogtoForm((prev) => ({ ...prev, ...res.data.data }));
-      }
-      return res.data.data;
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
     },
   });
 
-  useQuery({
+  const { data: oauthConfigData } = useQuery({
     queryKey: ['oauth-config'],
     queryFn: async () => {
       const res = await settingsApi.getOAuthConfig();
-      if (res.data.code === 0 && res.data.data) {
-        setOauthForm((prev) => ({ ...prev, ...res.data.data }));
-      }
-      return res.data.data;
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
     },
   });
+
+  useEffect(() => {
+    if (logtoConfig) {
+      setLogtoForm((prev) => ({ ...prev, ...logtoConfig }));
+    }
+  }, [logtoConfig]);
+
+  useEffect(() => {
+    if (oauthConfigData) {
+      setOauthForm((prev) => ({ ...prev, ...oauthConfigData }));
+    }
+  }, [oauthConfigData]);
 
   const revealJwtSecretMutation = useMutation({
     mutationFn: (password: string) => settingsApi.getJwtSecret(password),

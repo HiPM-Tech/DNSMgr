@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
 import { CheckCircleIcon, CloseCircleIcon, ErrorCircleIcon, InternetIcon, PlayCircleIcon, SecuredIcon, TowerClockIcon } from 'tdesign-icons-react';
@@ -32,13 +32,16 @@ export function NetworkTab() {
     queryKey: ['proxy-config'],
     queryFn: async () => {
       const res = await networkApi.getProxy();
-      if (res.data.code === 0 && res.data.data) {
-        setProxyForm(res.data.data);
-        return res.data.data;
-      }
-      return null;
+      if (res.data.code === 0) return res.data.data;
+      throw new Error(res.data.msg);
     },
   });
+
+  useEffect(() => {
+    if (proxyConfig) {
+      setProxyForm(proxyConfig);
+    }
+  }, [proxyConfig]);
 
   const [shouldTest, setShouldTest] = useState(false);
   const { data: connectivityData, isLoading: isTesting, error: connectivityError } = useQuery({

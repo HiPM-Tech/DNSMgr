@@ -1,4 +1,4 @@
-﻿{
+{
   "code": "en",
   "label": "English",
   "messages": {
@@ -74,7 +74,67 @@
       "custom": "Custom",
       "expand": "Expand",
       "collapse": "Collapse",
-      "auto": "Auto"
+      "auto": "Auto",
+      "yes": "Yes",
+      "no": "No",
+      "success": "Success",
+      "failed": "Failed",
+      "warning": "Warning",
+      "info": "Info",
+      "confirm": "Confirm",
+      "confirmDelete": "Confirm Delete",
+      "confirmDeleteDesc": "This action cannot be undone. Continue?",
+      "copy": "Copy",
+      "copySuccess": "Copied",
+      "copyFailed": "Failed to copy",
+      "submit": "Submit",
+      "saved": "Saved",
+      "remove": "Remove",
+      "close": "Close",
+      "open": "Open",
+      "view": "View",
+      "download": "Download",
+      "upload": "Upload",
+      "import": "Import",
+      "export": "Export",
+      "filter": "Filter",
+      "sort": "Sort",
+      "ascending": "Ascending",
+      "descending": "Descending",
+      "more": "More",
+      "less": "Less",
+      "details": "Details",
+      "overview": "Overview",
+      "general": "General",
+      "advanced": "Advanced",
+      "basic": "Basic",
+      "optional": "Optional",
+      "required": "Required",
+      "description": "Description",
+      "none": "None",
+      "all": "All",
+      "selected": "Selected",
+      "unselected": "Unselected",
+      "active": "Active",
+      "inactive": "Inactive",
+      "pending": "Pending",
+      "processing": "Processing",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "expired": "Expired",
+      "valid": "Valid",
+      "invalid": "Invalid",
+      "available": "Available",
+      "unavailable": "Unavailable",
+      "visible": "Visible",
+      "hidden": "Hidden",
+      "public": "Public",
+      "private": "Private",
+      "internal": "Internal",
+      "external": "External",
+      "manual": "Manual",
+      "previous": "Previous",
+      "next": "Next"
     },
     "nav": {
       "settings": "Settings"
@@ -131,7 +191,12 @@
       "enterBackupCode": "Enter backup code",
       "useAuthCode": "Use verification code",
       "backupCode": "Backup code",
-      "authCode": "Verification code"
+      "authCode": "Verification code",
+      "authCodeRequired": "Please enter verification code",
+      "backupCodeRequired": "Please enter backup code",
+      "rememberMe": "Remember me",
+      "trustDevice": "Trust this device",
+      "trustDeviceDays": "No login for {days} days"
     },
     "dashboard": {
       "title": "Dashboard",
@@ -419,7 +484,12 @@
       "sessionLoggedOut": "Session logged out",
       "logoutFailed": "Failed to logout session",
       "othersLoggedOut": "Other sessions logged out",
-      "logoutOthersFailed": "Failed to logout other sessions"
+      "logoutOthersFailed": "Failed to logout other sessions",
+      "disable2fa": "Disable 2FA",
+      "disable2faWarning": "Warning: Disabling two-factor authentication will reduce account security. Please enter the correct verification code to confirm this action.",
+      "disable2faSuccess": "Two-factor authentication disabled",
+      "disable2faFailed": "Failed to disable two-factor authentication",
+      "disabling": "Disabling..."
     },
     "passkeys": {
       "title": "Passkeys",
@@ -671,7 +741,18 @@
         "failover": "Failover",
         "nsMonitor": "NS Monitor",
         "renewal": "Domain Renewal"
-      }
+      },
+      "pinDomain": "Pin Domain",
+      "unpinDomain": "Unpin Domain",
+      "pinnedDomains": "Pinned Domains",
+      "whoisInfo": "WHOIS Info",
+      "whoisUpdate": "Update WHOIS",
+      "whoisUpdating": "Updating WHOIS...",
+      "whoisUpdated": "WHOIS updated",
+      "whoisUpdateFailed": "WHOIS update failed",
+      "expiryAlert": "Expiry Alert",
+      "expiryAlertDesc": "Send notification before domain expires",
+      "daysBefore": "Days before"
     },
     "tokens": {
       "title": "API Token Management",
@@ -903,7 +984,14 @@
         "value": "Value",
         "mx": "MX Priority",
         "type": "Type"
-      }
+      },
+      "batchAdd": "Batch Add",
+      "batchAddTitle": "Batch Add Records - {name}",
+      "batchAddSuccess": "Batch add successful, {success} records added",
+      "batchAddFailed": "Batch add failed",
+      "batchParseError": "Parse error, please check format",
+      "batchPlaceholder": "One record per line. Format: host type value [TTL] [MX priority]",
+      "batchHelp": "Supports A, AAAA, CNAME, MX, TXT, SRV records"
     },
     "audit": {
       "title": "Audit Logs",

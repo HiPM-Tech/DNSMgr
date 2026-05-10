@@ -1,4 +1,4 @@
-﻿{
+{
   "code": "ja",
   "label": "日本語",
   "messages": {
@@ -25,7 +25,18 @@
       "systemVersion": "システムバージョン",
       "frontendVersion": "フロントエンドバージョン",
       "timezone": "タイムゾーン",
-      "title": "概要"
+      "title": "概要",
+      "opensource": "オープンソース引用",
+      "opensourceCategories": {
+        "icons": "アイコンライブラリ",
+        "routing": "ルーティングフレームワーク",
+        "stateData": "データ状態",
+        "framework": "フロントエンドフレームワーク",
+        "buildTool": "ビルドツール",
+        "componentLibrary": "コンポーネントライブラリ"
+      },
+      "noContributors": "貢献者データがありません",
+      "opensourceSubtitle": "このプロジェクトで使用されている主要なフロントエンドフレームワークとコンポーネントライブラリ"
     },
     "accounts": {
       "accountName": "アカウント名 *",
@@ -91,14 +102,12 @@
       "logout": "ログアウト",
       "mail": "メール",
       "name": "名前",
-      "next": "次へ",
       "no": "いいえ",
       "noData": "データなし",
       "noEmailSet": "メールが設定されていません",
       "optionalRemark": "備考（任意）",
       "permissionDenied": "アクセスが拒否されました",
       "permissionDeniedSubdomain": "サブドメインのアクセスが拒否されました",
-      "previous": "前へ",
       "provider": "プロバイダー",
       "records": "レコード",
       "redirecting": "リダイレクト中...",
@@ -132,6 +141,13 @@
       "page": "ページ",
       "perPage": "件/ページ",
       "pleaseSelect": "選択してください",
+      "default": "デフォルト",
+      "custom": "カスタム",
+      "auto": "自動",
+      "deselectAll": "選択解除",
+      "searchNoResult": "一致する機能がありません",
+      "globalSearchPlaceholder": "機能とオプションを検索",
+      "logoutConfirm": "このアカウントからサインアウトしてもよろしいですか？",
       "close": "閉じる",
       "open": "開く",
       "view": "表示",
@@ -154,10 +170,6 @@
       "basic": "基本",
       "optional": "任意",
       "required": "必須",
-      "default": "デフォルト",
-      "custom": "カスタム",
-      "auto": "自動",
-      "manual": "手動",
       "none": "なし",
       "all": "すべて",
       "selected": "選択済み",
@@ -178,7 +190,10 @@
       "public": "公開",
       "private": "非公開",
       "internal": "内部",
-      "external": "外部"
+      "external": "外部",
+      "manual": "手動",
+      "previous": "前へ",
+      "next": "次へ"
     },
     "mail": {
       "add": "レコードを追加",
@@ -287,7 +302,8 @@
       "require2FA": "2FA必須",
       "require2FADesc": "有効にすると、このユーザーはログインするために二段階認証を設定する必要があります",
       "user2FAUpdated": "ユーザーの2FA設定を更新しました",
-      "user2FAUpdateFailed": "ユーザーの2FA設定の更新に失敗しました"
+      "user2FAUpdateFailed": "ユーザーの2FA設定の更新に失敗しました",
+      "require2FASystemDisabled": "システムによって無効化されています"
     },
     "security": {
       "activeSessions": "アクティブなセッション",
@@ -316,7 +332,16 @@
       "title": "セキュリティ設定",
       "twoFactorAuth": "二段階認証",
       "twoFactorDisabled": "有効化されていません",
-      "twoFactorEnabled": "有効化されています（残り {count} 個のバックアップコード）"
+      "twoFactorEnabled": "有効化されています（残り {count} 個のバックアップコード）",
+      "downloadBackupCodes": "バックアップコードをダウンロード",
+      "disable2faSuccess": "二段階認証を無効化しました",
+      "twoFactorSystemDisabled": "システムによって無効化されています",
+      "disabling": "無効化中...",
+      "disable2fa": "2FAを無効化",
+      "disable2faFailed": "二段階認証の無効化に失敗しました",
+      "noBackupCodes": "ダウンロード可能なバックアップコードがありません",
+      "disable2faWarning": "警告：二段階認証を無効化すると、アカウントのセキュリティが低下します。この操作を確認するために正しい認証コードを入力してください。",
+      "backupCodesDownloaded": "バックアップコードをダウンロードしました"
     },
     "passkeys": {
       "add": "パスキーを追加",
@@ -479,7 +504,9 @@
         "database": "データベース",
         "notifications": "通知",
         "overview": "概要",
-        "security": "セキュリティ"
+        "security": "セキュリティ",
+        "network": "ネットワーク",
+        "access": "アクセス"
       },
       "threshold": "しきい値",
       "title": "システム管理",
@@ -519,15 +546,17 @@
       "showTunnels": "サイドバーにTunnelsを表示",
       "showTunnelsDesc": "有効にすると、サイドバーからCloudflare Tunnelsを表示・管理できます",
       "unbindOauth": "紐付け解除",
-      "updateBackgroundImage": "背景画像を更新"
+      "updateBackgroundImage": "背景画像を更新",
+      "twoFADisabledStatus": "オフ",
+      "twoFAEnabledStatus": "オン"
     },
     "domains": {
       "tabs": {
-        "list": "Domain List",
-        "listSubtitle": "Various DNS providers' domain resolution records unified management",
-        "failover": "Failover",
-        "nsMonitor": "NS Monitor",
-        "renewal": "Domain Renewal"
+        "list": "ドメインリスト",
+        "listSubtitle": "各種DNSプロバイダーのドメイン解決レコードを統合管理",
+        "failover": "フェイルオーバー",
+        "nsMonitor": "NS監視",
+        "renewal": "ドメイン更新"
       },
       "account": "アカウント",
       "actions": "アクション",
@@ -597,7 +626,11 @@
       "expiryAlertDesc": "ドメインの期限切れ前に通知を送信",
       "daysBefore": "日前",
       "isHidden": "非表示",
-      "configureFailover": "フェイルオーバーを設定"
+      "configureFailover": "フェイルオーバーを設定",
+      "failoverSubtitle": "プライマリ/バックアップIPとヘルスチェックを設定し、障害発生時に自動的にDNSターゲットを切り替えます。",
+      "unpinDomain": "ピン留め解除",
+      "pinnedDomains": "ピン留めされたドメイン",
+      "pinDomain": "ドメインをピン留め"
     },
     "setup": {
       "adminCreateFailed": "管理者の作成に失敗しました",
@@ -687,7 +720,14 @@
       "authCode": "確認コード",
       "usernameOrEmail": "ユーザー名/メール",
       "usernameOrEmailPlaceholder": "ユーザー名またはメールを入力",
-      "title": "ログイン",
+      "logtoUnavailable": "Logtoログインが有効になっていないか、設定が不完全です",
+      "oauthUnavailable": "OAuthログインが有効になっていないか、設定が不完全です",
+      "consoleSubtitle": "HiDNS Managerを使用するにはサインインしてください。",
+      "accountHint": "HiDNS Managerを使用するにはサインインしてください。",
+      "twoFactorHint": "本人確認を続行してください。",
+      "logtoSignIn": "Logtoでサインイン",
+      "consoleTitle": "HiDNSにサインイン",
+      "title": "HiDNSにサインイン",
       "rememberMe": "ログイン状態を保持",
       "trustDevice": "このデバイスを信頼する",
       "trustDeviceDays": "{days}日間ログインを保持",
@@ -911,7 +951,9 @@
       "status": "ステータス",
       "actions": "アクション",
       "domainCount": "{count} 個のドメイン",
-      "allDomainsAllowed": "すべてのドメイン"
+      "allDomainsAllowed": "すべてのドメイン",
+      "editToken": "トークンを編集",
+      "tokenUpdated": "トークンを更新しました"
     },
     "dashboard": {
       "totalDomains": "ドメイン合計",
@@ -922,7 +964,32 @@
       "recentItems": "最新 {count} 件",
       "noRecentActivity": "最近の操作はありません",
       "title": "ダッシュボード",
-      "subtitle": "システム概要"
+      "subtitle": "システム概要",
+      "eventsLogged": "最近のイベント {count} 件",
+      "providerDistributionDesc": "プロバイダータイプ別にグループ化されたDNSアカウント",
+      "noProviders": "プロバイダーアカウントはまだありません",
+      "topDomains": "ドメインレコードランキング",
+      "panelSubtitle": "接続されたDNSアカウント、ドメイン、レコード、および最近の監査アクティビティのリアルタイム概要。",
+      "activityMix": "アクティビティ分布",
+      "providerDistribution": "プロバイダー分布",
+      "topDomainsDesc": "レコード数が最も多いドメイン",
+      "rankByRecords": "レコード数順",
+      "recordedDomains": "レコードあり",
+      "recordsPerDomain": "ドメインあたりのレコード数",
+      "metricDomainsDesc": "ドメインインベントリ",
+      "domainsPerAccount": "アカウントあたりのドメイン数",
+      "resourceOverview": "リソース概要",
+      "metricUsersDesc": "利用可能なメンバー",
+      "accountCoverage": "ドメインをホストするアカウント",
+      "activityMixDesc": "最近の監査ログで最も頻繁な操作タイプ",
+      "recentOperationsDesc": "プラットフォーム全体の最新監査イベント",
+      "noDomains": "ドメインデータがありません",
+      "activeUserRatio": "アクティブユーザーの比率",
+      "metricAccountsDesc": "接続されたプロバイダー",
+      "panelTitle": "DNSリソースダッシュボード",
+      "metricRecordsDesc": "DNSレコード合計",
+      "resourceOverviewDesc": "現在のDNSリソースのカバレッジと密度",
+      "recordShare": "レコードシェア"
     },
     "settings": {
       "profile": "プロフィール",
@@ -972,7 +1039,19 @@
       "showTunnels": "サイドバーにTunnelsを表示",
       "showTunnelsDesc": "有効にすると、サイドバーからCloudflare Tunnelsを表示・管理できます",
       "unbindOauth": "紐付け解除",
-      "updateBackgroundImage": "背景画像を更新"
+      "updateBackgroundImage": "背景画像を更新",
+      "scaleLarge": "大",
+      "avatarImageHint": "任意の画像URLをサポート。空の場合はメールのGravatarを使用します。",
+      "updateAvatarImage": "アバターを更新",
+      "scaleSmall": "小",
+      "displayScaleDesc": "コンソール全体の表示サイズを制御します。小さいサイズは90%です。",
+      "avatarImageUrl": "アバターURL",
+      "avatarImagePlaceholder": "アバター画像URLを入力",
+      "avatarImageUpdated": "アバターを更新しました",
+      "avatarImageUpdateFailed": "アバターの更新に失敗しました",
+      "displayScale": "インターフェーススケール",
+      "profileTitle": "プロフィール設定",
+      "profileSubtitle": "ニックネーム、メール、アカウント表示情報を管理"
     },
     "nsMonitor": {
       "title": "NS監視",
@@ -1132,6 +1211,9 @@
       "selectAll": "すべて選択",
       "selectDomainsToAdd": "追加するドメインを選択（{count}個選択）",
       "expires": "有効期限"
-    }
+    },
+    "nav": {
+        "settings": "設定"
+      }
   }
 }
