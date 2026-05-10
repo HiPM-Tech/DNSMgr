@@ -185,6 +185,19 @@ router.put('/user/prefs', authMiddleware, asyncHandler(async (req: Request, res:
   }
 
   log.info('NSMonitor', 'User preferences updated', { userId, updates });
+  
+  // 推送 WebSocket 消息
+  try {
+    wsService.broadcast({
+      type: 'ns_monitor_prefs_updated',
+      data: {
+        userId,
+      },
+    });
+  } catch (error) {
+    log.error('NSMonitor', 'Failed to broadcast ns_monitor_prefs_updated event', { error });
+  }
+  
   res.json({ success: true, msg: 'Preferences updated successfully' });
 }));
 
@@ -301,6 +314,9 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
 
   log.info('NSMonitor', 'Monitor created', { domainId: domain_id, userId, monitorId: id });
 
+  // 获取完整的监测配置数据用于 WebSocket 推送
+  const newMonitor = await NSMonitorOperations.getById(id, userId);
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -309,6 +325,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
         monitorId: id,
         domainId: domain_id,
         userId,
+        monitor: newMonitor,
       },
     });
   } catch (error) {
@@ -355,6 +372,9 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
 
   log.info('NSMonitor', 'Monitor updated', { monitorId: id, userId, updates });
   
+  // 获取更新后的完整监测配置数据用于 WebSocket 推送
+  const updatedMonitor = await NSMonitorOperations.getById(parseInt(id), userId);
+  
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -362,6 +382,7 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       data: {
         monitorId: parseInt(id),
         userId,
+        monitor: updatedMonitor,
       },
     });
   } catch (error) {

@@ -228,6 +228,9 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
     }
     await logAuditOperation(req.user!.userId, 'add_record', access.domain.name, { name, type, value }, req);
     
+    // 获取新创建的记录数据用于 WebSocket 推送
+    const newRecord = await dnsAdapter.getDomainRecordInfo(recordId);
+    
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -237,6 +240,7 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
           domainId,
           host: name,
           type,
+          record: newRecord,
         },
       });
     } catch (error) {

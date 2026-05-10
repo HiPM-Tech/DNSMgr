@@ -23,15 +23,16 @@ import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { toBoolean, toString } from '../../utils/typeConverters';
 
 interface NSMonitorConfig {
   id: number;
   domain_id: number;
   domain_name: string;
   expected_ns: string;
-  enabled: boolean;
-  notify_email: boolean;
-  notify_channels: boolean;
+  enabled: boolean | number | string; // Backend may return 0/1 for SQLite/MySQL
+  notify_email: boolean | number | string;
+  notify_channels: boolean | number | string;
   current_ns?: string | number;
   encrypted_ns?: string | string[];
   plain_ns?: string | string[];
@@ -71,9 +72,30 @@ export function NSMonitorTab() {
     pollingInterval: 60000,
   });
 
+  useRealtimeData({
+    queryKey: ['ns-monitor-user-prefs'],
+    websocketEventTypes: ['ns_monitor_prefs_updated'],
+    pollingInterval: 60000,
+  });
+
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],
-    queryFn: () => nsMonitorApi.list().then((r) => r.data.data || []),
+    queryFn: () => nsMonitorApi.list().then((r) => {
+      console.log('NSMonitor API Response:', r.data.data);
+      if (r.data.data && Array.isArray(r.data.data)) {
+        r.data.data.forEach((config: any) => {
+          console.log('Config item:', {
+            id: config.id,
+            domain_name: config.domain_name,
+            enabled: config.enabled,
+            enabledType: typeof config.enabled,
+            notify_email: config.notify_email,
+            notify_emailType: typeof config.notify_email,
+          });
+        });
+      }
+      return r.data.data || [];
+    }),
     retry: 1,
     retryDelay: 1000,
     staleTime: 30000,
@@ -187,18 +209,22 @@ export function NSMonitorTab() {
     return value.split(',').map((item) => item.trim()).filter(Boolean);
   };
 
-  const safeToString = (value: any): string => {
-    if (value === undefined || value === null) return '';
-    return String(value);
-  };
-
   // Sync edit form data when selectedConfig changes
   useEffect(() => {
     if (selectedConfig) {
+      console.log('Edit Form Data Sync:', {
+        id: selectedConfig.id,
+        enabled: selectedConfig.enabled,
+        enabledType: typeof selectedConfig.enabled,
+        notify_email: selectedConfig.notify_email,
+        notify_emailType: typeof selectedConfig.notify_email,
+        notify_channels: selectedConfig.notify_channels,
+        notify_channelsType: typeof selectedConfig.notify_channels,
+      });
       setEditExpectedNs(String(selectedConfig.expected_ns || ''));
-      setEditEnabled(Boolean(selectedConfig.enabled));
-      setEditNotifyEmail(Boolean(userPrefs?.notify_email ?? selectedConfig.notify_email));
-      setEditNotifyChannels(Boolean(userPrefs?.notify_channels ?? selectedConfig.notify_channels));
+      setEditEnabled(toBoolean(selectedConfig.enabled));
+      setEditNotifyEmail(toBoolean(userPrefs?.notify_email ?? selectedConfig.notify_email));
+      setEditNotifyChannels(toBoolean(userPrefs?.notify_channels ?? selectedConfig.notify_channels));
     }
   }, [selectedConfig?.id, selectedConfig?.expected_ns, selectedConfig?.enabled, selectedConfig?.notify_email, selectedConfig?.notify_channels, userPrefs]);
 
@@ -311,20 +337,25 @@ export function NSMonitorTab() {
     {
       key: 'enabled',
       label: t('nsMonitor.monitoring'),
-      render: (row: NSMonitorConfig) => (
-        <Switch
-          value={Boolean(row.enabled)}
-          loading={updateMutation.isPending}
-          onChange={() => handleToggleEnabled(row)}
-        />
-      ),
+      render: (row: NSMonitorConfig) => {
+        const isEnabled = toBoolean(row.enabled);
+        console.log('NSMonitor Switch Debug:', { id: row.id, enabled: row.enabled, type: typeof row.enabled, converted: isEnabled });
+        return (
+          <Switch
+            value={isEnabled}
+            customValue={[true, false]}
+            loading={updateMutation.isPending}
+            onChange={() => handleToggleEnabled(row)}
+          />
+        );
+      },
     },
     {
       key: 'notifications',
       label: t('nsMonitor.notifications'),
       render: (row: NSMonitorConfig) => {
-        const hasEmail = Boolean(userPrefs?.notify_email ?? row.notify_email);
-        const hasChannels = Boolean(userPrefs?.notify_channels ?? row.notify_channels);
+        const hasEmail = toBoolean(userPrefs?.notify_email ?? row.notify_email);
+        const hasChannels = toBoolean(userPrefs?.notify_channels ?? row.notify_channels);
         if (!hasEmail && !hasChannels) return <span className="page-muted">-</span>;
         return (
           <Space size="small">

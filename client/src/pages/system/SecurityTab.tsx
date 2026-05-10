@@ -15,6 +15,7 @@ import { settingsApi, securityApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { toBoolean, toString, toNumber } from '../../utils/typeConverters';
 
 export function SecurityTab() {
   const { t } = useI18n();
@@ -56,14 +57,14 @@ export function SecurityTab() {
   useEffect(() => {
     if (smtpConfig) {
       setSmtpForm({
-        enabled: Boolean(smtpConfig.enabled),
-        host: String(smtpConfig.host ?? ''),
-        port: Number(smtpConfig.port ?? 587),
-        secure: Boolean(smtpConfig.secure),
-        username: String(smtpConfig.username ?? ''),
-        password: String(smtpConfig.password ?? ''),
-        fromEmail: String(smtpConfig.fromEmail ?? ''),
-        fromName: String(smtpConfig.fromName ?? 'HiDNS'),
+        enabled: toBoolean(smtpConfig.enabled),
+        host: toString(smtpConfig.host),
+        port: toNumber(smtpConfig.port, 587),
+        secure: toBoolean(smtpConfig.secure),
+        username: toString(smtpConfig.username),
+        password: toString(smtpConfig.password),
+        fromEmail: toString(smtpConfig.fromEmail),
+        fromName: toString(smtpConfig.fromName, 'HiDNS'),
         testTo: '',
       });
     }

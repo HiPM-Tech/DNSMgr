@@ -10,6 +10,7 @@ import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { toBoolean, toString, toNumber } from '../../utils/typeConverters';
 
 function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () => void }) {
   const qc = useQueryClient();
@@ -37,13 +38,13 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
 
   useEffect(() => {
     if (data?.config) {
-      setPrimaryIp(String(data.config.primaryIp ?? ''));
+      setPrimaryIp(toString(data.config.primaryIp));
       setBackupIps(Array.isArray(data.config.backupIps) ? data.config.backupIps.map(String) : []);
-      setCheckMethod(String(data.config.checkMethod ?? 'http') as 'http' | 'tcp' | 'ping');
-      setCheckInterval(Number(data.config.checkInterval ?? 300));
-      setCheckPort(Number(data.config.checkPort ?? 80));
-      setCheckPath(String(data.config.checkPath ?? ''));
-      setAutoSwitchBack(Boolean(data.config.autoSwitchBack));
+      setCheckMethod(toString(data.config.checkMethod, 'http') as 'http' | 'tcp' | 'ping');
+      setCheckInterval(toNumber(data.config.checkInterval, 300));
+      setCheckPort(toNumber(data.config.checkPort, 80));
+      setCheckPath(toString(data.config.checkPath));
+      setAutoSwitchBack(toBoolean(data.config.autoSwitchBack));
     }
   }, [data]);
 

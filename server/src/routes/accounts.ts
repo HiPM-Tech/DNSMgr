@@ -176,14 +176,16 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     team_id: team_id ?? null
   });
   
+  // 获取完整的账户数据用于 WebSocket 推送
+  const newAccount = await DnsAccountOperations.getById(id);
+  
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
       type: 'account_created',
       data: {
         accountId: id,
-        name,
-        type: normalizedType,
+        account: newAccount,
       },
     });
   } catch (error) {
@@ -344,13 +346,16 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   
   await DnsAccountOperations.update(id, updates);
   
+  // 获取更新后的完整账户数据用于 WebSocket 推送
+  const updatedAccount = await DnsAccountOperations.getById(id);
+  
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
       type: 'account_updated',
       data: {
         accountId: id,
-        name: name ?? account.name,
+        account: updatedAccount,
       },
     });
   } catch (error) {

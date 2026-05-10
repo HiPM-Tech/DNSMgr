@@ -5,6 +5,7 @@ import { CheckCircleIcon, CloseCircleIcon, ErrorCircleIcon, InternetIcon, PlayCi
 import { networkApi, type ConnectivityResult } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
+import { toBoolean, toString, toNumber } from '../../utils/typeConverters';
 
 interface ProxyConfig {
   enabled: boolean;
@@ -40,12 +41,12 @@ export function NetworkTab() {
   useEffect(() => {
     if (proxyConfig) {
       setProxyForm({
-        enabled: Boolean(proxyConfig.enabled),
-        type: String(proxyConfig.type ?? 'http') as 'socks5' | 'http',
-        host: String(proxyConfig.host ?? ''),
-        port: Number(proxyConfig.port ?? 0),
-        username: String(proxyConfig.username ?? ''),
-        password: String(proxyConfig.password ?? ''),
+        enabled: toBoolean(proxyConfig.enabled),
+        type: toString(proxyConfig.type, 'http') as 'socks5' | 'http',
+        host: toString(proxyConfig.host),
+        port: toNumber(proxyConfig.port, 8080),
+        username: toString(proxyConfig.username),
+        password: toString(proxyConfig.password),
       });
     }
   }, [proxyConfig?.host, proxyConfig?.port, proxyConfig?.type, proxyConfig?.enabled, proxyConfig?.username, proxyConfig?.password]);

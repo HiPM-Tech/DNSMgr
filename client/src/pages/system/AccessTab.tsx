@@ -5,6 +5,7 @@ import { BrowseIcon, BrowseOffIcon, CopyIcon, LockOnIcon, SecuredIcon, SettingIc
 import { settingsApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
+import { toBoolean, toString } from '../../utils/typeConverters';
 
 export function AccessTab() {
   const { t } = useI18n();
@@ -71,21 +72,21 @@ export function AccessTab() {
   useEffect(() => {
     if (logtoConfig) {
       setLogtoForm({
-        enabled: Boolean(logtoConfig.enabled),
-        template: String(logtoConfig.template ?? 'logto') as 'generic' | 'logto',
-        providerName: String(logtoConfig.providerName ?? 'Logto'),
-        subjectKey: String(logtoConfig.subjectKey ?? 'sub'),
-        emailKey: String(logtoConfig.emailKey ?? 'email'),
-        logtoDomain: String(logtoConfig.logtoDomain ?? ''),
-        clientId: String(logtoConfig.clientId ?? ''),
-        clientSecret: String(logtoConfig.clientSecret ?? ''),
-        issuer: String(logtoConfig.issuer ?? ''),
-        authorizationEndpoint: String(logtoConfig.authorizationEndpoint ?? ''),
-        tokenEndpoint: String(logtoConfig.tokenEndpoint ?? ''),
-        userInfoEndpoint: String(logtoConfig.userInfoEndpoint ?? ''),
-        jwksUri: String(logtoConfig.jwksUri ?? ''),
-        scopes: String(logtoConfig.scopes ?? 'openid profile email'),
-        redirectUri: String(logtoConfig.redirectUri ?? ''),
+        enabled: toBoolean(logtoConfig.enabled),
+        template: toString(logtoConfig.template, 'logto') as 'generic' | 'logto',
+        providerName: toString(logtoConfig.providerName, 'Logto'),
+        subjectKey: toString(logtoConfig.subjectKey, 'sub'),
+        emailKey: toString(logtoConfig.emailKey, 'email'),
+        logtoDomain: toString(logtoConfig.logtoDomain),
+        clientId: toString(logtoConfig.clientId),
+        clientSecret: toString(logtoConfig.clientSecret),
+        issuer: toString(logtoConfig.issuer),
+        authorizationEndpoint: toString(logtoConfig.authorizationEndpoint),
+        tokenEndpoint: toString(logtoConfig.tokenEndpoint),
+        userInfoEndpoint: toString(logtoConfig.userInfoEndpoint),
+        jwksUri: toString(logtoConfig.jwksUri),
+        scopes: toString(logtoConfig.scopes, 'openid profile email'),
+        redirectUri: toString(logtoConfig.redirectUri),
       });
     }
   }, [logtoConfig]);
@@ -93,21 +94,21 @@ export function AccessTab() {
   useEffect(() => {
     if (oauthConfigData) {
       setOauthForm({
-        enabled: Boolean(oauthConfigData.enabled),
-        template: String(oauthConfigData.template ?? 'generic') as 'generic' | 'logto',
-        providerName: String(oauthConfigData.providerName ?? 'default'),
-        subjectKey: String(oauthConfigData.subjectKey ?? 'sub'),
-        emailKey: String(oauthConfigData.emailKey ?? 'email'),
-        logtoDomain: String(oauthConfigData.logtoDomain ?? ''),
-        clientId: String(oauthConfigData.clientId ?? ''),
-        clientSecret: String(oauthConfigData.clientSecret ?? ''),
-        issuer: String(oauthConfigData.issuer ?? ''),
-        authorizationEndpoint: String(oauthConfigData.authorizationEndpoint ?? ''),
-        tokenEndpoint: String(oauthConfigData.tokenEndpoint ?? ''),
-        userInfoEndpoint: String(oauthConfigData.userInfoEndpoint ?? ''),
-        jwksUri: String(oauthConfigData.jwksUri ?? ''),
-        scopes: String(oauthConfigData.scopes ?? 'openid profile email'),
-        redirectUri: String(oauthConfigData.redirectUri ?? ''),
+        enabled: toBoolean(oauthConfigData.enabled),
+        template: toString(oauthConfigData.template, 'generic') as 'generic' | 'logto',
+        providerName: toString(oauthConfigData.providerName, 'default'),
+        subjectKey: toString(oauthConfigData.subjectKey, 'sub'),
+        emailKey: toString(oauthConfigData.emailKey, 'email'),
+        logtoDomain: toString(oauthConfigData.logtoDomain),
+        clientId: toString(oauthConfigData.clientId),
+        clientSecret: toString(oauthConfigData.clientSecret),
+        issuer: toString(oauthConfigData.issuer),
+        authorizationEndpoint: toString(oauthConfigData.authorizationEndpoint),
+        tokenEndpoint: toString(oauthConfigData.tokenEndpoint),
+        userInfoEndpoint: toString(oauthConfigData.userInfoEndpoint),
+        jwksUri: toString(oauthConfigData.jwksUri),
+        scopes: toString(oauthConfigData.scopes, 'openid profile email'),
+        redirectUri: toString(oauthConfigData.redirectUri),
       });
     }
   }, [oauthConfigData]);

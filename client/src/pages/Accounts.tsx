@@ -14,6 +14,7 @@ import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+import { toBoolean, toString } from '../utils/typeConverters';
 
 function ProviderBadge({ type }: { type: string }) {
   return (
@@ -55,23 +56,16 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
     if (initial) {
       setType(initial.type);
       setName(initial.name);
-      setRemark(initial.remark || '');
-      // Handle useProxy - backend returns string values in config
-      const raw = initial.config?.useProxy;
-      if (typeof raw === 'boolean') {
-        setUseProxy(raw);
-      } else if (typeof raw === 'string') {
-        setUseProxy(raw === 'true' || raw === '1');
-      } else {
-        setUseProxy(false);
-      }
+      setRemark(toString(initial.remark));
+      // Handle useProxy - backend may return boolean, number, or string
+      setUseProxy(toBoolean(initial.config?.useProxy));
       // Convert all config values to strings for form display
       const newConfig: Record<string, string> = {};
       if (initial.config) {
         Object.keys(initial.config).forEach((key) => {
           if (key !== 'useProxy') {
             const val = initial.config![key];
-            newConfig[key] = val === null || val === undefined ? '' : String(val);
+            newConfig[key] = toString(val);
           }
         });
       }
