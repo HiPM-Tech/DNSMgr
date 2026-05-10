@@ -197,7 +197,7 @@ router.post('/jwt-secret', authMiddleware, noTokenAuth('system settings'), admin
       if (superInfo?.email) {
         await sendSmtpEmail(
           superInfo.email as string,
-          'DNSMgr Security Notice: JWT Secret Viewed',
+          'HiDNS Security Notice: JWT Secret Viewed',
           `Hello ${superInfo.username || 'admin'},\n\nYour JWT secret was viewed at ${new Date().toISOString()} by user ID ${req.user!.userId}.`
         );
       }
@@ -361,7 +361,7 @@ router.post('/smtp/test', authMiddleware, adminOnly, async (req: Request, res: R
       res.status(400).json({ code: 400, msg: 'Target email is required' });
       return;
     }
-    await sendSmtpEmail(target, 'DNSMgr SMTP Test', 'This is a test email from DNSMgr SMTP settings.');
+    await sendSmtpEmail(target, 'HiDNS SMTP Test', 'This is a test email from HiDNS SMTP settings.');
     await logAuditOperation(req.user!.userId, 'smtp_test_email', 'system', { to: target }, req);
     res.json({ code: 0, msg: 'success' });
   } catch (error) {

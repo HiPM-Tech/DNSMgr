@@ -89,9 +89,9 @@ const swaggerOptions: swaggerJsdoc.Options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'DNSMgr API',
+      title: 'HiDNS API',
       version: '1.0.0',
-      description: `DNS Aggregation Management Platform API
+      description: `HiDNS - DNS Aggregation Management Platform API
 
 ## Authentication
 
@@ -350,7 +350,7 @@ async function initializeApp() {
     wsService.initialize(server);
     
     server.listen(PORT, () => {
-      log.info('Server', `DNSMgr running on http://localhost:${PORT}`);
+      log.info('Server', `HiDNS running on http://localhost:${PORT}`);
       log.info('Server', `API Docs: http://localhost:${PORT}/api/docs`);
       if (!isInitialized) {
         log.info('Server', `Setup Wizard: http://localhost:${PORT}/setup`);
@@ -439,7 +439,7 @@ async function initializeApp() {
     wsService.initialize(server);
     
     server.listen(PORT, () => {
-      log.info('Server', `DNSMgr running on http://localhost:${PORT}`);
+      log.info('Server', `HiDNS running on http://localhost:${PORT}`);
       log.info('Server', `API Docs: http://localhost:${PORT}/api/docs`);
       log.info('Server', `Setup Wizard: http://localhost:${PORT}/setup`);
     });

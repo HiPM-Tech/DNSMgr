@@ -383,7 +383,7 @@ async function checkAndSendNotification(domain: Domain, expiresAt: Date): Promis
     if (enableNotify && (daysLeft === threshold || daysLeft === 7 || daysLeft === 1)) {
       try {
         await sendNotification(
-          `[DNSMgr] Domain Expiring Soon: ${domain.name}`,
+          `[HiDNS] Domain Expiring Soon: ${domain.name}`,
           `Your domain ${domain.name} is expiring in ${daysLeft} days (on ${expiresAt.toLocaleDateString()}). Please renew it soon.`
         );
         log.info('WhoisJob', `Sent expiry notification for ${domain.name} (${daysLeft} days left)`);

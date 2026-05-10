@@ -1149,7 +1149,7 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
     if (user) {
       const code = String(Math.floor(100000 + Math.random() * 900000));
       resetStore.set(normalized, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
-      await sendSmtpEmail(normalized, 'DNSMgr Password Reset Code', `Hi ${user.username},\n\nYour password reset code is: ${code}\nThis code will expire in 10 minutes.`);
+      await sendSmtpEmail(normalized, 'HiDNS Password Reset Code', `Hi ${user.username},\n\nYour password reset code is: ${code}\nThis code will expire in 10 minutes.`);
       await logAuditOperation(user.id as number, 'send_password_reset_code', 'system', { email: normalized });
     }
     res.json({ code: 0, msg: 'success' });

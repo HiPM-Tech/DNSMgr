@@ -22,7 +22,7 @@ const DEFAULT_SMTP_CONFIG: SmtpConfig = {
   username: '',
   password: '',
   fromEmail: '',
-  fromName: 'DNSMgr',
+  fromName: 'HiDNS',
 };
 
 function parseConfig(raw: unknown): SmtpConfig {
@@ -37,7 +37,7 @@ function parseConfig(raw: unknown): SmtpConfig {
       username: String(parsed.username || ''),
       password: String(parsed.password || ''),
       fromEmail: String(parsed.fromEmail || ''),
-      fromName: String(parsed.fromName || 'DNSMgr'),
+      fromName: String(parsed.fromName || 'HiDNS'),
     };
   } catch {
     return DEFAULT_SMTP_CONFIG;

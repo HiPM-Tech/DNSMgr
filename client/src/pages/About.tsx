@@ -36,15 +36,15 @@ export function About() {
   const frontendVersion = import.meta.env.VITE_APP_VERSION || '1.0.0 Open';
 
   // Repository and community links
-  const repoUrl = 'https://github.com/HiPM-Tech/DNSMgr';
-  const telegramGroup = 'https://t.me/hipmdnsmgr';
+  const repoUrl = 'https://github.com/HiPM-Tech/HiDNS';
+  const telegramGroup = 'https://t.me/HiDNSManager';
   const license = 'GPL-3.0';
 
   // Fetch contributors from GitHub API
   const { data: contributors = [], isLoading: contributorsLoading } = useQuery<Contributor[]>({
     queryKey: ['github-contributors'],
     queryFn: async () => {
-      const res = await fetch('https://api.github.com/repos/HiPM-Tech/DNSMgr/contributors?per_page=100');
+      const res = await fetch('https://api.github.com/repos/HiPM-Tech/HiDNS/contributors?per_page=100');
       if (!res.ok) throw new Error('Failed to fetch contributors');
       const data = await res.json();
       return data.map((contributor: any) => ({
@@ -214,7 +214,7 @@ export function About() {
             <MessageCircle className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-cyan-600" />
             <div className="flex-1">
               <div className="text-sm font-medium text-gray-900 dark:text-white">Telegram Group</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">@hipmdnsmgr</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">@HiDNSManager</div>
             </div>
             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0 0L10 14" />

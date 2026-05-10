@@ -231,7 +231,7 @@ async function sendNsAlert(
     'poisoned': 'DNS 污染检测',
   };
   const alertTypeText = alertTypeMap[status] || 'NS 异常';
-  const title = `【DNSMgr 告警】${monitor.domain_name} ${alertTypeText}`;
+  const title = `【HiDNS 告警】${monitor.domain_name} ${alertTypeText}`;
 
   let message = `域名: ${monitor.domain_name}\n` +
     `告警类型: ${alertTypeText}\n` +

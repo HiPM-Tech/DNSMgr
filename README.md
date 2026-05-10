@@ -1,4 +1,4 @@
-# DNSMgr - DNS Aggregation Management Platform
+# HiDNS - DNS Aggregation Management Platform
 
 A modern DNS aggregation management platform built with React + TailwindCSS (frontend) and Node.js + TypeScript (backend).
 

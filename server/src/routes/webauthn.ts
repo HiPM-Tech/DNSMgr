@@ -13,7 +13,7 @@ const loginChallengeStore = new Map<number, string>(); // user_id -> challenge
 (global as any).loginChallengeStore = loginChallengeStore;
 
 // Ensure RP name and ID match your deployment
-const rpName = 'DNSMgr';
+const rpName = 'HiDNS';
 const rpID = process.env.WEBAUTHN_RP_ID || 'localhost';
 const origin = process.env.WEBAUTHN_ORIGIN || `http://${rpID}:3000`; // Modify accordingly in prod
 
