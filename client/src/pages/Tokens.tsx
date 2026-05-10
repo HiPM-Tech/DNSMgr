@@ -375,7 +375,7 @@ export function Tokens() {
     <Form layout="vertical" colon={false} requiredMark={false} className="page-shell token-form" onSubmit={({ e }: any) => { e?.preventDefault(); mode === 'create' ? handleCreate() : handleUpdate(); }}>
       <Form.FormItem label={t('tokens.tokenName')}>
         <Input
-          value={formData.name}
+          value={String(formData.name)}
           onChange={(value: any) => setFormData((data) => ({ ...data, name: String(value) }))}
           placeholder={t('tokens.tokenNamePlaceholder')}
         />
@@ -392,7 +392,7 @@ export function Tokens() {
             enableTimePicker
             format="YYYY-MM-DD HH:mm:ss"
             valueType="YYYY-MM-DD HH:mm:ss"
-            value={formData.start_time}
+            value={String(formData.start_time)}
             onChange={(value: any) => setFormData((data) => ({ ...data, start_time: String(value ?? '') }))}
           />
         </Form.FormItem>
@@ -403,7 +403,7 @@ export function Tokens() {
             disabled={formData.no_expiry}
             format="YYYY-MM-DD HH:mm:ss"
             valueType="YYYY-MM-DD HH:mm:ss"
-            value={formData.end_time}
+            value={String(formData.end_time)}
             onChange={(value: any) => setFormData((data) => ({ ...data, end_time: String(value ?? ''), no_expiry: false }))}
           />
         </Form.FormItem>

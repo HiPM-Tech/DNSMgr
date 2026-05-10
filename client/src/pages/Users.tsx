@@ -49,20 +49,20 @@ function UserCreateForm({ roleOptions, isPending, onSubmit }: UserCreateFormProp
   return (
     <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
       <Form.FormItem label={t('users.nicknameRequired')}>
-        <Input clearable value={nickname} onChange={(value: any) => setNickname(String(value))} placeholder={t('users.nicknamePlaceholder')} />
+        <Input clearable value={String(nickname)} onChange={(value: any) => setNickname(String(value))} placeholder={t('users.nicknamePlaceholder')} />
       </Form.FormItem>
       <Form.FormItem
         label={t('users.usernameRequired')}
         status={usernameInvalid ? 'error' : undefined}
         tips={usernameInvalid ? t('users.usernameInvalid') : t('users.usernameHelp')}
       >
-        <Input clearable value={username} onChange={(value: any) => setUsername(String(value))} placeholder={t('users.usernamePlaceholder')} status={usernameInvalid ? 'error' : undefined} />
+        <Input clearable value={String(username)} onChange={(value: any) => setUsername(String(value))} placeholder={t('users.usernamePlaceholder')} status={usernameInvalid ? 'error' : undefined} />
       </Form.FormItem>
       <Form.FormItem label={t('users.email')}>
-        <Input clearable type="text" value={email} onChange={(value: any) => setEmail(String(value))} placeholder={t('users.emailPlaceholder')} />
+        <Input clearable type="text" value={String(email)} onChange={(value: any) => setEmail(String(value))} placeholder={t('users.emailPlaceholder')} />
       </Form.FormItem>
       <Form.FormItem label={t('users.password')}>
-        <Input type="password" value={password} onChange={(value: any) => setPassword(String(value))} placeholder={t('users.passwordPlaceholder')} />
+        <Input type="password" value={String(password)} onChange={(value: any) => setPassword(String(value))} placeholder={t('users.passwordPlaceholder')} />
       </Form.FormItem>
       <Form.FormItem label={t('users.role')}>
         <Select
@@ -164,16 +164,16 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
     <Modal title={t('users.editUser')} onClose={onClose} size="sm">
       <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
         <Form.FormItem label={t('users.nickname')}>
-          <Input clearable value={nickname} onChange={(value: any) => setNickname(String(value))} />
+          <Input clearable value={String(nickname)} onChange={(value: any) => setNickname(String(value))} />
         </Form.FormItem>
         <Form.FormItem label={t('users.username')}>
           <span className="page-strong">{user.username}</span>
         </Form.FormItem>
         <Form.FormItem label={t('users.email')}>
-          <Input clearable value={email} onChange={(value: any) => setEmail(String(value))} />
+          <Input clearable value={String(email)} onChange={(value: any) => setEmail(String(value))} />
         </Form.FormItem>
         <Form.FormItem label={t('users.newPassword')}>
-          <Input type="password" value={password} onChange={(value: any) => setPassword(String(value))} placeholder={t('users.newPasswordPlaceholder')} />
+          <Input type="password" value={String(password)} onChange={(value: any) => setPassword(String(value))} placeholder={t('users.newPasswordPlaceholder')} />
         </Form.FormItem>
         <Form.FormItem label={t('users.role')}>
           <Select

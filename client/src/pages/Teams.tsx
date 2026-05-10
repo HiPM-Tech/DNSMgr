@@ -355,10 +355,10 @@ export function Teams() {
         <Modal title={t('teams.createTeam')} onClose={() => setShowCreate(false)} size="sm">
           <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submitTeamForm('create'); }}>
             <Form.FormItem label={t('teams.teamName')}>
-              <Input value={teamForm.name} onChange={(value: any) => setTeamForm((form) => ({ ...form, name: String(value) }))} placeholder={t('teams.teamNamePlaceholder')} />
+              <Input value={String(teamForm.name)} onChange={(value: any) => setTeamForm((form) => ({ ...form, name: String(value) }))} placeholder={t('teams.teamNamePlaceholder')} />
             </Form.FormItem>
             <Form.FormItem label={t('teams.description')}>
-              <Input value={teamForm.description} onChange={(value: any) => setTeamForm((form) => ({ ...form, description: String(value) }))} placeholder={t('teams.descriptionPlaceholder')} />
+              <Input value={String(teamForm.description)} onChange={(value: any) => setTeamForm((form) => ({ ...form, description: String(value) }))} placeholder={t('teams.descriptionPlaceholder')} />
             </Form.FormItem>
             <Space className="record-form__actions">
               <Button type="submit" theme="primary" loading={createMutation.isPending}>
@@ -373,10 +373,10 @@ export function Teams() {
         <Modal title={t('teams.editTeam')} onClose={() => setEditTeam(null)} size="sm">
           <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submitTeamForm('edit'); }}>
             <Form.FormItem label={t('teams.teamName')}>
-              <Input value={teamForm.name} onChange={(value: any) => setTeamForm((form) => ({ ...form, name: String(value) }))} />
+              <Input value={String(teamForm.name)} onChange={(value: any) => setTeamForm((form) => ({ ...form, name: String(value) }))} />
             </Form.FormItem>
             <Form.FormItem label={t('teams.description')}>
-              <Input value={teamForm.description} onChange={(value: any) => setTeamForm((form) => ({ ...form, description: String(value) }))} />
+              <Input value={String(teamForm.description)} onChange={(value: any) => setTeamForm((form) => ({ ...form, description: String(value) }))} />
             </Form.FormItem>
             <Space className="record-form__actions">
               <Button type="submit" theme="primary" loading={updateMutation.isPending}>
@@ -443,7 +443,7 @@ export function Teams() {
                     ]}
                     onChange={(value: any) => setTeamPermPermission(selectToPermission(value))}
                   />
-                  <Input value={teamPermSub} onChange={(value: any) => setTeamPermSub(String(value))} placeholder={t('teams.subdomainPlaceholder')} />
+                  <Input value={String(teamPermSub)} onChange={(value: any) => setTeamPermSub(String(value))} placeholder={t('teams.subdomainPlaceholder')} />
                   <Button theme="primary" loading={addTeamDomainPermissionMutation.isPending} onClick={addTeamPermission}>
                     {t('teams.addPermission')}
                   </Button>
@@ -458,7 +458,7 @@ export function Teams() {
       {showAddMember && viewTeam && (
         <Modal title={t('teams.addTeamMember')} onClose={() => { setShowAddMember(false); setMemberSearch(''); }} size="sm">
           <div className="page-shell">
-            <Input clearable value={memberSearch} onChange={(value: any) => setMemberSearch(String(value))} placeholder={t('teams.searchUsers')} />
+            <Input clearable value={String(memberSearch)} onChange={(value: any) => setMemberSearch(String(value))} placeholder={t('teams.searchUsers')} />
             {filteredUsers.length === 0 ? (
               <Empty description={t('teams.noUsersAvailable')} />
             ) : (
@@ -503,7 +503,7 @@ export function Teams() {
                   ]}
                   onChange={(value: any) => setMemberPermPermission(selectToPermission(value))}
                 />
-                <Input value={memberPermSub} onChange={(value: any) => setMemberPermSub(String(value))} placeholder={t('teams.subdomainPlaceholder')} />
+                <Input value={String(memberPermSub)} onChange={(value: any) => setMemberPermSub(String(value))} placeholder={t('teams.subdomainPlaceholder')} />
                 <Button theme="primary" loading={addMemberDomainPermissionMutation.isPending} onClick={addMemberPermission}>
                   {t('teams.addPermission')}
                 </Button>

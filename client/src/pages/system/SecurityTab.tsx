@@ -57,7 +57,7 @@ export function SecurityTab() {
     if (smtpConfig) {
       setSmtpForm((prev) => ({ ...prev, ...smtpConfig }));
     }
-  }, [smtpConfig?.host]);
+  }, [smtpConfig]);
 
   const { data: loginLimitConfig } = useQuery({
     queryKey: ['login-limit-config'],
@@ -357,22 +357,22 @@ export function SecurityTab() {
           <Form layout="vertical" colon={false} requiredMark={false}>
             <div className="notification-form-grid">
               <Form.FormItem label={t('system.smtpHost')}>
-                <Input value={smtpForm.host} onChange={(value: any) => setSmtpForm((v) => ({ ...v, host: String(value) }))} placeholder={t('system.smtpHost')} />
+                <Input value={String(smtpForm.host)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, host: String(value) }))} placeholder={t('system.smtpHost')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpPort')}>
                 <Input type="number" value={String(smtpForm.port)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, port: Number(value) || 0 }))} placeholder={t('system.smtpPort')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpUser')}>
-                <Input value={smtpForm.username} onChange={(value: any) => setSmtpForm((v) => ({ ...v, username: String(value) }))} placeholder={t('system.smtpUser')} />
+                <Input value={String(smtpForm.username)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, username: String(value) }))} placeholder={t('system.smtpUser')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpPass')}>
-                <Input type="password" value={smtpForm.password} onChange={(value: any) => setSmtpForm((v) => ({ ...v, password: String(value) }))} placeholder={t('system.smtpPass')} />
+                <Input type="password" value={String(smtpForm.password)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, password: String(value) }))} placeholder={t('system.smtpPass')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpFromEmail')}>
-                <Input value={smtpForm.fromEmail} onChange={(value: any) => setSmtpForm((v) => ({ ...v, fromEmail: String(value) }))} placeholder={t('system.smtpFromEmail')} />
+                <Input value={String(smtpForm.fromEmail)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, fromEmail: String(value) }))} placeholder={t('system.smtpFromEmail')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpFromName')}>
-                <Input value={smtpForm.fromName} onChange={(value: any) => setSmtpForm((v) => ({ ...v, fromName: String(value) }))} placeholder={t('system.smtpFromName')} />
+                <Input value={String(smtpForm.fromName)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, fromName: String(value) }))} placeholder={t('system.smtpFromName')} />
               </Form.FormItem>
             </div>
 
@@ -389,7 +389,7 @@ export function SecurityTab() {
                 {t('system.smtpSave')}
               </Button>
               <Input
-                value={smtpForm.testTo}
+                value={String(smtpForm.testTo)}
                 onChange={(value: any) => setSmtpForm((v) => ({ ...v, testTo: String(value) }))}
                 placeholder={user?.email || t('system.smtpTestTo')}
               />

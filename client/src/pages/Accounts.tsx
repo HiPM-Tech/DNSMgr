@@ -100,7 +100,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
       <Form.FormItem key={field.key} label={`${field.label}${required ? ' *' : ''}`}>
         {field.type === 'select' && field.options ? (
           <Select
-            value={value}
+            value={String(value)}
             options={[
               { label: t('common.pleaseSelect'), value: '' },
               ...field.options.map((option) => ({ label: option.label, value: option.value })),
@@ -111,7 +111,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
           <Input
             clearable
             type={field.type === 'password' && value === '***' ? 'password' : 'text'}
-            value={value}
+            value={String(value)}
             onChange={(nextValue: any) => setConfig((current) => ({ ...current, [field.key]: String(nextValue) }))}
             placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
           />
@@ -137,7 +137,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
       <Form.FormItem label={t('accounts.accountName')}>
         <Input
           clearable
-          value={name}
+          value={String(name)}
           onChange={(value: any) => setName(String(value))}
           placeholder={t('accounts.accountNamePlaceholder')}
         />
@@ -151,7 +151,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
       <Form.FormItem label={t('common.remark')}>
         <Input
           clearable
-          value={remark}
+          value={String(remark)}
           onChange={(value: any) => setRemark(String(value))}
           placeholder={t('common.optionalRemark')}
         />
