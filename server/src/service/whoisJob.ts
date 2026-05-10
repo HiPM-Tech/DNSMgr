@@ -7,6 +7,7 @@ import { log } from '../lib/logger';
 import { queryWhois, getRootDomain, WhoisResult } from './whoisProvider';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { whoisRegistry } from './whoisScheduler';
+import { normalizeDomain, areDomainsEqual } from '../utils/domain';
 
 /**
  * 将日期格式化为 MySQL 兼容的格式 (YYYY-MM-DD HH:mm:ss)
@@ -179,9 +180,9 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
  */
 async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
   try {
-    // 查找域名对应的账号
+    // 查找域名对应的账号（使用 IDN-aware 比较）
     const allDomains = await WhoisOperations.getAllDomains() as unknown as Domain[];
-    const domain = allDomains.find(d => d.name === domainName);
+    const domain = allDomains.find(d => areDomainsEqual(d.name as string, domainName));
     
     if (!domain || !domain.account_id) {
       log.debug('WhoisJob', `No account_id found for ${domainName}, skipping provider check`);

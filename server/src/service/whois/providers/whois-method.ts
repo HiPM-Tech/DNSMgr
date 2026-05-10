@@ -1,9 +1,11 @@
 /**
  * WHOIS 查询方式实现
+ * 支持国际化域名(IDN)
  */
 
 import * as net from 'net';
 import { BaseQueryMethod, QueryMethodType, WhoisResult } from './base';
+import { normalizeDomain } from '../../../utils/domain';
 
 /**
  * WHOIS 查询方式
@@ -14,16 +16,22 @@ export class WhoisMethod extends BaseQueryMethod {
 
   /**
    * 执行 WHOIS 查询
-   * @param domain 域名
+   * @param domain 域名（支持 Unicode 或 Punycode）
    * @param server WHOIS 服务器地址（host:port 或 host）
    */
   async query(domain: string, server: string): Promise<WhoisResult | null> {
     const [host, portStr] = server.split(':');
     const port = portStr ? parseInt(portStr) : 43;
 
+    // 将 Unicode 域名转换为 Punycode 进行 WHOIS 查询
+    const punycodeDomain = normalizeDomain(domain);
+
     try {
-      this.log('info', `Querying ${domain} via WHOIS ${server}`);
-      const raw = await this.whoisLookup(domain, host, port);
+      this.log('info', `Querying ${domain} via WHOIS ${server}`, {
+        originalDomain: domain,
+        punycodeDomain,
+      });
+      const raw = await this.whoisLookup(punycodeDomain, host, port);
 
       // Debug: log raw response
       this.log('debug', `WHOIS raw response for ${domain}`, { 

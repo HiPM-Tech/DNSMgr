@@ -1,11 +1,13 @@
 /**
  * RDAP 查询方式实现
+ * 支持国际化域名(IDN)
  */
 
 import * as https from 'https';
 import * as http from 'http';
 import { URL } from 'url';
 import { BaseQueryMethod, QueryMethodType, WhoisResult } from './base';
+import { normalizeDomain } from '../../../utils/domain';
 
 /**
  * RDAP 查询方式
@@ -16,16 +18,22 @@ export class RdapMethod extends BaseQueryMethod {
 
   /**
    * 执行 RDAP 查询
-   * @param domain 域名
+   * @param domain 域名（支持 Unicode 或 Punycode）
    * @param server RDAP 服务器基础 URL（如 https://rdap.example.com/）
    */
   async query(domain: string, server: string): Promise<WhoisResult | null> {
+    // 将 Unicode 域名转换为 Punycode 进行 RDAP 查询
+    const punycodeDomain = normalizeDomain(domain);
+
     // 确保 URL 以 / 结尾
     const baseUrl = server.endsWith('/') ? server : `${server}/`;
-    const url = `${baseUrl}domain/${domain}`;
+    const url = `${baseUrl}domain/${punycodeDomain}`;
 
     try {
-      this.log('info', `Querying ${domain} via RDAP ${server}`);
+      this.log('info', `Querying ${domain} via RDAP ${server}`, {
+        originalDomain: domain,
+        punycodeDomain,
+      });
       
       const data = await this.httpRequest(url);
 
