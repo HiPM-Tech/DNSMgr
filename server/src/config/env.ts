@@ -149,12 +149,12 @@ export function getDbConfig(): {
   return {
     type: dbType,
     sqlite: {
-      path: process.env.DB_PATH || './data/dnsmgr.db',
+      path: process.env.DB_PATH || './data/hidns.db',
     },
     mysql: {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '3306', 10),
-      database: process.env.DB_NAME || 'dnsmgr',
+      database: process.env.DB_NAME || 'hidns',
       user: process.env.DB_USER || 'root',
       password: process.env.DB_PASSWORD || '',
       ssl: process.env.DB_SSL === 'true',
@@ -162,7 +162,7 @@ export function getDbConfig(): {
     postgresql: {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432', 10),
-      database: process.env.DB_NAME || 'dnsmgr',
+      database: process.env.DB_NAME || 'hidns',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || '',
       ssl: process.env.DB_SSL === 'true',

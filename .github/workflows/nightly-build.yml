@@ -88,8 +88,7 @@ jobs:
           platforms: linux/amd64
           push: ${{ needs.prepare.outputs.push_enabled == 'true' }}
           tags: |
-            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-amd64
-            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.tag_prefix }}-${{ github.sha }}-amd64
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}-amd64
             ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.tag_prefix }}-amd64
           no-cache: true
           build-args: |
@@ -99,7 +98,7 @@ jobs:
       - name: Output build info
         run: |
           echo "Platform: linux/amd64"
-          echo "Tags: ${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-amd64, ${{ needs.prepare.outputs.tag_prefix }}-${{ github.sha }}-amd64, ${{ needs.prepare.outputs.tag_prefix }}-amd64"
+          echo "Tags: ${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}-amd64, ${{ needs.prepare.outputs.tag_prefix }}-amd64"
 
   build-arm64:
     name: Build ARM64
@@ -133,8 +132,7 @@ jobs:
           platforms: linux/arm64
           push: ${{ needs.prepare.outputs.push_enabled == 'true' }}
           tags: |
-            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-arm64
-            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.tag_prefix }}-${{ github.sha }}-arm64
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}-arm64
             ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.tag_prefix }}-arm64
           no-cache: true
           build-args: |
@@ -144,7 +142,7 @@ jobs:
       - name: Output build info
         run: |
           echo "Platform: linux/arm64"
-          echo "Tags: ${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}-arm64, ${{ needs.prepare.outputs.tag_prefix }}-${{ github.sha }}-arm64, ${{ needs.prepare.outputs.tag_prefix }}-arm64"
+          echo "Tags: ${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}-arm64, ${{ needs.prepare.outputs.tag_prefix }}-arm64"
 
   # ============================================================================
   # 阶段 3: 创建多架构 manifest
@@ -174,20 +172,13 @@ jobs:
         run: |
           IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
           DATE_TAG="${{ needs.prepare.outputs.date_tag }}"
-          SHA="${{ github.sha }}"
           TAG_PREFIX="${{ needs.prepare.outputs.tag_prefix }}"
 
-          # 创建日期+SHA tag 的 manifest
+          # 创建日期 tag 的 manifest
           docker buildx imagetools create \
-            --tag "${IMAGE_BASE}:${TAG_PREFIX}-${DATE_TAG}-${SHA}" \
-            "${IMAGE_BASE}:${TAG_PREFIX}-${DATE_TAG}-${SHA}-amd64" \
-            "${IMAGE_BASE}:${TAG_PREFIX}-${DATE_TAG}-${SHA}-arm64"
-
-          # 创建 SHA tag 的 manifest
-          docker buildx imagetools create \
-            --tag "${IMAGE_BASE}:${TAG_PREFIX}-${SHA}" \
-            "${IMAGE_BASE}:${TAG_PREFIX}-${SHA}-amd64" \
-            "${IMAGE_BASE}:${TAG_PREFIX}-${SHA}-arm64"
+            --tag "${IMAGE_BASE}:${TAG_PREFIX}-${DATE_TAG}" \
+            "${IMAGE_BASE}:${TAG_PREFIX}-${DATE_TAG}-amd64" \
+            "${IMAGE_BASE}:${TAG_PREFIX}-${DATE_TAG}-arm64"
 
           # 创建 ci/prci tag 的 manifest
           docker buildx imagetools create \
@@ -200,7 +191,7 @@ jobs:
       - name: Output manifest info
         run: |
           echo "Image: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
-          echo "Tags: ${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}-${{ github.sha }}, ${{ needs.prepare.outputs.tag_prefix }}-${{ github.sha }}, ${{ needs.prepare.outputs.tag_prefix }}"
+          echo "Tags: ${{ needs.prepare.outputs.tag_prefix }}-${{ needs.prepare.outputs.date_tag }}, ${{ needs.prepare.outputs.tag_prefix }}"
           echo "Platforms: linux/amd64, linux/arm64"
 
   # ============================================================================
