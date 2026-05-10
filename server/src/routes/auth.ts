@@ -390,6 +390,9 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       return;
     }
 
+    const securityPolicy = await getSecurityPolicy();
+    const twoFAValidationEnabled = Boolean(securityPolicy.require2FAGlobal);
+
     // Check 2FA
     const totpStatus = await getTOTPStatus(user.id);
     const isWebauthnEnabled = await TwoFAOperations.isWebAuthnEnabled(user.id);
@@ -397,7 +400,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     const has2FA = isTotpEnabled || isWebauthnEnabled;
     
     // 检查是否需要强制 2FA
-    const force2FA = await requires2FA(user.id);
+    const force2FA = twoFAValidationEnabled && (await requires2FA(user.id));
     const userHas2FA = await has2FAEnabled(user.id);
     
     // 如果强制 2FA 但用户未设置，要求先设置 2FA
@@ -410,7 +413,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       return;
     }
 
-    if (has2FA) {
+    if (twoFAValidationEnabled && has2FA) {
       if (backupCode) {
         const isValid = await verifyBackupCode(user.id, backupCode);
         if (!isValid) {
@@ -479,7 +482,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     
     // 如果用户选择信任设备，添加设备信任
     let deviceId: string | undefined;
-    if (trustDevice && has2FA) {
+    if (trustDevice && twoFAValidationEnabled && has2FA) {
       const deviceInfo: DeviceInfo = {
         userAgent: req.headers['user-agent'] || '',
         ipAddress: getRequestIP(req),
@@ -1143,6 +1146,7 @@ router.get('/preferences', authMiddleware, async (req: Request, res: Response) =
         notificationsEnabled: preferences.notificationsEnabled,
         emailNotifications: preferences.emailNotifications,
         backgroundImage: preferences.backgroundImage,
+        avatarImage: preferences.avatarImage,
       },
       msg: 'success',
     });
@@ -1178,12 +1182,15 @@ router.get('/preferences', authMiddleware, async (req: Request, res: Response) =
  *               backgroundImage:
  *                 type: string
  *                 description: Custom background image URL
+ *               avatarImage:
+ *                 type: string
+ *                 description: Custom avatar image URL
  *     responses:
  *       200:
  *         description: Preferences updated
  */
 router.put('/preferences', authMiddleware, async (req: Request, res: Response) => {
-  const { theme, language, notificationsEnabled, emailNotifications, backgroundImage } = req.body as Partial<UserPreferences>;
+  const { theme, language, notificationsEnabled, emailNotifications, backgroundImage, avatarImage } = req.body as Partial<UserPreferences>;
 
   try {
     const updates: Partial<UserPreferences> = {};
@@ -1192,6 +1199,7 @@ router.put('/preferences', authMiddleware, async (req: Request, res: Response) =
     if (notificationsEnabled !== undefined) updates.notificationsEnabled = notificationsEnabled;
     if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
     if (backgroundImage !== undefined) updates.backgroundImage = backgroundImage;
+    if (avatarImage !== undefined) updates.avatarImage = avatarImage;
 
     await updateUserPreferences(req.user!.userId, updates);
     await logAuditOperation(req.user!.userId, 'update_preferences', 'system', updates);

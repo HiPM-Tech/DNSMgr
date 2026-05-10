@@ -255,8 +255,8 @@ export const authApi = {
   createFailover: (id: number, data: Partial<FailoverConfig>) => api.post<ApiResponse<FailoverConfig>>(`/domains/${id}/failover`, data),
   updateFailover: (id: number, data: Partial<FailoverConfig>) => api.put<ApiResponse<FailoverConfig>>(`/domains/${id}/failover`, data),
   deleteFailover: (id: number) => api.delete<ApiResponse<null>>(`/domains/${id}/failover`),
-  getPreferences: () => api.get<ApiResponse<{ theme: string; language: string; notificationsEnabled: boolean; emailNotifications: boolean; backgroundImage?: string }>>('/auth/preferences'),
-  updatePreferences: (data: { theme?: string; language?: string; notificationsEnabled?: boolean; emailNotifications?: boolean; backgroundImage?: string }) =>
+  getPreferences: () => api.get<ApiResponse<{ theme: string; language: string; notificationsEnabled: boolean; emailNotifications: boolean; backgroundImage?: string; avatarImage?: string }>>('/auth/preferences'),
+  updatePreferences: (data: { theme?: string; language?: string; notificationsEnabled?: boolean; emailNotifications?: boolean; backgroundImage?: string; avatarImage?: string }) =>
     api.put<ApiResponse<null>>('/auth/preferences', data),
   getPinnedDomains: () => api.get<ApiResponse<{ pinnedDomains: number[] }>>('/auth/preferences/pinned-domains'),
   updatePinnedDomains: (domainIds: number[]) =>
@@ -586,9 +586,9 @@ export interface SecurityPolicy {
 export const securityApi = {
   getPolicy: () => api.get<ApiResponse<SecurityPolicy>>('/security/policy'),
   updatePolicy: (data: Partial<SecurityPolicy>) => api.put<ApiResponse<SecurityPolicy>>('/security/policy', data),
-  getUser2FARequirement: (userId: number) => api.get<ApiResponse<{ require2FA: boolean }>>(`/security/users/${userId}/require-2fa`),
+  getUser2FARequirement: (userId: number) => api.get<ApiResponse<{ require2FA: boolean; configuredRequire2FA?: boolean; global2FAEnabled?: boolean }>>(`/security/users/${userId}/require-2fa`),
   setUser2FARequirement: (userId: number, require2FA: boolean) =>
-    api.put<ApiResponse<{ require2FA: boolean }>>(`/security/users/${userId}/require-2fa`, { require2FA }),
+    api.put<ApiResponse<{ require2FA: boolean; configuredRequire2FA?: boolean; global2FAEnabled?: boolean }>>(`/security/users/${userId}/require-2fa`, { require2FA }),
 };
 
 export const tokensApi = {

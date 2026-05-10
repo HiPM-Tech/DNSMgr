@@ -96,6 +96,7 @@ export function Audit() {
             }}
           />
           <DateRangePicker
+            className="audit-date-range"
             clearable
             value={startDate || endDate ? [startDate, endDate] : []}
             valueType="YYYY-MM-DD"

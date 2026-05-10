@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Descriptions, Form, Input, Loading, Pagination, Select, Space, Switch } from 'tdesign-react';
-import { ActivityIcon, DeleteIcon } from 'tdesign-icons-react';
+import { Button, Card, Descriptions, Form, Input, Loading, Pagination, Select, Space, Switch } from 'tdesign-react';
+import { ActivityIcon, DeleteIcon, SearchIcon } from 'tdesign-icons-react';
 import { domainsApi } from '../../api';
 import type { Domain } from '../../api';
 import { Table } from '../../components/Table';
@@ -146,6 +146,7 @@ export function FailoverTab() {
   const { t } = useI18n();
   const { isAdmin: canManage } = useAuth();
   const [configuringFailover, setConfiguringFailover] = useState<Domain | null>(null);
+  const [keyword, setKeyword] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -155,10 +156,18 @@ export function FailoverTab() {
   });
 
   const domains = domainsData?.list ?? [];
-  const paginatedDomains = domains.slice((page - 1) * pageSize, page * pageSize);
+  const normalizedKeyword = keyword.trim().toLowerCase();
+  const filteredDomains = normalizedKeyword
+    ? domains.filter((domain) => (
+      domain.name.toLowerCase().includes(normalizedKeyword)
+      || String(domain.account_id).includes(normalizedKeyword)
+      || (domain.remark ?? '').toLowerCase().includes(normalizedKeyword)
+    ))
+    : domains;
+  const paginatedDomains = filteredDomains.slice((page - 1) * pageSize, page * pageSize);
 
   const columns = [
-    { key: 'name', label: t('domains.domainName'), render: (row: Domain) => <span className="page-strong">{row.name}</span> },
+    { key: 'name', label: t('domains.domain'), render: (row: Domain) => <span className="page-strong">{row.name}</span> },
     { key: 'account_id', label: t('domains.account'), render: (row: Domain) => <span className="page-muted">#{row.account_id}</span> },
     { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="page-muted">{row.remark || t('domains.emptyRemark')}</span> },
     {
@@ -180,14 +189,40 @@ export function FailoverTab() {
 
   return (
     <div className="page-shell">
-      <Alert theme="info" message={t('domains.tabs.failover')} />
-      <Card bordered={false} shadow={false} className="page-card">
+      <section className="page-heading page-heading--compact">
+        <div>
+          <h2>{t('domains.tabs.failover')}</h2>
+          <p>{t('domains.failoverSubtitle')}</p>
+        </div>
+      </section>
+
+      <Card bordered={false} shadow={false} className="page-card failover-card">
+        <div className="records-toolbar failover-card__toolbar">
+          <Input
+            clearable
+            value={keyword}
+            prefixIcon={<SearchIcon />}
+            placeholder={t('domains.searchPlaceholder')}
+            onChange={(value) => {
+              setKeyword(String(value));
+              setPage(1);
+            }}
+          />
+          <span className="failover-card__summary">
+            {t('common.total')} {filteredDomains.length} {t('common.items')}
+          </span>
+        </div>
         <Table columns={columns} data={paginatedDomains} loading={isLoading} rowKey={(row) => row.id} emptyText={t('domains.noDomainsFound')} />
-        <div className="records-pagination">
+        <div className="records-pagination records-pagination--compact">
+          <span className="records-pagination__total">
+            {t('common.total')} {filteredDomains.length} {t('common.items')}
+          </span>
           <Pagination
+            size="small"
             current={page}
             pageSize={pageSize}
-            total={domains.length}
+            total={filteredDomains.length}
+            totalContent={false}
             showPageSize={false}
             showJumper={false}
             onCurrentChange={(current) => setPage(current)}

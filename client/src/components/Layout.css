@@ -1,6 +1,6 @@
 .app-layout {
   position: relative;
-  min-height: 100vh;
+  min-height: var(--app-scaled-vh);
   background: var(--td-bg-color-page);
   color: var(--td-text-color-primary);
   overflow: hidden;
@@ -84,6 +84,7 @@ html.dark .app-background__mask {
 ) {
   border-color: var(--app-glass-border);
   background: var(--app-glass-bg);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
   backdrop-filter: saturate(140%) blur(14px);
 }
 
@@ -96,8 +97,12 @@ html.dark .app-background__mask {
   .t-table__header,
   .t-table__body,
   .t-table__empty,
+  .t-table__row,
+  .t-table__cell,
   .t-table th,
   .t-table td,
+  .t-table thead tr,
+  .t-table tbody tr,
   .t-input__inner,
   .t-input__wrap,
   .t-textarea__inner,
@@ -106,6 +111,24 @@ html.dark .app-background__mask {
 ) {
   background: transparent;
   background-color: transparent;
+}
+
+.app-layout--with-background :where(
+  .t-select,
+  .t-select-input,
+  .t-date-picker,
+  .t-time-picker,
+  .t-auto-complete,
+  .t-tree-select,
+  .t-cascader,
+  .t-tag-input,
+  .t-range-input,
+  .t-range-input__inner
+) :where(.t-input, .t-input-adornment, .t-input-number) {
+  background: transparent;
+  background-color: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 body.app-has-background .app-td-dialog :where(
@@ -122,6 +145,7 @@ body.app-has-background .app-td-dialog :where(
 ) {
   border-color: var(--app-glass-border);
   background: var(--app-glass-bg-soft);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
   backdrop-filter: saturate(140%) blur(14px);
 }
 
@@ -134,6 +158,24 @@ body.app-has-background .app-td-dialog :where(
 ) {
   background: transparent;
   background-color: transparent;
+}
+
+body.app-has-background .app-td-dialog :where(
+  .t-select,
+  .t-select-input,
+  .t-date-picker,
+  .t-time-picker,
+  .t-auto-complete,
+  .t-tree-select,
+  .t-cascader,
+  .t-tag-input,
+  .t-range-input,
+  .t-range-input__inner
+) :where(.t-input, .t-input-adornment, .t-input-number) {
+  background: transparent;
+  background-color: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .app-layout--with-background :where(
@@ -186,7 +228,7 @@ body.app-has-background .app-td-dialog :where(
   position: relative;
   z-index: 1;
   min-width: 0;
-  min-height: calc(100vh - 64px);
+  min-height: calc(var(--app-scaled-vh) - 64px);
   margin-left: 232px;
   transition: margin-left 220ms cubic-bezier(0.38, 0, 0.24, 1);
 }
@@ -196,7 +238,7 @@ body.app-has-background .app-td-dialog :where(
 }
 
 .app-layout__content {
-  height: calc(100vh - 64px);
+  height: calc(var(--app-scaled-vh) - 64px);
   overflow: auto;
   background: transparent;
 }
@@ -238,7 +280,7 @@ body.app-has-background .app-td-dialog :where(
   }
 
   .app-layout__content {
-    height: calc(100vh - 56px);
+    height: calc(var(--app-scaled-vh) - 56px);
   }
 
   .app-layout__page {

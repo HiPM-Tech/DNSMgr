@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
-import { ClearIcon, ImageIcon, LockOnIcon, TranslateIcon, UserSettingIcon } from 'tdesign-icons-react';
+import { ClearIcon, ImageIcon, LockOnIcon, UserSettingIcon } from 'tdesign-icons-react';
 import { authApi } from '../api';
 import type { OAuthBinding } from '../api';
 import { useToast } from '../hooks/useToast';
@@ -9,14 +9,16 @@ import { useAuth } from '../contexts/AuthContext';
 import { roleLabelKey } from '../utils/roles';
 import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
-import { localeOptions } from '../i18n';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+import { useUiScale } from '../contexts/UiScaleContext';
+import type { UiScale } from '../contexts/UiScaleContext';
 
 export function Settings() {
   const { user, updateUser } = useAuth();
   const toast = useToast();
-  const { locale, setLocale, t } = useI18n();
+  const { t } = useI18n();
+  const { uiScale, setUiScale } = useUiScale();
 
   useRealtimeData({
     queryKey: ['user-profile'],
@@ -40,6 +42,7 @@ export function Settings() {
   const [selectedOauthProvider, setSelectedOauthProvider] = useState<'custom' | 'logto'>('custom');
   const [oauthBindings, setOauthBindings] = useState<OAuthBinding[]>([]);
   const [backgroundImage, setBackgroundImage] = useState('');
+  const [avatarImage, setAvatarImage] = useState('');
 
   useEffect(() => {
     setNickname(user?.nickname ?? '');
@@ -52,6 +55,7 @@ export function Settings() {
       const res = await authApi.getPreferences();
       if (res.data.code === 0) {
         setBackgroundImage(res.data.data.backgroundImage || '');
+        setAvatarImage(res.data.data.avatarImage || '');
         return res.data.data;
       }
       return null;
@@ -100,14 +104,33 @@ export function Settings() {
   }, []);
 
   const profileMutation = useMutation({
-    mutationFn: () => authApi.updateProfile({ nickname: nickname.trim(), email: email.trim(), emailCode: emailCode.trim() || undefined }),
-    onSuccess: (res) => {
-      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      if (res.data.data) updateUser(res.data.data);
+    mutationFn: async () => {
+      let updatedUser = null;
+
+      if (profileFieldsChanged) {
+        const res = await authApi.updateProfile({ nickname: nickname.trim(), email: email.trim(), emailCode: emailCode.trim() || undefined });
+        if (res.data.code !== 0) {
+          throw new Error(res.data.msg || t('settings.profileUpdateFailed'));
+        }
+        updatedUser = res.data.data;
+      }
+
+      if (avatarChanged) {
+        const res = await authApi.updatePreferences({ avatarImage });
+        if (res.data.code !== 0) {
+          throw new Error(res.data.msg || t('settings.profileUpdateFailed'));
+        }
+      }
+
+      return updatedUser;
+    },
+    onSuccess: (updatedUser) => {
+      if (updatedUser) updateUser(updatedUser);
       setEmailCode('');
       toast.success(t('settings.profileUpdated'));
+      preferencesQuery.refetch();
     },
-    onError: () => toast.error(t('settings.profileUpdateFailed')),
+    onError: (err) => toast.error(err instanceof Error ? err.message : t('settings.profileUpdateFailed')),
   });
 
   const sendEmailCodeMutation = useMutation({
@@ -161,7 +184,9 @@ export function Settings() {
     onError: () => toast.error(t('settings.oauthUnbindFailed')),
   });
 
-  const hasProfileChanges = (nickname !== (user?.nickname ?? '')) || (email !== (user?.email ?? ''));
+  const profileFieldsChanged = (nickname !== (user?.nickname ?? '')) || (email !== (user?.email ?? ''));
+  const avatarChanged = avatarImage !== (preferencesQuery.data?.avatarImage || '');
+  const hasProfileChanges = profileFieldsChanged || avatarChanged;
   const emailChanged = email.trim() !== (user?.email ?? '');
 
   const handleProfileSubmit = () => {
@@ -205,7 +230,7 @@ export function Settings() {
             title={<Space align="center"><UserSettingIcon />{t('settings.profileTitle')}</Space>}
           >
             <div className="settings-profile">
-              <Avatar username={displayName} email={user?.email} size={56} textClassName="text-xl" />
+              <Avatar username={displayName} email={user?.email} image={avatarImage} size={56} textClassName="text-xl" />
               <div>
                 <strong>{displayName}</strong>
                 <span>{user?.email || t('common.noEmailSet')}</span>
@@ -214,6 +239,19 @@ export function Settings() {
             </div>
 
             <Form layout="vertical" colon={false} requiredMark={false} className="settings-form" onSubmit={({ e }) => { e?.preventDefault(); handleProfileSubmit(); }}>
+              <Form.FormItem label={t('settings.avatarImageUrl')} tips={t('settings.avatarImageHint')}>
+                <div className="settings-background-input">
+                  <Input
+                    clearable
+                    value={avatarImage}
+                    onChange={(value) => setAvatarImage(String(value))}
+                    placeholder={t('settings.avatarImagePlaceholder')}
+                  />
+                  {avatarImage && (
+                    <Button type="button" shape="square" variant="outline" icon={<ClearIcon />} onClick={() => setAvatarImage('')} />
+                  )}
+                </div>
+              </Form.FormItem>
               <Form.FormItem label={t('settings.nickname')}>
                 <Input clearable value={nickname} onChange={(value) => setNickname(String(value))} placeholder={t('settings.nicknamePlaceholder')} />
               </Form.FormItem>
@@ -267,6 +305,24 @@ export function Settings() {
         </div>
 
         <div className="page-shell">
+          <Card bordered={false} shadow={false} title={t('settings.displayScale')}>
+            <div className="settings-switch-row settings-scale-row">
+              <div>
+                <strong>{t('settings.displayScale')}</strong>
+                <span>{t('settings.displayScaleDesc')}</span>
+              </div>
+              <Select
+                className="settings-scale-select"
+                value={uiScale}
+                options={[
+                  { label: t('settings.scaleLarge'), value: 'large' },
+                  { label: t('settings.scaleSmall'), value: 'small' },
+                ]}
+                onChange={(value) => setUiScale(String(value) as UiScale)}
+              />
+            </div>
+          </Card>
+
           <Card bordered={false} shadow={false} title={t('settings.cloudflareTunnels')}>
             <div className="settings-switch-row">
               <div>
@@ -274,21 +330,6 @@ export function Settings() {
                 <span>{t('settings.showTunnelsDesc')}</span>
               </div>
               <Switch value={showTunnels} onChange={(checked) => setShowTunnels(Boolean(checked))} />
-            </div>
-          </Card>
-
-          <Card
-            bordered={false}
-            shadow={false}
-            title={<Space align="center"><TranslateIcon />{t('settings.language')}</Space>}
-          >
-            <div className="page-shell">
-              <Select
-                value={locale}
-                options={localeOptions.map((option) => ({ label: option.label, value: option.code }))}
-                onChange={(value) => setLocale(String(Array.isArray(value) ? value[0] : value))}
-              />
-              <p className="page-muted">{t('settings.languageHint')}</p>
             </div>
           </Card>
 

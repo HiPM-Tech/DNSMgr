@@ -61,6 +61,7 @@ export function Layout() {
 
       <Header
         collapsed={collapsed}
+        avatarImage={preferences?.avatarImage}
         onMenuClick={() => setMobileMenuVisible(true)}
         onToggleCollapse={() => setCollapsed((value) => !value)}
       />

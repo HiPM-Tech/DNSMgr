@@ -248,6 +248,37 @@
   min-height: 220px;
 }
 
+.dashboard-coverage-ring {
+  --dashboard-coverage: 0deg;
+  display: grid;
+  position: relative;
+  place-items: center;
+  width: 160px;
+  height: 160px;
+  flex: 0 0 160px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--td-brand-color) 0 var(--dashboard-coverage),
+    var(--td-bg-color-component) var(--dashboard-coverage) 360deg
+  );
+}
+
+.dashboard-coverage-ring::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: inherit;
+  background: var(--app-glass-bg, var(--td-bg-color-container));
+}
+
+.dashboard-coverage-ring .dashboard-coverage-ring__value {
+  position: relative;
+  z-index: 1;
+  color: var(--td-text-color-primary);
+  font-size: 24px;
+  line-height: 32px;
+}
+
 .dashboard-resource__score strong {
   display: block;
   color: var(--td-text-color-primary);

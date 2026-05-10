@@ -1,15 +1,21 @@
 import type { ReactElement } from 'react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Drawer, Menu } from 'tdesign-react';
 import type { MenuValue } from 'tdesign-react';
 import {
   DashboardIcon,
+  ActivityIcon,
+  CalendarIcon,
+  DataBaseIcon,
   FileSearchIcon,
   InfoCircleIcon,
   InternetIcon,
   KeyIcon,
   LinkIcon,
+  NotificationIcon,
+  RootListIcon,
+  SecuredIcon,
   LockOnIcon,
   ServerIcon,
   SettingIcon,
@@ -23,7 +29,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import './Sidebar.css';
 
-const { MenuItem, MenuGroup } = Menu;
+const { MenuItem, MenuGroup, SubMenu } = Menu;
 
 interface NavItem {
   to: string;
@@ -35,15 +41,29 @@ interface NavItem {
 const primaryItems: NavItem[] = [
   { to: '/', icon: <DashboardIcon />, key: 'common.dashboard', end: true },
   { to: '/accounts', icon: <ServerIcon />, key: 'common.dnsAccounts' },
-  { to: '/domains', icon: <InternetIcon />, key: 'common.domains' },
   { to: '/teams', icon: <UsergroupIcon />, key: 'common.teams' },
   { to: '/tokens', icon: <KeyIcon />, key: 'common.tokens' },
+];
+
+const domainItems: NavItem[] = [
+  { to: '/domains', icon: <RootListIcon />, key: 'domains.tabs.list' },
+  { to: '/domains/failover', icon: <ActivityIcon />, key: 'domains.tabs.failover' },
+  { to: '/domains/ns-monitor', icon: <SecuredIcon />, key: 'domains.tabs.nsMonitor' },
+  { to: '/domains/renewal', icon: <CalendarIcon />, key: 'domains.tabs.renewal' },
 ];
 
 const adminItems: NavItem[] = [
   { to: '/users', icon: <UserSettingIcon />, key: 'common.users' },
   { to: '/audit', icon: <FileSearchIcon />, key: 'common.audit' },
-  { to: '/system', icon: <SystemSettingIcon />, key: 'common.system' },
+];
+
+const systemItems: NavItem[] = [
+  { to: '/system', icon: <InfoCircleIcon />, key: 'system.tabs.overview' },
+  { to: '/system/database', icon: <DataBaseIcon />, key: 'system.tabs.database' },
+  { to: '/system/security', icon: <SecuredIcon />, key: 'system.tabs.security' },
+  { to: '/system/access', icon: <KeyIcon />, key: 'system.tabs.access' },
+  { to: '/system/network', icon: <InternetIcon />, key: 'system.tabs.network' },
+  { to: '/system/notifications', icon: <NotificationIcon />, key: 'system.tabs.notifications' },
 ];
 
 const accountItems: NavItem[] = [
@@ -72,19 +92,42 @@ function AppMenu({ collapsed, onClose }: AppMenuProps) {
   const [showTunnels] = useLocalStorage('showTunnels', false);
   const navigate = useNavigate();
   const location = useLocation();
+  const [expanded, setExpanded] = useState<MenuValue[]>(
+    [
+      ...(location.pathname.startsWith('/domains') ? ['/domains-group'] : []),
+      ...(location.pathname.startsWith('/system') ? ['/system-group'] : []),
+    ],
+  );
 
   const menuItems = useMemo(() => {
     const items = [...primaryItems];
     if (showTunnels) {
       items.push({ to: '/tunnels', icon: <LinkIcon />, key: 'tunnels.title' });
     }
-    return [...items, ...(isAdmin ? adminItems : []), ...accountItems];
+    return [...items, ...domainItems, ...(isAdmin ? [...adminItems, ...systemItems] : []), ...accountItems];
   }, [isAdmin, showTunnels]);
 
   const activePath = getActivePath(location.pathname, menuItems);
+  const isDomainGroupActive = collapsed && location.pathname.startsWith('/domains');
+  const isSystemGroupActive = collapsed && location.pathname.startsWith('/system');
+  const menuValue = isDomainGroupActive
+    ? '/domains-group'
+    : isSystemGroupActive
+      ? '/system-group'
+      : activePath;
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/domains')) {
+      setExpanded((current) => (current.includes('/domains-group') ? current : [...current, '/domains-group']));
+    }
+    if (location.pathname.startsWith('/system')) {
+      setExpanded((current) => (current.includes('/system-group') ? current : [...current, '/system-group']));
+    }
+  }, [location.pathname]);
 
   const handleChange = (value: MenuValue) => {
     const target = String(value);
+    if (target === '/domains-group' || target === '/system-group') return;
     navigate(target);
     onClose?.();
   };
@@ -99,13 +142,24 @@ function AppMenu({ collapsed, onClose }: AppMenuProps) {
     <Menu
       width={['232px', '72px']}
       className="app-sidebar__menu"
-      value={activePath}
+      value={menuValue}
+      expanded={expanded}
       collapsed={collapsed}
       theme={isDark ? 'dark' : 'light'}
       onChange={handleChange}
+      onExpand={(value) => setExpanded(value)}
     >
       <MenuGroup title={!collapsed ? t('common.dashboard') : undefined}>
-        {renderItems(primaryItems)}
+        {renderItems(primaryItems.slice(0, 2))}
+        <SubMenu
+          className={`app-sidebar__plain-submenu ${isDomainGroupActive ? 'app-sidebar__plain-submenu--active' : ''}`}
+          value="/domains-group"
+          title={t('common.domains')}
+          icon={<InternetIcon />}
+        >
+          {renderItems(domainItems)}
+        </SubMenu>
+        {renderItems(primaryItems.slice(2))}
         {showTunnels && (
           <MenuItem value="/tunnels" icon={<LinkIcon />}>
             {t('tunnels.title')}
@@ -116,6 +170,14 @@ function AppMenu({ collapsed, onClose }: AppMenuProps) {
       {isAdmin && (
         <MenuGroup title={!collapsed ? t('common.admin') : undefined}>
           {renderItems(adminItems)}
+          <SubMenu
+            className={`app-sidebar__plain-submenu ${isSystemGroupActive ? 'app-sidebar__plain-submenu--active' : ''}`}
+            value="/system-group"
+            title={t('common.system')}
+            icon={<SystemSettingIcon />}
+          >
+            {renderItems(systemItems)}
+          </SubMenu>
         </MenuGroup>
       )}
 

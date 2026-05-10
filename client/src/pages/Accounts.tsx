@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
+import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
 import { AddIcon, DeleteIcon, EditIcon } from 'tdesign-icons-react';
 import { accountsApi } from '../api';
@@ -8,25 +8,20 @@ import type { DnsAccount, Provider, ProviderField } from '../api';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ProviderIcon, ProviderSelectLabel } from '../components/ProviderIcon';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 
-const PROVIDER_THEMES: Record<string, 'default' | 'primary' | 'warning' | 'danger' | 'success'> = {
-  aliyun: 'primary',
-  dnspod: 'primary',
-  cloudflare: 'warning',
-  huaweicloud: 'danger',
-  tencentcloud: 'primary',
-  route53: 'warning',
-  godaddy: 'success',
-  namesilo: 'default',
-};
-
 function ProviderBadge({ type }: { type: string }) {
-  return <Tag theme={PROVIDER_THEMES[type] ?? 'default'} variant="light">{type}</Tag>;
+  return (
+    <span className="provider-badge">
+      <ProviderIcon type={type} size={16} />
+      <span className="provider-badge__text">{type}</span>
+    </span>
+  );
 }
 
 interface AccountFormProps {
@@ -56,7 +51,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
   );
 
   const provider = providers.find((item) => item.type === type);
-  const providerOptions = providers.map((item) => ({ label: item.name, value: item.type }));
+  const providerOptions = providers.map((item) => ({ label: <ProviderSelectLabel provider={item} />, value: item.type }));
 
   const handleTypeChange = (nextType: string) => {
     setType(nextType);

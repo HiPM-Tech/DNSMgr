@@ -229,6 +229,8 @@ export function SecurityTab() {
     </Space>
   );
 
+  const require2FAEnabled = Boolean(securityPolicy?.require2FAGlobal);
+
   return (
     <div className="page-shell">
       <div className="access-grid">
@@ -397,11 +399,16 @@ export function SecurityTab() {
         <Card bordered={false} shadow={false} title={cardTitle(<MobileIcon />, t('system.securityPolicy'), t('system.securityPolicyDesc'))}>
           <div className="settings-switch-row">
             <div>
-              <strong>{t('system.require2FAGlobal')}</strong>
+              <div className="settings-switch-row__heading">
+                <strong>{t('system.require2FAGlobal')}</strong>
+                <Tag theme={require2FAEnabled ? 'success' : 'default'} variant="light">
+                  {t(require2FAEnabled ? 'system.twoFAEnabledStatus' : 'system.twoFADisabledStatus')}
+                </Tag>
+              </div>
               <span>{t('system.require2FAGlobalDesc')}</span>
             </div>
             <Switch
-              value={securityPolicy?.require2FAGlobal ?? false}
+              value={require2FAEnabled}
               loading={updateSecurityPolicyMutation.isPending}
               onChange={(checked) => updateSecurityPolicyMutation.mutate({ require2FAGlobal: Boolean(checked) })}
             />

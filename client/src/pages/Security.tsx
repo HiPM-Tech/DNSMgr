@@ -43,6 +43,7 @@ export function Security() {
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [totpEnabled, setTotpEnabled] = useState(false);
+  const [twoFAValidationEnabled, setTwoFAValidationEnabled] = useState(true);
   const [backupCodesRemaining, setBackupCodesRemaining] = useState(0);
   const [showTotpSetup, setShowTotpSetup] = useState(false);
   const [totpSetup, setTotpSetup] = useState<TOTPSetup | null>(null);
@@ -141,9 +142,11 @@ export function Security() {
       let nextTotpEnabled = false;
       let nextBackupCodesRemaining = 0;
       let webauthnEnabled = false;
+      let validationEnabled = true;
 
       if (totpResponse.ok) {
         const totpData = await totpResponse.json();
+        validationEnabled = Boolean(totpData.data.validationEnabled ?? true);
         nextTotpEnabled = totpData.data.enabled;
         nextBackupCodesRemaining = totpData.data.backupCodesRemaining;
       }
@@ -153,7 +156,8 @@ export function Security() {
         webauthnEnabled = webauthnData.data && webauthnData.data.length > 0;
       }
 
-      setTotpEnabled(nextTotpEnabled || webauthnEnabled);
+      setTwoFAValidationEnabled(validationEnabled);
+      setTotpEnabled(validationEnabled && (nextTotpEnabled || webauthnEnabled));
       setBackupCodesRemaining(nextBackupCodesRemaining);
     } catch (error) {
       console.error('Failed to load 2FA status:', error);
@@ -334,11 +338,17 @@ export function Security() {
             <MobileIcon />
             <div>
               <strong>{t('security.twoFactorAuth')}</strong>
-              <span>{totpEnabled ? t('security.twoFactorEnabled', { count: backupCodesRemaining }) : t('security.twoFactorDisabled')}</span>
+              <span>
+                {!twoFAValidationEnabled
+                  ? t('security.twoFactorSystemDisabled')
+                  : totpEnabled
+                    ? t('security.twoFactorEnabled', { count: backupCodesRemaining })
+                    : t('security.twoFactorDisabled')}
+              </span>
             </div>
           </div>
           {!totpEnabled ? (
-            <Button theme="primary" loading={loading} onClick={openTotpSetup}>
+            <Button theme="primary" loading={loading} disabled={!twoFAValidationEnabled} onClick={openTotpSetup}>
               {t('security.enable2fa')}
             </Button>
           ) : (

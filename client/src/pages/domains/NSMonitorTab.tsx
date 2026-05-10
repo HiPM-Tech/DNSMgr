@@ -384,8 +384,8 @@ export function NSMonitorTab() {
         </Button>
       </section>
 
-      <Card bordered={false} shadow={false}>
-        <div className="records-toolbar">
+      <Card bordered={false} shadow={false} className="page-card ns-monitor-card">
+        <div className="records-toolbar ns-monitor-card__toolbar">
           <Input
             clearable
             value={searchKeyword}
@@ -394,9 +394,6 @@ export function NSMonitorTab() {
             onChange={(value) => setSearchKeyword(String(value))}
           />
         </div>
-      </Card>
-
-      <Card bordered={false} shadow={false} className="page-card">
         <Table
           columns={columns}
           data={filteredConfigs}

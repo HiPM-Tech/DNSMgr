@@ -96,6 +96,7 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
   const [role, setRole] = useState<number>(user.role);
   const [status, setStatus] = useState<number>(user.status);
   const [require2FA, setRequire2FA] = useState(false);
+  const [global2FAEnabled, setGlobal2FAEnabled] = useState(true);
   const [isLoading2FA, setIsLoading2FA] = useState(true);
   const toast = useToast();
   const qc = useQueryClient();
@@ -105,7 +106,8 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
       try {
         const res = await securityApi.getUser2FARequirement(user.id);
         if (res.data.code === 0) {
-          setRequire2FA(res.data.data.require2FA);
+          setRequire2FA(Boolean(res.data.data.require2FA));
+          setGlobal2FAEnabled(Boolean(res.data.data.global2FAEnabled ?? true));
         }
       } catch (error) {
         console.error('Failed to load 2FA requirement:', error);
@@ -119,7 +121,9 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
   const setUser2FAMutation = useMutation({
     mutationFn: ({ userId, nextRequire2FA }: { userId: number; nextRequire2FA: boolean }) =>
       securityApi.setUser2FARequirement(userId, nextRequire2FA),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      setRequire2FA(Boolean(res.data.data?.require2FA));
+      setGlobal2FAEnabled(Boolean(res.data.data?.global2FAEnabled ?? true));
       qc.invalidateQueries({ queryKey: ['user-2fa-requirement', user.id] });
       toast.success(t('users.user2FAUpdated'));
     },
@@ -140,6 +144,7 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
   };
 
   const handle2FAToggle = (checked: boolean) => {
+    if (!global2FAEnabled) return;
     setRequire2FA(checked);
     setUser2FAMutation.mutate({ userId: user.id, nextRequire2FA: checked });
   };
@@ -181,14 +186,22 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
           <div className="user-2fa-card__content">
             <MobileIcon className="user-2fa-card__icon" />
             <div>
-              <strong>{t('users.require2FA')}</strong>
+              <div className="settings-switch-row__heading">
+                <strong>{t('users.require2FA')}</strong>
+                {!global2FAEnabled && <Tag theme="default" variant="light">{t('users.require2FASystemDisabled')}</Tag>}
+              </div>
               <p>{t('users.require2FADesc')}</p>
             </div>
           </div>
           {isLoading2FA ? (
             <Loading loading size="small" />
           ) : (
-            <Switch value={require2FA} loading={setUser2FAMutation.isPending} onChange={handle2FAToggle} />
+            <Switch
+              value={require2FA}
+              loading={setUser2FAMutation.isPending}
+              disabled={!global2FAEnabled}
+              onChange={handle2FAToggle}
+            />
           )}
         </Card>
 

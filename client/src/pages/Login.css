@@ -1,5 +1,5 @@
 .login-page {
-  min-height: 100vh;
+  min-height: var(--app-scaled-vh);
   display: grid;
   place-items: center;
   padding: clamp(20px, 4vw, 56px);

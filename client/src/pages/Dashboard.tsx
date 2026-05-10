@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Col, Empty, List, Loading, Progress, Row, Statistic, Table, Tag } from 'tdesign-react';
@@ -128,6 +128,20 @@ function MeterRow({ label, value, percentage, color }: { label: string; value: s
         <strong>{value}</strong>
       </div>
       <Progress percentage={percentage} label={false} color={color} trackColor="var(--td-bg-color-component)" />
+    </div>
+  );
+}
+
+function CoverageRing({ percentage }: { percentage: number }) {
+  const clamped = Math.max(0, Math.min(100, Math.round(percentage)));
+
+  return (
+    <div
+      className="dashboard-coverage-ring"
+      style={{ '--dashboard-coverage': `${clamped * 3.6}deg` } as CSSProperties}
+      aria-label={`${clamped}%`}
+    >
+      <strong className="dashboard-coverage-ring__value">{clamped}%</strong>
     </div>
   );
 }
@@ -406,14 +420,7 @@ export function Dashboard() {
           >
             <div className="dashboard-resource">
               <div className="dashboard-resource__score">
-                <Progress
-                  theme="circle"
-                  size="large"
-                  percentage={recordCoverage}
-                  label={`${recordCoverage}%`}
-                  color="var(--td-brand-color)"
-                  trackColor="var(--td-bg-color-component)"
-                />
+                <CoverageRing percentage={recordCoverage} />
                 <div>
                   <strong>{t('dashboard.recordedDomains')}</strong>
                   <span>{domainsWithRecords}/{domains.length || 0}</span>

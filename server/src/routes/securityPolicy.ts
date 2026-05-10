@@ -137,12 +137,15 @@ router.post('/password-strength', asyncHandler(async (req: Request, res: Respons
  */
 router.get('/2fa/requirement', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
-  const forceRequired = await requires2FA(userId);
-  const enabled = await has2FAEnabled(userId);
+  const policy = await getSecurityPolicy();
+  const validationEnabled = Boolean(policy.require2FAGlobal);
+  const forceRequired = validationEnabled && (await requires2FA(userId));
+  const enabled = validationEnabled && (await has2FAEnabled(userId));
   
   sendSuccess(res, {
     enabled,
     forceRequired,
+    validationEnabled,
     canSkip: !forceRequired,
   });
 }));

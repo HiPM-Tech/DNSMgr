@@ -6,6 +6,7 @@ import './Avatar.css';
 interface AvatarProps {
   username?: string | null;
   email?: string | null;
+  image?: string | null;
   size?: number;
   className?: string;
   textClassName?: string;
@@ -14,12 +15,15 @@ interface AvatarProps {
 export function Avatar({
   username,
   email,
+  image: customImage,
   size = 32,
   className = '',
 }: AvatarProps) {
   const hash = useMemo(() => getGravatarHash(email), [email]);
+  const normalizedCustomImage = customImage?.trim() || '';
   const [mirrors, setMirrors] = useState<string[]>(() => getOrderedGravatarMirrors());
   const [mirrorIndex, setMirrorIndex] = useState(0);
+  const [customImageFailed, setCustomImageFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -36,19 +40,35 @@ export function Avatar({
     setMirrorIndex(0);
   }, [hash]);
 
+  useEffect(() => {
+    setCustomImageFailed(false);
+  }, [normalizedCustomImage]);
+
   const fallbackText = username?.[0]?.toUpperCase() ?? '?';
-  const image = hash && mirrorIndex < mirrors.length
+  const gravatarImage = hash && mirrorIndex < mirrors.length
     ? getGravatarUrl(mirrors[mirrorIndex], hash, size * 2)
     : undefined;
+  const isUsingCustomImage = Boolean(normalizedCustomImage && !customImageFailed);
+  const image = isUsingCustomImage ? normalizedCustomImage : gravatarImage;
 
   return (
     <TAvatar
       className={`app-avatar ${className}`.trim()}
       size={`${size}px`}
       image={image}
-      imageProps={{ referrerpolicy: 'no-referrer' }}
+      imageProps={{
+        referrerpolicy: 'no-referrer',
+        fit: isUsingCustomImage ? 'scale-down' : 'cover',
+        position: 'center',
+      }}
       alt={username ?? 'avatar'}
-      onError={() => setMirrorIndex((current) => current + 1)}
+      onError={() => {
+        if (normalizedCustomImage && !customImageFailed) {
+          setCustomImageFailed(true);
+          return;
+        }
+        setMirrorIndex((current) => current + 1);
+      }}
     >
       {fallbackText}
     </TAvatar>

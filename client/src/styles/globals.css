@@ -4,6 +4,11 @@
 
 /* CSS Variables for theming */
 :root {
+  --app-control-radius: 6px;
+  --app-ui-scale: 0.9;
+  --app-scaled-vh: calc(100vh / var(--app-ui-scale));
+  --app-scaled-vw: calc(100vw / var(--app-ui-scale));
+
   /* Light mode (default) */
   --color-bg-primary: #ffffff;
   --color-bg-secondary: #f9fafb;
@@ -60,18 +65,32 @@ html.dark {
 /* Base styles */
 body {
   margin: 0;
+  width: var(--app-scaled-vw);
+  min-height: var(--app-scaled-vh);
   background-color: var(--td-bg-color-page);
   color: var(--td-text-color-primary);
   font-family: var(--td-font-family);
   transition: background-color 0.2s, color 0.2s;
+  zoom: var(--app-ui-scale);
+}
+
+@supports not (zoom: 1) {
+  body {
+    transform: scale(var(--app-ui-scale));
+    transform-origin: top left;
+  }
 }
 
 html,
-body,
 #root {
   width: 100%;
   height: 100%;
   min-height: 100vh;
+}
+
+body,
+#root {
+  min-height: var(--app-scaled-vh);
 }
 
 * {
@@ -199,20 +218,48 @@ html.dark input:-webkit-autofill:focus {
 }
 
 .page-card {
+  border-radius: 6px;
   overflow: hidden;
+}
+
+.t-card {
+  border-radius: 6px;
+}
+
+.t-card__body {
+  border-radius: inherit;
+}
+
+.t-table {
+  overflow: hidden;
+  border: 1px solid var(--td-component-stroke);
+  border-radius: 6px;
+  background: var(--td-bg-color-container);
 }
 
 .t-card:has(> .t-card__body > .t-table) > .t-card__body {
   padding: 0;
 }
 
+.t-card:has(> .t-card__body > .t-table) {
+  overflow: hidden;
+  border-radius: 6px;
+}
+
 .t-card:has(> .t-card__body > .t-table) > .t-card__body > .t-table {
   width: 100%;
+  border: 0;
+  border-radius: inherit;
 }
 
 .t-table,
 .t-table__content {
   width: 100%;
+}
+
+.t-table__content {
+  overflow: hidden;
+  border-radius: inherit;
 }
 
 .t-card:has(> .t-card__body > .t-table) > .t-card__body > :where(.records-pagination, .audit-pagination) {
@@ -266,15 +313,22 @@ html.dark input:-webkit-autofill:focus {
 }
 
 .t-input,
+.t-input-adornment,
+.t-input-number,
 .t-select,
+.t-select-input,
 .t-date-picker,
 .t-time-picker,
 .t-range-input,
-.t-textarea {
+.t-textarea,
+.t-auto-complete,
+.t-tree-select,
+.t-cascader,
+.t-tag-input {
   max-width: 100%;
 }
 
-:where(
+:is(
   .t-input,
   .t-input-adornment,
   .t-input-number,
@@ -285,9 +339,161 @@ html.dark input:-webkit-autofill:focus {
   .t-range-input,
   .t-range-input__inner,
   .t-textarea,
-  .t-textarea__inner
+  .t-textarea__inner,
+  .t-auto-complete,
+  .t-tree-select,
+  .t-cascader,
+  .t-tag-input
 ) {
-  border-radius: 6px;
+  border-radius: var(--app-control-radius);
+  background-clip: padding-box;
+}
+
+:is(
+  .t-input,
+  .t-input-adornment,
+  .t-input-number,
+  .t-select,
+  .t-select-input,
+  .t-date-picker,
+  .t-time-picker,
+  .t-range-input,
+  .t-range-input__inner,
+  .t-textarea,
+  .t-auto-complete,
+  .t-tree-select,
+  .t-cascader,
+  .t-tag-input
+) {
+  overflow: visible;
+  clip-path: none;
+}
+
+:is(
+  .t-input__wrap,
+  .t-input__inner,
+  .t-textarea__inner,
+  .t-select__wrap,
+  .t-select-input,
+  .t-range-input__inner,
+  .t-range-input__inner .t-input,
+  .t-date-picker .t-input,
+  .t-time-picker .t-input,
+  .t-select .t-input,
+  .t-select-input .t-input,
+  .t-auto-complete .t-input,
+  .t-tree-select .t-input,
+  .t-cascader .t-input,
+  .t-tag-input .t-input
+) {
+  border-radius: inherit;
+  clip-path: none;
+  overflow: visible;
+  background-clip: padding-box;
+}
+
+:is(
+  .t-input__inner,
+  .t-input__wrap,
+  .t-textarea__inner,
+  .t-select__wrap,
+  .t-range-input__inner .t-input,
+  .t-date-picker .t-input,
+  .t-time-picker .t-input,
+  .t-select .t-input,
+  .t-select-input .t-input,
+  .t-auto-complete .t-input,
+  .t-tree-select .t-input,
+  .t-cascader .t-input,
+  .t-tag-input .t-input
+) {
+  background-color: transparent;
+}
+
+@-moz-document url-prefix() {
+  :is(.t-input, .t-input-adornment, .t-input-number, .t-range-input, .t-textarea) {
+    overflow: visible;
+    clip-path: none;
+  }
+}
+
+:is(
+  .t-select__dropdown .t-popup__content,
+  .t-tree-select-popup .t-popup__content,
+  .t-cascader__popup .t-popup__content,
+  .t-dropdown__menu
+) {
+  overflow: hidden;
+  border-radius: var(--app-control-radius);
+  background-clip: padding-box;
+}
+
+:where(
+  .t-date-picker__panel,
+  .t-date-range-picker__panel,
+  .t-time-picker__panel,
+  .t-date-picker__header,
+  .t-date-picker__header-controller,
+  .t-date-picker__header-controller-month,
+  .t-date-picker__header-controller-year
+) :where(
+  .t-select,
+  .t-select-input,
+  .t-input,
+  .t-input__wrap
+) {
+  overflow: visible;
+  clip-path: none;
+}
+
+:where(
+  .t-date-picker__panel-container,
+  .t-date-range-picker__panel-container,
+  .t-date-picker__header-controller-month-popup,
+  .t-date-picker__header-controller-year-popup,
+  .t-select__dropdown
+) :where(.t-popup__content) {
+  overflow: visible;
+  clip-path: none;
+}
+
+:where(
+  .t-date-picker__panel,
+  .t-date-range-picker__panel,
+  .t-date-picker__panel-content,
+  .t-date-range-picker__panel-content,
+  .t-date-range-picker__panel-content-wrapper,
+  .t-date-picker__panel-year,
+  .t-date-picker__panel-month,
+  .t-date-picker__panel-quarter,
+  .t-date-picker__panel-week,
+  .t-date-picker__panel-date,
+  .t-time-picker__panel-body-scroll,
+  .t-date-picker__header-controller-month-popup > .t-popup__content,
+  .t-date-picker__header-controller-year-popup > .t-popup__content
+) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+:where(
+  .t-date-picker__panel,
+  .t-date-range-picker__panel,
+  .t-date-picker__panel-content,
+  .t-date-range-picker__panel-content,
+  .t-date-range-picker__panel-content-wrapper,
+  .t-date-picker__panel-year,
+  .t-date-picker__panel-month,
+  .t-date-picker__panel-quarter,
+  .t-date-picker__panel-week,
+  .t-date-picker__panel-date,
+  .t-time-picker__panel-body-scroll,
+  .t-date-picker__header-controller-month-popup > .t-popup__content,
+  .t-date-picker__header-controller-year-popup > .t-popup__content
+)::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .page-shell.t-form:not(.t-form-inline) .t-form__item,
@@ -362,6 +568,69 @@ html.dark input:-webkit-autofill:focus {
   font-weight: 600;
 }
 
+.provider-icon {
+  --provider-icon-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--provider-icon-size);
+  height: var(--provider-icon-size);
+  flex: 0 0 var(--provider-icon-size);
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.provider-icon__image {
+  display: block;
+  width: var(--provider-icon-size);
+  height: var(--provider-icon-size);
+  object-fit: contain;
+}
+
+.provider-icon__fallback {
+  color: var(--td-brand-color);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.provider-select-option,
+.provider-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.provider-select-option {
+  width: 100%;
+  gap: 8px;
+}
+
+.provider-badge {
+  gap: 6px;
+}
+
+.provider-badge__text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--td-text-color-primary);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-select-option__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--td-text-color-primary);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .page-state {
   display: flex;
   align-items: center;
@@ -375,6 +644,37 @@ html.dark input:-webkit-autofill:focus {
   gap: 16px;
   align-items: center;
   margin-top: 20px;
+}
+
+.audit-date-range,
+.audit-date-range .t-range-input {
+  width: 100%;
+}
+
+.audit-date-range .t-range-input {
+  overflow: visible;
+  clip-path: none;
+}
+
+.audit-date-range .t-range-input__inner {
+  min-width: 0;
+  overflow: visible;
+  clip-path: none;
+}
+
+.audit-date-range :where(.t-range-input__suffix, .t-input__suffix, .t-input__suffix-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  height: auto;
+  line-height: 1;
+}
+
+.audit-date-range :where(.t-range-input__suffix, .t-input__suffix) > .t-icon,
+.audit-date-range :where(.t-range-input__suffix, .t-input__suffix) svg {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .audit-pagination {
@@ -410,12 +710,114 @@ html.dark input:-webkit-autofill:focus {
   padding: 14px 20px;
 }
 
+.ns-monitor-card .t-card__body {
+  padding: 0;
+}
+
+.records-toolbar.ns-monitor-card__toolbar {
+  grid-template-columns: minmax(260px, 380px);
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.ns-monitor-card__toolbar > .t-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.ns-monitor-card .t-table {
+  border: 0;
+  border-radius: 0;
+}
+
+.failover-card .t-card__body {
+  padding: 0;
+}
+
+.failover-card__toolbar {
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  align-items: center;
+  overflow: visible;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.failover-card__toolbar > .t-input {
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  clip-path: none;
+}
+
+.failover-card__toolbar > .t-input,
+.failover-card__toolbar :where(.t-input__wrap, .t-input__inner) {
+  border-radius: 6px;
+}
+
+.failover-card__toolbar :where(.t-input__wrap, .t-input__inner) {
+  background-clip: padding-box;
+}
+
+.failover-card__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: end;
+  color: var(--td-text-color-secondary);
+  font-size: 13px;
+  line-height: 22px;
+  text-orientation: mixed;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+}
+
+.failover-card .t-table {
+  border: 0;
+  border-radius: 0;
+}
+
+.failover-card .records-pagination {
+  min-height: 48px;
+  margin-top: 0;
+  padding: 10px 20px;
+}
+
 .records-pagination {
   display: flex;
   justify-content: flex-end;
   padding-top: 16px;
   margin-top: 16px;
   border-top: 1px solid var(--td-component-stroke);
+}
+
+.records-pagination--compact {
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.records-pagination__total {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--td-text-color-secondary);
+  font-size: 13px;
+  line-height: 22px;
+  text-orientation: mixed;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+}
+
+@-moz-document url-prefix() {
+  .failover-card__toolbar > .t-input {
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .failover-card__toolbar .t-input__wrap {
+    overflow: visible;
+    clip-path: none;
+  }
 }
 
 .record-mono {
@@ -736,8 +1138,31 @@ html.dark input:-webkit-autofill:focus {
 
 .settings-switch-row > div {
   display: grid;
+  flex: 1 1 0;
   gap: 4px;
   min-width: 0;
+}
+
+.settings-scale-row {
+  align-items: flex-start;
+}
+
+.settings-scale-select {
+  width: 128px;
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+.settings-switch-row__heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.settings-switch-row__heading .t-tag {
+  flex: 0 0 auto;
 }
 
 .settings-background-input {
@@ -852,7 +1277,7 @@ html.dark input:-webkit-autofill:focus {
 .callback-shell {
   display: grid;
   place-items: center;
-  min-height: 100vh;
+  min-height: var(--app-scaled-vh);
   padding: 24px;
   background: var(--td-bg-color-page);
 }
@@ -891,7 +1316,7 @@ html.dark input:-webkit-autofill:focus {
 .setup-shell {
   display: grid;
   place-items: center;
-  min-height: 100vh;
+  min-height: var(--app-scaled-vh);
   padding: 24px;
   background: var(--td-bg-color-page);
 }
@@ -1735,6 +2160,25 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
     padding: 12px;
   }
 
+  .records-toolbar.ns-monitor-card__toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .failover-card__toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .failover-card__summary {
+    justify-self: start;
+  }
+
+  .records-pagination--compact {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .domain-filter-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1820,6 +2264,34 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
 .app-td-dialog .t-dialog__body {
   max-height: min(70vh, 720px);
   overflow: auto;
+}
+
+.app-td-dialog :where(.t-dialog__body, .app-confirm-dialog__message, .page-list--scroll, .backup-code-list) {
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+
+.app-td-dialog :where(.t-dialog__body, .app-confirm-dialog__message, .page-list--scroll, .backup-code-list)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.app-td-dialog :where(.t-dialog__body, .app-confirm-dialog__message, .page-list--scroll, .backup-code-list)::-webkit-scrollbar-track,
+.app-td-dialog :where(.t-dialog__body, .app-confirm-dialog__message, .page-list--scroll, .backup-code-list)::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+.app-td-dialog :where(.t-dialog__body, .app-confirm-dialog__message, .page-list--scroll, .backup-code-list).app-dialog-scrollbar--active {
+  scrollbar-color: var(--td-component-stroke) transparent;
+}
+
+.app-td-dialog :where(.t-dialog__body, .app-confirm-dialog__message, .page-list--scroll, .backup-code-list).app-dialog-scrollbar--active::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--td-component-stroke);
+}
+
+.app-td-dialog :where(.t-dialog__body, .app-confirm-dialog__message, .page-list--scroll, .backup-code-list).app-dialog-scrollbar--active::-webkit-scrollbar-thumb:hover {
+  background: var(--td-text-color-placeholder);
 }
 
 .app-td-dialog__body {
