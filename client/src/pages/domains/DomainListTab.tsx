@@ -1,9 +1,20 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ExternalLink, Search, Layers, ChevronLeft, ChevronRight, List, Activity, Pin } from 'lucide-react';
+import { Button, Card, Checkbox, Empty, Form, Input, Loading, Pagination, Radio, Select, Space, Tag } from 'tdesign-react';
+import {
+  ActivityIcon,
+  AddIcon,
+  DeleteIcon,
+  EditIcon,
+  JumpIcon,
+  LayersIcon,
+  PinIcon,
+  RootListIcon,
+  SearchIcon,
+} from 'tdesign-icons-react';
 import { useNavigate } from 'react-router-dom';
 import { domainsApi, accountsApi, authApi } from '../../api';
-import type { Domain, DnsAccount } from '../../api';
+import type { Domain, DnsAccount, ProviderDomainOption } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -17,6 +28,10 @@ import { useRealtimeData } from '../../hooks/useRealtimeData';
 interface AddDomainFormProps {
   accounts: DnsAccount[];
   onClose: () => void;
+}
+
+function selectValue(value: unknown) {
+  return String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
 }
 
 function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
@@ -48,10 +63,9 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
     onError: () => toast.error(t('domains.addDomainFailed')),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (mode === 'sync') {
-      const domains = providerDomains.filter((d) => selectedProviders.includes(d.third_id));
+      const domains = providerDomains.filter((domain) => selectedProviders.includes(domain.third_id));
       if (domains.length === 0) return;
       createMutation.mutate({ account_id: accountId, domains, remark });
     } else {
@@ -61,131 +75,123 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
     }
   };
 
-  const toggleProvider = (thirdIdValue: string) => {
+  const toggleProvider = (thirdIdValue: string, checked: boolean) => {
     setSelectedProviders((current) => (
-      current.includes(thirdIdValue)
-        ? current.filter((id) => id !== thirdIdValue)
-        : [...current, thirdIdValue]
+      checked
+        ? [...new Set([...current, thirdIdValue])]
+        : current.filter((id) => id !== thirdIdValue)
     ));
   };
 
-  const handleSelectAll = () => {
-    setSelectedProviders(providerDomains.map((d) => d.third_id));
-  };
-
-  const handleInvertSelection = () => {
-    setSelectedProviders(providerDomains
-      .filter((d) => !selectedProviders.includes(d.third_id))
-      .map((d) => d.third_id));
-  };
-
-  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-
   if (accounts.length === 0) {
     return (
-      <div className="py-8 text-center space-y-4">
-        <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-          <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+      <div className="page-state">
+        <div className="empty-action">
+          <ActivityIcon />
+          <h3>{t('domains.noAccounts')}</h3>
+          <p>{t('domains.noAccountsDesc')}</p>
+          <Button
+            theme="primary"
+            icon={<AddIcon />}
+            onClick={() => {
+              onClose();
+              navigate('/accounts');
+            }}
+          >
+            {t('domains.goToAddAccount')}
+          </Button>
         </div>
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">{t('domains.noAccounts')}</h3>
-          <p className="text-sm text-gray-500 mt-1">{t('domains.noAccountsDesc')}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            onClose();
-            navigate('/accounts');
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          {t('domains.goToAddAccount')}
-        </button>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('domains.dnsAccount')}</label>
-        <select value={accountId} onChange={(e) => { setAccountId(Number(e.target.value)); setSelectedProviders([]); }} className={inputClass}>
-          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('domains.addMethod')}</label>
-        <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-          <button type="button" onClick={() => setMode('manual')}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-            {t('domains.manual')}
-          </button>
-          <button type="button" onClick={() => setMode('sync')}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'sync' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-            {t('domains.syncFromProvider')}
-          </button>
-        </div>
-      </div>
+    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }) => { e?.preventDefault(); handleSubmit(); }}>
+      <Form.FormItem label={t('domains.dnsAccount')}>
+        <Select
+          value={accountId}
+          options={accounts.map((account) => ({ label: `${account.name} (${account.type})`, value: account.id }))}
+          onChange={(value) => {
+            setAccountId(Number(selectValue(value)));
+            setSelectedProviders([]);
+          }}
+        />
+      </Form.FormItem>
+
+      <Form.FormItem label={t('domains.addMethod')}>
+        <Radio.Group
+          value={mode}
+          variant="primary-filled"
+          options={[
+            { label: t('domains.manual'), value: 'manual' },
+            { label: t('domains.syncFromProvider'), value: 'sync' },
+          ]}
+          onChange={(value) => setMode(value as 'manual' | 'sync')}
+        />
+      </Form.FormItem>
 
       {mode === 'manual' ? (
         <>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.domainName')}</label>
-            <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="example.com" className={inputClass} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.providerDomainId')}</label>
-            <input value={thirdId} onChange={(e) => setThirdId(e.target.value)} placeholder={t('domains.providerDomainIdPlaceholder')} className={inputClass} />
-          </div>
+          <Form.FormItem label={t('domains.domainName')}>
+            <Input value={name} onChange={(value) => setName(String(value))} placeholder="example.com" />
+          </Form.FormItem>
+          <Form.FormItem label={t('domains.providerDomainId')}>
+            <Input value={thirdId} onChange={(value) => setThirdId(String(value))} placeholder={t('domains.providerDomainIdPlaceholder')} />
+          </Form.FormItem>
         </>
       ) : (
-        <div>
-          <div className="flex items-center justify-between gap-3 mb-1.5">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('domains.selectDomains')}</label>
-            {providerDomains.length > 0 && (
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={handleSelectAll}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700">
-                  {t('common.selectAll')}
-                </button>
-                <button type="button" onClick={handleInvertSelection}
-                  className="text-xs font-medium text-gray-600 hover:text-gray-800">
-                  {t('common.invert')}
-                </button>
-              </div>
-            )}
-          </div>
+        <Card bordered title={t('domains.selectDomains')} actions={providerDomains.length > 0 && (
+          <Space size="small">
+            <Button size="small" variant="outline" onClick={() => setSelectedProviders(providerDomains.map((domain) => domain.third_id))}>
+              {t('common.selectAll')}
+            </Button>
+            <Button
+              size="small"
+              variant="outline"
+              onClick={() => setSelectedProviders(providerDomains.filter((domain) => !selectedProviders.includes(domain.third_id)).map((domain) => domain.third_id))}
+            >
+              {t('common.invert')}
+            </Button>
+          </Space>
+        )}>
           {loadingDomains ? (
-            <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
+            <div className="page-state"><Loading loading size="small" /></div>
           ) : providerDomains.length === 0 ? (
-            <p className="text-sm text-gray-400 py-2">{t('domains.noProviderDomains')}</p>
+            <Empty description={t('domains.noProviderDomains')} />
           ) : (
-            <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-700">
-              {providerDomains.map((d) => (
-                <label key={d.third_id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
-                  <input type="checkbox" checked={selectedProviders.includes(d.third_id)}
-                    onChange={() => toggleProvider(d.third_id)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                  <span className="text-sm">{d.name}</span>
-                  <span className="text-xs text-gray-400 ml-auto">{d.third_id}</span>
+            <div className="page-list page-list--scroll">
+              {providerDomains.map((domain: ProviderDomainOption) => (
+                <label key={domain.third_id} className="token-domain-option">
+                  <Checkbox
+                    checked={selectedProviders.includes(domain.third_id)}
+                    onChange={(checked) => toggleProvider(domain.third_id, Boolean(checked))}
+                  />
+                  <span className="page-list-item__main">
+                    <strong>{domain.name}</strong>
+                    <span>{domain.third_id}</span>
+                  </span>
                 </label>
               ))}
             </div>
           )}
-        </div>
+        </Card>
       )}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.remark')}</label>
-        <input value={remark} onChange={(e) => setRemark(e.target.value)} placeholder={t('common.optionalRemark')} className={inputClass} />
-      </div>
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="submit" disabled={createMutation.isPending || (mode === 'sync' && selectedProviders.length === 0)}
-          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
-          {createMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+
+      <Form.FormItem label={t('domains.remark')}>
+        <Input value={remark} onChange={(value) => setRemark(String(value))} placeholder={t('common.optionalRemark')} />
+      </Form.FormItem>
+
+      <Space className="record-form__actions">
+        <Button
+          type="submit"
+          theme="primary"
+          loading={createMutation.isPending}
+          disabled={mode === 'sync' && selectedProviders.length === 0}
+        >
           {mode === 'sync' && selectedProviders.length > 1 ? t('domains.addDomains', { count: selectedProviders.length }) : t('domains.addDomain')}
-        </button>
-      </div>
-    </form>
+        </Button>
+      </Space>
+    </Form>
   );
 }
 
@@ -198,31 +204,27 @@ export function DomainListTab() {
   const canManage = isActuallyAdmin;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
+  const [editRemark, setEditRemark] = useState('');
   const [deleting, setDeleting] = useState<Domain | null>(null);
   const [accountFilter, setAccountFilter] = useState('');
   const [keyword, setKeyword] = useState('');
   const [domainTypeFilter, setDomainTypeFilter] = useState<'all' | 'apex' | 'subdomain'>('all');
-  
-  // 实时数据：域名变更
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
+
   useRealtimeData({
     queryKey: ['domains'],
     websocketEventTypes: ['domain_created', 'domain_updated', 'domain_deleted'],
-    pollingInterval: 60000, // 60秒轮询
+    pollingInterval: 60000,
   });
-  
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
-  
-  // Pinned domains
-  // 并行查询：置顶域名、域名列表、账号列表
+
   const { data: pinnedDomainsData } = useQuery({
     queryKey: ['pinnedDomains'],
     queryFn: () => authApi.getPinnedDomains().then((r) => r.data.data?.pinnedDomains ?? []),
-    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+    staleTime: 5 * 60 * 1000,
   });
   const pinnedDomains = pinnedDomainsData ?? [];
-  
+
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains', accountFilter, keyword, domainTypeFilter, page, pageSize],
     queryFn: () => domainsApi.list({
@@ -232,27 +234,23 @@ export function DomainListTab() {
       page,
       pageSize,
     }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 }),
-    staleTime: 30 * 1000, // 30秒内不重新请求
+    staleTime: 30 * 1000,
   });
 
   const domains = domainsData?.list ?? [];
   const total = domainsData?.total ?? 0;
-  const totalPages = domainsData?.totalPages ?? 1;
-  
-  // Sort domains: pinned domains first, then by id
   const sortedDomains = [...domains].sort((a, b) => {
     const aPinned = pinnedDomains.includes(a.id);
     const bPinned = pinnedDomains.includes(b.id);
-    
-    if (aPinned && !bPinned) return -1;  // a is pinned, b is not
-    if (!aPinned && bPinned) return 1;   // b is pinned, a is not
-    return 0;  // both pinned or both not pinned, keep original order
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    return 0;
   });
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsApi.list().then((r) => r.data.data ?? []),
-    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+    staleTime: 5 * 60 * 1000,
   });
 
   const updateMutation = useMutation({
@@ -277,20 +275,12 @@ export function DomainListTab() {
     onError: () => toast.error(t('domains.deleteFailed')),
   });
 
-  // Pin/Unpin domain mutation
   const pinMutation = useMutation({
     mutationFn: async ({ domainId, isPinned }: { domainId: number; isPinned: boolean }) => {
       const currentPinned = pinnedDomainsData ?? [];
-      let newPinned: number[];
-      
-      if (isPinned) {
-        // Add to pinned list
-        newPinned = [...currentPinned.filter((id: number) => id !== domainId), domainId];
-      } else {
-        // Remove from pinned list
-        newPinned = currentPinned.filter((id: number) => id !== domainId);
-      }
-      
+      const newPinned = isPinned
+        ? [...currentPinned.filter((id: number) => id !== domainId), domainId]
+        : currentPinned.filter((id: number) => id !== domainId);
       return authApi.updatePinnedDomains(newPinned);
     },
     onSuccess: (res) => {
@@ -301,225 +291,153 @@ export function DomainListTab() {
     onError: () => toast.error('操作失败'),
   });
 
-  const accountMap = Object.fromEntries(accounts.map((a) => [a.id, a]));
+  const accountMap = Object.fromEntries(accounts.map((account) => [account.id, account]));
+  const openEdit = (domain: Domain) => {
+    setEditing(domain);
+    setEditRemark(domain.remark || '');
+  };
 
   const columns = [
     {
-      key: 'name', label: t('domains.domainName'),
+      key: 'name',
+      label: t('domains.domainName'),
       render: (row: Domain) => {
         const isApex = isApexDomain(row.name);
         return (
-          <button onClick={() => navigate(`/domains/${row.id}/records`)}
-            className="flex items-center gap-2 font-medium text-blue-600 hover:text-blue-800 transition-colors">
-            {row.name}
-            {!isApex && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
-                <Layers className="w-3 h-3" />
-                {t('domains.subdomain')}
-              </span>
-            )}
-            <ExternalLink className="w-3.5 h-3.5" />
-          </button>
+          <Space size="small">
+            <Button variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/domains/${row.id}/records`)}>
+              {row.name}
+            </Button>
+            {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />}>{t('domains.subdomain')}</Tag>}
+          </Space>
         );
       },
     },
     {
-      key: 'account_id', label: t('domains.account'),
+      key: 'account_id',
+      label: t('domains.account'),
       render: (row: Domain) => {
         const account = accountMap[row.account_id];
-        if (!account) return <span className="text-gray-700">#{row.account_id}</span>;
-        
-        return (
-          <div className="flex items-center gap-2">
-            <span className="text-gray-700">{account.name}</span>
-            <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded text-xs font-medium border border-blue-200 dark:border-blue-800">
-              {account.type}
-            </span>
-          </div>
-        );
+        if (!account) return <span className="page-muted">#{row.account_id}</span>;
+        return <Space size="small"><span className="page-strong">{account.name}</span><Tag theme="primary" variant="light">{account.type}</Tag></Space>;
       },
     },
+    { key: 'record_count', label: t('domains.records'), render: (row: Domain) => <Tag variant="light">{row.record_count ?? 0}</Tag> },
     {
-      key: 'record_count', label: t('domains.records'),
-      render: (row: Domain) => (
-        <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
-          {row.record_count ?? 0}
-        </span>
-      ),
-    },
-    {
-      key: 'expires_at', label: t('domains.expires'),
+      key: 'expires_at',
+      label: t('domains.expires'),
       render: (row: Domain) => {
-        if (!row.expires_at) return <span className="text-gray-400 text-xs">{t('domains.unknown')}</span>;
+        if (!row.expires_at) return <span className="page-muted">{t('domains.unknown')}</span>;
         const expiry = new Date(row.expires_at);
         const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-        
-        let colorClass = 'text-gray-600 dark:text-gray-400';
-        if (daysLeft < 0) colorClass = 'text-red-600 font-medium';
-        else if (daysLeft <= 30) colorClass = 'text-yellow-600 font-medium';
-        else if (daysLeft <= 90) colorClass = 'text-blue-600 font-medium';
-        
-        // 检查是否有根域名到期时间（子域名情况）
-        const hasApexExpiry = !!row.apex_expires_at;
-        const apexExpiry = hasApexExpiry ? new Date(row.apex_expires_at!) : null;
-        
+        const theme = daysLeft < 0 ? 'danger' : daysLeft <= 30 ? 'warning' : daysLeft <= 90 ? 'primary' : 'success';
+        const apexExpiry = row.apex_expires_at ? new Date(row.apex_expires_at) : null;
         return (
-          <div className="flex flex-col">
-            {/* 子域名到期时间（大字） */}
-            <span className={`text-sm ${colorClass}`}>
-              {expiry.toLocaleDateString()}
-            </span>
-            
-            {/* 根域名到期时间（小字，仅对子域名显示） */}
-            {hasApexExpiry && apexExpiry && (
-              <span className="text-xs text-gray-400 mt-0.5">
-                {t('domains.apexDomainExpiry')}: {apexExpiry.toLocaleDateString()}
-              </span>
-            )}
-            
-            {/* 剩余天数提示 */}
-            {daysLeft >= 0 && (
-              <span className={`text-xs ${daysLeft <= 30 ? 'text-yellow-600' : 'text-gray-500'}`}>
-                {t('domains.daysLeft', { days: daysLeft })}
-              </span>
-            )}
-            {daysLeft < 0 && (
-              <span className="text-xs text-red-600">{t('domains.expired')}</span>
-            )}
+          <div className="domain-expiry">
+            <Tag theme={theme as any} variant="light">{expiry.toLocaleDateString()}</Tag>
+            {apexExpiry && <span>{t('domains.apexDomainExpiry')}: {apexExpiry.toLocaleDateString()}</span>}
+            <span>{daysLeft >= 0 ? t('domains.daysLeft', { days: daysLeft }) : t('domains.expired')}</span>
           </div>
         );
       },
     },
-    { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="text-gray-500">{row.remark || t('domains.emptyRemark')}</span> },
+    { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="page-muted">{row.remark || t('domains.emptyRemark')}</span> },
     {
-      key: 'actions', label: t('domains.actions'),
+      key: 'actions',
+      label: t('domains.actions'),
       render: (row: Domain) => {
         const isPinned = pinnedDomains.includes(row.id);
         return (
-          <div className="flex items-center gap-2">
-            <button onClick={() => pinMutation.mutate({ domainId: row.id, isPinned: !isPinned })}
-              className={`p-1.5 rounded-lg transition-colors ${isPinned ? 'text-yellow-600 hover:bg-yellow-50' : 'text-gray-400 hover:text-yellow-600 hover:bg-yellow-50'}`}
-              title={isPinned ? t('domains.unpinDomain') : t('domains.pinDomain')}>
-              <Pin className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
-            </button>
-            <button onClick={() => navigate(`/domains/${row.id}/records`)}
-              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={t('records.dnsRecords')}>
-              <List className="w-4 h-4" />
-            </button>
-            <button onClick={() => setEditing(row)} disabled={!canManage}
-              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-              <Edit2 className="w-4 h-4" />
-            </button>
-            <button onClick={() => setDeleting(row)} disabled={!canManage}
-              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+          <Space size="small">
+            <Button
+              shape="square"
+              variant="text"
+              theme={isPinned ? 'warning' : 'default'}
+              icon={<PinIcon />}
+              onClick={() => pinMutation.mutate({ domainId: row.id, isPinned: !isPinned })}
+            />
+            <Button shape="square" variant="text" icon={<RootListIcon />} onClick={() => navigate(`/domains/${row.id}/records`)} />
+            <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => openEdit(row)} />
+            <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(row)} />
+          </Space>
         );
       },
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="page-shell">
+      <section className="page-heading">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('domains.tabs.list')}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('domains.tabs.listSubtitle')}</p>
+          <h2>{t('domains.tabs.list')}</h2>
+          <p>{t('domains.tabs.listSubtitle')}</p>
         </div>
-        <button onClick={() => setShowAdd(true)} disabled={!canManage}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-          <Plus className="w-4 h-4" /> {t('domains.addDomain')}
-        </button>
-      </div>
+        <Button theme="primary" icon={<AddIcon />} disabled={!canManage} onClick={() => setShowAdd(true)}>
+          {t('domains.addDomain')}
+        </Button>
+      </section>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }}
-            placeholder={t('domains.searchPlaceholder')} className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+      <Card bordered={false} shadow={false} className="page-card domain-list-card">
+        <div className="records-toolbar domain-filter-grid domain-list-card__toolbar">
+          <Input
+            clearable
+            value={keyword}
+            prefixIcon={<SearchIcon />}
+            placeholder={t('domains.searchPlaceholder')}
+            onChange={(value) => { setKeyword(String(value)); setPage(1); }}
+          />
+          <Select
+            value={accountFilter}
+            options={[{ label: t('domains.allAccounts'), value: '' }, ...accounts.map((account) => ({ label: account.name, value: String(account.id) }))]}
+            onChange={(value) => { setAccountFilter(selectValue(value)); setPage(1); }}
+          />
+          <Select
+            value={domainTypeFilter}
+            options={[
+              { label: t('domains.allDomains'), value: 'all' },
+              { label: t('domains.apexDomains'), value: 'apex' },
+              { label: t('domains.subdomains'), value: 'subdomain' },
+            ]}
+            onChange={(value) => { setDomainTypeFilter(selectValue(value) as 'all' | 'apex' | 'subdomain'); setPage(1); }}
+          />
         </div>
-        <select value={accountFilter} onChange={(e) => { setAccountFilter(e.target.value); setPage(1); }}
-          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          <option value="">{t('domains.allAccounts')}</option>
-          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
-        <select value={domainTypeFilter} onChange={(e) => { setDomainTypeFilter(e.target.value as 'all' | 'apex' | 'subdomain'); setPage(1); }}
-          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          <option value="all">{t('domains.allDomains')}</option>
-          <option value="apex">{t('domains.apexDomains')}</option>
-          <option value="subdomain">{t('domains.subdomains')}</option>
-        </select>
-      </div>
-
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-        <Table columns={columns} data={sortedDomains} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.noDomainsFound')} />
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-            <span>{t('common.total')}: {total} {t('common.items')}</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-              className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-            >
-              <option value={10}>10 {t('common.perPage')}</option>
-              <option value={20}>20 {t('common.perPage')}</option>
-              <option value={50}>50 {t('common.perPage')}</option>
-              <option value={100}>100 {t('common.perPage')}</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {t('common.page')} {page} / {totalPages}
-            </span>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+        <Table columns={columns} data={sortedDomains} loading={isLoading} rowKey={(row) => row.id} emptyText={t('domains.noDomainsFound')} />
+        <div className="records-pagination">
+          <Pagination
+            current={page}
+            pageSize={pageSize}
+            total={total}
+            pageSizeOptions={[10, 20, 50, 100]}
+            onCurrentChange={(current) => setPage(current)}
+            onPageSizeChange={(nextPageSize) => {
+              setPageSize(nextPageSize);
+              setPage(1);
+            }}
+          />
         </div>
+      </Card>
 
       {showAdd && canManage && (
-        <Modal title={t('domains.addDomain')} onClose={() => setShowAdd(false)}>
+        <Modal title={t('domains.addDomain')} onClose={() => setShowAdd(false)} size="lg">
           <AddDomainForm accounts={accounts} onClose={() => setShowAdd(false)} />
         </Modal>
       )}
 
       {editing && canManage && (
         <Modal title={t('domains.editDomain')} onClose={() => setEditing(null)} size="sm">
-          <form onSubmit={(e) => { e.preventDefault(); updateMutation.mutate({ id: editing.id, remark: (e.target as HTMLFormElement).remark.value }); }} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.domain')}</label>
-              <p className="text-sm font-semibold text-gray-900">{editing.name}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.remark')}</label>
-              <input name="remark" defaultValue={editing.remark}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="submit" disabled={updateMutation.isPending}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }) => { e?.preventDefault(); updateMutation.mutate({ id: editing.id, remark: editRemark }); }}>
+            <Form.FormItem label={t('domains.domain')}>
+              <span className="page-strong">{editing.name}</span>
+            </Form.FormItem>
+            <Form.FormItem label={t('domains.remark')}>
+              <Input value={editRemark} onChange={(value) => setEditRemark(String(value))} />
+            </Form.FormItem>
+            <Space className="record-form__actions">
+              <Button type="submit" theme="primary" loading={updateMutation.isPending}>
                 {t('common.save')}
-              </button>
-            </div>
-          </form>
+              </Button>
+            </Space>
+          </Form>
         </Modal>
       )}
 

@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Key, Plus, Trash2, Copy, Check, X, Calendar, Globe, Infinity, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Alert, Button, Card, Checkbox, DatePicker, Empty, Form, Input, Loading, Pagination, Space, Switch, Tag } from 'tdesign-react';
+import { CalendarIcon, CheckIcon, CopyIcon, DeleteIcon, EditIcon, InternetIcon, KeyIcon } from 'tdesign-icons-react';
 import { useToast } from '../hooks/useToast';
 import { tokensApi } from '../api';
 import { useI18n } from '../contexts/I18nContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Modal } from '../components/Modal';
+import { Table } from '../components/Table';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 
 interface Token {
@@ -18,28 +21,25 @@ interface Token {
   last_used_at: string | null;
 }
 
+interface TokenDomain {
+  id: number;
+  name: string;
+  account_name: string;
+}
+
+const DOMAIN_PAGE_SIZE = 20;
+
 export function Tokens() {
   const { t } = useI18n();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [editingToken, setEditingToken] = useState<Token | null>(null);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [domainSearch, setDomainSearch] = useState('');
   const [domainPage, setDomainPage] = useState(1);
-  const domainPageSize = 20;
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; tokenId: number | null }>({ show: false, tokenId: null });
-
-  // 实时数据：Token 变更
-  useRealtimeData({
-    queryKey: ['tokens'],
-    websocketEventTypes: ['token_created', 'token_revoked', 'token_updated'],
-    pollingInterval: 120000, // 2分钟
-  });
-
-  // Form state
   const [formData, setFormData] = useState({
     name: '',
     allowed_domains: [] as number[],
@@ -48,7 +48,13 @@ export function Tokens() {
     no_expiry: false,
   });
 
-  const { data: tokens, isLoading } = useQuery({
+  useRealtimeData({
+    queryKey: ['tokens'],
+    websocketEventTypes: ['token_created', 'token_revoked', 'token_updated'],
+    pollingInterval: 120000,
+  });
+
+  const { data: tokens = [], isLoading } = useQuery({
     queryKey: ['tokens'],
     queryFn: async () => {
       const res = await tokensApi.getAll();
@@ -57,11 +63,11 @@ export function Tokens() {
     },
   });
 
-  const { data: domains, isLoading: isLoadingDomains } = useQuery({
+  const { data: domains = [], isLoading: isLoadingDomains } = useQuery({
     queryKey: ['token-domains'],
     queryFn: async () => {
       const res = await tokensApi.getDomains();
-      if (res.data.code === 0) return res.data.data as { id: number; name: string; account_name: string }[];
+      if (res.data.code === 0) return res.data.data as TokenDomain[];
       throw new Error(res.data.msg);
     },
   });
@@ -109,23 +115,8 @@ export function Tokens() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const handleDeleteClick = (tokenId: number) => {
-    setDeleteConfirm({ show: true, tokenId });
-  };
-
-  const handleConfirmDelete = () => {
-    if (deleteConfirm.tokenId !== null) {
-      deleteMutation.mutate(deleteConfirm.tokenId);
-    }
-  };
-
-  const handleCancelDelete = () => {
-    setDeleteConfirm({ show: false, tokenId: null });
-  };
-
   const toggleMutation = useMutation({
-    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) =>
-      tokensApi.toggleStatus(id, is_active),
+    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) => tokensApi.toggleStatus(id, is_active),
     onSuccess: (res) => {
       if (res.data.code === 0) {
         queryClient.invalidateQueries({ queryKey: ['tokens'] });
@@ -137,24 +128,45 @@ export function Tokens() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const handleCreate = () => {
-    if (!formData.name) {
-      toast.error(t('tokens.tokenNameRequired'));
-      return;
-    }
-    
-    const data = {
-      name: formData.name,
-      allowed_domains: formData.allowed_domains,
-      start_time: formData.start_time,
-      end_time: formData.no_expiry ? undefined : formData.end_time,
-    };
-    
-    createMutation.mutate(data);
+  const filteredDomains = domains.filter((domain) => (
+    domain.name.toLowerCase().includes(domainSearch.toLowerCase()) ||
+    domain.account_name.toLowerCase().includes(domainSearch.toLowerCase())
+  ));
+  const paginatedDomains = filteredDomains.slice((domainPage - 1) * DOMAIN_PAGE_SIZE, domainPage * DOMAIN_PAGE_SIZE);
+
+  const resetForm = () => {
+    setNewToken(null);
+    setDomainSearch('');
+    setDomainPage(1);
+    setFormData({
+      name: '',
+      allowed_domains: [],
+      start_time: '',
+      end_time: '',
+      no_expiry: false,
+    });
+  };
+
+  const closeModal = () => {
+    setShowCreateModal(false);
+    resetForm();
+  };
+
+  const closeEditModal = () => {
+    setEditingToken(null);
+    resetForm();
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setShowCreateModal(true);
   };
 
   const handleEdit = (token: Token) => {
     setEditingToken(token);
+    setNewToken(null);
+    setDomainSearch('');
+    setDomainPage(1);
     setFormData({
       name: token.name,
       allowed_domains: token.allowed_domains,
@@ -162,7 +174,21 @@ export function Tokens() {
       end_time: token.end_time || '',
       no_expiry: !token.end_time,
     });
-    setShowEditModal(true);
+  };
+
+  const buildPayload = () => ({
+    name: formData.name,
+    allowed_domains: formData.allowed_domains,
+    start_time: formData.start_time,
+    end_time: formData.no_expiry ? undefined : formData.end_time,
+  });
+
+  const handleCreate = () => {
+    if (!formData.name) {
+      toast.error(t('tokens.tokenNameRequired'));
+      return;
+    }
+    createMutation.mutate(buildPayload());
   };
 
   const handleUpdate = () => {
@@ -171,28 +197,7 @@ export function Tokens() {
       toast.error(t('tokens.tokenNameRequired'));
       return;
     }
-
-    const data = {
-      name: formData.name,
-      allowed_domains: formData.allowed_domains,
-      start_time: formData.start_time,
-      end_time: formData.no_expiry ? undefined : formData.end_time,
-    };
-
-    updateMutation.mutate({ id: editingToken.id, data });
-  };
-
-  const closeEditModal = () => {
-    setShowEditModal(false);
-    setEditingToken(null);
-    setDomainSearch('');
-    setFormData({
-      name: '',
-      allowed_domains: [],
-      start_time: '',
-      end_time: '',
-      no_expiry: false,
-    });
+    updateMutation.mutate({ id: editingToken.id, data: buildPayload() });
   };
 
   const handleCopyToken = async () => {
@@ -206,595 +211,269 @@ export function Tokens() {
     }
   };
 
-  const closeModal = () => {
-    setShowCreateModal(false);
-    setNewToken(null);
-    setDomainSearch('');
-    setFormData({
-      name: '',
-      allowed_domains: [],
-      start_time: '',
-      end_time: '',
-      no_expiry: false,
-    });
-  };
-
   const formatDate = (date: string | null) => {
     if (!date) return t('tokens.noExpiry');
     return new Date(date).toLocaleString();
   };
 
-  // Filter domains by search
-  const filteredDomains = domains?.filter(d => 
-    d.name.toLowerCase().includes(domainSearch.toLowerCase()) ||
-    d.account_name.toLowerCase().includes(domainSearch.toLowerCase())
-  );
-  
-  // Calculate pagination for domains
-  const domainTotalPages = Math.ceil((filteredDomains?.length || 0) / domainPageSize);
-  const domainStartIndex = (domainPage - 1) * domainPageSize;
-  const domainEndIndex = Math.min(domainStartIndex + domainPageSize, filteredDomains?.length || 0);
-  const paginatedDomains = filteredDomains?.slice(domainStartIndex, domainEndIndex);
-
-  // Select all domains in current filter
   const selectAllFiltered = () => {
-    if (!filteredDomains) return;
-    const filteredIds = filteredDomains.map(d => d.id);
-    const newSelection = [...new Set([...formData.allowed_domains, ...filteredIds])];
-    setFormData({ ...formData, allowed_domains: newSelection });
+    const filteredIds = filteredDomains.map((domain) => domain.id);
+    setFormData((data) => ({ ...data, allowed_domains: [...new Set([...data.allowed_domains, ...filteredIds])] }));
   };
 
-  // Clear all selection
   const clearAllSelection = () => {
-    setFormData({ ...formData, allowed_domains: [] });
+    setFormData((data) => ({ ...data, allowed_domains: [] }));
   };
+
+  const toggleDomain = (domainId: number, checked: boolean) => {
+    setFormData((data) => ({
+      ...data,
+      allowed_domains: checked
+        ? [...new Set([...data.allowed_domains, domainId])]
+        : data.allowed_domains.filter((id) => id !== domainId),
+    }));
+  };
+
+  const columns = [
+    {
+      key: 'name',
+      label: t('tokens.tokenName'),
+      render: (token: Token) => (
+        <Space size="small">
+          <KeyIcon />
+          <span className="page-strong">{token.name}</span>
+        </Space>
+      ),
+    },
+    {
+      key: 'domains',
+      label: t('tokens.domains'),
+      render: (token: Token) => (
+        <Tag variant="light">
+          {token.allowed_domains.length === 0 ? t('tokens.allDomains') : t('tokens.domainCount', { count: token.allowed_domains.length })}
+        </Tag>
+      ),
+    },
+    {
+      key: 'expires',
+      label: t('tokens.expiresAt'),
+      render: (token: Token) => (
+        <span className="page-muted">{formatDate(token.start_time)} - {token.end_time ? formatDate(token.end_time) : t('tokens.noExpiry')}</span>
+      ),
+    },
+    {
+      key: 'status',
+      label: t('tokens.status'),
+      render: (token: Token) => (
+        <Switch
+          size="small"
+          value={token.is_active}
+          onChange={(checked) => toggleMutation.mutate({ id: token.id, is_active: Boolean(checked) })}
+        />
+      ),
+    },
+    {
+      key: 'last_used_at',
+      label: t('tokens.lastUsedAt'),
+      render: (token: Token) => <span className="page-muted">{token.last_used_at ? new Date(token.last_used_at).toLocaleString() : t('tokens.neverUsed')}</span>,
+    },
+    {
+      key: 'actions',
+      label: t('tokens.actions'),
+      render: (token: Token) => (
+        <Space size="small">
+          <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => handleEdit(token)} />
+          <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} onClick={() => setDeleteConfirm({ show: true, tokenId: token.id })} />
+        </Space>
+      ),
+    },
+  ];
+
+  const renderDomainSelector = () => (
+    <Card bordered className="token-domain-card">
+      <div className="token-domain-toolbar">
+        <Input
+          clearable
+          value={domainSearch}
+          prefixIcon={<InternetIcon />}
+          placeholder={t('tokens.searchDomains')}
+          onChange={(value) => {
+            setDomainSearch(String(value));
+            setDomainPage(1);
+          }}
+        />
+        <Space>
+          <Button variant="outline" size="small" onClick={selectAllFiltered}>
+            {t('tokens.selectAllFiltered')}
+          </Button>
+          <Button variant="outline" size="small" onClick={clearAllSelection}>
+            {t('tokens.clearAll')}
+          </Button>
+        </Space>
+      </div>
+
+      <div className="token-domain-summary">
+        <span>{t('tokens.selectedCount', { count: formData.allowed_domains.length })}</span>
+        <span>{t('tokens.allDomainsAllowed')}</span>
+      </div>
+
+      {isLoadingDomains ? (
+        <div className="page-state"><Loading loading size="small" text={t('common.loading')} /></div>
+      ) : domains.length === 0 ? (
+        <Empty description={t('tokens.noDomains')} />
+      ) : filteredDomains.length === 0 ? (
+        <Empty description={t('tokens.noMatchingDomains')} />
+      ) : (
+        <>
+          <div className="page-list page-list--scroll">
+            <label className="token-domain-all">
+              <Checkbox
+                checked={formData.allowed_domains.length === 0}
+                onChange={(checked) => {
+                  if (checked) clearAllSelection();
+                }}
+              />
+              <span className="page-strong">{t('tokens.allDomains')}</span>
+            </label>
+            {paginatedDomains.map((domain) => (
+              <label key={domain.id} className="token-domain-option">
+                <Checkbox
+                  checked={formData.allowed_domains.includes(domain.id)}
+                  onChange={(checked) => toggleDomain(domain.id, Boolean(checked))}
+                />
+                <span className="page-list-item__main">
+                  <strong>{domain.name}</strong>
+                  <span>{domain.account_name}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="token-domain-pagination">
+            <Pagination
+              current={domainPage}
+              pageSize={DOMAIN_PAGE_SIZE}
+              total={filteredDomains.length}
+              showPageSize={false}
+              showJumper={false}
+              onCurrentChange={(current) => setDomainPage(current)}
+            />
+          </div>
+        </>
+      )}
+    </Card>
+  );
+
+  const renderTokenForm = (mode: 'create' | 'edit') => (
+    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell token-form" onSubmit={({ e }) => { e?.preventDefault(); mode === 'create' ? handleCreate() : handleUpdate(); }}>
+      <Form.FormItem label={t('tokens.tokenName')}>
+        <Input
+          value={formData.name}
+          onChange={(value) => setFormData((data) => ({ ...data, name: String(value) }))}
+          placeholder={t('tokens.tokenNamePlaceholder')}
+        />
+      </Form.FormItem>
+
+      <Form.FormItem label={<Space size="small"><InternetIcon />{t('tokens.allowedDomains')}</Space>}>
+        {renderDomainSelector()}
+      </Form.FormItem>
+
+      <div className="token-time-grid">
+        <Form.FormItem label={<Space size="small"><CalendarIcon />{t('tokens.startTime')}</Space>} tips={t('tokens.startTimeHint')}>
+          <DatePicker
+            clearable
+            enableTimePicker
+            format="YYYY-MM-DD HH:mm:ss"
+            valueType="YYYY-MM-DD HH:mm:ss"
+            value={formData.start_time}
+            onChange={(value) => setFormData((data) => ({ ...data, start_time: String(value ?? '') }))}
+          />
+        </Form.FormItem>
+        <Form.FormItem label={<Space size="small"><CalendarIcon />{t('tokens.endTime')}</Space>} tips={t('tokens.endTimeHint')}>
+          <DatePicker
+            clearable
+            enableTimePicker
+            disabled={formData.no_expiry}
+            format="YYYY-MM-DD HH:mm:ss"
+            valueType="YYYY-MM-DD HH:mm:ss"
+            value={formData.end_time}
+            onChange={(value) => setFormData((data) => ({ ...data, end_time: String(value ?? ''), no_expiry: false }))}
+          />
+        </Form.FormItem>
+        <Form.FormItem className="token-no-expiry-item" label=" ">
+          <Checkbox
+            checked={formData.no_expiry}
+            onChange={(checked) => setFormData((data) => ({
+              ...data,
+              no_expiry: Boolean(checked),
+              end_time: checked ? '' : data.end_time,
+            }))}
+          >
+            {t('tokens.noExpiry')}
+          </Checkbox>
+        </Form.FormItem>
+      </div>
+
+      <Alert theme="info" message={`${t('common.remark')}: ${t('tokens.tokenTip')}`} />
+
+      <Space className="record-form__actions">
+        <Button variant="outline" onClick={mode === 'create' ? closeModal : closeEditModal}>
+          {t('common.cancel')}
+        </Button>
+        <Button type="submit" theme="primary" loading={mode === 'create' ? createMutation.isPending : updateMutation.isPending} disabled={!formData.name}>
+          {mode === 'create' ? t('tokens.createToken') : t('common.save')}
+        </Button>
+      </Space>
+    </Form>
+  );
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="page-shell">
+      <section className="page-heading">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('tokens.title')}</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">{t('tokens.subtitle')}</p>
+          <h1>{t('tokens.title')}</h1>
+          <p>{t('tokens.subtitle')}</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
+        <Button theme="primary" icon={<KeyIcon />} onClick={openCreateModal}>
           {t('tokens.createToken')}
-        </button>
-      </div>
+        </Button>
+      </section>
 
-      {/* Token List */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 dark:bg-gray-800">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.tokenName')}</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.domains')}</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.expiresAt')}</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.status')}</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.lastUsedAt')}</th>
-              <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{t('tokens.actions')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-            {isLoading ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">{t('common.loading')}</td>
-              </tr>
-            ) : tokens?.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">{t('tokens.noTokens')}</td>
-              </tr>
-            ) : (
-              tokens?.map((token) => (
-                <tr key={token.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Key className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium text-gray-900 dark:text-white">{token.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {token.allowed_domains.length === 0 ? t('tokens.allDomains') : t('tokens.domainCount', { count: token.allowed_domains.length })}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                    {formatDate(token.start_time)} - {token.end_time ? formatDate(token.end_time) : t('tokens.noExpiry')}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => toggleMutation.mutate({ id: token.id, is_active: !token.is_active })}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                        token.is_active ? 'bg-green-500' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                        token.is_active ? 'translate-x-5' : 'translate-x-1'
-                      }`} />
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                    {token.last_used_at ? new Date(token.last_used_at).toLocaleString() : t('tokens.neverUsed')}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleEdit(token)}
-                      className="p-1 text-blue-600 hover:bg-blue-50 rounded mr-1"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(token.id)}
-                      className="p-1 text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <Card bordered={false} shadow={false} className="page-card">
+        <Table columns={columns} data={tokens} loading={isLoading} rowKey={(token) => token.id} emptyText={t('tokens.noTokens')} />
+      </Card>
 
-      {/* Delete Confirm Dialog */}
       {deleteConfirm.show && (
         <ConfirmDialog
           message={t('tokens.deleteConfirm')}
-          onConfirm={handleConfirmDelete}
-          onCancel={handleCancelDelete}
+          onConfirm={() => {
+            if (deleteConfirm.tokenId !== null) deleteMutation.mutate(deleteConfirm.tokenId);
+          }}
+          onCancel={() => setDeleteConfirm({ show: false, tokenId: null })}
           isLoading={deleteMutation.isPending}
         />
       )}
 
-      {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            {newToken ? (
-              <div className="text-center">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Key className="w-8 h-8 text-green-600" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('tokens.tokenCreated')}</h2>
-                <p className="text-gray-500 mb-4">{t('tokens.copyToken')}</p>
-                <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg flex items-center gap-2 mb-4">
-                  <code className="flex-1 text-sm break-all">{newToken}</code>
-                  <button
-                    onClick={handleCopyToken}
-                    className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-                  >
-                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-                <button
-                  onClick={closeModal}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg"
-                >
-                  {t('common.confirmAction')}
-                </button>
+        <Modal title={newToken ? t('tokens.tokenCreated') : t('tokens.createToken')} onClose={closeModal} size="lg">
+          {newToken ? (
+            <div className="page-shell">
+              <Alert theme="success" message={t('tokens.copyToken')} />
+              <div className="token-code-box">
+                <code>{newToken}</code>
+                <Button shape="square" theme="primary" icon={copied ? <CheckIcon /> : <CopyIcon />} onClick={handleCopyToken} />
               </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('tokens.createToken')}</h2>
-                  <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('tokens.tokenName')} <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder={t('tokens.tokenNamePlaceholder')}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
-                    />
-                  </div>
-
-                  {/* Domains */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      <Globe className="w-4 h-4 inline mr-1" />
-                      {t('tokens.allowedDomains')}
-                    </label>
-                    
-                    {/* Domain Search */}
-                    <input
-                      type="text"
-                      placeholder={t('tokens.searchDomains')}
-                      value={domainSearch}
-                      onChange={(e) => {
-                        setDomainSearch(e.target.value);
-                        setDomainPage(1); // Reset to first page when searching
-                      }}
-                      className="w-full px-3 py-1.5 mb-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
-                    />
-                    
-                    {/* Domain Actions */}
-                    <div className="flex gap-2 mb-2">
-                      <button
-                        onClick={selectAllFiltered}
-                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                      >
-                        {t('tokens.selectAllFiltered')}
-                      </button>
-                      <button
-                        onClick={clearAllSelection}
-                        className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                      >
-                        {t('tokens.clearAll')}
-                      </button>
-                      <span className="text-xs text-gray-500 ml-auto">
-                        {t('tokens.selectedCount', { count: formData.allowed_domains.length })}
-                      </span>
-                    </div>
-
-                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3">
-                      {isLoadingDomains ? (
-                        <p className="text-sm text-gray-500 text-center py-4">{t('common.loading')}</p>
-                      ) : !domains || domains.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">{t('tokens.noDomains')}</p>
-                      ) : filteredDomains?.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">{t('tokens.noMatchingDomains')}</p>
-                      ) : (
-                        <>
-                          <label className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-                            <input
-                              type="checkbox"
-                              checked={formData.allowed_domains.length === 0}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  // 勾选"所有域名"时，清空指定域名列表
-                                  setFormData({ ...formData, allowed_domains: [] });
-                                }
-                              }}
-                              className="rounded"
-                            />
-                            <span className="text-sm font-medium">{t('tokens.allDomains')}</span>
-                          </label>
-                          <div className="max-h-48 overflow-y-auto">
-                            {paginatedDomains?.map((domain) => (
-                              <label key={domain.id} className="flex items-center gap-2 mb-1 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={formData.allowed_domains.includes(domain.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      // 勾选指定域名时，如果当前是"所有域名"状态（空数组），先初始化
-                                      const newAllowedDomains = formData.allowed_domains.length === 0 
-                                        ? [] 
-                                        : formData.allowed_domains;
-                                      setFormData({
-                                        ...formData,
-                                        allowed_domains: [...newAllowedDomains, domain.id],
-                                      });
-                                    } else {
-                                      setFormData({
-                                        ...formData,
-                                        allowed_domains: formData.allowed_domains.filter((id) => id !== domain.id),
-                                      });
-                                    }
-                                  }}
-                                  className="rounded"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-sm block truncate">{domain.name}</span>
-                                  <span className="text-xs text-gray-500">{domain.account_name}</span>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-                                              
-                          {/* Pagination Controls */}
-                          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                              <div className="text-xs text-gray-500">
-                                显示 {domainStartIndex + 1}-{domainEndIndex} / 共 {filteredDomains?.length || 0} 项
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setDomainPage((p) => Math.max(1, p - 1))}
-                                  disabled={domainPage === 1}
-                                  className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                >
-                                  <ChevronLeft className="w-3 h-3" />
-                                  上一页
-                                </button>
-                                <span className="text-xs text-gray-500">
-                                  第 {domainPage} / {domainTotalPages} 页
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setDomainPage((p) => Math.min(domainTotalPages, p + 1))}
-                                  disabled={domainPage === domainTotalPages}
-                                  className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                >
-                                  下一页
-                                  <ChevronRight className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                        </>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {t('tokens.allDomainsAllowed')}
-                    </p>
-                  </div>
-
-                  {/* Time Range */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        <Calendar className="w-4 h-4 inline mr-1" />
-                        {t('tokens.startTime')}
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={formData.start_time}
-                        onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">{t('tokens.startTimeHint')}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        <Calendar className="w-4 h-4 inline mr-1" />
-                        {t('tokens.endTime')}
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={formData.end_time}
-                        onChange={(e) => setFormData({ ...formData, end_time: e.target.value, no_expiry: false })}
-                        disabled={formData.no_expiry}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 disabled:bg-gray-100"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">{t('tokens.endTimeHint')}</p>
-                    </div>
-                    <div className="flex items-end">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.no_expiry}
-                          onChange={(e) => setFormData({ 
-                            ...formData, 
-                            no_expiry: e.target.checked,
-                            end_time: e.target.checked ? '' : formData.end_time
-                          })}
-                          className="rounded"
-                        />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">
-                          <Infinity className="w-4 h-4 inline mr-1" />
-                          {t('tokens.noExpiry')}
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <p className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                    <strong>{t('common.remark')}:</strong> {t('tokens.tokenTip')}
-                  </p>
-                </div>
-
-                <div className="flex justify-end gap-2 mt-6">
-                  <button
-                    onClick={closeModal}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    {t('common.cancel')}
-                  </button>
-                  <button
-                    onClick={handleCreate}
-                    disabled={createMutation.isPending || !formData.name}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
-                  >
-                    {createMutation.isPending ? t('common.loading') : t('tokens.createToken')}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+              <Space className="record-form__actions">
+                <Button theme="primary" onClick={closeModal}>{t('common.confirmAction')}</Button>
+              </Space>
+            </div>
+          ) : renderTokenForm('create')}
+        </Modal>
       )}
 
-      {/* Edit Modal */}
-      {showEditModal && editingToken && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('tokens.editToken')}</h2>
-              <button onClick={closeEditModal} className="p-1 hover:bg-gray-100 rounded">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('tokens.tokenName')} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder={t('tokens.tokenNamePlaceholder')}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
-                />
-              </div>
-
-              {/* Domains */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  <Globe className="w-4 h-4 inline mr-1" />
-                  {t('tokens.allowedDomains')}
-                </label>
-                
-                {/* Domain Search */}
-                <input
-                  type="text"
-                  placeholder={t('tokens.searchDomains')}
-                  value={domainSearch}
-                  onChange={(e) => setDomainSearch(e.target.value)}
-                  className="w-full px-3 py-1.5 mb-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
-                />
-                
-                {/* Domain Actions */}
-                <div className="flex gap-2 mb-2">
-                  <button
-                    onClick={selectAllFiltered}
-                    className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                  >
-                    {t('tokens.selectAllFiltered')}
-                  </button>
-                  <button
-                    onClick={clearAllSelection}
-                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                  >
-                    {t('tokens.clearAll')}
-                  </button>
-                  <span className="text-xs text-gray-500 ml-auto">
-                    {t('tokens.selectedCount', { count: formData.allowed_domains.length })}
-                  </span>
-                </div>
-
-                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto">
-                  {isLoadingDomains ? (
-                    <p className="text-sm text-gray-500 text-center py-4">{t('common.loading')}</p>
-                  ) : !domains || domains.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">{t('tokens.noDomains')}</p>
-                  ) : filteredDomains?.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">{t('tokens.noMatchingDomains')}</p>
-                  ) : (
-                    <>
-                      <label className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={formData.allowed_domains.length === 0}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({ ...formData, allowed_domains: [] });
-                            }
-                          }}
-                          className="rounded"
-                        />
-                        <span className="text-sm font-medium">{t('tokens.allDomains')}</span>
-                      </label>
-                      {filteredDomains?.map((domain) => (
-                        <label key={domain.id} className="flex items-center gap-2 mb-1 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded">
-                          <input
-                            type="checkbox"
-                            checked={formData.allowed_domains.includes(domain.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData({
-                                  ...formData,
-                                  allowed_domains: [...formData.allowed_domains, domain.id],
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  allowed_domains: formData.allowed_domains.filter((id) => id !== domain.id),
-                                });
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm block truncate">{domain.name}</span>
-                            <span className="text-xs text-gray-500">{domain.account_name}</span>
-                          </div>
-                        </label>
-                      ))}
-                    </>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {t('tokens.allDomainsAllowed')}
-                </p>
-              </div>
-
-              {/* Time Range */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    <Calendar className="w-4 h-4 inline mr-1" />
-                    {t('tokens.startTime')}
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.start_time}
-                    onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">{t('tokens.startTimeHint')}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    <Calendar className="w-4 h-4 inline mr-1" />
-                    {t('tokens.endTime')}
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.end_time}
-                    onChange={(e) => setFormData({ ...formData, end_time: e.target.value, no_expiry: false })}
-                    disabled={formData.no_expiry}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 disabled:bg-gray-100"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">{t('tokens.endTimeHint')}</p>
-                </div>
-                <div className="flex items-end">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.no_expiry}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
-                        no_expiry: e.target.checked,
-                        end_time: e.target.checked ? '' : formData.end_time
-                      })}
-                      className="rounded"
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      <Infinity className="w-4 h-4 inline mr-1" />
-                      {t('tokens.noExpiry')}
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                <strong>{t('common.remark')}:</strong> {t('tokens.tokenTip')}
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={closeEditModal}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleUpdate}
-                disabled={updateMutation.isPending || !formData.name}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
-              >
-                {updateMutation.isPending ? t('common.loading') : t('common.save')}
-              </button>
-            </div>
-          </div>
-        </div>
+      {editingToken && (
+        <Modal title={t('tokens.editToken')} onClose={closeEditModal} size="lg">
+          {renderTokenForm('edit')}
+        </Modal>
       )}
     </div>
   );

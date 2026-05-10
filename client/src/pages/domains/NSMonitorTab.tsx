@@ -1,6 +1,19 @@
-﻿import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, ShieldAlert, AlertTriangle, CheckCircle, RefreshCw, Search, Bell, Mail, Plus, Trash2, Wand2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button, Card, Empty, Form, Input, Pagination, Radio, Space, Switch, Tag, Textarea } from 'tdesign-react';
+import {
+  AddIcon,
+  BrushIcon,
+  CheckCircleIcon,
+  DeleteIcon,
+  EditIcon,
+  ErrorTriangleIcon,
+  MailIcon,
+  NotificationIcon,
+  RefreshIcon,
+  SearchIcon,
+  ShieldErrorIcon,
+} from 'tdesign-icons-react';
 import { nsMonitorApi, domainsApi } from '../../api';
 import type { Domain } from '../../api';
 import { Table } from '../../components/Table';
@@ -19,9 +32,9 @@ interface NSMonitorConfig {
   enabled: boolean;
   notify_email: boolean;
   notify_channels: boolean;
-  current_ns?: string | number;  // 支持字符串或数字（后端可能返回0）
-  encrypted_ns?: string | string[];  // 支持字符串或数组
-  plain_ns?: string | string[];      // 支持字符串或数组
+  current_ns?: string | number;
+  encrypted_ns?: string | string[];
+  plain_ns?: string | string[];
   is_poisoned?: boolean;
   status?: 'ok' | 'mismatch' | 'missing' | 'poisoned';
   last_check_at?: string;
@@ -39,61 +52,56 @@ export function NSMonitorTab() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [deleteConfig, setDeleteConfig] = useState<NSMonitorConfig | null>(null);
   const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null);
-  
-  // 分页状态
+  const [editExpectedNs, setEditExpectedNs] = useState('');
+  const [editEnabled, setEditEnabled] = useState(true);
+  const [editNotifyEmail, setEditNotifyEmail] = useState(false);
+  const [editNotifyChannels, setEditNotifyChannels] = useState(false);
+  const [addExpectedNs, setAddExpectedNs] = useState('');
+  const [addEnabled, setAddEnabled] = useState(true);
+  const [addNotifyEmail, setAddNotifyEmail] = useState(false);
+  const [addNotifyChannels, setAddNotifyChannels] = useState(false);
+
   const [domainPage, setDomainPage] = useState(1);
   const [domainPageSize] = useState(20);
   const [domainSearchKeyword, setDomainSearchKeyword] = useState('');
 
-  // 实时数据：NS 监测配置变更
   useRealtimeData({
     queryKey: ['ns-monitor'],
     websocketEventTypes: ['ns_monitor_created', 'ns_monitor_updated', 'ns_monitor_deleted'],
-    pollingInterval: 60000, // 1分钟
+    pollingInterval: 60000,
   });
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],
-    queryFn: () => nsMonitorApi.list().then(r => r.data.data || []),
-    retry: 1,  // 只重试一次，避免多次失败导致失去登录状态
-    retryDelay: 1000,  // 重试间隔 1 秒
-    staleTime: 30000,  // 30 秒内认为数据是新鲜的，不重新获取
+    queryFn: () => nsMonitorApi.list().then((r) => r.data.data || []),
+    retry: 1,
+    retryDelay: 1000,
+    staleTime: 30000,
   });
 
-  // 获取用户通知偏好设置
   const { data: userPrefs } = useQuery({
     queryKey: ['ns-monitor-user-prefs'],
-    queryFn: () => nsMonitorApi.getUserPrefs().then(r => r.data.data),
+    queryFn: () => nsMonitorApi.getUserPrefs().then((r) => r.data.data),
   });
 
   const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains-for-ns-monitor'],
-    queryFn: () => domainsApi.list({ 
-      pageSize: 1000, // 获取所有域名，前端过滤
-    }).then(r => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
+    queryFn: () => domainsApi.list({ pageSize: 1000 }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
     enabled: isAddModalOpen,
   });
-  
-  // 获取已添加监测的域名 ID 列表
-  const monitoredDomainIds = new Set((configs || []).map((c: NSMonitorConfig) => c.domain_id));
-  
-  // 前端过滤域名（排除已添加的）
-  const filteredDomains = (domainsData?.list ?? []).filter(d => 
-    d.name.toLowerCase().includes(domainSearchKeyword.toLowerCase()) &&
-    !monitoredDomainIds.has(d.id) // 排除已添加监测的域名
-  );
-  
-  // 计算分页
-  const domainTotalPages = Math.ceil(filteredDomains.length / domainPageSize);
+
+  const monitoredDomainIds = new Set((configs || []).map((config: NSMonitorConfig) => config.domain_id));
+  const filteredDomains = (domainsData?.list ?? []).filter((domain) => (
+    domain.name.toLowerCase().includes(domainSearchKeyword.toLowerCase()) &&
+    !monitoredDomainIds.has(domain.id)
+  ));
   const domainStartIndex = (domainPage - 1) * domainPageSize;
   const domainEndIndex = Math.min(domainStartIndex + domainPageSize, filteredDomains.length);
   const paginatedDomains = filteredDomains.slice(domainStartIndex, domainEndIndex);
-  
   const domains = domainsData?.list ?? [];
 
   const updateMutation = useMutation({
-    mutationFn: (data: { id: number; expected_ns: string; enabled: boolean }) =>
-      nsMonitorApi.update(data.id, data),
+    mutationFn: (data: { id: number; expected_ns: string; enabled: boolean }) => nsMonitorApi.update(data.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
       setIsEditModalOpen(false);
@@ -105,8 +113,7 @@ export function NSMonitorTab() {
   });
 
   const updateUserPrefsMutation = useMutation({
-    mutationFn: (data: { notify_email?: boolean; notify_channels?: boolean }) =>
-      nsMonitorApi.updateUserPrefs(data),
+    mutationFn: (data: { notify_email?: boolean; notify_channels?: boolean }) => nsMonitorApi.updateUserPrefs(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
       queryClient.invalidateQueries({ queryKey: ['ns-monitor-user-prefs'] });
@@ -117,11 +124,10 @@ export function NSMonitorTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
-      nsMonitorApi.create(data),
+    mutationFn: (data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) => nsMonitorApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
-      setIsAddModalOpen(false);
+      closeAddModal();
       toast.success(t('nsMonitor.addSuccess'));
     },
     onError: () => {
@@ -152,16 +158,15 @@ export function NSMonitorTab() {
   });
 
   const resolveNsMutation = useMutation({
-    mutationFn: (domainName: string) => nsMonitorApi.resolveNs(domainName),
-    onSuccess: (response) => {
+    mutationFn: ({ domainName }: { domainName: string; target: 'edit' | 'add' }) => nsMonitorApi.resolveNs(domainName),
+    onSuccess: (response, variables) => {
       const data = response.data.data;
-      // 自动填充预期 NS（使用加密优先策略）
       if (data.recommendedNs && data.recommendedNs.length > 0) {
         const expectedNs = data.recommendedNs.join(', ');
-        // 找到表单中的textarea并设置值
-        const textarea = document.querySelector('textarea[name="expected_ns"]') as HTMLTextAreaElement;
-        if (textarea) {
-          textarea.value = expectedNs;
+        if (variables.target === 'edit') {
+          setEditExpectedNs(expectedNs);
+        } else {
+          setAddExpectedNs(expectedNs);
         }
         toast.success(t('nsMonitor.autoFillSuccess', { count: data.recommendedNs.length }));
       } else {
@@ -173,192 +178,39 @@ export function NSMonitorTab() {
     },
   });
 
-  const filteredConfigs = configs?.filter((c: NSMonitorConfig) =>
-    c.domain_name?.toLowerCase().includes(searchKeyword.toLowerCase())
-  ) || [];
+  const filteredConfigs = configs?.filter((config: NSMonitorConfig) => config.domain_name?.toLowerCase().includes(searchKeyword.toLowerCase())) || [];
 
-  // 辅助函数：将 encrypted_ns 或 plain_ns 转换为数组
   const parseNSField = (value: string | string[] | number | undefined): string[] => {
-    // 处理 undefined、null、空字符串、数字0等情况
     if (value === undefined || value === null || value === '') return [];
-    if (typeof value === 'number') return [];  // 忽略数字类型
+    if (typeof value === 'number') return [];
     if (Array.isArray(value)) return value;
-    // 如果是字符串，按逗号分割
-    return value.split(',').map(s => s.trim()).filter(Boolean);
+    return value.split(',').map((item) => item.trim()).filter(Boolean);
   };
 
-  // 辅助函数：安全地将值转换为字符串进行比较
   const safeToString = (value: any): string => {
     if (value === undefined || value === null) return '';
     return String(value);
   };
 
-  const columns: { key: string; label: string; render?: (row: NSMonitorConfig) => ReactNode }[] = [
-    {
-      key: 'domain_name',
-      label: t('nsMonitor.domainName'),
-      render: (row: NSMonitorConfig) => (
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{row.domain_name}</span>
-          {row.status === 'poisoned' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs" title={t('nsMonitor.poisonedTooltip')}>
-              <ShieldAlert className="w-3 h-3" />
-              {t('nsMonitor.poisoned')}
-            </span>
-          )}
-          {row.status === 'mismatch' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">
-              <AlertTriangle className="w-3 h-3" />
-              {t('nsMonitor.mismatch')}
-            </span>
-          )}
-          {row.status === 'missing' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs">
-              <AlertTriangle className="w-3 h-3" />
-              {t('nsMonitor.missing')}
-            </span>
-          )}
-          {row.status === 'ok' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
-              <CheckCircle className="w-3 h-3" />
-              {t('nsMonitor.normal')}
-            </span>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'current_ns',
-      label: t('nsMonitor.currentNS'),
-      render: (row: NSMonitorConfig) => {
-        const encryptedNS = parseNSField(row.encrypted_ns);
-        const plainNS = parseNSField(row.plain_ns);
-        
-        return (
-          <div className="space-y-1">
-            {/* 加密查询结果 */}
-            {encryptedNS.length > 0 && (
-              <div className="text-xs">
-                <span className="text-green-600 font-medium">{t('nsMonitor.encrypted')}:</span>
-                <span className="text-gray-600 dark:text-gray-400 ml-1">
-                  {encryptedNS.join(', ')}
-                </span>
-              </div>
-            )}
-            {/* 明文查询结果 */}
-            {plainNS.length > 0 && (
-              <div className="text-xs">
-                <span className="text-blue-600 font-medium">{t('nsMonitor.plain')}:</span>
-                <span className="text-gray-600 dark:text-gray-400 ml-1">
-                  {plainNS.join(', ')}
-                </span>
-              </div>
-            )}
-            {/* 无结果 */}
-            {encryptedNS.length === 0 && plainNS.length === 0 && (
-              <div className="text-sm text-gray-400">
-                {safeToString(row.current_ns) && safeToString(row.current_ns) !== '0'
-                  ? row.current_ns 
-                  : t('nsMonitor.notChecked')}
-              </div>
-            )}
-            {/* DNS 污染警告 */}
-            {row.is_poisoned === true && (
-              <div className="text-xs text-purple-600 font-medium flex items-center gap-1 mt-1">
-                <ShieldAlert className="w-3 h-3" />
-                {t('nsMonitor.dnsPoisoningDetected')}
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      key: 'expected_ns',
-      label: t('nsMonitor.expectedNS'),
-      render: (row: NSMonitorConfig) => (
-        <div className="text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
-          {row.expected_ns || t('nsMonitor.notSet')}
-        </div>
-      ),
-    },
-    {
-      key: 'enabled',
-      label: t('nsMonitor.monitoring'),
-      render: (row: NSMonitorConfig) => (
-        <input
-          type="checkbox"
-          checked={row.enabled}
-          onChange={() => handleToggleEnabled(row)}
-          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-        />
-      ),
-    },
-    {
-      key: 'notifications',
-      label: t('nsMonitor.notifications'),
-      render: (row: NSMonitorConfig) => {
-        // 优先使用用户偏好设置，如果没有则使用监测配置中的值
-        const hasEmail = Boolean(userPrefs?.notify_email ?? row.notify_email);
-        const hasChannels = Boolean(userPrefs?.notify_channels ?? row.notify_channels);
-        // 如果都没有配置，显示 "-"
-        if (!hasEmail && !hasChannels) {
-          return <span className="text-gray-400">-</span>;
-        }
-        return (
-          <div className="flex items-center gap-2">
-            {hasEmail && <Mail className="w-4 h-4 text-blue-500" />}
-            {hasChannels && <Bell className="w-4 h-4 text-purple-500" />}
-          </div>
-        );
-      },
-    },
-    {
-      key: 'last_check',
-      label: t('nsMonitor.lastCheck'),
-      render: (row: NSMonitorConfig) => (
-        <div className="text-sm text-gray-500">
-          {row.last_check_at
-            ? new Date(row.last_check_at).toLocaleString()
-            : t('nsMonitor.never')}
-        </div>
-      ),
-    },
-    {
-      key: 'actions',
-      label: t('common.actions'),
-      render: (row: NSMonitorConfig) => (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => checkMutation.mutate(row.id)}
-            disabled={checkMutation.isPending}
-            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            title={t('nsMonitor.checkNow')}
-          >
-            <RefreshCw className={`w-4 h-4 ${checkMutation.isPending ? 'animate-spin' : ''}`} />
-          </button>
-          <button
-            onClick={() => {
-              setSelectedConfig(row);
-              setIsEditModalOpen(true);
-            }}
-            className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            title={t('common.edit')}
-          >
-            <Shield className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setDeleteConfig(row)}
-            disabled={deleteMutation.isPending}
-            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title={t('common.delete')}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      ),
-    },
-  ];
+  const openEditModal = (row: NSMonitorConfig) => {
+    setSelectedConfig(row);
+    setEditExpectedNs(row.expected_ns || '');
+    setEditEnabled(row.enabled);
+    setEditNotifyEmail(Boolean(userPrefs?.notify_email ?? row.notify_email));
+    setEditNotifyChannels(Boolean(userPrefs?.notify_channels ?? row.notify_channels));
+    setIsEditModalOpen(true);
+  };
+
+  const closeAddModal = () => {
+    setIsAddModalOpen(false);
+    setSelectedDomainId(null);
+    setDomainSearchKeyword('');
+    setDomainPage(1);
+    setAddExpectedNs('');
+    setAddEnabled(true);
+    setAddNotifyEmail(false);
+    setAddNotifyChannels(false);
+  };
 
   const handleToggleEnabled = (row: NSMonitorConfig) => {
     updateMutation.mutate({
@@ -368,396 +220,373 @@ export function NSMonitorTab() {
     });
   };
 
-  const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSave = () => {
     if (!selectedConfig) return;
 
-    const formData = new FormData(e.currentTarget);
-    
-    // Update monitor config
     updateMutation.mutate({
       id: selectedConfig.id,
-      expected_ns: formData.get('expected_ns') as string,
-      enabled: formData.get('enabled') === 'on',
+      expected_ns: editExpectedNs,
+      enabled: editEnabled,
     });
-    
-    // Update user notification preferences
+
     updateUserPrefsMutation.mutate({
-      notify_email: formData.get('notify_email') === 'on',
-      notify_channels: formData.get('notify_channels') === 'on',
+      notify_email: editNotifyEmail,
+      notify_channels: editNotifyChannels,
     });
   };
 
-  const handleAdd = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const domainId = parseInt(formData.get('domain_id') as string);
-
-    if (!domainId) {
+  const handleAdd = () => {
+    if (!selectedDomainId) {
       toast.error(t('nsMonitor.selectDomain'));
       return;
     }
 
     createMutation.mutate({
-      domain_id: domainId,
-      expected_ns: formData.get('expected_ns') as string,
-      enabled: formData.get('enabled') === 'on',
-      notify_email: formData.get('notify_email') === 'on',
-      notify_channels: formData.get('notify_channels') === 'on',
+      domain_id: selectedDomainId,
+      expected_ns: addExpectedNs,
+      enabled: addEnabled,
+      notify_email: addNotifyEmail,
+      notify_channels: addNotifyChannels,
     });
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {t('nsMonitor.title')}
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t('nsMonitor.subtitle')}
-          </p>
-        </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          {t('nsMonitor.addMonitor')}
-        </button>
-      </div>
+  const columns: { key: string; label: string; render?: (row: NSMonitorConfig) => ReactNode }[] = [
+    {
+      key: 'domain_name',
+      label: t('nsMonitor.domainName'),
+      render: (row: NSMonitorConfig) => (
+        <Space size="small" breakLine>
+          <span className="page-strong">{row.domain_name}</span>
+          {row.status === 'poisoned' && <Tag theme="danger" variant="light" icon={<ShieldErrorIcon />}>{t('nsMonitor.poisoned')}</Tag>}
+          {row.status === 'mismatch' && <Tag theme="warning" variant="light" icon={<ErrorTriangleIcon />}>{t('nsMonitor.mismatch')}</Tag>}
+          {row.status === 'missing' && <Tag theme="danger" variant="light" icon={<ErrorTriangleIcon />}>{t('nsMonitor.missing')}</Tag>}
+          {row.status === 'ok' && <Tag theme="success" variant="light" icon={<CheckCircleIcon />}>{t('nsMonitor.normal')}</Tag>}
+        </Space>
+      ),
+    },
+    {
+      key: 'current_ns',
+      label: t('nsMonitor.currentNS'),
+      render: (row: NSMonitorConfig) => {
+        const encryptedNS = parseNSField(row.encrypted_ns);
+        const plainNS = parseNSField(row.plain_ns);
 
-      <div className="flex items-center gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
+        return (
+          <div className="page-list">
+            {encryptedNS.length > 0 && (
+              <span className="record-mono record-mono--value">
+                {t('nsMonitor.encrypted')}: {encryptedNS.join(', ')}
+              </span>
+            )}
+            {plainNS.length > 0 && (
+              <span className="record-mono record-mono--value">
+                {t('nsMonitor.plain')}: {plainNS.join(', ')}
+              </span>
+            )}
+            {encryptedNS.length === 0 && plainNS.length === 0 && (
+              <span className="page-muted">
+                {safeToString(row.current_ns) && safeToString(row.current_ns) !== '0' ? row.current_ns : t('nsMonitor.notChecked')}
+              </span>
+            )}
+            {row.is_poisoned === true && (
+              <Tag theme="danger" variant="light" icon={<ShieldErrorIcon />}>
+                {t('nsMonitor.dnsPoisoningDetected')}
+              </Tag>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'expected_ns',
+      label: t('nsMonitor.expectedNS'),
+      render: (row: NSMonitorConfig) => <span className="record-mono record-mono--value">{row.expected_ns || t('nsMonitor.notSet')}</span>,
+    },
+    {
+      key: 'enabled',
+      label: t('nsMonitor.monitoring'),
+      render: (row: NSMonitorConfig) => (
+        <Switch
+          value={row.enabled}
+          loading={updateMutation.isPending}
+          onChange={() => handleToggleEnabled(row)}
+        />
+      ),
+    },
+    {
+      key: 'notifications',
+      label: t('nsMonitor.notifications'),
+      render: (row: NSMonitorConfig) => {
+        const hasEmail = Boolean(userPrefs?.notify_email ?? row.notify_email);
+        const hasChannels = Boolean(userPrefs?.notify_channels ?? row.notify_channels);
+        if (!hasEmail && !hasChannels) return <span className="page-muted">-</span>;
+        return (
+          <Space size="small">
+            {hasEmail && <Tag theme="primary" variant="light" icon={<MailIcon />}>{t('nsMonitor.notifyEmail')}</Tag>}
+            {hasChannels && <Tag theme="warning" variant="light" icon={<NotificationIcon />}>{t('nsMonitor.notifyChannels')}</Tag>}
+          </Space>
+        );
+      },
+    },
+    {
+      key: 'last_check',
+      label: t('nsMonitor.lastCheck'),
+      render: (row: NSMonitorConfig) => (
+        <span className="page-muted">
+          {row.last_check_at ? new Date(row.last_check_at).toLocaleString() : t('nsMonitor.never')}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: t('common.actions'),
+      render: (row: NSMonitorConfig) => (
+        <Space size="small">
+          <Button
+            shape="square"
+            variant="text"
+            theme="primary"
+            icon={<RefreshIcon />}
+            loading={checkMutation.isPending}
+            onClick={() => checkMutation.mutate(row.id)}
+          />
+          <Button
+            shape="square"
+            variant="text"
+            icon={<EditIcon />}
+            onClick={() => openEditModal(row)}
+          />
+          <Button
+            shape="square"
+            variant="text"
+            theme="danger"
+            icon={<DeleteIcon />}
+            disabled={deleteMutation.isPending}
+            onClick={() => setDeleteConfig(row)}
+          />
+        </Space>
+      ),
+    },
+  ];
+
+  const selectedDomain = paginatedDomains.find((domain) => domain.id === selectedDomainId)
+    ?? filteredDomains.find((domain) => domain.id === selectedDomainId);
+
+  return (
+    <div className="page-shell">
+      <section className="page-heading">
+        <div>
+          <h2>{t('nsMonitor.title')}</h2>
+          <p>{t('nsMonitor.subtitle')}</p>
+        </div>
+        <Button theme="primary" icon={<AddIcon />} onClick={() => setIsAddModalOpen(true)}>
+          {t('nsMonitor.addMonitor')}
+        </Button>
+      </section>
+
+      <Card bordered={false} shadow={false} className="page-card ns-monitor-card">
+        <div className="records-toolbar ns-monitor-card__toolbar">
+          <Input
+            clearable
             value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
+            prefixIcon={<SearchIcon />}
             placeholder={t('nsMonitor.searchPlaceholder')}
-            className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            onChange={(value) => setSearchKeyword(String(value))}
           />
         </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
         <Table
           columns={columns}
           data={filteredConfigs}
           loading={isLoading}
-          rowKey={(r) => r.id}
+          rowKey={(row) => row.id}
           emptyText={t('nsMonitor.noConfigs')}
         />
-      </div>
+      </Card>
 
-      {/* Edit Modal */}
       {isEditModalOpen && selectedConfig && (
-        <Modal
-          title={t('nsMonitor.editConfig')}
-          onClose={() => setIsEditModalOpen(false)}
-        >
-          <form onSubmit={handleSave} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('nsMonitor.domainName')}
-              </label>
-              <input
-                type="text"
-                value={selectedConfig.domain_name}
-                disabled
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500"
-              />
-            </div>
+        <Modal title={t('nsMonitor.editConfig')} onClose={() => setIsEditModalOpen(false)} size="lg">
+          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form ns-monitor-dialog" onSubmit={({ e }) => { e?.preventDefault(); handleSave(); }}>
+            <Form.FormItem label={t('nsMonitor.domainName')}>
+              <Input value={selectedConfig.domain_name} disabled />
+            </Form.FormItem>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('nsMonitor.expectedNS')}
-              </label>
-              <textarea
-                name="expected_ns"
-                defaultValue={selectedConfig.expected_ns}
+            <Form.FormItem label={t('nsMonitor.expectedNS')} help={t('nsMonitor.expectedNSHint')}>
+              <Textarea
+                value={editExpectedNs}
                 placeholder={t('nsMonitor.expectedNSPlaceholder')}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-y"
+                autosize={{ minRows: 3, maxRows: 6 }}
+                onChange={(value) => setEditExpectedNs(String(value))}
               />
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-xs text-gray-500">
-                  {t('nsMonitor.expectedNSHint')}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedConfig.domain_name) {
-                      resolveNsMutation.mutate(selectedConfig.domain_name);
-                    }
-                  }}
-                  disabled={resolveNsMutation.isPending}
-                  className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap"
-                  title={t('nsMonitor.autoFillTooltip')}
+              <Space className="record-form__actions dialog-inline-actions">
+                <Button
+                  variant="outline"
+                  theme="primary"
+                  icon={<BrushIcon />}
+                  loading={resolveNsMutation.isPending}
+                  onClick={() => resolveNsMutation.mutate({ domainName: selectedConfig.domain_name, target: 'edit' })}
                 >
-                  <Wand2 className={`w-3.5 h-3.5 ${resolveNsMutation.isPending ? 'animate-spin' : ''}`} />
-                  <span>{t('nsMonitor.autoFill')}</span>
-                </button>
+                  {t('nsMonitor.autoFill')}
+                </Button>
+              </Space>
+            </Form.FormItem>
+
+            <div className="dialog-switch-row">
+              <div>
+                <strong>{t('nsMonitor.enableMonitoring')}</strong>
+                <span>{t('nsMonitor.monitoring')}</span>
               </div>
+              <Switch value={editEnabled} onChange={(checked) => setEditEnabled(Boolean(checked))} />
             </div>
 
-            <div className="space-y-3">
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="enabled"
-                  defaultChecked={selectedConfig.enabled}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  {t('nsMonitor.enableMonitoring')}
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="notify_email"
-                  defaultChecked={userPrefs?.notify_email ?? selectedConfig.notify_email}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  {t('nsMonitor.notifyEmail')}
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="notify_channels"
-                  defaultChecked={userPrefs?.notify_channels ?? selectedConfig.notify_channels}
-                  disabled={!isAdmin}
-                  className={`w-4 h-4 rounded focus:ring-blue-500 ${
-                    isAdmin 
-                      ? 'text-blue-600 cursor-pointer' 
-                      : 'text-gray-400 cursor-not-allowed opacity-50'
-                  }`}
-                />
-                <span className={`text-sm ${
-                  isAdmin ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500'
-                }`}>
-                  {t('nsMonitor.notifyChannels')}
-                </span>
-                {!isAdmin && (
-                  <span className="text-xs text-gray-400" title="Only admins can enable notification channels">
-                    (Admin only)
-                  </span>
-                )}
-              </label>
+            <div className="dialog-switch-row">
+              <div>
+                <strong>{t('nsMonitor.notifyEmail')}</strong>
+                <span>{t('nsMonitor.notifications')}</span>
+              </div>
+              <Switch value={editNotifyEmail} onChange={(checked) => setEditNotifyEmail(Boolean(checked))} />
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
+            <div className="dialog-switch-row">
+              <div>
+                <strong>{t('nsMonitor.notifyChannels')}</strong>
+                <span>{isAdmin ? t('nsMonitor.notifications') : 'Admin only'}</span>
+              </div>
+              <Switch
+                value={editNotifyChannels}
+                disabled={!isAdmin}
+                onChange={(checked) => setEditNotifyChannels(Boolean(checked))}
+              />
+            </div>
+
+            <Space className="record-form__actions dialog-form-actions">
+              <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
                 {t('common.cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={updateMutation.isPending}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
+              </Button>
+              <Button type="submit" theme="primary" loading={updateMutation.isPending || updateUserPrefsMutation.isPending}>
                 {t('common.save')}
-              </button>
-            </div>
-          </form>
+              </Button>
+            </Space>
+          </Form>
         </Modal>
       )}
 
-      {/* Add Modal */}
       {isAddModalOpen && (
-        <Modal
-          title={t('nsMonitor.addMonitor')}
-          onClose={() => setIsAddModalOpen(false)}
-        >
-          <form onSubmit={handleAdd} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('nsMonitor.selectDomain')} *
-              </label>
-              
-              {/* 搜索框 */}
-              <input
-                type="text"
-                placeholder={t('common.search')}
+        <Modal title={t('nsMonitor.addMonitor')} onClose={closeAddModal} size="lg">
+          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form ns-monitor-dialog" onSubmit={({ e }) => { e?.preventDefault(); handleAdd(); }}>
+            <Form.FormItem label={t('nsMonitor.selectDomain')}>
+              <Input
+                clearable
                 value={domainSearchKeyword}
-                onChange={(e) => {
-                  setDomainSearchKeyword(e.target.value);
+                prefixIcon={<SearchIcon />}
+                placeholder={t('common.search')}
+                onChange={(value) => {
+                  setDomainSearchKeyword(String(value));
                   setDomainPage(1);
                 }}
-                className="w-full px-3 py-1.5 mb-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               />
-              
-              {/* 域名列表 */}
-              <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3">
+
+              <div className="ns-monitor-domain-picker">
                 {domains.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">{t('nsMonitor.noAvailableDomains')}</p>
+                  <Empty description={t('nsMonitor.noAvailableDomains')} />
                 ) : filteredDomains.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">{t('tokens.noMatchingDomains')}</p>
+                  <Empty description={t('tokens.noMatchingDomains')} />
                 ) : (
                   <>
-                    <div className="max-h-48 overflow-y-auto">
-                      {paginatedDomains.map((domain) => (
-                        <label key={domain.id} className="flex items-center gap-2 mb-1 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded cursor-pointer">
-                          <input
-                            type="radio"
-                            name="domain_id"
-                            value={domain.id}
-                            checked={selectedDomainId === domain.id}
-                            onChange={() => setSelectedDomainId(domain.id)}
-                            className="rounded"
-                            required
-                          />
-                          <span className="text-sm flex-1">{domain.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                    
-                    {/* 分页控件 */}
-                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                      <div className="text-xs text-gray-500">
-                        显示 {domainStartIndex + 1}-{domainEndIndex} / 共 {filteredDomains.length} 项
+                    <Radio.Group value={selectedDomainId ?? undefined} onChange={(value) => setSelectedDomainId(Number(value))}>
+                      <div className="page-list page-list--scroll">
+                        {paginatedDomains.map((domain) => (
+                          <label key={domain.id} className="token-domain-option">
+                            <Radio value={domain.id} />
+                            <span className="page-list-item__main">
+                              <strong>{domain.name}</strong>
+                              <span>#{domain.id}</span>
+                            </span>
+                          </label>
+                        ))}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setDomainPage(p => Math.max(1, p - 1))}
-                          disabled={domainPage === 1}
-                          className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                        >
-                          <ChevronLeft className="w-3 h-3" />
-                          上一页
-                        </button>
-                        <span className="text-xs text-gray-500">
-                          第 {domainPage} / {domainTotalPages} 页
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setDomainPage(p => Math.min(domainTotalPages, p + 1))}
-                          disabled={domainPage === domainTotalPages}
-                          className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                        >
-                          下一页
-                          <ChevronRight className="w-3 h-3" />
-                        </button>
-                      </div>
+                    </Radio.Group>
+                    <div className="records-pagination">
+                      <Pagination
+                        current={domainPage}
+                        pageSize={domainPageSize}
+                        total={filteredDomains.length}
+                        showPageSize={false}
+                        showJumper={false}
+                        onCurrentChange={(current) => setDomainPage(current)}
+                      />
                     </div>
                   </>
                 )}
               </div>
-            </div>
+            </Form.FormItem>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('nsMonitor.expectedNS')}
-              </label>
-              <textarea
-                name="expected_ns"
+            <Form.FormItem label={t('nsMonitor.expectedNS')} help={t('nsMonitor.expectedNSHint')}>
+              <Textarea
+                value={addExpectedNs}
                 placeholder={t('nsMonitor.expectedNSPlaceholder')}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-y"
+                autosize={{ minRows: 3, maxRows: 6 }}
+                onChange={(value) => setAddExpectedNs(String(value))}
               />
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-xs text-gray-500">
-                  {t('nsMonitor.expectedNSHint')}
-                </p>
-                <button
-                  type="button"
+              <Space className="record-form__actions dialog-inline-actions">
+                <Button
+                  variant="outline"
+                  theme="primary"
+                  icon={<BrushIcon />}
+                  loading={resolveNsMutation.isPending}
+                  disabled={!selectedDomain}
                   onClick={() => {
-                    const selectedDomain = paginatedDomains.find(d => d.id === selectedDomainId);
                     if (selectedDomain) {
-                      resolveNsMutation.mutate(selectedDomain.name);
+                      resolveNsMutation.mutate({ domainName: selectedDomain.name, target: 'add' });
                     } else {
                       toast.error(t('nsMonitor.selectDomainFirst'));
                     }
                   }}
-                  disabled={!selectedDomainId || resolveNsMutation.isPending}
-                  className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap"
-                  title={t('nsMonitor.autoFillTooltip')}
                 >
-                  <Wand2 className={`w-3.5 h-3.5 ${resolveNsMutation.isPending ? 'animate-spin' : ''}`} />
-                  <span>{t('nsMonitor.autoFill')}</span>
-                </button>
+                  {t('nsMonitor.autoFill')}
+                </Button>
+              </Space>
+            </Form.FormItem>
+
+            <div className="dialog-switch-row">
+              <div>
+                <strong>{t('nsMonitor.enableMonitoring')}</strong>
+                <span>{t('nsMonitor.monitoring')}</span>
               </div>
+              <Switch value={addEnabled} onChange={(checked) => setAddEnabled(Boolean(checked))} />
             </div>
 
-            <div className="space-y-3">
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="enabled"
-                  defaultChecked={true}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  {t('nsMonitor.enableMonitoring')}
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="notify_email"
-                  defaultChecked={false}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  {t('nsMonitor.notifyEmail')}
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="notify_channels"
-                  defaultChecked={false}
-                  disabled={!isAdmin}
-                  className={`w-4 h-4 rounded focus:ring-blue-500 ${
-                    isAdmin 
-                      ? 'text-blue-600 cursor-pointer' 
-                      : 'text-gray-400 cursor-not-allowed opacity-50'
-                  }`}
-                />
-                <span className={`text-sm ${
-                  isAdmin ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500'
-                }`}>
-                  {t('nsMonitor.notifyChannels')}
-                </span>
-                {!isAdmin && (
-                  <span className="text-xs text-gray-400" title="Only admins can enable notification channels">
-                    (Admin only)
-                  </span>
-                )}
-              </label>
+            <div className="dialog-switch-row">
+              <div>
+                <strong>{t('nsMonitor.notifyEmail')}</strong>
+                <span>{t('nsMonitor.notifications')}</span>
+              </div>
+              <Switch value={addNotifyEmail} onChange={(checked) => setAddNotifyEmail(Boolean(checked))} />
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
+            <div className="dialog-switch-row">
+              <div>
+                <strong>{t('nsMonitor.notifyChannels')}</strong>
+                <span>{isAdmin ? t('nsMonitor.notifications') : 'Admin only'}</span>
+              </div>
+              <Switch
+                value={addNotifyChannels}
+                disabled={!isAdmin}
+                onChange={(checked) => setAddNotifyChannels(Boolean(checked))}
+              />
+            </div>
+
+            <Space className="record-form__actions dialog-form-actions">
+              <Button variant="outline" onClick={closeAddModal}>
                 {t('common.cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={createMutation.isPending || domains.length === 0}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
+              </Button>
+              <Button type="submit" theme="primary" loading={createMutation.isPending} disabled={domains.length === 0}>
                 {t('common.add')}
-              </button>
-            </div>
-          </form>
+              </Button>
+            </Space>
+          </Form>
         </Modal>
       )}
 
-      {/* Delete Confirm Dialog */}
       {deleteConfig && (
         <ConfirmDialog
           message={t('nsMonitor.deleteConfirm', { domain: deleteConfig.domain_name })}

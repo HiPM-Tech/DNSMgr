@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Avatar as TAvatar } from 'tdesign-react';
 import { getGravatarHash, getGravatarUrl, getOrderedGravatarMirrors, refreshGravatarMirrorHealth } from '../utils/gravatar';
+import './Avatar.css';
 
 interface AvatarProps {
   username?: string | null;
   email?: string | null;
+  image?: string | null;
   size?: number;
   className?: string;
   textClassName?: string;
@@ -12,13 +15,15 @@ interface AvatarProps {
 export function Avatar({
   username,
   email,
+  image: customImage,
   size = 32,
   className = '',
-  textClassName = '',
 }: AvatarProps) {
   const hash = useMemo(() => getGravatarHash(email), [email]);
+  const normalizedCustomImage = customImage?.trim() || '';
   const [mirrors, setMirrors] = useState<string[]>(() => getOrderedGravatarMirrors());
   const [mirrorIndex, setMirrorIndex] = useState(0);
+  const [customImageFailed, setCustomImageFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -35,26 +40,37 @@ export function Avatar({
     setMirrorIndex(0);
   }, [hash]);
 
-  const fallbackText = username?.[0]?.toUpperCase() ?? '?';
-  const wrapperClass = `rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-white font-bold flex-shrink-0 ${className}`.trim();
+  useEffect(() => {
+    setCustomImageFailed(false);
+  }, [normalizedCustomImage]);
 
-  if (!hash || mirrors.length === 0 || mirrorIndex >= mirrors.length) {
-    return (
-      <div className={wrapperClass} style={{ width: size, height: size }}>
-        <span className={textClassName}>{fallbackText}</span>
-      </div>
-    );
-  }
+  const fallbackText = username?.[0]?.toUpperCase() ?? '?';
+  const gravatarImage = hash && mirrorIndex < mirrors.length
+    ? getGravatarUrl(mirrors[mirrorIndex], hash, size * 2)
+    : undefined;
+  const isUsingCustomImage = Boolean(normalizedCustomImage && !customImageFailed);
+  const image = isUsingCustomImage ? normalizedCustomImage : gravatarImage;
 
   return (
-    <div className={wrapperClass} style={{ width: size, height: size }}>
-      <img
-        src={getGravatarUrl(mirrors[mirrorIndex], hash, size * 2)}
-        alt={username ?? 'avatar'}
-        className="w-full h-full object-cover"
-        referrerPolicy="no-referrer"
-        onError={() => setMirrorIndex((current) => current + 1)}
-      />
-    </div>
+    <TAvatar
+      className={`app-avatar ${className}`.trim()}
+      size={`${size}px`}
+      image={image}
+      imageProps={{
+        referrerpolicy: 'no-referrer',
+        fit: isUsingCustomImage ? 'scale-down' : 'cover',
+        position: 'center',
+      }}
+      alt={username ?? 'avatar'}
+      onError={() => {
+        if (normalizedCustomImage && !customImageFailed) {
+          setCustomImageFailed(true);
+          return;
+        }
+        setMirrorIndex((current) => current + 1);
+      }}
+    >
+      {fallbackText}
+    </TAvatar>
   );
 }

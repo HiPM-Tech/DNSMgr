@@ -1,8 +1,10 @@
 ﻿import { useState, useMemo } from 'react';
-import { Info } from 'lucide-react';
+import { Alert, Button, Form, Input, Select, Space } from 'tdesign-react';
+import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
+import './RecordForm.css';
 
 export const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR'];
 export const CLOUDFLARE_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
@@ -192,8 +194,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitRecord = () => {
     if (!validate()) {
       toast.error(t('records.fixErrors'));
       return;
@@ -218,205 +219,184 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     onSubmit(payload);
   };
 
-  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-  const errorClass = 'border-red-300 focus:ring-red-500';
+  const toSelectString = (value: SelectValue) => String(Array.isArray(value) ? value[0] ?? '' : value);
+  const recordTypeOptions = recordTypes.map((type) => ({ label: type, value: type }));
+  const lineOptions = hasProxyMode
+    ? [
+      { label: t('records.dnsOnly'), value: '0' },
+      { label: t('records.proxied'), value: '1' },
+    ]
+    : hasMultiLine
+      ? lines.map((line) => ({ label: line.name, value: line.id }))
+      : [{ label: t('records.defaultLine') || '默认', value: '0' }];
+  const currentTypeHelp = currentType === 'A'
+    ? t('records.aHelp')
+    : currentType === 'AAAA'
+      ? t('records.aaaaHelp')
+      : DOMAIN_VALUE_TYPES.has(currentType)
+        ? t('records.hostnameHelp', { type: currentType })
+        : currentType === 'TXT'
+          ? t('records.txtHelp')
+          : '';
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            {t('records.hostName')}
-            {isVPS8 && initial && (
-              <span className="ml-2 text-xs text-orange-500">({t('records.cannotModifyHost') || '不可修改'})</span>
-            )}
-          </label>
-          <input
-            required
-            value={form.name ?? ''}
-            onChange={(e) => set('name', e.target.value)}
+    <Form
+      layout="vertical"
+      colon={false}
+      requiredMark={false}
+      className="record-form"
+      onSubmit={({ e }) => {
+        e?.preventDefault();
+        submitRecord();
+      }}
+    >
+      <div className="record-form__grid record-form__grid--two">
+        <Form.FormItem
+          label={(
+            <span>
+              {t('records.hostName')}
+              {isVPS8 && initial && <span className="record-form__label-note">({t('records.cannotModifyHost') || '不可修改'})</span>}
+            </span>
+          )}
+          status={errors.name ? 'error' : undefined}
+          tips={errors.name || (isVPS8 && initial ? t('records.vps8HostHint') || 'VPS8 不支持修改主机名' : undefined)}
+        >
+          <Input
+            clearable
+            value={String(form.name ?? '')}
+            onChange={(value) => set('name', value)}
             placeholder={t('records.hostPlaceholder')}
             disabled={isVPS8 && !!initial}
-            className={`${inputClass} ${errors.name ? errorClass : ''} ${isVPS8 && initial ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed' : ''}`}
+            status={errors.name ? 'error' : undefined}
           />
-          {isVPS8 && initial && (
-            <p className="mt-1 text-xs text-gray-500">{t('records.vps8HostHint') || 'VPS8 不支持修改主机名'}</p>
-          )}
-          {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.type')} *</label>
-          <select
-            value={form.type ?? 'A'}
-            onChange={(e) => {
-              const nextType = e.target.value;
+        </Form.FormItem>
+        <Form.FormItem label={t('common.type')}>
+          <Select
+            value={String(form.type ?? 'A')}
+            options={recordTypeOptions}
+            onChange={(value) => {
+              const nextType = toSelectString(value);
               set('type', nextType);
               if (nextType !== 'SRV') setErrors((current) => ({ ...current, srvPort: undefined, srvTarget: undefined, weight: undefined }));
             }}
-            className={inputClass}
-          >
-            {recordTypes.map((t) => <option key={t}>{t}</option>)}
-          </select>
-        </div>
+          />
+        </Form.FormItem>
       </div>
 
       {isSrv ? (
-        <div className="space-y-4 rounded-xl border border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-900/20 p-4">
-          <div className="flex items-start gap-2 text-xs text-blue-700">
-            <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <p>{t('records.srvHelp')}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.priority')}</label>
-              <input
+        <div className="record-form__section">
+          <Alert theme="info" message={t('records.srvHelp')} />
+          <div className="record-form__grid record-form__grid--two">
+            <Form.FormItem label={t('records.priority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
+              <Input
                 type="number"
-                min={0}
-                value={form.mx ?? 10}
-                onChange={(e) => set('mx', Number(e.target.value))}
-                className={`${inputClass} ${errors.mx ? errorClass : ''}`}
+                value={String(form.mx ?? 10)}
+                onChange={(value) => set('mx', Number(value))}
+                status={errors.mx ? 'error' : undefined}
               />
-              {errors.mx && <p className="mt-1 text-xs text-red-600">{errors.mx}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.weight')}</label>
-              <input
+            </Form.FormItem>
+            <Form.FormItem label={t('records.weight')} status={errors.weight ? 'error' : undefined} tips={errors.weight}>
+              <Input
                 type="number"
-                min={0}
-                value={form.weight ?? 10}
-                onChange={(e) => set('weight', Number(e.target.value))}
-                className={`${inputClass} ${errors.weight ? errorClass : ''}`}
+                value={String(form.weight ?? 10)}
+                onChange={(value) => set('weight', Number(value))}
+                status={errors.weight ? 'error' : undefined}
               />
-              {errors.weight && <p className="mt-1 text-xs text-red-600">{errors.weight}</p>}
-            </div>
+            </Form.FormItem>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.port')}</label>
-              <input
+          <div className="record-form__grid record-form__grid--two">
+            <Form.FormItem label={t('records.port')} status={errors.srvPort ? 'error' : undefined} tips={errors.srvPort}>
+              <Input
                 type="number"
-                min={1}
-                max={65535}
                 value={srv.port}
-                onChange={(e) => {
-                  setSrv((current) => ({ ...current, port: e.target.value }));
+                onChange={(value) => {
+                  setSrv((current) => ({ ...current, port: String(value) }));
                   setErrors((current) => ({ ...current, srvPort: undefined, value: undefined }));
                 }}
                 placeholder="443"
-                className={`${inputClass} ${errors.srvPort ? errorClass : ''}`}
+                status={errors.srvPort ? 'error' : undefined}
               />
-              {errors.srvPort && <p className="mt-1 text-xs text-red-600">{errors.srvPort}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.target')}</label>
-              <input
+            </Form.FormItem>
+            <Form.FormItem label={t('records.target')} status={errors.srvTarget ? 'error' : undefined} tips={errors.srvTarget}>
+              <Input
+                clearable
                 value={srv.target}
-                onChange={(e) => {
-                  setSrv((current) => ({ ...current, target: e.target.value }));
+                onChange={(value) => {
+                  setSrv((current) => ({ ...current, target: String(value) }));
                   setErrors((current) => ({ ...current, srvTarget: undefined, value: undefined }));
                 }}
                 placeholder="service.example.com"
-                className={`${inputClass} ${errors.srvTarget ? errorClass : ''}`}
+                status={errors.srvTarget ? 'error' : undefined}
               />
-              {errors.srvTarget && <p className="mt-1 text-xs text-red-600">{errors.srvTarget}</p>}
-            </div>
+            </Form.FormItem>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.preview')}</label>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">
+          <Form.FormItem label={t('records.preview')} status={errors.value ? 'error' : undefined} tips={errors.value}>
+            <div className="record-form__preview">
               {normalizedSrvValue || 'port target'}
             </div>
-            {errors.value && <p className="mt-1 text-xs text-red-600">{errors.value}</p>}
-          </div>
+          </Form.FormItem>
         </div>
       ) : (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.valueLabel')}</label>
-          <input
-            required
-            value={form.value ?? ''}
-            onChange={(e) => set('value', e.target.value)}
+        <Form.FormItem label={t('records.valueLabel')} status={errors.value ? 'error' : undefined} tips={errors.value}>
+          <Input
+            clearable
+            value={String(form.value ?? '')}
+            onChange={(value) => set('value', value)}
             placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}
-            className={`${inputClass} ${errors.value ? errorClass : ''}`}
+            status={errors.value ? 'error' : undefined}
           />
-          {errors.value && <p className="mt-1 text-xs text-red-600">{errors.value}</p>}
-        </div>
+        </Form.FormItem>
       )}
 
-      <div className={`grid gap-4 ${currentType === 'MX' || currentType === 'SRV' || canSelectProxy ? 'grid-cols-2' : 'grid-cols-1'}`}>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.ttl')}</label>
-          <input
+      <div className={`record-form__grid ${currentType === 'MX' || currentType === 'SRV' || canSelectProxy ? 'record-form__grid--two' : ''}`}>
+        <Form.FormItem label={t('common.ttl')} status={errors.ttl ? 'error' : undefined} tips={errors.ttl}>
+          <Input
             type="number"
-            min={1}
-            value={form.ttl ?? 600}
-            onChange={(e) => set('ttl', Number(e.target.value))}
-            className={`${inputClass} ${errors.ttl ? errorClass : ''}`}
+            value={String(form.ttl ?? 600)}
+            onChange={(value) => set('ttl', Number(value))}
+            status={errors.ttl ? 'error' : undefined}
           />
-          {errors.ttl && <p className="mt-1 text-xs text-red-600">{errors.ttl}</p>}
-        </div>
+        </Form.FormItem>
         {currentType === 'MX' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('records.mxPriority')}</label>
-            <input
+          <Form.FormItem label={t('records.mxPriority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
+            <Input
               type="number"
-              min={0}
-              value={form.mx ?? 10}
-              onChange={(e) => set('mx', Number(e.target.value))}
-              className={`${inputClass} ${errors.mx ? errorClass : ''}`}
+              value={String(form.mx ?? 10)}
+              onChange={(value) => set('mx', Number(value))}
+              status={errors.mx ? 'error' : undefined}
             />
-            {errors.mx && <p className="mt-1 text-xs text-red-600">{errors.mx}</p>}
-          </div>
+          </Form.FormItem>
         )}
         {canSelectProxy && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              {hasProxyMode ? t('records.proxy') : t('common.line')}
-            </label>
-            <select 
-              value={form.line ?? '0'} 
-              onChange={(e) => set('line', e.target.value)} 
-              className={inputClass}
-            >
-              {hasProxyMode ? (
-                <>
-                  <option value="0">{t('records.dnsOnly')}</option>
-                  <option value="1">{t('records.proxied')}</option>
-                </>
-              ) : hasMultiLine ? (
-                // Multi-line providers: show all available lines
-                lines.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)
-              ) : (
-                // Single-line or no-line providers: show default option
-                <option value="0">{t('records.defaultLine') || '默认'}</option>
-              )}
-            </select>
-            {!hasProxyMode && !hasMultiLine && (
-              <p className="mt-1 text-xs text-gray-500">{t('records.singleLineHint') || '该提供商仅支持默认线路'}</p>
-            )}
-          </div>
+          <Form.FormItem
+            label={hasProxyMode ? t('records.proxy') : t('common.line')}
+            tips={!hasProxyMode && !hasMultiLine ? t('records.singleLineHint') || '该提供商仅支持默认线路' : undefined}
+          >
+            <Select
+              value={String(form.line ?? '0')}
+              options={lineOptions}
+              onChange={(value) => set('line', toSelectString(value))}
+            />
+          </Form.FormItem>
         )}
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.remark')}</label>
-        <input value={form.remark ?? ''} onChange={(e) => set('remark', e.target.value)} placeholder={t('common.optionalRemark')} className={inputClass} />
-      </div>
+      <Form.FormItem label={t('common.remark')}>
+        <Input
+          clearable
+          value={String(form.remark ?? '')}
+          onChange={(value) => set('remark', value)}
+          placeholder={t('common.optionalRemark')}
+        />
+      </Form.FormItem>
 
-      <div className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
-        {currentType === 'A' && t('records.aHelp')}
-        {currentType === 'AAAA' && t('records.aaaaHelp')}
-        {DOMAIN_VALUE_TYPES.has(currentType) && t('records.hostnameHelp', { type: currentType })}
-        {currentType === 'TXT' && t('records.txtHelp')}
-      </div>
+      {currentTypeHelp && <Alert theme="info" message={currentTypeHelp} />}
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="submit" disabled={isLoading}
-          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
-          {isLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+      <Space className="record-form__actions" align="center">
+        <Button type="submit" theme="primary" loading={isLoading}>
           {initial ? t('common.saveChanges') : t('records.addRecord')}
-        </button>
-      </div>
-    </form>
+        </Button>
+      </Space>
+    </Form>
   );
 }

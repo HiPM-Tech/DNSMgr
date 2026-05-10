@@ -193,15 +193,13 @@ export async function validatePassword(password: string): Promise<{ valid: boole
 export async function requires2FA(userId: number): Promise<boolean> {
   const policy = await getSecurityPolicy();
 
-  // 全局强制 2FA
-  if (policy.require2FAGlobal) {
-    return true;
+  // 系统 2FA 关闭时，不再要求任何账户进行验证码校验。
+  if (!policy.require2FAGlobal) {
+    return false;
   }
 
-  // 检查用户是否被强制要求 2FA
-  const userSetting = await SecurityPolicyOperations.getUserSecuritySetting(userId);
-
-  return userSetting?.require_2fa === 1;
+  // 全局开启时，所有账户都需要 2FA。
+  return true;
 }
 
 /**

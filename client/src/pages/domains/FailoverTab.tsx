@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Activity, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button, Card, Descriptions, Form, Input, Loading, Pagination, Select, Space, Switch } from 'tdesign-react';
+import { ActivityIcon, DeleteIcon, SearchIcon } from 'tdesign-icons-react';
 import { domainsApi } from '../../api';
 import type { Domain } from '../../api';
 import { Table } from '../../components/Table';
@@ -14,17 +15,16 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
   const qc = useQueryClient();
   const toast = useToast();
   const { t } = useI18n();
-  
-  // 实时数据：故障转移配置变更
+
   useRealtimeData({
     queryKey: ['failover', domain.id],
     websocketEventTypes: ['failover_config_created', 'failover_config_updated', 'failover_config_deleted'],
-    pollingInterval: 60000, // 1分钟
+    pollingInterval: 60000,
   });
-  
+
   const { data, isLoading } = useQuery({
     queryKey: ['failover', domain.id],
-    queryFn: () => domainsApi.getFailover(domain.id).then(r => r.data.data),
+    queryFn: () => domainsApi.getFailover(domain.id).then((r) => r.data.data),
   });
 
   const [primaryIp, setPrimaryIp] = useState('');
@@ -35,7 +35,6 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
   const [checkPath, setCheckPath] = useState('');
   const [autoSwitchBack, setAutoSwitchBack] = useState(true);
 
-  // Initialize form when data loads
   useEffect(() => {
     if (data?.config) {
       setPrimaryIp(data.config.primaryIp);
@@ -69,78 +68,77 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
     },
   });
 
-  if (isLoading) return <div className="p-4 text-center">{t('common.loading')}</div>;
+  const handleSave = () => {
+    saveMutation.mutate({ primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack });
+  };
+
+  if (isLoading) return <div className="page-state"><Loading loading text={t('common.loading')} /></div>;
 
   return (
-    <form onSubmit={(e) => {
-      e.preventDefault();
-      saveMutation.mutate({ primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack });
-    }} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.primaryIp')}</label>
-        <input value={primaryIp} onChange={e => setPrimaryIp(e.target.value)} required
-          className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.backupIps')}</label>
-        <input value={backupIps.join(',')} onChange={e => setBackupIps(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-          className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.checkMethod')}</label>
-          <select value={checkMethod} onChange={e => setCheckMethod(e.target.value as any)}
-            className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800">
-            <option value="http">HTTP</option>
-            <option value="tcp">TCP</option>
-            <option value="ping">PING</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.checkPort')}</label>
-          <input type="number" value={checkPort} onChange={e => setCheckPort(Number(e.target.value))}
-            className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
-        </div>
+    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form failover-dialog" onSubmit={({ e }) => { e?.preventDefault(); handleSave(); }}>
+      <Form.FormItem label={t('domains.primaryIp')}>
+        <Input value={primaryIp} onChange={(value) => setPrimaryIp(String(value))} />
+      </Form.FormItem>
+      <Form.FormItem label={t('domains.backupIps')}>
+        <Input value={backupIps.join(',')} onChange={(value) => setBackupIps(String(value).split(',').map((item) => item.trim()).filter(Boolean))} />
+      </Form.FormItem>
+      <div className="dialog-form-grid">
+        <Form.FormItem label={t('domains.checkMethod')}>
+          <Select
+            value={checkMethod}
+            options={[
+              { label: 'HTTP', value: 'http' },
+              { label: 'TCP', value: 'tcp' },
+              { label: 'PING', value: 'ping' },
+            ]}
+            onChange={(value) => setCheckMethod(String(Array.isArray(value) ? value[0] : value) as 'http' | 'tcp' | 'ping')}
+          />
+        </Form.FormItem>
+        <Form.FormItem label={t('domains.checkPort')}>
+          <Input type="number" value={String(checkPort)} onChange={(value) => setCheckPort(Number(value) || 0)} />
+        </Form.FormItem>
       </div>
       {checkMethod === 'http' && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.checkPath')}</label>
-          <input value={checkPath} onChange={e => setCheckPath(e.target.value)} placeholder="/"
-            className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
-        </div>
+        <Form.FormItem label={t('domains.checkPath')}>
+          <Input value={checkPath} onChange={(value) => setCheckPath(String(value))} placeholder="/" />
+        </Form.FormItem>
       )}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('domains.checkInterval')}</label>
-        <input type="number" value={checkInterval} onChange={e => setCheckInterval(Number(e.target.value))}
-          className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800" />
-      </div>
-      <div className="flex items-center gap-2">
-        <input type="checkbox" checked={autoSwitchBack} onChange={e => setAutoSwitchBack(e.target.checked)} id="autoSwitchBack" />
-        <label htmlFor="autoSwitchBack" className="text-sm font-medium text-gray-700">{t('domains.autoSwitchBack')}</label>
+      <Form.FormItem label={t('domains.checkInterval')}>
+        <Input type="number" value={String(checkInterval)} onChange={(value) => setCheckInterval(Number(value) || 0)} />
+      </Form.FormItem>
+      <div className="dialog-switch-row">
+        <div>
+          <strong>{t('domains.autoSwitchBack')}</strong>
+        </div>
+        <Switch value={autoSwitchBack} onChange={(checked) => setAutoSwitchBack(Boolean(checked))} />
       </div>
 
       {data?.status && (
-        <div className="p-3 bg-gray-50 rounded-lg text-sm space-y-1">
-          <p><strong>{t('domains.currentIp')}:</strong> {data.status.currentIp}</p>
-          <p><strong>{t('common.status')}:</strong> {data.status.lastCheckStatus ? t('domains.healthy') : t('domains.unhealthy')}</p>
-          <p><strong>{t('domains.lastCheck')}:</strong> {new Date(data.status.lastCheckAt).toLocaleString()}</p>
-          <p><strong>{t('domains.switchCount')}:</strong> {data.status.switchCount}</p>
+        <div className="dialog-description">
+          <Descriptions
+            bordered
+            column={1}
+            items={[
+              { label: t('domains.currentIp'), content: data.status.currentIp },
+              { label: t('common.status'), content: data.status.lastCheckStatus ? t('domains.healthy') : t('domains.unhealthy') },
+              { label: t('domains.lastCheck'), content: new Date(data.status.lastCheckAt).toLocaleString() },
+              { label: t('domains.switchCount'), content: data.status.switchCount },
+            ]}
+          />
         </div>
       )}
 
-      <div className="flex justify-between pt-4">
-        {data?.config ? (
-          <button type="button" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}
-            className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
+      <Space className="record-form__actions dialog-form-actions">
+        {data?.config && (
+          <Button theme="danger" variant="outline" icon={<DeleteIcon />} loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>
             {t('domains.deleteConfig')}
-          </button>
-        ) : <div />}
-        <button type="submit" disabled={saveMutation.isPending}
-          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+          </Button>
+        )}
+        <Button type="submit" theme="primary" loading={saveMutation.isPending}>
           {t('domains.saveConfig')}
-        </button>
-      </div>
-    </form>
+        </Button>
+      </Space>
+    </Form>
   );
 }
 
@@ -148,110 +146,93 @@ export function FailoverTab() {
   const { t } = useI18n();
   const { isAdmin: canManage } = useAuth();
   const [configuringFailover, setConfiguringFailover] = useState<Domain | null>(null);
+  const [keyword, setKeyword] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
-  // Get all domains
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number }>({
     queryKey: ['domains-all'],
-    queryFn: () => domainsApi.list({ pageSize: 1000 }).then(r => r.data.data ?? { list: [], total: 0 }),
+    queryFn: () => domainsApi.list({ pageSize: 1000 }).then((r) => r.data.data ?? { list: [], total: 0 }),
   });
 
   const domains = domainsData?.list ?? [];
-  
-  // Calculate pagination
-  const totalPages = Math.ceil(domains.length / pageSize);
-  const startIndex = (page - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, domains.length);
-  const paginatedDomains = domains.slice(startIndex, endIndex);
+  const normalizedKeyword = keyword.trim().toLowerCase();
+  const filteredDomains = normalizedKeyword
+    ? domains.filter((domain) => (
+      domain.name.toLowerCase().includes(normalizedKeyword)
+      || String(domain.account_id).includes(normalizedKeyword)
+      || (domain.remark ?? '').toLowerCase().includes(normalizedKeyword)
+    ))
+    : domains;
+  const paginatedDomains = filteredDomains.slice((page - 1) * pageSize, page * pageSize);
 
   const columns = [
-    {
-      key: 'name',
-      label: t('domains.domainName'),
-      render: (row: Domain) => (
-        <span className="font-medium">{row.name}</span>
-      ),
-    },
-    {
-      key: 'account_id',
-      label: t('domains.account'),
-      render: (row: Domain) => (
-        <span className="text-gray-700">#{row.account_id}</span>
-      ),
-    },
-    {
-      key: 'remark',
-      label: t('domains.remark'),
-      render: (row: Domain) => (
-        <span className="text-gray-500">{row.remark || t('domains.emptyRemark')}</span>
-      ),
-    },
+    { key: 'name', label: t('domains.domain'), render: (row: Domain) => <span className="page-strong">{row.name}</span> },
+    { key: 'account_id', label: t('domains.account'), render: (row: Domain) => <span className="page-muted">#{row.account_id}</span> },
+    { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="page-muted">{row.remark || t('domains.emptyRemark')}</span> },
     {
       key: 'actions',
       label: t('domains.actions'),
       render: (row: Domain) => (
-        <button
-          onClick={() => setConfiguringFailover(row)}
+        <Button
+          variant="text"
+          theme="primary"
+          icon={<ActivityIcon />}
           disabled={!canManage}
-          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => setConfiguringFailover(row)}
         >
-          <Activity className="w-4 h-4" />
           {t('domains.configureFailover')}
-        </button>
+        </Button>
       ),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-        <Table
-          columns={columns}
-          data={paginatedDomains}
-          loading={isLoading}
-          rowKey={(r) => r.id}
-          emptyText={t('domains.noDomainsFound')}
-        />
-      </div>
-      
-      {/* Pagination */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-          <div className="text-sm text-gray-500">
-            显示 {startIndex + 1}-{endIndex} / 共 {domains.length} 项
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              上一页
-            </button>
-            <span className="text-sm text-gray-500">
-              第 {page} / {totalPages} 页
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-            >
-              下一页
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+    <div className="page-shell">
+      <section className="page-heading page-heading--compact">
+        <div>
+          <h2>{t('domains.tabs.failover')}</h2>
+          <p>{t('domains.failoverSubtitle')}</p>
         </div>
+      </section>
+
+      <Card bordered={false} shadow={false} className="page-card failover-card">
+        <div className="records-toolbar failover-card__toolbar">
+          <Input
+            clearable
+            value={keyword}
+            prefixIcon={<SearchIcon />}
+            placeholder={t('domains.searchPlaceholder')}
+            onChange={(value) => {
+              setKeyword(String(value));
+              setPage(1);
+            }}
+          />
+          <span className="failover-card__summary">
+            {t('common.total')} {filteredDomains.length} {t('common.items')}
+          </span>
+        </div>
+        <Table columns={columns} data={paginatedDomains} loading={isLoading} rowKey={(row) => row.id} emptyText={t('domains.noDomainsFound')} />
+        <div className="records-pagination records-pagination--compact">
+          <span className="records-pagination__total">
+            {t('common.total')} {filteredDomains.length} {t('common.items')}
+          </span>
+          <Pagination
+            size="small"
+            current={page}
+            pageSize={pageSize}
+            total={filteredDomains.length}
+            totalContent={false}
+            showPageSize={false}
+            showJumper={false}
+            onCurrentChange={(current) => setPage(current)}
+          />
+        </div>
+      </Card>
 
       {configuringFailover && canManage && (
-        <Modal
-          title={t('domains.failoverTitle', { name: configuringFailover.name })}
-          onClose={() => setConfiguringFailover(null)}
-        >
-          <FailoverConfigModal
-            domain={configuringFailover}
-            onClose={() => setConfiguringFailover(null)}
-          />
+        <Modal title={t('domains.failoverTitle', { name: configuringFailover.name })} onClose={() => setConfiguringFailover(null)} size="lg">
+          <FailoverConfigModal domain={configuringFailover} onClose={() => setConfiguringFailover(null)} />
         </Modal>
       )}
     </div>

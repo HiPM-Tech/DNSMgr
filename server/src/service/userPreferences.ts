@@ -11,6 +11,7 @@ export interface UserPreferences {
   notificationsEnabled: boolean;
   emailNotifications: boolean;
   backgroundImage?: string;
+  avatarImage?: string;
 }
 
 /**
@@ -27,6 +28,7 @@ export async function getUserPreferences(userId: number): Promise<UserPreference
       notificationsEnabled: true,
       emailNotifications: true,
       backgroundImage: undefined,
+      avatarImage: undefined,
     };
   }
 
@@ -37,6 +39,7 @@ export async function getUserPreferences(userId: number): Promise<UserPreference
     notificationsEnabled: !!(result as any).notifications_enabled,
     emailNotifications: !!(result as any).email_notifications,
     backgroundImage: (result as any).background_image || undefined,
+    avatarImage: (result as any).avatar_image || undefined,
   };
 }
 
@@ -54,6 +57,7 @@ export async function updateUserPreferences(
   const notificationsEnabled = updated.notificationsEnabled ? 1 : 0;
   const emailNotifications = updated.emailNotifications ? 1 : 0;
   const backgroundImage = updated.backgroundImage || null;
+  const avatarImage = updated.avatarImage || null;
 
   if (dbType === 'sqlite') {
     await UserPreferencesOperations.upsertSQLite(
@@ -62,7 +66,8 @@ export async function updateUserPreferences(
       updated.language,
       notificationsEnabled,
       emailNotifications,
-      backgroundImage
+      backgroundImage,
+      avatarImage
     );
   } else if (dbType === 'mysql') {
     await UserPreferencesOperations.upsertMySQL(
@@ -71,7 +76,8 @@ export async function updateUserPreferences(
       updated.language,
       notificationsEnabled,
       emailNotifications,
-      backgroundImage
+      backgroundImage,
+      avatarImage
     );
   } else {
     await UserPreferencesOperations.upsertPostgreSQL(
@@ -80,7 +86,8 @@ export async function updateUserPreferences(
       updated.language,
       notificationsEnabled,
       emailNotifications,
-      backgroundImage
+      backgroundImage,
+      avatarImage
     );
   }
 }

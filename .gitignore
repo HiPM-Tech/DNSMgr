@@ -15,9 +15,13 @@ client/dist/
 *.env.local
 
 # Database files
-server/*.db
-server/*.db-shm
-server/*.db-wal
+/data/
+/server/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 
 # AI-Censorship
 AI-Censorship-Reports/
