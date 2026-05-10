@@ -555,14 +555,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine Docker tags
+        id: docker-tags
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          IS_PRERELEASE="${{ needs.prepare.outputs.is_prerelease }}"
+          IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
+          
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            # 预发布版本使用 pre 标签
+            echo "tag=${IMAGE_BASE}:pre-${VERSION}-amd64" >> $GITHUB_OUTPUT
+            echo "manifest_tag=${IMAGE_BASE}:pre-${VERSION}" >> $GITHUB_OUTPUT
+          else
+            # 正式版本使用版本号标签
+            echo "tag=${IMAGE_BASE}:${VERSION}-amd64" >> $GITHUB_OUTPUT
+            echo "manifest_tag=${IMAGE_BASE}:${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push AMD64 image
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.version }}-amd64
+          tags: ${{ steps.docker-tags.outputs.tag }}
           labels: |
             org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -572,7 +588,7 @@ jobs:
       - name: Output build info
         run: |
           echo "Platform: linux/amd64"
-          echo "Tag: ${{ needs.prepare.outputs.version }}-amd64"
+          echo "Tag: ${{ steps.docker-tags.outputs.tag }}"
 
   build-docker-arm64:
     name: Build Docker ARM64
@@ -599,14 +615,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine Docker tags
+        id: docker-tags
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          IS_PRERELEASE="${{ needs.prepare.outputs.is_prerelease }}"
+          IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
+          
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            # 预发布版本使用 pre 标签
+            echo "tag=${IMAGE_BASE}:pre-${VERSION}-arm64" >> $GITHUB_OUTPUT
+            echo "manifest_tag=${IMAGE_BASE}:pre-${VERSION}" >> $GITHUB_OUTPUT
+          else
+            # 正式版本使用版本号标签
+            echo "tag=${IMAGE_BASE}:${VERSION}-arm64" >> $GITHUB_OUTPUT
+            echo "manifest_tag=${IMAGE_BASE}:${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push ARM64 image
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/arm64
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}:${{ needs.prepare.outputs.version }}-arm64
+          tags: ${{ steps.docker-tags.outputs.tag }}
           labels: |
             org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -616,7 +648,7 @@ jobs:
       - name: Output build info
         run: |
           echo "Platform: linux/arm64"
-          echo "Tag: ${{ needs.prepare.outputs.version }}-arm64"
+          echo "Tag: ${{ steps.docker-tags.outputs.tag }}"
 
   # ============================================================================
   # 阶段 4: 创建多架构 manifest
@@ -640,24 +672,46 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push multi-arch manifest
+      - name: Determine manifest tags
+        id: manifest-tags
         run: |
-          IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
           VERSION="${{ needs.prepare.outputs.version }}"
           IS_PRERELEASE="${{ needs.prepare.outputs.is_prerelease }}"
+          IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
+          
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            # 预发布版本使用 pre 标签
+            echo "version_tag=${IMAGE_BASE}:pre-${VERSION}" >> $GITHUB_OUTPUT
+            echo "amd64_tag=${IMAGE_BASE}:pre-${VERSION}-amd64" >> $GITHUB_OUTPUT
+            echo "arm64_tag=${IMAGE_BASE}:pre-${VERSION}-arm64" >> $GITHUB_OUTPUT
+            echo "latest_tag=" >> $GITHUB_OUTPUT
+          else
+            # 正式版本使用版本号标签
+            echo "version_tag=${IMAGE_BASE}:${VERSION}" >> $GITHUB_OUTPUT
+            echo "amd64_tag=${IMAGE_BASE}:${VERSION}-amd64" >> $GITHUB_OUTPUT
+            echo "arm64_tag=${IMAGE_BASE}:${VERSION}-arm64" >> $GITHUB_OUTPUT
+            echo "latest_tag=${IMAGE_BASE}:latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push multi-arch manifest
+        run: |
+          VERSION_TAG="${{ steps.manifest-tags.outputs.version_tag }}"
+          AMD64_TAG="${{ steps.manifest-tags.outputs.amd64_tag }}"
+          ARM64_TAG="${{ steps.manifest-tags.outputs.arm64_tag }}"
+          LATEST_TAG="${{ steps.manifest-tags.outputs.latest_tag }}"
 
           # 创建版本 tag 的 manifest
           docker buildx imagetools create \
-            --tag "${IMAGE_BASE}:${VERSION}" \
-            "${IMAGE_BASE}:${VERSION}-amd64" \
-            "${IMAGE_BASE}:${VERSION}-arm64"
+            --tag "${VERSION_TAG}" \
+            "${AMD64_TAG}" \
+            "${ARM64_TAG}"
 
           # 如果不是预发布，创建 latest tag
-          if [ "$IS_PRERELEASE" != "true" ]; then
+          if [ -n "$LATEST_TAG" ]; then
             docker buildx imagetools create \
-              --tag "${IMAGE_BASE}:latest" \
-              "${IMAGE_BASE}:${VERSION}-amd64" \
-              "${IMAGE_BASE}:${VERSION}-arm64"
+              --tag "${LATEST_TAG}" \
+              "${AMD64_TAG}" \
+              "${ARM64_TAG}"
           fi
 
           echo "Multi-arch manifest created successfully"
@@ -665,7 +719,7 @@ jobs:
       - name: Output manifest info
         run: |
           echo "Image: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name_lower }}"
-          echo "Version Tag: ${{ needs.prepare.outputs.version }}"
+          echo "Version Tag: ${{ steps.manifest-tags.outputs.version_tag }}"
           echo "Is Prerelease: ${{ needs.prepare.outputs.is_prerelease }}"
           echo "Platforms: linux/amd64, linux/arm64"
 
