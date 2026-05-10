@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  dnsmgr:
-    image: ghcr.io/hipm-tech/dnsmgr:latest
-    container_name: dnsmgr
+  hidns:
+    image: ghcr.io/hipm-tech/hidns:latest
+    container_name: hidns
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -20,13 +20,13 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - dnsmgr-network
+      - hidns-network
 
   # Optional: MySQL database service
   # Uncomment if you want to use MySQL instead of SQLite
   # mysql:
   #   image: mysql:8.0
-  #   container_name: dnsmgr-mysql
+  #   container_name: hidns-mysql
   #   restart: unless-stopped
   #   ports:
   #     - "3306:3306"
@@ -34,32 +34,32 @@ services:
   #     - mysql-data:/var/lib/mysql
   #   environment:
   #     - MYSQL_ROOT_PASSWORD=your_root_password
-  #     - MYSQL_DATABASE=dnsmgr
-  #     - MYSQL_USER=dnsmgr
+  #     - MYSQL_DATABASE=hidns
+  #     - MYSQL_USER=hidns
   #     - MYSQL_PASSWORD=your_password
   #   command: --default-authentication-plugin=mysql_native_password
   #   networks:
-  #     - dnsmgr-network
+  #     - hidns-network
 
   # Optional: PostgreSQL database service
   # Uncomment if you want to use PostgreSQL instead of SQLite
   # postgresql:
   #   image: postgres:15-alpine
-  #   container_name: dnsmgr-postgres
+  #   container_name: hidns-postgres
   #   restart: unless-stopped
   #   ports:
   #     - "5432:5432"
   #   volumes:
   #     - postgres-data:/var/lib/postgresql/data
   #   environment:
-  #     - POSTGRES_DB=dnsmgr
-  #     - POSTGRES_USER=dnsmgr
+  #     - POSTGRES_DB=hidns
+  #     - POSTGRES_USER=hidns
   #     - POSTGRES_PASSWORD=your_password
   #   networks:
-  #     - dnsmgr-network
+  #     - hidns-network
 
 networks:
-  dnsmgr-network:
+  hidns-network:
     driver: bridge
 
 volumes:

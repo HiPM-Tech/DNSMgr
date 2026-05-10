@@ -1,6 +1,8 @@
 # HiDNS - DNS Aggregation Management Platform
 
-A modern DNS aggregation management platform built with React + TailwindCSS (frontend) and Node.js + TypeScript (backend).
+> **原名**: DnsMgr (HiPm DnsMgr) | **现名**: HiDNS (HiPm DNS Aggregation Management Platform)
+>
+> A modern DNS aggregation management platform built with React + TailwindCSS (frontend) and Node.js + TypeScript (backend).
 
 对于中国用户请看: [简体中文文档](README_zh.md)
 
@@ -10,7 +12,7 @@ A modern DNS aggregation management platform built with React + TailwindCSS (fro
   - **Domestic (China)**: Aliyun (阿里云), DNSPod (腾讯云), Huawei Cloud (华为云), Baidu Cloud (百度云)
     Volcengine (火山引擎), JD Cloud (京东云), West Digital (西部数码), Qingcloud (青云)
     BT Panel (宝塔), Aliyun ESA (阿里云 ESA), Tencent EdgeOne (腾讯 EdgeOne), Rainyun (雨云), VPS8
-  - **International**: Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, DnsMgr, CaihongDNS (彩虹DNS聚合)
+  - **International**: Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, HiDNS, CaihongDNS (彩虹DNS聚合)
 
 - **Advanced Features**:
   - WHOIS query with intelligent caching (registrar mode support)
@@ -56,7 +58,7 @@ When creating/updating DNS accounts, the API normalizes lego-style provider name
 | `qingcloud` | `qingcloud` |
 | `spaceship` | `spaceship` |
 | `dnshe` | `dnshe` |
-| `dnsmgr` | `dnsmgr` |
+| `HiDNS` | `HiDNS` |
 | `caihongdns` | `caihongdns` |
 | `vps8` | `vps8` |
 
@@ -65,7 +67,7 @@ When creating/updating DNS accounts, the API normalizes lego-style provider name
 ### System Architecture
 
 ```
-DNSMgr/
+HiDNS/
 ├── server/          # Node.js + TypeScript backend
 │   └── src/
 │       ├── lib/dns/ # DNS provider adapters (abstract interface)
@@ -101,7 +103,7 @@ DNSMgr/
 
 ### Database Architecture (Three-Layer Design)
 
-DNSMgr implements a strict three-layer database architecture:
+HiDNS implements a strict three-layer database architecture:
 
 ```
 Routes/Service Layer → Business Adapter Layer → Core Layer → Driver Layer → Database
@@ -214,15 +216,15 @@ Docker deployment uses all-in-one mode (frontend + backend in single container).
 docker run -d \
   -p 3001:3001 \
   -v $(pwd)/data:/app/data \
-  --name dnsmgr \
-  ghcr.io/hipm-tech/dnsmgr:latest
+  --name hidns \
+  ghcr.io/hipm-tech/hidns:latest
 ```
 
 Or use Docker Compose:
 
 ```bash
 # Download compose file
-curl -O https://raw.githubusercontent.com/HiPM-Tech/DNSMgr/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/HiPM-Tech/HiDNS/main/docker-compose.yml
 
 # Start service
 docker-compose up -d
@@ -232,12 +234,12 @@ docker-compose up -d
 
 ```bash
 # Build and run
-docker build -t dnsmgr .
+docker build -t hidns .
 docker run -d \
   -p 3001:3001 \
   -v $(pwd)/data:/app/data \
-  --name dnsmgr \
-  dnsmgr
+  --name hidns \
+  hidns
 ```
 
 Access: http://localhost:3001
@@ -255,7 +257,7 @@ cp server/.env.example server/.env
 | `PORT` | `3001` | Server port |
 | `NODE_ENV` | `development` | Runtime environment |
 | `JWT_SECRET` | unset | Base JWT secret; if unset, server falls back to an insecure default (set this in production) |
-| `DB_PATH` | `./dnsmgr.db` | SQLite database path |
+| `DB_PATH` | `./HiDNS.db` | SQLite database path |
 | `DB_TYPE` | `sqlite` | Database type: `sqlite`, `mysql`, or `postgresql` |
 | `DB_HOST` | - | Database host (for MySQL/PostgreSQL) |
 | `DB_PORT` | - | Database port (for MySQL/PostgreSQL) |
@@ -346,7 +348,7 @@ MIT
 
 ## Internationalization (i18n) & Contribution
 
-DNSMgr uses `react-i18next` for internationalization. The current supported languages are English, Simplified Chinese, Spanish, and Japanese.
+HiDNS uses `react-i18next` for internationalization. The current supported languages are English, Simplified Chinese, Spanish, and Japanese.
 
 We welcome community contributions for new languages! Here's how to add one:
 
@@ -370,7 +372,7 @@ We support multiple DNS providers out of the box (Cloudflare, AliYun, TencentClo
 
 ## 🛡️ AI Censorship & Code Quality
 
-DNSMgr adopts a strict AI code review mechanism to ensure code quality and project standards.
+HiDNS adopts a strict AI code review mechanism to ensure code quality and project standards.
 
 ### Code Review Standards
 
@@ -395,11 +397,11 @@ DNSMgr adopts a strict AI code review mechanism to ensure code quality and proje
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=HiPM-Tech%2FDNSMgr&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=HiPM-Tech%2FHiDNS&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/HiDNS&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/HiDNS&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=HiPM-Tech/HiDNS&type=date&legend=top-left" />
  </picture>
 </a>
 

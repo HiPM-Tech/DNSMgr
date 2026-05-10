@@ -1,6 +1,8 @@
-# DNSMgr - DNS 聚合管理平台
+# HiDNS - DNS 聚合管理平台
 
-一个现代化的 DNS 聚合管理平台，前端使用 React + TailwindCSS，后端使用 Node.js + TypeScript。
+> **原名**: DnsMgr (HiPm DnsMgr) | **现名**: HiDNS (HiPm DNS Aggregation Management Platform)
+>
+> 一个现代化的 DNS 聚合管理平台，前端使用 React + TailwindCSS，后端使用 Node.js + TypeScript。
 
 ## 功能特性
 
@@ -8,7 +10,7 @@
   - **国内**：阿里云 (Aliyun), DNSPod (腾讯云), 华为云 (Huawei Cloud), 百度云 (Baidu Cloud)
     火山引擎 (Volcengine), 京东云 (JD Cloud), 西部数码 (West Digital), 青云 (Qingcloud)
     宝塔面板 (BT Panel), 阿里云 ESA (Aliyun ESA), 腾讯 EdgeOne (Tencent EdgeOne), 雨云 (Rainyun), VPS8
-  - **国际**：Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, DnsMgr, 彩虹DNS聚合 (CaihongDNS)
+  - **国际**：Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, HiDns, 彩虹DNS聚合 (CaihongDNS)
 
 - **高级功能**:
   - WHOIS 查询与智能缓存（支持注册商模式）
@@ -35,7 +37,7 @@
 ### 系统架构
 
 ```
-DNSMgr/
+HiDNS/
 ├── server/          # Node.js + TypeScript 后端
 │   ├── src/
 │   │   ├── lib/dns/ # DNS 服务商适配器（抽象接口）
@@ -71,7 +73,7 @@ DNSMgr/
 
 ### 数据库架构（三层设计）
 
-DNSMgr 实现了严格的三层数据库架构：
+HiDNS 实现了严格的三层数据库架构：
 
 ```
 路由/服务层 → 业务适配器层 → 核心层 → 驱动层 → 数据库
@@ -184,15 +186,15 @@ Docker 部署使用一体化模式（前后端合并在一个容器中）。
 docker run -d \
   -p 3001:3001 \
   -v $(pwd)/data:/app/data \
-  --name dnsmgr \
-  ghcr.io/hipm-tech/dnsmgr:latest
+  --name hidns \
+  ghcr.io/hipm-tech/hidns:latest
 ```
 
 或使用 Docker Compose：
 
 ```bash
 # 下载编排文件
-curl -O https://raw.githubusercontent.com/HiPM-Tech/DNSMgr/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/HiPM-Tech/HiDNS/main/docker-compose.yml
 
 # 启动服务
 docker-compose up -d
@@ -202,12 +204,12 @@ docker-compose up -d
 
 ```bash
 # 构建并运行
-docker build -t dnsmgr .
+docker build -t hidns .
 docker run -d \
   -p 3001:3001 \
   -v $(pwd)/data:/app/data \
-  --name dnsmgr \
-  dnsmgr
+  --name hidns \
+  hidns
 ```
 
 访问地址：http://localhost:3001
@@ -225,7 +227,7 @@ cp server/.env.example server/.env
 | `PORT` | `3001` | 服务端端口 |
 | `NODE_ENV` | `development` | 运行环境 |
 | `JWT_SECRET` | 未设置 | JWT 基础密钥；若不设置会回退到不安全默认值（生产环境必须设置） |
-| `DB_PATH` | `./dnsmgr.db` | SQLite 数据库路径 |
+| `DB_PATH` | `./Hidns.db` | SQLite 数据库路径 |
 | `DB_TYPE` | `sqlite` | 数据库类型：`sqlite`、`mysql` 或 `postgresql` |
 | `DB_HOST` | - | 数据库主机（MySQL/PostgreSQL 使用） |
 | `DB_PORT` | - | 数据库端口（MySQL/PostgreSQL 使用） |
@@ -306,7 +308,7 @@ interface DnsAdapter {
 | `qingcloud` | `qingcloud` |
 | `spaceship` | `spaceship` |
 | `dnshe` | `dnshe` |
-| `dnsmgr` | `dnsmgr` |
+| `Hidns` | `Hidns` |
 | `caihongdns` | `caihongdns` |
 | `vps8` | `vps8` |
 
@@ -344,7 +346,7 @@ MIT
 
 ## 多语言支持 (i18n) 与贡献指南
 
-DNSMgr 使用 `react-i18next` 进行国际化（i18n）支持。目前已支持的语言包括：英文、简体中文、西班牙语和日语。
+HiDNS 使用 `react-i18next` 进行国际化（i18n）支持。目前已支持的语言包括：英文、简体中文、西班牙语和日语。
 
 我们非常欢迎社区参与多语言的共建！如果你想添加新的语言支持，请参考以下步骤：
 
@@ -368,7 +370,7 @@ DNSMgr 使用 `react-i18next` 进行国际化（i18n）支持。目前已支持�
 
 ## 🛡️ AI 审核团与代码质量
 
-DNSMgr 项目采用严格的 AI 代码审核机制，确保代码质量和项目规范。
+HiDNS 项目采用严格的 AI 代码审核机制，确保代码质量和项目规范。
 
 ### 审核标准
 
@@ -393,11 +395,11 @@ DNSMgr 项目采用严格的 AI 代码审核机制，确保代码质量和项目
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=HiPM-Tech%2FDNSMgr&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=HiPM-Tech%2FHiDNS&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=HiPM-Tech/DNSMgr&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/HiDNS&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=HiPM-Tech/HiDNS&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=HiPM-Tech/HiDNS&type=date&legend=top-left" />
  </picture>
 </a>
 
