@@ -1,6 +1,9 @@
 /**
  * 域名工具函数
+ * 支持国际化域名(IDN)，包括中文域名
  */
+
+import { normalizeDomain } from '../../utils/domain';
 
 /**
  * 特殊后缀列表
@@ -20,13 +23,16 @@ const SPECIAL_SUFFIXES = [
 
 /**
  * 获取根域名（顶域）
- * @param domainName 域名
- * @returns 根域名
+ * 支持国际化域名(IDN)，包括中文域名
+ * @param domainName 域名（支持 Unicode 或 Punycode 格式）
+ * @returns 根域名（Punycode 格式）
  */
 export function getRootDomain(domainName: string): string {
-  const parts = domainName.toLowerCase().split('.');
+  // 使用 IDN-aware 归一化（将 Unicode 转换为 Punycode）
+  const normalized = normalizeDomain(domainName);
+  const parts = normalized.split('.');
 
-  if (parts.length <= 2) return domainName;
+  if (parts.length <= 2) return normalized;
 
   const lastTwo = parts.slice(-2).join('.');
   const lastThree = parts.slice(-3).join('.');

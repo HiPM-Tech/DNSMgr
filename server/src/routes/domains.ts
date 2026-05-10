@@ -14,11 +14,13 @@ import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, Tea
 import { syncDomainWhois } from '../service/whoisJob';
 import { getRootDomain } from '../service/whoisProvider';
 import { wsService } from '../service/websocket';
+import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/domain';
 
 const router = Router();
 
 function normalizeDomainName(name: string): string {
-  return name.trim().toLowerCase();
+  // Use IDN-aware normalization (converts Unicode to Punycode)
+  return normalizeDomain(name);
 }
 
 async function getAccountForUser(accountId: number, userId: number, role: number): Promise<DnsAccount | null> {
@@ -49,9 +51,10 @@ type DomainAccess = {
 };
 
 function normalizeSubInput(sub?: string): string {
-  const trimmed = (sub ?? '').trim().toLowerCase();
-  if (trimmed === '@') return '@';
-  return trimmed;
+  // Use IDN-aware normalization for subdomains
+  const normalized = normalizeDomain(sub ?? '');
+  if (normalized === '@') return '@';
+  return normalized;
 }
 
 async function getPermissionRows(domainId: number, userId: number): Promise<Array<{ permission: 'read' | 'write'; sub: string }>> {

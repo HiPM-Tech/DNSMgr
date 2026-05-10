@@ -11,6 +11,7 @@ import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 import { wsService } from '../service/websocket';
+import { normalizeDomain, isValidDomain } from '../utils/domain';
 
 const router = Router({ mergeParams: true });
 
@@ -53,11 +54,11 @@ function isIPv6(value: string): boolean {
 }
 
 function isHostname(value: string): boolean {
-  const normalized = value.trim().replace(/\.$/, '');
+  const normalized = normalizeDomain(value).replace(/\.$/, '');
   if (!normalized || normalized.length > 253) return false;
-  const labels = normalized.split('.');
-  if (labels.some((l) => !l || l.length > 63 || /^[-]/.test(l) || /[-]$/.test(l) || /[^a-zA-Z0-9-]/.test(l))) return false;
-  return true;
+  
+  // Use the domain validation utility which supports IDN
+  return isValidDomain(normalized);
 }
 
 function isValidRecordValue(type: string, value: string): boolean {
@@ -78,8 +79,9 @@ function isValidRecordValue(type: string, value: string): boolean {
 }
 
 function getSubdomain(fullName: string, domainName: string): string {
-  const full = fullName.trim().toLowerCase();
-  const domain = domainName.trim().toLowerCase();
+  // Use IDN-aware normalization
+  const full = normalizeDomain(fullName);
+  const domain = normalizeDomain(domainName);
   if (full === domain) return '@';
   if (full.endsWith('.' + domain)) return full.slice(0, -(domain.length + 1));
   return full;

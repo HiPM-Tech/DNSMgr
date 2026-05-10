@@ -33,10 +33,53 @@ export function isValidPassword(password: string): boolean {
 
 /**
  * Validate domain name format
+ * Supports both ASCII and Unicode (IDN) domains
+ * Examples: example.com, xn--fsq092h.xn--0zwm56d (Punycode), 例子.测试 (Unicode)
  */
 export function isValidDomain(domain: string): boolean {
-  const domainRegex = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
-  return domainRegex.test(domain);
+  if (!domain || typeof domain !== 'string') {
+    return false;
+  }
+
+  const trimmed = domain.trim();
+  if (trimmed.length === 0 || trimmed.length > 253) {
+    return false;
+  }
+
+  try {
+    // Use URL API for IDN to Punycode conversion and validation
+    const url = new URL(`http://${trimmed}`);
+    const hostname = url.hostname;
+    
+    // Validate Punycode format
+    // Each label should be 1-63 characters, total max 253
+    const labels = hostname.split('.');
+    
+    for (const label of labels) {
+      if (label.length === 0 || label.length > 63) {
+        return false;
+      }
+      
+      // Punycode labels start with xn--
+      if (label.startsWith('xn--')) {
+        // Validate Punycode format
+        if (!/^xn--[a-z0-9-]+$/i.test(label)) {
+          return false;
+        }
+      } else {
+        // Standard ASCII label validation
+        // Allow: alphanumeric, hyphen
+        // Must start and end with alphanumeric
+        if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)) {
+          return false;
+        }
+      }
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
