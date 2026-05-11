@@ -274,17 +274,177 @@
     - React 18+ + TypeScript。
     - Vite 构建工具。
     - React Router 前端路由。
+    - React Query (@tanstack/react-query) 数据获取和缓存管理。
     - Context API 状态管理（AuthContext、ThemeContext、I18nContext、UiScaleContext）。
-2. 目录结构
-    - `pages/`：页面组件（Dashboard、Domains、Accounts、Records、Settings、System、Security 等）。
-    - `components/`：通用组件（Layout、Header、Sidebar、Table、Modal、RecordForm 等）。
-    - `api/`：API 请求封装。
-    - `contexts/`：React Context（认证、主题、国际化、UI缩放）。
-    - `hooks/`：自定义 Hooks（useToast、useWebSocket、useRealtimeData、useLocalStorage 等）。
-    - `i18n/`：国际化支持，支持11种语言（中文、英文、日文、韩文、法文、德文、西班牙文、葡萄牙文、俄文、阿拉伯文等）。
-    - `utils/`：工具函数。
-    - `styles/`：全局样式和主题配置。
-    - `assets/`：静态资源（提供商图标等）。
+2. **前端模块化架构（强制约束）**
+    - **核心原则**：前端代码必须遵循模块化设计，禁止重复代码和自由发挥。
+    - **目录结构约束**：
+      ```
+      client/src/
+      ├── api/              # API 请求封装（按模块分组）
+      │   ├── auth.ts       # 认证相关 API
+      │   ├── domains.ts    # 域名相关 API
+      │   └── ...
+      ├── components/       # 通用组件（可复用）
+      │   ├── RecordForm.tsx    # DNS 记录表单
+      │   ├── DomainTable.tsx   # 域名表格
+      │   └── ...
+      ├── hooks/            # 自定义 Hooks（业务逻辑抽象）
+      │   ├── useFormSync.ts    # 【新增】通用表单同步 Hook
+      │   ├── useWebSocket.ts   # WebSocket 连接
+      │   ├── useRealtimeData.ts # 实时数据
+      │   └── ...
+      ├── utils/            # 工具函数（纯函数，无副作用）
+      │   ├── formHelpers.ts    # 【新增】表单辅助函数
+      │   ├── validators.ts     # 验证函数
+      │   └── ...
+      ├── contexts/         # React Context（全局状态）
+      │   ├── AuthContext.tsx
+      │   ├── ThemeContext.tsx
+      │   └── ...
+      ├── pages/            # 页面组件（路由级别）
+      │   ├── Dashboard.tsx
+      │   ├── Domains.tsx
+      │   ├── Accounts.tsx
+      │   └── ...
+      ├── i18n/             # 国际化
+      │   ├── locales/
+      │   └── index.ts
+      └── styles/           # 全局样式
+          └── ...
+      ```
+    - **模块职责划分**：
+      - `hooks/`：所有业务逻辑抽象必须放在这里，禁止在组件中直接编写复杂逻辑
+      - `utils/`：所有纯工具函数必须放在这里，禁止在组件中定义工具函数
+      - `components/`：所有可复用组件必须放在这里，禁止在页面中定义可复用组件
+      - `api/`：所有 API 调用必须封装在这里，禁止在组件中直接使用 fetch/axios
+    - **DRY 原则（Don't Repeat Yourself）**：
+      - 相同逻辑出现 2 次以上必须提取为公共模块
+      - 表单处理必须使用 `useFormSync` Hook，禁止手动编写 useEffect 同步逻辑
+      - API 调用必须使用统一的 API 封装，禁止直接使用 fetch
+      - 工具函数必须使用 `utils/` 中的函数，禁止重复实现
+    - **代码审查要求**：
+      - 新代码提交前必须检查是否有重复逻辑
+      - 发现重复代码必须立即重构
+      - 违反模块化约束的代码不得合并到主分支
+3. **表单处理规范（P0+ 优先级）**
+    - **强制使用 useFormSync Hook**：
+      ```typescript
+      // ❌ 禁止：手动编写 useEffect 同步逻辑
+      const [name, setName] = useState('');
+      useEffect(() => {
+        if (initial) setName(initial.name);
+      }, [initial?.id]);
+      
+      // ✅ 正确：使用 useFormSync
+      const { formState, updateField } = useFormSync(
+        initial,
+        { name: '' },
+        { fields: ['name'] }
+      );
+      ```
+    - **表单辅助函数**：
+      - 类型转换必须使用 `formHelpers.ts` 中的函数（toString, toBoolean, toNumber）
+      - 禁止在组件中重复实现类型转换逻辑
+    - **表单验证**：
+      - 简单验证使用 HTML5 原生验证
+      - 复杂验证使用 `utils/validators.ts` 中的验证函数
+      - 未来考虑引入 Zod + React Hook Form
+4. **API 调用规范**
+    - **统一 API 封装**：
+      ```typescript
+      // ❌ 禁止：直接使用 fetch
+      fetch('/api/domains').then(res => res.json());
+      
+      // ✅ 正确：使用 API 封装
+      import { domainsApi } from '../api/domains';
+      const { data } = useQuery({
+        queryKey: ['domains'],
+        queryFn: () => domainsApi.getList(),
+      });
+      ```
+    - **React Query 使用规范**：
+      - 所有数据获取必须使用 useQuery
+      - 所有数据修改必须使用 useMutation
+      - 合理配置 staleTime 和 cacheTime
+      - 避免在 queryFn 中直接设置状态
+    - **错误处理**：
+      - 统一使用 try-catch 或 React Query 的 onError
+      - 错误信息必须通过 toast 显示给用户
+      - 禁止静默失败
+5. **组件设计规范**
+    - **组件分类**：
+      - 页面组件（pages/）：负责路由级别的页面布局和数据获取
+      - 通用组件（components/）：负责可复用的 UI 元素
+      - 表单组件（components/）：负责表单逻辑和验证
+    - **组件职责**：
+      - 页面组件：数据获取、状态管理、业务逻辑
+      - 通用组件：UI 展示、事件回调
+      - 表单组件：表单同步、验证、提交
+    - **Props 设计**：
+      - 使用 TypeScript 接口定义 Props
+      - 提供默认值
+      - 避免过多的 Props（超过 5 个考虑拆分组件）
+    - **状态管理**：
+      - 局部状态使用 useState
+      - 跨组件状态使用 Context
+      - 服务端状态使用 React Query
+      - 禁止滥用 Redux/Zustand 等全局状态库
+6. **国际化规范**
+    - **强制使用 i18n**：
+      ```typescript
+      // ❌ 禁止：硬编码文本
+      <Button>保存</Button>
+      
+      // ✅ 正确：使用 i18n
+      import { useI18n } from '../contexts/I18nContext';
+      const { t } = useI18n();
+      <Button>{t('common.save')}</Button>
+      ```
+    - **翻译文件管理**：
+      - 所有文本必须在 `i18n/locales/` 中定义
+      - 按模块组织翻译键（auth.*, domains.*, settings.* 等）
+      - 新增文本必须同时添加所有语言的翻译
+    - **翻译完整性检查**：
+      - 提交前运行 `check_i18n_simple.js` 检查翻译完整性
+      - 缺失翻译不得合并到主分支
+7. **样式规范**
+    - **Tailwind CSS**：
+      - 优先使用 Tailwind 实用类
+      - 避免自定义 CSS
+      - 复杂样式使用 @apply 提取为组件类
+    - **TDesign 组件库**：
+      - 优先使用 TDesign 组件
+      - 避免自定义 UI 组件
+      - 保持 UI 一致性
+    - **响应式设计**：
+      - 所有页面必须支持移动端
+      - 使用 Tailwind 的响应式类
+      - 测试不同屏幕尺寸
+8. **性能优化规范**
+    - **组件渲染优化**：
+      - 使用 React.memo 优化纯展示组件
+      - 使用 useMemo 优化计算密集型逻辑
+      - 使用 useCallback 优化事件处理器
+    - **数据获取优化**：
+      - 合理使用 React Query 缓存
+      - 避免不必要的重新获取
+      - 使用 optimistic updates 提升用户体验
+    - **代码分割**：
+      - 使用 React.lazy 进行路由级别代码分割
+      - 大型组件使用动态导入
+      - 避免一次性加载所有代码
+9. **测试规范**
+    - **单元测试**：
+      - 工具函数必须有单元测试
+      - Hooks 必须有单元测试
+      - 使用 Vitest + React Testing Library
+    - **集成测试**：
+      - 关键业务流程必须有集成测试
+      - 使用 Playwright 进行 E2E 测试
+    - **测试覆盖率**：
+      - 目标覆盖率：80%+
+      - 核心模块必须 100% 覆盖
 3. 页面路由
     - `/dashboard`：仪表盘
     - `/accounts`：DNS 账户管理

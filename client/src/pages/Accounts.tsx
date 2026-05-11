@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
@@ -14,7 +14,8 @@ import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
-import { toBoolean, toString } from '../utils/typeConverters';
+import { useFormSync } from '../hooks/useFormSync';
+import { toBoolean, toString } from '../utils/formHelpers';
 
 function ProviderBadge({ type }: { type: string }) {
   return (
@@ -38,48 +39,53 @@ function selectToString(value: SelectValue) {
 
 function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormProps) {
   const { t } = useI18n();
-  const [type, setType] = useState(initial?.type ?? providers[0]?.type ?? '');
-  const [name, setName] = useState(initial?.name ?? '');
-  const [remark, setRemark] = useState(initial?.remark ?? '');
-  const [useProxy, setUseProxy] = useState(() => {
-    const raw = initial?.config?.useProxy;
-    if (typeof raw === 'boolean') return raw;
-    if (typeof raw === 'string') return raw === 'true';
-    return false;
-  });
-  const [config, setConfig] = useState<Record<string, string>>(
-    initial?.config ? Object.fromEntries(Object.keys(initial.config).filter((key) => key !== 'useProxy').map((key) => [key, String(initial.config[key] || '')])) : {}
+  
+  // Define form type that includes temporary fields
+  interface AccountFormState extends Partial<DnsAccount> {
+    useProxy?: boolean;
+  }
+  
+  // Use useFormSync for unified form state management
+  const { formState, updateField } = useFormSync<AccountFormState>(
+    initial,
+    {
+      type: providers[0]?.type ?? '',
+      name: '',
+      remark: '',
+      useProxy: false,
+      config: {} as Record<string, string>,
+    },
+    {
+      transformers: {
+        remark: (v) => toString(v),
+        useProxy: (v: any) => toBoolean(v),
+        config: (v) => {
+          if (!v) return {};
+          const result: Record<string, string> = {};
+          Object.keys(v).forEach(key => {
+            if (key !== 'useProxy') {
+              result[key] = toString(v[key]);
+            }
+          });
+          return result;
+        },
+      },
+    }
   );
 
-  // Sync form data when initial prop changes (for editing)
-  useEffect(() => {
-    if (initial) {
-      setType(initial.type);
-      setName(initial.name);
-      setRemark(toString(initial.remark));
-      // Handle useProxy - backend may return boolean, number, or string
-      setUseProxy(toBoolean(initial.config?.useProxy));
-      // Convert all config values to strings for form display
-      const newConfig: Record<string, string> = {};
-      if (initial.config) {
-        Object.keys(initial.config).forEach((key) => {
-          if (key !== 'useProxy') {
-            const val = initial.config![key];
-            newConfig[key] = toString(val);
-          }
-        });
-      }
-      setConfig(newConfig);
-    }
-  }, [initial]);
+  const type = formState.type || '';
+  const name = formState.name || '';
+  const remark = formState.remark || '';
+  const useProxy = formState.useProxy || false;
+  const config = formState.config || {};
 
   const provider = providers.find((item) => item.type === type);
   const providerOptions = providers.map((item) => ({ label: <ProviderSelectLabel provider={item} />, value: item.type }));
 
   const handleTypeChange = (nextType: string) => {
-    setType(nextType);
-    setConfig({});
-    setUseProxy(false);
+    updateField('type', nextType);
+    updateField('config', {});
+    updateField('useProxy', false);
   };
 
   const submitAccount = () => {
@@ -99,14 +105,20 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
               { label: t('common.pleaseSelect'), value: '' },
               ...field.options.map((option) => ({ label: option.label, value: option.value })),
             ]}
-            onChange={(nextValue: any) => setConfig((current) => ({ ...current, [field.key]: selectToString(nextValue) }))}
+            onChange={(nextValue: any) => {
+              const newConfig = { ...config, [field.key]: selectToString(nextValue) };
+              updateField('config', newConfig);
+            }}
           />
         ) : (
           <Input
             clearable
             type={field.type === 'password' && value === '***' ? 'password' : 'text'}
             value={String(value)}
-            onChange={(nextValue: any) => setConfig((current) => ({ ...current, [field.key]: String(nextValue) }))}
+            onChange={(nextValue: any) => {
+              const newConfig = { ...config, [field.key]: String(nextValue) };
+              updateField('config', newConfig);
+            }}
             placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
           />
         )}
@@ -132,7 +144,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
         <Input
           clearable
           value={String(name)}
-          onChange={(value: any) => setName(String(value))}
+          onChange={(value: any) => updateField('name', String(value))}
           placeholder={t('accounts.accountNamePlaceholder')}
         />
       </Form.FormItem>
@@ -140,13 +152,13 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
       {(provider?.configFields ?? []).map(renderField)}
 
       <Form.FormItem label={t('accounts.useProxy')} help={t('accounts.useProxyHint')}>
-        <Switch value={Boolean(useProxy)} onChange={(checked: any) => setUseProxy(Boolean(checked))} />
+        <Switch value={Boolean(useProxy)} onChange={(checked: any) => updateField('useProxy', Boolean(checked))} />
       </Form.FormItem>
       <Form.FormItem label={t('common.remark')}>
         <Input
           clearable
           value={String(remark)}
-          onChange={(value: any) => setRemark(String(value))}
+          onChange={(value: any) => updateField('remark', String(value))}
           placeholder={t('common.optionalRemark')}
         />
       </Form.FormItem>

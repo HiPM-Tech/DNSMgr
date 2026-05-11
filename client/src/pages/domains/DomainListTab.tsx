@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Checkbox, Empty, Form, Input, Loading, Pagination, Radio, Select, Space, Tag } from 'tdesign-react';
 import {
@@ -24,6 +24,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { isApexDomain } from '../../utils/domain-utils';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { useFormSync } from '../../hooks/useFormSync';
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -204,7 +205,6 @@ export function DomainListTab() {
   const canManage = isActuallyAdmin;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
-  const [editRemark, setEditRemark] = useState('');
   const [deleting, setDeleting] = useState<Domain | null>(null);
   const [accountFilter, setAccountFilter] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -293,14 +293,13 @@ export function DomainListTab() {
 
   const accountMap = Object.fromEntries(accounts.map((account) => [account.id, account]));
 
-  // Sync editRemark when editing domain changes
-  useEffect(() => {
-    if (editing) {
-      setEditRemark(editing.remark || '');
-    } else {
-      setEditRemark('');
-    }
-  }, [editing?.id]);
+  // Use useFormSync for edit remark field
+  const { formState, updateField } = useFormSync(
+    editing || undefined,
+    { remark: '' },
+    { fields: ['remark'] }
+  );
+  const editRemark = formState.remark || '';
 
   const openEdit = (domain: Domain) => {
     setEditing(domain);
@@ -439,7 +438,7 @@ export function DomainListTab() {
               <span className="page-strong">{editing.name}</span>
             </Form.FormItem>
             <Form.FormItem label={t('domains.remark')}>
-              <Input value={editRemark} onChange={(value) => setEditRemark(String(value))} />
+              <Input value={editRemark} onChange={(value) => updateField('remark', String(value))} />
             </Form.FormItem>
             <Space className="record-form__actions">
               <Button type="submit" theme="primary" loading={updateMutation.isPending}>

@@ -23,7 +23,7 @@ import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
-import { toBoolean, toString } from '../../utils/typeConverters';
+import { toBoolean } from '../../utils/typeConverters';
 
 interface NSMonitorConfig {
   id: number;
@@ -317,7 +317,7 @@ export function NSMonitorTab() {
             )}
             {encryptedNS.length === 0 && plainNS.length === 0 && (
               <span className="page-muted">
-                {safeToString(row.current_ns) && safeToString(row.current_ns) !== '0' ? row.current_ns : t('nsMonitor.notChecked')}
+                {row.current_ns && String(row.current_ns) !== '0' ? row.current_ns : t('nsMonitor.notChecked')}
               </span>
             )}
             {row.is_poisoned === true && (

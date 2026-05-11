@@ -4,6 +4,8 @@ import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
+import { useFormSync } from '../hooks/useFormSync';
+import { toString } from '../utils/formHelpers';
 import './RecordForm.css';
 
 export const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR'];
@@ -166,42 +168,48 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   // Check if provider supports multi-line routing
   const hasMultiLine = lines.length > 1 && !hasProxyMode;
   
-  const [form, setForm] = useState<Partial<DnsRecord>>(() => ({
-    name: initial?.name ?? '@',
-    type: initial?.type ?? 'A',
-    value: initial?.value ?? '',
-    ttl: initial?.ttl ?? 600,
-    mx: initial?.mx ?? 10,
-    weight: initial?.weight ?? 10,
-    line: hasProxyMode
-      ? (initial?.line ?? '0')
-      : (initial?.line ?? (hasMultiLine ? (lines[0]?.id ?? '0') : '0')),
-    remark: initial?.remark ?? '',
-  }));
+  // 使用 useFormSync 统一管理表单状态
+  const { formState: form, updateField } = useFormSync(
+    initial,
+    {
+      name: '@',
+      type: 'A',
+      value: '',
+      ttl: 600,
+      mx: 10,
+      weight: 10,
+      line: '0',
+      remark: '',
+    },
+    {
+      fields: ['name', 'type', 'value', 'ttl', 'mx', 'weight', 'line', 'remark'],
+      transformers: {
+        name: (v) => toString(v, '@'),
+        type: (v) => toString(v, 'A'),
+        value: (v) => toString(v),
+        line: (v) => {
+          // 特殊逻辑：根据 hasProxyMode 和 hasMultiLine 决定默认值
+          if (hasProxyMode) return toString(v, '0');
+          return toString(v, hasMultiLine ? (lines[0]?.id ?? '0') : '0');
+        },
+      },
+    }
+  );
+  
+  // SRV 字段需要单独处理（因为涉及解析逻辑）
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
 
-  // Sync form data when initial prop changes (for editing different records)
+  // SRV 字段同步（保留特殊处理逻辑）
   useEffect(() => {
     if (initial) {
-      setForm({
-        name: String(initial.name ?? '@'),
-        type: String(initial.type ?? 'A'),
-        value: String(initial.value ?? ''),
-        ttl: initial.ttl ?? 600,
-        mx: initial.mx ?? 10,
-        weight: initial.weight ?? 10,
-        line: hasProxyMode
-          ? String(initial.line ?? '0')
-          : String(initial.line ?? (hasMultiLine ? (lines[0]?.id ?? '0') : '0')),
-        remark: String(initial.remark ?? ''),
-      });
       setSrv(parseSrvValue(initial));
     }
-  }, [initial?.id, initial?.name, initial?.type, initial?.value, initial?.line, initial?.ttl, initial?.mx, initial?.weight, initial?.remark]);
+  }, [initial?.id, initial?.mx, initial?.weight, initial?.value]);
 
+  // 更新字段并清除错误
   const set = (k: keyof DnsRecord, v: unknown) => {
-    setForm((f) => ({ ...f, [k]: v }));
+    updateField(k, v);
     setErrors((current) => ({ ...current, [k as keyof typeof current]: undefined }));
   };
 
@@ -345,7 +353,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Input
             clearable
             value={String(form.name ?? '')}
-            onChange={(value: any) => setForm((f) => ({ ...f, name: String(value) }))}
+            onChange={(value: any) => updateField('name', String(value))}
             placeholder={t('records.hostPlaceholder')}
             disabled={isVPS8 && !!initial}
             status={errors.name ? 'error' : undefined}

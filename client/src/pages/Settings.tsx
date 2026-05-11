@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
 import { ClearIcon, ImageIcon, LockOnIcon, UserSettingIcon } from 'tdesign-icons-react';
@@ -13,6 +13,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 import { useUiScale } from '../contexts/UiScaleContext';
 import type { UiScale } from '../contexts/UiScaleContext';
+import { useFormSync } from '../hooks/useFormSync';
 
 export function Settings() {
   const { user, updateUser } = useAuth();
@@ -30,6 +31,19 @@ export function Settings() {
   const displayName = user?.nickname || user?.username;
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');
+  
+  // Use useFormSync for profile fields
+  const { formState: profileForm } = useFormSync(
+    user || undefined,
+    { nickname: '', email: '' },
+    { fields: ['nickname', 'email'] }
+  );
+  
+  // Sync nickname and email from profileForm
+  useEffect(() => {
+    setNickname(profileForm.nickname ?? '');
+    setEmail(profileForm.email ?? '');
+  }, [profileForm.nickname, profileForm.email]);
   const [showTunnels, setShowTunnels] = useLocalStorage('showTunnels', false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -40,12 +54,7 @@ export function Settings() {
   const [selectedOauthProvider, setSelectedOauthProvider] = useState<'custom' | 'logto'>('custom');
   const [backgroundImage, setBackgroundImage] = useState('');
   const [avatarImage, setAvatarImage] = useState('');
-
-  useEffect(() => {
-    setNickname(user?.nickname ?? '');
-    setEmail(user?.email ?? '');
-  }, [user?.id, user?.nickname, user?.email]);
-
+  
   const { data: preferencesData } = useQuery({
     queryKey: ['userPreferences'],
     queryFn: async () => {
@@ -54,13 +63,19 @@ export function Settings() {
       throw new Error(res.data.msg);
     },
   });
-
+  
+  // Use useFormSync for preferences
+  const { formState: preferencesForm } = useFormSync(
+    preferencesData || undefined,
+    { backgroundImage: '', avatarImage: '' },
+    { fields: ['backgroundImage', 'avatarImage'] }
+  );
+  
+  // Sync background and avatar images from preferencesForm
   useEffect(() => {
-    if (preferencesData) {
-      setBackgroundImage(preferencesData.backgroundImage || '');
-      setAvatarImage(preferencesData.avatarImage || '');
-    }
-  }, [preferencesData]);
+    setBackgroundImage(preferencesForm.backgroundImage || '');
+    setAvatarImage(preferencesForm.avatarImage || '');
+  }, [preferencesForm.backgroundImage, preferencesForm.avatarImage]);
 
   const updateBackgroundMutation = useMutation({
     mutationFn: (imageUrl: string) => authApi.updatePreferences({ backgroundImage: imageUrl }),

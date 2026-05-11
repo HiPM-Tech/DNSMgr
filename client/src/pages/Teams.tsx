@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, Form, Input, Loading, Select, Space, Tag } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
@@ -22,6 +22,7 @@ import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+import { useFormSync } from '../hooks/useFormSync';
 
 function selectToDomainId(value: SelectValue): number | '' {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -50,13 +51,20 @@ export function Teams() {
   const [memberSearch, setMemberSearch] = useState('');
   const [removingMember, setRemovingMember] = useState<TeamMember | null>(null);
   const [memberPermissionsFor, setMemberPermissionsFor] = useState<TeamMember | null>(null);
-  const [teamForm, setTeamForm] = useState({ name: '', description: '' });
   const [teamPermDomainId, setTeamPermDomainId] = useState<number | ''>('');
   const [teamPermPermission, setTeamPermPermission] = useState<'read' | 'write'>('write');
   const [teamPermSub, setTeamPermSub] = useState('');
   const [memberPermDomainId, setMemberPermDomainId] = useState<number | ''>('');
   const [memberPermPermission, setMemberPermPermission] = useState<'read' | 'write'>('write');
   const [memberPermSub, setMemberPermSub] = useState('');
+  
+  // Use useFormSync for team form state management
+  const { formState: teamForm, updateField: updateTeamField } = useFormSync(
+    editTeam || undefined,
+    { name: '', description: '' },
+    { fields: ['name', 'description'] }
+  );
+  
   const getDisplayName = (u: { nickname?: string; username: string }) => u.nickname || u.username;
 
   useRealtimeData({
@@ -108,7 +116,6 @@ export function Teams() {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['teams'] });
       setShowCreate(false);
-      setTeamForm({ name: '', description: '' });
       toast.success(t('teams.teamCreated'));
     },
     onError: () => toast.error(t('teams.createFailed')),
@@ -221,15 +228,10 @@ export function Teams() {
   const myMember = members.find((m) => m.user_id === me?.id);
   const canManageTeam = isAdmin(me?.role) || myMember?.role === 'owner';
 
-  // Sync teamForm when editTeam changes
-  useEffect(() => {
-    if (editTeam) {
-      setTeamForm({ name: editTeam.name, description: editTeam.description || '' });
-    }
-  }, [editTeam]);
-
   const openCreate = () => {
-    setTeamForm({ name: '', description: '' });
+    // Reset form to default values for creation
+    updateTeamField('name', '');
+    updateTeamField('description', '');
     setShowCreate(true);
   };
 
@@ -238,12 +240,12 @@ export function Teams() {
   };
 
   const submitTeamForm = (mode: 'create' | 'edit') => {
-    const name = teamForm.name.trim();
+    const name = (teamForm.name || '').trim();
     if (!name) {
       toast.error(t('teams.teamNamePlaceholder'));
       return;
     }
-    const payload = { name, description: teamForm.description.trim() };
+    const payload = { name, description: (teamForm.description || '').trim() };
     if (mode === 'create') {
       createMutation.mutate(payload);
     } else if (editTeam) {
@@ -355,10 +357,10 @@ export function Teams() {
         <Modal title={t('teams.createTeam')} onClose={() => setShowCreate(false)} size="sm">
           <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submitTeamForm('create'); }}>
             <Form.FormItem label={t('teams.teamName')}>
-              <Input value={String(teamForm.name)} onChange={(value: any) => setTeamForm((form) => ({ ...form, name: String(value) }))} placeholder={t('teams.teamNamePlaceholder')} />
+              <Input value={String(teamForm.name)} onChange={(value: any) => updateTeamField('name', String(value))} placeholder={t('teams.teamNamePlaceholder')} />
             </Form.FormItem>
             <Form.FormItem label={t('teams.description')}>
-              <Input value={String(teamForm.description)} onChange={(value: any) => setTeamForm((form) => ({ ...form, description: String(value) }))} placeholder={t('teams.descriptionPlaceholder')} />
+              <Input value={String(teamForm.description)} onChange={(value: any) => updateTeamField('description', String(value))} placeholder={t('teams.descriptionPlaceholder')} />
             </Form.FormItem>
             <Space className="record-form__actions">
               <Button type="submit" theme="primary" loading={createMutation.isPending}>
@@ -373,10 +375,10 @@ export function Teams() {
         <Modal title={t('teams.editTeam')} onClose={() => setEditTeam(null)} size="sm">
           <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submitTeamForm('edit'); }}>
             <Form.FormItem label={t('teams.teamName')}>
-              <Input value={String(teamForm.name)} onChange={(value: any) => setTeamForm((form) => ({ ...form, name: String(value) }))} />
+              <Input value={String(teamForm.name)} onChange={(value: any) => updateTeamField('name', String(value))} />
             </Form.FormItem>
             <Form.FormItem label={t('teams.description')}>
-              <Input value={String(teamForm.description)} onChange={(value: any) => setTeamForm((form) => ({ ...form, description: String(value) }))} />
+              <Input value={String(teamForm.description)} onChange={(value: any) => updateTeamField('description', String(value))} />
             </Form.FormItem>
             <Space className="record-form__actions">
               <Button type="submit" theme="primary" loading={updateMutation.isPending}>

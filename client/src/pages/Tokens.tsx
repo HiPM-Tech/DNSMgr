@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Checkbox, DatePicker, Empty, Form, Input, Loading, Pagination, Space, Switch, Tag } from 'tdesign-react';
 import { CalendarIcon, CheckIcon, CopyIcon, DeleteIcon, EditIcon, InternetIcon, KeyIcon } from 'tdesign-icons-react';
@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
 import { Table } from '../components/Table';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+import { useFormSync } from '../hooks/useFormSync';
 
 interface Token {
   id: number;
@@ -40,13 +41,34 @@ export function Tokens() {
   const [domainSearch, setDomainSearch] = useState('');
   const [domainPage, setDomainPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; tokenId: number | null }>({ show: false, tokenId: null });
-  const [formData, setFormData] = useState({
-    name: '',
-    allowed_domains: [] as number[],
-    start_time: '',
-    end_time: '',
-    no_expiry: false,
-  });
+  
+  // Define form type that includes temporary fields
+  interface TokenFormState extends Partial<Token> {
+    no_expiry?: boolean;
+  }
+  
+  // Use useFormSync for token form state management
+  const { formState: formData, updateField } = useFormSync<TokenFormState>(
+    editingToken || undefined,
+    {
+      name: '',
+      allowed_domains: [] as number[],
+      start_time: '',
+      end_time: '',
+      no_expiry: false,
+    },
+    {
+      fields: ['name', 'allowed_domains', 'start_time', 'end_time', 'no_expiry'],
+      transformers: {
+        allowed_domains: (v: any) => v || [],
+        no_expiry: (v: any) => {
+          // 如果没有 end_time，则 no_expiry 为 true
+          if (editingToken) return !editingToken.end_time;
+          return v || false;
+        },
+      },
+    }
+  );
 
   useRealtimeData({
     queryKey: ['tokens'],
@@ -138,13 +160,12 @@ export function Tokens() {
     setNewToken(null);
     setDomainSearch('');
     setDomainPage(1);
-    setFormData({
-      name: '',
-      allowed_domains: [],
-      start_time: '',
-      end_time: '',
-      no_expiry: false,
-    });
+    // Reset to default values
+    updateField('name', '');
+    updateField('allowed_domains', []);
+    updateField('start_time', '');
+    updateField('end_time', '');
+    updateField('no_expiry', false);
   };
 
   const closeModal = () => {
@@ -162,33 +183,15 @@ export function Tokens() {
     setShowCreateModal(true);
   };
 
-  // Sync formData when editingToken changes
-  useEffect(() => {
-    if (editingToken) {
-      setFormData({
-        name: editingToken.name,
-        allowed_domains: editingToken.allowed_domains || [],
-        start_time: editingToken.start_time || '',
-        end_time: editingToken.end_time || '',
-        no_expiry: !editingToken.end_time,
-      });
-      setNewToken(null);
-      setDomainSearch('');
-      setDomainPage(1);
-    } else {
-      resetForm();
-    }
-  }, [editingToken?.id, editingToken?.name, editingToken?.allowed_domains, editingToken?.start_time, editingToken?.end_time]);
-
   const handleEdit = (token: Token) => {
     setEditingToken(token);
   };
 
   const buildPayload = () => ({
-    name: formData.name,
-    allowed_domains: formData.allowed_domains,
-    start_time: formData.start_time,
-    end_time: formData.no_expiry ? undefined : formData.end_time,
+    name: formData.name || '',
+    allowed_domains: formData.allowed_domains || [],
+    start_time: formData.start_time || undefined,
+    end_time: formData.no_expiry ? undefined : (formData.end_time || undefined),
   });
 
   const handleCreate = () => {
@@ -226,20 +229,18 @@ export function Tokens() {
 
   const selectAllFiltered = () => {
     const filteredIds = filteredDomains.map((domain) => domain.id);
-    setFormData((data) => ({ ...data, allowed_domains: [...new Set([...data.allowed_domains, ...filteredIds])] }));
+    updateField('allowed_domains', [...new Set([...(formData.allowed_domains || []), ...filteredIds])]);
   };
 
   const clearAllSelection = () => {
-    setFormData((data) => ({ ...data, allowed_domains: [] }));
+    updateField('allowed_domains', []);
   };
 
   const toggleDomain = (domainId: number, checked: boolean) => {
-    setFormData((data) => ({
-      ...data,
-      allowed_domains: checked
-        ? [...new Set([...data.allowed_domains, domainId])]
-        : data.allowed_domains.filter((id) => id !== domainId),
-    }));
+    updateField('allowed_domains', checked
+      ? [...new Set([...(formData.allowed_domains || []), domainId])]
+      : (formData.allowed_domains || []).filter((id: number) => id !== domainId)
+    );
   };
 
   const columns = [
@@ -321,7 +322,7 @@ export function Tokens() {
       </div>
 
       <div className="token-domain-summary">
-        <span>{t('tokens.selectedCount', { count: formData.allowed_domains.length })}</span>
+        <span>{t('tokens.selectedCount', { count: formData.allowed_domains?.length || 0 })}</span>
         <span>{t('tokens.allDomainsAllowed')}</span>
       </div>
 
@@ -336,8 +337,8 @@ export function Tokens() {
           <div className="page-list page-list--scroll">
             <label className="token-domain-all">
               <Checkbox
-                checked={formData.allowed_domains.length === 0}
-                onChange={(checked) => {
+                checked={(formData.allowed_domains?.length || 0) === 0}
+                onChange={(checked: any) => {
                   if (checked) clearAllSelection();
                 }}
               />
@@ -346,8 +347,8 @@ export function Tokens() {
             {paginatedDomains.map((domain) => (
               <label key={domain.id} className="token-domain-option">
                 <Checkbox
-                  checked={formData.allowed_domains.includes(domain.id)}
-                  onChange={(checked) => toggleDomain(domain.id, Boolean(checked))}
+                  checked={(formData.allowed_domains || []).includes(domain.id)}
+                  onChange={(checked: any) => toggleDomain(domain.id, Boolean(checked))}
                 />
                 <span className="page-list-item__main">
                   <strong>{domain.name}</strong>
@@ -376,7 +377,7 @@ export function Tokens() {
       <Form.FormItem label={t('tokens.tokenName')}>
         <Input
           value={String(formData.name)}
-          onChange={(value: any) => setFormData((data) => ({ ...data, name: String(value) }))}
+          onChange={(value: any) => updateField('name', String(value))}
           placeholder={t('tokens.tokenNamePlaceholder')}
         />
       </Form.FormItem>
@@ -393,7 +394,7 @@ export function Tokens() {
             format="YYYY-MM-DD HH:mm:ss"
             valueType="YYYY-MM-DD HH:mm:ss"
             value={String(formData.start_time)}
-            onChange={(value: any) => setFormData((data) => ({ ...data, start_time: String(value ?? '') }))}
+            onChange={(value: any) => updateField('start_time', String(value ?? ''))}
           />
         </Form.FormItem>
         <Form.FormItem label={<Space size="small"><CalendarIcon />{t('tokens.endTime')}</Space>} tips={t('tokens.endTimeHint')}>
@@ -404,17 +405,19 @@ export function Tokens() {
             format="YYYY-MM-DD HH:mm:ss"
             valueType="YYYY-MM-DD HH:mm:ss"
             value={String(formData.end_time)}
-            onChange={(value: any) => setFormData((data) => ({ ...data, end_time: String(value ?? ''), no_expiry: false }))}
+            onChange={(value: any) => {
+              updateField('end_time', String(value ?? ''));
+              updateField('no_expiry', false);
+            }}
           />
         </Form.FormItem>
         <Form.FormItem className="token-no-expiry-item" label=" ">
           <Checkbox
             checked={formData.no_expiry}
-            onChange={(checked: any) => setFormData((data) => ({
-              ...data,
-              no_expiry: Boolean(checked),
-              end_time: checked ? '' : data.end_time,
-            }))}
+            onChange={(checked: any) => {
+              updateField('no_expiry', Boolean(checked));
+              if (checked) updateField('end_time', '');
+            }}
           >
             {t('tokens.noExpiry')}
           </Checkbox>
