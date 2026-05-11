@@ -56,15 +56,31 @@ export function useFormSync<T extends Record<string, any>>(
   // 使用 ref 追踪上一次的 initial id，避免不必要的重新渲染
   const previousInitialIdRef = useRef<number | string | undefined>(undefined);
   
-  const fields = options?.fields || (Object.keys(defaultValues) as Array<keyof T>);
-  const transformers = options?.transformers || {};
-  const autoReset = options?.autoReset !== false; // 默认 true
+  // 使用 ref 存储配置，避免对象引用导致 useEffect 无限触发
+  const configRef = useRef({
+    fields: options?.fields || (Object.keys(defaultValues) as Array<keyof T>),
+    transformers: options?.transformers || {},
+    autoReset: options?.autoReset !== false,
+    defaultValues,
+  });
+  
+  // 只在首次渲染或 options 变化时更新 configRef
+  useEffect(() => {
+    configRef.current = {
+      fields: options?.fields || (Object.keys(defaultValues) as Array<keyof T>),
+      transformers: options?.transformers || {},
+      autoReset: options?.autoReset !== false,
+      defaultValues,
+    };
+  }, [options?.fields, options?.transformers, options?.autoReset, defaultValues]);
 
   // 同步 initial 到 formState
   useEffect(() => {
+    const { fields, transformers, autoReset, defaultValues: defaults } = configRef.current;
+    
     if (!initial) {
       // initial 为空时（创建模式），重置为默认值
-      setFormState({ ...defaultValues });
+      setFormState({ ...defaults });
       setIsDirty(false);
       previousInitialIdRef.current = undefined;
       return;
@@ -79,25 +95,19 @@ export function useFormSync<T extends Record<string, any>>(
       
       fields.forEach(field => {
         const value = initial[field];
-        const transformer = options?.transformers?.[field as string] as ((value: any) => any) | undefined;
+        const transformer = (transformers as any)[field as string] as ((value: any) => any) | undefined;
         
         // 应用转换器（如果有），否则使用值或默认值
         updates[field] = transformer 
           ? transformer(value) 
-          : (value ?? defaultValues[field]);
+          : (value ?? defaults[field]);
       });
       
       setFormState(updates);
       setIsDirty(false);
       previousInitialIdRef.current = currentId;
     }
-  }, [
-    initial,
-    defaultValues,
-    fields,
-    transformers,
-    autoReset
-  ]);
+  }, [initial]);
 
   // 更新单个字段
   const updateField = useCallback((field: keyof T, value: any) => {
@@ -119,22 +129,24 @@ export function useFormSync<T extends Record<string, any>>(
 
   // 重置表单到初始状态
   const resetForm = useCallback(() => {
+    const { fields, transformers, defaultValues: defaults } = configRef.current;
+    
     if (initial) {
       // 编辑模式：重置为 initial 值
       const updates: Partial<T> = {};
-      fields.forEach(field => {
-        const transformer = options?.transformers?.[field as string] as ((value: any) => any) | undefined;
+      fields.forEach((field: keyof T) => {
+        const transformer = (transformers as any)[field as string] as ((value: any) => any) | undefined;
         updates[field] = transformer 
           ? transformer(initial[field]) 
-          : (initial[field] ?? defaultValues[field]);
+          : (initial[field] ?? defaults[field]);
       });
       setFormState(updates);
     } else {
       // 创建模式：重置为默认值
-      setFormState({ ...defaultValues });
+      setFormState({ ...defaults });
     }
     setIsDirty(false);
-  }, [initial, fields, transformers, defaultValues]);
+  }, [initial]);
 
   return {
     formState,

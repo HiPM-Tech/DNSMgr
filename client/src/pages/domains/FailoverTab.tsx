@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Descriptions, Form, Input, Loading, Pagination, Select, Space, Switch } from 'tdesign-react';
 import { ActivityIcon, DeleteIcon, SearchIcon } from 'tdesign-icons-react';
@@ -10,6 +10,7 @@ import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { useFormSync } from '../../hooks/useFormSync';
 import { toBoolean, toString, toNumber } from '../../utils/typeConverters';
 
 function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () => void }) {
@@ -28,25 +29,41 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
     queryFn: () => domainsApi.getFailover(domain.id).then((r) => r.data.data),
   });
 
-  const [primaryIp, setPrimaryIp] = useState('');
-  const [backupIps, setBackupIps] = useState<string[]>([]);
-  const [checkMethod, setCheckMethod] = useState<'http' | 'tcp' | 'ping'>('http');
-  const [checkInterval, setCheckInterval] = useState(300);
-  const [checkPort, setCheckPort] = useState(80);
-  const [checkPath, setCheckPath] = useState('');
-  const [autoSwitchBack, setAutoSwitchBack] = useState(true);
+  // Use useFormSync for unified form state management
+  interface FailoverFormState {
+    primaryIp?: string;
+    backupIps?: string[];
+    checkMethod?: 'http' | 'tcp' | 'ping';
+    checkInterval?: number;
+    checkPort?: number;
+    checkPath?: string;
+    autoSwitchBack?: boolean;
+  }
 
-  useEffect(() => {
-    if (data?.config) {
-      setPrimaryIp(toString(data.config.primaryIp));
-      setBackupIps(Array.isArray(data.config.backupIps) ? data.config.backupIps.map(String) : []);
-      setCheckMethod(toString(data.config.checkMethod, 'http') as 'http' | 'tcp' | 'ping');
-      setCheckInterval(toNumber(data.config.checkInterval, 300));
-      setCheckPort(toNumber(data.config.checkPort, 80));
-      setCheckPath(toString(data.config.checkPath));
-      setAutoSwitchBack(toBoolean(data.config.autoSwitchBack));
+  const { formState, updateField } = useFormSync<FailoverFormState>(
+    data?.config || undefined,
+    {
+      primaryIp: '',
+      backupIps: [],
+      checkMethod: 'http',
+      checkInterval: 300,
+      checkPort: 80,
+      checkPath: '',
+      autoSwitchBack: true,
+    },
+    {
+      fields: ['primaryIp', 'backupIps', 'checkMethod', 'checkInterval', 'checkPort', 'checkPath', 'autoSwitchBack'],
+      transformers: {
+        primaryIp: (v) => toString(v),
+        backupIps: (v) => Array.isArray(v) ? v.map(String) : [],
+        checkMethod: (v) => toString(v, 'http') as 'http' | 'tcp' | 'ping',
+        checkInterval: (v) => toNumber(v, 300),
+        checkPort: (v) => toNumber(v, 80),
+        checkPath: (v) => toString(v),
+        autoSwitchBack: (v) => toBoolean(v),
+      },
     }
-  }, [data]);
+  );
 
   const saveMutation = useMutation({
     mutationFn: (cfg: any) => domainsApi.saveFailover(domain.id, cfg),
@@ -70,7 +87,15 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
   });
 
   const handleSave = () => {
-    saveMutation.mutate({ primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack });
+    saveMutation.mutate({
+      primaryIp: formState.primaryIp || '',
+      backupIps: formState.backupIps || [],
+      checkMethod: formState.checkMethod || 'http',
+      checkInterval: formState.checkInterval || 300,
+      checkPort: formState.checkPort || 80,
+      checkPath: formState.checkPath || '',
+      autoSwitchBack: formState.autoSwitchBack ?? true,
+    });
   };
 
   if (isLoading) return <div className="page-state"><Loading loading text={t('common.loading')} /></div>;
@@ -78,40 +103,40 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
   return (
     <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form failover-dialog" onSubmit={({ e }: any) => { e?.preventDefault(); handleSave(); }}>
       <Form.FormItem label={t('domains.primaryIp')}>
-        <Input value={primaryIp} onChange={(value: any) => setPrimaryIp(String(value))} />
+        <Input value={formState.primaryIp || ''} onChange={(value: any) => updateField('primaryIp', String(value))} />
       </Form.FormItem>
       <Form.FormItem label={t('domains.backupIps')}>
-        <Input value={backupIps.join(',')} onChange={(value: any) => setBackupIps(String(value).split(',').map((item) => item.trim()).filter(Boolean))} />
+        <Input value={(formState.backupIps || []).join(',')} onChange={(value: any) => updateField('backupIps', String(value).split(',').map((item: string) => item.trim()).filter(Boolean))} />
       </Form.FormItem>
       <div className="dialog-form-grid">
         <Form.FormItem label={t('domains.checkMethod')}>
           <Select
-            value={checkMethod}
+            value={formState.checkMethod || 'http'}
             options={[
               { label: 'HTTP', value: 'http' },
               { label: 'TCP', value: 'tcp' },
               { label: 'PING', value: 'ping' },
             ]}
-            onChange={(value: any) => setCheckMethod(String(Array.isArray(value) ? value[0] : value) as 'http' | 'tcp' | 'ping')}
+            onChange={(value: any) => updateField('checkMethod', String(Array.isArray(value) ? value[0] : value) as 'http' | 'tcp' | 'ping')}
           />
         </Form.FormItem>
         <Form.FormItem label={t('domains.checkPort')}>
-          <Input type="number" value={String(checkPort)} onChange={(value: any) => setCheckPort(Number(value) || 0)} />
+          <Input type="number" value={String(formState.checkPort || 80)} onChange={(value: any) => updateField('checkPort', Number(value) || 0)} />
         </Form.FormItem>
       </div>
-      {checkMethod === 'http' && (
+      {(formState.checkMethod === 'http') && (
         <Form.FormItem label={t('domains.checkPath')}>
-          <Input value={checkPath} onChange={(value: any) => setCheckPath(String(value))} placeholder="/" />
+          <Input value={formState.checkPath || ''} onChange={(value: any) => updateField('checkPath', String(value))} placeholder="/" />
         </Form.FormItem>
       )}
       <Form.FormItem label={t('domains.checkInterval')}>
-        <Input type="number" value={String(checkInterval)} onChange={(value: any) => setCheckInterval(Number(value) || 0)} />
+        <Input type="number" value={String(formState.checkInterval || 300)} onChange={(value: any) => updateField('checkInterval', Number(value) || 0)} />
       </Form.FormItem>
       <div className="dialog-switch-row">
         <div>
           <strong>{t('domains.autoSwitchBack')}</strong>
         </div>
-        <Switch value={autoSwitchBack} onChange={(checked: any) => setAutoSwitchBack(Boolean(checked))} />
+        <Switch value={formState.autoSwitchBack ?? true} onChange={(checked: any) => updateField('autoSwitchBack', Boolean(checked))} />
       </div>
 
       {data?.status && (

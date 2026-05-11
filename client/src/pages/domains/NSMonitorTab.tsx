@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, Form, Input, Pagination, Radio, Space, Switch, Tag, Textarea } from 'tdesign-react';
 import {
@@ -23,6 +23,7 @@ import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { useFormSync } from '../../hooks/useFormSync';
 import { toBoolean } from '../../utils/typeConverters';
 
 interface NSMonitorConfig {
@@ -53,10 +54,7 @@ export function NSMonitorTab() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [deleteConfig, setDeleteConfig] = useState<NSMonitorConfig | null>(null);
   const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null);
-  const [editExpectedNs, setEditExpectedNs] = useState('');
-  const [editEnabled, setEditEnabled] = useState(true);
-  const [editNotifyEmail, setEditNotifyEmail] = useState(false);
-  const [editNotifyChannels, setEditNotifyChannels] = useState(false);
+  // Edit form state is now managed by useFormSync
   const [addExpectedNs, setAddExpectedNs] = useState('');
   const [addEnabled, setAddEnabled] = useState(true);
   const [addNotifyEmail, setAddNotifyEmail] = useState(false);
@@ -80,22 +78,7 @@ export function NSMonitorTab() {
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ['ns-monitor'],
-    queryFn: () => nsMonitorApi.list().then((r) => {
-      console.log('NSMonitor API Response:', r.data.data);
-      if (r.data.data && Array.isArray(r.data.data)) {
-        r.data.data.forEach((config: any) => {
-          console.log('Config item:', {
-            id: config.id,
-            domain_name: config.domain_name,
-            enabled: config.enabled,
-            enabledType: typeof config.enabled,
-            notify_email: config.notify_email,
-            notify_emailType: typeof config.notify_email,
-          });
-        });
-      }
-      return r.data.data || [];
-    }),
+    queryFn: () => nsMonitorApi.list().then((r) => r.data.data || []),
     retry: 1,
     retryDelay: 1000,
     staleTime: 30000,
@@ -186,7 +169,7 @@ export function NSMonitorTab() {
       if (data.recommendedNs && data.recommendedNs.length > 0) {
         const expectedNs = data.recommendedNs.join(', ');
         if (variables.target === 'edit') {
-          setEditExpectedNs(expectedNs);
+          updateEditField('expected_ns', expectedNs);
         } else {
           setAddExpectedNs(expectedNs);
         }
@@ -209,24 +192,43 @@ export function NSMonitorTab() {
     return value.split(',').map((item) => item.trim()).filter(Boolean);
   };
 
-  // Sync edit form data when selectedConfig changes
-  useEffect(() => {
-    if (selectedConfig) {
-      console.log('Edit Form Data Sync:', {
-        id: selectedConfig.id,
-        enabled: selectedConfig.enabled,
-        enabledType: typeof selectedConfig.enabled,
-        notify_email: selectedConfig.notify_email,
-        notify_emailType: typeof selectedConfig.notify_email,
-        notify_channels: selectedConfig.notify_channels,
-        notify_channelsType: typeof selectedConfig.notify_channels,
-      });
-      setEditExpectedNs(String(selectedConfig.expected_ns || ''));
-      setEditEnabled(toBoolean(selectedConfig.enabled));
-      setEditNotifyEmail(toBoolean(userPrefs?.notify_email ?? selectedConfig.notify_email));
-      setEditNotifyChannels(toBoolean(userPrefs?.notify_channels ?? selectedConfig.notify_channels));
+  // Use useFormSync for edit form state management
+  interface EditFormState {
+    expected_ns?: string;
+    enabled?: boolean;
+    notify_email?: boolean;
+    notify_channels?: boolean;
+  }
+
+  // Convert NSMonitorConfig to EditFormState
+  const convertToEditForm = (config: NSMonitorConfig | null): EditFormState | undefined => {
+    if (!config) return undefined;
+    return {
+      expected_ns: String(config.expected_ns || ''),
+      enabled: toBoolean(config.enabled),
+      notify_email: toBoolean(userPrefs?.notify_email ?? config.notify_email),
+      notify_channels: toBoolean(userPrefs?.notify_channels ?? config.notify_channels),
+    };
+  };
+
+  const { formState: editFormState, updateField: updateEditField } = useFormSync<EditFormState>(
+    convertToEditForm(selectedConfig),
+    {
+      expected_ns: '',
+      enabled: true,
+      notify_email: false,
+      notify_channels: false,
+    },
+    {
+      fields: ['expected_ns', 'enabled', 'notify_email', 'notify_channels'],
+      transformers: {
+        expected_ns: (v: any) => String(v || ''),
+        enabled: (v: any) => toBoolean(v),
+        notify_email: (v: any) => toBoolean(userPrefs?.notify_email ?? v),
+        notify_channels: (v: any) => toBoolean(userPrefs?.notify_channels ?? v),
+      },
     }
-  }, [selectedConfig?.id, selectedConfig?.expected_ns, selectedConfig?.enabled, selectedConfig?.notify_email, selectedConfig?.notify_channels, userPrefs]);
+  );
 
   const openEditModal = (row: NSMonitorConfig) => {
     setSelectedConfig(row);
@@ -257,13 +259,13 @@ export function NSMonitorTab() {
 
     updateMutation.mutate({
       id: selectedConfig.id,
-      expected_ns: editExpectedNs,
-      enabled: editEnabled,
+      expected_ns: editFormState.expected_ns || '',
+      enabled: editFormState.enabled ?? true,
     });
 
     updateUserPrefsMutation.mutate({
-      notify_email: editNotifyEmail,
-      notify_channels: editNotifyChannels,
+      notify_email: editFormState.notify_email ?? false,
+      notify_channels: editFormState.notify_channels ?? false,
     });
   };
 
@@ -449,10 +451,10 @@ export function NSMonitorTab() {
 
             <Form.FormItem label={t('nsMonitor.expectedNS')} help={t('nsMonitor.expectedNSHint')}>
               <Textarea
-                value={editExpectedNs}
+                value={editFormState.expected_ns || ''}
                 placeholder={t('nsMonitor.expectedNSPlaceholder')}
                 autosize={{ minRows: 3, maxRows: 6 }}
-                onChange={(value: any) => setEditExpectedNs(String(value))}
+                onChange={(value: any) => updateEditField('expected_ns', String(value))}
               />
               <Space className="record-form__actions dialog-inline-actions">
                 <Button
@@ -472,7 +474,7 @@ export function NSMonitorTab() {
                 <strong>{t('nsMonitor.enableMonitoring')}</strong>
                 <span>{t('nsMonitor.monitoring')}</span>
               </div>
-              <Switch value={editEnabled} onChange={(checked: any) => setEditEnabled(Boolean(checked))} />
+              <Switch value={editFormState.enabled ?? true} onChange={(checked: any) => updateEditField('enabled', Boolean(checked))} />
             </div>
 
             <div className="dialog-switch-row">
@@ -480,7 +482,7 @@ export function NSMonitorTab() {
                 <strong>{t('nsMonitor.notifyEmail')}</strong>
                 <span>{t('nsMonitor.notifications')}</span>
               </div>
-              <Switch value={editNotifyEmail} onChange={(checked: any) => setEditNotifyEmail(Boolean(checked))} />
+              <Switch value={editFormState.notify_email ?? false} onChange={(checked: any) => updateEditField('notify_email', Boolean(checked))} />
             </div>
 
             <div className="dialog-switch-row">
@@ -489,9 +491,9 @@ export function NSMonitorTab() {
                 <span>{isAdmin ? t('nsMonitor.notifications') : 'Admin only'}</span>
               </div>
               <Switch
-                value={editNotifyChannels}
+                value={editFormState.notify_channels ?? false}
                 disabled={!isAdmin}
-                onChange={(checked: any) => setEditNotifyChannels(Boolean(checked))}
+                onChange={(checked: any) => updateEditField('notify_channels', Boolean(checked))}
               />
             </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Loading, Select, Space, Switch, Tag } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
@@ -14,6 +14,8 @@ import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, roleLabelKey } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+import { useFormSync } from '../hooks/useFormSync';
+import { toString, toNumber } from '../utils/typeConverters';
 
 const usernamePattern = /^[A-Za-z0-9_-]+$/;
 
@@ -30,11 +32,43 @@ interface UserCreateFormProps {
 function UserCreateForm({ roleOptions, isPending, onSubmit }: UserCreateFormProps) {
   const { t } = useI18n();
   const toast = useToast();
-  const [nickname, setNickname] = useState('');
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState(roleOptions[0] ?? ROLE_USER);
+  
+  // Use useFormSync for create form state management
+  interface CreateUserFormState {
+    nickname?: string;
+    username?: string;
+    email?: string;
+    password?: string;
+    role?: number;
+  }
+
+  const { formState, updateField } = useFormSync<CreateUserFormState>(
+    undefined,
+    {
+      nickname: '',
+      username: '',
+      email: '',
+      password: '',
+      role: roleOptions[0] ?? ROLE_USER,
+    },
+    {
+      fields: ['nickname', 'username', 'email', 'password', 'role'],
+      transformers: {
+        nickname: (v: any) => toString(v),
+        username: (v: any) => toString(v),
+        email: (v: any) => toString(v),
+        password: (v: any) => toString(v),
+        role: (v: any) => toNumber(v, roleOptions[0] ?? ROLE_USER),
+      },
+    }
+  );
+
+  const nickname = formState.nickname || '';
+  const username = formState.username || '';
+  const email = formState.email || '';
+  const password = formState.password || '';
+  const role = formState.role ?? (roleOptions[0] ?? ROLE_USER);
+  
   const usernameInvalid = username.trim().length > 0 && !usernamePattern.test(username.trim());
 
   const submit = () => {
@@ -49,26 +83,26 @@ function UserCreateForm({ roleOptions, isPending, onSubmit }: UserCreateFormProp
   return (
     <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
       <Form.FormItem label={t('users.nicknameRequired')}>
-        <Input clearable value={String(nickname)} onChange={(value: any) => setNickname(String(value))} placeholder={t('users.nicknamePlaceholder')} />
+        <Input clearable value={nickname} onChange={(value: any) => updateField('nickname', String(value))} placeholder={t('users.nicknamePlaceholder')} />
       </Form.FormItem>
       <Form.FormItem
         label={t('users.usernameRequired')}
         status={usernameInvalid ? 'error' : undefined}
         tips={usernameInvalid ? t('users.usernameInvalid') : t('users.usernameHelp')}
       >
-        <Input clearable value={String(username)} onChange={(value: any) => setUsername(String(value))} placeholder={t('users.usernamePlaceholder')} status={usernameInvalid ? 'error' : undefined} />
+        <Input clearable value={username} onChange={(value: any) => updateField('username', String(value))} placeholder={t('users.usernamePlaceholder')} status={usernameInvalid ? 'error' : undefined} />
       </Form.FormItem>
       <Form.FormItem label={t('users.email')}>
-        <Input clearable type="text" value={String(email)} onChange={(value: any) => setEmail(String(value))} placeholder={t('users.emailPlaceholder')} />
+        <Input clearable type="text" value={email} onChange={(value: any) => updateField('email', String(value))} placeholder={t('users.emailPlaceholder')} />
       </Form.FormItem>
       <Form.FormItem label={t('users.password')}>
-        <Input type="password" value={String(password)} onChange={(value: any) => setPassword(String(value))} placeholder={t('users.passwordPlaceholder')} />
+        <Input type="password" value={password} onChange={(value: any) => updateField('password', String(value))} placeholder={t('users.passwordPlaceholder')} />
       </Form.FormItem>
       <Form.FormItem label={t('users.role')}>
         <Select
           value={role}
           options={roleOptions.map((item) => ({ label: t(roleLabelKey(item)), value: item }))}
-          onChange={(value: any) => setRole(selectToNumber(value))}
+          onChange={(value: any) => updateField('role', selectToNumber(value))}
         />
       </Form.FormItem>
       <Space className="record-form__actions">
@@ -90,27 +124,49 @@ interface UserEditModalProps {
 }
 
 function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: UserEditModalProps) {
-  const [nickname, setNickname] = useState(user.nickname || user.username);
-  const [email, setEmail] = useState(user.email || '');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState<number>(user.role);
-  const [status, setStatus] = useState<number>(user.status);
-  const [require2FA, setRequire2FA] = useState(false);
-  const [global2FAEnabled, setGlobal2FAEnabled] = useState(true);
-  const [isLoading2FA, setIsLoading2FA] = useState(true);
   const toast = useToast();
   const qc = useQueryClient();
 
-  // Sync form data when user prop changes
-  useEffect(() => {
-    setNickname(user.nickname || user.username);
-    setEmail(user.email || '');
-    setPassword('');
-    setRole(user.role);
-    setStatus(user.status);
-    setRequire2FA(false);
-    setIsLoading2FA(true);
-  }, [user.id, user.nickname, user.username, user.email, user.role, user.status]);
+  // Use useFormSync for edit form state management
+  interface EditUserFormState {
+    nickname?: string;
+    email?: string;
+    password?: string;
+    role?: number;
+    status?: number;
+  }
+
+  const { formState, updateField } = useFormSync<EditUserFormState>(
+    user,
+    {
+      nickname: user.nickname || user.username,
+      email: user.email || '',
+      password: '',
+      role: user.role,
+      status: user.status,
+    },
+    {
+      fields: ['nickname', 'email', 'password', 'role', 'status'],
+      transformers: {
+        nickname: (v: any) => toString(v, user.nickname || user.username),
+        email: (v: any) => toString(v, ''),
+        password: (v: any) => toString(v, ''),
+        role: (v: any) => toNumber(v, user.role),
+        status: (v: any) => toNumber(v, user.status),
+      },
+    }
+  );
+
+  const [require2FA, setRequire2FA] = useState(false);
+  const [global2FAEnabled, setGlobal2FAEnabled] = useState(true);
+  const [isLoading2FA, setIsLoading2FA] = useState(true);
+
+  // Extract form state for easier access
+  const nickname = formState.nickname || '';
+  const email = formState.email || '';
+  const password = formState.password || '';
+  const role = formState.role ?? user.role;
+  const status = formState.status ?? user.status;
 
   useEffect(() => {
     const load2FAStatus = async () => {
@@ -164,22 +220,22 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
     <Modal title={t('users.editUser')} onClose={onClose} size="sm">
       <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
         <Form.FormItem label={t('users.nickname')}>
-          <Input clearable value={String(nickname)} onChange={(value: any) => setNickname(String(value))} />
+          <Input clearable value={nickname} onChange={(value: any) => updateField('nickname', String(value))} />
         </Form.FormItem>
         <Form.FormItem label={t('users.username')}>
           <span className="page-strong">{user.username}</span>
         </Form.FormItem>
         <Form.FormItem label={t('users.email')}>
-          <Input clearable value={String(email)} onChange={(value: any) => setEmail(String(value))} />
+          <Input clearable value={email} onChange={(value: any) => updateField('email', String(value))} />
         </Form.FormItem>
         <Form.FormItem label={t('users.newPassword')}>
-          <Input type="password" value={String(password)} onChange={(value: any) => setPassword(String(value))} placeholder={t('users.newPasswordPlaceholder')} />
+          <Input type="password" value={password} onChange={(value: any) => updateField('password', String(value))} placeholder={t('users.newPasswordPlaceholder')} />
         </Form.FormItem>
         <Form.FormItem label={t('users.role')}>
           <Select
             value={role}
             options={roleOptions.map((item) => ({ label: t(roleLabelKey(item)), value: item }))}
-            onChange={(value: any) => setRole(selectToNumber(value))}
+            onChange={(value: any) => updateField('role', selectToNumber(value))}
           />
         </Form.FormItem>
         <Form.FormItem label={t('users.status')}>
@@ -189,7 +245,7 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
               { label: t('users.active'), value: 1 },
               { label: t('users.disabled'), value: 0 },
             ]}
-            onChange={(value: any) => setStatus(selectToNumber(value))}
+            onChange={(value: any) => updateField('status', selectToNumber(value))}
           />
         </Form.FormItem>
 

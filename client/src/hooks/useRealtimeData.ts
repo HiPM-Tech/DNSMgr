@@ -18,8 +18,10 @@ export function useRealtimeData(options: UseRealtimeOptions) {
   const { token } = useAuth();
   const queryClient = useQueryClient();
   const wsRef = useRef<WebSocket | null>(null);
-  const pollingIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasWsConnectionRef = useRef(false);
+  const isUnmountedRef = useRef(false);
 
   const {
     queryKey,
@@ -77,6 +79,21 @@ export function useRealtimeData(options: UseRealtimeOptions) {
         hasWsConnectionRef.current = false;
         wsRef.current = null;
         
+        // 如果组件已卸载，不再重连
+        if (isUnmountedRef.current) return;
+        
+        // 延迟后尝试重连（最多3次）
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (!isUnmountedRef.current && !hasWsConnectionRef.current) {
+            console.log('[Realtime] Attempting to reconnect WebSocket...');
+            connectWebSocket();
+          }
+        }, 5000); // 5秒后重连
+        
         // 启动轮询降级
         startPolling();
       };
@@ -122,6 +139,11 @@ export function useRealtimeData(options: UseRealtimeOptions) {
 
   // 断开 WebSocket
   const disconnectWebSocket = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    
     if (wsRef.current) {
       wsRef.current.close(1000, 'Client disconnecting');
       wsRef.current = null;
@@ -131,6 +153,8 @@ export function useRealtimeData(options: UseRealtimeOptions) {
 
   // 初始化
   useEffect(() => {
+    isUnmountedRef.current = false;
+    
     if (!enabled) return;
 
     // 尝试 WebSocket 连接
@@ -138,14 +162,21 @@ export function useRealtimeData(options: UseRealtimeOptions) {
 
     // 如果 3 秒后还没有建立 WebSocket 连接，启动轮询
     const fallbackTimer = setTimeout(() => {
-      if (!hasWsConnectionRef.current) {
+      if (!hasWsConnectionRef.current && !isUnmountedRef.current) {
         console.warn('[Realtime] WebSocket not connected, starting polling fallback');
         startPolling();
       }
     }, 3000);
 
     return () => {
+      isUnmountedRef.current = true;
       clearTimeout(fallbackTimer);
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
       disconnectWebSocket();
       stopPolling();
     };

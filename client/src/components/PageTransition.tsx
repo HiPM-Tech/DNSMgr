@@ -22,6 +22,18 @@ export function PageTransition() {
 
   currentOutletRef.current = outlet;
 
+  const handleTransitionComplete = useCallback(() => {
+    const pending = pendingQueueRef.current.shift();
+    if (!pending) {
+      setPhase('idle');
+      return;
+    }
+
+    displayedKeyRef.current = pending.key;
+    setDisplayedOutlet(pending.outlet);
+    setPhase('enterPrepare');
+  }, []);
+
   // 清理函数
   const clearAllTimers = useCallback(() => {
     if (frameRef.current !== null) {
@@ -52,9 +64,16 @@ export function PageTransition() {
     pendingQueueRef.current = pendingQueueRef.current.filter(p => p.key !== routeKey);
     pendingQueueRef.current.push(newPending);
 
-    // 如果不在 leaving 阶段，开始过渡
-    if (phase !== 'leaving') {
+    // 如果不在 leaving 或 entering 阶段，开始过渡
+    if (phase !== 'leaving' && phase !== 'entering') {
       setPhase('leaving');
+    } else if (phase === 'entering') {
+      // 如果正在进入动画，直接替换为新的路由
+      console.log('[PageTransition] Rapid navigation detected, replacing current route');
+      displayedKeyRef.current = routeKey;
+      setDisplayedOutlet(currentOutletRef.current);
+      pendingQueueRef.current = []; // 清空队列
+      setPhase('idle');
     }
   }, [phase, routeKey]);
 
@@ -70,37 +89,27 @@ export function PageTransition() {
       });
     });
 
-    // 安全超时：如果动画卡住，强制进入下一阶段
+    // 安全超时：如果动画卡住，强制进入下一阶段（增加到300ms）
     transitionTimeoutRef.current = setTimeout(() => {
+      console.warn('[PageTransition] Enter animation timeout, forcing phase change');
       setPhase('entering');
-    }, 100);
+    }, 300);
   }, [phase, clearAllTimers]);
 
   // 安全超时：leaving 阶段如果卡住，强制完成
   useEffect(() => {
     if (phase === 'leaving') {
       transitionTimeoutRef.current = setTimeout(() => {
+        console.warn('[PageTransition] Leave animation timeout, forcing completion');
         handleTransitionComplete();
-      }, 500);
+      }, 600); // 增加到600ms以匹配CSS过渡时间
     }
     return () => {
       if (transitionTimeoutRef.current) {
         clearTimeout(transitionTimeoutRef.current);
       }
     };
-  }, [phase]);
-
-  const handleTransitionComplete = useCallback(() => {
-    const pending = pendingQueueRef.current.shift();
-    if (!pending) {
-      setPhase('idle');
-      return;
-    }
-
-    displayedKeyRef.current = pending.key;
-    setDisplayedOutlet(pending.outlet);
-    setPhase('enterPrepare');
-  }, []);
+  }, [phase, handleTransitionComplete]);
 
   const handleTransitionEnd = (event: React.TransitionEvent<HTMLDivElement>) => {
     if (event.currentTarget !== event.target) return;

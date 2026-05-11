@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Space, Switch, Tag, TimeRangePicker } from 'tdesign-react';
 import {
@@ -15,6 +15,7 @@ import { settingsApi, securityApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useFormSync } from '../../hooks/useFormSync';
 import { toBoolean, toString, toNumber } from '../../utils/typeConverters';
 
 export function SecurityTab() {
@@ -25,26 +26,6 @@ export function SecurityTab() {
 
   const [unlockIdentifier, setUnlockIdentifier] = useState('');
 
-  const [smtpForm, setSmtpForm] = useState({
-    enabled: false,
-    host: '',
-    port: 587,
-    secure: false,
-    username: '',
-    password: '',
-    fromEmail: '',
-    fromName: 'HiDNS',
-    testTo: '',
-  });
-
-  const [auditRules, setAuditRules] = useState({
-    enabled: true,
-    maxDeletionsPerHour: 10,
-    maxFailedLogins: 5,
-    offHoursStart: '22:00',
-    offHoursEnd: '06:00',
-  });
-
   const { data: smtpConfig } = useQuery({
     queryKey: ['smtp-config'],
     queryFn: async () => {
@@ -53,22 +34,6 @@ export function SecurityTab() {
       throw new Error(res.data.msg);
     },
   });
-
-  useEffect(() => {
-    if (smtpConfig) {
-      setSmtpForm({
-        enabled: toBoolean(smtpConfig.enabled),
-        host: toString(smtpConfig.host),
-        port: toNumber(smtpConfig.port, 587),
-        secure: toBoolean(smtpConfig.secure),
-        username: toString(smtpConfig.username),
-        password: toString(smtpConfig.password),
-        fromEmail: toString(smtpConfig.fromEmail),
-        fromName: toString(smtpConfig.fromName, 'HiDNS'),
-        testTo: '',
-      });
-    }
-  }, [smtpConfig?.host, smtpConfig?.port, smtpConfig?.enabled, smtpConfig?.username, smtpConfig?.password, smtpConfig?.fromEmail, smtpConfig?.fromName, smtpConfig?.secure]);
 
   const { data: loginLimitConfig } = useQuery({
     queryKey: ['login-limit-config'],
@@ -105,6 +70,85 @@ export function SecurityTab() {
       throw new Error(res.data.msg);
     },
   });
+
+  const { data: auditRulesData } = useQuery({
+    queryKey: ['audit-rules'],
+    queryFn: async () => {
+      const res = await settingsApi.getAuditRules();
+      return res.data.data;
+    },
+  });
+
+  // Use useFormSync for SMTP form state management
+  interface SmtpFormState {
+    enabled?: boolean;
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    username?: string;
+    password?: string;
+    fromEmail?: string;
+    fromName?: string;
+    testTo?: string;
+  }
+
+  const { formState: smtpForm, updateField: updateSmtpField } = useFormSync<SmtpFormState>(
+    smtpConfig || undefined,
+    {
+      enabled: false,
+      host: '',
+      port: 587,
+      secure: false,
+      username: '',
+      password: '',
+      fromEmail: '',
+      fromName: 'HiDNS',
+      testTo: '',
+    },
+    {
+      fields: ['enabled', 'host', 'port', 'secure', 'username', 'password', 'fromEmail', 'fromName'],
+      transformers: {
+        enabled: (v: any) => toBoolean(v),
+        host: (v: any) => toString(v),
+        port: (v: any) => toNumber(v, 587),
+        secure: (v: any) => toBoolean(v),
+        username: (v: any) => toString(v),
+        password: (v: any) => toString(v),
+        fromEmail: (v: any) => toString(v),
+        fromName: (v: any) => toString(v, 'HiDNS'),
+      },
+    }
+  );
+
+  // Use useFormSync for audit rules state management
+  interface AuditRulesState {
+    enabled?: boolean;
+    maxDeletionsPerHour?: number;
+    maxFailedLogins?: number;
+    offHoursStart?: string;
+    offHoursEnd?: string;
+  }
+
+  const { formState: auditRules, updateField: updateAuditField } = useFormSync<AuditRulesState>(
+    auditRulesData || undefined,
+    {
+      enabled: true,
+      maxDeletionsPerHour: 10,
+      maxFailedLogins: 5,
+      offHoursStart: '22:00',
+      offHoursEnd: '06:00',
+    },
+    {
+      fields: ['enabled', 'maxDeletionsPerHour', 'maxFailedLogins', 'offHoursStart', 'offHoursEnd'],
+      transformers: {
+        enabled: (v: any) => toBoolean(v),
+        maxDeletionsPerHour: (v: any) => toNumber(v, 10),
+        maxFailedLogins: (v: any) => toNumber(v, 5),
+        offHoursStart: (v: any) => toString(v, '22:00'),
+        offHoursEnd: (v: any) => toString(v, '06:00'),
+      },
+    }
+  );
 
   const updateSecurityPolicyMutation = useMutation({
     mutationFn: (data: Parameters<typeof securityApi.updatePolicy>[0]) => securityApi.updatePolicy(data),
@@ -175,14 +219,14 @@ export function SecurityTab() {
 
   const updateSmtpMutation = useMutation({
     mutationFn: () => settingsApi.updateSmtpConfig({
-      enabled: smtpForm.enabled,
-      host: smtpForm.host.trim(),
-      port: Number(smtpForm.port),
-      secure: smtpForm.secure,
-      username: smtpForm.username.trim(),
-      password: smtpForm.password,
-      fromEmail: smtpForm.fromEmail.trim(),
-      fromName: smtpForm.fromName.trim(),
+      enabled: smtpForm.enabled ?? false,
+      host: (smtpForm.host || '').trim(),
+      port: Number(smtpForm.port || 587),
+      secure: smtpForm.secure ?? false,
+      username: (smtpForm.username || '').trim(),
+      password: smtpForm.password || '',
+      fromEmail: (smtpForm.fromEmail || '').trim(),
+      fromName: (smtpForm.fromName || 'HiDNS').trim(),
     }),
     onSuccess: (res) => {
       if (res.data.code !== 0) {
@@ -195,7 +239,7 @@ export function SecurityTab() {
   });
 
   const testSmtpMutation = useMutation({
-    mutationFn: () => settingsApi.sendSmtpTest(smtpForm.testTo.trim() || undefined),
+    mutationFn: () => settingsApi.sendSmtpTest((smtpForm.testTo || '').trim() || undefined),
     onSuccess: (res) => {
       if (res.data.code !== 0) {
         toast.error(res.data.msg);
@@ -204,17 +248,6 @@ export function SecurityTab() {
       toast.success(t('system.smtpTestSent'));
     },
     onError: (error: Error) => toast.error(error.message || t('system.smtpTestFailed')),
-  });
-
-  useQuery({
-    queryKey: ['audit-rules'],
-    queryFn: async () => {
-      const res = await settingsApi.getAuditRules();
-      if (res.data.code === 0 && res.data.data) {
-        setAuditRules(res.data.data);
-      }
-      return res.data.data;
-    },
   });
 
   const updateAuditRulesMutation = useMutation({
@@ -229,9 +262,14 @@ export function SecurityTab() {
     onError: (error: Error) => toast.error(error.message || t('system.auditRulesSaveFailed')),
   });
 
-  const saveAuditRules = (next: typeof auditRules) => {
-    setAuditRules(next);
-    updateAuditRulesMutation.mutate(next);
+  const saveAuditRules = () => {
+    updateAuditRulesMutation.mutate({
+      enabled: auditRules.enabled ?? true,
+      maxDeletionsPerHour: auditRules.maxDeletionsPerHour ?? 10,
+      maxFailedLogins: auditRules.maxFailedLogins ?? 5,
+      offHoursStart: auditRules.offHoursStart ?? '22:00',
+      offHoursEnd: auditRules.offHoursEnd ?? '06:00',
+    });
   };
 
   const cardTitle = (icon: React.ReactNode, title: string, subtitle: string) => (
@@ -291,9 +329,12 @@ export function SecurityTab() {
               <span>{t('system.enableAlertsDesc')}</span>
             </div>
             <Switch
-              value={auditRules.enabled}
+              value={auditRules.enabled ?? true}
               loading={updateAuditRulesMutation.isPending}
-              onChange={(checked: any) => saveAuditRules({ ...auditRules, enabled: Boolean(checked) })}
+              onChange={(checked: any) => {
+                updateAuditField('enabled', Boolean(checked));
+                setTimeout(() => saveAuditRules(), 0);
+              }}
             />
           </div>
 
@@ -301,30 +342,29 @@ export function SecurityTab() {
             <Form.FormItem label={t('system.maxDeletions')} help={t('system.maxDeletionsDesc')}>
               <Input
                 type="number"
-                value={String(auditRules.maxDeletionsPerHour)}
-                onChange={(value: any) => setAuditRules({ ...auditRules, maxDeletionsPerHour: Number(value) || 0 })}
-                onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+                value={String(auditRules.maxDeletionsPerHour ?? 10)}
+                onChange={(value: any) => updateAuditField('maxDeletionsPerHour', Number(value) || 0)}
+                onBlur={() => saveAuditRules()}
               />
             </Form.FormItem>
             <Form.FormItem label={t('system.maxFailedLogins')} help={t('system.maxFailedLoginsDesc')}>
               <Input
                 type="number"
-                value={String(auditRules.maxFailedLogins)}
-                onChange={(value: any) => setAuditRules({ ...auditRules, maxFailedLogins: Number(value) || 0 })}
-                onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+                value={String(auditRules.maxFailedLogins ?? 5)}
+                onChange={(value: any) => updateAuditField('maxFailedLogins', Number(value) || 0)}
+                onBlur={() => saveAuditRules()}
               />
             </Form.FormItem>
             <Form.FormItem label={t('system.offHoursAlert')} help={t('system.offHoursAlertDesc')}>
               <TimeRangePicker
                 allowInput
                 format="HH:mm"
-                value={[auditRules.offHoursStart, auditRules.offHoursEnd]}
-                onChange={(value: any) => setAuditRules({
-                  ...auditRules,
-                  offHoursStart: value?.[0] || '22:00',
-                  offHoursEnd: value?.[1] || '06:00',
-                })}
-                onBlur={() => updateAuditRulesMutation.mutate(auditRules)}
+                value={[auditRules.offHoursStart ?? '22:00', auditRules.offHoursEnd ?? '06:00']}
+                onChange={(value: any) => {
+                  updateAuditField('offHoursStart', value?.[0] || '22:00');
+                  updateAuditField('offHoursEnd', value?.[1] || '06:00');
+                }}
+                onBlur={() => saveAuditRules()}
               />
             </Form.FormItem>
           </Form>
@@ -368,22 +408,22 @@ export function SecurityTab() {
           <Form layout="vertical" colon={false} requiredMark={false}>
             <div className="notification-form-grid">
               <Form.FormItem label={t('system.smtpHost')}>
-                <Input value={String(smtpForm.host)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, host: String(value) }))} placeholder={t('system.smtpHost')} />
+                <Input value={smtpForm.host || ''} onChange={(value: any) => updateSmtpField('host', String(value))} placeholder={t('system.smtpHost')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpPort')}>
-                <Input type="number" value={String(smtpForm.port)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, port: Number(value) || 0 }))} placeholder={t('system.smtpPort')} />
+                <Input type="number" value={String(smtpForm.port ?? 587)} onChange={(value: any) => updateSmtpField('port', Number(value) || 0)} placeholder={t('system.smtpPort')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpUser')}>
-                <Input value={String(smtpForm.username)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, username: String(value) }))} placeholder={t('system.smtpUser')} />
+                <Input value={smtpForm.username || ''} onChange={(value: any) => updateSmtpField('username', String(value))} placeholder={t('system.smtpUser')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpPass')}>
-                <Input type="password" value={String(smtpForm.password)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, password: String(value) }))} placeholder={t('system.smtpPass')} />
+                <Input type="password" value={smtpForm.password || ''} onChange={(value: any) => updateSmtpField('password', String(value))} placeholder={t('system.smtpPass')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpFromEmail')}>
-                <Input value={String(smtpForm.fromEmail)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, fromEmail: String(value) }))} placeholder={t('system.smtpFromEmail')} />
+                <Input value={smtpForm.fromEmail || ''} onChange={(value: any) => updateSmtpField('fromEmail', String(value))} placeholder={t('system.smtpFromEmail')} />
               </Form.FormItem>
               <Form.FormItem label={t('system.smtpFromName')}>
-                <Input value={String(smtpForm.fromName)} onChange={(value: any) => setSmtpForm((v) => ({ ...v, fromName: String(value) }))} placeholder={t('system.smtpFromName')} />
+                <Input value={smtpForm.fromName || 'HiDNS'} onChange={(value: any) => updateSmtpField('fromName', String(value))} placeholder={t('system.smtpFromName')} />
               </Form.FormItem>
             </div>
 
@@ -392,7 +432,7 @@ export function SecurityTab() {
                 <strong>{t('system.smtpEnabled')}</strong>
                 <span>{t('system.smtpConfigDesc')}</span>
               </div>
-              <Switch value={smtpForm.enabled} onChange={(checked: any) => setSmtpForm((v) => ({ ...v, enabled: Boolean(checked) }))} />
+              <Switch value={smtpForm.enabled ?? false} onChange={(checked: any) => updateSmtpField('enabled', Boolean(checked))} />
             </div>
 
             <Space breakLine className="record-form__actions">
@@ -400,8 +440,8 @@ export function SecurityTab() {
                 {t('system.smtpSave')}
               </Button>
               <Input
-                value={String(smtpForm.testTo)}
-                onChange={(value: any) => setSmtpForm((v) => ({ ...v, testTo: String(value) }))}
+                value={smtpForm.testTo || ''}
+                onChange={(value: any) => updateSmtpField('testTo', String(value))}
                 placeholder={user?.email || t('system.smtpTestTo')}
               />
               <Button theme="success" variant="outline" loading={testSmtpMutation.isPending} onClick={() => testSmtpMutation.mutate()}>
