@@ -57,16 +57,7 @@ export function useFormSync<T extends Record<string, any>>(
   
   // 使用 useState 惰性初始化，在组件创建时就读取 initial 值（参考旧版本实现）
   const [formState, setFormState] = useState<Partial<T>>(() => {
-    // 获取调用栈信息，识别是哪个组件在使用
-    const error = new Error();
-    const stack = error.stack || '';
-    const componentMatch = stack.match(/at (\w+) \(/);
-    const componentName = componentMatch ? componentMatch[1] : 'Unknown';
-    
-    console.log(`[useFormSync:${componentName}] Initializing with initial:`, initial);
-    
     if (!initial) {
-      console.log(`[useFormSync:${componentName}] No initial, using defaults:`, defaultValues);
       return { ...defaultValues };
     }
     
@@ -80,7 +71,6 @@ export function useFormSync<T extends Record<string, any>>(
         : (value ?? defaultValues[field]);
     });
     
-    console.log(`[useFormSync:${componentName}] Initialized formState:`, updates);
     return updates;
   });
   
@@ -91,17 +81,8 @@ export function useFormSync<T extends Record<string, any>>(
 
   // 同步 initial 到 formState（处理 initial 切换的情况）
   useEffect(() => {
-    // 获取调用栈信息，识别是哪个组件在使用
-    const error = new Error();
-    const stack = error.stack || '';
-    const componentMatch = stack.match(/at (\w+) \(/);
-    const componentName = componentMatch ? componentMatch[1] : 'Unknown';
-    
-    console.log(`[useFormSync:${componentName} useEffect] initial changed:`, initial);
-    
     if (!initial) {
       // initial 为空时（创建模式），重置为默认值
-      console.log(`[useFormSync:${componentName} useEffect] Resetting to defaults`);
       setFormState({ ...defaultValues });
       setIsDirty(false);
       previousInitialIdRef.current = undefined;
@@ -113,8 +94,6 @@ export function useFormSync<T extends Record<string, any>>(
     const isNewObject = currentId !== undefined 
       ? currentId !== previousInitialIdRef.current  // 有 id 字段，通过 id 比较
       : true;  // 没有 id 字段，始终视为新对象（如代理配置、SMTP配置等）
-    
-    console.log(`[useFormSync:${componentName} useEffect] currentId:`, currentId, 'previousId:', previousInitialIdRef.current, 'isNewObject:', isNewObject);
     
     if (isNewObject || !autoReset) {
       const updates: Partial<T> = {};
@@ -129,12 +108,9 @@ export function useFormSync<T extends Record<string, any>>(
           : (value ?? defaultValues[field]);
       });
       
-      console.log(`[useFormSync:${componentName} useEffect] Updating formState:`, updates);
       setFormState(updates);
       setIsDirty(false);
       previousInitialIdRef.current = currentId;
-    } else {
-      console.log(`[useFormSync:${componentName} useEffect] Skipping sync (same object)`);
     }
   }, [initial]);
 
