@@ -57,7 +57,10 @@ export function useFormSync<T extends Record<string, any>>(
   
   // 使用 useState 惰性初始化，在组件创建时就读取 initial 值（参考旧版本实现）
   const [formState, setFormState] = useState<Partial<T>>(() => {
+    console.log('[useFormSync] Initializing with initial:', initial);
+    
     if (!initial) {
+      console.log('[useFormSync] No initial, using defaults:', defaultValues);
       return { ...defaultValues };
     }
     
@@ -70,6 +73,8 @@ export function useFormSync<T extends Record<string, any>>(
         ? transformer(value) 
         : (value ?? defaultValues[field]);
     });
+    
+    console.log('[useFormSync] Initialized formState:', updates);
     return updates;
   });
   
