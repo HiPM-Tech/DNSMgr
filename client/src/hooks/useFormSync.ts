@@ -85,8 +85,11 @@ export function useFormSync<T extends Record<string, any>>(
 
   // 同步 initial 到 formState（处理 initial 切换的情况）
   useEffect(() => {
+    console.log('[useFormSync useEffect] initial changed:', initial);
+    
     if (!initial) {
       // initial 为空时（创建模式），重置为默认值
+      console.log('[useFormSync useEffect] Resetting to defaults');
       setFormState({ ...defaultValues });
       setIsDirty(false);
       previousInitialIdRef.current = undefined;
@@ -96,6 +99,8 @@ export function useFormSync<T extends Record<string, any>>(
     // 检测是否是新的编辑对象（通过 id 判断）
     const currentId = (initial as any).id;
     const isNewObject = currentId !== previousInitialIdRef.current;
+    
+    console.log('[useFormSync useEffect] currentId:', currentId, 'previousId:', previousInitialIdRef.current, 'isNewObject:', isNewObject);
     
     if (isNewObject || !autoReset) {
       const updates: Partial<T> = {};
@@ -110,6 +115,7 @@ export function useFormSync<T extends Record<string, any>>(
           : (value ?? defaultValues[field]);
       });
       
+      console.log('[useFormSync useEffect] Updating formState:', updates);
       setFormState(updates);
       setIsDirty(false);
       previousInitialIdRef.current = currentId;

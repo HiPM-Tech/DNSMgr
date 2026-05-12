@@ -22,7 +22,7 @@ export function NetworkTab() {
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const { data: proxyConfig } = useQuery<ProxyConfig | null>({
+  const { data: proxyConfig, isLoading: isProxyLoading } = useQuery<ProxyConfig | null>({
     queryKey: ['proxy-config'],
     queryFn: async () => {
       const res = await networkApi.getProxy();
@@ -32,8 +32,9 @@ export function NetworkTab() {
   });
 
   // Use useFormSync for proxy form state management
+  // 注意：只在 proxyConfig 加载完成后才传入，避免使用默认值
   const { formState: proxyForm, updateField } = useFormSync<ProxyConfig>(
-    proxyConfig || undefined,
+    proxyConfig ?? undefined,
     {
       enabled: false,
       type: 'http',
@@ -54,6 +55,8 @@ export function NetworkTab() {
       },
     }
   );
+
+  console.log('[NetworkTab] Rendering, proxyConfig:', proxyConfig, 'isLoading:', isProxyLoading, 'proxyForm:', proxyForm);
 
   const [shouldTest, setShouldTest] = useState(false);
   const { data: connectivityData, isLoading: isTesting, error: connectivityError } = useQuery({
