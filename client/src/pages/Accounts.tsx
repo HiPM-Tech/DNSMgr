@@ -79,6 +79,9 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
   const useProxy = formState.useProxy || false;
   const config = formState.config || {};
 
+  // 调试：检查提取的值
+  console.log('[AccountForm] Extracted values - type:', type, 'name:', name, 'remark:', remark, 'useProxy:', useProxy);
+
   const provider = providers.find((item) => item.type === type);
   const providerOptions = providers.map((item) => ({ label: <ProviderSelectLabel provider={item} />, value: item.type }));
 
