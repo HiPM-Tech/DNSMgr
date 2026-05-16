@@ -178,7 +178,13 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   
   // Check if provider supports multi-line routing
   const hasMultiLine = lines.length > 1 && !hasProxyMode;
-  const defaultLine = hasProxyMode ? '0' : (hasMultiLine ? toString(lines[0]?.id, '0') : '0');
+  
+  // ✅ 动态计算默认线路（支持 lines 异步加载）
+  const defaultLine = useMemo(() => {
+    if (hasProxyMode) return '0';
+    if (hasMultiLine && lines.length > 0) return toString(lines[0]?.id, '0');
+    return '0';
+  }, [hasProxyMode, hasMultiLine, lines]);
 
   const { formState: form, updateField } = useFormSync<RecordFormState>(
     initial as RecordFormState | undefined,
@@ -211,11 +217,9 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
 
-  // SRV 字段同步（保留特殊处理逻辑）
+  // ✅ SRV 字段同步：监听 initial 变化，确保编辑时正确回显
   useEffect(() => {
-    if (initial) {
-      setSrv(parseSrvValue(initial));
-    }
+    setSrv(parseSrvValue(initial));
   }, [initial]);
 
   // 更新字段并清除错误
