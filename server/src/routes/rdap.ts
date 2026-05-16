@@ -49,7 +49,8 @@ async function queryRdapWithLayers(domain: string): Promise<any | null> {
   // 使用完整的分层查询服务
   const result = await whoisService.query(domain, {
     preferSubdomain: true,
-    useCache: false,  // 公开 RDAP 不使用缓存，确保实时性
+    useCache: false,        // 公开 RDAP 不使用缓存，确保实时性
+    skipUplevel: true,      // 禁用平级查询，避免查询其他提供商
   });
   
   if (!result) {
