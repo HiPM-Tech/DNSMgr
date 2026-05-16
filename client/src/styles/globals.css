@@ -410,6 +410,10 @@ html.dark input:-webkit-autofill:focus {
   background-color: transparent;
 }
 
+:where(.page-shell, .record-form, .login-form, .app-td-dialog) :where(.t-input__inner, .t-textarea__inner) {
+  padding-inline: var(--td-comp-paddingLR-s);
+}
+
 @-moz-document url-prefix() {
   :is(.t-input, .t-input-adornment, .t-input-number, .t-range-input, .t-textarea) {
     overflow: visible;
@@ -426,6 +430,229 @@ html.dark input:-webkit-autofill:focus {
   overflow: hidden;
   border-radius: var(--app-control-radius);
   background-clip: padding-box;
+}
+
+:root {
+  --app-popup-motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --app-popup-motion-ease-in: cubic-bezier(0.32, 0, 0.67, 0);
+  --app-popup-enter-duration: 260ms;
+  --app-popup-exit-duration: 160ms;
+}
+
+.t-popup > .t-popup__content {
+  --app-popup-shift-x: 0;
+  --app-popup-shift-y: -6px;
+  --app-popup-exit-shift-x: 0;
+  --app-popup-exit-shift-y: -3px;
+  backface-visibility: hidden;
+  transform-origin: top center;
+}
+
+.t-popup {
+  --app-popup-frame-shift-x: 0;
+  --app-popup-frame-shift-y: -6px;
+  --app-popup-frame-exit-shift-x: 0;
+  --app-popup-frame-exit-shift-y: -3px;
+  backface-visibility: hidden;
+  transform-origin: top center;
+  will-change: opacity, translate, scale;
+}
+
+.t-popup[data-popper-placement^='top'] > .t-popup__content {
+  --app-popup-shift-y: 6px;
+  --app-popup-exit-shift-y: 3px;
+  transform-origin: bottom center;
+}
+
+.t-popup[data-popper-placement^='top'] {
+  --app-popup-frame-shift-y: 6px;
+  --app-popup-frame-exit-shift-y: 3px;
+  transform-origin: bottom center;
+}
+
+.t-popup[data-popper-placement^='bottom'] > .t-popup__content {
+  --app-popup-shift-y: -6px;
+  --app-popup-exit-shift-y: -3px;
+  transform-origin: top center;
+}
+
+.t-popup[data-popper-placement^='bottom'] {
+  --app-popup-frame-shift-y: -6px;
+  --app-popup-frame-exit-shift-y: -3px;
+  transform-origin: top center;
+}
+
+.t-popup[data-popper-placement^='left'] > .t-popup__content {
+  --app-popup-shift-x: 6px;
+  --app-popup-shift-y: 0;
+  --app-popup-exit-shift-x: 3px;
+  --app-popup-exit-shift-y: 0;
+  transform-origin: right center;
+}
+
+.t-popup[data-popper-placement^='left'] {
+  --app-popup-frame-shift-x: 6px;
+  --app-popup-frame-shift-y: 0;
+  --app-popup-frame-exit-shift-x: 3px;
+  --app-popup-frame-exit-shift-y: 0;
+  transform-origin: right center;
+}
+
+.t-popup[data-popper-placement^='right'] > .t-popup__content {
+  --app-popup-shift-x: -6px;
+  --app-popup-shift-y: 0;
+  --app-popup-exit-shift-x: -3px;
+  --app-popup-exit-shift-y: 0;
+  transform-origin: left center;
+}
+
+.t-popup[data-popper-placement^='right'] {
+  --app-popup-frame-shift-x: -6px;
+  --app-popup-frame-shift-y: 0;
+  --app-popup-frame-exit-shift-x: -3px;
+  --app-popup-frame-exit-shift-y: 0;
+  transform-origin: left center;
+}
+
+.t-popup--animation-enter-active,
+.t-popup--animation-expand-enter-active {
+  -webkit-clip-path: none !important;
+  clip-path: none !important;
+  animation: appPopupFrameIn var(--app-popup-enter-duration) var(--app-popup-motion-ease-out) both !important;
+  transition: none !important;
+}
+
+.t-popup--animation-leave-active,
+.t-popup--animation-expand-leave-active {
+  -webkit-clip-path: none !important;
+  clip-path: none !important;
+  animation: appPopupFrameOut var(--app-popup-exit-duration) var(--app-popup-motion-ease-in) both !important;
+  transition: none !important;
+}
+
+.t-popup--animation-enter-active > .t-popup__content,
+.t-popup--animation-expand-enter-active > .t-popup__content {
+  animation: none !important;
+}
+
+.t-popup--animation-leave-active > .t-popup__content,
+.t-popup--animation-expand-leave-active > .t-popup__content {
+  pointer-events: none;
+  animation: none !important;
+}
+
+.t-popup--animation-enter-active :where(.t-select-option, .t-dropdown__item),
+.t-popup--animation-expand-enter-active :where(.t-select-option, .t-dropdown__item) {
+  animation: appPopupItemIn 180ms var(--app-popup-motion-ease-out) both;
+}
+
+.t-popup--animation-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(2),
+.t-popup--animation-expand-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(2) {
+  animation-delay: 14ms;
+}
+
+.t-popup--animation-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(3),
+.t-popup--animation-expand-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(3) {
+  animation-delay: 28ms;
+}
+
+.t-popup--animation-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(4),
+.t-popup--animation-expand-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(4) {
+  animation-delay: 42ms;
+}
+
+.t-popup--animation-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(5),
+.t-popup--animation-expand-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(5) {
+  animation-delay: 56ms;
+}
+
+.t-popup--animation-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(6),
+.t-popup--animation-expand-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(6) {
+  animation-delay: 70ms;
+}
+
+@keyframes appPopupFadeIn {
+  from {
+    opacity: 0;
+    visibility: visible;
+  }
+
+  to {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@keyframes appPopupFadeOut {
+  from {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes appPopupFrameIn {
+  0% {
+    opacity: 0;
+    visibility: visible;
+    translate: var(--app-popup-frame-shift-x) var(--app-popup-frame-shift-y);
+    scale: 1;
+  }
+
+  100% {
+    opacity: 1;
+    visibility: visible;
+    translate: 0 0;
+    scale: 1;
+  }
+}
+
+@keyframes appPopupFrameOut {
+  0% {
+    opacity: 1;
+    visibility: visible;
+    translate: 0 0;
+    scale: 1;
+  }
+
+  100% {
+    opacity: 0;
+    visibility: hidden;
+    translate: var(--app-popup-frame-exit-shift-x) var(--app-popup-frame-exit-shift-y);
+    scale: 1;
+  }
+}
+
+@keyframes appPopupItemIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-popup--animation-enter-active,
+  .t-popup--animation-expand-enter-active,
+  .t-popup--animation-leave-active,
+  .t-popup--animation-expand-leave-active,
+  .t-popup--animation-enter-active > .t-popup__content,
+  .t-popup--animation-expand-enter-active > .t-popup__content,
+  .t-popup--animation-leave-active > .t-popup__content,
+  .t-popup--animation-expand-leave-active > .t-popup__content,
+  .t-popup--animation-enter-active :where(.t-select-option, .t-dropdown__item),
+  .t-popup--animation-expand-enter-active :where(.t-select-option, .t-dropdown__item) {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 :where(
@@ -931,6 +1158,18 @@ html.dark input:-webkit-autofill:focus {
   background: var(--td-brand-color-light);
 }
 
+.page-list-button--plain {
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.page-list-button--plain:hover {
+  border-color: transparent;
+  background: var(--td-bg-color-container-hover);
+}
+
 .page-list-button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
@@ -989,6 +1228,11 @@ html.dark input:-webkit-autofill:focus {
   gap: 18px;
 }
 
+.token-form .settings-control-field {
+  width: 100%;
+  min-width: 0;
+}
+
 .token-form .t-form__item {
   margin-bottom: 0;
 }
@@ -1000,6 +1244,12 @@ html.dark input:-webkit-autofill:focus {
 
 .token-form :where(.t-input, .t-date-picker, .token-domain-card) {
   width: 100%;
+}
+
+.token-form .settings-control-field > :where(.t-input, .t-date-picker, .token-domain-card) {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
 }
 
 .token-domain-card {
@@ -1065,9 +1315,21 @@ html.dark input:-webkit-autofill:focus {
   min-width: 0;
 }
 
+.token-time-grid .settings-control-field {
+  min-width: 0;
+}
+
 .token-no-expiry-item .t-form__controls-content {
   min-height: 32px;
   align-items: center;
+}
+
+.token-no-expiry-item {
+  justify-content: flex-end;
+}
+
+.token-no-expiry-item > span {
+  visibility: hidden;
 }
 
 .token-code-box {
@@ -1126,6 +1388,8 @@ html.dark input:-webkit-autofill:focus {
 }
 
 .settings-form {
+  display: grid;
+  gap: 18px;
   margin-top: 8px;
 }
 
@@ -1134,6 +1398,91 @@ html.dark input:-webkit-autofill:focus {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.settings-control-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--td-text-color-primary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.settings-control-field > span {
+  color: var(--td-text-color-primary);
+  font-weight: 500;
+}
+
+.settings-control-field > :where(.t-input, .t-select, .t-textarea),
+.settings-control-field .t-space,
+.settings-control-field .settings-background-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-control-field__tip {
+  color: var(--td-text-color-secondary);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.account-form,
+.user-form,
+.team-form,
+.network-form,
+.account-form__field,
+.account-form .settings-control-field,
+.user-form .settings-control-field,
+.team-form .settings-control-field,
+.network-form .settings-control-field {
+  width: 100%;
+  min-width: 0;
+}
+
+.account-form .settings-control-field > :where(.t-input, .t-select, .t-textarea),
+.user-form .settings-control-field > :where(.t-input, .t-select, .t-textarea),
+.team-form .settings-control-field > :where(.t-input, .t-select, .t-textarea),
+.network-form .settings-control-field > :where(.t-input, .t-select, .t-textarea) {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+.account-form .settings-control-field > .t-switch,
+.user-form .settings-control-field > .t-switch,
+.team-form .settings-control-field > .t-switch,
+.network-form .settings-control-field > .t-switch {
+  width: auto;
+  min-width: 0;
+  align-self: flex-start;
+  flex: 0 0 auto;
+}
+
+.user-form__readonly {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+
+.settings-inline-control {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.settings-inline-control > .t-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-inline-control > .t-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .settings-switch-row > div {
@@ -1186,9 +1535,11 @@ html.dark input:-webkit-autofill:focus {
 }
 
 .settings-image-preview {
+  position: relative;
   overflow: hidden;
   border: 1px solid var(--td-component-stroke);
   border-radius: 6px;
+  background: var(--td-bg-color-component);
 }
 
 .settings-image-preview img {
@@ -1196,6 +1547,23 @@ html.dark input:-webkit-autofill:focus {
   width: 100%;
   height: 144px;
   object-fit: cover;
+  transition: filter 240ms cubic-bezier(0.22, 1, 0.36, 1), transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-image-preview--blur img {
+  filter: blur(10px);
+  transform: scale(1.05);
+}
+
+.settings-image-preview__mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.56);
+  pointer-events: none;
+}
+
+html.dark .settings-image-preview__mask {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .security-card-header,
@@ -1394,6 +1762,13 @@ html.dark input:-webkit-autofill:focus {
   gap: 16px;
 }
 
+.setup-database-form {
+  display: grid;
+  gap: 16px;
+}
+
+.setup-form-grid .settings-control-field:nth-child(3),
+.setup-form-grid .settings-control-field:nth-child(5),
 .setup-form-grid .t-form__item:nth-child(3),
 .setup-form-grid .t-form__item:nth-child(5) {
   grid-column: 1 / -1;
@@ -2295,7 +2670,99 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
 }
 
 .app-td-dialog__body {
+  width: 100%;
   min-width: 0;
+}
+
+.app-td-dialog {
+  max-width: calc(100vw - 32px);
+}
+
+.app-td-dialog :where(
+  .t-dialog__header,
+  .t-dialog__body,
+  .t-dialog__footer,
+  .t-dialog__header-content,
+  .app-td-dialog__body,
+  .page-shell,
+  .t-form,
+  .t-form__item,
+  .t-form__controls,
+  .t-form__controls-content,
+  .t-space,
+  .t-space-item,
+  .t-card,
+  .t-card__body,
+  .t-alert,
+  .t-alert__message,
+  .t-alert__description,
+  .t-tag,
+  .t-list-item,
+  .page-list-item,
+  .page-list-item__main,
+  .page-list-button,
+  .record-form__actions,
+  .dialog-form-actions,
+  .dialog-inline-actions
+) {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-td-dialog :where(
+  .t-dialog__header-content,
+  .t-form__label,
+  .t-alert__message,
+  .t-alert__description,
+  .t-tag,
+  .page-muted,
+  .page-strong,
+  .page-list-item__main,
+  .page-list-item__main strong,
+  .page-list-item__main span,
+  .record-mono,
+  .token-code-box code,
+  .security-code-box code,
+  p,
+  small,
+  label
+) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.app-td-dialog :where(
+  .t-input,
+  .t-input-adornment,
+  .t-input-number,
+  .t-select,
+  .t-select-input,
+  .t-date-picker,
+  .t-time-picker,
+  .t-range-input,
+  .t-textarea
+) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-td-dialog :where(.t-button) {
+  max-width: 100%;
+}
+
+.app-td-dialog :where(.t-button__text) {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.app-td-dialog :where(.t-form__controls-content, .settings-control-field) > .t-switch,
+.app-td-dialog .dialog-switch-row .t-switch {
+  width: auto;
+  min-width: 0;
+  max-width: max-content;
+  flex: 0 0 auto;
 }
 
 .app-confirm-dialog__message {
@@ -2310,17 +2777,17 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
 
 /* Dialog motion: keep a single animation driver to avoid jitter. */
 :root {
-  --app-motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --app-motion-ease-in: cubic-bezier(0.7, 0, 0.84, 0);
-  --app-dialog-enter-duration: 260ms;
-  --app-dialog-exit-duration: 210ms;
-  --app-dialog-mask-enter-duration: 220ms;
+  --app-motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --app-motion-ease-in: cubic-bezier(0.32, 0, 0.67, 0);
+  --app-dialog-enter-duration: 450ms;
+  --app-dialog-exit-duration: 220ms;
+  --app-dialog-mask-enter-duration: 250ms;
   --app-dialog-mask-exit-duration: 180ms;
 }
 
 .t-dialog {
   backface-visibility: hidden;
-  transform-origin: center center;
+  transform-origin: var(--app-dialog-origin-x, 50%) var(--app-dialog-origin-y, 50%);
 }
 
 .t-dialog-zoom-enter,
@@ -2328,7 +2795,7 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
 .t-dialog-zoom-appear {
   opacity: 0;
   filter: none;
-  transform: translate3d(0, 18px, 0) scale(0.96);
+  transform: translate3d(var(--app-dialog-fly-x, 0), var(--app-dialog-fly-y, 18px), 0) scale(0.2);
 }
 
 .t-dialog-zoom-exit {
@@ -2339,13 +2806,13 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
 
 .t-dialog-zoom-enter-active,
 .t-dialog-zoom-appear-active {
-  animation: appDialogZoomIn var(--app-dialog-enter-duration) var(--app-motion-ease-out) both !important;
+  animation: appDialogFlyIn var(--app-dialog-enter-duration) var(--app-motion-ease-out) both !important;
   transition: none !important;
   will-change: opacity, transform;
 }
 
 .t-dialog-zoom-exit-active {
-  animation: appDialogZoomOut var(--app-dialog-exit-duration) var(--app-motion-ease-in) both !important;
+  animation: appDialogFlyOut var(--app-dialog-exit-duration) var(--app-motion-ease-in) both !important;
   transition: none !important;
   will-change: opacity, transform;
 }
@@ -2369,41 +2836,41 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
 .t-dialog-fade-appear-active,
 .t-dialog-fade-enter.t-dialog-fade-enter-active,
 .t-dialog-fade-appear.t-dialog-fade-appear-active {
-  animation: appDialogFadeIn var(--app-dialog-mask-enter-duration) linear both !important;
+  animation: appDialogFadeIn var(--app-dialog-mask-enter-duration) var(--app-motion-ease-out) both !important;
   transition: none !important;
 }
 
 .t-dialog-fade-exit-active,
 .t-dialog-fade-exit.t-dialog-fade-exit-active {
-  animation: appDialogFadeOut var(--app-dialog-mask-exit-duration) linear both !important;
+  animation: appDialogFadeOut var(--app-dialog-mask-exit-duration) var(--app-motion-ease-in) both !important;
   transition: none !important;
 }
 
-@keyframes appDialogZoomIn {
+@keyframes appDialogFlyIn {
   0% {
     opacity: 0;
-    transform: translate3d(0, 18px, 0) scale(0.96);
-  }
-
-  62% {
-    opacity: 1;
+    filter: none;
+    transform: translate3d(var(--app-dialog-fly-x, 0), var(--app-dialog-fly-y, 18px), 0) scale(0.2);
   }
 
   100% {
     opacity: 1;
+    filter: none;
     transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
-@keyframes appDialogZoomOut {
+@keyframes appDialogFlyOut {
   0% {
     opacity: 1;
+    filter: blur(0);
     transform: translate3d(0, 0, 0) scale(1);
   }
 
   100% {
     opacity: 0;
-    transform: translate3d(0, 10px, 0) scale(0.97);
+    filter: blur(1px);
+    transform: translate3d(var(--app-dialog-exit-x, 0), var(--app-dialog-exit-y, 10px), 0) scale(0.94);
   }
 }
 

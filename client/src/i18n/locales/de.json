@@ -378,6 +378,11 @@
       "backgroundImageUrl": "Hintergrundbild-URL",
       "backgroundImagePlaceholder": "Bild-URL eingeben (jpg/png/gif/webp werden unterstützt)",
       "backgroundImageHint": "Unterstützt jede Bild-URL, leer lassen, um den Standardhintergrund zu verwenden",
+      "backgroundVisualEffect": "Visueller Hintergrundeffekt",
+      "backgroundVisualEffectHint": "Wählen Sie, wie das Hintergrundbild in der Konsole dargestellt wird. Änderungen gelten sofort.",
+      "backgroundEffectBlur": "Gaußscher Weichzeichner",
+      "backgroundEffectOverlay": "Weiße Überlagerung",
+      "backgroundEffectNone": "Keine",
       "backgroundImageUpdated": "Hintergrundbild aktualisiert",
       "backgroundImageUpdateFailed": "Fehler beim Aktualisieren des Hintergrundbilds",
       "updateBackgroundImage": "Hintergrundbild aktualisieren"

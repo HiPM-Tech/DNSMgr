@@ -340,6 +340,11 @@
       "backgroundImageUrl": "رابط صورة الخلفية",
       "backgroundImagePlaceholder": "أدخل رابط الصورة (يدعم jpg/png/gif/webp)",
       "backgroundImageHint": "يدعم أي رابط صورة، اتركه فارغاً لاستخدام الخلفية الافتراضية",
+      "backgroundVisualEffect": "تأثير الخلفية المرئي",
+      "backgroundVisualEffectHint": "اختر طريقة عرض صورة الخلفية في لوحة التحكم. يسري التغيير فوراً.",
+      "backgroundEffectBlur": "تمويه غاوسي",
+      "backgroundEffectOverlay": "طبقة بيضاء",
+      "backgroundEffectNone": "بدون",
       "backgroundImageUpdated": "تم تحديث صورة الخلفية",
       "backgroundImageUpdateFailed": "فشل في تحديث صورة الخلفية",
       "updateBackgroundImage": "تحديث صورة الخلفية"

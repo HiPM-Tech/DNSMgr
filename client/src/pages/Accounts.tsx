@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
@@ -35,24 +35,54 @@ function selectToString(value: SelectValue) {
   return String(Array.isArray(value) ? value[0] ?? '' : value);
 }
 
+const dialogField = (label: string, control: ReactNode, tips?: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+    {tips && <small className="settings-control-field__tip">{tips}</small>}
+  </div>
+);
+
+function normalizeAccountConfig(account?: DnsAccount) {
+  if (!account?.config) return {};
+  return Object.fromEntries(
+    Object.entries(account.config)
+      .filter(([key]) => key !== 'useProxy')
+      .map(([key, value]) => [key, String(value || '')]),
+  );
+}
+
+function normalizeUseProxy(account?: DnsAccount) {
+  const raw = (account?.config as Record<string, unknown> | undefined)?.useProxy;
+  if (typeof raw === 'boolean') return raw;
+  if (typeof raw === 'string') return raw === 'true';
+  return false;
+}
+
 function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormProps) {
   const { t } = useI18n();
-  
-  // 直接使用 useState 惰性初始化（参考旧版本）
+
   const [type, setType] = useState(initial?.type ?? providers[0]?.type ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [remark, setRemark] = useState(initial?.remark ?? '');
-  const [useProxy, setUseProxy] = useState(() => {
-    const raw = initial?.config?.useProxy;
-    if (typeof raw === 'boolean') return raw;
-    if (typeof raw === 'string') return raw === 'true';
-    return false;
-  });
-  const [config, setConfig] = useState<Record<string, string>>(
-    initial?.config ? Object.fromEntries(Object.keys(initial.config).filter(k => k !== 'useProxy').map((k) => [k, String(initial.config[k] || '')])) : {}
-  );
+  const [useProxy, setUseProxy] = useState(() => normalizeUseProxy(initial));
+  const [config, setConfig] = useState<Record<string, string>>(() => normalizeAccountConfig(initial));
+  const firstProviderType = providers[0]?.type ?? '';
 
-  console.log('[AccountForm Old Style] type:', type, 'name:', name, 'remark:', remark);
+  useEffect(() => {
+    if (initial) {
+      setType(initial.type);
+      setName(initial.name ?? '');
+      setRemark(initial.remark ?? '');
+      setUseProxy(normalizeUseProxy(initial));
+      setConfig(normalizeAccountConfig(initial));
+      return;
+    }
+
+    if (firstProviderType) {
+      setType((current) => current || firstProviderType);
+    }
+  }, [initial?.id, initial?.type, initial?.name, initial?.remark, initial?.config, firstProviderType]);
 
   const provider = providers.find((item) => item.type === type);
   const providerOptions = providers.map((item) => ({ label: <ProviderSelectLabel provider={item} />, value: item.type }));
@@ -72,32 +102,34 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
     const value = config[field.key] ?? '';
 
     return (
-      <Form.FormItem key={field.key} label={`${field.label}${required ? ' *' : ''}`}>
-        {field.type === 'select' && field.options ? (
-          <Select
-            value={String(value)}
-            options={[
-              { label: t('common.pleaseSelect'), value: '' },
-              ...field.options.map((option) => ({ label: option.label, value: option.value })),
-            ]}
-            onChange={(nextValue: any) => {
-              const newConfig = { ...config, [field.key]: selectToString(nextValue) };
-              setConfig(newConfig);
-            }}
-          />
-        ) : (
-          <Input
-            clearable
-            type={field.type === 'password' && value === '***' ? 'password' : 'text'}
-            value={String(value)}
-            onChange={(nextValue: any) => {
-              const newConfig = { ...config, [field.key]: String(nextValue) };
-              setConfig(newConfig);
-            }}
-            placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
-          />
+      <div key={field.key} className="account-form__field">
+        {dialogField(`${field.label}${required ? ' *' : ''}`,
+          field.type === 'select' && field.options ? (
+            <Select
+              value={String(value)}
+              options={[
+                { label: t('common.pleaseSelect'), value: '' },
+                ...field.options.map((option) => ({ label: option.label, value: option.value })),
+              ]}
+              onChange={(nextValue: any) => {
+                const newConfig = { ...config, [field.key]: selectToString(nextValue) };
+                setConfig(newConfig);
+              }}
+            />
+          ) : (
+            <Input
+              clearable
+              type={field.type === 'password' && value === '***' ? 'password' : 'text'}
+              value={String(value)}
+              onChange={(nextValue: any) => {
+                const newConfig = { ...config, [field.key]: String(nextValue) };
+                setConfig(newConfig);
+              }}
+              placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
+            />
+          )
         )}
-      </Form.FormItem>
+      </div>
     );
   };
 
@@ -106,37 +138,38 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
       layout="vertical"
       colon={false}
       requiredMark={false}
-      className="page-shell"
+      className="page-shell account-form"
       onSubmit={({ e }: any) => {
         e?.preventDefault();
         submitAccount();
       }}
     >
-      <Form.FormItem label={t('accounts.providerType')}>
+      {dialogField(t('accounts.providerType'),
         <Select value={type} options={providerOptions} onChange={(value: any) => handleTypeChange(selectToString(value))} />
-      </Form.FormItem>
-      <Form.FormItem label={t('accounts.accountName')}>
+      )}
+      {dialogField(t('accounts.accountName'),
         <Input
           clearable
           value={String(name)}
           onChange={(value: any) => setName(String(value))}
           placeholder={t('accounts.accountNamePlaceholder')}
         />
-      </Form.FormItem>
+      )}
 
       {(provider?.configFields ?? []).map(renderField)}
 
-      <Form.FormItem label={t('accounts.useProxy')} help={t('accounts.useProxyHint')}>
-        <Switch value={Boolean(useProxy)} onChange={(checked: any) => setUseProxy(Boolean(checked))} />
-      </Form.FormItem>
-      <Form.FormItem label={t('common.remark')}>
+      {dialogField(t('accounts.useProxy'),
+        <Switch value={Boolean(useProxy)} onChange={(checked: any) => setUseProxy(Boolean(checked))} />,
+        t('accounts.useProxyHint')
+      )}
+      {dialogField(t('common.remark'),
         <Input
           clearable
           value={String(remark)}
           onChange={(value: any) => setRemark(String(value))}
           placeholder={t('common.optionalRemark')}
         />
-      </Form.FormItem>
+      )}
       <Space className="record-form__actions">
         <Button type="submit" theme="primary" loading={isLoading}>
           {initial ? t('accounts.saveChanges') : t('accounts.addAccount')}
@@ -259,7 +292,7 @@ export function Accounts() {
       </Card>
 
       {showAdd && canManage && visibleProviders.length > 0 && (
-        <Modal title={t('accounts.addDnsAccount')} onClose={() => setShowAdd(false)}>
+        <Modal title={t('accounts.addDnsAccount')} onClose={() => setShowAdd(false)} size="lg">
           <AccountForm
             providers={visibleProviders}
             onSubmit={(data) => createMutation.mutate(data)}
@@ -269,7 +302,7 @@ export function Accounts() {
       )}
 
       {editingId && canManage && visibleProviders.length > 0 && (
-        <Modal title={t('accounts.editDnsAccount')} onClose={() => setEditingId(null)}>
+        <Modal title={t('accounts.editDnsAccount')} onClose={() => setEditingId(null)} size="lg">
           {isLoadingEditing ? (
             <div style={{ padding: '40px', textAlign: 'center' }}>Loading...</div>
           ) : editingAccount ? (

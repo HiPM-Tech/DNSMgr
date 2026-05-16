@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
 import { ClearIcon, ImageIcon, LockOnIcon, UserSettingIcon } from 'tdesign-icons-react';
@@ -13,7 +13,26 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 import { useUiScale } from '../contexts/UiScaleContext';
 import type { UiScale } from '../contexts/UiScaleContext';
-import { useFormSync } from '../hooks/useFormSync';
+
+type BackgroundVisualEffect = 'blur' | 'overlay' | 'none';
+
+const backgroundVisualEffectOptions = (t: (key: string) => string) => [
+  { label: t('settings.backgroundEffectBlur'), value: 'blur' },
+  { label: t('settings.backgroundEffectOverlay'), value: 'overlay' },
+  { label: t('settings.backgroundEffectNone'), value: 'none' },
+];
+
+const normalizeBackgroundVisualEffect = (value: unknown): BackgroundVisualEffect => (
+  value === 'blur' || value === 'none' ? value : 'overlay'
+);
+
+const settingsField = (label: string, control: ReactNode, tips?: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+    {tips && <small className="settings-control-field__tip">{tips}</small>}
+  </div>
+);
 
 export function Settings() {
   const { user, updateUser } = useAuth();
@@ -31,19 +50,12 @@ export function Settings() {
   const displayName = user?.nickname || user?.username;
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');
-  
-  // Use useFormSync for profile fields
-  const { formState: profileForm } = useFormSync(
-    user || undefined,
-    { nickname: '', email: '' },
-    { fields: ['nickname', 'email'] }
-  );
-  
-  // Sync nickname and email from profileForm
+
   useEffect(() => {
-    setNickname(profileForm.nickname ?? '');
-    setEmail(profileForm.email ?? '');
-  }, [profileForm.nickname, profileForm.email]);
+    setNickname(user?.nickname ?? '');
+    setEmail(user?.email ?? '');
+  }, [user?.id, user?.nickname, user?.email]);
+
   const [showTunnels, setShowTunnels] = useLocalStorage('showTunnels', false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -53,29 +65,28 @@ export function Settings() {
   const [success, setSuccess] = useState(false);
   const [selectedOauthProvider, setSelectedOauthProvider] = useState<'custom' | 'logto'>('custom');
   const [backgroundImage, setBackgroundImage] = useState('');
+  const [backgroundVisualEffect, setBackgroundVisualEffect] = useLocalStorage<BackgroundVisualEffect>('backgroundVisualEffect', 'overlay');
   const [avatarImage, setAvatarImage] = useState('');
   
-  const { data: preferencesData } = useQuery({
+  const { data: preferencesData, dataUpdatedAt: preferencesUpdatedAt } = useQuery({
     queryKey: ['userPreferences'],
     queryFn: async () => {
       const res = await authApi.getPreferences();
-      if (res.data.code === 0) return res.data.data;
+      if (res.data.code === 0) {
+        return res.data.data;
+      }
       throw new Error(res.data.msg);
     },
+    staleTime: 0,
+    refetchOnMount: 'always',
+    gcTime: 0,
   });
-  
-  // Use useFormSync for preferences
-  const { formState: preferencesForm } = useFormSync(
-    preferencesData || undefined,
-    { backgroundImage: '', avatarImage: '' },
-    { fields: ['backgroundImage', 'avatarImage'] }
-  );
-  
-  // Sync background and avatar images from preferencesForm
+
   useEffect(() => {
-    setBackgroundImage(preferencesForm.backgroundImage || '');
-    setAvatarImage(preferencesForm.avatarImage || '');
-  }, [preferencesForm.backgroundImage, preferencesForm.avatarImage]);
+    if (!preferencesData) return;
+    setBackgroundImage(preferencesData.backgroundImage || '');
+    setAvatarImage(preferencesData.avatarImage || '');
+  }, [preferencesData, preferencesUpdatedAt]);
 
   const updateBackgroundMutation = useMutation({
     mutationFn: (imageUrl: string) => authApi.updatePreferences({ backgroundImage: imageUrl }),
@@ -248,7 +259,7 @@ export function Settings() {
             </div>
 
             <Form layout="vertical" colon={false} requiredMark={false} className="settings-form" onSubmit={({ e }: any) => { e?.preventDefault(); handleProfileSubmit(); }}>
-              <Form.FormItem label={t('settings.avatarImageUrl')} tips={t('settings.avatarImageHint')}>
+              {settingsField(t('settings.avatarImageUrl'),
                 <div className="settings-background-input">
                   <Input
                     clearable
@@ -259,23 +270,24 @@ export function Settings() {
                   {avatarImage && (
                     <Button type="button" shape="square" variant="outline" icon={<ClearIcon />} onClick={() => setAvatarImage('')} />
                   )}
-                </div>
-              </Form.FormItem>
-              <Form.FormItem label={t('settings.nickname')}>
+                </div>,
+                t('settings.avatarImageHint')
+              )}
+              {settingsField(t('settings.nickname'),
                 <Input clearable value={String(nickname)} onChange={(value: any) => setNickname(String(value))} placeholder={t('settings.nicknamePlaceholder')} />
-              </Form.FormItem>
-              <Form.FormItem label={t('settings.email')}>
+              )}
+              {settingsField(t('settings.email'),
                 <Input clearable value={String(email)} onChange={(value: any) => setEmail(String(value))} placeholder={t('settings.emailPlaceholder')} />
-              </Form.FormItem>
+              )}
               {emailChanged && (
-                <Form.FormItem label={t('settings.emailCode')}>
-                  <Space>
+                settingsField(t('settings.emailCode'),
+                  <Space className="settings-inline-control">
                     <Input value={String(emailCode)} onChange={(value: any) => setEmailCode(String(value))} placeholder={t('settings.emailCodePlaceholder')} />
                     <Button variant="outline" loading={sendEmailCodeMutation.isPending} onClick={handleSendEmailCode}>
                       {t('settings.sendEmailCode')}
                     </Button>
                   </Space>
-                </Form.FormItem>
+                )
               )}
               <Space className="record-form__actions">
                 <Button type="submit" theme="primary" loading={profileMutation.isPending} disabled={!hasProfileChanges}>
@@ -293,16 +305,16 @@ export function Settings() {
             <div className="page-shell">
               {success && <Alert theme="success" message={t('settings.passwordChanged')} />}
               {error && <Alert theme="error" message={error} />}
-              <Form layout="vertical" colon={false} requiredMark={false} onSubmit={({ e }: any) => { e?.preventDefault(); handlePasswordSubmit(); }}>
-                <Form.FormItem label={t('settings.currentPassword')}>
+              <Form layout="vertical" colon={false} requiredMark={false} className="settings-form" onSubmit={({ e }: any) => { e?.preventDefault(); handlePasswordSubmit(); }}>
+                {settingsField(t('settings.currentPassword'),
                   <Input type="password" value={String(oldPassword)} onChange={(value: any) => setOldPassword(String(value))} placeholder={t('settings.currentPasswordPlaceholder')} />
-                </Form.FormItem>
-                <Form.FormItem label={t('settings.newPassword')}>
+                )}
+                {settingsField(t('settings.newPassword'),
                   <Input type="password" value={String(newPassword)} onChange={(value: any) => setNewPassword(String(value))} placeholder={t('settings.newPasswordPlaceholder')} />
-                </Form.FormItem>
-                <Form.FormItem label={t('settings.confirmPassword')}>
+                )}
+                {settingsField(t('settings.confirmPassword'),
                   <Input type="password" value={String(confirmPassword)} onChange={(value: any) => setConfirmPassword(String(value))} placeholder={t('settings.confirmPasswordPlaceholder')} />
-                </Form.FormItem>
+                )}
                 <Space className="record-form__actions">
                   <Button type="submit" theme="primary" loading={passwordMutation.isPending}>
                     {t('settings.updatePassword')}
@@ -348,7 +360,7 @@ export function Settings() {
             title={<Space align="center"><ImageIcon />{t('settings.backgroundImage')}</Space>}
           >
             <Form layout="vertical" colon={false} requiredMark={false} className="page-shell">
-              <Form.FormItem label={t('settings.backgroundImageUrl')} tips={t('settings.backgroundImageHint')}>
+              {settingsField(t('settings.backgroundImageUrl'),
                 <div className="settings-background-input">
                   <Input
                     clearable
@@ -359,10 +371,19 @@ export function Settings() {
                   {backgroundImage && (
                     <Button shape="square" variant="outline" icon={<ClearIcon />} onClick={() => setBackgroundImage('')} />
                   )}
-                </div>
-              </Form.FormItem>
+                </div>,
+                t('settings.backgroundImageHint')
+              )}
+              {settingsField(t('settings.backgroundVisualEffect'),
+                <Select
+                  value={normalizeBackgroundVisualEffect(backgroundVisualEffect)}
+                  options={backgroundVisualEffectOptions(t)}
+                  onChange={(value) => setBackgroundVisualEffect(normalizeBackgroundVisualEffect(Array.isArray(value) ? value[0] : value))}
+                />,
+                t('settings.backgroundVisualEffectHint')
+              )}
               {backgroundImage && (
-                <div className="settings-image-preview">
+                <div className={`settings-image-preview settings-image-preview--${normalizeBackgroundVisualEffect(backgroundVisualEffect)}`}>
                   <img
                     src={backgroundImage}
                     alt="Background preview"
@@ -370,6 +391,7 @@ export function Settings() {
                       (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="%23f3f4f6"/%3E%3Ctext x="50" y="50" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12"%3EInvalid Image%3C/text%3E%3C/svg%3E';
                     }}
                   />
+                  {normalizeBackgroundVisualEffect(backgroundVisualEffect) === 'overlay' && <span className="settings-image-preview__mask" />}
                 </div>
               )}
               <Space className="record-form__actions">

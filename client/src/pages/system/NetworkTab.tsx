@@ -1,62 +1,64 @@
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
 import { CheckCircleIcon, CloseCircleIcon, ErrorCircleIcon, InternetIcon, PlayCircleIcon, SecuredIcon, TowerClockIcon } from 'tdesign-icons-react';
-import { networkApi, type ConnectivityResult } from '../../api';
+import { networkApi, type ConnectivityResult, type ProxyConfig } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
-import { toBoolean, toString, toNumber } from '../../utils/typeConverters';
-import { useFormSync } from '../../hooks/useFormSync';
+import { toBoolean, toNumber, toString } from '../../utils/typeConverters';
 
-interface ProxyConfig {
-  enabled: boolean;
-  type: 'socks5' | 'http';
-  host: string;
-  port: number;
-  username?: string;
-  password?: string;
+const DEFAULT_PROXY_CONFIG: ProxyConfig = {
+  enabled: false,
+  type: 'http',
+  host: '',
+  port: 8080,
+  username: '',
+  password: '',
+};
+
+const proxyField = (label: string, control: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+  </div>
+);
+
+function normalizeProxyConfig(config?: Partial<ProxyConfig> | null): ProxyConfig {
+  return {
+    enabled: toBoolean(config?.enabled as any),
+    type: config?.type === 'socks5' ? 'socks5' : 'http',
+    host: toString(config?.host),
+    port: toNumber(config?.port, 8080) || 8080,
+    username: toString(config?.username),
+    password: toString(config?.password),
+  };
 }
 
 export function NetworkTab() {
   const { t } = useI18n();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [proxyForm, setProxyForm] = useState<ProxyConfig>(DEFAULT_PROXY_CONFIG);
+  const [proxyDirty, setProxyDirty] = useState(false);
 
-  const { data: proxyConfig, isLoading: isProxyLoading } = useQuery<ProxyConfig | null>({
+  const { data: proxyConfig, dataUpdatedAt: proxyConfigUpdatedAt } = useQuery<ProxyConfig | null>({
     queryKey: ['proxy-config'],
     queryFn: async () => {
       const res = await networkApi.getProxy();
-      if (res.data.code === 0) return res.data.data;
+      if (res.data.code === 0 && res.data.data) {
+        return res.data.data;
+      }
       throw new Error(res.data.msg);
     },
+    staleTime: 0,
+    refetchOnMount: 'always',
+    gcTime: 0,
   });
 
-  // Use useFormSync for proxy form state management
-  // 注意：只在 proxyConfig 加载完成后才传入，避免使用默认值
-  const { formState: proxyForm, updateField } = useFormSync<ProxyConfig>(
-    proxyConfig ?? undefined,
-    {
-      enabled: false,
-      type: 'http',
-      host: '',
-      port: 8080,
-      username: '',
-      password: '',
-    },
-    {
-      fields: ['enabled', 'type', 'host', 'port', 'username', 'password'],
-      transformers: {
-        enabled: (v: any) => toBoolean(v),
-        type: (v: any) => toString(v, 'http') as 'socks5' | 'http',
-        host: (v: any) => toString(v),
-        port: (v: any) => toNumber(v, 8080),
-        username: (v: any) => toString(v),
-        password: (v: any) => toString(v),
-      },
-    }
-  );
-
-  console.log('[NetworkTab] Rendering, proxyConfig:', proxyConfig, 'isLoading:', isProxyLoading, 'proxyForm:', proxyForm);
+  useEffect(() => {
+    if (proxyDirty) return;
+    setProxyForm(normalizeProxyConfig(proxyConfig));
+  }, [proxyConfig, proxyConfigUpdatedAt, proxyDirty]);
 
   const [shouldTest, setShouldTest] = useState(false);
   const { data: connectivityData, isLoading: isTesting, error: connectivityError } = useQuery({
@@ -73,7 +75,15 @@ export function NetworkTab() {
 
   const updateProxyMutation = useMutation({
     mutationFn: (config: ProxyConfig) => networkApi.updateProxy(config),
-    onSuccess: () => {
+    onSuccess: (res, submittedConfig) => {
+      if (res.data.code !== 0) {
+        toast.error(res.data.msg);
+        return;
+      }
+      const nextConfig = normalizeProxyConfig(res.data.data || submittedConfig);
+      setProxyForm(nextConfig);
+      setProxyDirty(false);
+      queryClient.setQueryData(['proxy-config'], nextConfig);
       queryClient.invalidateQueries({ queryKey: ['proxy-config'] });
       toast.success(t('network.proxySaveSuccess'));
     },
@@ -83,6 +93,11 @@ export function NetworkTab() {
   const handleTestConnectivity = () => {
     setShouldTest(true);
     queryClient.invalidateQueries({ queryKey: ['network-connectivity'] });
+  };
+
+  const updateProxyField = <K extends keyof ProxyConfig>(key: K, value: ProxyConfig[K]) => {
+    setProxyDirty(true);
+    setProxyForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const getStatusIcon = (status: string) => {
@@ -163,33 +178,47 @@ export function NetworkTab() {
         title={<Space align="center"><SecuredIcon />{t('network.proxySettings')}</Space>}
         subtitle={t('network.proxySettingsDesc')}
       >
-        <Form layout="vertical" colon={false} requiredMark={false} className="page-shell">
-          <Form.FormItem label={t('network.proxyEnabled')}>
-            <Switch value={proxyForm.enabled ?? false} onChange={(checked: any) => updateField('enabled', Boolean(checked))} />
-          </Form.FormItem>
+        <Form layout="vertical" colon={false} requiredMark={false} className="page-shell network-form">
+          {proxyField(t('network.proxyEnabled'),
+            <Switch value={proxyForm.enabled ?? false} onChange={(checked: any) => updateProxyField('enabled', Boolean(checked))} />
+          )}
           <div className="notification-form-grid">
-            <Form.FormItem label="Proxy Type">
+            {proxyField(t('network.proxyType') || 'Proxy Type',
               <Select
                 value={proxyForm.type || 'http'}
                 options={[
                   { label: 'HTTP(S) Proxy', value: 'http' },
                   { label: 'SOCKS5 Proxy', value: 'socks5' },
                 ]}
-                onChange={(value: any) => updateField('type', String(Array.isArray(value) ? value[0] : value) as 'socks5' | 'http')}
+                onChange={(value: any) => updateProxyField('type', String(Array.isArray(value) ? value[0] : value) as 'socks5' | 'http')}
               />
-            </Form.FormItem>
-            <Form.FormItem label={t('network.proxyHost')}>
-              <Input value={proxyForm.host || ''} onChange={(value: any) => updateField('host', String(value))} placeholder={t('network.proxyHost')} />
-            </Form.FormItem>
-            <Form.FormItem label={t('network.proxyPort')}>
-              <Input type="number" value={String(proxyForm.port ?? 8080)} onChange={(value: any) => updateField('port', parseInt(String(value), 10) || 0)} />
-            </Form.FormItem>
-            <Form.FormItem label={t('network.proxyUsername')}>
-              <Input value={proxyForm.username || ''} onChange={(value: any) => updateField('username', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('network.proxyPassword')}>
-              <Input type="password" value={proxyForm.password || ''} onChange={(value: any) => updateField('password', String(value))} />
-            </Form.FormItem>
+            )}
+            {proxyField(t('network.proxyHost'),
+              <Input value={proxyForm.host || ''} onChange={(value: any) => updateProxyField('host', String(value))} placeholder={t('network.proxyHost')} />
+            )}
+            {proxyField(t('network.proxyPort'),
+              <Input
+                type="number"
+                value={String(proxyForm.port ?? 8080)}
+                onChange={(value: any) => updateProxyField('port', parseInt(String(value), 10) || 0)}
+                placeholder={t('network.proxyPort')}
+              />
+            )}
+            {proxyField(t('network.proxyUsername'),
+              <Input
+                value={proxyForm.username || ''}
+                onChange={(value: any) => updateProxyField('username', String(value))}
+                placeholder={t('network.proxyUsername')}
+              />
+            )}
+            {proxyField(t('network.proxyPassword'),
+              <Input
+                type="password"
+                value={proxyForm.password || ''}
+                onChange={(value: any) => updateProxyField('password', String(value))}
+                placeholder={t('network.proxyPassword')}
+              />
+            )}
           </div>
           <Space className="record-form__actions">
             <Button theme="primary" icon={<CheckCircleIcon />} loading={updateProxyMutation.isPending} onClick={() => updateProxyMutation.mutate({

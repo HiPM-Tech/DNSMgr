@@ -659,6 +659,11 @@
       "backgroundImageUrl": "背景图 URL",
       "backgroundImagePlaceholder": "请输入图片 URL（支持 jpg/png/gif/webp）",
       "backgroundImageHint": "支持任意图片 URL，留空则使用默认背景",
+      "backgroundVisualEffect": "壁纸视觉效果",
+      "backgroundVisualEffectHint": "选择背景图在控制台中的显示方式，切换后立即生效",
+      "backgroundEffectBlur": "高斯模糊",
+      "backgroundEffectOverlay": "白色蒙层",
+      "backgroundEffectNone": "无",
       "backgroundImageUpdated": "背景图已更新",
       "backgroundImageUpdateFailed": "背景图更新失败",
       "updateBackgroundImage": "更新背景图"

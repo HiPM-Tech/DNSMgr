@@ -6,15 +6,23 @@ import { Header } from './Header';
 import { PageTransition } from './PageTransition';
 import { ToastContainer } from './ToastContainer';
 import { authApi } from '../api';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import './Layout.css';
 
-function BackgroundImage({ backgroundImage }: { backgroundImage?: string }) {
+type BackgroundVisualEffect = 'blur' | 'overlay' | 'none';
+
+function normalizeBackgroundEffect(effect: unknown): BackgroundVisualEffect {
+  return effect === 'blur' || effect === 'none' ? effect : 'overlay';
+}
+
+function BackgroundImage({ backgroundImage, visualEffect }: { backgroundImage?: string; visualEffect: BackgroundVisualEffect }) {
   const imageUrl = (backgroundImage ?? '').trim();
 
   if (!imageUrl) return null;
 
   return (
-    <div className="app-background" style={{ backgroundImage: `url("${imageUrl.replace(/"/g, '\\"')}")` }}>
+    <div className={`app-background app-background--${visualEffect}`}>
+      <div className="app-background__image" style={{ backgroundImage: `url("${imageUrl.replace(/"/g, '\\"')}")` }} />
       <div className="app-background__mask" />
     </div>
   );
@@ -23,6 +31,7 @@ function BackgroundImage({ backgroundImage }: { backgroundImage?: string }) {
 export function Layout() {
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 1000);
+  const [backgroundVisualEffect] = useLocalStorage<BackgroundVisualEffect>('backgroundVisualEffect', 'overlay');
   const { data: preferences } = useQuery({
     queryKey: ['userPreferences'],
     queryFn: async () => {
@@ -35,6 +44,7 @@ export function Layout() {
     refetchInterval: 30000,
   });
   const hasBackgroundImage = Boolean(preferences?.backgroundImage?.trim());
+  const normalizedBackgroundEffect = normalizeBackgroundEffect(backgroundVisualEffect);
 
   useEffect(() => {
     document.body.classList.toggle('app-has-background', hasBackgroundImage);
@@ -57,7 +67,7 @@ export function Layout() {
 
   return (
     <TLayout className={`app-layout ${hasBackgroundImage ? 'app-layout--with-background' : ''}`}>
-      <BackgroundImage backgroundImage={preferences?.backgroundImage} />
+      <BackgroundImage backgroundImage={preferences?.backgroundImage} visualEffect={normalizedBackgroundEffect} />
 
       <Header
         collapsed={collapsed}

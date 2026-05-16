@@ -43,6 +43,14 @@ interface NSMonitorConfig {
   alert_count?: number;
 }
 
+const dialogField = (label: string, control: ReactNode, tips?: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+    {tips && <small className="settings-control-field__tip">{tips}</small>}
+  </div>
+);
+
 export function NSMonitorTab() {
   const { t } = useI18n();
   const { isAdmin } = useAuth();
@@ -194,24 +202,34 @@ export function NSMonitorTab() {
 
   // Use useFormSync for edit form state management
   interface EditFormState {
+    id?: number;
     expected_ns?: string;
     enabled?: boolean;
     notify_email?: boolean;
     notify_channels?: boolean;
   }
 
+  const buildEditFormState = (config: NSMonitorConfig): EditFormState => ({
+    id: config.id,
+    expected_ns: String(config.expected_ns || ''),
+    enabled: toBoolean(config.enabled),
+    notify_email: toBoolean(userPrefs?.notify_email ?? config.notify_email),
+    notify_channels: toBoolean(userPrefs?.notify_channels ?? config.notify_channels),
+  });
+
   // Convert NSMonitorConfig to EditFormState
   const convertToEditForm = (config: NSMonitorConfig | null): EditFormState | undefined => {
-    if (!config) return undefined;
-    return {
-      expected_ns: String(config.expected_ns || ''),
-      enabled: toBoolean(config.enabled),
-      notify_email: toBoolean(userPrefs?.notify_email ?? config.notify_email),
-      notify_channels: toBoolean(userPrefs?.notify_channels ?? config.notify_channels),
-    };
+    if (!config) {
+      return undefined;
+    }
+    return buildEditFormState(config);
   };
 
-  const { formState: editFormState, updateField: updateEditField } = useFormSync<EditFormState>(
+  const {
+    formState: editFormState,
+    updateField: updateEditField,
+    updateFields: updateEditFields,
+  } = useFormSync<EditFormState>(
     convertToEditForm(selectedConfig),
     {
       expected_ns: '',
@@ -231,6 +249,7 @@ export function NSMonitorTab() {
   );
 
   const openEditModal = (row: NSMonitorConfig) => {
+    updateEditFields(buildEditFormState(row));
     setSelectedConfig(row);
     setIsEditModalOpen(true);
   };
@@ -250,7 +269,7 @@ export function NSMonitorTab() {
     updateMutation.mutate({
       id: row.id,
       expected_ns: row.expected_ns,
-      enabled: !row.enabled,
+      enabled: !toBoolean(row.enabled),
     });
   };
 
@@ -341,7 +360,6 @@ export function NSMonitorTab() {
       label: t('nsMonitor.monitoring'),
       render: (row: NSMonitorConfig) => {
         const isEnabled = toBoolean(row.enabled);
-        console.log('NSMonitor Switch Debug:', { id: row.id, enabled: row.enabled, type: typeof row.enabled, converted: isEnabled });
         return (
           <Switch
             value={isEnabled}
@@ -427,6 +445,9 @@ export function NSMonitorTab() {
         <div className="records-toolbar ns-monitor-card__toolbar">
           <Input
             clearable
+            type="search"
+            name="ns-monitor-search"
+            autocomplete="off"
             value={searchKeyword}
             prefixIcon={<SearchIcon />}
             placeholder={t('nsMonitor.searchPlaceholder')}
@@ -445,29 +466,33 @@ export function NSMonitorTab() {
       {isEditModalOpen && selectedConfig && (
         <Modal title={t('nsMonitor.editConfig')} onClose={() => setIsEditModalOpen(false)} size="lg">
           <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form ns-monitor-dialog" onSubmit={({ e }: any) => { e?.preventDefault(); handleSave(); }}>
-            <Form.FormItem label={t('nsMonitor.domainName')}>
+            {dialogField(t('nsMonitor.domainName'),
               <Input value={String(selectedConfig.domain_name)} disabled />
-            </Form.FormItem>
+            )}
 
-            <Form.FormItem label={t('nsMonitor.expectedNS')} help={t('nsMonitor.expectedNSHint')}>
-              <Textarea
-                value={editFormState.expected_ns || ''}
-                placeholder={t('nsMonitor.expectedNSPlaceholder')}
-                autosize={{ minRows: 3, maxRows: 6 }}
-                onChange={(value: any) => updateEditField('expected_ns', String(value))}
-              />
-              <Space className="record-form__actions dialog-inline-actions">
-                <Button
-                  variant="outline"
-                  theme="primary"
-                  icon={<BrushIcon />}
-                  loading={resolveNsMutation.isPending}
-                  onClick={() => resolveNsMutation.mutate({ domainName: selectedConfig.domain_name, target: 'edit' })}
-                >
-                  {t('nsMonitor.autoFill')}
-                </Button>
-              </Space>
-            </Form.FormItem>
+            {dialogField(t('nsMonitor.expectedNS'),
+              <>
+                <Textarea
+                  value={editFormState.expected_ns || ''}
+                  placeholder={t('nsMonitor.expectedNSPlaceholder')}
+                  autosize={{ minRows: 3, maxRows: 6 }}
+                  onChange={(value: any) => updateEditField('expected_ns', String(value))}
+                />
+                <Space className="record-form__actions dialog-inline-actions">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    theme="primary"
+                    icon={<BrushIcon />}
+                    loading={resolveNsMutation.isPending}
+                    onClick={() => resolveNsMutation.mutate({ domainName: selectedConfig.domain_name, target: 'edit' })}
+                  >
+                    {t('nsMonitor.autoFill')}
+                  </Button>
+                </Space>
+              </>,
+              t('nsMonitor.expectedNSHint')
+            )}
 
             <div className="dialog-switch-row">
               <div>
@@ -498,9 +523,6 @@ export function NSMonitorTab() {
             </div>
 
             <Space className="record-form__actions dialog-form-actions">
-              <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
-                {t('common.cancel')}
-              </Button>
               <Button type="submit" theme="primary" loading={updateMutation.isPending || updateUserPrefsMutation.isPending}>
                 {t('common.save')}
               </Button>
@@ -515,6 +537,9 @@ export function NSMonitorTab() {
             <Form.FormItem label={t('nsMonitor.selectDomain')}>
               <Input
                 clearable
+                type="search"
+                name="ns-monitor-domain-search"
+                autocomplete="off"
                 value={domainSearchKeyword}
                 prefixIcon={<SearchIcon />}
                 placeholder={t('common.search')}

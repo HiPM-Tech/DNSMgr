@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Select } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
+import { useI18n } from '../contexts/I18nContext';
 
 interface PaginatedSelectOption {
   id: number;
@@ -23,6 +25,8 @@ export function PaginatedSelect({
   pageSize = 20,
   disabled = false,
 }: PaginatedSelectProps) {
+  const { t } = useI18n();
+  const [popupVisible, setPopupVisible] = useState(false);
   const selectOptions = options.map((option) => ({
     label: option.name,
     value: option.id,
@@ -32,6 +36,8 @@ export function PaginatedSelect({
     onChange(typeof nextValue === 'number' ? nextValue : null);
   };
 
+  const sharedPlaceholder = popupVisible ? (t('common.search') || '搜索...') : placeholder;
+
   return (
     <Select
       clearable
@@ -39,10 +45,13 @@ export function PaginatedSelect({
       disabled={disabled}
       value={value ?? undefined}
       options={selectOptions}
-      placeholder={placeholder}
+      placeholder={sharedPlaceholder}
+      inputProps={{ placeholder: sharedPlaceholder }}
+      popupVisible={popupVisible}
       scroll={{ type: 'virtual', threshold: Math.max(pageSize, 20), rowHeight: 32, bufferSize: 12 }}
       onChange={handleChange}
       onClear={() => onChange(null)}
+      onPopupVisibleChange={setPopupVisible}
     />
   );
 }

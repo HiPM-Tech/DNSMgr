@@ -107,6 +107,29 @@ function saveDatabaseConfig(
 
 const router = Router();
 
+// Get database configuration for the setup form.
+// Only expose this before the system has an initialized user table.
+router.get('/db-config', async (_req: Request, res: Response) => {
+  try {
+    const initialized = await isDbInitialized() && await hasUsers();
+    if (initialized) {
+      return res.status(403).json({ code: 403, msg: 'System already initialized' });
+    }
+
+    res.json({
+      code: 0,
+      data: getDbConfig(),
+      msg: 'success',
+    });
+  } catch (error) {
+    log.error('Init', 'Failed to read database configuration', { error });
+    res.status(500).json({
+      code: 500,
+      msg: error instanceof Error ? error.message : 'Failed to read database configuration',
+    });
+  }
+});
+
 // Check system initialization status
 router.get('/status', async (req: Request, res: Response) => {
   try {

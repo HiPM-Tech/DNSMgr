@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Loading, Select, Space, Switch, Tag } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
@@ -14,13 +14,58 @@ import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, roleLabelKey } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
-import { useFormSync } from '../hooks/useFormSync';
 import { toString, toNumber } from '../utils/typeConverters';
 
 const usernamePattern = /^[A-Za-z0-9_-]+$/;
 
 function selectToNumber(value: SelectValue) {
   return Number(Array.isArray(value) ? value[0] ?? ROLE_USER : value);
+}
+
+const userDialogField = (label: string, control: ReactNode, tips?: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+    {tips && <small className="settings-control-field__tip">{tips}</small>}
+  </div>
+);
+
+interface CreateUserFormState {
+  nickname: string;
+  username: string;
+  email: string;
+  password: string;
+  role: number;
+}
+
+interface EditUserFormState {
+  id: number;
+  nickname: string;
+  email: string;
+  password: string;
+  role: number;
+  status: number;
+}
+
+function normalizeCreateUserForm(roleOptions: number[]): CreateUserFormState {
+  return {
+    nickname: '',
+    username: '',
+    email: '',
+    password: '',
+    role: roleOptions[0] ?? ROLE_USER,
+  };
+}
+
+function normalizeEditUserForm(user: User): EditUserFormState {
+  return {
+    id: user.id,
+    nickname: toString(user.nickname, user.username),
+    email: toString(user.email),
+    password: '',
+    role: toNumber(user.role, ROLE_USER),
+    status: toNumber(user.status, 1),
+  };
 }
 
 interface UserCreateFormProps {
@@ -32,42 +77,25 @@ interface UserCreateFormProps {
 function UserCreateForm({ roleOptions, isPending, onSubmit }: UserCreateFormProps) {
   const { t } = useI18n();
   const toast = useToast();
-  
-  // Use useFormSync for create form state management
-  interface CreateUserFormState {
-    nickname?: string;
-    username?: string;
-    email?: string;
-    password?: string;
-    role?: number;
-  }
+  const roleOptionsKey = roleOptions.join('|');
+  const [formState, setFormState] = useState<CreateUserFormState>(() => normalizeCreateUserForm(roleOptions));
 
-  const { formState, updateField } = useFormSync<CreateUserFormState>(
-    undefined,
-    {
-      nickname: '',
-      username: '',
-      email: '',
-      password: '',
-      role: roleOptions[0] ?? ROLE_USER,
-    },
-    {
-      fields: ['nickname', 'username', 'email', 'password', 'role'],
-      transformers: {
-        nickname: (v: any) => toString(v),
-        username: (v: any) => toString(v),
-        email: (v: any) => toString(v),
-        password: (v: any) => toString(v),
-        role: (v: any) => toNumber(v, roleOptions[0] ?? ROLE_USER),
-      },
-    }
-  );
+  useEffect(() => {
+    setFormState((current) => {
+      if (roleOptions.includes(current.role)) return current;
+      return { ...current, role: roleOptions[0] ?? ROLE_USER };
+    });
+  }, [roleOptionsKey]);
 
-  const nickname = formState.nickname || '';
-  const username = formState.username || '';
-  const email = formState.email || '';
-  const password = formState.password || '';
-  const role = formState.role ?? (roleOptions[0] ?? ROLE_USER);
+  const updateField = <K extends keyof CreateUserFormState>(field: K, value: CreateUserFormState[K]) => {
+    setFormState((current) => ({ ...current, [field]: value }));
+  };
+
+  const nickname = formState.nickname;
+  const username = formState.username;
+  const email = formState.email;
+  const password = formState.password;
+  const role = formState.role;
   
   const usernameInvalid = username.trim().length > 0 && !usernamePattern.test(username.trim());
 
@@ -81,30 +109,28 @@ function UserCreateForm({ roleOptions, isPending, onSubmit }: UserCreateFormProp
   };
 
   return (
-    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
-      <Form.FormItem label={t('users.nicknameRequired')}>
+    <Form layout="vertical" colon={false} requiredMark={false} className="page-shell user-form" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
+      {userDialogField(t('users.nicknameRequired'),
         <Input clearable value={nickname} onChange={(value: any) => updateField('nickname', String(value))} placeholder={t('users.nicknamePlaceholder')} />
-      </Form.FormItem>
-      <Form.FormItem
-        label={t('users.usernameRequired')}
-        status={usernameInvalid ? 'error' : undefined}
-        tips={usernameInvalid ? t('users.usernameInvalid') : t('users.usernameHelp')}
-      >
-        <Input clearable value={username} onChange={(value: any) => updateField('username', String(value))} placeholder={t('users.usernamePlaceholder')} status={usernameInvalid ? 'error' : undefined} />
-      </Form.FormItem>
-      <Form.FormItem label={t('users.email')}>
+      )}
+      {userDialogField(
+        t('users.usernameRequired'),
+        <Input clearable value={username} onChange={(value: any) => updateField('username', String(value))} placeholder={t('users.usernamePlaceholder')} status={usernameInvalid ? 'error' : undefined} />,
+        usernameInvalid ? t('users.usernameInvalid') : t('users.usernameHelp')
+      )}
+      {userDialogField(t('users.email'),
         <Input clearable type="text" value={email} onChange={(value: any) => updateField('email', String(value))} placeholder={t('users.emailPlaceholder')} />
-      </Form.FormItem>
-      <Form.FormItem label={t('users.password')}>
+      )}
+      {userDialogField(t('users.password'),
         <Input type="password" value={password} onChange={(value: any) => updateField('password', String(value))} placeholder={t('users.passwordPlaceholder')} />
-      </Form.FormItem>
-      <Form.FormItem label={t('users.role')}>
+      )}
+      {userDialogField(t('users.role'),
         <Select
           value={role}
           options={roleOptions.map((item) => ({ label: t(roleLabelKey(item)), value: item }))}
           onChange={(value: any) => updateField('role', selectToNumber(value))}
         />
-      </Form.FormItem>
+      )}
       <Space className="record-form__actions">
         <Button type="submit" theme="primary" loading={isPending} disabled={usernameInvalid}>
           {t('users.createUser')}
@@ -126,47 +152,39 @@ interface UserEditModalProps {
 function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: UserEditModalProps) {
   const toast = useToast();
   const qc = useQueryClient();
-
-  // Use useFormSync for edit form state management
-  interface EditUserFormState {
-    nickname?: string;
-    email?: string;
-    password?: string;
-    role?: number;
-    status?: number;
-  }
-
-  const { formState, updateField } = useFormSync<EditUserFormState>(
-    user,
-    {
-      nickname: user.nickname || user.username,
-      email: user.email || '',
-      password: '',
-      role: user.role,
-      status: user.status,
-    },
-    {
-      fields: ['nickname', 'email', 'password', 'role', 'status'],
-      transformers: {
-        nickname: (v: any) => toString(v, user.nickname || user.username),
-        email: (v: any) => toString(v, ''),
-        password: (v: any) => toString(v, ''),
-        role: (v: any) => toNumber(v, user.role),
-        status: (v: any) => toNumber(v, user.status),
-      },
-    }
-  );
+  const [formState, setFormState] = useState<EditUserFormState>(() => normalizeEditUserForm(user));
+  const [formDirty, setFormDirty] = useState(false);
+  const activeUserIdRef = useRef(user.id);
 
   const [require2FA, setRequire2FA] = useState(false);
   const [global2FAEnabled, setGlobal2FAEnabled] = useState(true);
   const [isLoading2FA, setIsLoading2FA] = useState(true);
 
+  useEffect(() => {
+    const next = normalizeEditUserForm(user);
+    if (activeUserIdRef.current !== user.id) {
+      activeUserIdRef.current = user.id;
+      setFormState(next);
+      setFormDirty(false);
+      return;
+    }
+
+    if (!formDirty) {
+      setFormState(next);
+    }
+  }, [user.id, user.nickname, user.username, user.email, user.role, user.status, formDirty]);
+
+  const updateField = <K extends Exclude<keyof EditUserFormState, 'id'>>(field: K, value: EditUserFormState[K]) => {
+    setFormState((current) => ({ ...current, [field]: value }));
+    setFormDirty(true);
+  };
+
   // Extract form state for easier access
-  const nickname = formState.nickname || '';
-  const email = formState.email || '';
-  const password = formState.password || '';
-  const role = formState.role ?? user.role;
-  const status = formState.status ?? user.status;
+  const nickname = formState.nickname;
+  const email = formState.email;
+  const password = formState.password;
+  const role = formState.role;
+  const status = formState.status;
 
   useEffect(() => {
     const load2FAStatus = async () => {
@@ -218,27 +236,45 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
 
   return (
     <Modal title={t('users.editUser')} onClose={onClose} size="sm">
-      <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
-        <Form.FormItem label={t('users.nickname')}>
-          <Input clearable value={nickname} onChange={(value: any) => updateField('nickname', String(value))} />
-        </Form.FormItem>
-        <Form.FormItem label={t('users.username')}>
-          <span className="page-strong">{user.username}</span>
-        </Form.FormItem>
-        <Form.FormItem label={t('users.email')}>
-          <Input clearable value={email} onChange={(value: any) => updateField('email', String(value))} />
-        </Form.FormItem>
-        <Form.FormItem label={t('users.newPassword')}>
-          <Input type="password" value={password} onChange={(value: any) => updateField('password', String(value))} placeholder={t('users.newPasswordPlaceholder')} />
-        </Form.FormItem>
-        <Form.FormItem label={t('users.role')}>
+      <Form layout="vertical" colon={false} requiredMark={false} className="page-shell user-form" onSubmit={({ e }: any) => { e?.preventDefault(); submit(); }}>
+        {userDialogField(t('users.nickname'),
+          <Input
+            clearable
+            value={nickname}
+            onChange={(value: any) => updateField('nickname', String(value))}
+            placeholder={t('users.nicknamePlaceholder')}
+          />
+        )}
+        {userDialogField(t('users.username'),
+          <span className="user-form__readonly page-strong">{user.username}</span>
+        )}
+        {userDialogField(t('users.email'),
+          <Input
+            clearable
+            value={email}
+            onChange={(value: any) => updateField('email', String(value))}
+            placeholder={t('users.emailPlaceholder')}
+          />
+        )}
+        {userDialogField(t('users.newPassword'),
+          <Input
+            key={`new-password-${user.id}`}
+            name={`new-password-${user.id}`}
+            autocomplete="new-password"
+            type="password"
+            value={password}
+            onChange={(value: any) => updateField('password', String(value))}
+            placeholder={t('users.newPasswordPlaceholder')}
+          />
+        )}
+        {userDialogField(t('users.role'),
           <Select
             value={role}
             options={roleOptions.map((item) => ({ label: t(roleLabelKey(item)), value: item }))}
             onChange={(value: any) => updateField('role', selectToNumber(value))}
           />
-        </Form.FormItem>
-        <Form.FormItem label={t('users.status')}>
+        )}
+        {userDialogField(t('users.status'),
           <Select
             value={status}
             options={[
@@ -247,7 +283,7 @@ function UserEditModal({ user, onClose, onSubmit, isPending, roleOptions, t }: U
             ]}
             onChange={(value: any) => updateField('status', selectToNumber(value))}
           />
-        </Form.FormItem>
+        )}
 
         <Card bordered className="user-2fa-card">
           <div className="user-2fa-card__content">

@@ -263,6 +263,9 @@ export function Records() {
             <div className="records-toolbar">
               <Input
                 clearable
+                type="search"
+                name="records-search"
+                autocomplete="off"
                 value={keyword}
                 prefixIcon={<SearchIcon />}
                 placeholder={t('common.searchRecords')}

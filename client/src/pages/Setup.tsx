@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Alert, Button, Card, Form, Input, Radio, Steps } from 'tdesign-react';
+import { Alert, Button, Form, Input } from 'tdesign-react';
 import {
   CheckCircleIcon,
   ChevronLeftIcon,
@@ -9,11 +9,13 @@ import {
   DataBaseIcon,
   DeleteIcon,
   ErrorCircleIcon,
-  ThunderIcon,
   UserIcon,
 } from 'tdesign-icons-react';
 import { initApi } from '../api';
+import type { InitDbConfig } from '../api';
 import { useI18n } from '../contexts/I18nContext';
+import './Login.css';
+import './Setup.css';
 
 type Step = 'database' | 'dataChoice' | 'admin' | 'complete';
 
@@ -31,6 +33,59 @@ const stepIndex: Record<Step, number> = {
   complete: 3,
 };
 
+const DEFAULT_DB_CONFIG: DbConfig = {
+  type: 'sqlite',
+  sqlite: { path: './data/dnsmgr.db' },
+  mysql: { host: 'localhost', port: 3306, database: 'dnsmgr', user: 'root', password: '', ssl: false },
+  postgresql: { host: 'localhost', port: 5432, database: 'dnsmgr', user: 'postgres', password: '', ssl: false },
+};
+
+const setupField = (label: string, control: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+  </div>
+);
+
+const databaseTypes: Array<{
+  type: DbConfig['type'];
+  icon: ReactNode;
+  description: string;
+}> = [
+  { type: 'sqlite', icon: <DataBaseIcon />, description: 'Local file database' },
+  { type: 'mysql', icon: <DataBaseIcon />, description: 'MySQL compatible server' },
+  { type: 'postgresql', icon: <DataBaseIcon />, description: 'PostgreSQL server' },
+];
+
+const normalizeDbConfig = (config?: Partial<InitDbConfig>): DbConfig => {
+  const type = config?.type && ['sqlite', 'mysql', 'postgresql'].includes(config.type)
+    ? config.type
+    : DEFAULT_DB_CONFIG.type;
+
+  return {
+    type,
+    sqlite: {
+      path: String(config?.sqlite?.path || DEFAULT_DB_CONFIG.sqlite.path),
+    },
+    mysql: {
+      host: String(config?.mysql?.host || DEFAULT_DB_CONFIG.mysql.host),
+      port: Number(config?.mysql?.port) || DEFAULT_DB_CONFIG.mysql.port,
+      database: String(config?.mysql?.database || DEFAULT_DB_CONFIG.mysql.database),
+      user: String(config?.mysql?.user || DEFAULT_DB_CONFIG.mysql.user),
+      password: String(config?.mysql?.password || DEFAULT_DB_CONFIG.mysql.password),
+      ssl: Boolean(config?.mysql?.ssl),
+    },
+    postgresql: {
+      host: String(config?.postgresql?.host || DEFAULT_DB_CONFIG.postgresql.host),
+      port: Number(config?.postgresql?.port) || DEFAULT_DB_CONFIG.postgresql.port,
+      database: String(config?.postgresql?.database || DEFAULT_DB_CONFIG.postgresql.database),
+      user: String(config?.postgresql?.user || DEFAULT_DB_CONFIG.postgresql.user),
+      password: String(config?.postgresql?.password || DEFAULT_DB_CONFIG.postgresql.password),
+      ssl: Boolean(config?.postgresql?.ssl),
+    },
+  };
+};
+
 export function Setup() {
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -40,12 +95,7 @@ export function Setup() {
   const [dbTested, setDbTested] = useState(false);
   const [hasExistingData, setHasExistingData] = useState(false);
 
-  const [dbConfig, setDbConfig] = useState<DbConfig>({
-    type: 'sqlite',
-    sqlite: { path: './data/dnsmgr.db' },
-    mysql: { host: 'localhost', port: 3306, database: 'dnsmgr', user: 'root', password: '', ssl: false },
-    postgresql: { host: 'localhost', port: 5432, database: 'dnsmgr', user: 'postgres', password: '', ssl: false },
-  });
+  const [dbConfig, setDbConfig] = useState<DbConfig>(DEFAULT_DB_CONFIG);
 
   const [adminInfo, setAdminInfo] = useState({
     username: '',
@@ -54,12 +104,45 @@ export function Setup() {
     confirmPassword: '',
   });
 
+  const setupSteps = [
+    { key: 'database' as const, icon: <DataBaseIcon />, title: t('setup.dbTitle'), subtitle: t('setup.dbSubtitle') },
+    { key: 'dataChoice' as const, icon: <ErrorCircleIcon />, title: t('setup.dataChoiceTitle'), subtitle: t('setup.dataChoiceSubtitle') },
+    { key: 'admin' as const, icon: <UserIcon />, title: t('setup.adminTitle'), subtitle: t('setup.adminSubtitle') },
+    { key: 'complete' as const, icon: <CheckCircleIcon />, title: t('setup.completeTitle'), subtitle: t('setup.completeSubtitle') },
+  ];
+  const activeStep = setupSteps.find((step) => step.key === currentStep) ?? setupSteps[0];
+
   useEffect(() => {
-    initApi.status().then((res) => {
-      if (res.data.data.initialized) {
-        navigate('/login');
+    let active = true;
+
+    const loadSetupState = async () => {
+      try {
+        const statusRes = await initApi.status();
+        if (!active) return;
+        if (statusRes.data.data.initialized) {
+          navigate('/login');
+          return;
+        }
+      } catch {
+        // Keep setup accessible if the database is not connected yet.
       }
-    }).catch(() => undefined);
+
+      try {
+        const configRes = await initApi.dbConfig();
+        if (!active) return;
+        if (configRes.data.code === 0 && configRes.data.data) {
+          setDbConfig(normalizeDbConfig(configRes.data.data));
+        }
+      } catch {
+        // Defaults are still usable if the config endpoint is unavailable.
+      }
+    };
+
+    loadSetupState();
+
+    return () => {
+      active = false;
+    };
   }, [navigate]);
 
   const resetDbTest = (nextConfig: DbConfig) => {
@@ -158,24 +241,15 @@ export function Setup() {
     }
   };
 
-  const renderStepIntro = (icon: ReactNode, title: string, subtitle: string) => (
-    <div className="setup-intro">
-      <div className="setup-intro__icon">{icon}</div>
-      <h2>{title}</h2>
-      <p>{subtitle}</p>
-    </div>
-  );
-
   const renderDbConnectionFields = () => {
     if (dbConfig.type === 'sqlite') {
-      return (
-        <Form.FormItem label={t('setup.dbPath')}>
+      return setupField(
+        t('setup.dbPath'),
           <Input
             value={dbConfig.sqlite.path}
             placeholder="./data/dnsmgr.db"
             onChange={(value) => resetDbTest({ ...dbConfig, sqlite: { path: String(value) } })}
           />
-        </Form.FormItem>
       );
     }
 
@@ -186,56 +260,70 @@ export function Setup() {
 
     return (
       <div className="setup-form-grid">
-        <Form.FormItem label={t('setup.dbHost')}>
+        {setupField(t('setup.dbHost'), (
           <Input
             value={config.host}
             onChange={(value) => resetDbTest({ ...dbConfig, [key]: { ...config, host: String(value) } })}
           />
-        </Form.FormItem>
-        <Form.FormItem label={t('setup.dbPort')}>
+        ))}
+        {setupField(t('setup.dbPort'), (
           <Input
             type="number"
             value={String(config.port)}
             onChange={(value) => resetDbTest({ ...dbConfig, [key]: { ...config, port: parseInt(String(value), 10) || defaultPort } })}
           />
-        </Form.FormItem>
-        <Form.FormItem label={t('setup.dbName')}>
+        ))}
+        {setupField(t('setup.dbName'), (
           <Input
             value={config.database}
             onChange={(value) => resetDbTest({ ...dbConfig, [key]: { ...config, database: String(value) } })}
           />
-        </Form.FormItem>
-        <Form.FormItem label={t('setup.dbUser')}>
+        ))}
+        {setupField(t('setup.dbUser'), (
           <Input
             value={config.user}
             onChange={(value) => resetDbTest({ ...dbConfig, [key]: { ...config, user: String(value) } })}
           />
-        </Form.FormItem>
-        <Form.FormItem label={t('setup.dbPassword')}>
+        ))}
+        {setupField(t('setup.dbPassword'), (
           <Input
             type="password"
             value={config.password}
             onChange={(value) => resetDbTest({ ...dbConfig, [key]: { ...config, password: String(value) } })}
           />
-        </Form.FormItem>
+        ))}
       </div>
     );
   };
 
   const renderDatabaseStep = () => (
     <div className="page-shell">
-      {renderStepIntro(<DataBaseIcon />, t('setup.dbTitle'), t('setup.dbSubtitle'))}
-      <Form layout="vertical" colon={false} requiredMark={false}>
-        <Form.FormItem label={t('setup.dbType')}>
-          <Radio.Group
-            value={dbConfig.type}
-            variant="primary-filled"
-            options={(['sqlite', 'mysql', 'postgresql'] as const).map((type) => ({ label: t(`setup.dbTypes.${type}`), value: type }))}
-            onChange={(value) => resetDbTest({ ...dbConfig, type: value as DbConfig['type'] })}
-          />
-        </Form.FormItem>
+      <div className="setup-database-form">
+        {setupField(t('setup.dbType'), (
+          <div className="setup-db-type-grid" role="radiogroup" aria-label={t('setup.dbType')}>
+            {databaseTypes.map((item) => {
+              const active = dbConfig.type === item.type;
+              return (
+                <button
+                  key={item.type}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  className={`setup-db-type-card${active ? ' is-active' : ''}`}
+                  onClick={() => resetDbTest({ ...dbConfig, type: item.type })}
+                >
+                  <span className="setup-db-type-card__icon">{item.icon}</span>
+                  <span className="setup-db-type-card__body">
+                    <strong>{t(`setup.dbTypes.${item.type}`)}</strong>
+                    <small>{item.description}</small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
         {renderDbConnectionFields()}
-      </Form>
+      </div>
 
       {error && <Alert theme="error" message={error} />}
 
@@ -266,7 +354,6 @@ export function Setup() {
 
   const renderDataChoiceStep = () => (
     <div className="page-shell">
-      {renderStepIntro(<ErrorCircleIcon />, t('setup.dataChoiceTitle'), t('setup.dataChoiceSubtitle'))}
       <Alert theme="warning" title={t('setup.existingDataWarning')} message={t('setup.existingDataDescription')} />
 
       <div className="setup-choice-grid">
@@ -296,7 +383,6 @@ export function Setup() {
 
   const renderAdminStep = () => (
     <div className="page-shell">
-      {renderStepIntro(<UserIcon />, t('setup.adminTitle'), t('setup.adminSubtitle'))}
       <Form layout="vertical" colon={false} requiredMark={false} onSubmit={({ e }) => { e?.preventDefault(); createAdmin(); }}>
         <Form.FormItem label={t('setup.username')} tips={t('setup.usernameHint')}>
           <Input
@@ -343,7 +429,6 @@ export function Setup() {
 
   const renderCompleteStep = () => (
     <div className="page-shell">
-      {renderStepIntro(<CheckCircleIcon />, t('setup.completeTitle'), t('setup.completeSubtitle'))}
       <Alert theme="warning" message={t('setup.smtpRecommended')} />
       <Button block theme="primary" onClick={() => navigate('/login')}>
         {t('setup.goToLogin')}
@@ -352,26 +437,55 @@ export function Setup() {
   );
 
   return (
-    <div className="setup-shell">
-      <Card bordered={false} shadow className="setup-card">
-        <div className="setup-brand">
-          <div className="setup-brand__icon"><ThunderIcon /></div>
-          <h1>DNSMgr</h1>
-          <p>{t('setup.subtitle')}</p>
-        </div>
+    <main className="login-page setup-page">
+      <div className="login-shell setup-login-shell">
+        <section className="login-identity setup-identity" aria-label="HiDNS">
+          <div className="login-brand">
+            <span className="login-brand__mark">
+              <img src="/favicon.ico" alt="" />
+            </span>
+            <div>
+              <strong>HiDNS</strong>
+              <span>{t('setup.subtitle')}</span>
+            </div>
+          </div>
 
-        <Steps current={stepIndex[currentStep]} className="setup-steps">
-          <Steps.StepItem title={t('setup.dbTitle')} />
-          <Steps.StepItem title={t('setup.dataChoiceTitle')} />
-          <Steps.StepItem title={t('setup.adminTitle')} />
-          <Steps.StepItem title={t('setup.completeTitle')} />
-        </Steps>
+          <div className="login-identity__copy setup-identity__copy">
+            <h1>HiDNS Manager</h1>
+            <p>{t('setup.dbSubtitle')}</p>
+          </div>
 
-        {currentStep === 'database' && renderDatabaseStep()}
-        {currentStep === 'dataChoice' && renderDataChoiceStep()}
-        {currentStep === 'admin' && renderAdminStep()}
-        {currentStep === 'complete' && renderCompleteStep()}
-      </Card>
-    </div>
+          <div className="setup-progress-list" aria-label={t('setup.subtitle')}>
+            {setupSteps.map((step, index) => {
+              const state = step.key === currentStep ? 'is-active' : stepIndex[currentStep] > index ? 'is-done' : '';
+              return (
+                <div key={step.key} className={`setup-progress-item ${state}`}>
+                  <span className="setup-progress-item__icon">{step.icon}</span>
+                  <span className="setup-progress-item__content">
+                    <strong>{step.title}</strong>
+                    <small>{step.subtitle}</small>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="login-panel setup-panel" aria-labelledby="setup-title">
+          <div className="login-panel__heading setup-panel__heading">
+            <span className="setup-panel__count">{String(stepIndex[currentStep] + 1).padStart(2, '0')} / 04</span>
+            <h2 id="setup-title">{activeStep.title}</h2>
+            <p>{activeStep.subtitle}</p>
+          </div>
+
+          <div className="setup-step-content">
+            {currentStep === 'database' && renderDatabaseStep()}
+            {currentStep === 'dataChoice' && renderDataChoiceStep()}
+            {currentStep === 'admin' && renderAdminStep()}
+            {currentStep === 'complete' && renderCompleteStep()}
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }

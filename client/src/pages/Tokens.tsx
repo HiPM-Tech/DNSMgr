@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Checkbox, DatePicker, Empty, Form, Input, Loading, Pagination, Space, Switch, Tag } from 'tdesign-react';
 import { CalendarIcon, CheckIcon, CopyIcon, DeleteIcon, EditIcon, InternetIcon, KeyIcon } from 'tdesign-icons-react';
@@ -9,7 +9,6 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
 import { Table } from '../components/Table';
 import { useRealtimeData } from '../hooks/useRealtimeData';
-import { useFormSync } from '../hooks/useFormSync';
 
 interface Token {
   id: number;
@@ -30,6 +29,42 @@ interface TokenDomain {
 
 const DOMAIN_PAGE_SIZE = 20;
 
+interface TokenFormState {
+  name: string;
+  allowed_domains: number[];
+  start_time: string;
+  end_time: string;
+  no_expiry: boolean;
+}
+
+const tokenField = (label: ReactNode, control: ReactNode, tips?: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+    {tips && <small className="settings-control-field__tip">{tips}</small>}
+  </div>
+);
+
+function createDefaultTokenForm(): TokenFormState {
+  return {
+    name: '',
+    allowed_domains: [],
+    start_time: '',
+    end_time: '',
+    no_expiry: false,
+  };
+}
+
+function normalizeTokenForm(token?: Token | null): TokenFormState {
+  return {
+    name: token?.name ?? '',
+    allowed_domains: Array.isArray(token?.allowed_domains) ? token!.allowed_domains.map(Number) : [],
+    start_time: token?.start_time ?? '',
+    end_time: token?.end_time ?? '',
+    no_expiry: !token?.end_time,
+  };
+}
+
 export function Tokens() {
   const { t } = useI18n();
   const toast = useToast();
@@ -41,34 +76,8 @@ export function Tokens() {
   const [domainSearch, setDomainSearch] = useState('');
   const [domainPage, setDomainPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; tokenId: number | null }>({ show: false, tokenId: null });
-  
-  // Define form type that includes temporary fields
-  interface TokenFormState extends Partial<Token> {
-    no_expiry?: boolean;
-  }
-  
-  // Use useFormSync for token form state management
-  const { formState: formData, updateField } = useFormSync<TokenFormState>(
-    editingToken || undefined,
-    {
-      name: '',
-      allowed_domains: [] as number[],
-      start_time: '',
-      end_time: '',
-      no_expiry: false,
-    },
-    {
-      fields: ['name', 'allowed_domains', 'start_time', 'end_time', 'no_expiry'],
-      transformers: {
-        allowed_domains: (v: any) => v || [],
-        no_expiry: (v: any) => {
-          // 如果没有 end_time，则 no_expiry 为 true
-          if (editingToken) return !editingToken.end_time;
-          return v || false;
-        },
-      },
-    }
-  );
+  const [formData, setFormData] = useState<TokenFormState>(() => createDefaultTokenForm());
+  const [formDirty, setFormDirty] = useState(false);
 
   useRealtimeData({
     queryKey: ['tokens'],
@@ -155,17 +164,47 @@ export function Tokens() {
     domain.account_name.toLowerCase().includes(domainSearch.toLowerCase())
   ));
   const paginatedDomains = filteredDomains.slice((domainPage - 1) * DOMAIN_PAGE_SIZE, domainPage * DOMAIN_PAGE_SIZE);
+  const currentEditingToken = editingToken ? tokens.find((token) => token.id === editingToken.id) ?? editingToken : null;
+  const editingAllowedDomainsSnapshot = (currentEditingToken?.allowed_domains ?? []).join('|');
+
+  useEffect(() => {
+    if (currentEditingToken) {
+      if (!formDirty) {
+        setFormData(normalizeTokenForm(currentEditingToken));
+      }
+      return;
+    }
+
+    if (showCreateModal) {
+      if (!formDirty) {
+        setFormData(createDefaultTokenForm());
+      }
+      return;
+    }
+
+    setFormData(createDefaultTokenForm());
+    setFormDirty(false);
+  }, [
+    currentEditingToken?.id,
+    currentEditingToken?.name,
+    currentEditingToken?.start_time,
+    currentEditingToken?.end_time,
+    editingAllowedDomainsSnapshot,
+    showCreateModal,
+    formDirty,
+  ]);
+
+  const updateField = <K extends keyof TokenFormState>(field: K, value: TokenFormState[K]) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+    setFormDirty(true);
+  };
 
   const resetForm = () => {
     setNewToken(null);
     setDomainSearch('');
     setDomainPage(1);
-    // Reset to default values
-    updateField('name', '');
-    updateField('allowed_domains', []);
-    updateField('start_time', '');
-    updateField('end_time', '');
-    updateField('no_expiry', false);
+    setFormData(createDefaultTokenForm());
+    setFormDirty(false);
   };
 
   const closeModal = () => {
@@ -184,18 +223,20 @@ export function Tokens() {
   };
 
   const handleEdit = (token: Token) => {
+    setFormData(normalizeTokenForm(token));
+    setFormDirty(false);
     setEditingToken(token);
   };
 
   const buildPayload = () => ({
-    name: formData.name || '',
+    name: formData.name.trim(),
     allowed_domains: formData.allowed_domains || [],
     start_time: formData.start_time || undefined,
     end_time: formData.no_expiry ? undefined : (formData.end_time || undefined),
   });
 
   const handleCreate = () => {
-    if (!formData.name) {
+    if (!formData.name.trim()) {
       toast.error(t('tokens.tokenNameRequired'));
       return;
     }
@@ -204,7 +245,7 @@ export function Tokens() {
 
   const handleUpdate = () => {
     if (!editingToken) return;
-    if (!formData.name) {
+    if (!formData.name.trim()) {
       toast.error(t('tokens.tokenNameRequired'));
       return;
     }
@@ -303,6 +344,9 @@ export function Tokens() {
       <div className="token-domain-toolbar">
         <Input
           clearable
+          type="search"
+          name="token-domain-search"
+          autocomplete="off"
           value={domainSearch}
           prefixIcon={<InternetIcon />}
           placeholder={t('tokens.searchDomains')}
@@ -374,20 +418,20 @@ export function Tokens() {
 
   const renderTokenForm = (mode: 'create' | 'edit') => (
     <Form layout="vertical" colon={false} requiredMark={false} className="page-shell token-form" onSubmit={({ e }: any) => { e?.preventDefault(); mode === 'create' ? handleCreate() : handleUpdate(); }}>
-      <Form.FormItem label={t('tokens.tokenName')}>
+      {tokenField(t('tokens.tokenName'),
         <Input
+          name={mode === 'create' ? 'token-create-name' : `token-edit-name-${editingToken?.id ?? 'draft'}`}
+          autocomplete="off"
           value={String(formData.name)}
           onChange={(value: any) => updateField('name', String(value))}
           placeholder={t('tokens.tokenNamePlaceholder')}
         />
-      </Form.FormItem>
+      )}
 
-      <Form.FormItem label={<Space size="small"><InternetIcon />{t('tokens.allowedDomains')}</Space>}>
-        {renderDomainSelector()}
-      </Form.FormItem>
+      {tokenField(<Space size="small"><InternetIcon />{t('tokens.allowedDomains')}</Space>, renderDomainSelector())}
 
       <div className="token-time-grid">
-        <Form.FormItem label={<Space size="small"><CalendarIcon />{t('tokens.startTime')}</Space>} tips={t('tokens.startTimeHint')}>
+        {tokenField(<Space size="small"><CalendarIcon />{t('tokens.startTime')}</Space>,
           <DatePicker
             clearable
             enableTimePicker
@@ -395,9 +439,10 @@ export function Tokens() {
             valueType="YYYY-MM-DD HH:mm:ss"
             value={String(formData.start_time)}
             onChange={(value: any) => updateField('start_time', String(value ?? ''))}
-          />
-        </Form.FormItem>
-        <Form.FormItem label={<Space size="small"><CalendarIcon />{t('tokens.endTime')}</Space>} tips={t('tokens.endTimeHint')}>
+          />,
+          t('tokens.startTimeHint')
+        )}
+        {tokenField(<Space size="small"><CalendarIcon />{t('tokens.endTime')}</Space>,
           <DatePicker
             clearable
             enableTimePicker
@@ -409,9 +454,11 @@ export function Tokens() {
               updateField('end_time', String(value ?? ''));
               updateField('no_expiry', false);
             }}
-          />
-        </Form.FormItem>
-        <Form.FormItem className="token-no-expiry-item" label=" ">
+          />,
+          t('tokens.endTimeHint')
+        )}
+        <div className="settings-control-field token-no-expiry-item">
+          <span aria-hidden="true">&nbsp;</span>
           <Checkbox
             checked={formData.no_expiry}
             onChange={(checked: any) => {
@@ -421,7 +468,7 @@ export function Tokens() {
           >
             {t('tokens.noExpiry')}
           </Checkbox>
-        </Form.FormItem>
+        </div>
       </div>
 
       <Alert theme="info" message={`${t('common.remark')}: ${t('tokens.tokenTip')}`} />
@@ -430,7 +477,7 @@ export function Tokens() {
         <Button variant="outline" onClick={mode === 'create' ? closeModal : closeEditModal}>
           {t('common.cancel')}
         </Button>
-        <Button type="submit" theme="primary" loading={mode === 'create' ? createMutation.isPending : updateMutation.isPending} disabled={!formData.name}>
+        <Button type="submit" theme="primary" loading={mode === 'create' ? createMutation.isPending : updateMutation.isPending} disabled={!formData.name.trim()}>
           {mode === 'create' ? t('tokens.createToken') : t('common.save')}
         </Button>
       </Space>
