@@ -75,6 +75,9 @@ function convertToRdapFormat(domain: string, whoisResult: any): any {
     ...(unicodeDomain !== domain.toLowerCase() && { unicodeName: unicodeDomain }),
     handle: domain.toUpperCase(),
     
+    // 域名状态
+    status: whoisResult.status ? [whoisResult.status] : [],
+    
     // 事件信息
     events: [],
     
