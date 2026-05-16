@@ -22,6 +22,39 @@ function formatDateForMySQL(date: Date): string {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
+/**
+ * 从原始数据中提取 WHOIS 状态
+ * 根据数据格式（RDAP JSON 或 WHOIS 文本）使用不同的解析策略
+ */
+function extractStatusFromRaw(raw: string): string | null {
+  if (!raw) return null;
+  
+  // 策略 1: 尝试解析为 RDAP JSON
+  try {
+    const jsonData = JSON.parse(raw);
+    if (jsonData.status && Array.isArray(jsonData.status) && jsonData.status.length > 0) {
+      return jsonData.status[0];
+    }
+  } catch (e) {
+    // 不是 JSON，继续尝试 WHOIS 文本
+  }
+  
+  // 策略 2: 从 WHOIS 文本中提取
+  // 匹配 "Domain Status: ok https://icann.org/epp#OK"
+  const domainStatusMatch = raw.match(/^Domain Status:\s*([\w]+)\s/im);
+  if (domainStatusMatch && domainStatusMatch[1]) {
+    return domainStatusMatch[1];
+  }
+  
+  // 策略 3: 匹配其他 WHOIS 状态格式
+  const statusMatch = raw.match(/^status:\s*([\w]+)\s/im);
+  if (statusMatch && statusMatch[1]) {
+    return statusMatch[1];
+  }
+  
+  return null;
+}
+
 // WHOIS 数据库缓存配置
 const CACHE_TTL = 1 * 60 * 60 * 1000; // 1 小时
 const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL / 1000);
@@ -103,23 +136,11 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       let whoisStatus = cached.status || null;
       if (!whoisStatus && cached.raw) {
         log.debug('WhoisJob', `Attempting to parse status from raw data for ${domainName}, raw length: ${cached.raw.length}`);
-        
-        // 尝试解析为 JSON (RDAP 格式)
-        try {
-          const jsonData = JSON.parse(cached.raw);
-          if (jsonData.status && Array.isArray(jsonData.status) && jsonData.status.length > 0) {
-            whoisStatus = jsonData.status[0];
-            log.info('WhoisJob', `Parsed RDAP status from cached JSON for ${domainName}: ${whoisStatus}`);
-          }
-        } catch (e) {
-          // 不是 JSON，尝试作为 WHOIS 文本解析
-          const statusMatch = cached.raw.match(/Domain Status:\s*([\w]+)\s*/i);
-          if (statusMatch && statusMatch[1]) {
-            whoisStatus = statusMatch[1].trim();
-            log.info('WhoisJob', `Parsed WHOIS status from cached text for ${domainName}: ${whoisStatus}`);
-          } else {
-            log.warn('WhoisJob', `Failed to parse WHOIS status from raw data for ${domainName}`);
-          }
+        whoisStatus = extractStatusFromRaw(cached.raw);
+        if (whoisStatus) {
+          log.info('WhoisJob', `Parsed status from cached raw data for ${domainName}: ${whoisStatus}`);
+        } else {
+          log.warn('WhoisJob', `Failed to parse status from raw data for ${domainName}`);
         }
       } else if (!whoisStatus) {
         log.warn('WhoisJob', `No status in cache and no raw data for ${domainName}`);
@@ -143,22 +164,11 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
     // 提取 WHOIS 状态信息
     let whoisStatus: string | null = null;
     if (whoisResult?.raw) {
-      // 尝试解析为 JSON (RDAP 格式)
-      try {
-        const jsonData = JSON.parse(whoisResult.raw);
-        if (jsonData.status && Array.isArray(jsonData.status) && jsonData.status.length > 0) {
-          whoisStatus = jsonData.status[0];
-          log.info('WhoisJob', `Extracted RDAP status for ${domainName}: ${whoisStatus}`);
-        }
-      } catch (e) {
-        // 不是 JSON，尝试作为 WHOIS 文本解析
-        const statusMatch = whoisResult.raw.match(/Domain Status:\s*([\w]+)\s*/i);
-        if (statusMatch && statusMatch[1]) {
-          whoisStatus = statusMatch[1].trim();
-          log.info('WhoisJob', `Extracted WHOIS status for ${domainName}: ${whoisStatus}`);
-        } else {
-          log.debug('WhoisJob', `No WHOIS status found in raw data for ${domainName}`);
-        }
+      whoisStatus = extractStatusFromRaw(whoisResult.raw);
+      if (whoisStatus) {
+        log.info('WhoisJob', `Extracted status for ${domainName}: ${whoisStatus}`);
+      } else {
+        log.debug('WhoisJob', `No status found in raw data for ${domainName}`);
       }
     }
 
