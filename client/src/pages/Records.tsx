@@ -214,6 +214,7 @@ export function Records() {
             onChange={(checked) => statusMutation.mutate({ recordId: r.id, status: checked ? 1 : 0 })}
           />
           <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => {
+            console.log('[Records] Edit clicked - record:', r);
             setEditingKey(prev => prev + 1); // ✅ 递增 key，强制重新挂载
             setEditing(r);
           }} />
