@@ -40,21 +40,27 @@ function formatDateForMySQL(date: Date): string {
  */
 async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
   try {
-    const allDomains = await WhoisOperations.getAllDomains() as unknown as Domain[];
-    const domain = allDomains.find(d => areDomainsEqual(d.name as string, domainName));
+    // 直接查询指定域名的记录，而不是遍历所有域名
+    const { DomainOperations } = await import('../../db/business-adapter');
+    const domain = await DomainOperations.getByName(domainName) as Domain | undefined;
     
     if (!domain || !domain.account_id) {
+      log.debug('WhoisChecker', `Domain ${domainName} not found or has no account_id`);
       return null;
     }
 
     const account = await DnsAccountOperations.getById(domain.account_id) as DnsAccount | undefined;
     if (!account) {
+      log.debug('WhoisChecker', `Account ${domain.account_id} not found for domain ${domainName}`);
       return null;
     }
+
+    log.info('WhoisChecker', `Querying provider ${account.type} for domain ${domainName}`);
 
     // 排除不准确的提供商
     const excludedProviders = ['caihongdns', 'hidns'];
     if (excludedProviders.includes(account.type)) {
+      log.debug('WhoisChecker', `Provider ${account.type} is excluded for domain ${domainName}`);
       return null;
     }
 
@@ -62,19 +68,23 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
     if (account.type === 'dnshe') {
       const scheduler = dnsProviderAdapter.getAdapter('dnshe');
       if (!scheduler) {
+        log.warn('WhoisChecker', 'DNSHE adapter not registered');
         return null;
       }
 
       const config = JSON.parse(account.config);
+      log.info('WhoisChecker', `Calling DNSHE WHOIS for ${domainName}`);
       const whoisResult = await scheduler.queryWhois(config, domainName);
       
       if (whoisResult?.success && whoisResult.expiration_date) {
         const expiryDate = new Date(whoisResult.expiration_date);
         if (!isNaN(expiryDate.getTime())) {
+          log.info('WhoisChecker', `DNSHE returned expiry for ${domainName}: ${expiryDate.toISOString()}`);
           return expiryDate;
         }
       }
       
+      log.debug('WhoisChecker', `DNSHE query failed or no expiration_date for ${domainName}`);
       return null;
     }
 
@@ -87,13 +97,17 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
     if (domainInfo?.ExpiresAt) {
       const expiryDate = new Date(domainInfo.ExpiresAt);
       if (!isNaN(expiryDate.getTime())) {
+        log.info('WhoisChecker', `Provider ${account.type} returned expiry for ${domainName}: ${expiryDate.toISOString()}`);
         return expiryDate;
       }
     }
 
+    log.debug('WhoisChecker', `Provider ${account.type} returned no expiry for ${domainName}`);
     return null;
   } catch (error) {
-    log.debug('WhoisChecker', `Failed to get expiry from provider for ${domainName}`);
+    log.error('WhoisChecker', `Failed to get expiry from provider for ${domainName}:`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }

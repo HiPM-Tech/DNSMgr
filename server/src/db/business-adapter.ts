@@ -3026,7 +3026,7 @@ export const WhoisOperations = {
   /** 获取所有域名 */
   async getAllDomains(): Promise<QueryResult[]> {
     return queryInternal(
-      'SELECT id, name FROM domains',
+      'SELECT id, name, account_id FROM domains',
       [],
       { operation: 'Whois.getAllDomains', table: 'domains' }
     );
