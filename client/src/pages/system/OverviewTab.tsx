@@ -1,13 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Space, Tag } from 'tdesign-react';
-import { CheckCircleIcon, RefreshIcon, ServerIcon, SettingIcon } from 'tdesign-icons-react';
+import { Card, Space } from 'tdesign-react';
+import { CheckCircleIcon, ServerIcon, SettingIcon } from 'tdesign-icons-react';
 import { systemApi } from '../../api';
 import { useI18n } from '../../contexts/I18nContext';
-import { useToast } from '../../hooks/useToast';
 
 export function OverviewTab() {
   const { t } = useI18n();
-  const toast = useToast();
 
   const { data: systemInfo, isLoading } = useQuery({
     queryKey: ['system-info'],
@@ -48,23 +46,6 @@ export function OverviewTab() {
             <strong>{isLoading ? t('common.loading') : systemInfo?.serverVersion}</strong>
           </div>
         </div>
-      </Card>
-
-      <Card
-        bordered={false}
-        shadow={false}
-        title={<Space align="center"><RefreshIcon />{t('system.quickActions')}</Space>}
-        subtitle={t('system.quickActionsDesc')}
-      >
-        <Space>
-          <Button variant="outline" onClick={() => toast.success(t('system.cacheCleared'))}>
-            {t('system.clearCache')}
-          </Button>
-          <Button theme="primary" onClick={() => toast.success(t('system.backupStarted'))}>
-            {t('system.backupDatabase')}
-          </Button>
-          <Tag theme="primary" variant="light">DNSMgr</Tag>
-        </Space>
       </Card>
     </div>
   );
