@@ -470,7 +470,8 @@ async function addSQLiteColumn(
   }
 
   try {
-    const sql = `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`;
+    // SQLite 3.35.0+ 支持 IF NOT EXISTS
+    const sql = `ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ${columnName} ${columnDef}`;
     if (conn.execute) {
       await conn.execute(sql);
     } else if (conn.exec) {
@@ -480,7 +481,8 @@ async function addSQLiteColumn(
   } catch (error) {
     const errorMsg = (error as Error).message || '';
     if (errorMsg.includes('duplicate column') || errorMsg.includes('already exists')) {
-      log.debug('Schema', `Column ${columnName} already exists in ${tableName}`);
+      // 并发情况下可能出现，这是正常的
+      log.debug('Schema', `Column ${columnName} already exists in ${tableName} (concurrent migration)`);
     } else {
       throw error;
     }
@@ -554,51 +556,16 @@ async function dropOldNsMonitorTablesSQLite(
 
   for (const tableName of oldTables) {
     try {
-      // 检查表是否存在
-      let tableExists = false;
+      // 直接使用 DROP TABLE IF EXISTS，无需先检查
       if (conn.execute) {
-        try {
-          await conn.execute(`SELECT 1 FROM ${tableName} LIMIT 1`);
-          tableExists = true;
-        } catch {
-          tableExists = false;
-        }
+        await conn.execute(`DROP TABLE IF EXISTS ${tableName}`);
       } else if (conn.exec) {
-        try {
-          conn.exec(`SELECT 1 FROM ${tableName} LIMIT 1`);
-          tableExists = true;
-        } catch {
-          tableExists = false;
-        }
+        conn.exec(`DROP TABLE IF EXISTS ${tableName}`);
       }
-
-      if (tableExists) {
-        // 清空表数据
-        try {
-          if (conn.execute) {
-            await conn.execute(`DELETE FROM ${tableName}`);
-          } else if (conn.exec) {
-            conn.exec(`DELETE FROM ${tableName}`);
-          }
-          log.info('Schema', `Cleared old NS monitor table: ${tableName}`);
-        } catch (clearError) {
-          log.warn('Schema', `Failed to clear table ${tableName}`, { error: (clearError as Error).message });
-        }
-
-        // 删除表
-        try {
-          if (conn.execute) {
-            await conn.execute(`DROP TABLE IF EXISTS ${tableName}`);
-          } else if (conn.exec) {
-            conn.exec(`DROP TABLE IF EXISTS ${tableName}`);
-          }
-          log.info('Schema', `Dropped old NS monitor table: ${tableName}`);
-        } catch (dropError) {
-          log.warn('Schema', `Failed to drop table ${tableName}`, { error: (dropError as Error).message });
-        }
-      }
+      log.info('Schema', `Dropped old NS monitor table (if exists): ${tableName}`);
     } catch (error) {
-      log.warn('Schema', `Error processing old NS monitor table ${tableName}`, { error: (error as Error).message });
+      // DROP TABLE IF EXISTS 不应该失败，但如果失败了只记录警告
+      log.warn('Schema', `Failed to drop table ${tableName}`, { error: (error as Error).message });
     }
   }
 }
