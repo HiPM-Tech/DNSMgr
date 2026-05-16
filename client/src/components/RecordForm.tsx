@@ -148,15 +148,18 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   }, [hasProxyMode, hasMultiLine, lines]);
 
   // ✅ 使用 useState 惰性初始化（参考旧版本实现）
-  const [form, setForm] = useState<Partial<DnsRecord>>({
-    name: initial?.name ?? '@',
-    type: initial?.type ?? 'A',
-    value: initial?.value ?? '',
-    ttl: initial?.ttl ?? 600,
-    mx: initial?.mx ?? 10,
-    weight: initial?.weight ?? 10,
-    line: initial?.line ?? defaultLine,
-    remark: initial?.remark ?? '',
+  const [form, setForm] = useState<Partial<DnsRecord>>(() => {
+    console.log('[RecordForm] useState init - initial:', initial);
+    return {
+      name: initial?.name ?? '@',
+      type: initial?.type ?? 'A',
+      value: initial?.value ?? '',
+      ttl: initial?.ttl ?? 600,
+      mx: initial?.mx ?? 10,
+      weight: initial?.weight ?? 10,
+      line: initial?.line ?? defaultLine,
+      remark: initial?.remark ?? '',
+    };
   });
 
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
@@ -304,7 +307,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             clearable
             name={initial ? `record-host-${initial.id}` : 'record-host-create'}
             autocomplete="off"
-            defaultValue={String(form.name ?? '')}
+            value={String(form.name ?? '')}
             onChange={(value: any) => set('name', String(value))}
             placeholder={t('records.hostPlaceholder')}
             disabled={isVPS8 && !!initial}
@@ -313,7 +316,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         </Form.FormItem>
         <Form.FormItem label={t('common.type')}>
           <Select
-            defaultValue={String(form.type ?? 'A')}
+            value={String(form.type ?? 'A')}
             options={recordTypeOptions}
             onChange={(value: any) => {
               const nextType = toSelectString(value);
@@ -331,7 +334,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.priority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
               <Input
                 type="number"
-                defaultValue={String(form.mx ?? 10)}
+                value={String(form.mx ?? 10)}
                 onChange={(value: any) => set('mx', Number(value))}
                 status={errors.mx ? 'error' : undefined}
               />
@@ -339,7 +342,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.weight')} status={errors.weight ? 'error' : undefined} tips={errors.weight}>
               <Input
                 type="number"
-                defaultValue={String(form.weight ?? 10)}
+                value={String(form.weight ?? 10)}
                 onChange={(value: any) => set('weight', Number(value))}
                 status={errors.weight ? 'error' : undefined}
               />
@@ -349,7 +352,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.port')} status={errors.srvPort ? 'error' : undefined} tips={errors.srvPort}>
               <Input
                 type="number"
-                defaultValue={srv.port}
+                value={srv.port}
                 onChange={(value: any) => {
                   setSrv((current) => ({ ...current, port: String(value) }));
                   setErrors((current) => ({ ...current, srvPort: undefined, value: undefined }));
@@ -361,7 +364,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.target')} status={errors.srvTarget ? 'error' : undefined} tips={errors.srvTarget}>
               <Input
                 clearable
-                defaultValue={srv.target}
+                value={srv.target}
                 onChange={(value: any) => {
                   setSrv((current) => ({ ...current, target: String(value) }));
                   setErrors((current) => ({ ...current, srvTarget: undefined, value: undefined }));
@@ -383,7 +386,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             clearable
             name={initial ? `record-value-${initial.id}` : 'record-value-create'}
             autocomplete="off"
-            defaultValue={String(form.value ?? '')}
+            value={String(form.value ?? '')}
             onChange={(value: any) => set('value', value)}
             placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}
             status={errors.value ? 'error' : undefined}
@@ -395,7 +398,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         <Form.FormItem label={t('common.ttl')} status={errors.ttl ? 'error' : undefined} tips={errors.ttl}>
           <Input
             type="number"
-            defaultValue={String(form.ttl ?? 600)}
+            value={String(form.ttl ?? 600)}
             onChange={(value: any) => set('ttl', Number(value))}
             status={errors.ttl ? 'error' : undefined}
           />
@@ -404,7 +407,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Form.FormItem label={t('records.mxPriority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
             <Input
               type="number"
-              defaultValue={String(form.mx ?? 10)}
+              value={String(form.mx ?? 10)}
               onChange={(value: any) => set('mx', Number(value))}
               status={errors.mx ? 'error' : undefined}
             />
@@ -416,7 +419,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             tips={!hasProxyMode && !hasMultiLine ? t('records.singleLineHint') || '该提供商仅支持默认线路' : undefined}
           >
             <Select
-              defaultValue={String(form.line ?? '0')}
+              value={String(form.line ?? '0')}
               options={lineOptions}
               onChange={(value: any) => set('line', toSelectString(value))}
             />
@@ -427,7 +430,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       <Form.FormItem label={t('common.remark')}>
         <Input
           clearable
-          defaultValue={String(form.remark ?? '')}
+          value={String(form.remark ?? '')}
           onChange={(value: any) => set('remark', value)}
           placeholder={t('common.optionalRemark')}
         />
