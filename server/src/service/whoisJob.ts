@@ -23,7 +23,7 @@ function formatDateForMySQL(date: Date): string {
 }
 
 // WHOIS 数据库缓存配置
-const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 小时
+const CACHE_TTL = 1 * 60 * 60 * 1000; // 1 小时
 const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL / 1000);
 
 /**
