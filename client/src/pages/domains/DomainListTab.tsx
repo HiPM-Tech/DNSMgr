@@ -262,57 +262,19 @@ export function DomainListTab() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // 为顶域查询WHOIS状态（优先使用数据库中的whois_status字段）
+  // 使用数据库中的WHOIS状态（由后端定时任务同步）
   const apexDomains = domains.filter((d) => isApexDomain(d.name));
-  const { data: whoisData, isLoading: whoisLoading } = useQuery<Record<string, WhoisInfo>>({
-    queryKey: ['whois-status', apexDomains.map((d) => d.name)],
-    queryFn: async () => {
-      if (apexDomains.length === 0) return {};
-      
-      const results: Record<string, WhoisInfo> = {};
-      
-      console.log('[WHOIS] Checking domains:', apexDomains.map(d => ({ name: d.name, whois_status: d.whois_status })));
-      
-      // 首先尝试从数据库中获取已存储的WHOIS状态
-      for (const domain of apexDomains) {
-        if (domain.whois_status) {
-          // 如果数据库中有whois_status，直接使用
-          console.log(`[WHOIS] Using cached status for ${domain.name}:`, domain.whois_status);
-          results[domain.name] = {
-            domain: domain.name,
-            status: domain.whois_status,
-          };
-        }
-      }
-      
-      // 对于数据库中没有whois_status的域名，调用API查询
-      const domainsToQuery = apexDomains.filter((d) => !results[d.name]);
-      if (domainsToQuery.length > 0) {
-        console.log('[WHOIS] Querying API for domains:', domainsToQuery.map(d => d.name));
-        await Promise.all(
-          domainsToQuery.map(async (domain) => {
-            try {
-              const res = await domainRenewalApi.getWhois(domain.name);
-              console.log(`[WHOIS] API response for ${domain.name}:`, res.data);
-              if (res.data.code === 0 && res.data.data) {
-                results[domain.name] = res.data.data;
-                console.log(`[WHOIS] Got status for ${domain.name}:`, res.data.data.status);
-              }
-            } catch (error) {
-              // WHOIS查询失败时忽略，不影响其他域名
-              console.warn(`[WHOIS] Query failed for ${domain.name}:`, error);
-            }
-          })
-        );
-      }
-      
-      console.log('[WHOIS] Final results:', results);
-      return results;
-    },
-    staleTime: 10 * 60 * 1000, // 10分钟缓存
-    enabled: apexDomains.length > 0, // 只有在有顶域时才执行查询
-  });
-  const whoisMap = whoisData ?? {};
+  
+  // 构建WHOIS状态映射（直接从数据库读取）
+  const whoisMap: Record<string, WhoisInfo> = {};
+  for (const domain of apexDomains) {
+    if (domain.whois_status) {
+      whoisMap[domain.name] = {
+        domain: domain.name,
+        status: domain.whois_status,
+      };
+    }
+  }
 
   const updateMutation = useMutation({
     mutationFn: ({ id, remark }: { id: number; remark: string }) => domainsApi.update(id, { remark }),
@@ -397,14 +359,9 @@ export function DomainListTab() {
           return <span className="page-muted">-</span>;
         }
         
-        // 如果正在加载，显示加载中
-        if (whoisLoading) {
-          return <span className="page-muted">{t('common.loading')}</span>;
-        }
-        
         const whoisInfo = whoisMap[row.name];
         
-        // 如果没有WHOIS数据，显示未知
+        // 如果没有WHOIS数据，显示未知（等待后端定时任务同步）
         if (!whoisInfo?.status) {
           const unknownText = t('domains.unknown') || '未知';
           return <span className="page-muted">{unknownText}</span>;
