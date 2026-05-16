@@ -168,6 +168,13 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const toast = useToast();
   const { t } = useI18n();
   
+  // 🔍 最终调试：检查 initial 和 formState
+  useEffect(() => {
+    console.log('=== RecordForm Debug ===');
+    console.log('initial:', initial);
+    console.log('initial keys:', initial ? Object.keys(initial) : 'null');
+  }, [initial]);
+  
   // 检测是否为 VPS8 提供商
   const isVPS8 = provider?.type === 'vps8';
   

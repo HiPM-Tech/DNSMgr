@@ -73,10 +73,13 @@ export function useFormSync<T extends Record<string, any>>(
   
   // 使用 useState 惰性初始化，在组件创建时就读取 initial 值（参考旧版本实现）
   const [formState, setFormState] = useState<Partial<T>>(() => {
+    console.log('[useFormSync] Lazy init - initial:', initial);
     if (!initial) {
       return { ...defaultValues };
     }
-    return buildFormState(initial);
+    const result = buildFormState(initial);
+    console.log('[useFormSync] Lazy init result:', result);
+    return result;
   });
   
   const [isDirty, setIsDirty] = useState(false);
