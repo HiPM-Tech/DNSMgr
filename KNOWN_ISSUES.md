@@ -4,6 +4,30 @@
 
 ## 版本 1.5.0
 
+### ✅ 已修复问题
+
+#### 主机名不支持通配符 (*) - 已修复 ✓
+**修复日期**: 2026-05-17
+
+**问题描述**:
+- DNS 解析记录的主机名字段不支持通配符 `*`
+- 无法创建通配符 DNS 记录（如 `*.example.com`）
+
+**修复方案**:
+- 在 `RecordForm.tsx` 的 `isRecordHost` 函数中添加通配符支持
+- 在 `domain.ts` 的 `isValidHostname` 函数中添加通配符支持
+- 通配符只能作为独立值或第一个标签使用（例如：`*` 或 `*.example.com`）
+- 拒绝无效的通配符位置（例如：`sub.*.example.com`）
+
+**相关文件**:
+- `client/src/components/RecordForm.tsx`
+- `server/src/utils/domain.ts`
+- `server/src/utils/domain-edge-cases.test.ts`（新增测试用例）
+
+---
+
+### 🔴 待修复问题
+
 ### 1. 域名解析记录编辑无法正确回显
 
 **严重程度**: 🔴 高
