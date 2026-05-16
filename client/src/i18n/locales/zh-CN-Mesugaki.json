@@ -867,8 +867,6 @@
       "require2FAGlobalDesc": "所有用户需启用 2FA",
       "securityPolicy": "安全策略",
       "securityPolicyDesc": "全局安全开关",
-      "quickActions": "快捷操作",
-      "quickActionsDesc": "常用系统操作",
       "recentFailedAttempts": "最近失败尝试",
       "runningNormally": "运行正常",
       "securityDesc": "系统安全相关配置",

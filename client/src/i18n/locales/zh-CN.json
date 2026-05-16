@@ -867,8 +867,6 @@
       "oidcAutoDiscover": "通过 OIDC 自动获取",
       "oidcDiscoverFailed": "OIDC 配置获取失败",
       "oidcDiscoverSuccess": "OIDC 配置获取成功",
-      "quickActions": "快捷操作",
-      "quickActionsDesc": "常用系统操作",
       "recentFailedAttempts": "最近失败尝试",
       "runningNormally": "运行正常",
       "securityDesc": "系统安全相关配置",

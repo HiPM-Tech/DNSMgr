@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "ru",
   "label": "Русский",
   "messages": {
@@ -469,8 +469,6 @@
       "versionDesc": "Детали текущей версии системы",
       "appVersion": "Версия приложения",
       "serverVersion": "Версия сервера",
-      "quickActions": "Быстрые действия",
-      "quickActionsDesc": "Частые системные операции",
       "clearCache": "Очистить кэш",
       "cacheCleared": "Кэш очищен",
       "backupDatabase": "Резервная копия базы данных",

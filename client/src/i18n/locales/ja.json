@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "ja",
   "label": "日本語",
   "messages": {
@@ -471,8 +471,6 @@
       "oidcAutoDiscover": "OIDC を介して自動的に取得",
       "oidcDiscoverFailed": "OIDC 設定の取得に失敗しました",
       "oidcDiscoverSuccess": "OIDC 設定を取得しました",
-      "quickActions": "クイックアクション",
-      "quickActionsDesc": "一般的なシステム操作",
       "recentFailedAttempts": "最近の失敗した試行",
       "runningNormally": "正常に動作中",
       "securityDesc": "システムのセキュリティ関連の設定",

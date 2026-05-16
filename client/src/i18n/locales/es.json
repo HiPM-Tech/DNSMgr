@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "es",
   "label": "Español",
   "messages": {
@@ -444,8 +444,6 @@
       "oidcAutoDiscover": "Buscar automáticamente a través de OIDC",
       "oidcDiscoverFailed": "Error al buscar configuración OIDC",
       "oidcDiscoverSuccess": "Configuración OIDC obtenida",
-      "quickActions": "Acciones rápidas",
-      "quickActionsDesc": "Operaciones del sistema comunes",
       "recentFailedAttempts": "Intentos fallidos recientes",
       "runningNormally": "Funcionando normalmente",
       "securityDesc": "Configuración relacionada con la seguridad del sistema",

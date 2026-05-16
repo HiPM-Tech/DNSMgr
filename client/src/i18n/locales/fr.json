@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "fr",
   "label": "Français",
   "messages": {
@@ -507,8 +507,6 @@
       "versionDesc": "Détails de la version actuelle du système",
       "appVersion": "Version de l'application",
       "serverVersion": "Version du serveur",
-      "quickActions": "Actions rapides",
-      "quickActionsDesc": "Opérations système courantes",
       "clearCache": "Vider le cache",
       "cacheCleared": "Cache vidé",
       "backupDatabase": "Sauvegarder la base de données",

@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "pt",
   "label": "Português",
   "messages": {
@@ -469,8 +469,6 @@
       "versionDesc": "Detalhes da versão atual do sistema",
       "appVersion": "Versão do App",
       "serverVersion": "Versão do Servidor",
-      "quickActions": "Ações Rápidas",
-      "quickActionsDesc": "Operações comuns do sistema",
       "clearCache": "Limpar Cache",
       "cacheCleared": "Cache limpo",
       "backupDatabase": "Backup do Banco de Dados",

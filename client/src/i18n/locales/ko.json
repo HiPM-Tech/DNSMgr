@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "ko",
   "label": "한국어",
   "messages": {
@@ -530,8 +530,6 @@
       "versionDesc": "현재 시스템 버전 세부정보",
       "appVersion": "앱 버전",
       "serverVersion": "서버 버전",
-      "quickActions": "빠른 작업",
-      "quickActionsDesc": "일반 시스템 작업",
       "clearCache": "캐시 지우기",
       "cacheCleared": "캐시가 지워졌습니다",
       "backupDatabase": "데이터베이스 백업",

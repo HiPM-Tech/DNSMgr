@@ -564,8 +564,6 @@
       "versionDesc": "Current system version details",
       "appVersion": "App Version",
       "serverVersion": "Server Version",
-      "quickActions": "Quick Actions",
-      "quickActionsDesc": "Common system operations",
       "clearCache": "Clear Cache",
       "cacheCleared": "Cache cleared",
       "backupDatabase": "Backup Database",

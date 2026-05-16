@@ -1,4 +1,4 @@
-{
+﻿{
   "code": "ar",
   "label": "العربية",
   "messages": {
@@ -469,8 +469,6 @@
       "versionDesc": "تفاصيل إصدار النظام الحالي",
       "appVersion": "إصدار التطبيق",
       "serverVersion": "إصدار الخادم",
-      "quickActions": "إجراءات سريعة",
-      "quickActionsDesc": "عمليات النظام الشائعة",
       "clearCache": "مسح ذاكرة التخزين المؤقت",
       "cacheCleared": "تم مسح ذاكرة التخزين المؤقت",
       "backupDatabase": "نسخ احتياطي لقاعدة البيانات",
