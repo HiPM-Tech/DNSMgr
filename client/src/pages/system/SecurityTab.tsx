@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Space, Switch, Tag, TimeRangePicker } from 'tdesign-react';
 import {
@@ -11,11 +11,10 @@ import {
   UserUnlockedIcon,
   UsergroupIcon,
 } from 'tdesign-icons-react';
-import { settingsApi, securityApi, type LoginLimitConfig } from '../../api';
+import { settingsApi, securityApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { toBoolean, toNumber, toString } from '../../utils/typeConverters';
 
 const DEFAULT_SMTP_FORM = {
   enabled: false,
@@ -29,53 +28,13 @@ const DEFAULT_SMTP_FORM = {
   testTo: '',
 };
 
-interface AuditRules {
-  enabled: boolean;
-  maxDeletionsPerHour: number;
-  maxFailedLogins: number;
-  offHoursStart: string;
-  offHoursEnd: string;
-}
-
-const DEFAULT_AUDIT_RULES: AuditRules = {
+const DEFAULT_AUDIT_RULES = {
   enabled: true,
   maxDeletionsPerHour: 10,
   maxFailedLogins: 5,
   offHoursStart: '22:00',
   offHoursEnd: '06:00',
 };
-
-const DEFAULT_LOGIN_LIMIT_CONFIG: LoginLimitConfig = {
-  enabled: true,
-  maxAttempts: 10,
-  lockoutDuration: 60,
-};
-
-const smtpField = (label: string, control: ReactNode, tips?: ReactNode) => (
-  <label className="settings-control-field">
-    <span>{label}</span>
-    {control}
-    {tips && <small className="settings-control-field__tip">{tips}</small>}
-  </label>
-);
-
-function normalizeAuditRules(rules?: Partial<AuditRules> | null): AuditRules {
-  return {
-    enabled: rules?.enabled === undefined ? DEFAULT_AUDIT_RULES.enabled : toBoolean(rules.enabled as any),
-    maxDeletionsPerHour: toNumber(rules?.maxDeletionsPerHour, DEFAULT_AUDIT_RULES.maxDeletionsPerHour),
-    maxFailedLogins: toNumber(rules?.maxFailedLogins, DEFAULT_AUDIT_RULES.maxFailedLogins),
-    offHoursStart: toString(rules?.offHoursStart, DEFAULT_AUDIT_RULES.offHoursStart) || DEFAULT_AUDIT_RULES.offHoursStart,
-    offHoursEnd: toString(rules?.offHoursEnd, DEFAULT_AUDIT_RULES.offHoursEnd) || DEFAULT_AUDIT_RULES.offHoursEnd,
-  };
-}
-
-function normalizeLoginLimitConfig(config?: Partial<LoginLimitConfig> | null): LoginLimitConfig {
-  return {
-    enabled: config?.enabled === undefined ? DEFAULT_LOGIN_LIMIT_CONFIG.enabled : toBoolean(config.enabled as any),
-    maxAttempts: toNumber(config?.maxAttempts, DEFAULT_LOGIN_LIMIT_CONFIG.maxAttempts),
-    lockoutDuration: toNumber(config?.lockoutDuration, DEFAULT_LOGIN_LIMIT_CONFIG.lockoutDuration),
-  };
-}
 
 export function SecurityTab() {
   const { t } = useI18n();
@@ -85,16 +44,14 @@ export function SecurityTab() {
 
   const [unlockIdentifier, setUnlockIdentifier] = useState('');
   const [smtpForm, setSmtpForm] = useState(DEFAULT_SMTP_FORM);
-  const [loginLimitForm, setLoginLimitForm] = useState<LoginLimitConfig>(DEFAULT_LOGIN_LIMIT_CONFIG);
-  const [loginLimitDirty, setLoginLimitDirty] = useState(false);
-  const [auditRules, setAuditRules] = useState<AuditRules>(DEFAULT_AUDIT_RULES);
-  const [auditRulesDirty, setAuditRulesDirty] = useState(false);
+  const [auditRules, setAuditRules] = useState(DEFAULT_AUDIT_RULES);
 
-  const { data: smtpConfig, dataUpdatedAt: smtpConfigUpdatedAt } = useQuery({
+  useQuery({
     queryKey: ['smtp-config'],
     queryFn: async () => {
       const res = await settingsApi.getSmtpConfig();
       if (res.data.code === 0 && res.data.data) {
+        setSmtpForm((prev) => ({ ...prev, ...res.data.data }));
         return res.data.data;
       }
       throw new Error(res.data.msg);
@@ -104,7 +61,7 @@ export function SecurityTab() {
     gcTime: 0,
   });
 
-  const { data: loginLimitConfig, dataUpdatedAt: loginLimitUpdatedAt } = useQuery({
+  const { data: loginLimitConfig } = useQuery({
     queryKey: ['login-limit-config'],
     queryFn: async () => {
       const res = await settingsApi.getLoginLimit();
@@ -146,11 +103,12 @@ export function SecurityTab() {
     refetchOnMount: 'always',
   });
 
-  const { data: auditRulesData, dataUpdatedAt: auditRulesUpdatedAt } = useQuery({
+  useQuery({
     queryKey: ['audit-rules'],
     queryFn: async () => {
       const res = await settingsApi.getAuditRules();
       if (res.data.code === 0 && res.data.data) {
+        setAuditRules(res.data.data);
         return res.data.data;
       }
       throw new Error(res.data.msg);
@@ -159,23 +117,6 @@ export function SecurityTab() {
     refetchOnMount: 'always',
     gcTime: 0,
   });
-
-  useEffect(() => {
-    if (!smtpConfig) return;
-    setSmtpForm((prev) => ({ ...prev, ...smtpConfig }));
-  }, [smtpConfig, smtpConfigUpdatedAt]);
-
-  useEffect(() => {
-    if (!loginLimitConfig) return;
-    if (loginLimitDirty) return;
-    setLoginLimitForm(normalizeLoginLimitConfig(loginLimitConfig));
-  }, [loginLimitConfig, loginLimitUpdatedAt, loginLimitDirty]);
-
-  useEffect(() => {
-    if (!auditRulesData) return;
-    if (auditRulesDirty) return;
-    setAuditRules(normalizeAuditRules(auditRulesData));
-  }, [auditRulesData, auditRulesUpdatedAt, auditRulesDirty]);
 
   const updateSecurityPolicyMutation = useMutation({
     mutationFn: (data: Parameters<typeof securityApi.updatePolicy>[0]) => securityApi.updatePolicy(data),
@@ -208,12 +149,9 @@ export function SecurityTab() {
   const updateLoginLimitMutation = useMutation({
     mutationFn: settingsApi.updateLoginLimit,
     onSuccess: (res) => {
-      const nextConfig = normalizeLoginLimitConfig(res.data.data || loginLimitForm);
       if (res.data.code === 0 && res.data.data) {
         queryClient.setQueryData(['login-limit-config'], res.data.data);
       }
-      setLoginLimitForm(nextConfig);
-      setLoginLimitDirty(false);
       queryClient.invalidateQueries({ queryKey: ['login-limit-config'] });
       toast.success(t('system.configUpdated'));
     },
@@ -235,28 +173,19 @@ export function SecurityTab() {
   });
 
   const handleToggleLoginLimit = () => {
-    const nextConfig = normalizeLoginLimitConfig({ ...loginLimitForm, enabled: !loginLimitForm.enabled });
-    setLoginLimitDirty(true);
-    setLoginLimitForm(nextConfig);
-    updateLoginLimitMutation.mutate(nextConfig);
+    updateLoginLimitMutation.mutate({ enabled: !loginLimitConfig?.enabled });
   };
 
   const handleUpdateMaxAttempts = (value: number) => {
     if (value >= 1 && value <= 100) {
-      setLoginLimitDirty(true);
-      setLoginLimitForm((prev) => ({ ...prev, maxAttempts: value }));
+      updateLoginLimitMutation.mutate({ maxAttempts: value });
     }
   };
 
   const handleUpdateLockoutDuration = (value: number) => {
     if (value >= 1 && value <= 1440) {
-      setLoginLimitDirty(true);
-      setLoginLimitForm((prev) => ({ ...prev, lockoutDuration: value }));
+      updateLoginLimitMutation.mutate({ lockoutDuration: value });
     }
-  };
-
-  const saveLoginLimit = () => {
-    updateLoginLimitMutation.mutate(normalizeLoginLimitConfig(loginLimitForm));
   };
 
   const handleUnlockAccount = () => {
@@ -283,9 +212,11 @@ export function SecurityTab() {
       }
       const nextConfig = res.data.data;
       if (nextConfig) {
+        // 1. Immediately sync the returned data to both state and cache
         setSmtpForm((prev) => ({ ...prev, ...nextConfig }));
         queryClient.setQueryData(['smtp-config'], nextConfig);
       }
+      // 2. Invalidate to ensure fresh data on next refetch
       queryClient.invalidateQueries({ queryKey: ['smtp-config'] });
       toast.success(t('system.smtpSaved'));
     },
@@ -305,16 +236,18 @@ export function SecurityTab() {
   });
 
   const updateAuditRulesMutation = useMutation({
-    mutationFn: (rules: AuditRules) => settingsApi.updateAuditRules(rules),
-    onSuccess: (res, submittedRules) => {
+    mutationFn: (rules: any) => settingsApi.updateAuditRules(rules),
+    onSuccess: (res) => {
       if (res.data.code !== 0) {
         toast.error(res.data.msg);
         return;
       }
-      const nextRules = normalizeAuditRules(res.data.data || submittedRules);
-      setAuditRules(nextRules);
-      setAuditRulesDirty(false);
-      queryClient.setQueryData(['audit-rules'], nextRules);
+      // Immediately sync the response data
+      if (res.data.data) {
+        setAuditRules(res.data.data);
+        queryClient.setQueryData(['audit-rules'], res.data.data);
+      }
+      // Invalidate to ensure fresh data on next refetch
       queryClient.invalidateQueries({ queryKey: ['audit-rules'] });
       toast.success(t('system.auditRulesSaved'));
     },
@@ -322,12 +255,13 @@ export function SecurityTab() {
   });
 
   const saveAuditRules = () => {
-    updateAuditRulesMutation.mutate(normalizeAuditRules(auditRules));
-  };
-
-  const updateAuditRule = <K extends keyof AuditRules>(key: K, value: AuditRules[K]) => {
-    setAuditRulesDirty(true);
-    setAuditRules((prev) => ({ ...prev, [key]: value }));
+    updateAuditRulesMutation.mutate({
+      enabled: auditRules.enabled ?? true,
+      maxDeletionsPerHour: auditRules.maxDeletionsPerHour ?? 10,
+      maxFailedLogins: auditRules.maxFailedLogins ?? 5,
+      offHoursStart: auditRules.offHoursStart ?? '22:00',
+      offHoursEnd: auditRules.offHoursEnd ?? '06:00',
+    });
   };
 
   const cardTitle = (icon: React.ReactNode, title: string, subtitle: string) => (
@@ -352,38 +286,32 @@ export function SecurityTab() {
               <span>{t('system.enableLoginLimitDesc')}</span>
             </div>
             <Switch
-              value={loginLimitForm.enabled}
+              value={Boolean(loginLimitConfig?.enabled)}
               loading={updateLoginLimitMutation.isPending}
               onChange={handleToggleLoginLimit}
             />
           </div>
 
-          <div className="notification-form-grid">
-            {smtpField(t('system.maxAttempts'),
+          <Form layout="vertical" colon={false} requiredMark={false} className="notification-form-grid">
+            <Form.FormItem label={t('system.maxAttempts')} help={t('system.maxAttemptsDesc')}>
               <Input
-                name="login-limit-max-attempts"
-                autocomplete="off"
                 type="number"
-                value={String(loginLimitForm.maxAttempts)}
+                value={String(loginLimitConfig?.maxAttempts || 10)}
                 suffix={t('system.attempts')}
-                disabled={updateLoginLimitMutation.isPending || !loginLimitForm.enabled}
+                disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
                 onChange={(value: any) => handleUpdateMaxAttempts(Number(value))}
-                onBlur={() => saveLoginLimit()}
               />
-            , t('system.maxAttemptsDesc'))}
-            {smtpField(t('system.lockoutDuration'),
+            </Form.FormItem>
+            <Form.FormItem label={t('system.lockoutDuration')} help={t('system.lockoutDurationDesc')}>
               <Input
-                name="login-limit-lockout-duration"
-                autocomplete="off"
                 type="number"
-                value={String(loginLimitForm.lockoutDuration)}
+                value={String(loginLimitConfig?.lockoutDuration || 60)}
                 suffix={t('system.minutes')}
-                disabled={updateLoginLimitMutation.isPending || !loginLimitForm.enabled}
+                disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
                 onChange={(value: any) => handleUpdateLockoutDuration(Number(value))}
-                onBlur={() => saveLoginLimit()}
               />
-            , t('system.lockoutDurationDesc'))}
-          </div>
+            </Form.FormItem>
+          </Form>
         </Card>
 
         <Card bordered={false} shadow={false} title={cardTitle(<SecuredIcon />, t('system.auditRules'), t('system.auditRulesDesc'))}>
@@ -396,8 +324,7 @@ export function SecurityTab() {
               value={auditRules.enabled ?? true}
               loading={updateAuditRulesMutation.isPending}
               onChange={(checked: any) => {
-                const nextRules = normalizeAuditRules({ ...auditRules, enabled: Boolean(checked) });
-                setAuditRulesDirty(true);
+                const nextRules = { ...auditRules, enabled: Boolean(checked) };
                 setAuditRules(nextRules);
                 updateAuditRulesMutation.mutate(nextRules);
               }}
@@ -405,41 +332,37 @@ export function SecurityTab() {
           </div>
 
           <Form layout="vertical" colon={false} requiredMark={false} className="notification-form-grid">
-            {smtpField(t('system.maxDeletions'),
+            <Form.FormItem label={t('system.maxDeletions')} help={t('system.maxDeletionsDesc')}>
               <Input
                 type="number"
                 value={String(auditRules.maxDeletionsPerHour ?? 10)}
-                onChange={(value: any) => updateAuditRule('maxDeletionsPerHour', Number(value) || 0)}
+                onChange={(value: any) => setAuditRules((prev) => ({ ...prev, maxDeletionsPerHour: Number(value) || 0 }))}
                 onBlur={() => saveAuditRules()}
-              />,
-              t('system.maxDeletionsDesc')
-            )}
-            {smtpField(t('system.maxFailedLogins'),
+              />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.maxFailedLogins')} help={t('system.maxFailedLoginsDesc')}>
               <Input
                 type="number"
                 value={String(auditRules.maxFailedLogins ?? 5)}
-                onChange={(value: any) => updateAuditRule('maxFailedLogins', Number(value) || 0)}
+                onChange={(value: any) => setAuditRules((prev) => ({ ...prev, maxFailedLogins: Number(value) || 0 }))}
                 onBlur={() => saveAuditRules()}
-              />,
-              t('system.maxFailedLoginsDesc')
-            )}
-            {smtpField(t('system.offHoursAlert'),
+              />
+            </Form.FormItem>
+            <Form.FormItem label={t('system.offHoursAlert')} help={t('system.offHoursAlertDesc')}>
               <TimeRangePicker
                 allowInput
                 format="HH:mm"
                 value={[auditRules.offHoursStart ?? '22:00', auditRules.offHoursEnd ?? '06:00']}
                 onChange={(value: any) => {
-                  setAuditRulesDirty(true);
-                  setAuditRules((prev) => normalizeAuditRules({
+                  setAuditRules((prev) => ({
                     ...prev,
-                    offHoursStart: value?.[0] || DEFAULT_AUDIT_RULES.offHoursStart,
-                    offHoursEnd: value?.[1] || DEFAULT_AUDIT_RULES.offHoursEnd,
+                    offHoursStart: value?.[0] || '22:00',
+                    offHoursEnd: value?.[1] || '06:00',
                   }));
                 }}
                 onBlur={() => saveAuditRules()}
-              />,
-              t('system.offHoursAlertDesc')
-            )}
+              />
+            </Form.FormItem>
           </Form>
         </Card>
 
@@ -458,8 +381,6 @@ export function SecurityTab() {
           <Form layout="vertical" colon={false} requiredMark={false}>
             <Form.FormItem label={t('system.manualUnlock')} help={t('system.manualUnlockDesc')}>
               <Input
-                name="login-limit-unlock-identifier"
-                autocomplete="off"
                 value={unlockIdentifier}
                 placeholder={t('system.unlockPlaceholder')}
                 onChange={(value: any) => setUnlockIdentifier(String(value))}
@@ -480,26 +401,26 @@ export function SecurityTab() {
         </Card>
 
         <Card bordered={false} shadow={false} title={cardTitle(<ServerIcon />, t('system.smtpConfig'), t('system.smtpConfigDesc'))}>
-          <div className="page-shell">
+          <Form layout="vertical" colon={false} requiredMark={false}>
             <div className="notification-form-grid">
-              {smtpField(t('system.smtpHost'),
+              <Form.FormItem label={t('system.smtpHost')}>
                 <Input value={smtpForm.host || ''} onChange={(value: any) => setSmtpForm((prev) => ({ ...prev, host: String(value) }))} placeholder={t('system.smtpHost')} />
-              )}
-              {smtpField(t('system.smtpPort'),
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpPort')}>
                 <Input type="number" value={String(smtpForm.port ?? 587)} onChange={(value: any) => setSmtpForm((prev) => ({ ...prev, port: Number(value) || 0 }))} placeholder={t('system.smtpPort')} />
-              )}
-              {smtpField(t('system.smtpUser'),
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpUser')}>
                 <Input value={smtpForm.username || ''} onChange={(value: any) => setSmtpForm((prev) => ({ ...prev, username: String(value) }))} placeholder={t('system.smtpUser')} />
-              )}
-              {smtpField(t('system.smtpPass'),
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpPass')}>
                 <Input type="password" value={smtpForm.password || ''} onChange={(value: any) => setSmtpForm((prev) => ({ ...prev, password: String(value) }))} placeholder={t('system.smtpPass')} />
-              )}
-              {smtpField(t('system.smtpFromEmail'),
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpFromEmail')}>
                 <Input value={smtpForm.fromEmail || ''} onChange={(value: any) => setSmtpForm((prev) => ({ ...prev, fromEmail: String(value) }))} placeholder={t('system.smtpFromEmail')} />
-              )}
-              {smtpField(t('system.smtpFromName'),
+              </Form.FormItem>
+              <Form.FormItem label={t('system.smtpFromName')}>
                 <Input value={smtpForm.fromName || 'DNSMgr'} onChange={(value: any) => setSmtpForm((prev) => ({ ...prev, fromName: String(value) }))} placeholder={t('system.smtpFromName')} />
-              )}
+              </Form.FormItem>
             </div>
 
             <div className="settings-switch-row">
@@ -523,7 +444,7 @@ export function SecurityTab() {
                 {t('system.smtpTest')}
               </Button>
             </Space>
-          </div>
+          </Form>
         </Card>
 
         <Card bordered={false} shadow={false} title={cardTitle(<MobileIcon />, t('system.securityPolicy'), t('system.securityPolicyDesc'))}>
