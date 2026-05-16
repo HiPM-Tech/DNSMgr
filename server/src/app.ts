@@ -78,7 +78,7 @@ function printBanner(port: number): void {
 }
 import { initRenewalSchedulers } from './service/renewalInit';
 import { wsService } from './service/websocket';
-import { initWhoisSchedulers } from './service/whoisInit';
+import { initWhoisSchedulers } from './service/whois';
 import { initSecurityPolicyTable } from './service/securityPolicy';
 import { initTrustedDevicesTable } from './service/deviceTrust';
 import { log } from './lib/logger';

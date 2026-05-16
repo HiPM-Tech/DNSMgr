@@ -4,9 +4,8 @@ import { sendNotification } from './notification';
 import { connect } from '../db/core/connection';
 import { taskManager } from './taskManager';
 import { log } from '../lib/logger';
-import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatusFromRaw, WhoisResult } from './whois';
+import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatusFromRaw, WhoisResult, whoisRegistry } from './whois';
 import { createAdapter } from '../lib/dns/DnsHelper';
-import { whoisRegistry } from './whoisScheduler';
 import { normalizeDomain, areDomainsEqual } from '../utils/domain';
 
 /**

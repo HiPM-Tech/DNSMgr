@@ -2,7 +2,7 @@
  * DNSHE WHOIS 查询调度器实现
  */
 
-import { WhoisScheduler, WhoisResult } from '../../../../service/whoisScheduler';
+import { WhoisScheduler, WhoisSchedulerResult } from '../../../../service/whois';
 import { getWhois } from './whois';
 import { DnsheAuthConfig } from './auth';
 import { log } from '../internal';
@@ -13,7 +13,7 @@ export class DnsheWhoisScheduler implements WhoisScheduler {
   /**
    * 查询 DNSHE 域名的 WHOIS 信息
    */
-  async queryWhois(config: DnsheAuthConfig, domain: string): Promise<WhoisResult | null> {
+  async queryWhois(config: DnsheAuthConfig, domain: string): Promise<WhoisSchedulerResult | null> {
     try {
       const result = await getWhois(config, domain);
       

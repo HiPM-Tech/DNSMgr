@@ -1,8 +1,14 @@
 /**
- * WHOIS 查询调度器接口
+ * WHOIS 调度器注册表
+ * 
  * 所有支持 WHOIS 查询的 DNS 提供商需要实现此接口并向核心注册
  */
 
+import { dnsheWhoisScheduler } from '../../lib/dns/providers';
+
+/**
+ * WHOIS 调度器接口
+ */
 export interface WhoisScheduler {
   /**
    * 提供商类型标识
@@ -15,13 +21,13 @@ export interface WhoisScheduler {
    * @param domain 要查询的域名
    * @returns WHOIS 信息，如果查询失败则返回 null
    */
-  queryWhois(config: any, domain: string): Promise<WhoisResult | null>;
+  queryWhois(config: any, domain: string): Promise<WhoisSchedulerResult | null>;
 }
 
 /**
- * WHOIS 查询结果
+ * WHOIS 调度器查询结果
  */
-export interface WhoisResult {
+export interface WhoisSchedulerResult {
   success: boolean;
   domain: string;
   registrar?: string;
@@ -106,3 +112,19 @@ class WhoisSchedulerRegistry {
 
 // 导出单例实例
 export const whoisRegistry = new WhoisSchedulerRegistry();
+
+/**
+ * 初始化 WHOIS 调度器
+ * 在应用启动时注册所有支持 WHOIS 的 DNS 提供商调度器
+ */
+export function initWhoisSchedulers(): void {
+  // 注册 DNSHE WHOIS 调度器
+  whoisRegistry.register(dnsheWhoisScheduler);
+  
+  // 未来可以在这里注册其他提供商的调度器
+  // whoisRegistry.register(alicloudWhoisScheduler);
+  // whoisRegistry.register(cloudflareWhoisScheduler);
+  
+  const registeredTypes = whoisRegistry.getRegisteredTypes();
+  console.log(`[WhoisInit] Registered WHOIS schedulers for: ${registeredTypes.join(', ')}`);
+}

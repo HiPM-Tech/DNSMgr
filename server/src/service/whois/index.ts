@@ -851,3 +851,12 @@ export {
 
 // 导出状态解析器
 export { extractStatusFromRaw } from './status-parser';
+
+// 导出调度器模块
+export {
+  whoisRegistry,
+  initWhoisSchedulers,
+  type WhoisScheduler,
+  type WhoisSchedulerResult,
+  WhoisQueryStrategy,
+} from './scheduler';
