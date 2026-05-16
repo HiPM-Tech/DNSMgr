@@ -216,7 +216,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     if (initial) {
       setSrv(parseSrvValue(initial));
     }
-  }, [initial?.id, initial?.mx, initial?.weight, initial?.value]);
+  }, [initial]);
 
   // 更新字段并清除错误
   const set = (k: keyof DnsRecord, v: unknown) => {
