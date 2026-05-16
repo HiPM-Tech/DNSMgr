@@ -109,6 +109,8 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
         }
       }
       
+      log.info('WhoisJob', `Cached WHOIS status for ${domainName}: ${whoisStatus || 'unknown'}`);
+      
       return {
         expiryDate: cached.expiryDate,
         apexExpiryDate: cached.apexExpiryDate || null,
@@ -129,7 +131,9 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       const statusMatch = whoisResult.raw.match(/status:\s*(.+)/i);
       if (statusMatch && statusMatch[1]) {
         whoisStatus = statusMatch[1].trim().split('\n')[0].trim();
-        log.debug('WhoisJob', `Extracted WHOIS status for ${domainName}: ${whoisStatus}`);
+        log.info('WhoisJob', `Extracted WHOIS status for ${domainName}: ${whoisStatus}`);
+      } else {
+        log.debug('WhoisJob', `No WHOIS status found in raw data for ${domainName}`);
       }
     }
 
