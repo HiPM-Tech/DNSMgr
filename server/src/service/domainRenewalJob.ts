@@ -5,6 +5,7 @@
 
 import { DnsAccountOperations, RenewableDomainOperations } from '../db/business-adapter';
 import { renewalRegistry } from './renewalScheduler';
+import { checkWhoisForDomain } from './whois/checker';
 import { taskManager } from './taskManager';
 import { logAuditOperation } from './audit';
 import { log } from '../lib/logger';
@@ -101,20 +102,38 @@ export async function executeDomainRenewal(): Promise<void> {
                 remainingDays: result.remaining_days,
               });
 
-              // 更新 renewable_domains 表中的 expires_at
+              // ✅ 1. 更新 renewable_domains 表中的 expires_at（续期的职责）
               if (result.new_expires_at) {
                 try {
                   await RenewableDomainOperations.updateExpiresAt(Number(domainId), result.new_expires_at);
-                  log.debug('DomainRenewalJob', 'Updated expires_at in database', {
+                  log.debug('DomainRenewalJob', 'Updated expires_at in renewable_domains', {
                     domainId,
                     newExpiresAt: result.new_expires_at,
                   });
                 } catch (updateError) {
-                  log.error('DomainRenewalJob', 'Failed to update expires_at in database', {
+                  log.error('DomainRenewalJob', 'Failed to update expires_at in renewable_domains', {
                     domainId,
                     error: updateError instanceof Error ? updateError.message : String(updateError),
                   });
                 }
+              }
+
+              // ✅ 2. 通过 WHOIS 检查器刷新 domains 表的 whois_status（独立职责）
+              try {
+                const domainName = result.domain_name || domain.name || domain.full_domain;
+                if (domainName) {
+                  // forceRefresh=true 确保获取最新状态
+                  await checkWhoisForDomain(domainName, true);
+                  log.debug('DomainRenewalJob', 'Refreshed WHOIS status via checker', {
+                    domainName,
+                  });
+                }
+              } catch (whoisError) {
+                // WHOIS 刷新失败不影响续期结果，只记录警告
+                log.warn('DomainRenewalJob', 'Failed to refresh WHOIS status (non-critical)', {
+                  domainName: result.domain_name || domain.name,
+                  error: whoisError instanceof Error ? whoisError.message : String(whoisError),
+                });
               }
             } else {
               failedCount++;
