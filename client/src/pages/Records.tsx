@@ -100,6 +100,10 @@ export function Records() {
   
   const records = recordsData?.list ?? [];
   const total = recordsData?.total ?? 0;
+  const currentEditingRecord = useMemo(
+    () => (editing ? records.find((record) => record.id === editing.id) ?? editing : null),
+    [editing, records],
+  );
   
   const { data: lines = [] } = useQuery({
     queryKey: ['lines', domainId],
@@ -263,6 +267,9 @@ export function Records() {
             <div className="records-toolbar">
               <Input
                 clearable
+                type="search"
+                name="records-search"
+                autocomplete="off"
                 value={keyword}
                 prefixIcon={<SearchIcon />}
                 placeholder={t('common.searchRecords')}
@@ -320,8 +327,8 @@ export function Records() {
 
       {editing && (
         <Modal title={t('records.editRecord')} onClose={() => setEditing(null)} size="lg">
-          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} provider={currentProvider} existingRecords={records} initial={editing}
-            onSubmit={(data) => updateMutation.mutate({ recordId: editing.id, data })}
+          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} provider={currentProvider} existingRecords={records} initial={currentEditingRecord ?? editing}
+            onSubmit={(data) => updateMutation.mutate({ recordId: currentEditingRecord?.id ?? editing.id, data })}
             isLoading={updateMutation.isPending} />
         </Modal>
       )}

@@ -340,6 +340,11 @@
       "backgroundImageUrl": "URL фонового изображения",
       "backgroundImagePlaceholder": "Введите URL изображения (поддерживается jpg/png/gif/webp)",
       "backgroundImageHint": "Поддерживает любой URL изображения, оставьте пустым для использования фона по умолчанию",
+      "backgroundVisualEffect": "Визуальный эффект обоев",
+      "backgroundVisualEffectHint": "Выберите отображение фонового изображения в консоли. Изменение применяется сразу.",
+      "backgroundEffectBlur": "Гауссово размытие",
+      "backgroundEffectOverlay": "Белая вуаль",
+      "backgroundEffectNone": "Нет",
       "backgroundImageUpdated": "Фоновое изображение обновлено",
       "backgroundImageUpdateFailed": "Не удалось обновить фоновое изображение",
       "updateBackgroundImage": "Обновить фоновое изображение"

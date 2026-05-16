@@ -378,6 +378,11 @@
       "backgroundImageUrl": "URL de l'image de fond",
       "backgroundImagePlaceholder": "Entrez l'URL de l'image (jpg/png/gif/webp supportés)",
       "backgroundImageHint": "Supporte toute URL d'image, laissez vide pour utiliser l'arrière-plan par défaut",
+      "backgroundVisualEffect": "Effet visuel du fond d'écran",
+      "backgroundVisualEffectHint": "Choisissez le rendu de l'image de fond dans la console. Le changement s'applique immédiatement.",
+      "backgroundEffectBlur": "Flou gaussien",
+      "backgroundEffectOverlay": "Voile blanc",
+      "backgroundEffectNone": "Aucun",
       "backgroundImageUpdated": "Image de fond mise à jour",
       "backgroundImageUpdateFailed": "Échec de la mise à jour de l'image de fond",
       "updateBackgroundImage": "Mettre à jour l'image de fond"

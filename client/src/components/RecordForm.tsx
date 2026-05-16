@@ -31,6 +31,17 @@ interface SrvFields {
   target: string;
 }
 
+interface RecordFormState {
+  name: string;
+  type: string;
+  value: string;
+  ttl: number;
+  mx: number;
+  weight: number;
+  line: string;
+  remark: string;
+}
+
 function isIPv4(value: string): boolean {
   const parts = value.trim().split('.');
   if (parts.length !== 4) return false;
@@ -167,10 +178,10 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   
   // Check if provider supports multi-line routing
   const hasMultiLine = lines.length > 1 && !hasProxyMode;
-  
-  // 使用 useFormSync 统一管理表单状态
-  const { formState: form, updateField } = useFormSync(
-    initial,
+  const defaultLine = hasProxyMode ? '0' : (hasMultiLine ? toString(lines[0]?.id, '0') : '0');
+
+  const { formState: form, updateField } = useFormSync<RecordFormState>(
+    initial as RecordFormState | undefined,
     {
       name: '@',
       type: 'A',
@@ -178,24 +189,24 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       ttl: 600,
       mx: 10,
       weight: 10,
-      line: '0',
+      line: defaultLine,
       remark: '',
     },
     {
       fields: ['name', 'type', 'value', 'ttl', 'mx', 'weight', 'line', 'remark'],
       transformers: {
-        name: (v) => toString(v, '@'),
-        type: (v) => toString(v, 'A'),
-        value: (v) => toString(v),
-        line: (v) => {
-          // 特殊逻辑：根据 hasProxyMode 和 hasMultiLine 决定默认值
-          if (hasProxyMode) return toString(v, '0');
-          return toString(v, hasMultiLine ? (lines[0]?.id ?? '0') : '0');
-        },
+        name: (v: unknown) => toString(v, '@') || '@',
+        type: (v: unknown) => toString(v, 'A') || 'A',
+        value: (v: unknown) => toString(v),
+        ttl: (v: unknown) => Number(v ?? 600),
+        mx: (v: unknown) => Number(v ?? 10),
+        weight: (v: unknown) => Number(v ?? 10),
+        line: (v: unknown) => toString(v, defaultLine),
+        remark: (v: unknown) => toString(v),
       },
-    }
+    },
   );
-  
+
   // SRV 字段需要单独处理（因为涉及解析逻辑）
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
@@ -209,7 +220,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
 
   // 更新字段并清除错误
   const set = (k: keyof DnsRecord, v: unknown) => {
-    updateField(k, v);
+    updateField(k as keyof RecordFormState, v as RecordFormState[keyof RecordFormState]);
     setErrors((current) => ({ ...current, [k as keyof typeof current]: undefined }));
   };
 
@@ -352,6 +363,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         >
           <Input
             clearable
+            name={initial ? `record-host-${initial.id}` : 'record-host-create'}
+            autocomplete="off"
             value={String(form.name ?? '')}
             onChange={(value: any) => updateField('name', String(value))}
             placeholder={t('records.hostPlaceholder')}
@@ -429,6 +442,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         <Form.FormItem label={t('records.valueLabel')} status={errors.value ? 'error' : undefined} tips={errors.value}>
           <Input
             clearable
+            name={initial ? `record-value-${initial.id}` : 'record-value-create'}
+            autocomplete="off"
             value={String(form.value ?? '')}
             onChange={(value: any) => set('value', value)}
             placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}

@@ -340,6 +340,11 @@
       "backgroundImageUrl": "URL da imagem de fundo",
       "backgroundImagePlaceholder": "Digite a URL da imagem (suporta jpg/png/gif/webp)",
       "backgroundImageHint": "Suporta qualquer URL de imagem, deixe vazio para usar o fundo padrão",
+      "backgroundVisualEffect": "Efeito visual do papel de parede",
+      "backgroundVisualEffectHint": "Escolha como a imagem de fundo é renderizada no console. A alteração entra em vigor imediatamente.",
+      "backgroundEffectBlur": "Desfoque gaussiano",
+      "backgroundEffectOverlay": "Camada branca",
+      "backgroundEffectNone": "Nenhum",
       "backgroundImageUpdated": "Imagem de fundo atualizada",
       "backgroundImageUpdateFailed": "Falha ao atualizar a imagem de fundo",
       "updateBackgroundImage": "Atualizar imagem de fundo"

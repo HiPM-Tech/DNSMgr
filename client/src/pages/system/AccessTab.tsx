@@ -1,11 +1,53 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
+import { Button, Card, Input, Select, Space, Switch } from 'tdesign-react';
 import { BrowseIcon, BrowseOffIcon, CopyIcon, LockOnIcon, SecuredIcon, SettingIcon } from 'tdesign-icons-react';
 import { settingsApi } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
-import { toBoolean, toString } from '../../utils/typeConverters';
+
+const DEFAULT_OAUTH_FORM = {
+  enabled: false,
+  template: 'generic' as 'generic' | 'logto',
+  providerName: 'default',
+  subjectKey: 'sub',
+  emailKey: 'email',
+  logtoDomain: '',
+  clientId: '',
+  clientSecret: '',
+  issuer: '',
+  authorizationEndpoint: '',
+  tokenEndpoint: '',
+  userInfoEndpoint: '',
+  jwksUri: '',
+  scopes: 'openid profile email',
+  redirectUri: '',
+};
+
+const DEFAULT_LOGTO_FORM = {
+  enabled: false,
+  template: 'logto' as 'generic' | 'logto',
+  providerName: 'Logto',
+  subjectKey: 'sub',
+  emailKey: 'email',
+  logtoDomain: '',
+  clientId: '',
+  clientSecret: '',
+  issuer: '',
+  authorizationEndpoint: '',
+  tokenEndpoint: '',
+  userInfoEndpoint: '',
+  jwksUri: '',
+  scopes: 'openid profile email',
+  redirectUri: '',
+};
+
+const accessField = (label: string, control: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+  </div>
+);
 
 export function AccessTab() {
   const { t } = useI18n();
@@ -15,103 +57,46 @@ export function AccessTab() {
   const [jwtPassword, setJwtPassword] = useState('');
   const [jwtSecretValue, setJwtSecretValue] = useState('');
 
-  const [oauthForm, setOauthForm] = useState({
-    enabled: false,
-    template: 'generic' as 'generic' | 'logto',
-    providerName: 'default',
-    subjectKey: 'sub',
-    emailKey: 'email',
-    logtoDomain: '',
-    clientId: '',
-    clientSecret: '',
-    issuer: '',
-    authorizationEndpoint: '',
-    tokenEndpoint: '',
-    userInfoEndpoint: '',
-    jwksUri: '',
-    scopes: 'openid profile email',
-    redirectUri: '',
-  });
+  const [oauthForm, setOauthForm] = useState(DEFAULT_OAUTH_FORM);
+  const [logtoForm, setLogtoForm] = useState(DEFAULT_LOGTO_FORM);
 
-  const [logtoForm, setLogtoForm] = useState({
-    enabled: false,
-    template: 'logto' as 'generic' | 'logto',
-    providerName: 'Logto',
-    subjectKey: 'sub',
-    emailKey: 'email',
-    logtoDomain: '',
-    clientId: '',
-    clientSecret: '',
-    issuer: '',
-    authorizationEndpoint: '',
-    tokenEndpoint: '',
-    userInfoEndpoint: '',
-    jwksUri: '',
-    scopes: 'openid profile email',
-    redirectUri: '',
-  });
-
-  const { data: logtoConfig } = useQuery({
+  const { data: logtoConfig, dataUpdatedAt: logtoConfigUpdatedAt } = useQuery({
     queryKey: ['oauth-logto-config'],
     queryFn: async () => {
       const res = await settingsApi.getLogtoOAuthConfig();
-      if (res.data.code === 0) return res.data.data;
+      if (res.data.code === 0 && res.data.data) {
+        return res.data.data;
+      }
       throw new Error(res.data.msg);
     },
+    staleTime: 0,
+    refetchOnMount: 'always',
+    gcTime: 0,
   });
 
-  const { data: oauthConfigData } = useQuery({
+  const { data: oauthConfig, dataUpdatedAt: oauthConfigUpdatedAt } = useQuery({
     queryKey: ['oauth-config'],
     queryFn: async () => {
       const res = await settingsApi.getOAuthConfig();
-      if (res.data.code === 0) return res.data.data;
+      if (res.data.code === 0 && res.data.data) {
+        return res.data.data;
+      }
       throw new Error(res.data.msg);
     },
+    staleTime: 0,
+    refetchOnMount: 'always',
+    gcTime: 0,
   });
 
   useEffect(() => {
-    if (logtoConfig) {
-      setLogtoForm({
-        enabled: toBoolean(logtoConfig.enabled),
-        template: toString(logtoConfig.template, 'logto') as 'generic' | 'logto',
-        providerName: toString(logtoConfig.providerName, 'Logto'),
-        subjectKey: toString(logtoConfig.subjectKey, 'sub'),
-        emailKey: toString(logtoConfig.emailKey, 'email'),
-        logtoDomain: toString(logtoConfig.logtoDomain),
-        clientId: toString(logtoConfig.clientId),
-        clientSecret: toString(logtoConfig.clientSecret),
-        issuer: toString(logtoConfig.issuer),
-        authorizationEndpoint: toString(logtoConfig.authorizationEndpoint),
-        tokenEndpoint: toString(logtoConfig.tokenEndpoint),
-        userInfoEndpoint: toString(logtoConfig.userInfoEndpoint),
-        jwksUri: toString(logtoConfig.jwksUri),
-        scopes: toString(logtoConfig.scopes, 'openid profile email'),
-        redirectUri: toString(logtoConfig.redirectUri),
-      });
-    }
-  }, [logtoConfig]);
+    if (!logtoConfig) return;
+    setLogtoForm((prev) => ({ ...prev, ...logtoConfig }));
+  }, [logtoConfig, logtoConfigUpdatedAt]);
 
   useEffect(() => {
-    if (oauthConfigData) {
-      setOauthForm({
-        enabled: toBoolean(oauthConfigData.enabled),
-        template: toString(oauthConfigData.template, 'generic') as 'generic' | 'logto',
-        providerName: toString(oauthConfigData.providerName, 'default'),
-        subjectKey: toString(oauthConfigData.subjectKey, 'sub'),
-        emailKey: toString(oauthConfigData.emailKey, 'email'),
-        logtoDomain: toString(oauthConfigData.logtoDomain),
-        clientId: toString(oauthConfigData.clientId),
-        clientSecret: toString(oauthConfigData.clientSecret),
-        issuer: toString(oauthConfigData.issuer),
-        authorizationEndpoint: toString(oauthConfigData.authorizationEndpoint),
-        tokenEndpoint: toString(oauthConfigData.tokenEndpoint),
-        userInfoEndpoint: toString(oauthConfigData.userInfoEndpoint),
-        jwksUri: toString(oauthConfigData.jwksUri),
-        scopes: toString(oauthConfigData.scopes, 'openid profile email'),
-        redirectUri: toString(oauthConfigData.redirectUri),
-      });
-    }
-  }, [oauthConfigData]);
+    if (!oauthConfig) return;
+    setOauthForm((prev) => ({ ...prev, ...oauthConfig }));
+  }, [oauthConfig, oauthConfigUpdatedAt]);
 
   const revealJwtSecretMutation = useMutation({
     mutationFn: (password: string) => settingsApi.getJwtSecret(password),
@@ -149,22 +134,12 @@ export function AccessTab() {
         toast.error(res.data.msg);
         return;
       }
+      if (res.data.data) {
+        setOauthForm((prev) => ({ ...prev, ...res.data.data }));
+      }
       toast.success(t('system.oauthSaved'));
     },
     onError: (error: Error) => toast.error(error.message || t('system.oauthSaveFailed')),
-  });
-
-  const discoverOidcMutation = useMutation({
-    mutationFn: () => settingsApi.discoverOidc(oauthForm.issuer.trim()),
-    onSuccess: (res) => {
-      if (res.data.code !== 0 || !res.data.data) {
-        toast.error(res.data.msg || t('system.oidcDiscoverFailed'));
-        return;
-      }
-      setOauthForm((prev) => ({ ...prev, ...res.data.data }));
-      toast.success(t('system.oidcDiscoverSuccess'));
-    },
-    onError: (error: Error) => toast.error(error.message || t('system.oidcDiscoverFailed')),
   });
 
   const updateLogtoOauthMutation = useMutation({
@@ -185,9 +160,26 @@ export function AccessTab() {
         toast.error(res.data.msg);
         return;
       }
+      if (res.data.data) {
+        setLogtoForm((prev) => ({ ...prev, ...res.data.data }));
+      }
       toast.success(t('system.oauthSaved'));
     },
     onError: (error: Error) => toast.error(error.message || t('system.oauthSaveFailed')),
+  });
+
+  const discoverOidcMutation = useMutation({
+    mutationFn: () => settingsApi.discoverOidc(oauthForm.issuer.trim()),
+    onSuccess: (res) => {
+      if (res.data.code !== 0 || !res.data.data) {
+        toast.error(res.data.msg || t('system.oidcDiscoverFailed'));
+        return;
+      }
+      // Sync the discovered config to the form
+      setOauthForm((prev) => ({ ...prev, ...res.data.data }));
+      toast.success(t('system.oidcDiscoverSuccess'));
+    },
+    onError: (error: Error) => toast.error(error.message || t('system.oidcDiscoverFailed')),
   });
 
   const handleVerifyAndRevealJwtSecret = () => {
@@ -231,7 +223,12 @@ export function AccessTab() {
             </Button>
           </Space>
           <Space>
-            <Input type={showJwtSecret ? 'text' : 'password'} readonly value={jwtSecretValue} />
+            <Input
+              type={showJwtSecret ? 'text' : 'password'}
+              readonly
+              value={jwtSecretValue}
+              placeholder={t('system.verifyAndViewJwt')}
+            />
             <Button
               shape="square"
               variant="outline"
@@ -245,9 +242,9 @@ export function AccessTab() {
       </Card>
 
       <Card bordered={false} shadow={false} title={<Space align="center"><SecuredIcon />{t('system.oauthConfig')}</Space>} subtitle={t('system.oauthConfigDesc')}>
-        <Form layout="vertical" colon={false} requiredMark={false} className="page-shell">
+        <div className="page-shell">
           <div className="access-form-grid">
-            <Form.FormItem label={t('system.oauthTemplateGeneric')}>
+            {accessField(t('system.oauthTemplateGeneric'), (
               <Select
                 value={oauthForm.template}
                 options={[
@@ -256,52 +253,102 @@ export function AccessTab() {
                 ]}
                 onChange={(value: any) => setOauthField('template', String(Array.isArray(value) ? value[0] : value) as 'generic' | 'logto')}
               />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthProvider')}>
-              <Input value={String(oauthForm.providerName)} onChange={(value: any) => setOauthField('providerName', String(value))} />
-            </Form.FormItem>
-            {oauthForm.template === 'logto' && (
-              <Form.FormItem label={t('system.oauthLogtoDomain')}>
-                <Input value={String(oauthForm.logtoDomain)} onChange={(value: any) => setOauthField('logtoDomain', String(value))} />
-              </Form.FormItem>
-            )}
-            <Form.FormItem label={t('system.oauthIssuer')}>
-              <Input value={String(oauthForm.issuer)} onChange={(value: any) => setOauthField('issuer', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthSubjectKey')}>
-              <Input value={String(oauthForm.subjectKey)} onChange={(value: any) => setOauthField('subjectKey', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthEmailKey')}>
-              <Input value={String(oauthForm.emailKey)} onChange={(value: any) => setOauthField('emailKey', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthClientId')}>
-              <Input value={String(oauthForm.clientId)} onChange={(value: any) => setOauthField('clientId', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthClientSecret')}>
-              <Input type="password" value={String(oauthForm.clientSecret)} onChange={(value: any) => setOauthField('clientSecret', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthAuthEndpoint')}>
-              <Input value={String(oauthForm.authorizationEndpoint)} onChange={(value: any) => setOauthField('authorizationEndpoint', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthTokenEndpoint')}>
-              <Input value={String(oauthForm.tokenEndpoint)} onChange={(value: any) => setOauthField('tokenEndpoint', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthUserInfoEndpoint')}>
-              <Input value={String(oauthForm.userInfoEndpoint)} onChange={(value: any) => setOauthField('userInfoEndpoint', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthJwksUri')}>
-              <Input value={String(oauthForm.jwksUri)} onChange={(value: any) => setOauthField('jwksUri', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthScopes')}>
-              <Input value={String(oauthForm.scopes)} onChange={(value: any) => setOauthField('scopes', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthRedirectUri')}>
+            ))}
+            {accessField(t('system.oauthProvider'), (
+              <Input
+                value={String(oauthForm.providerName)}
+                onChange={(value: any) => setOauthField('providerName', String(value))}
+                placeholder={t('system.oauthProvider')}
+              />
+            ))}
+            {oauthForm.template === 'logto' && accessField(t('system.oauthLogtoDomain'), (
+                <Input
+                  value={String(oauthForm.logtoDomain)}
+                  onChange={(value: any) => setOauthField('logtoDomain', String(value))}
+                  placeholder={t('system.oauthLogtoDomain')}
+                />
+            ))}
+            {accessField(t('system.oauthIssuer'), (
+              <Input
+                value={String(oauthForm.issuer)}
+                onChange={(value: any) => setOauthField('issuer', String(value))}
+                placeholder={t('system.oauthIssuer')}
+              />
+            ))}
+            {accessField(t('system.oauthSubjectKey'), (
+              <Input
+                value={String(oauthForm.subjectKey)}
+                onChange={(value: any) => setOauthField('subjectKey', String(value))}
+                placeholder={t('system.oauthSubjectKey')}
+              />
+            ))}
+            {accessField(t('system.oauthEmailKey'), (
+              <Input
+                value={String(oauthForm.emailKey)}
+                onChange={(value: any) => setOauthField('emailKey', String(value))}
+                placeholder={t('system.oauthEmailKey')}
+              />
+            ))}
+            {accessField(t('system.oauthClientId'), (
+              <Input
+                value={String(oauthForm.clientId)}
+                onChange={(value: any) => setOauthField('clientId', String(value))}
+                placeholder={t('system.oauthClientId')}
+              />
+            ))}
+            {accessField(t('system.oauthClientSecret'), (
+              <Input
+                type="password"
+                value={String(oauthForm.clientSecret)}
+                onChange={(value: any) => setOauthField('clientSecret', String(value))}
+                placeholder={t('system.oauthClientSecret')}
+              />
+            ))}
+            {accessField(t('system.oauthAuthEndpoint'), (
+              <Input
+                value={String(oauthForm.authorizationEndpoint)}
+                onChange={(value: any) => setOauthField('authorizationEndpoint', String(value))}
+                placeholder={t('system.oauthAuthEndpoint')}
+              />
+            ))}
+            {accessField(t('system.oauthTokenEndpoint'), (
+              <Input
+                value={String(oauthForm.tokenEndpoint)}
+                onChange={(value: any) => setOauthField('tokenEndpoint', String(value))}
+                placeholder={t('system.oauthTokenEndpoint')}
+              />
+            ))}
+            {accessField(t('system.oauthUserInfoEndpoint'), (
+              <Input
+                value={String(oauthForm.userInfoEndpoint)}
+                onChange={(value: any) => setOauthField('userInfoEndpoint', String(value))}
+                placeholder={t('system.oauthUserInfoEndpoint')}
+              />
+            ))}
+            {accessField(t('system.oauthJwksUri'), (
+              <Input
+                value={String(oauthForm.jwksUri)}
+                onChange={(value: any) => setOauthField('jwksUri', String(value))}
+                placeholder={t('system.oauthJwksUri')}
+              />
+            ))}
+            {accessField(t('system.oauthScopes'), (
+              <Input
+                value={String(oauthForm.scopes)}
+                onChange={(value: any) => setOauthField('scopes', String(value))}
+                placeholder={t('system.oauthScopes')}
+              />
+            ))}
+            {accessField(t('system.oauthRedirectUri'), (
               <Input readonly value={redirectUri} />
-            </Form.FormItem>
+            ))}
           </div>
-          <Form.FormItem label={t('system.oauthEnabled')}>
+          <div className="settings-switch-row">
+            <div>
+              <strong>{t('system.oauthEnabled')}</strong>
+            </div>
             <Switch value={oauthForm.enabled} onChange={(checked: any) => setOauthField('enabled', Boolean(checked))} />
-          </Form.FormItem>
+          </div>
           <Space className="record-form__actions">
             <Button variant="outline" loading={discoverOidcMutation.isPending} onClick={() => discoverOidcMutation.mutate()}>
               {t('system.oidcAutoDiscover')}
@@ -310,40 +357,60 @@ export function AccessTab() {
               {t('system.oauthSave')}
             </Button>
           </Space>
-        </Form>
+        </div>
       </Card>
 
       <Card bordered={false} shadow={false} title={<Space align="center"><SettingIcon />{t('system.oauthLogtoConfig')}</Space>} subtitle={t('system.oauthLogtoConfigDesc')}>
-        <Form layout="vertical" colon={false} requiredMark={false} className="page-shell">
+        <div className="page-shell">
           <div className="access-form-grid">
-            <Form.FormItem label={t('system.oauthProvider')}>
+            {accessField(t('system.oauthProvider'), (
               <Input readonly value={`Logto (${t('system.oauthProviderFixed')})`} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthLogtoDomain')}>
-              <Input value={String(logtoForm.logtoDomain)} onChange={(value: any) => setLogtoField('logtoDomain', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthClientId')}>
-              <Input value={String(logtoForm.clientId)} onChange={(value: any) => setLogtoField('clientId', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthClientSecret')}>
-              <Input type="password" value={String(logtoForm.clientSecret)} onChange={(value: any) => setLogtoField('clientSecret', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthScopes')}>
-              <Input value={String(logtoForm.scopes)} onChange={(value: any) => setLogtoField('scopes', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('system.oauthRedirectUri')}>
+            ))}
+            {accessField(t('system.oauthLogtoDomain'), (
+              <Input
+                value={String(logtoForm.logtoDomain)}
+                onChange={(value: any) => setLogtoField('logtoDomain', String(value))}
+                placeholder={t('system.oauthLogtoDomain')}
+              />
+            ))}
+            {accessField(t('system.oauthClientId'), (
+              <Input
+                value={String(logtoForm.clientId)}
+                onChange={(value: any) => setLogtoField('clientId', String(value))}
+                placeholder={t('system.oauthClientId')}
+              />
+            ))}
+            {accessField(t('system.oauthClientSecret'), (
+              <Input
+                type="password"
+                value={String(logtoForm.clientSecret)}
+                onChange={(value: any) => setLogtoField('clientSecret', String(value))}
+                placeholder={t('system.oauthClientSecret')}
+              />
+            ))}
+            {accessField(t('system.oauthScopes'), (
+              <Input
+                value={String(logtoForm.scopes)}
+                onChange={(value: any) => setLogtoField('scopes', String(value))}
+                placeholder={t('system.oauthScopes')}
+              />
+            ))}
+            {accessField(t('system.oauthRedirectUri'), (
               <Input readonly value={redirectUri} />
-            </Form.FormItem>
+            ))}
           </div>
-          <Form.FormItem label={t('system.oauthEnabled')}>
+          <div className="settings-switch-row">
+            <div>
+              <strong>{t('system.oauthEnabled')}</strong>
+            </div>
             <Switch value={logtoForm.enabled} onChange={(checked: any) => setLogtoField('enabled', Boolean(checked))} />
-          </Form.FormItem>
+          </div>
           <Space className="record-form__actions">
             <Button theme="primary" loading={updateLogtoOauthMutation.isPending} onClick={() => updateLogtoOauthMutation.mutate()}>
               {t('system.oauthSave')}
             </Button>
           </Space>
-        </Form>
+        </div>
       </Card>
     </div>
   );

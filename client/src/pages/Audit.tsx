@@ -74,6 +74,9 @@ export function Audit() {
         <div className="audit-filter-grid">
           <Input
             clearable
+            type="search"
+            name="audit-domain-search"
+            autocomplete="off"
             value={domain}
             prefixIcon={<SearchIcon />}
             placeholder={t('audit.domainPlaceholder')}

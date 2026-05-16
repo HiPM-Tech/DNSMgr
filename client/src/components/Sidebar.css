@@ -1,4 +1,5 @@
 .app-sidebar {
+  --app-sidebar-text-color: #000;
   position: fixed;
   inset: 64px auto 0 0;
   z-index: 20;
@@ -6,40 +7,84 @@
   height: calc(var(--app-scaled-vh) - 64px);
   overflow: hidden;
   border-right: 1px solid var(--td-component-stroke);
-  background: var(--td-bg-color-container);
+  background: color-mix(in srgb, var(--td-bg-color-container) 78%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(168%);
+  backdrop-filter: blur(22px) saturate(168%);
   transition: width 220ms cubic-bezier(0.38, 0, 0.24, 1);
 }
 
-.app-layout--with-background .app-sidebar {
-  background: color-mix(in srgb, var(--td-bg-color-container) 86%, transparent);
-  backdrop-filter: saturate(140%) blur(14px);
+html.dark .app-sidebar,
+html.dark .app-sidebar-drawer {
+  --app-sidebar-text-color: #fff;
 }
 
+.app-layout--with-background .app-sidebar {
+  border-right-color: color-mix(in srgb, var(--td-component-stroke) 62%, transparent);
+  background: color-mix(in srgb, var(--td-bg-color-container) 56%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(168%);
+  backdrop-filter: blur(22px) saturate(168%);
+}
+
+.app-sidebar__menu,
+.app-sidebar__menu .t-menu,
 .app-layout--with-background .app-sidebar__menu,
 .app-layout--with-background .app-sidebar__menu .t-menu {
   background: transparent;
 }
 
-.app-sidebar__menu .t-menu__item .t-icon {
-  color: #000;
-  transition: color 160ms ease;
+.app-sidebar__menu,
+.app-sidebar__menu .t-menu,
+.app-sidebar__menu :where(
+  .t-menu__item,
+  .t-menu__content,
+  .t-menu__group-title,
+  .t-menu__item-text,
+  .t-menu__item span,
+  .t-submenu,
+  .t-submenu__title,
+  .t-submenu__content,
+  .t-fake-arrow,
+  .t-icon
+) {
+  color: var(--app-sidebar-text-color) !important;
 }
 
-html.dark .app-sidebar__menu .t-menu__item .t-icon {
-  color: #fff;
+.app-sidebar__menu .t-menu__item .t-icon {
+  transition: color 160ms ease;
 }
 
 .app-layout--with-background .app-sidebar__menu .t-menu__item.t-is-active,
 .app-layout--with-background .app-sidebar__menu .t-menu__item.t-is-active:not(.t-is-opened),
 .app-layout--with-background .app-sidebar__menu.t-is-collapsed .t-menu__item.t-is-active.t-is-opened {
-  color: var(--td-text-color-anti);
+  color: #fff !important;
   background-color: var(--td-brand-color);
+}
+
+.app-layout--with-background .app-sidebar__menu .t-menu__item.t-is-active :where(
+  .t-menu__content,
+  .t-menu__item-text,
+  .t-icon,
+  span
+),
+.app-layout--with-background .app-sidebar__menu .t-menu__item.t-is-active:not(.t-is-opened) :where(
+  .t-menu__content,
+  .t-menu__item-text,
+  .t-icon,
+  span
+),
+.app-layout--with-background .app-sidebar__menu.t-is-collapsed .t-menu__item.t-is-active.t-is-opened :where(
+  .t-menu__content,
+  .t-menu__item-text,
+  .t-icon,
+  span
+) {
+  color: #fff !important;
 }
 
 .app-layout--with-background .app-sidebar__menu .t-menu__item.t-is-active .t-icon,
 .app-layout--with-background .app-sidebar__menu .t-menu__item.t-is-active:not(.t-is-opened) .t-icon,
 .app-layout--with-background .app-sidebar__menu.t-is-collapsed .t-menu__item.t-is-active.t-is-opened .t-icon {
-  color: var(--td-text-color-anti);
+  color: #fff !important;
 }
 
 .app-sidebar__menu:not(.t-is-collapsed) .app-sidebar__plain-submenu > .t-menu__item.t-is-active,
@@ -47,31 +92,50 @@ html.dark .app-sidebar__menu .t-menu__item .t-icon {
 .app-sidebar__menu:not(.t-is-collapsed) .app-sidebar__plain-submenu > .t-menu__item.t-is-active.t-is-opened,
 .app-layout--with-background .app-sidebar__menu:not(.t-is-collapsed) .app-sidebar__plain-submenu > .t-menu__item.t-is-active,
 .app-layout--with-background .app-sidebar__menu:not(.t-is-collapsed) .app-sidebar__plain-submenu > .t-menu__item.t-is-active:not(.t-is-opened) {
-  color: var(--td-text-color-primary);
+  color: var(--app-sidebar-text-color) !important;
   background-color: transparent;
 }
 
 .app-sidebar__menu:not(.t-is-collapsed) .app-sidebar__plain-submenu > .t-menu__item.t-is-active .t-icon,
 .app-layout--with-background .app-sidebar__menu:not(.t-is-collapsed) .app-sidebar__plain-submenu > .t-menu__item.t-is-active .t-icon {
-  color: #000;
+  color: var(--app-sidebar-text-color) !important;
 }
 
-html.dark .app-sidebar__menu:not(.t-is-collapsed) .app-sidebar__plain-submenu > .t-menu__item.t-is-active .t-icon,
-html.dark .app-layout--with-background .app-sidebar__menu:not(.t-is-collapsed) .app-sidebar__plain-submenu > .t-menu__item.t-is-active .t-icon {
-  color: #fff;
+.app-layout--with-background .app-sidebar__menu:not(.t-is-collapsed) .app-sidebar__plain-submenu > .t-menu__item.t-is-active :where(
+  .t-menu__content,
+  .t-menu__item-text,
+  .t-icon,
+  span
+) {
+  color: var(--app-sidebar-text-color) !important;
 }
 
 .app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item,
-.app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item.t-is-opened,
-.app-layout--with-background .app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item,
-.app-layout--with-background .app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item.t-is-opened {
-  color: var(--td-text-color-anti);
+.app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item.t-is-opened {
+  color: var(--app-sidebar-text-color) !important;
   background-color: var(--td-brand-color);
 }
 
-.app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item .t-icon,
+.app-layout--with-background .app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item,
+.app-layout--with-background .app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item.t-is-opened {
+  color: #fff !important;
+}
+
+.app-layout--with-background .app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item :where(
+  .t-menu__content,
+  .t-menu__item-text,
+  .t-icon,
+  span
+) {
+  color: #fff !important;
+}
+
+.app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item .t-icon {
+  color: var(--app-sidebar-text-color) !important;
+}
+
 .app-layout--with-background .app-sidebar__menu .app-sidebar__plain-submenu--active > .t-menu__item .t-icon {
-  color: var(--td-text-color-anti);
+  color: #fff !important;
 }
 
 .app-layout--with-background .app-sidebar__menu .t-menu__item:hover:not(.t-is-active):not(.t-is-opened):not(.t-is-disabled) {
@@ -91,6 +155,9 @@ html.dark .app-layout--with-background .app-sidebar__menu:not(.t-is-collapsed) .
 
 .app-sidebar-drawer .t-drawer__body {
   padding: 0;
+  background: color-mix(in srgb, var(--td-bg-color-container) 78%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(168%);
+  backdrop-filter: blur(22px) saturate(168%);
 }
 
 .app-sidebar-drawer .app-sidebar__menu {

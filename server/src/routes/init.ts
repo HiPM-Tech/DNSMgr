@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { initSchema, initSchemaAsync } from '../db/schema';
-import { saveEnvConfig, getDbConfig } from '../config/env';
+import { saveEnvConfig } from '../config/env';
 import { createConnection, isDbInitialized, hasUsers } from '../db/connection';
 import { connect } from '../db/core/connection';
 import type { DatabaseConfig } from '../db/core/config';
@@ -106,6 +106,40 @@ function saveDatabaseConfig(
 }
 
 const router = Router();
+
+type PublicInitDbConfig = {
+  type: 'sqlite' | 'mysql' | 'postgresql';
+};
+
+function getPublicInitDbConfig(): PublicInitDbConfig {
+  const type = process.env.DB_TYPE;
+  return {
+    type: type === 'mysql' || type === 'postgresql' ? type : 'sqlite',
+  };
+}
+
+// Get database configuration for the setup form.
+// Only expose this before the system has an initialized user table.
+router.get('/db-config', async (_req: Request, res: Response) => {
+  try {
+    const initialized = await isDbInitialized() && await hasUsers();
+    if (initialized) {
+      return res.status(403).json({ code: 403, msg: 'System already initialized' });
+    }
+
+    res.json({
+      code: 0,
+      data: getPublicInitDbConfig(),
+      msg: 'success',
+    });
+  } catch (error) {
+    log.error('Init', 'Failed to read database configuration', { error });
+    res.status(500).json({
+      code: 500,
+      msg: error instanceof Error ? error.message : 'Failed to read database configuration',
+    });
+  }
+});
 
 // Check system initialization status
 router.get('/status', async (req: Request, res: Response) => {

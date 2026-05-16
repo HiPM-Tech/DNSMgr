@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dropdown, Input, Layout as TLayout, Popup, Space } from 'tdesign-react';
 import type { DropdownOption } from 'tdesign-react';
@@ -46,30 +46,44 @@ export function Header({ collapsed, avatarImage, onMenuClick, onToggleCollapse }
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [searchPanelMounted, setSearchPanelMounted] = useState(false);
+  const [searchPanelClosing, setSearchPanelClosing] = useState(false);
   const [showTunnels] = useLocalStorage('showTunnels', false);
+  const searchBlurTimerRef = useRef<number | null>(null);
+  const searchCloseTimerRef = useRef<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const segments = location.pathname.split('/').filter(Boolean);
   const displayName = user?.nickname || user?.username || t('common.unknown');
 
-  const breadcrumbMap: Record<string, string> = {
-    '': t('common.dashboard'),
-    accounts: t('common.dnsAccounts'),
-    domains: t('common.domains'),
-    records: t('common.records'),
-    users: t('common.users'),
-    audit: t('common.audit'),
-    teams: t('common.teams'),
-    settings: t('common.settings'),
-    about: t('common.about'),
-    system: t('common.system'),
-    security: t('common.security'),
-    tokens: t('common.tokens'),
-    tunnels: t('tunnels.title'),
+  const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
+  const pageTitleMap: Record<string, string> = {
+    '/': t('common.dashboard'),
+    '/accounts': t('common.dnsAccounts'),
+    '/domains': t('domains.tabs.list'),
+    '/domains/failover': t('domains.tabs.failover'),
+    '/domains/ns-monitor': t('domains.tabs.nsMonitor'),
+    '/domains/renewal': t('domains.tabs.renewal'),
+    '/tunnels': t('tunnels.title'),
+    '/tokens': t('common.tokens'),
+    '/teams': t('common.teams'),
+    '/settings': t('common.settings'),
+    '/security': t('common.security'),
+    '/about': t('common.about'),
+    '/users': t('common.users'),
+    '/audit': t('common.audit'),
+    '/system': t('system.tabs.overview'),
+    '/system/database': t('system.tabs.database'),
+    '/system/security': t('system.tabs.security'),
+    '/system/access': t('system.tabs.access'),
+    '/system/network': t('system.tabs.network'),
+    '/system/notifications': t('system.tabs.notifications'),
   };
-
   const pageKey = segments.length ? segments[segments.length - 1] : '';
-  const pageTitle = breadcrumbMap[pageKey] ?? pageKey ?? t('common.dashboard');
+  const pageTitle = pageTitleMap[normalizedPath]
+    ?? (/^\/domains\/[^/]+\/records$/.test(normalizedPath) ? t('common.records') : undefined)
+    ?? pageKey
+    ?? t('common.dashboard');
   const ThemeIcon = theme === 'light' ? ModeLightIcon : theme === 'dark' ? ModeDarkIcon : DesktopIcon;
   const nextTheme = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto';
   const repoUrl = 'https://github.com/HiPM-Tech/DNSMgr';
@@ -122,6 +136,11 @@ export function Header({ collapsed, avatarImage, onMenuClick, onToggleCollapse }
       .slice(0, 8);
   }, [searchItems, searchValue]);
 
+  useEffect(() => () => {
+    if (searchBlurTimerRef.current) window.clearTimeout(searchBlurTimerRef.current);
+    if (searchCloseTimerRef.current) window.clearTimeout(searchCloseTimerRef.current);
+  }, []);
+
   const userOptions: DropdownOption[] = [
     { content: t('common.settings'), value: 'settings', prefixIcon: <SettingIcon /> },
     { content: t('common.security'), value: 'security', prefixIcon: <UserCircleIcon /> },
@@ -160,12 +179,31 @@ export function Header({ collapsed, avatarImage, onMenuClick, onToggleCollapse }
   const handleSearchNavigate = (item: HeaderSearchItem) => {
     navigate(item.path);
     setSearchValue('');
-    setSearchFocused(false);
+    closeSearchPanel();
   };
 
   const handleSearchEnter = () => {
     const [firstItem] = filteredSearchItems;
     if (firstItem) handleSearchNavigate(firstItem);
+  };
+
+  const openSearchPanel = () => {
+    if (searchBlurTimerRef.current) window.clearTimeout(searchBlurTimerRef.current);
+    if (searchCloseTimerRef.current) window.clearTimeout(searchCloseTimerRef.current);
+    setSearchPanelMounted(true);
+    setSearchPanelClosing(false);
+    setSearchFocused(true);
+  };
+
+  const closeSearchPanel = () => {
+    if (searchBlurTimerRef.current) window.clearTimeout(searchBlurTimerRef.current);
+    if (searchCloseTimerRef.current) window.clearTimeout(searchCloseTimerRef.current);
+    setSearchFocused(false);
+    setSearchPanelClosing(true);
+    searchCloseTimerRef.current = window.setTimeout(() => {
+      setSearchPanelMounted(false);
+      setSearchPanelClosing(false);
+    }, 170);
   };
 
   return (
@@ -198,21 +236,29 @@ export function Header({ collapsed, avatarImage, onMenuClick, onToggleCollapse }
           <div className="app-header__search">
             <Input
               clearable
+              type="search"
+              name="hidns-global-search"
+              autocomplete="off"
               value={searchValue}
               prefixIcon={<SearchIcon />}
               placeholder={t('common.globalSearchPlaceholder')}
               onChange={(value) => setSearchValue(String(value))}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => window.setTimeout(() => setSearchFocused(false), 120)}
+              onFocus={openSearchPanel}
+              onBlur={() => {
+                searchBlurTimerRef.current = window.setTimeout(closeSearchPanel, 120);
+              }}
               onEnter={handleSearchEnter}
               onKeydown={(_, context) => {
                 if (context.e.key === 'Escape') {
-                  setSearchFocused(false);
+                  closeSearchPanel();
                 }
               }}
             />
-            {searchFocused && (
-              <div className="app-header__search-panel" role="listbox">
+            {searchPanelMounted && (
+              <div
+                className={`app-header__search-panel${searchFocused && !searchPanelClosing ? ' is-open' : ' is-closing'}`}
+                role="listbox"
+              >
                 {filteredSearchItems.length > 0 ? (
                   filteredSearchItems.map((item) => (
                     <button

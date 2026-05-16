@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, Form, Input, Loading, Select, Space, Tag } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
@@ -9,7 +9,6 @@ import {
   SecuredIcon,
   UserAddIcon,
   UserClearIcon,
-  UserListIcon,
 } from 'tdesign-icons-react';
 import { teamsApi, usersApi, domainsApi } from '../api';
 import type { Team, TeamMember, User, Domain, DomainPermission } from '../api';
@@ -22,7 +21,6 @@ import { Avatar } from '../components/Avatar';
 import { useI18n } from '../contexts/I18nContext';
 import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
-import { useFormSync } from '../hooks/useFormSync';
 
 function selectToDomainId(value: SelectValue): number | '' {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -38,13 +36,36 @@ function roleLabel(role: string, t: (key: string) => string) {
   return t(`teams.role${role.charAt(0).toUpperCase() + role.slice(1)}` as any);
 }
 
+const teamDialogField = (label: string, control: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+  </div>
+);
+
+interface TeamFormState {
+  name: string;
+  description: string;
+}
+
+const DEFAULT_TEAM_FORM: TeamFormState = {
+  name: '',
+  description: '',
+};
+
+function normalizeTeamForm(team?: Team | null): TeamFormState {
+  return {
+    name: team?.name ?? '',
+    description: team?.description ?? '',
+  };
+}
+
 export function Teams() {
   const { user: me } = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
   const { t } = useI18n();
   const [showCreate, setShowCreate] = useState(false);
-  const [viewTeam, setViewTeam] = useState<Team | null>(null);
   const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [deleteTeam, setDeleteTeam] = useState<Team | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -57,13 +78,13 @@ export function Teams() {
   const [memberPermDomainId, setMemberPermDomainId] = useState<number | ''>('');
   const [memberPermPermission, setMemberPermPermission] = useState<'read' | 'write'>('write');
   const [memberPermSub, setMemberPermSub] = useState('');
-  
-  // Use useFormSync for team form state management
-  const { formState: teamForm, updateField: updateTeamField } = useFormSync(
-    editTeam || undefined,
-    { name: '', description: '' },
-    { fields: ['name', 'description'] }
-  );
+  const [teamForm, setTeamForm] = useState<TeamFormState>(DEFAULT_TEAM_FORM);
+  const selectedTeam = editTeam;
+  const selectedTeamId = selectedTeam?.id;
+
+  const updateTeamField = <K extends keyof TeamFormState>(field: K, value: TeamFormState[K]) => {
+    setTeamForm((current) => ({ ...current, [field]: value }));
+  };
   
   const getDisplayName = (u: { nickname?: string; username: string }) => u.nickname || u.username;
 
@@ -79,35 +100,35 @@ export function Teams() {
   });
 
   const { data: members = [], isLoading: membersLoading } = useQuery({
-    queryKey: ['team-members', viewTeam?.id],
-    queryFn: () => teamsApi.members(viewTeam!.id).then((r) => r.data.data ?? []),
-    enabled: !!viewTeam,
+    queryKey: ['team-members', selectedTeamId],
+    queryFn: () => teamsApi.members(selectedTeamId!).then((r) => r.data.data ?? []),
+    enabled: !!selectedTeamId,
   });
 
   const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains'],
     queryFn: () => domainsApi.list({ pageSize: 1000 }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
-    enabled: !!viewTeam,
+    enabled: !!selectedTeamId,
   });
   const domains = domainsData?.list ?? [];
   const domainOptions = domains.map((domain) => ({ label: domain.name, value: domain.id }));
 
   const { data: teamDomainPermissions = [], isLoading: teamDomainPermissionsLoading } = useQuery({
-    queryKey: ['team-domain-permissions', viewTeam?.id],
-    queryFn: () => teamsApi.domainPermissions(viewTeam!.id).then((r) => r.data.data ?? []),
-    enabled: !!viewTeam,
+    queryKey: ['team-domain-permissions', selectedTeamId],
+    queryFn: () => teamsApi.domainPermissions(selectedTeamId!).then((r) => r.data.data ?? []),
+    enabled: !!selectedTeamId,
   });
 
   const { data: memberDomainPermissions = [], isLoading: memberDomainPermissionsLoading } = useQuery({
-    queryKey: ['member-domain-permissions', viewTeam?.id, memberPermissionsFor?.user_id],
-    queryFn: () => teamsApi.memberDomainPermissions(viewTeam!.id, memberPermissionsFor!.user_id).then((r) => r.data.data ?? []),
-    enabled: !!viewTeam && !!memberPermissionsFor,
+    queryKey: ['member-domain-permissions', selectedTeamId, memberPermissionsFor?.user_id],
+    queryFn: () => teamsApi.memberDomainPermissions(selectedTeamId!, memberPermissionsFor!.user_id).then((r) => r.data.data ?? []),
+    enabled: !!selectedTeamId && !!memberPermissionsFor,
   });
 
   const { data: allUsers = [] } = useQuery({
     queryKey: ['users'],
     queryFn: () => usersApi.list().then((r) => r.data.data ?? []),
-    enabled: showAddMember && isAdmin(me?.role),
+    enabled: showAddMember && !!selectedTeamId && (isAdmin(me?.role) || members.some((member) => member.user_id === me?.id && member.role === 'owner')),
   });
 
   const createMutation = useMutation({
@@ -137,7 +158,6 @@ export function Teams() {
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
       qc.invalidateQueries({ queryKey: ['teams'] });
-      if (viewTeam?.id === deleteTeam?.id) setViewTeam(null);
       setDeleteTeam(null);
       toast.success(t('teams.teamDeleted'));
     },
@@ -145,10 +165,10 @@ export function Teams() {
   });
 
   const addMemberMutation = useMutation({
-    mutationFn: ({ userId }: { userId: number }) => teamsApi.addMember(viewTeam!.id, userId, 'member'),
+    mutationFn: ({ userId }: { userId: number }) => teamsApi.addMember(selectedTeamId!, userId, 'member'),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['team-members', viewTeam?.id] });
+      qc.invalidateQueries({ queryKey: ['team-members', selectedTeamId] });
       setShowAddMember(false);
       setMemberSearch('');
       toast.success(t('teams.memberAdded'));
@@ -157,10 +177,10 @@ export function Teams() {
   });
 
   const removeMemberMutation = useMutation({
-    mutationFn: (userId: number) => teamsApi.removeMember(viewTeam!.id, userId),
+    mutationFn: (userId: number) => teamsApi.removeMember(selectedTeamId!, userId),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['team-members', viewTeam?.id] });
+      qc.invalidateQueries({ queryKey: ['team-members', selectedTeamId] });
       setRemovingMember(null);
       toast.success(t('teams.memberRemoved'));
     },
@@ -169,10 +189,10 @@ export function Teams() {
 
   const addTeamDomainPermissionMutation = useMutation({
     mutationFn: (data: { domain_id: number; permission?: 'read' | 'write'; sub?: string }) =>
-      teamsApi.addDomainPermission(viewTeam!.id, data),
+      teamsApi.addDomainPermission(selectedTeamId!, data),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['team-domain-permissions', viewTeam?.id] });
+      qc.invalidateQueries({ queryKey: ['team-domain-permissions', selectedTeamId] });
       setTeamPermDomainId('');
       setTeamPermPermission('write');
       setTeamPermSub('');
@@ -182,10 +202,10 @@ export function Teams() {
   });
 
   const removeTeamDomainPermissionMutation = useMutation({
-    mutationFn: (permId: number) => teamsApi.removeDomainPermission(viewTeam!.id, permId),
+    mutationFn: (permId: number) => teamsApi.removeDomainPermission(selectedTeamId!, permId),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['team-domain-permissions', viewTeam?.id] });
+      qc.invalidateQueries({ queryKey: ['team-domain-permissions', selectedTeamId] });
       toast.success(t('teams.permissionRemoved'));
     },
     onError: () => toast.error(t('teams.permissionRemoveFailed')),
@@ -193,10 +213,10 @@ export function Teams() {
 
   const addMemberDomainPermissionMutation = useMutation({
     mutationFn: (data: { domain_id: number; permission?: 'read' | 'write'; sub?: string }) =>
-      teamsApi.addMemberDomainPermission(viewTeam!.id, memberPermissionsFor!.user_id, data),
+      teamsApi.addMemberDomainPermission(selectedTeamId!, memberPermissionsFor!.user_id, data),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['member-domain-permissions', viewTeam?.id, memberPermissionsFor?.user_id] });
+      qc.invalidateQueries({ queryKey: ['member-domain-permissions', selectedTeamId, memberPermissionsFor?.user_id] });
       setMemberPermDomainId('');
       setMemberPermPermission('write');
       setMemberPermSub('');
@@ -206,10 +226,10 @@ export function Teams() {
   });
 
   const removeMemberDomainPermissionMutation = useMutation({
-    mutationFn: (permId: number) => teamsApi.removeMemberDomainPermission(viewTeam!.id, memberPermissionsFor!.user_id, permId),
+    mutationFn: (permId: number) => teamsApi.removeMemberDomainPermission(selectedTeamId!, memberPermissionsFor!.user_id, permId),
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['member-domain-permissions', viewTeam?.id, memberPermissionsFor?.user_id] });
+      qc.invalidateQueries({ queryKey: ['member-domain-permissions', selectedTeamId, memberPermissionsFor?.user_id] });
       toast.success(t('teams.permissionRemoved'));
     },
     onError: () => toast.error(t('teams.permissionRemoveFailed')),
@@ -228,14 +248,33 @@ export function Teams() {
   const myMember = members.find((m) => m.user_id === me?.id);
   const canManageTeam = isAdmin(me?.role) || myMember?.role === 'owner';
 
+  const resetTeamManagementState = () => {
+    setShowAddMember(false);
+    setMemberSearch('');
+    setRemovingMember(null);
+    setMemberPermissionsFor(null);
+    setTeamPermDomainId('');
+    setTeamPermPermission('write');
+    setTeamPermSub('');
+    setMemberPermDomainId('');
+    setMemberPermPermission('write');
+    setMemberPermSub('');
+  };
+
+  const closeEditTeam = () => {
+    setEditTeam(null);
+    setTeamForm(DEFAULT_TEAM_FORM);
+    resetTeamManagementState();
+  };
+
   const openCreate = () => {
-    // Reset form to default values for creation
-    updateTeamField('name', '');
-    updateTeamField('description', '');
+    setTeamForm(DEFAULT_TEAM_FORM);
     setShowCreate(true);
   };
 
   const openEdit = (team: Team) => {
+    resetTeamManagementState();
+    setTeamForm(normalizeTeamForm(team));
     setEditTeam(team);
   };
 
@@ -281,11 +320,7 @@ export function Teams() {
     {
       key: 'name',
       label: t('teams.teamName'),
-      render: (team: Team) => (
-        <Button variant="text" icon={<UserListIcon />} onClick={() => setViewTeam(team)}>
-          {team.name}
-        </Button>
-      ),
+      render: (team: Team) => <span className="page-strong">{team.name}</span>,
     },
     { key: 'description', label: t('teams.description'), render: (team: Team) => <span className="page-muted">{team.description || '-'}</span> },
     { key: 'member_count', label: t('teams.members'), render: (team: Team) => <Tag variant="light">{team.member_count ?? 0}</Tag> },
@@ -337,6 +372,75 @@ export function Teams() {
     );
   };
 
+  const renderTeamManagementPanels = () => {
+    if (!selectedTeam) return null;
+    return (
+      <>
+        <Card
+          bordered
+          title={t('teams.membersCount', { count: members.length, suffix: members.length !== 1 ? 's' : '' })}
+          actions={canManageTeam && (
+            <Button size="small" theme="primary" icon={<UserAddIcon />} onClick={() => setShowAddMember(true)}>
+              {t('teams.addMember')}
+            </Button>
+          )}
+        >
+          {membersLoading ? (
+            <div className="page-state"><Loading loading size="small" /></div>
+          ) : members.length === 0 ? (
+            <Empty description={t('teams.noMembers')} />
+          ) : (
+            <div className="page-list">
+              {members.map((member) => (
+                <div key={member.id} className="page-list-item">
+                  <div className="team-member">
+                    <Avatar username={getDisplayName(member)} email={member.email} size={32} textClassName="text-xs" />
+                    <div className="page-list-item__main">
+                      <strong>{getDisplayName(member)}</strong>
+                      <span>{member.username} · {member.email || t('teams.noEmail')}</span>
+                    </div>
+                  </div>
+                  <Space size="small">
+                    <Tag variant="light">{roleLabel(member.role, t)}</Tag>
+                    {canManageTeam && (
+                      <Button shape="square" variant="text" icon={<SecuredIcon />} onClick={() => setMemberPermissionsFor(member)} />
+                    )}
+                    <Button shape="square" variant="text" theme="danger" icon={<UserClearIcon />} onClick={() => setRemovingMember(member)} />
+                  </Space>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card bordered title={t('teams.domainPermissions')}>
+          {canManageTeam && (
+            <div className="permission-form-grid">
+              <Select
+                value={teamPermDomainId}
+                options={[{ label: t('teams.selectDomain'), value: '' }, ...domainOptions]}
+                onChange={(value: any) => setTeamPermDomainId(selectToDomainId(value))}
+              />
+              <Select
+                value={teamPermPermission}
+                options={[
+                  { label: t('teams.permissionRead'), value: 'read' },
+                  { label: t('teams.permissionWrite'), value: 'write' },
+                ]}
+                onChange={(value: any) => setTeamPermPermission(selectToPermission(value))}
+              />
+              <Input value={String(teamPermSub)} onChange={(value: any) => setTeamPermSub(String(value))} placeholder={t('teams.subdomainPlaceholder')} />
+              <Button theme="primary" loading={addTeamDomainPermissionMutation.isPending} onClick={addTeamPermission}>
+                {t('teams.addPermission')}
+              </Button>
+            </div>
+          )}
+          {renderPermissionList(teamDomainPermissions, teamDomainPermissionsLoading, (id) => removeTeamDomainPermissionMutation.mutate(id))}
+        </Card>
+      </>
+    );
+  };
+
   return (
     <div className="page-shell">
       <section className="page-heading">
@@ -355,13 +459,25 @@ export function Teams() {
 
       {showCreate && (
         <Modal title={t('teams.createTeam')} onClose={() => setShowCreate(false)} size="sm">
-          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submitTeamForm('create'); }}>
-            <Form.FormItem label={t('teams.teamName')}>
-              <Input value={String(teamForm.name)} onChange={(value: any) => updateTeamField('name', String(value))} placeholder={t('teams.teamNamePlaceholder')} />
-            </Form.FormItem>
-            <Form.FormItem label={t('teams.description')}>
-              <Input value={String(teamForm.description)} onChange={(value: any) => updateTeamField('description', String(value))} placeholder={t('teams.descriptionPlaceholder')} />
-            </Form.FormItem>
+          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell team-form" onSubmit={({ e }: any) => { e?.preventDefault(); submitTeamForm('create'); }}>
+            {teamDialogField(t('teams.teamName'),
+              <Input
+                name="team-create-name"
+                autocomplete="off"
+                value={String(teamForm.name)}
+                onChange={(value: any) => updateTeamField('name', String(value))}
+                placeholder={t('teams.teamNamePlaceholder')}
+              />
+            )}
+            {teamDialogField(t('teams.description'),
+              <Input
+                name="team-create-description"
+                autocomplete="off"
+                value={String(teamForm.description)}
+                onChange={(value: any) => updateTeamField('description', String(value))}
+                placeholder={t('teams.descriptionPlaceholder')}
+              />
+            )}
             <Space className="record-form__actions">
               <Button type="submit" theme="primary" loading={createMutation.isPending}>
                 {t('common.create')}
@@ -372,95 +488,52 @@ export function Teams() {
       )}
 
       {editTeam && (
-        <Modal title={t('teams.editTeam')} onClose={() => setEditTeam(null)} size="sm">
-          <Form layout="vertical" colon={false} requiredMark={false} className="page-shell" onSubmit={({ e }: any) => { e?.preventDefault(); submitTeamForm('edit'); }}>
-            <Form.FormItem label={t('teams.teamName')}>
-              <Input value={String(teamForm.name)} onChange={(value: any) => updateTeamField('name', String(value))} />
-            </Form.FormItem>
-            <Form.FormItem label={t('teams.description')}>
-              <Input value={String(teamForm.description)} onChange={(value: any) => updateTeamField('description', String(value))} />
-            </Form.FormItem>
-            <Space className="record-form__actions">
-              <Button type="submit" theme="primary" loading={updateMutation.isPending}>
-                {t('common.save')}
-              </Button>
-            </Space>
-          </Form>
-        </Modal>
-      )}
-
-      {viewTeam && (
-        <Modal title={t('teams.teamMembers', { name: viewTeam.name })} onClose={() => setViewTeam(null)} size="lg">
+        <Modal title={t('teams.editTeam')} onClose={closeEditTeam} size="lg">
           <div className="page-shell">
-            <Card
-              bordered
-              title={t('teams.membersCount', { count: members.length, suffix: members.length !== 1 ? 's' : '' })}
-              actions={canManageTeam && (
-                <Button size="small" theme="primary" icon={<UserAddIcon />} onClick={() => setShowAddMember(true)}>
-                  {t('teams.addMember')}
-                </Button>
-              )}
-            >
-              {membersLoading ? (
-                <div className="page-state"><Loading loading size="small" /></div>
-              ) : members.length === 0 ? (
-                <Empty description={t('teams.noMembers')} />
-              ) : (
-                <div className="page-list">
-                  {members.map((member) => (
-                    <div key={member.id} className="page-list-item">
-                      <div className="team-member">
-                        <Avatar username={getDisplayName(member)} email={member.email} size={32} textClassName="text-xs" />
-                        <div className="page-list-item__main">
-                          <strong>{getDisplayName(member)}</strong>
-                          <span>{member.username} · {member.email || t('teams.noEmail')}</span>
-                        </div>
-                      </div>
-                      <Space size="small">
-                        <Tag variant="light">{roleLabel(member.role, t)}</Tag>
-                        {canManageTeam && (
-                          <Button shape="square" variant="text" icon={<SecuredIcon />} onClick={() => setMemberPermissionsFor(member)} />
-                        )}
-                        <Button shape="square" variant="text" theme="danger" icon={<UserClearIcon />} onClick={() => setRemovingMember(member)} />
-                      </Space>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            <Card bordered title={t('teams.domainPermissions')}>
-              {canManageTeam && (
-                <div className="permission-form-grid">
-                  <Select
-                    value={teamPermDomainId}
-                    options={[{ label: t('teams.selectDomain'), value: '' }, ...domainOptions]}
-                    onChange={(value: any) => setTeamPermDomainId(selectToDomainId(value))}
+            <Card bordered title={t('teams.editTeam')}>
+              <Form layout="vertical" colon={false} requiredMark={false} className="page-shell team-form" onSubmit={({ e }: any) => { e?.preventDefault(); submitTeamForm('edit'); }}>
+                {teamDialogField(t('teams.teamName'),
+                  <Input
+                    name={`team-edit-name-${editTeam.id}`}
+                    autocomplete="off"
+                    value={String(teamForm.name)}
+                    onChange={(value: any) => updateTeamField('name', String(value))}
+                    placeholder={t('teams.teamNamePlaceholder')}
                   />
-                  <Select
-                    value={teamPermPermission}
-                    options={[
-                      { label: t('teams.permissionRead'), value: 'read' },
-                      { label: t('teams.permissionWrite'), value: 'write' },
-                    ]}
-                    onChange={(value: any) => setTeamPermPermission(selectToPermission(value))}
+                )}
+                {teamDialogField(t('teams.description'),
+                  <Input
+                    name={`team-edit-description-${editTeam.id}`}
+                    autocomplete="off"
+                    value={String(teamForm.description)}
+                    onChange={(value: any) => updateTeamField('description', String(value))}
+                    placeholder={t('teams.descriptionPlaceholder')}
                   />
-                  <Input value={String(teamPermSub)} onChange={(value: any) => setTeamPermSub(String(value))} placeholder={t('teams.subdomainPlaceholder')} />
-                  <Button theme="primary" loading={addTeamDomainPermissionMutation.isPending} onClick={addTeamPermission}>
-                    {t('teams.addPermission')}
+                )}
+                <Space className="record-form__actions">
+                  <Button type="submit" theme="primary" loading={updateMutation.isPending}>
+                    {t('common.save')}
                   </Button>
-                </div>
-              )}
-              {renderPermissionList(teamDomainPermissions, teamDomainPermissionsLoading, (id) => removeTeamDomainPermissionMutation.mutate(id))}
+                </Space>
+              </Form>
             </Card>
+            {renderTeamManagementPanels()}
           </div>
         </Modal>
       )}
 
-      {showAddMember && viewTeam && (
+      {showAddMember && selectedTeam && (
         <Modal title={t('teams.addTeamMember')} onClose={() => { setShowAddMember(false); setMemberSearch(''); }} size="sm">
           <div className="page-shell">
-            <Input clearable value={String(memberSearch)} onChange={(value: any) => setMemberSearch(String(value))} placeholder={t('teams.searchUsers')} />
+            <Input
+              clearable
+              type="search"
+              name="team-member-search"
+              autocomplete="off"
+              value={String(memberSearch)}
+              onChange={(value: any) => setMemberSearch(String(value))}
+              placeholder={t('teams.searchUsers')}
+            />
             {filteredUsers.length === 0 ? (
               <Empty description={t('teams.noUsersAvailable')} />
             ) : (
@@ -469,10 +542,10 @@ export function Teams() {
                   <Button
                     key={user.id}
                     type="button"
-                    variant="outline"
+                    variant="text"
                     onClick={() => addMemberMutation.mutate({ userId: user.id })}
                     disabled={addMemberMutation.isPending}
-                    className="page-list-button"
+                    className="page-list-button page-list-button--plain"
                   >
                     <Avatar username={getDisplayName(user)} email={user.email} size={28} textClassName="text-xs" />
                     <span className="page-list-item__main">
@@ -487,7 +560,7 @@ export function Teams() {
         </Modal>
       )}
 
-      {memberPermissionsFor && viewTeam && (
+      {memberPermissionsFor && selectedTeam && (
         <Modal title={t('teams.memberDomainPermissions', { name: getDisplayName(memberPermissionsFor) })} onClose={() => setMemberPermissionsFor(null)} size="lg">
           <div className="page-shell">
             {canManageTeam && (

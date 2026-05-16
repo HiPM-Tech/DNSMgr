@@ -413,6 +413,11 @@
       "backgroundImageUrl": "Background Image URL",
       "backgroundImagePlaceholder": "Enter image URL (supports jpg/png/gif/webp)",
       "backgroundImageHint": "Supports any image URL, leave empty to use default background",
+      "backgroundVisualEffect": "Wallpaper Visual Effect",
+      "backgroundVisualEffectHint": "Choose how the background image is rendered in the console. Changes apply immediately.",
+      "backgroundEffectBlur": "Gaussian Blur",
+      "backgroundEffectOverlay": "White Overlay",
+      "backgroundEffectNone": "None",
       "backgroundImageUpdated": "Background image updated",
       "backgroundImageUpdateFailed": "Failed to update background image",
       "updateBackgroundImage": "Update Background Image"

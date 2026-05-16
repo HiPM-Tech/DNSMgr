@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Descriptions, Form, Input, Loading, Pagination, Select, Space, Switch } from 'tdesign-react';
 import { ActivityIcon, DeleteIcon, SearchIcon } from 'tdesign-icons-react';
@@ -10,13 +10,78 @@ import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
-import { useFormSync } from '../../hooks/useFormSync';
 import { toBoolean, toString, toNumber } from '../../utils/typeConverters';
+
+const dialogField = (label: string, control: ReactNode) => (
+  <div className="settings-control-field">
+    <span>{label}</span>
+    {control}
+  </div>
+);
+
+interface FailoverFormState {
+  primaryIp: string;
+  backupIps: string[];
+  checkMethod: 'http' | 'tcp' | 'ping';
+  checkInterval: number;
+  checkPort: number;
+  checkPath: string;
+  autoSwitchBack: boolean;
+}
+
+interface FailoverConfigData {
+  id?: number;
+  primaryIp?: string | null;
+  backupIps?: unknown[] | null;
+  checkMethod?: string | null;
+  checkInterval?: string | number | null;
+  checkPort?: string | number | null;
+  checkPath?: string | null;
+  autoSwitchBack?: boolean | number | string | null;
+}
+
+interface FailoverStatusData {
+  currentIp?: string;
+  lastCheckResult?: boolean;
+  lastCheckTime?: string;
+  switchCount?: number;
+}
+
+interface FailoverResponseData {
+  config?: FailoverConfigData | null;
+  status?: FailoverStatusData | null;
+}
+
+const DEFAULT_FAILOVER_FORM: FailoverFormState = {
+  primaryIp: '',
+  backupIps: [],
+  checkMethod: 'http',
+  checkInterval: 300,
+  checkPort: 80,
+  checkPath: '',
+  autoSwitchBack: true,
+};
+
+function normalizeFailoverForm(config?: FailoverConfigData | null): FailoverFormState {
+  return {
+    primaryIp: toString(config?.primaryIp),
+    backupIps: Array.isArray(config?.backupIps) ? config!.backupIps.map(String) : [],
+    checkMethod: toString(config?.checkMethod, 'http') as 'http' | 'tcp' | 'ping',
+    checkInterval: toNumber(config?.checkInterval, 300),
+    checkPort: toNumber(config?.checkPort, 80),
+    checkPath: toString(config?.checkPath),
+    autoSwitchBack: toBoolean(config?.autoSwitchBack),
+  };
+}
 
 function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const { t } = useI18n();
+  const fieldProps = (field: string) => ({
+    name: `failover-${domain.id}-${field}`,
+    autocomplete: 'off' as const,
+  });
 
   useRealtimeData({
     queryKey: ['failover', domain.id],
@@ -24,46 +89,60 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
     pollingInterval: 60000,
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<FailoverResponseData | null>({
     queryKey: ['failover', domain.id],
     queryFn: () => domainsApi.getFailover(domain.id).then((r) => r.data.data),
   });
+  const [formState, setFormState] = useState<FailoverFormState>(DEFAULT_FAILOVER_FORM);
+  const [formDirty, setFormDirty] = useState(false);
+  const activeConfigIdRef = useRef<number | null>(null);
+  const config = data?.config ?? null;
+  const backupIpsSnapshot = Array.isArray(config?.backupIps) ? config.backupIps.map(String).join('|') : '';
 
-  // Use useFormSync for unified form state management
-  interface FailoverFormState {
-    primaryIp?: string;
-    backupIps?: string[];
-    checkMethod?: 'http' | 'tcp' | 'ping';
-    checkInterval?: number;
-    checkPort?: number;
-    checkPath?: string;
-    autoSwitchBack?: boolean;
-  }
+  useEffect(() => {
+    if (!config) {
+      if (activeConfigIdRef.current !== null) {
+        activeConfigIdRef.current = null;
+        setFormState(DEFAULT_FAILOVER_FORM);
+        setFormDirty(false);
+        return;
+      }
 
-  const { formState, updateField } = useFormSync<FailoverFormState>(
-    data?.config || undefined,
-    {
-      primaryIp: '',
-      backupIps: [],
-      checkMethod: 'http',
-      checkInterval: 300,
-      checkPort: 80,
-      checkPath: '',
-      autoSwitchBack: true,
-    },
-    {
-      fields: ['primaryIp', 'backupIps', 'checkMethod', 'checkInterval', 'checkPort', 'checkPath', 'autoSwitchBack'],
-      transformers: {
-        primaryIp: (v) => toString(v),
-        backupIps: (v) => Array.isArray(v) ? v.map(String) : [],
-        checkMethod: (v) => toString(v, 'http') as 'http' | 'tcp' | 'ping',
-        checkInterval: (v) => toNumber(v, 300),
-        checkPort: (v) => toNumber(v, 80),
-        checkPath: (v) => toString(v),
-        autoSwitchBack: (v) => toBoolean(v),
-      },
+      if (!formDirty) {
+        setFormState(DEFAULT_FAILOVER_FORM);
+      }
+      return;
     }
-  );
+
+    const next = normalizeFailoverForm(config);
+    const currentConfigId = typeof config.id === 'number' ? config.id : null;
+
+    if (activeConfigIdRef.current !== currentConfigId) {
+      activeConfigIdRef.current = currentConfigId;
+      setFormState(next);
+      setFormDirty(false);
+      return;
+    }
+
+    if (!formDirty) {
+      setFormState(next);
+    }
+  }, [
+    config?.id,
+    config?.primaryIp,
+    backupIpsSnapshot,
+    config?.checkMethod,
+    config?.checkInterval,
+    config?.checkPort,
+    config?.checkPath,
+    config?.autoSwitchBack,
+    formDirty,
+  ]);
+
+  const updateField = <K extends keyof FailoverFormState>(field: K, value: FailoverFormState[K]) => {
+    setFormState((current) => ({ ...current, [field]: value }));
+    setFormDirty(true);
+  };
 
   const saveMutation = useMutation({
     mutationFn: (cfg: any) => domainsApi.saveFailover(domain.id, cfg),
@@ -102,14 +181,22 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
 
   return (
     <Form layout="vertical" colon={false} requiredMark={false} className="page-shell dialog-form failover-dialog" onSubmit={({ e }: any) => { e?.preventDefault(); handleSave(); }}>
-      <Form.FormItem label={t('domains.primaryIp')}>
-        <Input value={formState.primaryIp || ''} onChange={(value: any) => updateField('primaryIp', String(value))} />
-      </Form.FormItem>
-      <Form.FormItem label={t('domains.backupIps')}>
-        <Input value={(formState.backupIps || []).join(',')} onChange={(value: any) => updateField('backupIps', String(value).split(',').map((item: string) => item.trim()).filter(Boolean))} />
-      </Form.FormItem>
+      {dialogField(t('domains.primaryIp'),
+        <Input
+          {...fieldProps('primary-ip')}
+          value={formState.primaryIp || ''}
+          onChange={(value: any) => updateField('primaryIp', String(value))}
+        />
+      )}
+      {dialogField(t('domains.backupIps'),
+        <Input
+          {...fieldProps('backup-ips')}
+          value={(formState.backupIps || []).join(',')}
+          onChange={(value: any) => updateField('backupIps', String(value).split(',').map((item: string) => item.trim()).filter(Boolean))}
+        />
+      )}
       <div className="dialog-form-grid">
-        <Form.FormItem label={t('domains.checkMethod')}>
+        {dialogField(t('domains.checkMethod'),
           <Select
             value={formState.checkMethod || 'http'}
             options={[
@@ -119,19 +206,34 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
             ]}
             onChange={(value: any) => updateField('checkMethod', String(Array.isArray(value) ? value[0] : value) as 'http' | 'tcp' | 'ping')}
           />
-        </Form.FormItem>
-        <Form.FormItem label={t('domains.checkPort')}>
-          <Input type="number" value={String(formState.checkPort || 80)} onChange={(value: any) => updateField('checkPort', Number(value) || 0)} />
-        </Form.FormItem>
+        )}
+        {dialogField(t('domains.checkPort'),
+          <Input
+            {...fieldProps('check-port')}
+            type="number"
+            value={String(formState.checkPort || 80)}
+            onChange={(value: any) => updateField('checkPort', Number(value) || 0)}
+          />
+        )}
       </div>
       {(formState.checkMethod === 'http') && (
-        <Form.FormItem label={t('domains.checkPath')}>
-          <Input value={formState.checkPath || ''} onChange={(value: any) => updateField('checkPath', String(value))} placeholder="/" />
-        </Form.FormItem>
+        dialogField(t('domains.checkPath'),
+          <Input
+            {...fieldProps('check-path')}
+            value={formState.checkPath || ''}
+            onChange={(value: any) => updateField('checkPath', String(value))}
+            placeholder="/"
+          />
+        )
       )}
-      <Form.FormItem label={t('domains.checkInterval')}>
-        <Input type="number" value={String(formState.checkInterval || 300)} onChange={(value: any) => updateField('checkInterval', Number(value) || 0)} />
-      </Form.FormItem>
+      {dialogField(t('domains.checkInterval'),
+        <Input
+          {...fieldProps('check-interval')}
+          type="number"
+          value={String(formState.checkInterval || 300)}
+          onChange={(value: any) => updateField('checkInterval', Number(value) || 0)}
+        />
+      )}
       <div className="dialog-switch-row">
         <div>
           <strong>{t('domains.autoSwitchBack')}</strong>
@@ -146,8 +248,8 @@ function FailoverConfigModal({ domain, onClose }: { domain: Domain; onClose: () 
             column={1}
             items={[
               { label: t('domains.currentIp'), content: data.status.currentIp },
-              { label: t('common.status'), content: data.status.lastCheckStatus ? t('domains.healthy') : t('domains.unhealthy') },
-              { label: t('domains.lastCheck'), content: new Date(data.status.lastCheckAt).toLocaleString() },
+              { label: t('common.status'), content: data.status.lastCheckResult ? t('domains.healthy') : t('domains.unhealthy') },
+              { label: t('domains.lastCheck'), content: data.status.lastCheckTime ? new Date(data.status.lastCheckTime).toLocaleString() : '-' },
               { label: t('domains.switchCount'), content: data.status.switchCount },
             ]}
           />
@@ -226,6 +328,9 @@ export function FailoverTab() {
         <div className="records-toolbar failover-card__toolbar">
           <Input
             clearable
+            type="search"
+            name="failover-domain-search"
+            autocomplete="off"
             value={keyword}
             prefixIcon={<SearchIcon />}
             placeholder={t('domains.searchPlaceholder')}

@@ -73,6 +73,17 @@
   background: color-mix(in srgb, var(--td-bg-color-container) 92%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
   backdrop-filter: blur(18px) saturate(150%);
+  transform-origin: 88% 0;
+  will-change: opacity, transform;
+}
+
+.app-header__search-panel.is-open {
+  animation: appHeaderSearchPanelIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.app-header__search-panel.is-closing {
+  pointer-events: none;
+  animation: appHeaderSearchPanelOut 160ms cubic-bezier(0.32, 0, 0.67, 0) both;
 }
 
 .app-header__search-item {
@@ -89,6 +100,39 @@
   color: var(--td-text-color-primary);
   cursor: pointer;
   text-align: left;
+}
+
+.app-header__search-panel.is-open .app-header__search-item,
+.app-header__search-panel.is-open .app-header__search-empty {
+  animation: appHeaderSearchItemIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.app-header__search-panel.is-open .app-header__search-item:nth-child(2) {
+  animation-delay: 18ms;
+}
+
+.app-header__search-panel.is-open .app-header__search-item:nth-child(3) {
+  animation-delay: 36ms;
+}
+
+.app-header__search-panel.is-open .app-header__search-item:nth-child(4) {
+  animation-delay: 54ms;
+}
+
+.app-header__search-panel.is-open .app-header__search-item:nth-child(5) {
+  animation-delay: 72ms;
+}
+
+.app-header__search-panel.is-open .app-header__search-item:nth-child(6) {
+  animation-delay: 90ms;
+}
+
+.app-header__search-panel.is-open .app-header__search-item:nth-child(7) {
+  animation-delay: 108ms;
+}
+
+.app-header__search-panel.is-open .app-header__search-item:nth-child(8) {
+  animation-delay: 126ms;
 }
 
 .app-header__search-item:hover,
@@ -121,6 +165,42 @@
   color: var(--td-text-color-secondary);
   font-size: 13px;
   text-align: center;
+}
+
+@keyframes appHeaderSearchPanelIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes appHeaderSearchPanelOut {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.98);
+  }
+}
+
+@keyframes appHeaderSearchItemIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .app-header__actions {
