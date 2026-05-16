@@ -25,8 +25,9 @@ export function initWhoisSchedulers(): void {
 
 /**
  * 同步所有域名的 WHOIS 信息
+ * @param forceRefresh 是否强制刷新（无视缓存）
  */
-export async function syncAllDomainsWhois(): Promise<void> {
+export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promise<void> {
   const { WhoisOperations } = await import('../../db/business-adapter');
   const { connect } = await import('../../db/core/connection');
   const { taskManager } = await import('../taskManager');
@@ -73,7 +74,7 @@ export async function syncAllDomainsWhois(): Promise<void> {
       },
       async () => {
         try {
-          const whoisResult = await checkWhoisForDomain(d.name);
+          const whoisResult = await checkWhoisForDomain(d.name, forceRefresh);
 
           if (whoisResult.expiryDate) {
             const year = whoisResult.expiryDate.getFullYear();
