@@ -3109,14 +3109,22 @@ export const WhoisOperations = {
           )
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
         
-        // 迁移：为已存在的表添加 status 字段
+        // 迁移：为已存在的表添加 status 字段（如果不存在）
         try {
-          await executeInternal(`ALTER TABLE whois_cache ADD COLUMN status TEXT`, [], { 
-            operation: 'Whois.migrateAddStatusColumn', 
-            table: 'whois_cache' 
-          });
+          // SQLite 不支持 INFORMATION_SCHEMA，直接尝试添加，捕获错误
+          await executeInternal(
+            `ALTER TABLE whois_cache ADD COLUMN status TEXT`, 
+            [], 
+            { operation: 'Whois.migrateAddStatusColumn', table: 'whois_cache' }
+          );
+          log.info('BusinessAdapter', 'Added status column to whois_cache table');
         } catch (e) {
-          // 字段可能已存在，忽略错误
+          const errorMsg = e instanceof Error ? e.message : String(e);
+          if (errorMsg.includes('duplicate column name')) {
+            log.debug('BusinessAdapter', 'status column already exists in whois_cache table');
+          } else {
+            log.warn('BusinessAdapter', 'Failed to add status column', { error: e });
+          }
         }
       } else if (dbType === 'mysql') {
         // MySQL 语法
@@ -3137,14 +3145,33 @@ export const WhoisOperations = {
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
         
-        // 迁移：为已存在的表添加 status 字段
+        // 迁移：为已存在的表添加 status 字段（如果不存在）
         try {
-          await executeInternal(`ALTER TABLE whois_cache ADD COLUMN status TEXT AFTER raw_data`, [], { 
-            operation: 'Whois.migrateAddStatusColumn', 
-            table: 'whois_cache' 
-          });
+          // 先检查字段是否存在
+          const columnCheck = await getInternal(
+            `SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.COLUMNS 
+             WHERE TABLE_SCHEMA = DATABASE() 
+             AND TABLE_NAME = 'whois_cache' 
+             AND COLUMN_NAME = 'status'`,
+            [],
+            { operation: 'Whois.checkStatusColumn', table: 'whois_cache' }
+          );
+          
+          const columnExists = (columnCheck as any)?.count > 0;
+          
+          if (!columnExists) {
+            // 字段不存在，添加它
+            await executeInternal(
+              `ALTER TABLE whois_cache ADD COLUMN status TEXT AFTER raw_data`, 
+              [], 
+              { operation: 'Whois.migrateAddStatusColumn', table: 'whois_cache' }
+            );
+            log.info('BusinessAdapter', 'Added status column to whois_cache table');
+          } else {
+            log.debug('BusinessAdapter', 'status column already exists in whois_cache table');
+          }
         } catch (e) {
-          // 字段可能已存在，忽略错误
+          log.warn('BusinessAdapter', 'Failed to check/add status column', { error: e });
         }
       } else if (dbType === 'postgresql') {
         // PostgreSQL 语法
