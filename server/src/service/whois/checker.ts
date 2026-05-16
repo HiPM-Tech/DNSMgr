@@ -72,7 +72,11 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
         return null;
       }
 
-      const config = JSON.parse(account.config);
+      // account.config 可能是字符串或对象，安全解析
+      const config = typeof account.config === 'string' 
+        ? JSON.parse(account.config) 
+        : account.config;
+      
       log.info('WhoisChecker', `Calling DNSHE WHOIS for ${domainName}`);
       const whoisResult = await scheduler.queryWhois(config, domainName);
       
@@ -89,7 +93,11 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
     }
 
     // 其他提供商
-    const config = JSON.parse(account.config);
+    // account.config 可能是字符串或对象，安全解析
+    const config = typeof account.config === 'string' 
+      ? JSON.parse(account.config) 
+      : account.config;
+    
     const adapter = createAdapter(account.type, config, domainName);
     const domainList = await adapter.getDomainList();
     const domainInfo = domainList.list.find((d: any) => d.Domain.toLowerCase() === domainName.toLowerCase());
