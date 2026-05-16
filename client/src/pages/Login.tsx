@@ -369,20 +369,24 @@ export function Login() {
             <Button type="button" variant="text" theme="primary" className="login-footer-action" onClick={() => setShowReset(true)}>
               {t('login.forgotPassword')}
             </Button>
-            <Button
-              type="button"
-              variant="text"
-              theme="primary"
-              className="login-footer-action"
-              disabled={oauthLoading}
-              title={oauthEnabled && oauthProviders.some((provider) => provider.key === 'logto') ? undefined : t('login.logtoUnavailable')}
-              onClick={() => startOauthLogin('logto')}
-            >
-              <SecuredIcon />
-              <span>{t('login.logtoSignIn')}</span>
-            </Button>
+            
+            {/* 动态显示 Logto 登录（仅当后端配置了 Logto） */}
+            {oauthEnabled && oauthProviders.some((provider) => provider.key === 'logto') && (
+              <Button
+                type="button"
+                variant="text"
+                theme="primary"
+                className="login-footer-action"
+                disabled={oauthLoading}
+                onClick={() => startOauthLogin('logto')}
+              >
+                <SecuredIcon />
+                <span>{t('login.logtoSignIn')}</span>
+              </Button>
+            )}
           </div>
 
+          {/* 动态显示其他 OAuth 提供商 */}
           {oauthEnabled && oauthProviders.some((provider) => provider.key !== 'logto') && (
             <div className="login-external-providers" aria-label="OAuth">
               {oauthProviders.filter((provider) => provider.key !== 'logto').map((provider) => (
