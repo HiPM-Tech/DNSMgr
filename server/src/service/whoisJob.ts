@@ -143,13 +143,22 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
     // 提取 WHOIS 状态信息
     let whoisStatus: string | null = null;
     if (whoisResult?.raw) {
-      // 从原始 WHOIS 数据中解析状态
-      const statusMatch = whoisResult.raw.match(/status:\s*(.+)/i);
-      if (statusMatch && statusMatch[1]) {
-        whoisStatus = statusMatch[1].trim().split('\n')[0].trim();
-        log.info('WhoisJob', `Extracted WHOIS status for ${domainName}: ${whoisStatus}`);
-      } else {
-        log.debug('WhoisJob', `No WHOIS status found in raw data for ${domainName}`);
+      // 尝试解析为 JSON (RDAP 格式)
+      try {
+        const jsonData = JSON.parse(whoisResult.raw);
+        if (jsonData.status && Array.isArray(jsonData.status) && jsonData.status.length > 0) {
+          whoisStatus = jsonData.status[0];
+          log.info('WhoisJob', `Extracted RDAP status for ${domainName}: ${whoisStatus}`);
+        }
+      } catch (e) {
+        // 不是 JSON，尝试作为 WHOIS 文本解析
+        const statusMatch = whoisResult.raw.match(/Domain Status:\s*([\w]+)\s*/i);
+        if (statusMatch && statusMatch[1]) {
+          whoisStatus = statusMatch[1].trim();
+          log.info('WhoisJob', `Extracted WHOIS status for ${domainName}: ${whoisStatus}`);
+        } else {
+          log.debug('WhoisJob', `No WHOIS status found in raw data for ${domainName}`);
+        }
       }
     }
 
