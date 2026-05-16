@@ -65,10 +65,10 @@ async function setCachedWhois(domain: string, result: WhoisResult): Promise<void
       result.apexExpiryDate ? formatDateForMySQL(result.apexExpiryDate) : null,
       result.registrar || null,
       JSON.stringify(result.nameServers || []),
-      JSON.stringify(result),
+      result.raw || '',  // 保存原始 WHOIS/RDAP 文本
       result.status || null  // 保存 WHOIS 状态
     );
-    log.debug('WhoisJob', `Cached WHOIS result for ${domain}`);
+    log.debug('WhoisJob', `Cached WHOIS result for ${domain}`, { status: result.status });
   } catch (error) {
     log.error('WhoisJob', 'Failed to cache WHOIS result', { domain, error });
   }
