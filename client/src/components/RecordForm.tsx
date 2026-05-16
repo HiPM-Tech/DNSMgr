@@ -1,10 +1,9 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Alert, Button, Form, Input, Select, Space } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
-import { useFormSync } from '../hooks/useFormSync';
 import { toString } from '../utils/formHelpers';
 import './RecordForm.css';
 
@@ -29,6 +28,17 @@ interface SrvFields {
   weight: number;
   port: string;
   target: string;
+}
+
+interface RecordFormState {
+  name: string;
+  type: string;
+  value: string;
+  ttl: number;
+  mx: number;
+  weight: number;
+  line: string;
+  remark: string;
 }
 
 function isIPv4(value: string): boolean {
@@ -167,38 +177,74 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   
   // Check if provider supports multi-line routing
   const hasMultiLine = lines.length > 1 && !hasProxyMode;
-  
-  // 使用 useFormSync 统一管理表单状态
-  const { formState: form, updateField } = useFormSync(
-    initial,
-    {
-      name: '@',
-      type: 'A',
-      value: '',
-      ttl: 600,
-      mx: 10,
-      weight: 10,
-      line: '0',
-      remark: '',
-    },
-    {
-      fields: ['name', 'type', 'value', 'ttl', 'mx', 'weight', 'line', 'remark'],
-      transformers: {
-        name: (v) => toString(v, '@'),
-        type: (v) => toString(v, 'A'),
-        value: (v) => toString(v),
-        line: (v) => {
-          // 特殊逻辑：根据 hasProxyMode 和 hasMultiLine 决定默认值
-          if (hasProxyMode) return toString(v, '0');
-          return toString(v, hasMultiLine ? (lines[0]?.id ?? '0') : '0');
-        },
-      },
-    }
-  );
-  
+  const defaultLine = hasProxyMode ? '0' : toString(lines[0]?.id, '0');
+
+  const buildRecordFormState = (record?: DnsRecord | null): RecordFormState => ({
+    name: toString(record?.name, '@') || '@',
+    type: toString(record?.type, 'A') || 'A',
+    value: toString(record?.value),
+    ttl: Number(record?.ttl ?? 600),
+    mx: Number(record?.mx ?? 10),
+    weight: Number(record?.weight ?? 10),
+    line: hasProxyMode
+      ? toString(record?.line, '0')
+      : toString(record?.line, hasMultiLine ? defaultLine : '0'),
+    remark: toString(record?.remark),
+  });
+
+  const [form, setForm] = useState<RecordFormState>(() => buildRecordFormState(initial));
+  const [formDirty, setFormDirty] = useState(false);
+  const activeRecordIdRef = useRef<string | undefined>(initial?.id);
+
   // SRV 字段需要单独处理（因为涉及解析逻辑）
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
+
+  useEffect(() => {
+    const next = buildRecordFormState(initial);
+    const nextRecordId = initial?.id;
+
+    if (!initial) {
+      if (activeRecordIdRef.current !== undefined) {
+        activeRecordIdRef.current = undefined;
+        setForm(next);
+        setFormDirty(false);
+        setErrors({});
+        return;
+      }
+
+      if (!formDirty) {
+        setForm(next);
+      }
+      return;
+    }
+
+    if (activeRecordIdRef.current !== nextRecordId) {
+      activeRecordIdRef.current = nextRecordId;
+      setForm(next);
+      setFormDirty(false);
+      setErrors({});
+      return;
+    }
+
+    if (!formDirty) {
+      setForm(next);
+    }
+  }, [
+    initial?.id,
+    initial?.name,
+    initial?.type,
+    initial?.value,
+    initial?.ttl,
+    initial?.mx,
+    initial?.weight,
+    initial?.line,
+    initial?.remark,
+    hasProxyMode,
+    hasMultiLine,
+    defaultLine,
+    formDirty,
+  ]);
 
   // SRV 字段同步（保留特殊处理逻辑）
   useEffect(() => {
@@ -208,8 +254,13 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   }, [initial?.id, initial?.mx, initial?.weight, initial?.value]);
 
   // 更新字段并清除错误
+  const updateField = <K extends keyof RecordFormState>(field: K, value: RecordFormState[K]) => {
+    setFormDirty(true);
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
   const set = (k: keyof DnsRecord, v: unknown) => {
-    updateField(k, v);
+    updateField(k as keyof RecordFormState, v as RecordFormState[keyof RecordFormState]);
     setErrors((current) => ({ ...current, [k as keyof typeof current]: undefined }));
   };
 
@@ -352,6 +403,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         >
           <Input
             clearable
+            name={initial ? `record-host-${initial.id}` : 'record-host-create'}
+            autocomplete="off"
             value={String(form.name ?? '')}
             onChange={(value: any) => updateField('name', String(value))}
             placeholder={t('records.hostPlaceholder')}
@@ -429,6 +482,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         <Form.FormItem label={t('records.valueLabel')} status={errors.value ? 'error' : undefined} tips={errors.value}>
           <Input
             clearable
+            name={initial ? `record-value-${initial.id}` : 'record-value-create'}
+            autocomplete="off"
             value={String(form.value ?? '')}
             onChange={(value: any) => set('value', value)}
             placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}
