@@ -54,12 +54,14 @@ export class RdapMethod extends BaseQueryMethod {
       const expiryDate = this.extractExpiryDate(data);
       const registrar = this.extractRegistrar(data);
       const nameServers = this.extractNameServers(data);
+      const status = this.extractStatus(data);
 
       if (expiryDate) {
         this.log('info', `Successfully extracted expiry for ${domain}`, {
           expiryDate: expiryDate.toISOString(),
           registrar,
           nameServerCount: nameServers.length,
+          status,
         });
       }
 
@@ -69,6 +71,7 @@ export class RdapMethod extends BaseQueryMethod {
         registrar,
         nameServers,
         raw: JSON.stringify(data),
+        status,  // 添加 WHOIS 状态
       };
     } catch (error) {
       let errorDetails: Record<string, unknown>;
@@ -194,6 +197,20 @@ export class RdapMethod extends BaseQueryMethod {
     }
 
     return nameServers;
+  }
+
+  /**
+   * 提取 WHOIS 状态
+   * RDAP status 是一个数组，如 ["active"] 或 ["clientTransferProhibited"]
+   */
+  private extractStatus(data: any): string | null {
+    if (data.status && Array.isArray(data.status) && data.status.length > 0) {
+      // 返回第一个状态值
+      const status = data.status[0];
+      this.log('debug', `Extracted RDAP status`, { status });
+      return status;
+    }
+    return null;
   }
 }
 
