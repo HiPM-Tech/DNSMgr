@@ -849,18 +849,29 @@ export {
   type WhoisResult as CachedWhoisResult,
 } from './cache';
 
-// 导出状态解析器
-export { extractStatusFromRaw } from './status-parser';
+// 导出状态解析器（已升级为数据解析中心）
+export { 
+  extractStatus,
+  extractExpiryDate,
+  extractRegistrar,
+  parseWhoisData,
+  type QueryDataType,
+  type ParsedWhoisData,
+} from './data-parser';
 
-// 导出调度器模块
+// 导出 DNS 提供商适配器
 export {
-  whoisRegistry,
+  dnsProviderAdapter,
+  initDnsProviderAdapters,
+  type WhoisScheduler,
+  type WhoisSchedulerResult,
+} from './providers/adapter';
+
+// 导出调度器模块（只保留定时任务功能）
+export {
   initWhoisSchedulers,
   startWhoisJob,
   syncAllDomainsWhois,
-  type WhoisScheduler,
-  type WhoisSchedulerResult,
-  WhoisQueryStrategy,
 } from './scheduler';
 
 // 导出检查器模块

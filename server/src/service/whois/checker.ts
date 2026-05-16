@@ -7,7 +7,7 @@
 import { WhoisOperations, DnsAccountOperations } from '../../db/business-adapter';
 import { Domain, DnsAccount } from '../../types';
 import { log } from '../../lib/logger';
-import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatusFromRaw, WhoisResult, whoisRegistry } from './index';
+import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatus, dnsProviderAdapter, WhoisResult } from './index';
 import { createAdapter } from '../../lib/dns/DnsHelper';
 import { areDomainsEqual } from '../../utils/domain';
 
@@ -60,7 +60,7 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
 
     // DNSHE 特殊处理
     if (account.type === 'dnshe') {
-      const scheduler = whoisRegistry.getScheduler('dnshe');
+      const scheduler = dnsProviderAdapter.getAdapter('dnshe');
       if (!scheduler) {
         return null;
       }
@@ -115,7 +115,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       // 如果缓存中没有 status，尝试从 raw_data 中解析
       whoisStatus = cached.status || null;
       if (!whoisStatus && cached.raw) {
-        whoisStatus = extractStatusFromRaw(cached.raw);
+        whoisStatus = extractStatus(cached.raw);
         if (whoisStatus) {
           log.info('WhoisChecker', `Parsed status from cache for ${domainName}: ${whoisStatus}`);
         }
@@ -136,7 +136,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
 
     // 提取 WHOIS 状态信息
     if (whoisResult?.raw) {
-      whoisStatus = extractStatusFromRaw(whoisResult.raw);
+      whoisStatus = extractStatus(whoisResult.raw);
       if (whoisStatus) {
         log.info('WhoisChecker', `Extracted status for ${domainName}: ${whoisStatus}`);
       }

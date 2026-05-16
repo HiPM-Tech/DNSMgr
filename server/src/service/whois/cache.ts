@@ -6,7 +6,7 @@
 
 import { WhoisOperations } from '../../db/business-adapter';
 import { log } from '../../lib/logger';
-import { extractStatusFromRaw } from './status-parser';
+import { extractStatus } from './data-parser';
 
 // WHOIS 数据库缓存配置
 const CACHE_TTL = 1 * 60 * 60 * 1000; // 1 小时
@@ -60,7 +60,7 @@ export async function getCachedWhois(domain: string): Promise<WhoisResult | null
       
       // 如果缓存中没有 status，尝试从 raw_data 中解析
       if (!cached.status && cached.raw) {
-        cached.status = extractStatusFromRaw(cached.raw);
+        cached.status = extractStatus(cached.raw);
         if (cached.status) {
           log.info('WhoisCache', `Parsed status from cache for ${domain}: ${cached.status}`);
         }
