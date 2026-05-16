@@ -296,7 +296,7 @@ export function SecurityTab() {
             <Form.FormItem label={t('system.maxAttempts')} help={t('system.maxAttemptsDesc')}>
               <Input
                 type="number"
-                value={String(loginLimitConfig?.maxAttempts || 10)}
+                value={String(loginLimitConfig?.maxAttempts ?? 10)}
                 suffix={t('system.attempts')}
                 disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
                 onChange={(value: any) => handleUpdateMaxAttempts(Number(value))}
@@ -305,7 +305,7 @@ export function SecurityTab() {
             <Form.FormItem label={t('system.lockoutDuration')} help={t('system.lockoutDurationDesc')}>
               <Input
                 type="number"
-                value={String(loginLimitConfig?.lockoutDuration || 60)}
+                value={String(loginLimitConfig?.lockoutDuration ?? 60)}
                 suffix={t('system.minutes')}
                 disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
                 onChange={(value: any) => handleUpdateLockoutDuration(Number(value))}
