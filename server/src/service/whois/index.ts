@@ -856,7 +856,16 @@ export { extractStatusFromRaw } from './status-parser';
 export {
   whoisRegistry,
   initWhoisSchedulers,
+  startWhoisJob,
+  syncAllDomainsWhois,
   type WhoisScheduler,
   type WhoisSchedulerResult,
   WhoisQueryStrategy,
 } from './scheduler';
+
+// 导出检查器模块
+export {
+  checkWhoisForDomain,
+  syncDomainWhois,
+  type WhoisCheckResult,
+} from './checker';

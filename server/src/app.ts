@@ -44,7 +44,7 @@ import { getString, parseInteger, parsePagination, sendError, sendSuccess } from
 loadEnv();
 
 import { startFailoverJob } from './service/failoverJob';
-import { startWhoisJob } from './service/whoisJob';
+import { startWhoisJob } from './service/whois';
 import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { startRecordCountCacheRefresh } from './service/recordCountCache';

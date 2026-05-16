@@ -11,7 +11,7 @@ import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { log } from '../lib/logger';
 import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations } from '../db/business-adapter';
-import { syncDomainWhois } from '../service/whoisJob';
+import { syncDomainWhois } from '../service/whois';
 import { getRootDomain, queryWhois } from '../service/whois';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/domain';
