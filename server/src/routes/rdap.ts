@@ -43,16 +43,14 @@ async function queryRdapSimple(domain: string): Promise<any | null> {
   }
   
   // 判断查询类型：检查 raw 是否为 JSON
-  let queryType: 'RDAP' | 'WHOIS' | 'DNS' = 'WHOIS';
+  let queryType: 'RDAP' | 'WHOIS' = 'WHOIS';
   try {
     JSON.parse(result.raw);
-    // 如果能解析为 JSON，可能是 RDAP 或 DNS
-    // 根据是否有特定字段判断
+    // 如果能解析为 JSON，检查是否为 RDAP 格式
     if (result.raw.includes('"objectClassName"') || result.raw.includes('"rdapConformance"')) {
       queryType = 'RDAP';
-    } else {
-      queryType = 'DNS';
     }
+    // 注：DNS 提供商数据不会在此出现（需要认证，公开 RDAP 不传递配置）
   } catch (e) {
     // 不能解析为 JSON，是 WHOIS 文本
     queryType = 'WHOIS';
@@ -234,17 +232,9 @@ router.get(
           log.warn('RDAP', 'Failed to parse RDAP JSON, falling back to conversion');
           rdapResponse = convertToRdapFormat(domain, queryResult);
         }
-      } else if (queryResult.queryType === 'DNS') {
-        // DNS 提供商：不支持公开 RDAP
-        log.warn('RDAP', 'DNS provider data not supported for public RDAP');
-        res.status(501).json({
-          errorCode: 501,
-          title: 'Not Implemented',
-          description: 'DNS provider data is not available via public RDAP service',
-        });
-        return;
       } else {
         // WHOIS 查询：转换为 RDAP 格式
+        // 注：DNS 提供商查询不会在此触发（需要认证，公开 RDAP 不支持）
         log.info('RDAP', 'Converting WHOIS data to RDAP format');
         rdapResponse = convertToRdapFormat(domain, queryResult);
       }
