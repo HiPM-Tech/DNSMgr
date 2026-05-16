@@ -433,9 +433,9 @@ export type InitDatabaseType = 'sqlite' | 'mysql' | 'postgresql';
 
 export interface InitDbConfig {
   type: InitDatabaseType;
-  sqlite: { path: string };
-  mysql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
-  postgresql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
+  sqlite?: { path?: string };
+  mysql?: { host?: string; port?: number; database?: string; user?: string; password?: string; ssl?: boolean };
+  postgresql?: { host?: string; port?: number; database?: string; user?: string; password?: string; ssl?: boolean };
 }
 
 export const initApi = {
