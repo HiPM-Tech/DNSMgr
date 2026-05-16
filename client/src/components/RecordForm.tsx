@@ -79,12 +79,21 @@ function isHostname(value: string): boolean {
 function isRecordHost(value: string): boolean {
   const normalized = value.trim();
   if (normalized === '@') return true;
+  if (normalized === '*') return true; // Support wildcard DNS records
 
   const labels = normalized.split('.');
 
-  for (const label of labels) {
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i];
+    
     if (label.length === 0 || label.length > 63) {
       return false;
+    }
+
+    // Wildcard can only be the first label
+    if (label === '*') {
+      if (i !== 0) return false; // Wildcard must be first label
+      continue;
     }
 
     if (/[^\x00-\x7F]/.test(label)) {

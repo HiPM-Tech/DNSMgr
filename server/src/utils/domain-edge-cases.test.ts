@@ -120,5 +120,17 @@ describe('Domain Edge Cases - xn-- prefix handling', () => {
       // Multiple levels with --
       assert.strictEqual(isValidSubdomain('xxx--xxxx.yyy--yyyy'), true);
     });
+
+    it('should validate wildcard DNS records', () => {
+      // Wildcard as standalone
+      assert.strictEqual(isValidHostname('*'), true);
+      
+      // Wildcard in subdomain (first label)
+      assert.strictEqual(isValidHostname('*.example.com'), true);
+      assert.strictEqual(isValidHostname('*.sub.example.com'), true);
+      
+      // Wildcard should only be valid as first label
+      assert.strictEqual(isValidHostname('sub.*.example.com'), false);
+    });
   });
 });

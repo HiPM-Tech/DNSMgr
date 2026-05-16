@@ -235,12 +235,23 @@ export function isValidHostname(hostname: string): boolean {
     return false;
   }
 
+  // Support wildcard DNS records - only as standalone or first label
+  if (trimmed === '*') return true;
+
   // Split by dot for validation
   const labels = trimmed.split('.');
 
-  for (const label of labels) {
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i];
+    
     if (label.length === 0 || label.length > 63) {
       return false;
+    }
+
+    // Wildcard can only be the first label
+    if (label === '*') {
+      if (i !== 0) return false; // Wildcard must be first label
+      continue;
     }
 
     // Check if label contains Unicode characters
