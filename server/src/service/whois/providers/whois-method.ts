@@ -48,12 +48,14 @@ export class WhoisMethod extends BaseQueryMethod {
       const expiryDate = this.extractExpiryDate(raw);
       const registrar = this.extractRegistrar(raw);
       const nameServers = this.extractNameServers(raw);
+      const status = this.extractStatus(raw);
 
       if (expiryDate) {
         this.log('info', `Successfully extracted expiry for ${domain}`, {
           expiryDate: expiryDate.toISOString(),
           registrar,
           nameServerCount: nameServers.length,
+          status,
         });
       }
 
@@ -63,6 +65,7 @@ export class WhoisMethod extends BaseQueryMethod {
         registrar,
         nameServers,
         raw,
+        status,  // 添加 WHOIS 状态
       };
     } catch (error) {
       this.log('error', `WHOIS query error for ${domain}`, {
@@ -193,6 +196,32 @@ export class WhoisMethod extends BaseQueryMethod {
     }
 
     return [...new Set(ns)];
+  }
+
+  /**
+   * 提取 WHOIS 状态
+   * 支持格式：
+   * - Domain Status: ok https://icann.org/epp#OK
+   * - status: ok
+   * - Status: clientTransferProhibited
+   */
+  private extractStatus(whoisText: string): string | null {
+    const patterns = [
+      /Domain Status:\s*([\w]+)\s*/i,  // 匹配 "Domain Status: ok"
+      /status:\s*([\w]+)\s*/i,          // 匹配 "status: ok"
+      /Status:\s*([\w]+)\s*/i,          // 匹配 "Status: clientTransferProhibited"
+    ];
+
+    for (const pattern of patterns) {
+      const match = whoisText.match(pattern);
+      if (match && match[1]) {
+        const status = match[1].trim();
+        this.log('debug', `Extracted WHOIS status`, { status });
+        return status;
+      }
+    }
+
+    return null;
   }
 }
 
