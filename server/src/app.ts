@@ -48,6 +48,33 @@ import { startWhoisJob } from './service/whoisJob';
 import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { startRecordCountCacheRefresh } from './service/recordCountCache';
+
+// 读取 package.json 获取版本信息
+import { readFileSync } from 'fs';
+let packageVersion = 'unknown';
+try {
+  const packageJson = JSON.parse(readFileSync(path.join(APP_ROOT, 'package.json'), 'utf-8'));
+  packageVersion = packageJson.version || 'unknown';
+} catch (error) {
+  // 忽略错误，使用默认版本
+}
+
+/**
+ * 打印启动横幅
+ */
+function printBanner(port: number): void {
+  const banner = `
+[36m╔═══════════════════════════════════════════════════════════╗[0m
+[36m║[0m                                                       [36m║[0m
+[36m║[0m   [1m[35mHiDNS Manager[0m                                    [36m║[0m
+[36m║[0m                                                       [36m║[0m
+[36m║[0m   [90mProject:[0m HiDNS Manager                         [36m║[0m
+[36m║[0m   [90mVersion:[0m ${packageVersion.padEnd(42)}[36m║[0m
+[36m║[0m                                                       [36m║[0m
+[36m╚═══════════════════════════════════════════════════════════╝[0m
+`;
+  console.log(banner);
+}
 import { initRenewalSchedulers } from './service/renewalInit';
 import { wsService } from './service/websocket';
 import { initWhoisSchedulers } from './service/whoisInit';
@@ -349,6 +376,9 @@ async function initializeApp() {
     // Initialize WebSocket service
     wsService.initialize(server);
     
+    // 打印启动横幅
+    printBanner(PORT);
+    
     server.listen(PORT, () => {
       log.info('Server', `HiDNS running on http://localhost:${PORT}`);
       log.info('Server', `API Docs: http://localhost:${PORT}/api/docs`);
@@ -437,6 +467,9 @@ async function initializeApp() {
     
     // Initialize WebSocket service
     wsService.initialize(server);
+    
+    // 打印启动横幅
+    printBanner(PORT);
     
     server.listen(PORT, () => {
       log.info('Server', `HiDNS running on http://localhost:${PORT}`);
