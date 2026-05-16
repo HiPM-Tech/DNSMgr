@@ -168,13 +168,6 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const toast = useToast();
   const { t } = useI18n();
   
-  // ✅ 调试日志：检查 initial 数据
-  useEffect(() => {
-    if (initial) {
-      console.log('[RecordForm] initial data:', JSON.stringify(initial, null, 2));
-    }
-  }, [initial]);
-  
   // 检测是否为 VPS8 提供商
   const isVPS8 = provider?.type === 'vps8';
   
@@ -403,16 +396,24 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.priority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
               <Input
                 type="number"
-                value={String(form.mx ?? 10)}
-                onChange={(value: any) => set('mx', Number(value))}
+                value={String(isSrv ? srv.priority : (form.mx ?? 10))}
+                onChange={(value: any) => {
+                  const num = Number(value);
+                  setSrv((current) => ({ ...current, priority: num }));
+                  set('mx', num);
+                }}
                 status={errors.mx ? 'error' : undefined}
               />
             </Form.FormItem>
             <Form.FormItem label={t('records.weight')} status={errors.weight ? 'error' : undefined} tips={errors.weight}>
               <Input
                 type="number"
-                value={String(form.weight ?? 10)}
-                onChange={(value: any) => set('weight', Number(value))}
+                value={String(isSrv ? srv.weight : (form.weight ?? 10))}
+                onChange={(value: any) => {
+                  const num = Number(value);
+                  setSrv((current) => ({ ...current, weight: num }));
+                  set('weight', num);
+                }}
                 status={errors.weight ? 'error' : undefined}
               />
             </Form.FormItem>
