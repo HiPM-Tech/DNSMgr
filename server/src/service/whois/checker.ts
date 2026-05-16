@@ -8,7 +8,6 @@ import { WhoisOperations, DnsAccountOperations } from '../../db/business-adapter
 import { Domain, DnsAccount } from '../../types';
 import { log } from '../../lib/logger';
 import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatus, dnsProviderAdapter, WhoisResult } from './index';
-import { createAdapter } from '../../lib/dns/DnsHelper';
 import { areDomainsEqual } from '../../utils/domain';
 
 /**
@@ -57,60 +56,30 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
 
     log.info('WhoisChecker', `Querying provider ${account.type} for domain ${domainName}`);
 
-    // 排除不准确的提供商
-    const excludedProviders = ['caihongdns', 'hidns'];
-    if (excludedProviders.includes(account.type)) {
-      log.debug('WhoisChecker', `Provider ${account.type} is excluded for domain ${domainName}`);
+    // 检查是否有注册的 WHOIS 适配器
+    const scheduler = dnsProviderAdapter.getAdapter(account.type);
+    if (!scheduler) {
+      log.debug('WhoisChecker', `No WHOIS adapter registered for provider ${account.type}`);
       return null;
     }
 
-    // DNSHE 特殊处理
-    if (account.type === 'dnshe') {
-      const scheduler = dnsProviderAdapter.getAdapter('dnshe');
-      if (!scheduler) {
-        log.warn('WhoisChecker', 'DNSHE adapter not registered');
-        return null;
-      }
-
-      // account.config 可能是字符串或对象，安全解析
-      const config = typeof account.config === 'string' 
-        ? JSON.parse(account.config) 
-        : account.config;
-      
-      log.info('WhoisChecker', `Calling DNSHE WHOIS for ${domainName}`);
-      const whoisResult = await scheduler.queryWhois(config, domainName);
-      
-      if (whoisResult?.success && whoisResult.expiration_date) {
-        const expiryDate = new Date(whoisResult.expiration_date);
-        if (!isNaN(expiryDate.getTime())) {
-          log.info('WhoisChecker', `DNSHE returned expiry for ${domainName}: ${expiryDate.toISOString()}`);
-          return expiryDate;
-        }
-      }
-      
-      log.debug('WhoisChecker', `DNSHE query failed or no expiration_date for ${domainName}`);
-      return null;
-    }
-
-    // 其他提供商
     // account.config 可能是字符串或对象，安全解析
     const config = typeof account.config === 'string' 
       ? JSON.parse(account.config) 
       : account.config;
     
-    const adapter = createAdapter(account.type, config, domainName);
-    const domainList = await adapter.getDomainList();
-    const domainInfo = domainList.list.find((d: any) => d.Domain.toLowerCase() === domainName.toLowerCase());
+    log.info('WhoisChecker', `Calling ${account.type.toUpperCase()} WHOIS for ${domainName}`);
+    const whoisResult = await scheduler.queryWhois(config, domainName);
     
-    if (domainInfo?.ExpiresAt) {
-      const expiryDate = new Date(domainInfo.ExpiresAt);
+    if (whoisResult?.success && whoisResult.expiration_date) {
+      const expiryDate = new Date(whoisResult.expiration_date);
       if (!isNaN(expiryDate.getTime())) {
-        log.info('WhoisChecker', `Provider ${account.type} returned expiry for ${domainName}: ${expiryDate.toISOString()}`);
+        log.info('WhoisChecker', `${account.type.toUpperCase()} returned expiry for ${domainName}: ${expiryDate.toISOString()}`);
         return expiryDate;
       }
     }
-
-    log.debug('WhoisChecker', `Provider ${account.type} returned no expiry for ${domainName}`);
+    
+    log.debug('WhoisChecker', `${account.type.toUpperCase()} query failed or no expiration_date for ${domainName}`);
     return null;
   } catch (error) {
     log.error('WhoisChecker', `Failed to get expiry from provider for ${domainName}:`, {
