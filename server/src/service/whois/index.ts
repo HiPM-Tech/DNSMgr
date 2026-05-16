@@ -841,3 +841,13 @@ export async function queryWhois(domain: string): Promise<WhoisResult | null> {
 
 // 从 domain-utils 导出 getRootDomain 函数（保持向后兼容）
 export { getRootDomain } from './domain-utils';
+
+// 导出缓存管理模块
+export {
+  getCachedWhois,
+  setCachedWhois,
+  type WhoisResult as CachedWhoisResult,
+} from './cache';
+
+// 导出状态解析器
+export { extractStatusFromRaw } from './status-parser';

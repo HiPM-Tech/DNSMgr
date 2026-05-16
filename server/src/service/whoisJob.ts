@@ -4,7 +4,7 @@ import { sendNotification } from './notification';
 import { connect } from '../db/core/connection';
 import { taskManager } from './taskManager';
 import { log } from '../lib/logger';
-import { queryWhois, getRootDomain, WhoisResult } from './whoisProvider';
+import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatusFromRaw, WhoisResult } from './whois';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { whoisRegistry } from './whoisScheduler';
 import { normalizeDomain, areDomainsEqual } from '../utils/domain';
@@ -20,91 +20,6 @@ function formatDateForMySQL(date: Date): string {
   const minutes = String(date.getMinutes()).padStart(2, '0');
   const seconds = String(date.getSeconds()).padStart(2, '0');
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-}
-
-/**
- * 从原始数据中提取 WHOIS 状态
- * 根据数据格式（RDAP JSON 或 WHOIS 文本）使用不同的解析策略
- */
-function extractStatusFromRaw(raw: string): string | null {
-  if (!raw) return null;
-  
-  // 策略 1: 尝试解析为 RDAP JSON
-  try {
-    const jsonData = JSON.parse(raw);
-    if (jsonData.status && Array.isArray(jsonData.status) && jsonData.status.length > 0) {
-      return jsonData.status[0];
-    }
-  } catch (e) {
-    // 不是 JSON，继续尝试 WHOIS 文本
-  }
-  
-  // 策略 2: 从 WHOIS 文本中提取
-  // 匹配 "Domain Status: ok https://icann.org/epp#OK"
-  const domainStatusMatch = raw.match(/^Domain Status:\s*([\w]+)\s/im);
-  if (domainStatusMatch && domainStatusMatch[1]) {
-    return domainStatusMatch[1];
-  }
-  
-  // 策略 3: 匹配其他 WHOIS 状态格式
-  const statusMatch = raw.match(/^status:\s*([\w]+)\s/im);
-  if (statusMatch && statusMatch[1]) {
-    return statusMatch[1];
-  }
-  
-  return null;
-}
-
-// WHOIS 数据库缓存配置
-const CACHE_TTL = 1 * 60 * 60 * 1000; // 1 小时
-const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL / 1000);
-
-/**
- * 从数据库获取缓存的 WHOIS 结果
- */
-async function getCachedWhois(domain: string): Promise<WhoisResult | null> {
-  try {
-    const row = await WhoisOperations.getCachedWhois(domain, CACHE_TTL_SECONDS);
-    
-    if (row) {
-      log.debug('WhoisJob', `Database cache hit for ${domain}`);
-      
-      return {
-        domain: (row as any).domain || domain,
-        expiryDate: (row as any).expiry_date ? new Date((row as any).expiry_date) : null,
-        apexExpiryDate: (row as any).apex_expiry_date ? new Date((row as any).apex_expiry_date) : null,
-        registrar: (row as any).registrar || null,
-        nameServers: (row as any).name_servers ? JSON.parse((row as any).name_servers) : [],
-        raw: (row as any).raw_data || '',
-        status: (row as any).status || null,  // 从缓存中读取状态
-      };
-    }
-    
-    return null;
-  } catch (error) {
-    log.error('WhoisJob', 'Failed to get cached WHOIS', { domain, error });
-    return null;
-  }
-}
-
-/**
- * 将 WHOIS 结果缓存到数据库
- */
-async function setCachedWhois(domain: string, result: WhoisResult): Promise<void> {
-  try {
-    await WhoisOperations.setCachedWhois(
-      domain,
-      result.expiryDate ? formatDateForMySQL(result.expiryDate) : null,
-      result.apexExpiryDate ? formatDateForMySQL(result.apexExpiryDate) : null,
-      result.registrar || null,
-      JSON.stringify(result.nameServers || []),
-      result.raw || '',  // 保存原始 WHOIS/RDAP 文本
-      result.status || null  // 保存 WHOIS 状态
-    );
-    log.debug('WhoisJob', `Cached WHOIS result for ${domain}`, { status: result.status });
-  } catch (error) {
-    log.error('WhoisJob', 'Failed to cache WHOIS result', { domain, error });
-  }
 }
 
 /**
