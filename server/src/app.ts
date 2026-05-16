@@ -70,6 +70,7 @@ function printBanner(port: number): void {
 [36m║[0m                                                       [36m║[0m
 [36m║[0m   [90mProject:[0m HiDNS Manager                         [36m║[0m
 [36m║[0m   [90mVersion:[0m ${packageVersion.padEnd(42)}[36m║[0m
+[36m║[0m   [90mGitHub:[0m  https://github.com/HiPM-Tech/HiDNS    [36m║[0m
 [36m║[0m                                                       [36m║[0m
 [36m╚═══════════════════════════════════════════════════════════╝[0m
 `;
