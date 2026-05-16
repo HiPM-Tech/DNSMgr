@@ -14,18 +14,24 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { queryWhois, getRootDomain } from '../service/whois';
+import { whoisService, getRootDomain } from '../service/whois';
 import { log } from '../lib/logger';
 import { normalizeDomain, isValidDomain, toUnicode } from '../utils/domain';
 
 const router = Router();
 
 /**
- * 简化的 RDAP 查询函数（不使用内部分层查询）
+ * RDAP 查询函数（使用内部分层查询）
  * 
- * 查询策略：
- * - 顶域：顶域 > 第三方
- * - 子域：仅查询子域（如果无法在子域名提供商直接查到则放弃）
+ * 查询策略（分层并行竞速）：
+ * 1. 顶域RDAP 并行查询（所有匹配的RDAP提供商竞速）
+ * 2. 顶域WHOIS 并行查询（所有匹配的WHOIS提供商竞速）
+ * 3. 子域RDAP 并行查询（如果适用）
+ * 4. 子域WHOIS 并行查询（如果适用）
+ * 5. 子域RDAP 并行平级查询（试图查询其它子域提供商）
+ * 6. 子域WHOIS 并行平级查询（试图查询其它子域提供商）
+ * 7. 第三方RDAP 并行查询
+ * 8. 第三方WHOIS 并行查询
  * 
  * 注意：此函数不会查询 DNS 提供商，因为：
  * - DNS 提供商查询需要数据库握手（获取账号配置）
@@ -34,14 +40,17 @@ const router = Router();
  * 
  * @returns { type: 'RDAP' | 'WHOIS', raw: string, ... } 或 null
  */
-async function queryRdapSimple(domain: string): Promise<any | null> {
+async function queryRdapWithLayers(domain: string): Promise<any | null> {
   const rootDomain = getRootDomain(domain);
   const isSubdomain = domain !== rootDomain;
   
-  log.info('RDAP', `Simple RDAP query for ${domain} (isSubdomain: ${isSubdomain})`);
+  log.info('RDAP', `Layered RDAP query for ${domain} (isSubdomain: ${isSubdomain})`);
   
-  // 直接查询 WHOIS/RDAP
-  const result = await queryWhois(domain);
+  // 使用完整的分层查询服务
+  const result = await whoisService.query(domain, {
+    preferSubdomain: true,
+    useCache: false,  // 公开 RDAP 不使用缓存，确保实时性
+  });
   
   if (!result) {
     return null;
@@ -212,8 +221,8 @@ router.get(
     try {
       log.info('RDAP', `Public RDAP query for domain: ${domain}`);
 
-      // 使用简化的 RDAP 查询（不使用内部分层查询）
-      const queryResult = await queryRdapSimple(domain);
+      // 使用完整的分层 RDAP 查询
+      const queryResult = await queryRdapWithLayers(domain);
 
       if (!queryResult || !queryResult.expiryDate) {
         res.status(404).json({
