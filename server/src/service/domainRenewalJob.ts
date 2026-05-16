@@ -5,7 +5,6 @@
 
 import { DnsAccountOperations, RenewableDomainOperations } from '../db/business-adapter';
 import { renewalRegistry } from './renewalScheduler';
-import { checkWhoisForDomain } from './whois/checker';
 import { taskManager } from './taskManager';
 import { logAuditOperation } from './audit';
 import { log } from '../lib/logger';
@@ -116,24 +115,6 @@ export async function executeDomainRenewal(): Promise<void> {
                     error: updateError instanceof Error ? updateError.message : String(updateError),
                   });
                 }
-              }
-
-              // ✅ 2. 通过 WHOIS 检查器刷新 domains 表的 whois_status（独立职责）
-              try {
-                const domainName = result.domain_name || domain.name || domain.full_domain;
-                if (domainName) {
-                  // forceRefresh=true 确保获取最新状态
-                  await checkWhoisForDomain(domainName, true);
-                  log.debug('DomainRenewalJob', 'Refreshed WHOIS status via checker', {
-                    domainName,
-                  });
-                }
-              } catch (whoisError) {
-                // WHOIS 刷新失败不影响续期结果，只记录警告
-                log.warn('DomainRenewalJob', 'Failed to refresh WHOIS status (non-critical)', {
-                  domainName: result.domain_name || domain.name,
-                  error: whoisError instanceof Error ? whoisError.message : String(whoisError),
-                });
               }
             } else {
               failedCount++;
