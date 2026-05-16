@@ -60,9 +60,11 @@ export function useFormSync<T extends Record<string, any>>(
     fields.forEach((field: keyof T) => {
       const value = source[field];
       const transformer = (transformers as any)[field as string] as ((value: any) => any) | undefined;
-      (updates as any)[field] = transformer
+      const result = transformer
         ? transformer(value)
         : (value ?? defaultValues[field]);
+      (updates as any)[field] = result;
+      console.log(`[useFormSync] field=${String(field)}, value=`, value, ', result=', result);
     });
     return updates;
   }, [fields, transformers, defaultValues]);
