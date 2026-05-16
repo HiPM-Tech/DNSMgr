@@ -14,7 +14,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { whoisService, getRootDomain } from '../service/whois';
+import { queryWhois, getRootDomain } from '../service/whois';
 import { log } from '../lib/logger';
 import { normalizeDomain, isValidDomain, toUnicode } from '../utils/domain';
 
@@ -37,23 +37,16 @@ async function queryRdapSimple(domain: string): Promise<any | null> {
     // 顶域查询：顶域 > 第三方
     log.info('RDAP', 'Querying apex domain with third-party fallback');
     
-    // 使用 whoisService.query() 但禁用缓存
-    const result = await whoisService.query(domain, { 
-      preferSubdomain: false,
-      useCache: false 
-    });
+    // 直接查询 WHOIS
+    const result = await queryWhois(domain);
     
     return result;
   } else {
     // 子域查询：仅查询子域，不查询父域
     log.info('RDAP', 'Querying subdomain only (skip parent fallback)');
     
-    // 使用 skipParentFallback 选项禁用父域查询
-    const result = await whoisService.query(domain, {
-      preferSubdomain: true,
-      useCache: false,
-      skipParentFallback: true  // 关键：禁用父域查询
-    });
+    // 直接查询 WHOIS
+    const result = await queryWhois(domain);
     
     return result;
   }
