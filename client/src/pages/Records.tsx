@@ -100,10 +100,6 @@ export function Records() {
   
   const records = recordsData?.list ?? [];
   const total = recordsData?.total ?? 0;
-  const currentEditingRecord = useMemo(
-    () => (editing ? records.find((record) => record.id === editing.id) ?? editing : null),
-    [editing, records],
-  );
   
   const { data: lines = [] } = useQuery({
     queryKey: ['lines', domainId],
@@ -343,8 +339,8 @@ export function Records() {
             recordTypes={providerRecordTypes}
             provider={currentProvider}
             existingRecords={records}
-            initial={currentEditingRecord ?? editing}
-            onSubmit={(data) => updateMutation.mutate({ recordId: currentEditingRecord?.id ?? editing.id, data })}
+            initial={editing}
+            onSubmit={(data) => updateMutation.mutate({ recordId: editing.id, data })}
             isLoading={updateMutation.isPending}
           />
         </Modal>
