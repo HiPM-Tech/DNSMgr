@@ -13,7 +13,7 @@ import {
   SearchIcon,
 } from 'tdesign-icons-react';
 import { useNavigate } from 'react-router-dom';
-import { domainsApi, accountsApi, authApi, domainRenewalApi } from '../../api';
+import { domainsApi, accountsApi, authApi } from '../../api';
 import type { Domain, DnsAccount, ProviderDomainOption, WhoisInfo } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
