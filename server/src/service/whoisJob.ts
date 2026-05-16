@@ -43,6 +43,7 @@ async function getCachedWhois(domain: string): Promise<WhoisResult | null> {
         registrar: (row as any).registrar || null,
         nameServers: (row as any).name_servers ? JSON.parse((row as any).name_servers) : [],
         raw: (row as any).raw_data || '',
+        status: (row as any).status || null,  // 从缓存中读取状态
       };
     }
     
@@ -64,7 +65,8 @@ async function setCachedWhois(domain: string, result: WhoisResult): Promise<void
       result.apexExpiryDate ? formatDateForMySQL(result.apexExpiryDate) : null,
       result.registrar || null,
       JSON.stringify(result.nameServers || []),
-      JSON.stringify(result)
+      JSON.stringify(result),
+      result.status || null  // 保存 WHOIS 状态
     );
     log.debug('WhoisJob', `Cached WHOIS result for ${domain}`);
   } catch (error) {
@@ -101,7 +103,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
         apexExpiryDate: cached.apexExpiryDate || null,
         registrar: cached.registrar,
         nameServers: cached.nameServers,
-        status: null,  // 缓存中没有状态信息
+        status: cached.status || null,  // 使用缓存中的状态
       };
     }
 
@@ -158,6 +160,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
         registrar: whoisResult?.registrar || null,
         nameServers: whoisResult?.nameServers || [],
         raw: whoisResult?.raw || '',
+        status: whoisStatus,  // 添加 WHOIS 状态
       };
       setCachedWhois(domainName, result);
       return {

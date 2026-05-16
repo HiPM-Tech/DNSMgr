@@ -3103,10 +3103,21 @@ export const WhoisOperations = {
             registrar VARCHAR(255),
             name_servers TEXT,
             raw_data TEXT,
+            status TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+        
+        // 迁移：为已存在的表添加 status 字段
+        try {
+          await executeInternal(`ALTER TABLE whois_cache ADD COLUMN status TEXT`, [], { 
+            operation: 'Whois.migrateAddStatusColumn', 
+            table: 'whois_cache' 
+          });
+        } catch (e) {
+          // 字段可能已存在，忽略错误
+        }
       } else if (dbType === 'mysql') {
         // MySQL 语法
         await executeInternal(`
@@ -3118,12 +3129,23 @@ export const WhoisOperations = {
             registrar VARCHAR(255),
             name_servers TEXT,
             raw_data TEXT,
+            status TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_domain (domain),
             INDEX idx_updated (updated_at)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+        
+        // 迁移：为已存在的表添加 status 字段
+        try {
+          await executeInternal(`ALTER TABLE whois_cache ADD COLUMN status TEXT AFTER raw_data`, [], { 
+            operation: 'Whois.migrateAddStatusColumn', 
+            table: 'whois_cache' 
+          });
+        } catch (e) {
+          // 字段可能已存在，忽略错误
+        }
       } else if (dbType === 'postgresql') {
         // PostgreSQL 语法
         await executeInternal(`
@@ -3135,10 +3157,21 @@ export const WhoisOperations = {
             registrar VARCHAR(255),
             name_servers TEXT,
             raw_data TEXT,
+            status TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           )
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+        
+        // 迁移：为已存在的表添加 status 字段
+        try {
+          await executeInternal(`ALTER TABLE whois_cache ADD COLUMN IF NOT EXISTS status TEXT`, [], { 
+            operation: 'Whois.migrateAddStatusColumn', 
+            table: 'whois_cache' 
+          });
+        } catch (e) {
+          // 字段可能已存在，忽略错误
+        }
         
         // 创建索引
         await executeInternal(`
@@ -3193,53 +3226,57 @@ export const WhoisOperations = {
     apexExpiryDate: string | null,
     registrar: string | null,
     nameServers: string,
-    rawData: string
+    rawData: string,
+    status: string | null = null
   ): Promise<void> {
     const dbType = getDbType();
     
     if (dbType === 'postgresql') {
       // PostgreSQL 语法
       await executeInternal(
-        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, status, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
          ON CONFLICT(domain) DO UPDATE SET
            expiry_date = EXCLUDED.expiry_date,
            apex_expiry_date = EXCLUDED.apex_expiry_date,
            registrar = EXCLUDED.registrar,
            name_servers = EXCLUDED.name_servers,
            raw_data = EXCLUDED.raw_data,
+           status = EXCLUDED.status,
            updated_at = NOW()`,
-        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData, status],
         { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
       );
     } else if (dbType === 'mysql') {
       // MySQL 语法
       await executeInternal(
-        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())
+        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, status, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
          ON DUPLICATE KEY UPDATE
            expiry_date = VALUES(expiry_date),
            apex_expiry_date = VALUES(apex_expiry_date),
            registrar = VALUES(registrar),
            name_servers = VALUES(name_servers),
            raw_data = VALUES(raw_data),
+           status = VALUES(status),
            updated_at = NOW()`,
-        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData, status],
         { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
       );
     } else {
       // SQLite 语法
       await executeInternal(
-        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, status, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
          ON CONFLICT(domain) DO UPDATE SET
            expiry_date = excluded.expiry_date,
            apex_expiry_date = excluded.apex_expiry_date,
            registrar = excluded.registrar,
            name_servers = excluded.name_servers,
            raw_data = excluded.raw_data,
+           status = excluded.status,
            updated_at = CURRENT_TIMESTAMP`,
-        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData, status],
         { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
       );
     }
