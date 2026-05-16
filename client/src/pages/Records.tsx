@@ -38,6 +38,7 @@ export function Records() {
   const [showAdd, setShowAdd] = useState(false);
   const [showMailSetup, setShowMailSetup] = useState(false);
   const [editing, setEditing] = useState<DnsRecord | null>(null);
+  const [editingKey, setEditingKey] = useState(0); // ✅ 用于强制重新挂载
   const [deleting, setDeleting] = useState<DnsRecord | null>(null);
   const [typeFilter, setTypeFilter] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -212,7 +213,10 @@ export function Records() {
             value={r.status === 1}
             onChange={(checked) => statusMutation.mutate({ recordId: r.id, status: checked ? 1 : 0 })}
           />
-          <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => setEditing(r)} />
+          <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => {
+            setEditingKey(prev => prev + 1); // ✅ 递增 key，强制重新挂载
+            setEditing(r);
+          }} />
           <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} onClick={() => setDeleting(r)} />
         </Space>
       ),
@@ -333,7 +337,7 @@ export function Records() {
       {editing && (
         <Modal title={t('records.editRecord')} onClose={() => setEditing(null)} size="lg">
           <RecordForm
-            key={`edit-${editing.id}`}
+            key={`edit-${editing.id}-${editingKey}`}
             domainId={domainId}
             lines={lines}
             recordTypes={providerRecordTypes}
