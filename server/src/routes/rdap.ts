@@ -27,7 +27,12 @@ const router = Router();
  * - 顶域：顶域 > 第三方
  * - 子域：仅查询子域（如果无法在子域名提供商直接查到则放弃）
  * 
- * @returns { type: 'RDAP' | 'WHOIS' | 'DNS', raw: string, ... } 或 null
+ * 注意：此函数不会查询 DNS 提供商，因为：
+ * - DNS 提供商查询需要数据库握手（获取账号配置）
+ * - 公开 RDAP 接口无需鉴权，无法传递账号信息
+ * - DNS 提供商查询仅在内部定时任务中执行（checker.ts）
+ * 
+ * @returns { type: 'RDAP' | 'WHOIS', raw: string, ... } 或 null
  */
 async function queryRdapSimple(domain: string): Promise<any | null> {
   const rootDomain = getRootDomain(domain);
