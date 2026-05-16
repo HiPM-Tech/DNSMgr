@@ -4,8 +4,6 @@ import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
-import { useFormSync } from '../hooks/useFormSync';
-import { toString } from '../utils/formHelpers';
 import './RecordForm.css';
 
 export const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR'];
@@ -31,17 +29,6 @@ interface SrvFields {
   target: string;
 }
 
-interface RecordFormState {
-  name: string;
-  type: string;
-  value: string;
-  ttl: number;
-  mx: number;
-  weight: number;
-  line: string;
-  remark: string;
-}
-
 function isIPv4(value: string): boolean {
   const parts = value.trim().split('.');
   if (parts.length !== 4) return false;
@@ -58,20 +45,13 @@ function isIPv6(value: string): boolean {
   }
 }
 
-/**
- * Check if value is a valid hostname (supports IDN/Unicode domains)
- * Uses URL API for Punycode conversion and validation
- */
 function isHostname(value: string): boolean {
   const normalized = value.trim().replace(/\.$/, '');
   if (!normalized || normalized.length > 253) return false;
 
   try {
-    // Use URL API for IDN to Punycode conversion and validation
     const url = new URL(`http://${normalized}`);
     const hostname = url.hostname;
-
-    // Validate Punycode format
     const labels = hostname.split('.');
 
     for (const label of labels) {
@@ -79,14 +59,11 @@ function isHostname(value: string): boolean {
         return false;
       }
 
-      // Punycode labels start with xn--
       if (label.startsWith('xn--')) {
-        // Validate Punycode format
         if (!/^xn--[a-z0-9-]+$/i.test(label)) {
           return false;
         }
       } else {
-        // Standard ASCII label validation
         if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)) {
           return false;
         }
@@ -99,16 +76,10 @@ function isHostname(value: string): boolean {
   }
 }
 
-/**
- * Check if value is a valid record host/subdomain (supports IDN and underscore)
- * Supports Unicode subdomains like 子域名, サブドメイン, 🎉
- * Supports underscore-prefixed labels like _dmarc, _acme-challenge
- */
 function isRecordHost(value: string): boolean {
   const normalized = value.trim();
   if (normalized === '@') return true;
 
-  // Split by dot and validate each label
   const labels = normalized.split('.');
 
   for (const label of labels) {
@@ -116,9 +87,7 @@ function isRecordHost(value: string): boolean {
       return false;
     }
 
-    // Check if label contains Unicode characters
     if (/[^\x00-\x7F]/.test(label)) {
-      // Unicode label - use URL API for validation
       try {
         const url = new URL(`http://${label}.example.com`);
         const punycodeLabel = url.hostname.replace('.example.com', '');
@@ -132,9 +101,6 @@ function isRecordHost(value: string): boolean {
         return false;
       }
     } else {
-      // ASCII label - allow underscore for DNS records like _dmarc, _acme-challenge
-      // Allow: alphanumeric, hyphen, underscore
-      // Must not start or end with hyphen
       if (!/^[a-zA-Z0-9_]([a-zA-Z0-9-_]{0,61}[a-zA-Z0-9_])?$/i.test(label)) {
         return false;
       }
@@ -168,86 +134,42 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const toast = useToast();
   const { t } = useI18n();
   
-  // 🔍 最终调试：检查 initial 和 formState
-  useEffect(() => {
-    console.log('=== RecordForm Debug ===');
-    console.log('initial:', initial);
-    console.log('initial keys:', initial ? Object.keys(initial) : 'null');
-  }, [initial]);
-  
-  // 检测是否为 VPS8 提供商
   const isVPS8 = provider?.type === 'vps8';
-  
-  // Detect proxy mode providers (Cloudflare & Aliyun ESA)
   const isCloudflare = provider?.type === 'cloudflare';
   const isAliyunESA = provider?.type === 'aliyunesa';
   const hasProxyMode = isCloudflare || isAliyunESA;
-  
-  // Check if provider supports multi-line routing
   const hasMultiLine = lines.length > 1 && !hasProxyMode;
   
-  // ✅ 动态计算默认线路（支持 lines 异步加载）
+  // ✅ 动态计算默认线路
   const defaultLine = useMemo(() => {
     if (hasProxyMode) return '0';
-    if (hasMultiLine && lines.length > 0) return toString(lines[0]?.id, '0');
+    if (hasMultiLine && lines.length > 0) return String(lines[0]?.id ?? '0');
     return '0';
   }, [hasProxyMode, hasMultiLine, lines]);
 
-  const { formState: form, updateField } = useFormSync<RecordFormState>(
-    initial as RecordFormState | undefined,
-    {
-      name: '@',
-      type: 'A',
-      value: '',
-      ttl: 600,
-      mx: 10,
-      weight: 10,
-      line: defaultLine,
-      remark: '',
-    },
-    {
-      fields: ['name', 'type', 'value', 'ttl', 'mx', 'weight', 'line', 'remark'],
-      transformers: {
-        name: (v: unknown) => toString(v, '@') || '@',
-        type: (v: unknown) => toString(v, 'A') || 'A',
-        value: (v: unknown) => toString(v),
-        ttl: (v: unknown) => Number(v ?? 600),
-        mx: (v: unknown) => Number(v ?? 10),
-        weight: (v: unknown) => Number(v ?? 10),
-        line: (v: unknown) => toString(v, defaultLine),
-        remark: (v: unknown) => toString(v),
-      },
-    },
-  );
+  // ✅ 使用 useState 惰性初始化（参考旧版本实现）
+  const [form, setForm] = useState<Partial<DnsRecord>>({
+    name: initial?.name ?? '@',
+    type: initial?.type ?? 'A',
+    value: initial?.value ?? '',
+    ttl: initial?.ttl ?? 600,
+    mx: initial?.mx ?? 10,
+    weight: initial?.weight ?? 10,
+    line: initial?.line ?? defaultLine,
+    remark: initial?.remark ?? '',
+  });
 
-  // 🔍 调试：检查 formState 的值
-  useEffect(() => {
-    console.log('[RecordForm] formState:', form);
-    console.log('[RecordForm] form.name:', form.name);
-    console.log('[RecordForm] form.value:', form.value);
-    console.log('[RecordForm] form.ttl:', form.ttl);
-  }, [form]);
-
-  // SRV 字段需要单独处理（因为涉及解析逻辑）
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
 
-  // ✅ SRV 字段同步：监听 initial 变化，确保编辑时正确回显
-  useEffect(() => {
-    setSrv(parseSrvValue(initial));
-  }, [initial]);
-
-  // 更新字段并清除错误
   const set = (k: keyof DnsRecord, v: unknown) => {
-    updateField(k as keyof RecordFormState, v as RecordFormState[keyof RecordFormState]);
+    setForm((f) => ({ ...f, [k]: v }));
     setErrors((current) => ({ ...current, [k as keyof typeof current]: undefined }));
   };
 
   const currentType = form.type ?? 'A';
   const isSrv = currentType === 'SRV';
   
-  // Cloudflare & Aliyun ESA 使用代理模式，不依赖 lines 数组
-  // 其他提供商需要 lines 数组支持
   const canSelectProxy = hasProxyMode
     ? (isCloudflare
       ? (initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
@@ -255,8 +177,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
           ? Boolean(initial.proxiable)
         : PROXIABLE_RECORD_TYPES.has(currentType))
-      : true) // Aliyun ESA always supports proxy toggle
-    : true; // Always show line selector for non-proxy providers
+      : true)
+    : true;
 
   const normalizedSrvValue = useMemo(() => {
     const port = srv.port.trim();
@@ -319,7 +241,6 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       return;
     }
 
-    // 构建提交数据
     const lineValue = canSelectProxy ? form.line : undefined;
     const payload: Partial<DnsRecord> = {
       ...form,
@@ -328,7 +249,6 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       ttl: Number(form.ttl ?? 600),
       mx: currentType === 'MX' || currentType === 'SRV' ? Number(form.mx ?? 0) : undefined,
       weight: currentType === 'SRV' ? Number(form.weight ?? 0) : undefined,
-      // Cloudflare & Aliyun ESA: send line for proxy mode
       line: lineValue,
       cloudflare: (isCloudflare && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
       aliyunesa: (isAliyunESA && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
@@ -384,8 +304,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             clearable
             name={initial ? `record-host-${initial.id}` : 'record-host-create'}
             autocomplete="off"
-            value={String(form.name ?? '')}
-            onChange={(value: any) => updateField('name', String(value))}
+            defaultValue={String(form.name ?? '')}
+            onChange={(value: any) => set('name', String(value))}
             placeholder={t('records.hostPlaceholder')}
             disabled={isVPS8 && !!initial}
             status={errors.name ? 'error' : undefined}
@@ -393,7 +313,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         </Form.FormItem>
         <Form.FormItem label={t('common.type')}>
           <Select
-            value={String(form.type ?? 'A')}
+            defaultValue={String(form.type ?? 'A')}
             options={recordTypeOptions}
             onChange={(value: any) => {
               const nextType = toSelectString(value);
@@ -411,24 +331,16 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.priority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
               <Input
                 type="number"
-                value={String(isSrv ? srv.priority : (form.mx ?? 10))}
-                onChange={(value: any) => {
-                  const num = Number(value);
-                  setSrv((current) => ({ ...current, priority: num }));
-                  set('mx', num);
-                }}
+                defaultValue={String(form.mx ?? 10)}
+                onChange={(value: any) => set('mx', Number(value))}
                 status={errors.mx ? 'error' : undefined}
               />
             </Form.FormItem>
             <Form.FormItem label={t('records.weight')} status={errors.weight ? 'error' : undefined} tips={errors.weight}>
               <Input
                 type="number"
-                value={String(isSrv ? srv.weight : (form.weight ?? 10))}
-                onChange={(value: any) => {
-                  const num = Number(value);
-                  setSrv((current) => ({ ...current, weight: num }));
-                  set('weight', num);
-                }}
+                defaultValue={String(form.weight ?? 10)}
+                onChange={(value: any) => set('weight', Number(value))}
                 status={errors.weight ? 'error' : undefined}
               />
             </Form.FormItem>
@@ -437,7 +349,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.port')} status={errors.srvPort ? 'error' : undefined} tips={errors.srvPort}>
               <Input
                 type="number"
-                value={srv.port}
+                defaultValue={srv.port}
                 onChange={(value: any) => {
                   setSrv((current) => ({ ...current, port: String(value) }));
                   setErrors((current) => ({ ...current, srvPort: undefined, value: undefined }));
@@ -449,7 +361,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.target')} status={errors.srvTarget ? 'error' : undefined} tips={errors.srvTarget}>
               <Input
                 clearable
-                value={srv.target}
+                defaultValue={srv.target}
                 onChange={(value: any) => {
                   setSrv((current) => ({ ...current, target: String(value) }));
                   setErrors((current) => ({ ...current, srvTarget: undefined, value: undefined }));
@@ -471,7 +383,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             clearable
             name={initial ? `record-value-${initial.id}` : 'record-value-create'}
             autocomplete="off"
-            value={String(form.value ?? '')}
+            defaultValue={String(form.value ?? '')}
             onChange={(value: any) => set('value', value)}
             placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}
             status={errors.value ? 'error' : undefined}
@@ -483,7 +395,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         <Form.FormItem label={t('common.ttl')} status={errors.ttl ? 'error' : undefined} tips={errors.ttl}>
           <Input
             type="number"
-            value={String(form.ttl ?? 600)}
+            defaultValue={String(form.ttl ?? 600)}
             onChange={(value: any) => set('ttl', Number(value))}
             status={errors.ttl ? 'error' : undefined}
           />
@@ -492,7 +404,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Form.FormItem label={t('records.mxPriority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
             <Input
               type="number"
-              value={String(form.mx ?? 10)}
+              defaultValue={String(form.mx ?? 10)}
               onChange={(value: any) => set('mx', Number(value))}
               status={errors.mx ? 'error' : undefined}
             />
@@ -504,7 +416,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             tips={!hasProxyMode && !hasMultiLine ? t('records.singleLineHint') || '该提供商仅支持默认线路' : undefined}
           >
             <Select
-              value={String(form.line ?? '0')}
+              defaultValue={String(form.line ?? '0')}
               options={lineOptions}
               onChange={(value: any) => set('line', toSelectString(value))}
             />
@@ -515,7 +427,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       <Form.FormItem label={t('common.remark')}>
         <Input
           clearable
-          value={String(form.remark ?? '')}
+          defaultValue={String(form.remark ?? '')}
           onChange={(value: any) => set('remark', value)}
           placeholder={t('common.optionalRemark')}
         />
