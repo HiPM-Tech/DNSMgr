@@ -29,7 +29,8 @@ export class DnsheWhoisScheduler implements WhoisScheduler {
         registrar: result.registrar,
         registrant: result.registrant,
         creation_date: result.creation_date,
-        expiration_date: result.expiration_date,
+        // DNSHE API 返回 expires_at，需要映射为 expiration_date
+        expiration_date: result.expires_at || result.expiration_date,
         updated_date: result.updated_date,
         name_servers: result.name_servers,
         // DNSHE API 返回 status 为字符串，转换为数组以符合 WhoisResult 接口
