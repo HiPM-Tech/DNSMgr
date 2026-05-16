@@ -83,6 +83,7 @@ export const mysqlSchema: SchemaDefinition = {
       record_count INT NOT NULL DEFAULT 0,
       expires_at DATETIME,
       apex_expires_at DATETIME,
+      whois_status TEXT,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE,
       UNIQUE KEY unique_account_name (account_id, name),

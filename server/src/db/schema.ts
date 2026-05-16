@@ -61,6 +61,41 @@ async function handleMySQLMigrations(
       }
     }
 
+    // 迁移1.5: 添加 whois_status 字段到 domains 表
+    try {
+      const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'whois_status'`;
+
+      let columnExists = false;
+      if (conn.execute) {
+        const result = await conn.execute(checkColumnSql);
+        if (Array.isArray(result) && result.length > 0) {
+          const row = result[0] as Record<string, number>;
+          const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+          columnExists = parseInt(String(count), 10) > 0;
+        }
+      }
+
+      if (columnExists) {
+        log.debug('Schema', 'whois_status column already exists in domains table');
+      } else {
+        const addColumnSql = `ALTER TABLE domains ADD COLUMN whois_status TEXT`;
+        if (conn.execute) {
+          await conn.execute(addColumnSql);
+        } else if (conn.exec) {
+          conn.exec(addColumnSql);
+        }
+        log.info('Schema', 'Added whois_status column to domains table');
+      }
+    } catch (error) {
+      const errorMsg = (error as Error).message || '';
+      if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+        log.info('Schema', 'whois_status column already exists');
+      } else {
+        log.warn('Schema', 'Failed to add whois_status column', { error: errorMsg });
+      }
+    }
+
     // 迁移2: 删除旧的域名级 NS 监测表（已废弃，改为用户级）
     await dropOldNsMonitorTables(conn);
 
@@ -483,6 +518,9 @@ async function handleSQLiteMigrations(
 
   // Migration: Add apex_expires_at column to domains table
   await addSQLiteColumn(conn, 'domains', 'apex_expires_at', 'TEXT');
+
+  // Migration: Add whois_status column to domains table
+  await addSQLiteColumn(conn, 'domains', 'whois_status', 'TEXT');
 
   // Migration: Add columns to ns_monitor_domains table
   await addSQLiteColumn(conn, 'ns_monitor_domains', 'encrypted_ns', 'TEXT');

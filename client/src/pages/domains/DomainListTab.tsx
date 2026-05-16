@@ -13,8 +13,8 @@ import {
   SearchIcon,
 } from 'tdesign-icons-react';
 import { useNavigate } from 'react-router-dom';
-import { domainsApi, accountsApi, authApi } from '../../api';
-import type { Domain, DnsAccount, ProviderDomainOption } from '../../api';
+import { domainsApi, accountsApi, authApi, domainRenewalApi } from '../../api';
+import type { Domain, DnsAccount, ProviderDomainOption, WhoisInfo } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -262,6 +262,50 @@ export function DomainListTab() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // 为顶域查询WHOIS状态（优先使用数据库中的whois_status字段）
+  const apexDomains = domains.filter((d) => isApexDomain(d.name));
+  const { data: whoisData } = useQuery<Record<string, WhoisInfo>>({
+    queryKey: ['whois-status', apexDomains.map((d) => d.name)],
+    queryFn: async () => {
+      if (apexDomains.length === 0) return {};
+      
+      const results: Record<string, WhoisInfo> = {};
+      
+      // 首先尝试从数据库中获取已存储的WHOIS状态
+      for (const domain of apexDomains) {
+        if (domain.whois_status) {
+          // 如果数据库中有whois_status，直接使用
+          results[domain.name] = {
+            domain: domain.name,
+            status: domain.whois_status,
+          };
+        }
+      }
+      
+      // 对于数据库中没有whois_status的域名，调用API查询
+      const domainsToQuery = apexDomains.filter((d) => !results[d.name]);
+      if (domainsToQuery.length > 0) {
+        await Promise.all(
+          domainsToQuery.map(async (domain) => {
+            try {
+              const res = await domainRenewalApi.getWhois(domain.name);
+              if (res.data.code === 0 && res.data.data) {
+                results[domain.name] = res.data.data;
+              }
+            } catch (error) {
+              // WHOIS查询失败时忽略，不影响其他域名
+              console.warn(`WHOIS query failed for ${domain.name}:`, error);
+            }
+          })
+        );
+      }
+      
+      return results;
+    },
+    staleTime: 10 * 60 * 1000, // 10分钟缓存
+  });
+  const whoisMap = whoisData ?? {};
+
   const updateMutation = useMutation({
     mutationFn: ({ id, remark }: { id: number; remark: string }) => domainsApi.update(id, { remark }),
     onSuccess: (res) => {
@@ -333,6 +377,51 @@ export function DomainListTab() {
             </Button>
             {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />}>{t('domains.subdomain')}</Tag>}
           </Space>
+        );
+      },
+    },
+    {
+      key: 'status',
+      label: t('domains.domainStatus'),
+      render: (row: Domain) => {
+        const isApex = isApexDomain(row.name);
+        if (!isApex) {
+          return <span className="page-muted">-</span>;
+        }
+        
+        const whoisInfo = whoisMap[row.name];
+        if (!whoisInfo?.status) {
+          return <span className="page-muted">{t('common.loading')}</span>;
+        }
+        
+        // 解析WHOIS状态
+        const statuses = whoisInfo.status.split('\n').filter(Boolean);
+        const mainStatus = statuses[0] || '';
+        
+        // 根据状态设置标签颜色
+        const getStatusTheme = (status: string) => {
+          const lowerStatus = status.toLowerCase();
+          if (lowerStatus === 'ok' || lowerStatus === 'active') return 'success';
+          if (lowerStatus.includes('hold') || lowerStatus.includes('prohibited')) return 'danger';
+          if (lowerStatus.includes('pending')) return 'warning';
+          return 'default';
+        };
+        
+        // 获取状态的翻译文本
+        const getStatusLabel = (status: string) => {
+          // 将状态转换为驼峰命名（如 clientHold, serverTransferProhibited）
+          const camelCaseStatus = status.charAt(0).toLowerCase() + status.slice(1);
+          const translationKey = `domains.whoisStatus.${camelCaseStatus}`;
+          const translated = t(translationKey);
+          
+          // 如果翻译键不存在，返回原始状态
+          return translated === translationKey ? status : translated;
+        };
+        
+        return (
+          <Tag theme={getStatusTheme(mainStatus)} variant="light" size="small">
+            {getStatusLabel(mainStatus)}
+          </Tag>
         );
       },
     },

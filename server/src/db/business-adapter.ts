@@ -3033,11 +3033,23 @@ export const WhoisOperations = {
   },
 
   /** 更新域名过期时间 */
-  async updateExpiry(domainId: number, expiresAt: string, apexExpiresAt?: string | null): Promise<void> {
-    if (apexExpiresAt !== undefined) {
+  async updateExpiry(domainId: number, expiresAt: string, apexExpiresAt?: string | null, whoisStatus?: string | null): Promise<void> {
+    if (apexExpiresAt !== undefined && whoisStatus !== undefined) {
+      return executeInternal(
+        'UPDATE domains SET expires_at = ?, apex_expires_at = ?, whois_status = ? WHERE id = ?',
+        [expiresAt, apexExpiresAt, whoisStatus, domainId],
+        { operation: 'Whois.updateExpiry', table: 'domains' }
+      );
+    } else if (apexExpiresAt !== undefined) {
       return executeInternal(
         'UPDATE domains SET expires_at = ?, apex_expires_at = ? WHERE id = ?',
         [expiresAt, apexExpiresAt, domainId],
+        { operation: 'Whois.updateExpiry', table: 'domains' }
+      );
+    } else if (whoisStatus !== undefined) {
+      return executeInternal(
+        'UPDATE domains SET expires_at = ?, whois_status = ? WHERE id = ?',
+        [expiresAt, whoisStatus, domainId],
         { operation: 'Whois.updateExpiry', table: 'domains' }
       );
     }

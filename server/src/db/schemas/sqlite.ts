@@ -94,6 +94,7 @@ export const sqliteSchema: SchemaDefinition = {
       record_count INTEGER NOT NULL DEFAULT 0,
       expires_at TEXT,
       apex_expires_at TEXT,
+      whois_status TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE
     )`,

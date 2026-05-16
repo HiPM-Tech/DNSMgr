@@ -109,6 +109,7 @@ export const postgresqlSchema: SchemaDefinition = {
       record_count INTEGER NOT NULL DEFAULT 0,
       expires_at TIMESTAMP,
       apex_expires_at TIMESTAMP,
+      whois_status TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(account_id, name)
     )`,
@@ -453,6 +454,8 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE team_members ADD CONSTRAINT team_members_role_check CHECK (role IN ('owner', 'admin', 'member'))`,
     // Migration: Add apex_expires_at column to domains table for subdomain expiry tracking
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TIMESTAMP`,
+    // Migration: Add whois_status column to domains table for WHOIS status tracking
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS whois_status TEXT`,
     // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,

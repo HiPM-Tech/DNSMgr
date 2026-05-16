@@ -80,12 +80,15 @@ export interface WhoisCheckResult {
   apexExpiryDate: Date | null;
   registrar: string | null;
   nameServers: string[];
+  status?: string | null;  // WHOIS状态（如OK、clientHold等）
 }
 
 /**
  * 检查单个域名的 WHOIS
  */
 export async function checkWhoisForDomain(domainName: string): Promise<WhoisCheckResult> {
+  let whoisStatus: string | null = null;
+  
   try {
     log.info('WhoisJob', `Checking WHOIS for ${domainName}`);
     
@@ -98,12 +101,24 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
         apexExpiryDate: cached.apexExpiryDate || null,
         registrar: cached.registrar,
         nameServers: cached.nameServers,
+        status: null,  // 缓存中没有状态信息
       };
     }
 
     // 使用 WHOIS 查询（包含顶域查询、第三方查询等多元查询）
     log.info('WhoisJob', `Querying WHOIS for ${domainName} (includes apex and third-party queries)`);
     const whoisResult = await queryWhois(domainName);
+
+    // 提取 WHOIS 状态信息
+    let whoisStatus: string | null = null;
+    if (whoisResult?.raw) {
+      // 从原始 WHOIS 数据中解析状态
+      const statusMatch = whoisResult.raw.match(/status:\s*(.+)/i);
+      if (statusMatch && statusMatch[1]) {
+        whoisStatus = statusMatch[1].trim().split('\n')[0].trim();
+        log.debug('WhoisJob', `Extracted WHOIS status for ${domainName}: ${whoisStatus}`);
+      }
+    }
 
     // 尝试从 DNS 提供商 API 获取到期时间
     const providerExpiryDate = await getExpiryFromProvider(domainName);
@@ -150,6 +165,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
         apexExpiryDate: finalApexExpiryDate,
         registrar: whoisResult?.registrar || null,
         nameServers: whoisResult?.nameServers || [],
+        status: whoisStatus,
       };
     }
 
@@ -170,6 +186,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
     apexExpiryDate: null,
     registrar: null,
     nameServers: [],
+    status: whoisStatus,
   };
 }
 
@@ -332,11 +349,12 @@ export async function syncAllDomainsWhois() {
             const formattedApexDate = whoisResult.apexExpiryDate 
               ? formatDateForMySQL(whoisResult.apexExpiryDate) 
               : null;
-            await WhoisOperations.updateExpiry(d.id, formattedDate, formattedApexDate);
+            await WhoisOperations.updateExpiry(d.id, formattedDate, formattedApexDate, whoisResult.status);
 
             successCount++;
             log.info('WhoisJob', `Updated expiry for ${d.name}: ${formattedDate}`, {
               apexExpiryDate: formattedApexDate,
+              whoisStatus: whoisResult.status,
             });
 
             // 检查是否需要发送通知
@@ -421,9 +439,10 @@ export async function syncDomainWhois(domainId: number): Promise<{ success: bool
       const formattedApexDate = whoisResult.apexExpiryDate 
         ? formatDateForMySQL(whoisResult.apexExpiryDate) 
         : null;
-      await WhoisOperations.updateExpiry(domainId, formattedDate, formattedApexDate);
+      await WhoisOperations.updateExpiry(domainId, formattedDate, formattedApexDate, whoisResult.status);
       log.info('WhoisJob', `Successfully synced WHOIS for ${domain.name}: ${formattedDate}`, {
         apexExpiryDate: formattedApexDate,
+        whoisStatus: whoisResult.status,
       });
       return { 
         success: true, 
