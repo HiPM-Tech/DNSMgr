@@ -103,12 +103,23 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       let whoisStatus = cached.status || null;
       if (!whoisStatus && cached.raw) {
         log.debug('WhoisJob', `Attempting to parse status from raw data for ${domainName}, raw length: ${cached.raw.length}`);
-        const statusMatch = cached.raw.match(/status:\s*(.+)/i);
-        if (statusMatch && statusMatch[1]) {
-          whoisStatus = statusMatch[1].trim().split('\n')[0].trim();
-          log.info('WhoisJob', `Parsed WHOIS status from cached raw data for ${domainName}: ${whoisStatus}`);
-        } else {
-          log.warn('WhoisJob', `Failed to parse WHOIS status from raw data for ${domainName}`);
+        
+        // 尝试解析为 JSON (RDAP 格式)
+        try {
+          const jsonData = JSON.parse(cached.raw);
+          if (jsonData.status && Array.isArray(jsonData.status) && jsonData.status.length > 0) {
+            whoisStatus = jsonData.status[0];
+            log.info('WhoisJob', `Parsed RDAP status from cached JSON for ${domainName}: ${whoisStatus}`);
+          }
+        } catch (e) {
+          // 不是 JSON，尝试作为 WHOIS 文本解析
+          const statusMatch = cached.raw.match(/Domain Status:\s*([\w]+)\s*/i);
+          if (statusMatch && statusMatch[1]) {
+            whoisStatus = statusMatch[1].trim();
+            log.info('WhoisJob', `Parsed WHOIS status from cached text for ${domainName}: ${whoisStatus}`);
+          } else {
+            log.warn('WhoisJob', `Failed to parse WHOIS status from raw data for ${domainName}`);
+          }
         }
       } else if (!whoisStatus) {
         log.warn('WhoisJob', `No status in cache and no raw data for ${domainName}`);
