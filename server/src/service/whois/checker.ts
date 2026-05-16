@@ -121,7 +121,51 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
   try {
     log.info('WhoisChecker', `Checking WHOIS for ${domainName}`);
     
-    // 检查数据库缓存
+    // 先尝试从 DNS 提供商获取（优先于缓存，因为提供商数据更准确）
+    const providerExpiryDate = await getExpiryFromProvider(domainName);
+    
+    if (providerExpiryDate) {
+      // DNS 提供商查询成功，使用提供商数据
+      log.info('WhoisChecker', `Using provider expiry for ${domainName}: ${providerExpiryDate.toISOString()}`);
+      
+      // 仍然查询 WHOIS 获取状态等信息
+      const whoisResult = await queryWhois(domainName);
+      if (whoisResult?.raw) {
+        whoisStatus = extractStatus(whoisResult.raw);
+      }
+      
+      // 判断是否为顶域
+      const rootDomain = getRootDomain(domainName);
+      const isApexDomain = domainName.toLowerCase() === rootDomain.toLowerCase();
+      
+      let finalApexExpiryDate: Date | null = null;
+      if (!isApexDomain && whoisResult?.expiryDate) {
+        // 子域：同时保存顶域到期时间
+        finalApexExpiryDate = whoisResult.expiryDate;
+      }
+      
+      const result: WhoisResult = {
+        domain: domainName,
+        expiryDate: providerExpiryDate,
+        apexExpiryDate: finalApexExpiryDate,
+        registrar: whoisResult?.registrar || null,
+        nameServers: whoisResult?.nameServers || [],
+        raw: whoisResult?.raw || '',
+        status: whoisStatus,
+      };
+      setCachedWhois(domainName, result);
+      
+      return {
+        expiryDate: providerExpiryDate,
+        apexExpiryDate: finalApexExpiryDate,
+        registrar: whoisResult?.registrar || null,
+        nameServers: whoisResult?.nameServers || [],
+        status: whoisStatus,
+      };
+    }
+    
+    // DNS 提供商查询失败，尝试使用缓存
+    log.info('WhoisChecker', `Provider query failed, trying cache for ${domainName}`);
     const cached = await getCachedWhois(domainName);
     if (cached?.expiryDate) {
       log.info('WhoisChecker', `Using cached expiry for ${domainName}: ${cached.expiryDate.toISOString()}`);
@@ -144,7 +188,7 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       };
     }
 
-    // 使用 WHOIS 查询
+    // 使用 WHOIS 查询（缓存也失败时）
     log.info('WhoisChecker', `Querying WHOIS for ${domainName}`);
     const whoisResult = await queryWhois(domainName);
 
@@ -156,49 +200,23 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       }
     }
 
-    // 尝试从 DNS 提供商 API 获取到期时间
-    const providerExpiryDate = await getExpiryFromProvider(domainName);
-
-    // 判断是否为顶域
-    const rootDomain = getRootDomain(domainName);
-    const isApexDomain = domainName.toLowerCase() === rootDomain.toLowerCase();
-
-    let finalExpiryDate: Date | null = null;
-    let finalApexExpiryDate: Date | null = whoisResult?.apexExpiryDate || null;
-
-    if (isApexDomain) {
-      // 顶域：顶域 WHOIS > DNS 提供商 API
-      if (whoisResult?.expiryDate) {
-        finalExpiryDate = whoisResult.expiryDate;
-      } else if (providerExpiryDate) {
-        finalExpiryDate = providerExpiryDate;
-      }
-    } else {
-      // 子域：DNS 提供商 API > 顶域 WHOIS
-      if (providerExpiryDate) {
-        finalExpiryDate = providerExpiryDate;
-      } else if (whoisResult?.expiryDate) {
-        finalExpiryDate = whoisResult.expiryDate;
-      }
-    }
-
-    if (finalExpiryDate) {
+    if (whoisResult?.expiryDate) {
       const result: WhoisResult = {
         domain: domainName,
-        expiryDate: finalExpiryDate,
-        apexExpiryDate: finalApexExpiryDate,
-        registrar: whoisResult?.registrar || null,
-        nameServers: whoisResult?.nameServers || [],
-        raw: whoisResult?.raw || '',
+        expiryDate: whoisResult.expiryDate,
+        apexExpiryDate: whoisResult.apexExpiryDate || null,
+        registrar: whoisResult.registrar || null,
+        nameServers: whoisResult.nameServers || [],
+        raw: whoisResult.raw || '',
         status: whoisStatus,
       };
       setCachedWhois(domainName, result);
       
       return {
-        expiryDate: finalExpiryDate,
-        apexExpiryDate: finalApexExpiryDate,
-        registrar: whoisResult?.registrar || null,
-        nameServers: whoisResult?.nameServers || [],
+        expiryDate: whoisResult.expiryDate,
+        apexExpiryDate: whoisResult.apexExpiryDate || null,
+        registrar: whoisResult.registrar || null,
+        nameServers: whoisResult.nameServers || [],
         status: whoisStatus,
       };
     }
