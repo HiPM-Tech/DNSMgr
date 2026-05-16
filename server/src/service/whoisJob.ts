@@ -102,11 +102,16 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
       // 如果缓存中没有 status，尝试从 raw_data 中解析
       let whoisStatus = cached.status || null;
       if (!whoisStatus && cached.raw) {
+        log.debug('WhoisJob', `Attempting to parse status from raw data for ${domainName}, raw length: ${cached.raw.length}`);
         const statusMatch = cached.raw.match(/status:\s*(.+)/i);
         if (statusMatch && statusMatch[1]) {
           whoisStatus = statusMatch[1].trim().split('\n')[0].trim();
-          log.debug('WhoisJob', `Parsed WHOIS status from cached raw data for ${domainName}: ${whoisStatus}`);
+          log.info('WhoisJob', `Parsed WHOIS status from cached raw data for ${domainName}: ${whoisStatus}`);
+        } else {
+          log.warn('WhoisJob', `Failed to parse WHOIS status from raw data for ${domainName}`);
         }
+      } else if (!whoisStatus) {
+        log.warn('WhoisJob', `No status in cache and no raw data for ${domainName}`);
       }
       
       log.info('WhoisJob', `Cached WHOIS status for ${domainName}: ${whoisStatus || 'unknown'}`);
