@@ -220,6 +220,14 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     },
   );
 
+  // 🔍 调试：检查 formState 的值
+  useEffect(() => {
+    console.log('[RecordForm] formState:', form);
+    console.log('[RecordForm] form.name:', form.name);
+    console.log('[RecordForm] form.value:', form.value);
+    console.log('[RecordForm] form.ttl:', form.ttl);
+  }, [form]);
+
   // SRV 字段需要单独处理（因为涉及解析逻辑）
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
