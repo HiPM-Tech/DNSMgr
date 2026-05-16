@@ -98,12 +98,23 @@ export async function checkWhoisForDomain(domainName: string): Promise<WhoisChec
     const cached = await getCachedWhois(domainName);
     if (cached?.expiryDate) {
       log.info('WhoisJob', `Using cached expiry for ${domainName}: ${cached.expiryDate.toISOString()}`);
+      
+      // 如果缓存中没有 status，尝试从 raw_data 中解析
+      let whoisStatus = cached.status || null;
+      if (!whoisStatus && cached.raw) {
+        const statusMatch = cached.raw.match(/status:\s*(.+)/i);
+        if (statusMatch && statusMatch[1]) {
+          whoisStatus = statusMatch[1].trim().split('\n')[0].trim();
+          log.debug('WhoisJob', `Parsed WHOIS status from cached raw data for ${domainName}: ${whoisStatus}`);
+        }
+      }
+      
       return {
         expiryDate: cached.expiryDate,
         apexExpiryDate: cached.apexExpiryDate || null,
         registrar: cached.registrar,
         nameServers: cached.nameServers,
-        status: cached.status || null,  // 使用缓存中的状态
+        status: whoisStatus,
       };
     }
 
