@@ -470,8 +470,8 @@ async function addSQLiteColumn(
   }
 
   try {
-    // SQLite 3.35.0+ 支持 IF NOT EXISTS
-    const sql = `ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ${columnName} ${columnDef}`;
+    // SQLite 不支持 IF NOT EXISTS，依赖前面的检查和 catch 块
+    const sql = `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`;
     if (conn.execute) {
       await conn.execute(sql);
     } else if (conn.exec) {
