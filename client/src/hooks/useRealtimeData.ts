@@ -50,13 +50,16 @@ export function useRealtimeData(options: UseRealtimeOptions) {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[Realtime] WebSocket connected');
+        // console.log('[Realtime] WebSocket connected');
         hasWsConnectionRef.current = true;
         
         // 停止轮询
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
+          console.log('[Realtime] WebSocket connected, polling stopped');
+        } else {
+          console.log('[Realtime] WebSocket connected');
         }
       };
 
@@ -75,7 +78,7 @@ export function useRealtimeData(options: UseRealtimeOptions) {
       };
 
       ws.onclose = () => {
-        console.log('[Realtime] WebSocket disconnected');
+        // console.log('[Realtime] WebSocket disconnected');
         hasWsConnectionRef.current = false;
         wsRef.current = null;
         
@@ -89,7 +92,7 @@ export function useRealtimeData(options: UseRealtimeOptions) {
         
         reconnectTimeoutRef.current = setTimeout(() => {
           if (!isUnmountedRef.current && !hasWsConnectionRef.current) {
-            console.log('[Realtime] Attempting to reconnect WebSocket...');
+            // console.log('[Realtime] Attempting to reconnect WebSocket...');
             connectWebSocket();
           }
         }, 5000); // 5秒后重连
@@ -119,14 +122,16 @@ export function useRealtimeData(options: UseRealtimeOptions) {
       clearInterval(pollingIntervalRef.current);
     }
 
-    console.log(`[Realtime] Starting polling every ${pollingInterval}ms`);
+    // console.log(`[Realtime] Starting polling every ${pollingInterval}ms`);
     
     pollingIntervalRef.current = setInterval(() => {
       if (!hasWsConnectionRef.current) {
-        console.log('[Realtime] Polling refresh');
+        // console.log('[Realtime] Polling refresh');
         refreshData();
       }
     }, pollingInterval);
+    
+    console.log(`[Realtime] Polling enabled (${pollingInterval / 1000}s interval)`);
   }, [enabled, pollingInterval, refreshData]);
 
   // 停止轮询
