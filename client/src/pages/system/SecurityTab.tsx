@@ -70,6 +70,11 @@ export function SecurityTab() {
     },
     staleTime: 0,
     refetchOnMount: 'always',
+    placeholderData: {
+      enabled: true,
+      maxAttempts: 10,
+      lockoutDuration: 60,
+    },
   });
 
   const { data: loginStats } = useQuery({
@@ -116,6 +121,7 @@ export function SecurityTab() {
     staleTime: 0,
     refetchOnMount: 'always',
     gcTime: 0,
+    placeholderData: DEFAULT_AUDIT_RULES,
   });
 
   const updateSecurityPolicyMutation = useMutation({
