@@ -317,7 +317,16 @@ export function Records() {
 
       {showAdd && (
         <Modal title={t('records.addRecordFor', { name: domain?.name ?? '' })} onClose={() => setShowAdd(false)} size="lg">
-          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} provider={currentProvider} existingRecords={records} onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
+          <RecordForm
+            key="create"
+            domainId={domainId}
+            lines={lines}
+            recordTypes={providerRecordTypes}
+            provider={currentProvider}
+            existingRecords={records}
+            onSubmit={(data) => createMutation.mutate(data)}
+            isLoading={createMutation.isPending}
+          />
         </Modal>
       )}
 
@@ -327,9 +336,17 @@ export function Records() {
 
       {editing && (
         <Modal title={t('records.editRecord')} onClose={() => setEditing(null)} size="lg">
-          <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} provider={currentProvider} existingRecords={records} initial={currentEditingRecord ?? editing}
+          <RecordForm
+            key={`edit-${editing.id}`}
+            domainId={domainId}
+            lines={lines}
+            recordTypes={providerRecordTypes}
+            provider={currentProvider}
+            existingRecords={records}
+            initial={currentEditingRecord ?? editing}
             onSubmit={(data) => updateMutation.mutate({ recordId: currentEditingRecord?.id ?? editing.id, data })}
-            isLoading={updateMutation.isPending} />
+            isLoading={updateMutation.isPending}
+          />
         </Modal>
       )}
 
