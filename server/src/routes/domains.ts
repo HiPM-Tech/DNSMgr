@@ -12,7 +12,7 @@ import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/
 import { log } from '../lib/logger';
 import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations } from '../db/business-adapter';
 import { syncDomainWhois } from '../service/whoisJob';
-import { getRootDomain } from '../service/whoisProvider';
+import { getRootDomain, queryWhois } from '../service/whoisProvider';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/domain';
 
@@ -1296,34 +1296,45 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     return;
   }
   
-  // Only support DNSHE provider
-  if (account.type !== 'dnshe') {
-    sendError(res, 'WHOIS query only supported for DNSHE provider');
-    return;
-  }
-  
   try {
-    const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
-    const result = await dnsheGetWhois(
-      {
-        apiKey: config.apiKey,
-        apiSecret: config.apiSecret,
-        useProxy: !!config.useProxy,
-      },
-      domain
-    );
+    // 使用通用 WHOIS 查询服务（支持所有域名）
+    log.info('Domains', `Querying WHOIS for ${domain}`);
+    const whoisResult = await queryWhois(domain);
     
-    if (!result) {
-      sendError(res, 'WHOIS query failed');
+    if (!whoisResult) {
+      sendError(res, 'WHOIS query failed or no data available');
       return;
     }
     
-    sendSuccess(res, result);
+    // 转换为前端期望的格式
+    const response = {
+      domain: whoisResult.domain || domain,
+      status: whoisResult.raw ? extractWhoisStatus(whoisResult.raw) : null,
+      registrar: whoisResult.registrar || null,
+      expires_at: whoisResult.expiryDate ? whoisResult.expiryDate.toISOString() : null,
+      created_date: null,
+      updated_date: null,
+      name_servers: whoisResult.nameServers || [],
+      raw_data: whoisResult.raw || '',
+    };
+    
+    sendSuccess(res, response);
   } catch (error) {
     log.error('Domains', 'WHOIS query failed', { error });
     sendError(res, error instanceof Error ? error.message : 'WHOIS query failed');
   }
 }));
+
+/**
+ * 从 WHOIS 原始数据中提取状态
+ */
+function extractWhoisStatus(rawData: string): string | null {
+  const statusMatch = rawData.match(/status:\s*(.+)/i);
+  if (statusMatch && statusMatch[1]) {
+    return statusMatch[1].trim().split('\n')[0].trim();
+  }
+  return null;
+}
 
 /**
  * Add a domain to renewable list (admin only)
