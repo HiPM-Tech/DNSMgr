@@ -6,8 +6,63 @@ import { sendError, sendSuccess } from '../utils/http';
 import { log } from '../lib/logger';
 import { DnsAccountOperations, RenewableDomainOperations } from '../db/business-adapter';
 import { listSubdomains as dnsheListSubdomains } from '../lib/dns/providers/dnshe/renewal';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const router = Router();
+
+/**
+ * Get provider icon
+ * GET /api/providers/:type/icon
+ */
+router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
+  const { type } = req.params;
+  
+  try {
+    // Icon file paths to check (in order of preference)
+    const iconExtensions = ['.svg', '.png', '.ico', '.jpg', '.jpeg'];
+    const providersDir = path.join(__dirname, '..', 'lib', 'dns', 'providers');
+    
+    let iconPath = '';
+    let iconExt = '';
+    
+    // Try to find icon file with any supported extension
+    for (const ext of iconExtensions) {
+      const candidatePath = path.join(providersDir, type, `icon${ext}`);
+      if (fs.existsSync(candidatePath)) {
+        iconPath = candidatePath;
+        iconExt = ext;
+        break;
+      }
+    }
+    
+    if (!iconPath || !fs.existsSync(iconPath)) {
+      // Return 404 if icon not found
+      res.status(404).json({ error: 'Icon not found' });
+      return;
+    }
+    
+    // Set appropriate content type based on file extension
+    const contentTypes: Record<string, string> = {
+      '.svg': 'image/svg+xml',
+      '.png': 'image/png',
+      '.ico': 'image/x-icon',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+    };
+    
+    const contentType = contentTypes[iconExt] || 'application/octet-stream';
+    
+    // Read and send the icon file
+    const iconData = fs.readFileSync(iconPath);
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    res.send(iconData);
+  } catch (error) {
+    log.error('Providers', `Failed to serve icon for ${type}`, { error });
+    res.status(500).json({ error: 'Failed to load icon' });
+  }
+}));
 
 /**
  * Get renewable domains from a specific provider
