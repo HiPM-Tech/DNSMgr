@@ -405,6 +405,12 @@ HiDNS adopts a strict AI code review mechanism to ensure code quality and projec
  </picture>
 </a>
 
+## Community & Support
+
+- **GitHub Repository**: https://github.com/HiPM-Tech/DNSMgr
+- **Telegram Group**: https://t.me/HiDNSManager
+- **License**: MIT
+
 ---
 
 <p align="center">
