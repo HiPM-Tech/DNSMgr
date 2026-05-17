@@ -19,25 +19,28 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
   const { type } = req.params;
   
   try {
-    // Icon file paths to check (in order of preference)
+    // Icon file paths to check in priority order (SVG > PNG > ICO > JPG)
+    // SVG is preferred for scalability and small file size
     const iconExtensions = ['.svg', '.png', '.ico', '.jpg', '.jpeg'];
     const providersDir = path.join(__dirname, '..', 'lib', 'dns', 'providers');
     
     let iconPath = '';
     let iconExt = '';
     
-    // Try to find icon file with any supported extension
+    // Try to find icon file with highest priority extension first
     for (const ext of iconExtensions) {
       const candidatePath = path.join(providersDir, type, `icon${ext}`);
       if (fs.existsSync(candidatePath)) {
         iconPath = candidatePath;
         iconExt = ext;
+        log.info('Providers', `Serving icon for ${type}: icon${ext} (priority: ${iconExtensions.indexOf(ext) + 1}/${iconExtensions.length})`);
         break;
       }
     }
     
     if (!iconPath || !fs.existsSync(iconPath)) {
       // Return 404 if icon not found
+      log.warn('Providers', `Icon not found for provider: ${type}`);
       res.status(404).json({ error: 'Icon not found' });
       return;
     }
