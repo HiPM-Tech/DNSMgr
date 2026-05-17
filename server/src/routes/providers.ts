@@ -28,12 +28,15 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
     // In prod: __dirname = server/dist/routes, need to go up to server/dist/lib/dns/providers
     const providersDir = path.join(__dirname, '..', 'lib', 'dns', 'providers');
     
+    log.info('Providers', `Looking for icon in: ${providersDir}`);
+    
     let iconPath = '';
     let iconExt = '';
     
     // Try to find icon file with highest priority extension first
     for (const ext of iconExtensions) {
       const candidatePath = path.join(providersDir, type, `icon${ext}`);
+      log.info('Providers', `Checking: ${candidatePath} - ${fs.existsSync(candidatePath) ? 'FOUND' : 'NOT FOUND'}`);
       if (fs.existsSync(candidatePath)) {
         iconPath = candidatePath;
         iconExt = ext;
@@ -45,8 +48,10 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
     // If not found in dist, try src directory (for development without copying files)
     if (!iconPath) {
       const srcProvidersDir = path.join(__dirname, '..', '..', 'src', 'lib', 'dns', 'providers');
+      log.info('Providers', `Fallback: Looking in src directory: ${srcProvidersDir}`);
       for (const ext of iconExtensions) {
         const candidatePath = path.join(srcProvidersDir, type, `icon${ext}`);
+        log.info('Providers', `Checking src: ${candidatePath} - ${fs.existsSync(candidatePath) ? 'FOUND' : 'NOT FOUND'}`);
         if (fs.existsSync(candidatePath)) {
           iconPath = candidatePath;
           iconExt = ext;
