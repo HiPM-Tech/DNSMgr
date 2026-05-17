@@ -279,7 +279,7 @@ const providerDefinitions: ProviderDefinition[] = [
     configFields: [
       { key: 'apiKey', label: 'API Key', type: 'password', required: true },
     ],
-    adapterFactory: (config) => new GcoreAdapter(config),
+    adapterFactory: (config) => new GcoreAdapter(config as any),
   },
 ];
 
