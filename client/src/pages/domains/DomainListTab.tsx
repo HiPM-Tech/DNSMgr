@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Checkbox, Empty, Form, Input, Loading, Pagination, Radio, Select, Space, Tag } from 'tdesign-react';
 import {
@@ -24,6 +24,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { isApexDomain } from '../../utils/domain-utils';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { useFormSync } from '../../hooks/useFormSync';
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -41,6 +42,33 @@ const dialogField = (label: string, control: ReactNode, tips?: ReactNode) => (
     {tips && <small className="settings-control-field__tip">{tips}</small>}
   </div>
 );
+
+type DomainEditFormState = {
+  id: number;
+  name: string;
+  account_id: number;
+  third_id: string;
+  remark: string;
+};
+
+const DEFAULT_DOMAIN_EDIT_FORM: DomainEditFormState = {
+  id: 0,
+  name: '',
+  account_id: 0,
+  third_id: '',
+  remark: '',
+};
+
+function normalizeDomainEditForm(domain?: Partial<Domain> | null, fallback?: Partial<Domain> | null): DomainEditFormState {
+  const source = domain ?? fallback ?? {};
+  return {
+    id: Number(source.id ?? fallback?.id ?? 0),
+    name: String(source.name ?? fallback?.name ?? ''),
+    account_id: Number(source.account_id ?? fallback?.account_id ?? 0),
+    third_id: String(source.third_id ?? fallback?.third_id ?? ''),
+    remark: String(source.remark ?? fallback?.remark ?? ''),
+  };
+}
 
 function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
   const qc = useQueryClient();
@@ -212,8 +240,7 @@ export function DomainListTab() {
   const canManage = isActuallyAdmin;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
-  const [editRemark, setEditRemark] = useState('');
-  const [editRemarkDirty, setEditRemarkDirty] = useState(false);
+  const [editAutoReset, setEditAutoReset] = useState(true);
   const [deleting, setDeleting] = useState<Domain | null>(null);
   const [accountFilter, setAccountFilter] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -262,14 +289,32 @@ export function DomainListTab() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const editingId = editing?.id ?? 0;
+  const { data: editingDomainDetail, dataUpdatedAt: editingDomainDetailUpdatedAt } = useQuery({
+    queryKey: ['domain', editingId],
+    queryFn: async () => {
+      const res = await domainsApi.get(editingId);
+      if (res.data.code === 0 && res.data.data) {
+        return res.data.data;
+      }
+      throw new Error(res.data.msg || t('domains.updateFailed'));
+    },
+    enabled: editingId > 0,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    gcTime: 0,
+  });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, remark }: { id: number; remark: string }) => domainsApi.update(id, { remark }),
-    onSuccess: (res) => {
+    onSuccess: (res, variables) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      qc.setQueryData<Domain | undefined>(['domain', variables.id], (current) => (
+        current ? { ...current, remark: variables.remark } : current
+      ));
       qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
       setEditing(null);
-      setEditRemark('');
-      setEditRemarkDirty(false);
+      setEditAutoReset(true);
       toast.success(t('domains.updateSuccess'));
     },
     onError: () => toast.error(t('domains.updateFailed')),
@@ -304,20 +349,39 @@ export function DomainListTab() {
 
   const accountMap = Object.fromEntries(accounts.map((account) => [account.id, account]));
   const editingDomain = editing ? sortedDomains.find((domain) => domain.id === editing.id) ?? editing : null;
-  const getListedRemark = (domainId: number, fallback?: string | null) => {
-    const listedDomain = sortedDomains.find((item) => item.id === domainId);
-    return listedDomain?.remark ?? fallback ?? '';
-  };
-
-  useEffect(() => {
-    if (!editingDomain || editRemarkDirty) return;
-    setEditRemark(getListedRemark(editingDomain.id, editingDomain.remark));
-  }, [editingDomain, sortedDomains, editRemarkDirty]);
+  const editingFormSource = editingDomain
+    ? normalizeDomainEditForm(editingDomainDetail ?? editingDomain, editingDomain)
+    : undefined;
+  const {
+    formState: editForm,
+    updateField: updateEditField,
+    updateFields: updateEditFields,
+  } = useFormSync<DomainEditFormState>(
+    editingFormSource,
+    DEFAULT_DOMAIN_EDIT_FORM,
+    {
+      fields: ['id', 'name', 'account_id', 'third_id', 'remark'],
+      transformers: {
+        id: (value: unknown) => Number(value ?? 0),
+        name: (value: unknown) => String(value ?? ''),
+        account_id: (value: unknown) => Number(value ?? 0),
+        third_id: (value: unknown) => String(value ?? ''),
+        remark: (value: unknown) => String(value ?? ''),
+      },
+      autoReset: editAutoReset,
+    },
+  );
 
   const openEdit = (domain: Domain) => {
-    setEditRemarkDirty(false);
-    setEditRemark(getListedRemark(domain.id, domain.remark));
+    const next = normalizeDomainEditForm(domain, domain);
+    setEditAutoReset(true);
+    updateEditFields(next);
     setEditing(domain);
+  };
+
+  const closeEdit = () => {
+    setEditing(null);
+    setEditAutoReset(true);
   };
 
   const columns = [
@@ -451,54 +515,60 @@ export function DomainListTab() {
 
       {editingDomain && canManage && (
         <Modal
-          key={`domain-edit-${editingDomain.id}`}
+          key={`domain-edit-${editingDomain.id}-${editingDomainDetailUpdatedAt}`}
           title={t('domains.editDomain')}
-          onClose={() => {
-            setEditing(null);
-            setEditRemark('');
-            setEditRemarkDirty(false);
-          }}
+          onClose={closeEdit}
           size="md"
         >
-          <Form
-            layout="vertical"
-            colon={false}
-            requiredMark={false}
+          {(() => {
+            const editDomainId = Number(editForm.id ?? 0);
+            const editAccountId = Number(editForm.account_id ?? 0);
+            const editRemark = String(editForm.remark ?? '');
+            const editName = String(editForm.name ?? '');
+            const editThirdId = String(editForm.third_id ?? '');
+            const accountLabel = accountMap[editAccountId]
+              ? `${accountMap[editAccountId].name} (${accountMap[editAccountId].type})`
+              : editAccountId
+                ? `#${editAccountId}`
+                : '';
+
+            return (
+          <form
             className="page-shell"
-            onSubmit={({ e }) => {
-              e?.preventDefault();
-              updateMutation.mutate({ id: editingDomain.id, remark: editRemark });
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!editDomainId) return;
+              updateMutation.mutate({ id: editDomainId, remark: editRemark });
             }}
           >
-            <Form.FormItem label={t('domains.domain')}>
-              <span className="page-strong">{editingDomain.name}</span>
-            </Form.FormItem>
-            <Form.FormItem label={t('domains.dnsAccount')}>
-              <span className="page-strong">
-                {accountMap[editingDomain.account_id]
-                  ? `${accountMap[editingDomain.account_id].name} (${accountMap[editingDomain.account_id].type})`
-                  : `#${editingDomain.account_id}`}
-              </span>
-            </Form.FormItem>
-            <Form.FormItem label={t('domains.providerDomainId')}>
-              <span className="page-muted">{editingDomain.third_id || '-'}</span>
-            </Form.FormItem>
-            {dialogField(t('domains.remark'),
+            {dialogField(t('domains.domain'), (
+              <Input readonly value={editName} />
+            ))}
+            {dialogField(t('domains.dnsAccount'), (
+              <Input readonly value={accountLabel} />
+            ))}
+            {dialogField(t('domains.providerDomainId'), (
+              <Input readonly value={editThirdId || '-'} />
+            ))}
+            {dialogField(
+              t('domains.remark'),
               <Input
                 value={editRemark}
                 onChange={(value) => {
-                  setEditRemarkDirty(true);
-                  setEditRemark(String(value));
+                  setEditAutoReset(false);
+                  updateEditField('remark', String(value));
                 }}
                 placeholder={t('common.optionalRemark')}
-              />
+              />,
             )}
             <Space className="record-form__actions">
               <Button type="submit" theme="primary" loading={updateMutation.isPending}>
                 {t('common.save')}
               </Button>
             </Space>
-          </Form>
+          </form>
+            );
+          })()}
         </Modal>
       )}
 

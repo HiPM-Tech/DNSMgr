@@ -21,6 +21,39 @@ function selectToString(value: SelectValue) {
   return String(Array.isArray(value) ? value[0] ?? '' : value);
 }
 
+function getRecordField(record: DnsRecord | null | undefined, lowerKey: keyof DnsRecord, upperKey: string): unknown {
+  if (!record) return undefined;
+  const source = record as DnsRecord & Record<string, unknown>;
+  return source[lowerKey] ?? source[upperKey];
+}
+
+function getRecordId(record: DnsRecord | null | undefined): string {
+  return String(getRecordField(record, 'id', 'RecordId') ?? '');
+}
+
+function getRecordType(record: DnsRecord | null | undefined): string {
+  return String(getRecordField(record, 'type', 'Type') ?? '');
+}
+
+function getRecordName(record: DnsRecord | null | undefined): string {
+  return String(getRecordField(record, 'name', 'Name') ?? '');
+}
+
+function getRecordValue(record: DnsRecord | null | undefined): string {
+  return String(getRecordField(record, 'value', 'Value') ?? '');
+}
+
+function getRecordLine(record: DnsRecord | null | undefined): string {
+  return String(getRecordField(record, 'line', 'Line') ?? '');
+}
+
+function getRecordNumber(record: DnsRecord | null | undefined, lowerKey: keyof DnsRecord, upperKey: string): number | undefined {
+  const value = getRecordField(record, lowerKey, upperKey);
+  if (value === null || value === undefined || value === '') return undefined;
+  const next = Number(value);
+  return Number.isFinite(next) ? next : undefined;
+}
+
 export function Records() {
   const { id } = useParams<{ id: string }>();
   const domainId = Number(id);
@@ -69,18 +102,6 @@ export function Records() {
     return providers.find(p => p.type === account.type);
   }, [account, providers]);
 
-  const providerRecordTypes = useMemo(() => {
-    const base = account?.type === 'cloudflare' ? [...CLOUDFLARE_RECORD_TYPES] : [...COMMON_RECORD_TYPES];
-    if (editing?.type && !base.includes(editing.type)) base.push(editing.type);
-    return base;
-  }, [account?.type, editing?.type]);
-
-  useEffect(() => {
-    if (typeFilter && !providerRecordTypes.includes(typeFilter)) {
-      setTypeFilter('');
-    }
-  }, [providerRecordTypes, typeFilter]);
-
   // 实时数据：DNS记录变更
   useRealtimeData({
     queryKey: ['records', domainId],
@@ -100,10 +121,29 @@ export function Records() {
   
   const records = recordsData?.list ?? [];
   const total = recordsData?.total ?? 0;
+  const editingRecordId = getRecordId(editing);
+  const { data: editingRecordDetail, isFetching: isFetchingEditingRecord } = useQuery({
+    queryKey: ['record-detail', domainId, editingRecordId],
+    enabled: Boolean(editingRecordId),
+    retry: false,
+    queryFn: () => recordsApi.get(domainId, editingRecordId!).then((r) => r.data.data),
+  });
   const currentEditingRecord = useMemo(
-    () => (editing ? records.find((record) => record.id === editing.id) ?? editing : null),
-    [editing, records],
+    () => (editing ? editingRecordDetail ?? records.find((record) => getRecordId(record) === editingRecordId) ?? editing : null),
+    [editing, editingRecordDetail, records, editingRecordId],
   );
+  const providerRecordTypes = useMemo(() => {
+    const base = account?.type === 'cloudflare' ? [...CLOUDFLARE_RECORD_TYPES] : [...COMMON_RECORD_TYPES];
+    const currentType = getRecordType(currentEditingRecord);
+    if (currentType && !base.includes(currentType)) base.push(currentType);
+    return base;
+  }, [account?.type, currentEditingRecord]);
+
+  useEffect(() => {
+    if (typeFilter && !providerRecordTypes.includes(typeFilter)) {
+      setTypeFilter('');
+    }
+  }, [providerRecordTypes, typeFilter]);
   
   const { data: lines = [] } = useQuery({
     queryKey: ['lines', domainId],
@@ -150,7 +190,7 @@ export function Records() {
     onSuccess: (res, { recordId }) => {
       if (res.data.code !== 0) { toast.error(formatApiError(res.data.msg)); return; }
       qc.invalidateQueries({ queryKey: ['records', domainId] });
-      toast.success(t('records.toggled', { status: records.find((r) => r.id === recordId)?.status === 1 ? t('common.disabled') : t('common.enabled') }));
+      toast.success(t('records.toggled', { status: getRecordNumber(records.find((r) => getRecordId(r) === recordId), 'status', 'Status') === 1 ? t('common.disabled') : t('common.enabled') }));
     },
     onError: () => toast.error(t('records.toggleFailed')),
   });
@@ -164,15 +204,15 @@ export function Records() {
   
 
   const columns = [
-    { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="record-mono record-mono--strong">{r.name}</span> },
-    { key: 'type', label: t('common.type'), render: (r: DnsRecord) => <Tag theme="primary" variant="light">{r.type}</Tag> },
+    { key: 'name', label: t('common.host'), render: (r: DnsRecord) => <span className="record-mono record-mono--strong">{getRecordName(r)}</span> },
+    { key: 'type', label: t('common.type'), render: (r: DnsRecord) => <Tag theme="primary" variant="light">{getRecordType(r)}</Tag> },
     {
       key: 'value', label: t('common.value'),
       render: (r: DnsRecord) => (
         <Space size="small">
-          <span className="record-mono record-mono--value" title={r.value}>{r.value}</span>
-          {r.type === 'MX' && r.mx !== undefined && (
-            <Tag theme="warning" variant="light" title={t('records.mxPriority')}>{r.mx}</Tag>
+          <span className="record-mono record-mono--value" title={getRecordValue(r)}>{getRecordValue(r)}</span>
+          {getRecordType(r) === 'MX' && getRecordNumber(r, 'mx', 'MX') !== undefined && (
+            <Tag theme="warning" variant="light" title={t('records.mxPriority')}>{getRecordNumber(r, 'mx', 'MX')}</Tag>
           )}
         </Space>
       ),
@@ -182,11 +222,11 @@ export function Records() {
       render: (r: DnsRecord) => {
         // Cloudflare & Aliyun ESA: 显示代理状态（是/否）
         if (hasProxyMode) {
-          const proxied = r.line === '1';
+          const proxied = getRecordLine(r) === '1';
           return <Tag theme={proxied ? 'warning' : 'default'} variant="light">{proxied ? t('records.proxied') : t('records.dnsOnly')}</Tag>;
         }
         // 其他提供商: 显示线路
-        const effectiveLine = r.line;
+        const effectiveLine = getRecordLine(r);
         
         // 当线路为 '0'、'default' 或空时，显示为"默认"
         if (!effectiveLine || effectiveLine === '0' || effectiveLine === 'default') {
@@ -198,28 +238,34 @@ export function Records() {
         return <Tag theme="primary" variant="light">{lineName ?? effectiveLine}</Tag>;
       },
     },
-    { key: 'ttl', label: t('common.ttl'), render: (r: DnsRecord) => <span className="page-muted">{r.ttl ?? '-'}</span> },
+    { key: 'ttl', label: t('common.ttl'), render: (r: DnsRecord) => <span className="page-muted">{getRecordNumber(r, 'ttl', 'TTL') ?? '-'}</span> },
     {
       key: 'status', label: t('common.status'),
-      render: (r: DnsRecord) => (
-        <Tag theme={r.status === 1 ? 'success' : 'danger'} variant="light">
-          {r.status === 1 ? t('common.enabled') : t('common.disabled')}
-        </Tag>
-      ),
+      render: (r: DnsRecord) => {
+        const enabled = getRecordNumber(r, 'status', 'Status') === 1;
+        return (
+          <Tag theme={enabled ? 'success' : 'danger'} variant="light">
+            {enabled ? t('common.enabled') : t('common.disabled')}
+          </Tag>
+        );
+      },
     },
     {
       key: 'actions', label: t('common.actions'),
-      render: (r: DnsRecord) => (
-        <Space size="small">
-          <Switch
-            size="small"
-            value={r.status === 1}
-            onChange={(checked) => statusMutation.mutate({ recordId: r.id, status: checked ? 1 : 0 })}
-          />
-          <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => setEditing(r)} />
-          <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} onClick={() => setDeleting(r)} />
-        </Space>
-      ),
+      render: (r: DnsRecord) => {
+        const recordId = getRecordId(r);
+        return (
+          <Space size="small">
+            <Switch
+              size="small"
+              value={getRecordNumber(r, 'status', 'Status') === 1}
+              onChange={(checked) => statusMutation.mutate({ recordId, status: checked ? 1 : 0 })}
+            />
+            <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => setEditing(r)} />
+            <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} onClick={() => setDeleting(r)} />
+          </Space>
+        );
+      },
     },
   ];
 
@@ -293,7 +339,7 @@ export function Records() {
           </Card>
 
           <Card bordered={false} shadow={false} className="page-card">
-            <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} />
+            <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => getRecordId(r)} emptyText={t('records.noRecords')} />
             <div className="records-pagination">
               <Pagination
                 current={page}
@@ -328,15 +374,15 @@ export function Records() {
       {editing && (
         <Modal title={t('records.editRecord')} onClose={() => setEditing(null)} size="lg">
           <RecordForm domainId={domainId} lines={lines} recordTypes={providerRecordTypes} provider={currentProvider} existingRecords={records} initial={currentEditingRecord ?? editing}
-            onSubmit={(data) => updateMutation.mutate({ recordId: currentEditingRecord?.id ?? editing.id, data })}
-            isLoading={updateMutation.isPending} />
+            onSubmit={(data) => updateMutation.mutate({ recordId: getRecordId(currentEditingRecord) || getRecordId(editing), data })}
+            isLoading={updateMutation.isPending || isFetchingEditingRecord} />
         </Modal>
       )}
 
       {deleting && (
         <ConfirmDialog
-          message={t('records.deleteConfirm', { name: deleting.name, type: deleting.type, value: deleting.value })}
-          onConfirm={() => deleteMutation.mutate(deleting.id)}
+          message={t('records.deleteConfirm', { name: getRecordName(deleting), type: getRecordType(deleting), value: getRecordValue(deleting) })}
+          onConfirm={() => deleteMutation.mutate(getRecordId(deleting))}
           onCancel={() => setDeleting(null)}
           isLoading={deleteMutation.isPending}
         />

@@ -328,6 +328,8 @@ export interface RecordListParams {
 export const recordsApi = {
   list: (domainId: number, params?: RecordListParams) =>
     api.get<ApiResponse<{ total: number; list: DnsRecord[] }>>(`/domains/${domainId}/records`, { params }),
+  get: (domainId: number, recordId: string) =>
+    api.get<ApiResponse<DnsRecord>>(`/domains/${domainId}/records/${encodeURIComponent(recordId)}`),
   create: (domainId: number, data: Partial<DnsRecord>) =>
     api.post<ApiResponse<{ id: string }>>(`/domains/${domainId}/records`, data),
   createBatch: (domainId: number, records: Partial<DnsRecord>[]) =>

@@ -1,11 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Button, Form, Input, Select, Space } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
 import { useFormSync } from '../hooks/useFormSync';
-import { toString } from '../utils/formHelpers';
+import { toNumber, toString } from '../utils/formHelpers';
 import './RecordForm.css';
 
 export const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR'];
@@ -25,6 +25,7 @@ export interface RecordFormProps {
 }
 
 interface SrvFields {
+  id?: string;
   priority: number;
   weight: number;
   port: string;
@@ -32,6 +33,7 @@ interface SrvFields {
 }
 
 interface RecordFormState {
+  id?: string;
   name: string;
   type: string;
   value: string;
@@ -40,6 +42,11 @@ interface RecordFormState {
   weight: number;
   line: string;
   remark: string;
+}
+
+function readRecordValue(record: DnsRecord, lowerKey: keyof DnsRecord, upperKey: string): unknown {
+  const source = record as DnsRecord & Record<string, unknown>;
+  return source[lowerKey] ?? source[upperKey];
 }
 
 function isIPv4(value: string): boolean {
@@ -144,11 +151,12 @@ function isRecordHost(value: string): boolean {
   return true;
 }
 
-function parseSrvValue(initial?: DnsRecord): SrvFields {
+function parseSrvValue(initial?: { id?: string; value?: string | null; mx?: number | null; weight?: number | null } | null): SrvFields {
   const raw = (initial?.value ?? '').trim();
   const parts = raw.split(/\s+/).filter(Boolean);
   if (parts.length >= 2 && /^\d+$/.test(parts[0])) {
     return {
+      id: initial?.id,
       priority: initial?.mx ?? 10,
       weight: initial?.weight ?? 10,
       port: parts[0],
@@ -157,6 +165,7 @@ function parseSrvValue(initial?: DnsRecord): SrvFields {
   }
 
   return {
+    id: initial?.id,
     priority: initial?.mx ?? 10,
     weight: initial?.weight ?? 10,
     port: '',
@@ -179,44 +188,80 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   // Check if provider supports multi-line routing
   const hasMultiLine = lines.length > 1 && !hasProxyMode;
   const defaultLine = hasProxyMode ? '0' : (hasMultiLine ? toString(lines[0]?.id, '0') : '0');
+  const defaultValues = useMemo<RecordFormState>(() => ({
+    name: '@',
+    type: 'A',
+    value: '',
+    ttl: 600,
+    mx: 10,
+    weight: 10,
+    line: defaultLine,
+    remark: '',
+  }), [defaultLine]);
+
+  const normalizedInitial = useMemo<RecordFormState | undefined>(() => {
+    if (!initial) return undefined;
+
+    return {
+      id: toString(readRecordValue(initial, 'id', 'RecordId')),
+      name: toString(readRecordValue(initial, 'name', 'Name'), '@') || '@',
+      type: toString(readRecordValue(initial, 'type', 'Type'), 'A') || 'A',
+      value: toString(readRecordValue(initial, 'value', 'Value')),
+      ttl: toNumber(readRecordValue(initial, 'ttl', 'TTL'), 600),
+      mx: toNumber(readRecordValue(initial, 'mx', 'MX'), 10),
+      weight: toNumber(readRecordValue(initial, 'weight', 'Weight'), 10),
+      line: toString(readRecordValue(initial, 'line', 'Line'), defaultLine),
+      remark: toString(readRecordValue(initial, 'remark', 'Remark')),
+    };
+  }, [initial, defaultLine]);
 
   const { formState: form, updateField } = useFormSync<RecordFormState>(
-    initial as RecordFormState | undefined,
-    {
-      name: '@',
-      type: 'A',
-      value: '',
-      ttl: 600,
-      mx: 10,
-      weight: 10,
-      line: defaultLine,
-      remark: '',
-    },
+    normalizedInitial,
+    defaultValues,
     {
       fields: ['name', 'type', 'value', 'ttl', 'mx', 'weight', 'line', 'remark'],
       transformers: {
         name: (v: unknown) => toString(v, '@') || '@',
         type: (v: unknown) => toString(v, 'A') || 'A',
         value: (v: unknown) => toString(v),
-        ttl: (v: unknown) => Number(v ?? 600),
-        mx: (v: unknown) => Number(v ?? 10),
-        weight: (v: unknown) => Number(v ?? 10),
+        ttl: (v: unknown) => toNumber(v, 600),
+        mx: (v: unknown) => toNumber(v, 10),
+        weight: (v: unknown) => toNumber(v, 10),
         line: (v: unknown) => toString(v, defaultLine),
         remark: (v: unknown) => toString(v),
       },
     },
   );
+  const srvInitial = useMemo<SrvFields | undefined>(() => (
+    normalizedInitial ? parseSrvValue(normalizedInitial) : undefined
+  ), [
+    normalizedInitial?.id,
+    normalizedInitial?.value,
+    normalizedInitial?.mx,
+    normalizedInitial?.weight,
+  ]);
+  const { formState: srv, updateField: updateSrvField } = useFormSync<SrvFields>(
+    srvInitial,
+    {
+      priority: 10,
+      weight: 10,
+      port: '',
+      target: '',
+    },
+    {
+      fields: ['priority', 'weight', 'port', 'target'],
+      transformers: {
+        priority: (v: unknown) => toNumber(v, 10),
+        weight: (v: unknown) => toNumber(v, 10),
+        port: (v: unknown) => toString(v),
+        target: (v: unknown) => toString(v),
+      },
+    },
+  );
 
-  // SRV 字段需要单独处理（因为涉及解析逻辑）
-  const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
-
-  // SRV 字段同步（保留特殊处理逻辑）
-  useEffect(() => {
-    if (initial) {
-      setSrv(parseSrvValue(initial));
-    }
-  }, [initial?.id, initial?.mx, initial?.weight, initial?.value]);
+  const srvPort = toString(srv.port);
+  const srvTarget = toString(srv.target);
 
   // 更新字段并清除错误
   const set = (k: keyof DnsRecord, v: unknown) => {
@@ -226,25 +271,31 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
 
   const currentType = form.type ?? 'A';
   const isSrv = currentType === 'SRV';
+  const initialCloudflare = initial
+    ? ((initial as DnsRecord & Record<string, unknown>).cloudflare ?? (initial as DnsRecord & Record<string, unknown>).Cloudflare) as DnsRecord['cloudflare'] | undefined
+    : undefined;
+  const initialProxiable = initial
+    ? readRecordValue(initial, 'proxiable', 'Proxiable')
+    : undefined;
   
   // Cloudflare & Aliyun ESA 使用代理模式，不依赖 lines 数组
   // 其他提供商需要 lines 数组支持
   const canSelectProxy = hasProxyMode
     ? (isCloudflare
-      ? (initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
-        ? Boolean(initial.cloudflare.proxiable)
-        : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
-          ? Boolean(initial.proxiable)
+      ? (normalizedInitial && normalizedInitial.type === currentType && initialCloudflare?.proxiable !== undefined
+        ? Boolean(initialCloudflare.proxiable)
+        : normalizedInitial && normalizedInitial.type === currentType && initialProxiable !== null && initialProxiable !== undefined
+          ? Boolean(initialProxiable)
         : PROXIABLE_RECORD_TYPES.has(currentType))
       : true) // Aliyun ESA always supports proxy toggle
     : true; // Always show line selector for non-proxy providers
 
   const normalizedSrvValue = useMemo(() => {
-    const port = srv.port.trim();
-    const target = srv.target.trim();
+    const port = srvPort.trim();
+    const target = srvTarget.trim();
     if (!port || !target) return '';
     return `${port} ${target}`;
-  }, [srv.port, srv.target]);
+  }, [srvPort, srvTarget]);
 
   const validate = () => {
     const nextErrors: typeof errors = {};
@@ -282,12 +333,12 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     if (currentType === 'SRV') {
       const weight = Number(form.weight ?? 0);
       if (!Number.isFinite(weight) || weight < 0) nextErrors.weight = t('records.invalidWeight');
-      if (!srv.port.trim()) nextErrors.srvPort = t('records.invalidSrvPortRequired');
-      else if (!/^\d+$/.test(srv.port.trim()) || Number(srv.port.trim()) < 1 || Number(srv.port.trim()) > 65535) {
+      if (!srvPort.trim()) nextErrors.srvPort = t('records.invalidSrvPortRequired');
+      else if (!/^\d+$/.test(srvPort.trim()) || Number(srvPort.trim()) < 1 || Number(srvPort.trim()) > 65535) {
         nextErrors.srvPort = t('records.invalidSrvPort');
       }
-      if (!srv.target.trim()) nextErrors.srvTarget = t('records.invalidSrvTargetRequired');
-      else if (!isHostname(srv.target.trim())) nextErrors.srvTarget = t('records.invalidSrvTarget');
+      if (!srvTarget.trim()) nextErrors.srvTarget = t('records.invalidSrvTargetRequired');
+      else if (!isHostname(srvTarget.trim())) nextErrors.srvTarget = t('records.invalidSrvTarget');
     }
 
     setErrors(nextErrors);
@@ -355,20 +406,20 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           label={(
             <span>
               {t('records.hostName')}
-              {isVPS8 && initial && <span className="record-form__label-note">({t('records.cannotModifyHost') || '不可修改'})</span>}
+              {isVPS8 && normalizedInitial && <span className="record-form__label-note">({t('records.cannotModifyHost') || '不可修改'})</span>}
             </span>
           )}
           status={errors.name ? 'error' : undefined}
-          tips={errors.name || (isVPS8 && initial ? t('records.vps8HostHint') || 'VPS8 不支持修改主机名' : undefined)}
+          tips={errors.name || (isVPS8 && normalizedInitial ? t('records.vps8HostHint') || 'VPS8 不支持修改主机名' : undefined)}
         >
           <Input
             clearable
-            name={initial ? `record-host-${initial.id}` : 'record-host-create'}
+            name={normalizedInitial ? `record-host-${normalizedInitial.id}` : 'record-host-create'}
             autocomplete="off"
             value={String(form.name ?? '')}
             onChange={(value: any) => updateField('name', String(value))}
             placeholder={t('records.hostPlaceholder')}
-            disabled={isVPS8 && !!initial}
+            disabled={isVPS8 && !!normalizedInitial}
             status={errors.name ? 'error' : undefined}
           />
         </Form.FormItem>
@@ -410,9 +461,9 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.port')} status={errors.srvPort ? 'error' : undefined} tips={errors.srvPort}>
               <Input
                 type="number"
-                value={srv.port}
+                value={srvPort}
                 onChange={(value: any) => {
-                  setSrv((current) => ({ ...current, port: String(value) }));
+                  updateSrvField('port', String(value));
                   setErrors((current) => ({ ...current, srvPort: undefined, value: undefined }));
                 }}
                 placeholder="443"
@@ -422,9 +473,9 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.target')} status={errors.srvTarget ? 'error' : undefined} tips={errors.srvTarget}>
               <Input
                 clearable
-                value={srv.target}
+                value={srvTarget}
                 onChange={(value: any) => {
-                  setSrv((current) => ({ ...current, target: String(value) }));
+                  updateSrvField('target', String(value));
                   setErrors((current) => ({ ...current, srvTarget: undefined, value: undefined }));
                 }}
                 placeholder="service.example.com"
@@ -442,7 +493,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         <Form.FormItem label={t('records.valueLabel')} status={errors.value ? 'error' : undefined} tips={errors.value}>
           <Input
             clearable
-            name={initial ? `record-value-${initial.id}` : 'record-value-create'}
+            name={normalizedInitial ? `record-value-${normalizedInitial.id}` : 'record-value-create'}
             autocomplete="off"
             value={String(form.value ?? '')}
             onChange={(value: any) => set('value', value)}
@@ -498,7 +549,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
 
       <Space className="record-form__actions" align="center">
         <Button type="submit" theme="primary" loading={isLoading}>
-          {initial ? t('common.saveChanges') : t('records.addRecord')}
+          {normalizedInitial ? t('common.saveChanges') : t('records.addRecord')}
         </Button>
       </Space>
     </Form>
