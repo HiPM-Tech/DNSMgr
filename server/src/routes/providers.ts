@@ -22,6 +22,10 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
     // Icon file paths to check in priority order (SVG > PNG > ICO > JPG)
     // SVG is preferred for scalability and small file size
     const iconExtensions = ['.svg', '.png', '.ico', '.jpg', '.jpeg'];
+    
+    // Support both development (src) and production (dist) environments
+    // In dev: __dirname = server/dist/routes, need to go up to server/src/lib/dns/providers
+    // In prod: __dirname = server/dist/routes, need to go up to server/dist/lib/dns/providers
     const providersDir = path.join(__dirname, '..', 'lib', 'dns', 'providers');
     
     let iconPath = '';
@@ -35,6 +39,20 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
         iconExt = ext;
         log.info('Providers', `Serving icon for ${type}: icon${ext} (priority: ${iconExtensions.indexOf(ext) + 1}/${iconExtensions.length})`);
         break;
+      }
+    }
+    
+    // If not found in dist, try src directory (for development without copying files)
+    if (!iconPath) {
+      const srcProvidersDir = path.join(__dirname, '..', '..', 'src', 'lib', 'dns', 'providers');
+      for (const ext of iconExtensions) {
+        const candidatePath = path.join(srcProvidersDir, type, `icon${ext}`);
+        if (fs.existsSync(candidatePath)) {
+          iconPath = candidatePath;
+          iconExt = ext;
+          log.info('Providers', `Serving icon from src for ${type}: icon${ext}`);
+          break;
+        }
       }
     }
     
