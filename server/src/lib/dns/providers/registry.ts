@@ -21,6 +21,7 @@ import {
   HiDNSAdapter,
   CaihongDnsAdapter,
   Vps8Adapter,
+  GcoreAdapter,
 } from './index';
 
 export interface ProviderCapabilities {
@@ -270,6 +271,15 @@ const providerDefinitions: ProviderDefinition[] = [
       { key: 'apiKey', label: 'API Key', type: 'password', required: true },
     ],
     adapterFactory: (config) => new Vps8Adapter(config),
+  },
+  {
+    type: 'gcore',
+    name: 'Gcore',
+    capabilities: { remark: false, status: true, redirect: false, log: false, weight: false, line: false, cnameFlattening: false },
+    configFields: [
+      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    ],
+    adapterFactory: (config) => new GcoreAdapter(config),
   },
 ];
 
