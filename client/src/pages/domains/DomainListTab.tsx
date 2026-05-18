@@ -405,7 +405,20 @@ export function DomainListTab() {
           // 获取状态的翻译文本
           const getStatusLabel = (status: string) => {
             // 移除 URL 部分（如 https://icann.org/epp#clientTransferProhibited）
-            const cleanStatus = status.split(' ')[0].split('#').pop() || status;
+            let cleanStatus = status.split(' ')[0].split('#').pop() || status;
+            
+            // 如果包含空格，转换为驼峰命名（如 "client transfer prohibited" -> "clientTransferProhibited"）
+            if (status.includes(' ')) {
+              cleanStatus = status
+                .toLowerCase()
+                .split(' ')
+                .map((word, index) => {
+                  if (index === 0) return word;
+                  return word.charAt(0).toUpperCase() + word.slice(1);
+                })
+                .join('');
+            }
+            
             const camelCaseStatus = cleanStatus.charAt(0).toLowerCase() + cleanStatus.slice(1);
             const translationKey = `domains.whoisStatus.${camelCaseStatus}`;
             const translated = t(translationKey);
