@@ -225,6 +225,26 @@ async function addNsMonitorColumns(
     if (!columnExists) {
       log.info('Schema', 'domain_id column does not exist, skipping drop');
     } else {
+      // First, drop the foreign key constraint
+      log.info('Schema', 'Dropping foreign key constraint on domain_id...');
+      try {
+        const dropFkSql = 'ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ns_monitor_domains_ibfk_2';
+        if (conn.execute) {
+          await conn.execute(dropFkSql);
+        } else if (conn.exec) {
+          conn.exec(dropFkSql);
+        }
+        log.info('Schema', 'Successfully dropped foreign key constraint');
+      } catch (fkError) {
+        const fkErrorMsg = (fkError as Error).message || '';
+        if (fkErrorMsg.includes('check that it exists') || fkErrorMsg.includes('ER_CANT_DROP_FIELD_OR_KEY')) {
+          log.info('Schema', 'Foreign key constraint already dropped');
+        } else {
+          log.warn('Schema', 'Failed to drop foreign key constraint', { error: fkErrorMsg });
+        }
+      }
+      
+      // Now drop the column
       log.info('Schema', 'Dropping deprecated domain_id column...');
       const dropSql = 'ALTER TABLE ns_monitor_domains DROP COLUMN domain_id';
       if (conn.execute) {
@@ -251,8 +271,8 @@ async function addNsMonitorColumns(
     log.info('Schema', 'Successfully dropped idx_domain_id index');
   } catch (error) {
     const errorMsg = (error as Error).message || '';
-    if (errorMsg.includes('CANT_DROP') || errorMsg.includes('check that key/index exists')) {
-      log.info('Schema', 'idx_domain_id index already dropped');
+    if (errorMsg.includes('CANT_DROP') || errorMsg.includes('check that key/index exists') || errorMsg.includes('ER_CANT_DROP_FIELD_OR_KEY')) {
+      log.info('Schema', 'idx_domain_id index already dropped or does not exist');
     } else {
       log.warn('Schema', 'Failed to drop idx_domain_id index', { error: errorMsg });
     }
