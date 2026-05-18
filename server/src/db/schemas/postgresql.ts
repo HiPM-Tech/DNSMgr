@@ -388,6 +388,7 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      domain_id INTEGER DEFAULT NULL,
       domain_name VARCHAR(255) NOT NULL DEFAULT '',
       expected_ns TEXT NOT NULL DEFAULT '',
       current_ns TEXT NOT NULL DEFAULT '',
@@ -404,6 +405,7 @@ export const postgresqlSchema: SchemaDefinition = {
       UNIQUE(user_id, domain_name)
     )`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_id ON ns_monitor_domains(domain_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`,
     `CREATE TABLE IF NOT EXISTS rdap_server_cache (
@@ -469,9 +471,7 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)`,
     // Migration: Sync domain_name from domains table for existing records
     `UPDATE ns_monitor_domains n SET domain_name = d.name FROM domains d WHERE n.domain_id = d.id AND n.domain_name = ''`,
-    // Migration: Drop domain_id column (deprecated)
-    `ALTER TABLE ns_monitor_domains DROP COLUMN IF EXISTS domain_id`,
-    `DROP INDEX IF EXISTS idx_ns_monitor_domains_domain_id`,
+    // Note: domain_id column is kept but set to NULL for backward compatibility
     // Migration: Update status check constraint to include 'poisoned'
     `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_status_check`,
     `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_status_check CHECK (status IN ('ok', 'mismatch', 'missing', 'poisoned'))`,

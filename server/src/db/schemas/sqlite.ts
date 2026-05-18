@@ -364,6 +364,7 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
+      domain_id INTEGER DEFAULT NULL,
       domain_name TEXT NOT NULL DEFAULT '',
       expected_ns TEXT NOT NULL DEFAULT '',
       current_ns TEXT NOT NULL DEFAULT '',
@@ -429,6 +430,7 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_trusted_devices_fingerprint ON trusted_devices(device_fingerprint)`,
     `CREATE INDEX IF NOT EXISTS idx_user_ns_monitor_prefs_user_id ON user_ns_monitor_prefs(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_id ON ns_monitor_domains(domain_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`,
     `CREATE INDEX IF NOT EXISTS idx_renewable_domains_account_id ON renewable_domains(account_id)`,

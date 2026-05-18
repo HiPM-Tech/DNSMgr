@@ -208,131 +208,8 @@ async function addNsMonitorColumns(
     log.warn('Schema', 'Failed to sync domain_name', { error: (error as Error).message });
   }
   
-  // Migration: Drop domain_id column (deprecated) (always execute)
-  try {
-    log.info('Schema', 'Checking if domain_id column exists before dropping...');
-    // First check if column exists
-    const checkSql = 'SHOW COLUMNS FROM ns_monitor_domains LIKE \'domain_id\'';
-    let columnExists = false;
-    if (conn.execute) {
-      const result = await conn.execute(checkSql);
-      if (Array.isArray(result)) {
-        columnExists = result.length > 0;
-        log.info('Schema', `domain_id column exists: ${columnExists}`);
-      }
-    }
-    
-    if (!columnExists) {
-      log.info('Schema', 'domain_id column does not exist, skipping drop');
-    } else {
-      // First, find and drop the foreign key constraint
-      log.info('Schema', 'Finding foreign key constraint on domain_id...');
-      try {
-        // Query to find the foreign key name
-        const findFkSql = `
-          SELECT CONSTRAINT_NAME 
-          FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-          WHERE TABLE_NAME = 'ns_monitor_domains' 
-          AND COLUMN_NAME = 'domain_id'
-          AND REFERENCED_TABLE_NAME IS NOT NULL
-        `;
-        
-        let fkName = '';
-        if (conn.execute) {
-          const fkResult = await conn.execute(findFkSql);
-          if (Array.isArray(fkResult) && fkResult.length > 0) {
-            fkName = (fkResult[0] as any).CONSTRAINT_NAME || '';
-            log.info('Schema', `Found foreign key constraint: ${fkName}`);
-          }
-        }
-        
-        if (fkName) {
-          // Drop the foreign key constraint
-          log.info('Schema', `Dropping foreign key constraint: ${fkName}...`);
-          const dropFkSql = `ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`;
-          if (conn.execute) {
-            await conn.execute(dropFkSql);
-          } else if (conn.exec) {
-            conn.exec(dropFkSql);
-          }
-          log.info('Schema', 'Successfully dropped foreign key constraint');
-        } else {
-          log.info('Schema', 'No foreign key constraint found on domain_id');
-        }
-      } catch (fkError) {
-        const fkErrorMsg = (fkError as Error).message || '';
-        log.warn('Schema', 'Failed to drop foreign key constraint', { error: fkErrorMsg });
-      }
-      
-      // Now drop the column
-      log.info('Schema', 'Dropping deprecated domain_id column...');
-      const dropSql = 'ALTER TABLE ns_monitor_domains DROP COLUMN domain_id';
-      if (conn.execute) {
-        await conn.execute(dropSql);
-      } else if (conn.exec) {
-        conn.exec(dropSql);
-      }
-      log.info('Schema', 'Successfully dropped domain_id column');
-    }
-  } catch (error) {
-    const errorMsg = (error as Error).message || '';
-    log.error('Schema', 'Failed to drop domain_id column', { error: errorMsg });
-  }
-  
-  // Migration: Drop idx_domain_id index (always execute)
-  try {
-    log.info('Schema', 'Dropping idx_domain_id index...');
-    const dropIndexSql = 'DROP INDEX idx_domain_id ON ns_monitor_domains';
-    if (conn.execute) {
-      await conn.execute(dropIndexSql);
-    } else if (conn.exec) {
-      conn.exec(dropIndexSql);
-    }
-    log.info('Schema', 'Successfully dropped idx_domain_id index');
-  } catch (error) {
-    const errorMsg = (error as Error).message || '';
-    if (errorMsg.includes('CANT_DROP') || errorMsg.includes('check that key/index exists') || errorMsg.includes('ER_CANT_DROP_FIELD_OR_KEY')) {
-      log.info('Schema', 'idx_domain_id index already dropped or does not exist');
-    } else if (errorMsg.includes('needed in a foreign key constraint')) {
-      // If index is still needed by FK, it means FK wasn't dropped properly
-      // Try to find and drop all FKs on domain_id again
-      log.warn('Schema', 'Index still referenced by FK, attempting to drop all FKs on domain_id...');
-      const dropIndexSql = 'DROP INDEX idx_domain_id ON ns_monitor_domains';
-      try {
-        const findAllFkSql = `
-          SELECT CONSTRAINT_NAME 
-          FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-          WHERE TABLE_NAME = 'ns_monitor_domains' 
-          AND COLUMN_NAME = 'domain_id'
-          AND REFERENCED_TABLE_NAME IS NOT NULL
-        `;
-        
-        if (conn.execute) {
-          const fkResult = await conn.execute(findAllFkSql);
-          if (Array.isArray(fkResult)) {
-            for (const row of fkResult) {
-              const fkName = (row as any).CONSTRAINT_NAME;
-              if (fkName) {
-                log.info('Schema', `Dropping remaining FK: ${fkName}`);
-                await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
-              }
-            }
-          }
-        }
-        
-        // Now try to drop the index again
-        log.info('Schema', 'Retrying drop idx_domain_id index...');
-        if (conn.execute) {
-          await conn.execute(dropIndexSql);
-        }
-        log.info('Schema', 'Successfully dropped idx_domain_id index after dropping FKs');
-      } catch (retryError) {
-        log.error('Schema', 'Failed to drop index even after dropping FKs', { error: (retryError as Error).message });
-      }
-    } else {
-      log.warn('Schema', 'Failed to drop idx_domain_id index', { error: errorMsg });
-    }
-  }
+  // Note: domain_id column is kept but set to NULL for backward compatibility
+  // It will be deprecated in future versions
 }
 
 /**
@@ -759,32 +636,8 @@ async function handleSQLiteMigrations(
     log.warn('Schema', 'Failed to sync domain_name (SQLite)', { error: (error as Error).message });
   }
   
-  // Migration: Drop domain_id column (deprecated) - SQLite requires table recreation
-  try {
-    log.info('Schema', 'Dropping deprecated domain_id column (SQLite)...');
-    if (conn.exec) {
-      // SQLite doesn't support DROP COLUMN in older versions, need to recreate table
-      const recreateSql = `
-        CREATE TABLE ns_monitor_domains_new AS
-        SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
-               is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count,
-               created_at, updated_at
-        FROM ns_monitor_domains
-      `;
-      conn.exec(recreateSql);
-      conn.exec('DROP TABLE ns_monitor_domains');
-      conn.exec('ALTER TABLE ns_monitor_domains_new RENAME TO ns_monitor_domains');
-      
-      // Recreate indexes
-      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
-      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
-      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
-      
-      log.info('Schema', 'Successfully dropped domain_id column (SQLite)');
-    }
-  } catch (error) {
-    log.warn('Schema', 'Failed to drop domain_id column (SQLite)', { error: (error as Error).message });
-  }
+  // Note: domain_id column is kept but set to NULL for backward compatibility
+  // It will be deprecated in future versions
 
   // Migration: Add pinned_domains column to user_preferences table
   await addSQLiteColumn(conn, 'user_preferences', 'pinned_domains', "TEXT DEFAULT '[]'");
