@@ -361,42 +361,52 @@ export function DomainListTab() {
           return <span className="page-muted">-</span>;
         }
         
-        const whoisInfo = whoisMap[row.name];
+        // 本地启用状态
+        const isEnabled = row.enabled !== 0;
+        const localStatusText = isEnabled ? t('common.enabled') : t('common.disabled');
+        const localStatusTheme = isEnabled ? 'success' : 'default';
         
-        // 如果没有WHOIS数据，显示未知（等待后端定时任务同步）
-        if (!whoisInfo?.status) {
-          const unknownText = t('domains.unknown') || '未知';
-          return <span className="page-muted">{unknownText}</span>;
+        // WHOIS 状态
+        const whoisInfo = whoisMap[row.name];
+        let whoisStatusTag = null;
+        
+        if (whoisInfo?.status) {
+          const statuses = whoisInfo.status.split('\n').filter(Boolean);
+          const mainStatus = statuses[0] || '';
+          
+          // 根据状态设置标签颜色
+          const getStatusTheme = (status: string) => {
+            const lowerStatus = status.toLowerCase();
+            if (lowerStatus === 'ok' || lowerStatus === 'active') return 'success';
+            if (lowerStatus.includes('hold') || lowerStatus.includes('prohibited')) return 'danger';
+            if (lowerStatus.includes('pending')) return 'warning';
+            return 'default';
+          };
+          
+          // 获取状态的翻译文本
+          const getStatusLabel = (status: string) => {
+            const camelCaseStatus = status.charAt(0).toLowerCase() + status.slice(1);
+            const translationKey = `domains.whoisStatus.${camelCaseStatus}`;
+            const translated = t(translationKey);
+            return translated === translationKey ? status : translated;
+          };
+          
+          whoisStatusTag = (
+            <Tag theme={getStatusTheme(mainStatus)} variant="light" size="small">
+              {getStatusLabel(mainStatus)}
+            </Tag>
+          );
+        } else {
+          whoisStatusTag = <span className="page-muted">{t('domains.unknown')}</span>;
         }
         
-        // 解析WHOIS状态
-        const statuses = whoisInfo.status.split('\n').filter(Boolean);
-        const mainStatus = statuses[0] || '';
-        
-        // 根据状态设置标签颜色
-        const getStatusTheme = (status: string) => {
-          const lowerStatus = status.toLowerCase();
-          if (lowerStatus === 'ok' || lowerStatus === 'active') return 'success';
-          if (lowerStatus.includes('hold') || lowerStatus.includes('prohibited')) return 'danger';
-          if (lowerStatus.includes('pending')) return 'warning';
-          return 'default';
-        };
-        
-        // 获取状态的翻译文本
-        const getStatusLabel = (status: string) => {
-          // 将状态转换为驼峰命名（如 clientHold, serverTransferProhibited）
-          const camelCaseStatus = status.charAt(0).toLowerCase() + status.slice(1);
-          const translationKey = `domains.whoisStatus.${camelCaseStatus}`;
-          const translated = t(translationKey);
-          
-          // 如果翻译键不存在，返回原始状态
-          return translated === translationKey ? status : translated;
-        };
-        
         return (
-          <Tag theme={getStatusTheme(mainStatus)} variant="light" size="small">
-            {getStatusLabel(mainStatus)}
-          </Tag>
+          <Space size="small">
+            <Tag theme={localStatusTheme} variant="light" size="small">
+              {localStatusText}
+            </Tag>
+            {whoisStatusTag}
+          </Space>
         );
       },
     },

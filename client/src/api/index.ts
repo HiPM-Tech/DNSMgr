@@ -90,6 +90,7 @@ export interface Domain {
   account_id: number;
   third_id?: string;
   remark: string;
+  enabled?: number; // 0 = disabled, 1 or undefined = enabled
   record_count?: number;
   expires_at?: string;
   apex_expires_at?: string;  // 根域名到期时间（仅对子域名有效）
