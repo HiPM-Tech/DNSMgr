@@ -699,7 +699,8 @@
       "daysLeft": "{days}일 남음",
       "expired": "만료됨",
       "apexDomainExpiry": "상위 도메인 만료",
-      "domainStatus": "상태",
+      "localStatus": "로컬 상태",
+      "domainStatus": "도메인 상태",
       "whoisStatus": {
         "ok": "정상",
         "active": "활성",
@@ -748,6 +749,7 @@
       "pinDomain": "도메인 고정",
       "unpinDomain": "도메인 고정 해제",
       "pinnedDomains": "고정된 도메인",
+      "domainDisabled": "이 도메인은 비활성화되어 있어 DNS 레코드에 액세스할 수 없습니다",
       "failoverSubtitle": "기본/백업 IP 및 상태 확인을 구성하고 장애 발생 시 DNS 대상을 자동으로 전환합니다.",
       "tabs": {
         "list": "도메인 목록",

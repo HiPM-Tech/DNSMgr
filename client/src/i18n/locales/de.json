@@ -671,7 +671,8 @@
       "daysLeft": "{days} Tage übrig",
       "expired": "Abgelaufen",
       "apexDomainExpiry": "Hauptdomain-Ablauf",
-      "domainStatus": "Status",
+      "localStatus": "Lokaler Status",
+      "domainStatus": "Domain-Status",
       "whoisStatus": {
         "ok": "OK",
         "active": "Aktiv",
@@ -717,6 +718,7 @@
       "configSaved": "Failover-Konfiguration gespeichert",
       "configDeleted": "Failover-Konfiguration gelöscht",
       "configureFailover": "Failover konfigurieren",
+      "domainDisabled": "Diese Domain ist deaktiviert und kann nicht auf DNS-Einträge zugreifen",
       "tabs": {
         "list": "Domain-Liste",
         "listSubtitle": "Einheitliche Verwaltung der DNS-Auflösungsdatensätze verschiedener DNS-Anbieter",

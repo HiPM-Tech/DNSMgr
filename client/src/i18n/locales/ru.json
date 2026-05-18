@@ -634,7 +634,8 @@
       "daysLeft": "{days} дней осталось",
       "expired": "Истёк",
       "apexDomainExpiry": "Срок действия основного домена",
-      "domainStatus": "Статус",
+      "localStatus": "Локальный статус",
+      "domainStatus": "Статус домена",
       "whoisStatus": {
         "ok": "OK",
         "active": "Активен",
@@ -680,6 +681,7 @@
       "configSaved": "Конфигурация failover сохранена",
       "configDeleted": "Конфигурация failover удалена",
       "configureFailover": "Настроить Failover",
+      "domainDisabled": "Этот домен отключен и не может получить доступ к DNS записям",
       "tabs": {
         "list": "Список доменов",
         "listSubtitle": "Единое управление записями разрешения DNS от различных провайдеров DNS",

@@ -672,7 +672,8 @@
       "daysLeft": "{days} jours restants",
       "expired": "Expiré",
       "apexDomainExpiry": "Expiration du domaine principal",
-      "domainStatus": "Statut",
+      "localStatus": "Statut local",
+      "domainStatus": "Statut du domaine",
       "whoisStatus": {
         "ok": "OK",
         "active": "Actif",
@@ -718,6 +719,7 @@
       "configSaved": "Config de basculement enregistrée",
       "configDeleted": "Config de basculement supprimée",
       "configureFailover": "Configurer le basculement",
+      "domainDisabled": "Ce domaine est désactivé et ne peut pas accéder aux enregistrements DNS",
       "tabs": {
         "list": "Liste des domaines",
         "listSubtitle": "Gestion unifiée des enregistrements de résolution DNS de divers fournisseurs DNS",

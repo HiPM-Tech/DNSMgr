@@ -549,7 +549,8 @@
       "expired": "Expirado",
       "expires": "Expira",
       "apexDomainExpiry": "Vencimiento del dominio principal",
-      "domainStatus": "Estado",
+      "localStatus": "Estado local",
+      "domainStatus": "Estado del dominio",
       "whoisStatus": {
         "ok": "OK",
         "active": "Activo",
@@ -607,6 +608,7 @@
       "pinDomain": "Fijar dominio",
       "unpinDomain": "Desfijar dominio",
       "pinnedDomains": "Dominios fijados",
+      "domainDisabled": "Este dominio está deshabilitado y no puede acceder a los registros DNS",
       "failoverSubtitle": "Configura IPs primarias/secundarias y verificaciones de salud, luego cambia automáticamente los objetivos DNS cuando ocurran fallas."
     },
     "setup": {

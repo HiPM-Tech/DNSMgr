@@ -591,7 +591,8 @@
       "expired": "期限切れ",
       "expires": "有効期限",
       "apexDomainExpiry": "親ドメインの有効期限",
-      "domainStatus": "ステータス",
+      "localStatus": "ローカル状態",
+      "domainStatus": "ドメイン状態",
       "whoisStatus": {
         "ok": "正常",
         "active": "アクティブ",
@@ -658,7 +659,8 @@
       "failoverSubtitle": "プライマリ/バックアップIPとヘルスチェックを設定し、障害発生時に自動的にDNSターゲットを切り替えます。",
       "unpinDomain": "ピン留め解除",
       "pinnedDomains": "ピン留めされたドメイン",
-      "pinDomain": "ドメインをピン留め"
+      "pinDomain": "ドメインをピン留め",
+      "domainDisabled": "このドメインは無効化されており、DNSレコードにアクセスできません"
     },
     "setup": {
       "adminCreateFailed": "管理者の作成に失敗しました",

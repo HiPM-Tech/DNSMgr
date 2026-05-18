@@ -634,7 +634,8 @@
       "daysLeft": "{days} أيام متبقية",
       "expired": "منتهي الصلاحية",
       "apexDomainExpiry": "انتهاء صلاحية النطاق الرئيسي",
-      "domainStatus": "الحالة",
+      "localStatus": "الحالة المحلية",
+      "domainStatus": "حالة النطاق",
       "whoisStatus": {
         "ok": "OK",
         "active": "نشط",
@@ -680,6 +681,7 @@
       "configSaved": "تم حفظ تكوين الفانلوفر",
       "configDeleted": "تم حذف تكوين الفانلوفر",
       "configureFailover": "تكوين الفانلوفر",
+      "domainDisabled": "هذا النطاق معطل ولا يمكن الوصول إلى سجلات DNS",
       "tabs": {
         "list": "قائمة النطاقات",
         "listSubtitle": "الإدارة الموحدة لسجلات حل DNS من مختلف موفري DNS",

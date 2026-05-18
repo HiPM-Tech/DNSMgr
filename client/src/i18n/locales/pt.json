@@ -634,7 +634,8 @@
       "daysLeft": "{days} dias restantes",
       "expired": "Expirado",
       "apexDomainExpiry": "Expiração do Domínio Principal",
-      "domainStatus": "Status",
+      "localStatus": "Status Local",
+      "domainStatus": "Status do Domínio",
       "whoisStatus": {
         "ok": "OK",
         "active": "Ativo",
@@ -680,6 +681,7 @@
       "configSaved": "Config de failover salva",
       "configDeleted": "Config de failover excluída",
       "configureFailover": "Configurar Failover",
+      "domainDisabled": "Este domínio está desabilitado e não pode acessar registros DNS",
       "tabs": {
         "list": "Lista de Domínios",
         "listSubtitle": "Gerenciamento unificado de registros de resolução DNS de vários provedores DNS",
