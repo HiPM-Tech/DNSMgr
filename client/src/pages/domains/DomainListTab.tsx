@@ -390,8 +390,8 @@ export function DomainListTab() {
         const whoisInfo = whoisMap[row.name];
         
         if (whoisInfo?.status) {
+          // 分割多个状态（用换行符分隔）
           const statuses = whoisInfo.status.split('\n').filter(Boolean);
-          const mainStatus = statuses[0] || '';
           
           // 根据状态设置标签颜色
           const getStatusTheme = (status: string) => {
@@ -425,10 +425,15 @@ export function DomainListTab() {
             return translated === translationKey ? status : translated;
           };
           
+          // 渲染所有状态标签
           return (
-            <Tag theme={getStatusTheme(mainStatus)} variant="light" size="small">
-              {getStatusLabel(mainStatus)}
-            </Tag>
+            <Space direction="vertical" size="small">
+              {statuses.map((status, index) => (
+                <Tag key={index} theme={getStatusTheme(status)} variant="light" size="small">
+                  {getStatusLabel(status)}
+                </Tag>
+              ))}
+            </Space>
           );
         } else {
           return <span className="page-muted">{t('domains.unknown')}</span>;

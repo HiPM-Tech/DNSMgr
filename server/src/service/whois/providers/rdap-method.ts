@@ -201,12 +201,12 @@ export class RdapMethod extends BaseQueryMethod {
 
   /**
    * 提取 WHOIS 状态
-   * RDAP status 是一个数组，如 ["active"] 或 ["clientTransferProhibited"]
+   * RDAP status 是一个数组，如 ["active"] 或 ["clientTransferProhibited", "serverTransferProhibited"]
    */
   private extractStatus(data: any): string | null {
     if (data.status && Array.isArray(data.status) && data.status.length > 0) {
-      // 返回第一个状态值
-      const status = data.status[0];
+      // 返回所有状态，用换行符连接
+      const status = data.status.join('\n');
       this.log('debug', `Extracted RDAP status`, { status });
       return status;
     }

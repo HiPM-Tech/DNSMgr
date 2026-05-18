@@ -39,22 +39,37 @@ export function extractStatus(raw: string): string | null {
   try {
     const jsonData = JSON.parse(raw);
     if (jsonData.status && Array.isArray(jsonData.status) && jsonData.status.length > 0) {
-      return jsonData.status[0];
+      // 返回所有状态，用换行符连接
+      return jsonData.status.join('\n');
     }
   } catch (e) {
     // 不是 JSON，继续尝试 WHOIS 文本
   }
   
-  // 策略 2: 从 WHOIS 文本中提取 - Domain Status（精确锚定行首）
-  const domainStatusMatch = raw.match(/^Domain Status:\s*([\w]+)\s/im);
-  if (domainStatusMatch && domainStatusMatch[1]) {
-    return domainStatusMatch[1];
+  // 策略 2: 从 WHOIS 文本中提取所有 Domain Status 行
+  const domainStatusMatches = raw.match(/^Domain Status:\s*([\w]+)\s*/gim);
+  if (domainStatusMatches && domainStatusMatches.length > 0) {
+    const statuses = domainStatusMatches.map(match => {
+      const statusMatch = match.match(/Domain Status:\s*([\w]+)\s*/i);
+      return statusMatch ? statusMatch[1] : null;
+    }).filter(Boolean) as string[];
+    
+    if (statuses.length > 0) {
+      return statuses.join('\n');
+    }
   }
   
   // 策略 3: 匹配其他 WHOIS 状态格式（备选）
-  const statusMatch = raw.match(/^status:\s*([\w]+)\s/im);
-  if (statusMatch && statusMatch[1]) {
-    return statusMatch[1];
+  const statusMatches = raw.match(/^status:\s*([\w]+)\s*/gim);
+  if (statusMatches && statusMatches.length > 0) {
+    const statuses = statusMatches.map(match => {
+      const statusMatch = match.match(/status:\s*([\w]+)\s*/i);
+      return statusMatch ? statusMatch[1] : null;
+    }).filter(Boolean) as string[];
+    
+    if (statuses.length > 0) {
+      return statuses.join('\n');
+    }
   }
   
   return null;
