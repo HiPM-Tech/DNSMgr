@@ -495,8 +495,8 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       added++;
       addedDomains.push(item.name);
       
-      // 异步获取 WHOIS 信息（不阻塞响应）
-      syncDomainWhois(id).catch(err => {
+      // 异步获取 WHOIS 信息（不阻塞响应），强制刷新以获取最新的多状态
+      syncDomainWhois(id, true).catch(err => {
         log.warn('Domains', `Failed to sync WHOIS for ${item.name}:`, { error: err });
       });
     } catch (error) {
