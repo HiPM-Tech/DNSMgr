@@ -48,6 +48,7 @@ import { startWhoisJob } from './service/whois';
 import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { startRecordCountCacheRefresh } from './service/recordCountCache';
+import { startDomainSyncJob } from './service/domainSyncJob';
 
 // 读取 package.json 获取版本信息
 import { readFileSync } from 'fs';
@@ -366,6 +367,7 @@ async function initializeApp() {
       startNsMonitorJob();
       startDomainRenewalJob();
       startRecordCountCacheRefresh(30); // Refresh every 30 minutes
+      startDomainSyncJob(6); // Sync every 6 hours
     } else {
       log.info('Server', 'System not initialized. Running in initialization mode.');
       log.info('Server', 'Please access the setup wizard to configure the system.');
@@ -404,6 +406,7 @@ async function initializeApp() {
           startNsMonitorJob();
           startDomainRenewalJob();
           startRecordCountCacheRefresh(30); // Refresh every 30 minutes
+          startDomainSyncJob(6); // Sync every 6 hours
         }
     }, 5000);
 
@@ -496,6 +499,7 @@ async function initializeApp() {
           startNsMonitorJob();
           startDomainRenewalJob();
           startRecordCountCacheRefresh(30); // Refresh every 30 minutes
+          startDomainSyncJob(6); // Sync every 6 hours
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');
           log.info('Server', 'You may need to refresh the page.');
         }
