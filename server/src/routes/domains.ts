@@ -1251,12 +1251,24 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
       return;
     }
   } else {
-    // 未指定 accountId，查询第一条记录
-    dbDomain = await DomainOperations.getByName(domain) as Domain | undefined;
+    // 未指定 accountId，查询所有同名域名，优先返回启用的
+    const allDomains = await DomainOperations.getAll() as unknown as Domain[];
+    const matchingDomains = allDomains.filter((d: Domain) => d.name === domain);
     
-    if (!dbDomain) {
+    if (matchingDomains.length === 0) {
       sendError(res, 'Domain not found');
       return;
+    }
+    
+    // 优先选择启用的域名
+    const enabledDomains = matchingDomains.filter((d: Domain) => !d.enabled || d.enabled !== 0);
+    
+    if (enabledDomains.length > 0) {
+      // 如果有启用的域名，使用第一个启用的
+      dbDomain = enabledDomains[0];
+    } else {
+      // 如果所有同名域名都被禁用，使用第一个（会显示禁用状态）
+      dbDomain = matchingDomains[0];
     }
     
     // 检查用户是否有权限访问这个域名
@@ -1264,9 +1276,7 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     
     if (!access.domain || !access.canRead) {
       // 如果第一条记录无权限，尝试查找用户有权限的其他同名域名
-      const userDomains = await DomainOperations.getAll() as unknown as Domain[];
-      const accessibleDomains = userDomains.filter((d: Domain) => d.name === domain);
-      
+      const accessibleDomains = matchingDomains.filter((d: Domain) => !d.enabled || d.enabled !== 0);
       let foundAccessible = false;
       for (const candidateDomain of accessibleDomains) {
         const candidateAccess = await resolveDomainAccessById(

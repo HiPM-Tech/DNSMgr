@@ -46,6 +46,7 @@ export interface Domain {
   third_id: string;
   remark: string;
   is_hidden: number;
+  enabled?: number; // 0 = disabled, 1 or undefined = enabled
   record_count: number;
   created_at: string;
 }
