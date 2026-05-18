@@ -7,6 +7,7 @@ import {
   getAuditFields,
   getAuditSummary,
 } from '../utils/auditLogs';
+import { formatDomainName } from '../utils/domain';
 
 interface AuditLogListProps {
   logs: LogEntry[];
@@ -41,7 +42,7 @@ export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
               <div className="audit-log-tags">
                 {actionTag}
                 {displayName && <span className="page-strong">{displayName}</span>}
-                {log.domain && <span className="page-muted">{log.domain}</span>}
+                {log.domain && <span className="page-muted">{formatDomainName(log.domain)}</span>}
               </div>
               <span className="page-muted">{new Date(log.created_at).toLocaleString()}</span>
             </div>
@@ -53,7 +54,7 @@ export function AuditLogList({ logs, compact = false }: AuditLogListProps) {
             <div className="audit-log-tags">
               {actionTag}
               {displayName && <Tag theme="primary" variant="light">{displayName}</Tag>}
-              {log.domain && <Tag variant="light">{log.domain}</Tag>}
+              {log.domain && <Tag variant="light">{formatDomainName(log.domain)}</Tag>}
             </div>
 
             <div>

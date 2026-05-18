@@ -10,6 +10,7 @@ import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { formatDomainName } from '../../utils/domain';
 
 function selectValue(value: unknown) {
   return String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
@@ -183,7 +184,7 @@ export function DomainRenewalTab() {
     {
       key: 'name',
       label: t('common.name'),
-      render: (row: any) => <span className="page-strong">{row.name}</span>,
+      render: (row: any) => <span className="page-strong">{formatDomainName(row.name)}</span>,
     },
     {
       key: 'account_name',

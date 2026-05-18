@@ -25,6 +25,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { useFormSync } from '../../hooks/useFormSync';
 import { toBoolean } from '../../utils/typeConverters';
+import { formatDomainName } from '../../utils/domain';
 
 interface NSMonitorConfig {
   id: number;
@@ -309,7 +310,7 @@ export function NSMonitorTab() {
       label: t('nsMonitor.domainName'),
       render: (row: NSMonitorConfig) => (
         <Space size="small" breakLine>
-          <span className="page-strong">{row.domain_name}</span>
+          <span className="page-strong">{formatDomainName(row.domain_name)}</span>
           {row.status === 'poisoned' && <Tag theme="danger" variant="light" icon={<ShieldErrorIcon />}>{t('nsMonitor.poisoned')}</Tag>}
           {row.status === 'mismatch' && <Tag theme="warning" variant="light" icon={<ErrorTriangleIcon />}>{t('nsMonitor.mismatch')}</Tag>}
           {row.status === 'missing' && <Tag theme="danger" variant="light" icon={<ErrorTriangleIcon />}>{t('nsMonitor.missing')}</Tag>}
