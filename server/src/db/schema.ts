@@ -189,7 +189,7 @@ async function addNsMonitorColumns(
     }
   }
   
-  // Migration: Sync domain_name from domains table for existing records
+  // Migration: Sync domain_name from domains table for existing records (always execute)
   try {
     log.info('Schema', 'Syncing domain_name from domains table...');
     const syncSql = `
@@ -208,7 +208,7 @@ async function addNsMonitorColumns(
     log.warn('Schema', 'Failed to sync domain_name', { error: (error as Error).message });
   }
   
-  // Migration: Drop domain_id column (deprecated)
+  // Migration: Drop domain_id column (deprecated) (always execute)
   try {
     log.info('Schema', 'Dropping deprecated domain_id column...');
     const dropSql = 'ALTER TABLE ns_monitor_domains DROP COLUMN domain_id';
@@ -227,7 +227,7 @@ async function addNsMonitorColumns(
     }
   }
   
-  // Migration: Drop idx_domain_id index
+  // Migration: Drop idx_domain_id index (always execute)
   try {
     log.info('Schema', 'Dropping idx_domain_id index...');
     const dropIndexSql = 'DROP INDEX idx_domain_id ON ns_monitor_domains';
