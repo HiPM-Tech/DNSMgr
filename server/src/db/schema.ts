@@ -188,6 +188,63 @@ async function addNsMonitorColumns(
       }
     }
   }
+  
+  // Migration: Sync domain_name from domains table for existing records
+  try {
+    log.info('Schema', 'Syncing domain_name from domains table...');
+    const syncSql = `
+      UPDATE ns_monitor_domains n 
+      INNER JOIN domains d ON n.domain_id = d.id 
+      SET n.domain_name = d.name 
+      WHERE n.domain_name = ''
+    `;
+    if (conn.execute) {
+      await conn.execute(syncSql);
+    } else if (conn.exec) {
+      conn.exec(syncSql);
+    }
+    log.info('Schema', 'Successfully synced domain_name');
+  } catch (error) {
+    log.warn('Schema', 'Failed to sync domain_name', { error: (error as Error).message });
+  }
+  
+  // Migration: Drop domain_id column (deprecated)
+  try {
+    log.info('Schema', 'Dropping deprecated domain_id column...');
+    const dropSql = 'ALTER TABLE ns_monitor_domains DROP COLUMN domain_id';
+    if (conn.execute) {
+      await conn.execute(dropSql);
+    } else if (conn.exec) {
+      conn.exec(dropSql);
+    }
+    log.info('Schema', 'Successfully dropped domain_id column');
+  } catch (error) {
+    const errorMsg = (error as Error).message || '';
+    if (errorMsg.includes('CANT_DROP_FIELD_OR_KEY') || errorMsg.includes('check that column/key exists')) {
+      log.info('Schema', 'domain_id column already dropped');
+    } else {
+      log.warn('Schema', 'Failed to drop domain_id column', { error: errorMsg });
+    }
+  }
+  
+  // Migration: Drop idx_domain_id index
+  try {
+    log.info('Schema', 'Dropping idx_domain_id index...');
+    const dropIndexSql = 'DROP INDEX idx_domain_id ON ns_monitor_domains';
+    if (conn.execute) {
+      await conn.execute(dropIndexSql);
+    } else if (conn.exec) {
+      conn.exec(dropIndexSql);
+    }
+    log.info('Schema', 'Successfully dropped idx_domain_id index');
+  } catch (error) {
+    const errorMsg = (error as Error).message || '';
+    if (errorMsg.includes('CANT_DROP') || errorMsg.includes('check that key/index exists')) {
+      log.info('Schema', 'idx_domain_id index already dropped');
+    } else {
+      log.warn('Schema', 'Failed to drop idx_domain_id index', { error: errorMsg });
+    }
+  }
 }
 
 /**
@@ -595,6 +652,47 @@ async function handleSQLiteMigrations(
   
   // Migration: Add domain_name column to ns_monitor_domains table
   await addSQLiteColumn(conn, 'ns_monitor_domains', 'domain_name', 'TEXT NOT NULL DEFAULT \'\'');
+  
+  // Migration: Sync domain_name from domains table for existing records
+  try {
+    log.info('Schema', 'Syncing domain_name from domains table (SQLite)...');
+    const syncSql = `
+      UPDATE ns_monitor_domains 
+      SET domain_name = (
+        SELECT name FROM domains WHERE domains.id = ns_monitor_domains.domain_id
+      )
+      WHERE domain_name = '' AND domain_id IS NOT NULL
+    `;
+    conn.exec(syncSql);
+    log.info('Schema', 'Successfully synced domain_name (SQLite)');
+  } catch (error) {
+    log.warn('Schema', 'Failed to sync domain_name (SQLite)', { error: (error as Error).message });
+  }
+  
+  // Migration: Drop domain_id column (deprecated) - SQLite requires table recreation
+  try {
+    log.info('Schema', 'Dropping deprecated domain_id column (SQLite)...');
+    // SQLite doesn't support DROP COLUMN in older versions, need to recreate table
+    const recreateSql = `
+      CREATE TABLE ns_monitor_domains_new AS
+      SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
+             is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count,
+             created_at, updated_at
+      FROM ns_monitor_domains
+    `;
+    conn.exec(recreateSql);
+    conn.exec('DROP TABLE ns_monitor_domains');
+    conn.exec('ALTER TABLE ns_monitor_domains_new RENAME TO ns_monitor_domains');
+    
+    // Recreate indexes
+    conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
+    conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
+    conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
+    
+    log.info('Schema', 'Successfully dropped domain_id column (SQLite)');
+  } catch (error) {
+    log.warn('Schema', 'Failed to drop domain_id column (SQLite)', { error: (error as Error).message });
+  }
 
   // Migration: Add pinned_domains column to user_preferences table
   await addSQLiteColumn(conn, 'user_preferences', 'pinned_domains', "TEXT DEFAULT '[]'");

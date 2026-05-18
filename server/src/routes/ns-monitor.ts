@@ -305,24 +305,22 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       if (nsResult.nsRecords.length > 0) {
         finalExpectedNs = nsResult.nsRecords.join(', ');
         log.info('NSMonitor', 'Auto-filled expected NS', {
-          domainId: domain_id,
           domainName,
           nsRecords: nsResult.nsRecords,
         });
       }
     } catch (error) {
-      log.warn('NSMonitor', 'Failed to auto-fetch NS records', { domainId: domain_id, error });
+      log.warn('NSMonitor', 'Failed to auto-fetch NS records', { domainName, error });
     }
   }
 
   const id = await NSMonitorOperations.create({
     user_id: userId,
-    domain_id,  // Optional, for optimization
     domain_name: domainName,
     expected_ns: finalExpectedNs,
   });
 
-  log.info('NSMonitor', 'Monitor created', { domainId: domain_id, domainName, userId, monitorId: id });
+  log.info('NSMonitor', 'Monitor created', { domainName, userId, monitorId: id });
 
   // 获取完整的监测配置数据用于 WebSocket 推送
   const newMonitor = await NSMonitorOperations.getById(id, userId);
@@ -333,7 +331,6 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       type: 'ns_monitor_created',
       data: {
         monitorId: id,
-        domainId: domain_id,
         domainName,
         userId,
         monitor: newMonitor,
