@@ -367,7 +367,7 @@ async function initializeApp() {
       startNsMonitorJob();
       startDomainRenewalJob();
       startRecordCountCacheRefresh(30); // Refresh every 30 minutes
-      startDomainSyncJob(1); // Sync every 1 hour
+      startDomainSyncJob(0.5); // Sync every 30 minutes
     } else {
       log.info('Server', 'System not initialized. Running in initialization mode.');
       log.info('Server', 'Please access the setup wizard to configure the system.');
@@ -406,7 +406,7 @@ async function initializeApp() {
           startNsMonitorJob();
           startDomainRenewalJob();
           startRecordCountCacheRefresh(30); // Refresh every 30 minutes
-          startDomainSyncJob(1); // Sync every 1 hour
+          startDomainSyncJob(0.5); // Sync every 30 minutes
         }
     }, 5000);
 
@@ -499,7 +499,7 @@ async function initializeApp() {
           startNsMonitorJob();
           startDomainRenewalJob();
           startRecordCountCacheRefresh(30); // Refresh every 30 minutes
-          startDomainSyncJob(1); // Sync every 1 hour
+          startDomainSyncJob(0.5); // Sync every 30 minutes
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');
           log.info('Server', 'You may need to refresh the page.');
         }
