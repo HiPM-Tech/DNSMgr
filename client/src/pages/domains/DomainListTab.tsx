@@ -403,6 +403,11 @@ export function DomainListTab() {
           // 分割多个状态（用换行符分隔）
           const statuses = whoisInfo.status.split('\n').filter(Boolean);
           
+          // 调试日志
+          if (statuses.length > 1) {
+            console.log('[DomainList] Multiple WHOIS statuses for', row.name, ':', statuses);
+          }
+          
           // 根据状态设置标签颜色
           const getStatusTheme = (status: string) => {
             const lowerStatus = status.toLowerCase();
