@@ -104,10 +104,11 @@ export function NSMonitorTab() {
     enabled: isAddModalOpen,
   });
 
-  const monitoredDomainIds = new Set((configs || []).map((config: NSMonitorConfig) => config.domain_id));
+  // Filter domains: exclude domains that already have NS monitor (based on domain_name, not domain_id)
+  const monitoredDomainNames = new Set((configs || []).map((config: NSMonitorConfig) => config.domain_name));
   const filteredDomains = (domainsData?.list ?? []).filter((domain) => (
     domain.name.toLowerCase().includes(domainSearchKeyword.toLowerCase()) &&
-    !monitoredDomainIds.has(domain.id)
+    !monitoredDomainNames.has(domain.name)
   ));
   const domainStartIndex = (domainPage - 1) * domainPageSize;
   const domainEndIndex = Math.min(domainStartIndex + domainPageSize, filteredDomains.length);
