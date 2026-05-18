@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Descriptions, Empty, Input, Loading, Pagination, Select, Space, Switch } from 'tdesign-react';
-import { ActivityIcon, SearchIcon } from 'tdesign-icons-react';
+import { Button, Card, Descriptions, Form, Input, Loading, Pagination, Select, Space, Switch } from 'tdesign-react';
+import { ActivityIcon, DeleteIcon, SearchIcon } from 'tdesign-icons-react';
 import { domainsApi } from '../../api';
 import type { Domain } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
-import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
