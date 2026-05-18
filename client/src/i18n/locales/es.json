@@ -608,6 +608,12 @@
       "pinDomain": "Fijar dominio",
       "unpinDomain": "Desfijar dominio",
       "pinnedDomains": "Dominios fijados",
+      "pinSuccess": "Operación exitosa",
+      "pinFailed": "Operación fallida",
+      "toggleStatusSuccess": "Estado actualizado exitosamente",
+      "toggleStatusFailed": "Error al actualizar estado",
+      "enable": "Habilitar dominio",
+      "disable": "Deshabilitar dominio",
       "domainDisabled": "Este dominio está deshabilitado y no puede acceder a los registros DNS",
       "failoverSubtitle": "Configura IPs primarias/secundarias y verificaciones de salud, luego cambia automáticamente los objetivos DNS cuando ocurran fallas."
     },

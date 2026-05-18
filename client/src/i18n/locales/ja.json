@@ -660,6 +660,12 @@
       "unpinDomain": "ピン留め解除",
       "pinnedDomains": "ピン留めされたドメイン",
       "pinDomain": "ドメインをピン留め",
+      "pinSuccess": "操作成功",
+      "pinFailed": "操作失敗",
+      "toggleStatusSuccess": "ステータス更新成功",
+      "toggleStatusFailed": "ステータス更新失敗",
+      "enable": "ドメインを有効化",
+      "disable": "ドメインを無効化",
       "domainDisabled": "このドメインは無効化されており、DNSレコードにアクセスできません"
     },
     "setup": {

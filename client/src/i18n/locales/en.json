@@ -776,6 +776,8 @@
       "pinFailed": "Operation failed",
       "toggleStatusSuccess": "Status updated successfully",
       "toggleStatusFailed": "Status update failed",
+      "enable": "Enable Domain",
+      "disable": "Disable Domain",
       "localStatus": "Local Status",
       "domainStatus": "Domain Status",
       "whoisInfo": "WHOIS Info",
