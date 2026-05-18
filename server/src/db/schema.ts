@@ -663,8 +663,10 @@ async function handleSQLiteMigrations(
       )
       WHERE domain_name = '' AND domain_id IS NOT NULL
     `;
-    conn.exec(syncSql);
-    log.info('Schema', 'Successfully synced domain_name (SQLite)');
+    if (conn.exec) {
+      conn.exec(syncSql);
+      log.info('Schema', 'Successfully synced domain_name (SQLite)');
+    }
   } catch (error) {
     log.warn('Schema', 'Failed to sync domain_name (SQLite)', { error: (error as Error).message });
   }
@@ -672,24 +674,26 @@ async function handleSQLiteMigrations(
   // Migration: Drop domain_id column (deprecated) - SQLite requires table recreation
   try {
     log.info('Schema', 'Dropping deprecated domain_id column (SQLite)...');
-    // SQLite doesn't support DROP COLUMN in older versions, need to recreate table
-    const recreateSql = `
-      CREATE TABLE ns_monitor_domains_new AS
-      SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
-             is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count,
-             created_at, updated_at
-      FROM ns_monitor_domains
-    `;
-    conn.exec(recreateSql);
-    conn.exec('DROP TABLE ns_monitor_domains');
-    conn.exec('ALTER TABLE ns_monitor_domains_new RENAME TO ns_monitor_domains');
-    
-    // Recreate indexes
-    conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
-    conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
-    conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
-    
-    log.info('Schema', 'Successfully dropped domain_id column (SQLite)');
+    if (conn.exec) {
+      // SQLite doesn't support DROP COLUMN in older versions, need to recreate table
+      const recreateSql = `
+        CREATE TABLE ns_monitor_domains_new AS
+        SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
+               is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count,
+               created_at, updated_at
+        FROM ns_monitor_domains
+      `;
+      conn.exec(recreateSql);
+      conn.exec('DROP TABLE ns_monitor_domains');
+      conn.exec('ALTER TABLE ns_monitor_domains_new RENAME TO ns_monitor_domains');
+      
+      // Recreate indexes
+      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
+      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
+      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
+      
+      log.info('Schema', 'Successfully dropped domain_id column (SQLite)');
+    }
   } catch (error) {
     log.warn('Schema', 'Failed to drop domain_id column (SQLite)', { error: (error as Error).message });
   }
