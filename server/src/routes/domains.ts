@@ -806,6 +806,9 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
   
   await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden, enabled }, req);
   
+  // 获取更新后的域名信息（包含到期时间）
+  const updatedDomain = await DomainOperations.getById(id);
+  
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -814,6 +817,9 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
         domainId: id,
         name: access.domain.name,
         enabled: enabled !== undefined ? enabled : access.domain.enabled,
+        expiresAt: updatedDomain?.expires_at || null,
+        apexExpiresAt: updatedDomain?.apex_expires_at || null,
+        whoisStatus: updatedDomain?.whois_status || null,
       },
     });
   } catch (error) {
