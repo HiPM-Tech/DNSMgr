@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Descriptions, Form, Input, Loading, Pagination, Select, Space, Switch } from 'tdesign-react';
-import { ActivityIcon, DeleteIcon, SearchIcon } from 'tdesign-icons-react';
+import { Button, Card, Empty, Input, Pagination, Space } from 'tdesign-react';
+import { ActivityIcon, SearchIcon } from 'tdesign-icons-react';
 import { domainsApi } from '../../api';
 import type { Domain } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useRealtimeData } from '../../hooks/useRealtimeData';
-import { toBoolean, toString, toNumber } from '../../utils/typeConverters';
+import { formatDomainName } from '../../utils/domain';
 
 const dialogField = (label: string, control: ReactNode) => (
   <div className="settings-control-field">
@@ -295,7 +296,7 @@ export function FailoverTab() {
   const paginatedDomains = filteredDomains.slice((page - 1) * pageSize, page * pageSize);
 
   const columns = [
-    { key: 'name', label: t('domains.domain'), render: (row: Domain) => <span className="page-strong">{row.name}</span> },
+    { key: 'name', label: t('domains.domain'), render: (row: Domain) => <span className="page-strong">{formatDomainName(row.name)}</span> },
     { key: 'account_id', label: t('domains.account'), render: (row: Domain) => <span className="page-muted">#{row.account_id}</span> },
     { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="page-muted">{row.remark || t('domains.emptyRemark')}</span> },
     {

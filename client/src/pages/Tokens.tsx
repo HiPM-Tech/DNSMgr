@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
 import { Table } from '../components/Table';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+import { formatDomainName } from '../utils/domain';
 
 interface Token {
   id: number;
@@ -395,7 +396,7 @@ export function Tokens() {
                   onChange={(checked: any) => toggleDomain(domain.id, Boolean(checked))}
                 />
                 <span className="page-list-item__main">
-                  <strong>{domain.name}</strong>
+                  <strong>{formatDomainName(domain.name)}</strong>
                   <span>{domain.account_name}</span>
                 </span>
               </label>

@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 import { getAuditActionLabel, getAuditActionVariant, getAuditSummary } from '../utils/auditLogs';
+import { formatDomainName } from '../utils/domain';
 import './Dashboard.css';
 
 type StatTone = 'domains' | 'records' | 'accounts' | 'users';
@@ -377,7 +378,7 @@ export function Dashboard() {
       ellipsis: true,
       cell: ({ row }) => (
         <div className="dashboard-domain-name">
-          <span>{row.name}</span>
+          <span>{formatDomainName(row.name)}</span>
           <small>{formatDate(row.createdAt)}</small>
         </div>
       ),

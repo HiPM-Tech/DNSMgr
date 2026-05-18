@@ -22,6 +22,7 @@ import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { isApexDomain } from '../../utils/domain-utils';
+import { formatDomainName } from '../../utils/domain';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 
@@ -340,10 +341,11 @@ export function DomainListTab() {
       label: t('domains.domainName'),
       render: (row: Domain) => {
         const isApex = isApexDomain(row.name);
+        const displayName = formatDomainName(row.name);
         return (
           <Space size="small">
             <Button variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/domains/${row.id}/records`)}>
-              {row.name}
+              {displayName}
             </Button>
             {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />}>{t('domains.subdomain')}</Tag>}
           </Space>
