@@ -818,7 +818,7 @@ export const DomainOperations = {
   /** 设置域名的启用状态 */
   async setEnabled(id: number, enabled: number): Promise<void> {
     await executeInternal(
-      'UPDATE domains SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE domains SET enabled = ? WHERE id = ?',
       [enabled, id],
       { operation: 'Domain.setEnabled', table: 'domains' }
     );
