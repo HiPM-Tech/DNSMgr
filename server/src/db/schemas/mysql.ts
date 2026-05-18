@@ -389,7 +389,7 @@ export const mysqlSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
-      domain_id INT NOT NULL,
+      domain_id INT,
       domain_name VARCHAR(255) NOT NULL DEFAULT '',
       expected_ns TEXT,
       current_ns TEXT,
@@ -404,7 +404,6 @@ export const mysqlSchema: SchemaDefinition = {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE SET NULL,
       UNIQUE KEY unique_user_domain (user_id, domain_name),
       INDEX idx_user_id (user_id),
       INDEX idx_domain_id (domain_id),

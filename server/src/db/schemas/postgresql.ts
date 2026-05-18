@@ -388,7 +388,7 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      domain_id INTEGER NOT NULL REFERENCES domains(id) ON DELETE SET NULL,
+      domain_id INTEGER,
       domain_name VARCHAR(255) NOT NULL DEFAULT '',
       expected_ns TEXT NOT NULL DEFAULT '',
       current_ns TEXT NOT NULL DEFAULT '',

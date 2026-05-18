@@ -269,7 +269,15 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     return;
   }
 
-  // Check permission
+  // Get domain name
+  const domain = await DomainOperations.getById(domain_id);
+  if (!domain || !domain.name) {
+    res.status(404).json({ success: false, error: 'Domain not found' });
+    return;
+  }
+  const domainName = domain.name as string;
+
+  // Check permission (optional, based on domain access)
   if (!isSuper(role)) {
     const access = await getDomainAccess(domain_id, userId, role);
     if (!access.canWrite) {
@@ -278,34 +286,9 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     }
   }
 
-  // Get domain name first
-  const domain = await DomainOperations.getById(domain_id);
-  if (!domain || !domain.name) {
-    res.status(404).json({ success: false, error: 'Domain not found' });
-    return;
-  }
-  const domainName = domain.name as string;
-
-  // Check if already exists for this domain name (not domain_id)
+  // Check if already exists for this domain name
   const existing = await NSMonitorOperations.getByDomainName(userId, domainName);
   if (existing) {
-    // If exists but with different domain_id, update the domain_id
-    if ((existing as any).domain_id !== domain_id) {
-      log.info('NSMonitor', 'Updating domain_id for existing monitor', {
-        monitorId: existing.id,
-        oldDomainId: (existing as any).domain_id,
-        newDomainId: domain_id,
-        domainName,
-      });
-      await NSMonitorOperations.update(existing.id as number, userId, { domain_id });
-      
-      res.json({
-        success: true,
-        data: { id: existing.id, updated: true },
-      });
-      return;
-    }
-    
     res.status(409).json({ success: false, error: 'Monitor already exists for this domain' });
     return;
   }
@@ -330,7 +313,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
 
   const id = await NSMonitorOperations.create({
     user_id: userId,
-    domain_id,
+    domain_id,  // Optional, for optimization
     domain_name: domainName,
     expected_ns: finalExpectedNs,
   });
