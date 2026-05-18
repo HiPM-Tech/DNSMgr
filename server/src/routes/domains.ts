@@ -1473,16 +1473,29 @@ router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: 
       return;
     }
     
-    // Add domains to renewable list
-    const domainsToAdd = domain_ids.map(d => ({
-      account_id,
-      provider_type: String(account.type),
-      domain_name: d.name || d.full_domain.split('.')[0],
-      third_id: String(d.id),
-      full_domain: d.full_domain,
-      expires_at: d.expires_at,
-      remark: `Synced from ${account.name}`,
-    }));
+    // Filter out disabled domains
+    const enabledDomainIds: Set<string> = new Set();
+    for (const d of domain_ids) {
+      const dbDomain = await DomainOperations.getByAccountIdAndName(account_id, d.name || d.full_domain.split('.')[0]);
+      if (dbDomain && dbDomain.enabled !== 0) {
+        enabledDomainIds.add(String(d.id));
+      } else if (dbDomain) {
+        log.info('Domains', `Skipping disabled domain for renewal sync: ${d.name || d.full_domain}`);
+      }
+    }
+    
+    // Add only enabled domains to renewable list
+    const domainsToAdd = domain_ids
+      .filter(d => enabledDomainIds.has(String(d.id)))
+      .map(d => ({
+        account_id,
+        provider_type: String(account.type),
+        domain_name: d.name || d.full_domain.split('.')[0],
+        third_id: String(d.id),
+        full_domain: d.full_domain,
+        expires_at: d.expires_at,
+        remark: `Synced from ${account.name}`,
+      }));
     
     const addedCount = await RenewableDomainOperations.addBatch(domainsToAdd);
     

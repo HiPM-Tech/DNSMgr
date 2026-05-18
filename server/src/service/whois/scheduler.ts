@@ -74,6 +74,12 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
       },
       async () => {
         try {
+          // 跳过已禁用的域名
+          if (d.enabled === 0) {
+            log.info('WhoisScheduler', `Skipping disabled domain: ${d.name}`);
+            return;
+          }
+
           const whoisResult = await checkWhoisForDomain(d.name, forceRefresh);
 
           if (whoisResult.expiryDate) {
