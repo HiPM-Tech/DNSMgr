@@ -513,7 +513,6 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     return;
   }
 
-  const duplicateMsg = duplicates.length > 0 ? `, skipped ${duplicates.length} duplicate(s)` : '';
   for (const domainName of addedDomains) {
     await logAuditOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id }, req);
   }
@@ -532,8 +531,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     log.error('Domains', 'Failed to broadcast domain_created event', { error });
   }
   
-  sendSuccess(res, { id: firstId, added, skipped: duplicates.length, duplicates },
-    added > 1 ? `Added ${added} domains${duplicateMsg}` : `Domain added successfully${duplicateMsg}`);
+  sendSuccess(res, { id: firstId, added, skipped: duplicates.length, duplicates });
 }));
 
 /**
