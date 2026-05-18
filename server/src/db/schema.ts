@@ -225,23 +225,43 @@ async function addNsMonitorColumns(
     if (!columnExists) {
       log.info('Schema', 'domain_id column does not exist, skipping drop');
     } else {
-      // First, drop the foreign key constraint
-      log.info('Schema', 'Dropping foreign key constraint on domain_id...');
+      // First, find and drop the foreign key constraint
+      log.info('Schema', 'Finding foreign key constraint on domain_id...');
       try {
-        const dropFkSql = 'ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ns_monitor_domains_ibfk_2';
+        // Query to find the foreign key name
+        const findFkSql = `
+          SELECT CONSTRAINT_NAME 
+          FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+          WHERE TABLE_NAME = 'ns_monitor_domains' 
+          AND COLUMN_NAME = 'domain_id'
+          AND REFERENCED_TABLE_NAME IS NOT NULL
+        `;
+        
+        let fkName = '';
         if (conn.execute) {
-          await conn.execute(dropFkSql);
-        } else if (conn.exec) {
-          conn.exec(dropFkSql);
+          const fkResult = await conn.execute(findFkSql);
+          if (Array.isArray(fkResult) && fkResult.length > 0) {
+            fkName = (fkResult[0] as any).CONSTRAINT_NAME || '';
+            log.info('Schema', `Found foreign key constraint: ${fkName}`);
+          }
         }
-        log.info('Schema', 'Successfully dropped foreign key constraint');
+        
+        if (fkName) {
+          // Drop the foreign key constraint
+          log.info('Schema', `Dropping foreign key constraint: ${fkName}...`);
+          const dropFkSql = `ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`;
+          if (conn.execute) {
+            await conn.execute(dropFkSql);
+          } else if (conn.exec) {
+            conn.exec(dropFkSql);
+          }
+          log.info('Schema', 'Successfully dropped foreign key constraint');
+        } else {
+          log.info('Schema', 'No foreign key constraint found on domain_id');
+        }
       } catch (fkError) {
         const fkErrorMsg = (fkError as Error).message || '';
-        if (fkErrorMsg.includes('check that it exists') || fkErrorMsg.includes('ER_CANT_DROP_FIELD_OR_KEY')) {
-          log.info('Schema', 'Foreign key constraint already dropped');
-        } else {
-          log.warn('Schema', 'Failed to drop foreign key constraint', { error: fkErrorMsg });
-        }
+        log.warn('Schema', 'Failed to drop foreign key constraint', { error: fkErrorMsg });
       }
       
       // Now drop the column
