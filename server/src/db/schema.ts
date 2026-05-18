@@ -293,6 +293,42 @@ async function addNsMonitorColumns(
     const errorMsg = (error as Error).message || '';
     if (errorMsg.includes('CANT_DROP') || errorMsg.includes('check that key/index exists') || errorMsg.includes('ER_CANT_DROP_FIELD_OR_KEY')) {
       log.info('Schema', 'idx_domain_id index already dropped or does not exist');
+    } else if (errorMsg.includes('needed in a foreign key constraint')) {
+      // If index is still needed by FK, it means FK wasn't dropped properly
+      // Try to find and drop all FKs on domain_id again
+      log.warn('Schema', 'Index still referenced by FK, attempting to drop all FKs on domain_id...');
+      const dropIndexSql = 'DROP INDEX idx_domain_id ON ns_monitor_domains';
+      try {
+        const findAllFkSql = `
+          SELECT CONSTRAINT_NAME 
+          FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+          WHERE TABLE_NAME = 'ns_monitor_domains' 
+          AND COLUMN_NAME = 'domain_id'
+          AND REFERENCED_TABLE_NAME IS NOT NULL
+        `;
+        
+        if (conn.execute) {
+          const fkResult = await conn.execute(findAllFkSql);
+          if (Array.isArray(fkResult)) {
+            for (const row of fkResult) {
+              const fkName = (row as any).CONSTRAINT_NAME;
+              if (fkName) {
+                log.info('Schema', `Dropping remaining FK: ${fkName}`);
+                await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
+              }
+            }
+          }
+        }
+        
+        // Now try to drop the index again
+        log.info('Schema', 'Retrying drop idx_domain_id index...');
+        if (conn.execute) {
+          await conn.execute(dropIndexSql);
+        }
+        log.info('Schema', 'Successfully dropped idx_domain_id index after dropping FKs');
+      } catch (retryError) {
+        log.error('Schema', 'Failed to drop index even after dropping FKs', { error: (retryError as Error).message });
+      }
     } else {
       log.warn('Schema', 'Failed to drop idx_domain_id index', { error: errorMsg });
     }
