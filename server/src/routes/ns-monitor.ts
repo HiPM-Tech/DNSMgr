@@ -278,9 +278,34 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     }
   }
 
-  // Check if already exists
-  const existing = await NSMonitorOperations.getByDomain(userId, domain_id);
+  // Get domain name first
+  const domain = await DomainOperations.getById(domain_id);
+  if (!domain || !domain.name) {
+    res.status(404).json({ success: false, error: 'Domain not found' });
+    return;
+  }
+  const domainName = domain.name as string;
+
+  // Check if already exists for this domain name (not domain_id)
+  const existing = await NSMonitorOperations.getByDomainName(userId, domainName);
   if (existing) {
+    // If exists but with different domain_id, update the domain_id
+    if ((existing as any).domain_id !== domain_id) {
+      log.info('NSMonitor', 'Updating domain_id for existing monitor', {
+        monitorId: existing.id,
+        oldDomainId: (existing as any).domain_id,
+        newDomainId: domain_id,
+        domainName,
+      });
+      await NSMonitorOperations.update(existing.id as number, userId, { domain_id });
+      
+      res.json({
+        success: true,
+        data: { id: existing.id, updated: true },
+      });
+      return;
+    }
+    
     res.status(409).json({ success: false, error: 'Monitor already exists for this domain' });
     return;
   }
@@ -289,17 +314,14 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   let finalExpectedNs = expected_ns || '';
   if (!finalExpectedNs) {
     try {
-      const domain = await DomainOperations.getById(domain_id);
-      if (domain && domain.name) {
-        const nsResult = await resolveNsRecords(domain.name as string);
-        if (nsResult.nsRecords.length > 0) {
-          finalExpectedNs = nsResult.nsRecords.join(', ');
-          log.info('NSMonitor', 'Auto-filled expected NS', {
-            domainId: domain_id,
-            domainName: domain.name,
-            nsRecords: nsResult.nsRecords,
-          });
-        }
+      const nsResult = await resolveNsRecords(domainName);
+      if (nsResult.nsRecords.length > 0) {
+        finalExpectedNs = nsResult.nsRecords.join(', ');
+        log.info('NSMonitor', 'Auto-filled expected NS', {
+          domainId: domain_id,
+          domainName,
+          nsRecords: nsResult.nsRecords,
+        });
       }
     } catch (error) {
       log.warn('NSMonitor', 'Failed to auto-fetch NS records', { domainId: domain_id, error });
@@ -309,10 +331,11 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   const id = await NSMonitorOperations.create({
     user_id: userId,
     domain_id,
+    domain_name: domainName,
     expected_ns: finalExpectedNs,
   });
 
-  log.info('NSMonitor', 'Monitor created', { domainId: domain_id, userId, monitorId: id });
+  log.info('NSMonitor', 'Monitor created', { domainId: domain_id, domainName, userId, monitorId: id });
 
   // 获取完整的监测配置数据用于 WebSocket 推送
   const newMonitor = await NSMonitorOperations.getById(id, userId);
@@ -324,6 +347,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       data: {
         monitorId: id,
         domainId: domain_id,
+        domainName,
         userId,
         monitor: newMonitor,
       },

@@ -365,6 +365,7 @@ export const sqliteSchema: SchemaDefinition = {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       domain_id INTEGER NOT NULL,
+      domain_name TEXT NOT NULL DEFAULT '',
       expected_ns TEXT NOT NULL DEFAULT '',
       current_ns TEXT NOT NULL DEFAULT '',
       encrypted_ns TEXT,
@@ -378,8 +379,8 @@ export const sqliteSchema: SchemaDefinition = {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
-      UNIQUE(user_id, domain_id)
+      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE SET NULL,
+      UNIQUE(user_id, domain_name)
     )`,
     `CREATE TABLE IF NOT EXISTS rdap_server_cache (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

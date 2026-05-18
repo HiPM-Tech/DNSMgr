@@ -3658,16 +3658,26 @@ export const NSMonitorOperations = {
     );
   },
 
+  /** 根据域名名称获取用户的监测配置（支持重名场景） */
+  async getByDomainName(userId: number, domainName: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT * FROM ns_monitor_domains
+       WHERE user_id = ? AND domain_name = ?`,
+      [userId, domainName],
+      { operation: 'NSMonitor.getByDomainName', table: 'ns_monitor_domains' }
+    );
+  },
+
   /** 创建域名监测配置 */
-  async create(data: { user_id: number; domain_id: number; expected_ns?: string }): Promise<number> {
+  async create(data: { user_id: number; domain_id: number; domain_name: string; expected_ns?: string }): Promise<number> {
     const now = formatDateForDB(new Date());
     // PostgreSQL requires explicit boolean cast for enabled field
     const dbType = process.env.DB_TYPE || 'sqlite';
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
     return insertInternal(
-      `INSERT INTO ns_monitor_domains (user_id, domain_id, expected_ns, current_ns, status, enabled, created_at, updated_at)
-       VALUES (?, ?, ?, '', 'ok', ${enabledValue}, ?, ?)`,
-      [data.user_id, data.domain_id, data.expected_ns || '', now, now],
+      `INSERT INTO ns_monitor_domains (user_id, domain_id, domain_name, expected_ns, current_ns, status, enabled, created_at, updated_at)
+       VALUES (?, ?, ?, ?, '', 'ok', ${enabledValue}, ?, ?)`,
+      [data.user_id, data.domain_id, data.domain_name, data.expected_ns || '', now, now],
       { operation: 'NSMonitor.create', table: 'ns_monitor_domains' }
     );
   },

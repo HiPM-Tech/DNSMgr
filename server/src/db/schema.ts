@@ -591,6 +591,9 @@ async function handleSQLiteMigrations(
   await addSQLiteColumn(conn, 'ns_monitor_domains', 'encrypted_ns', 'TEXT');
   await addSQLiteColumn(conn, 'ns_monitor_domains', 'plain_ns', 'TEXT');
   await addSQLiteColumn(conn, 'ns_monitor_domains', 'is_poisoned', 'INTEGER NOT NULL DEFAULT 0');
+  
+  // Migration: Add domain_name column to ns_monitor_domains table
+  await addSQLiteColumn(conn, 'ns_monitor_domains', 'domain_name', 'TEXT NOT NULL DEFAULT \'\'');
 
   // Migration: Add pinned_domains column to user_preferences table
   await addSQLiteColumn(conn, 'user_preferences', 'pinned_domains', "TEXT DEFAULT '[]'");
