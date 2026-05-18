@@ -631,18 +631,18 @@ export const DnsAccountOperations = {
 export const DomainOperations = {
   /** 根据ID获取域名 */
   async getById(id: number): Promise<QueryResult | undefined> {
-    return getInternal('SELECT * FROM domains WHERE id = ? AND enabled != 0', [id], { operation: 'Domain.getById', table: 'domains' });
+    return getInternal('SELECT * FROM domains WHERE id = ?', [id], { operation: 'Domain.getById', table: 'domains' });
   },
 
   /** 根据名称获取域名 */
   async getByName(name: string): Promise<QueryResult | undefined> {
-    return getInternal('SELECT * FROM domains WHERE name = ? AND enabled != 0', [name], { operation: 'Domain.getByName', table: 'domains' });
+    return getInternal('SELECT * FROM domains WHERE name = ?', [name], { operation: 'Domain.getByName', table: 'domains' });
   },
 
   /** 根据名称和账号ID获取域名 */
   async getByAccountIdAndName(accountId: number, name: string): Promise<QueryResult | undefined> {
     return getInternal(
-      'SELECT * FROM domains WHERE account_id = ? AND name = ? AND enabled != 0',
+      'SELECT * FROM domains WHERE account_id = ? AND name = ?',
       [accountId, name],
       { operation: 'Domain.getByAccountIdAndName', table: 'domains' }
     );
@@ -650,13 +650,13 @@ export const DomainOperations = {
 
   /** 获取所有域名 */
   async getAll(): Promise<QueryResult[]> {
-    return queryInternal('SELECT * FROM domains WHERE enabled != 0 ORDER BY id', [], { operation: 'Domain.getAll', table: 'domains' });
+    return queryInternal('SELECT * FROM domains ORDER BY id', [], { operation: 'Domain.getAll', table: 'domains' });
   },
 
   /** 获取账号下的域名 */
   async getByAccountId(accountId: number): Promise<QueryResult[]> {
     return queryInternal(
-      'SELECT * FROM domains WHERE account_id = ? AND enabled != 0 ORDER BY id',
+      'SELECT * FROM domains WHERE account_id = ? ORDER BY id',
       [accountId],
       { operation: 'Domain.getByAccountId', table: 'domains' }
     );
@@ -667,7 +667,7 @@ export const DomainOperations = {
     if (ids.length === 0) return [];
 
     const placeholders = ids.map(() => '?').join(',');
-    let sql = `SELECT * FROM domains WHERE id IN (${placeholders}) AND enabled != 0`;
+    let sql = `SELECT * FROM domains WHERE id IN (${placeholders})`;
     const params: unknown[] = [...ids];
 
     if (options?.accountId) {
@@ -685,7 +685,7 @@ export const DomainOperations = {
 
   /** 获取所有域名（用于超级管理员Token认证） */
   async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
-    let sql = 'SELECT * FROM domains WHERE enabled != 0';
+    let sql = 'SELECT * FROM domains WHERE 1=1';
     const params: unknown[] = [];
 
     if (options?.accountId) {
@@ -774,7 +774,7 @@ export const DomainOperations = {
     const { userId, teamIds, accountId, keyword, isSuper } = params;
     
     if (isSuper) {
-      let sql = 'SELECT * FROM domains WHERE enabled != 0';
+      let sql = 'SELECT * FROM domains WHERE 1=1';
       const queryParams: unknown[] = [];
       if (accountId) { sql += ' AND account_id = ?'; queryParams.push(accountId); }
       if (keyword) { sql += ' AND name LIKE ?'; queryParams.push(`%${keyword}%`); }
@@ -786,7 +786,7 @@ export const DomainOperations = {
     const teamFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
     const teamPermFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
     
-    let sql = `SELECT d.* FROM domains d WHERE d.enabled != 0 AND (d.account_id IN (
+    let sql = `SELECT d.* FROM domains d WHERE (d.account_id IN (
       SELECT id FROM dns_accounts WHERE created_by = ? ${teamFilter}
     ) OR d.id IN (
       SELECT domain_id FROM domain_permissions WHERE user_id = ? ${teamPermFilter}
@@ -821,9 +821,9 @@ export const DomainOperations = {
       `SELECT d.id, d.name, da.name as account_name
        FROM domains d
        JOIN dns_accounts da ON d.account_id = da.id
-       WHERE d.enabled != 0 AND (da.created_by = ? OR d.id IN (
+       WHERE da.created_by = ? OR d.id IN (
          SELECT domain_id FROM domain_permissions WHERE user_id = ?
-       ))
+       )
        ORDER BY d.name`,
       [userId, userId],
       { operation: 'Domain.getUserAccessibleDomains', table: 'domains' }
