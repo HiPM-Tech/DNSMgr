@@ -225,7 +225,7 @@ export function DomainListTab() {
 
   useRealtimeData({
     queryKey: ['domains'],
-    websocketEventTypes: ['domain_created', 'domain_updated', 'domain_deleted'],
+    websocketEventTypes: ['domain_created', 'domain_updated', 'domain_deleted', 'domain_whois_updated'],
     pollingInterval: 60000,
   });
 

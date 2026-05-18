@@ -108,6 +108,23 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
             successCount++;
             log.info('WhoisScheduler', `Updated expiry for ${d.name}: ${formattedDate}`);
 
+            // 推送 WebSocket 消息通知前端更新
+            try {
+              const { wsService } = await import('../websocket');
+              wsService.broadcast({
+                type: 'domain_whois_updated',
+                data: {
+                  domainId: d.id,
+                  name: d.name,
+                  expiresAt: formattedDate,
+                  apexExpiresAt: formattedApexDate,
+                  whoisStatus: whoisResult.status,
+                },
+              });
+            } catch (error) {
+              log.error('WhoisScheduler', 'Failed to broadcast domain_whois_updated event', { error });
+            }
+
             await checkAndSendNotification(d, whoisResult.expiryDate);
           } else {
             failCount++;

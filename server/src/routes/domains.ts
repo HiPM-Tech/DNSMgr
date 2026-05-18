@@ -813,6 +813,7 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
       data: {
         domainId: id,
         name: access.domain.name,
+        enabled: enabled !== undefined ? enabled : access.domain.enabled,
       },
     });
   } catch (error) {
