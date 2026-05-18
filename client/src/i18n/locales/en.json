@@ -773,6 +773,8 @@
       "pinDomain": "Pin Domain",
       "unpinDomain": "Unpin Domain",
       "pinnedDomains": "Pinned Domains",
+      "localStatus": "Local Status",
+      "domainStatus": "Domain Status",
       "whoisInfo": "WHOIS Info",
       "whoisUpdate": "Update WHOIS",
       "whoisUpdating": "Updating WHOIS...",

@@ -353,7 +353,21 @@ export function DomainListTab() {
       },
     },
     {
-      key: 'status',
+      key: 'local_status',
+      label: t('domains.localStatus'),
+      render: (row: Domain) => {
+        const isEnabled = row.enabled !== 0;
+        const localStatusText = isEnabled ? t('common.enabled') : t('common.disabled');
+        const localStatusTheme = isEnabled ? 'success' : 'default';
+        return (
+          <Tag theme={localStatusTheme} variant="light" size="small">
+            {localStatusText}
+          </Tag>
+        );
+      },
+    },
+    {
+      key: 'whois_status',
       label: t('domains.domainStatus'),
       render: (row: Domain) => {
         const isApex = isApexDomain(row.name);
@@ -361,14 +375,8 @@ export function DomainListTab() {
           return <span className="page-muted">-</span>;
         }
         
-        // 本地启用状态
-        const isEnabled = row.enabled !== 0;
-        const localStatusText = isEnabled ? t('common.enabled') : t('common.disabled');
-        const localStatusTheme = isEnabled ? 'success' : 'default';
-        
         // WHOIS 状态
         const whoisInfo = whoisMap[row.name];
-        let whoisStatusTag = null;
         
         if (whoisInfo?.status) {
           const statuses = whoisInfo.status.split('\n').filter(Boolean);
@@ -391,23 +399,14 @@ export function DomainListTab() {
             return translated === translationKey ? status : translated;
           };
           
-          whoisStatusTag = (
+          return (
             <Tag theme={getStatusTheme(mainStatus)} variant="light" size="small">
               {getStatusLabel(mainStatus)}
             </Tag>
           );
         } else {
-          whoisStatusTag = <span className="page-muted">{t('domains.unknown')}</span>;
+          return <span className="page-muted">{t('domains.unknown')}</span>;
         }
-        
-        return (
-          <Space size="small">
-            <Tag theme={localStatusTheme} variant="light" size="small">
-              {localStatusText}
-            </Tag>
-            {whoisStatusTag}
-          </Space>
-        );
       },
     },
     {
