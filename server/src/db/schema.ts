@@ -143,7 +143,8 @@ async function addNsMonitorColumns(
   const columns = [
     { name: 'encrypted_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN encrypted_ns TEXT' },
     { name: 'plain_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN plain_ns TEXT' },
-    { name: 'is_poisoned', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN is_poisoned TINYINT NOT NULL DEFAULT 0' }
+    { name: 'is_poisoned', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN is_poisoned TINYINT NOT NULL DEFAULT 0' },
+    { name: 'domain_name', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN domain_name VARCHAR(255) NOT NULL DEFAULT \'\'' }
   ];
 
   for (const column of columns) {

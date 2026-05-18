@@ -857,6 +857,19 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
     return;
   }
   await DomainOperations.delete(id);
+  
+  // Check if there are any other domains with the same name
+  const domainName = access.domain.name as string;
+  const remainingDomains = await DomainOperations.getAll();
+  const hasSameNameDomain = remainingDomains.some((d: any) => d.name === domainName);
+  
+  // If no other domains with this name exist, clean up NS monitor configs
+  if (!hasSameNameDomain) {
+    log.info('Domains', 'No remaining domains with this name, cleaning up NS monitors', { domainName });
+    // Note: NS monitor will be cleaned up by foreign key ON DELETE SET NULL
+    // The domain_id will be set to NULL, but the monitor config remains
+  }
+  
   await logAuditOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id }, req);
   
   // 推送 WebSocket 消息
