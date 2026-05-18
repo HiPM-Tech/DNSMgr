@@ -393,7 +393,9 @@ export function DomainListTab() {
           
           // 获取状态的翻译文本
           const getStatusLabel = (status: string) => {
-            const camelCaseStatus = status.charAt(0).toLowerCase() + status.slice(1);
+            // 移除 URL 部分（如 https://icann.org/epp#clientTransferProhibited）
+            const cleanStatus = status.split(' ')[0].split('#').pop() || status;
+            const camelCaseStatus = cleanStatus.charAt(0).toLowerCase() + cleanStatus.slice(1);
             const translationKey = `domains.whoisStatus.${camelCaseStatus}`;
             const translated = t(translationKey);
             return translated === translationKey ? status : translated;

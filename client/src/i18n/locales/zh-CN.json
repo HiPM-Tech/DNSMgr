@@ -373,7 +373,6 @@
       "dnsAccount": "DNS 账号 *",
       "domain": "域名",
       "domainName": "域名 *",
-      "domainStatus": "状态",
       "whoisStatus": {
         "ok": "正常",
         "active": "活跃",

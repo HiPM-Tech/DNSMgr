@@ -716,7 +716,6 @@
       "daysLeft": "{days} days left",
       "expired": "Expired",
       "apexDomainExpiry": "Apex Domain Expiry",
-      "domainStatus": "Status",
       "whoisStatus": {
         "ok": "OK",
         "active": "Active",
