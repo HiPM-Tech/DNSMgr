@@ -54,6 +54,14 @@ export function Records() {
     queryFn: () => domainsApi.get(domainId).then((r) => r.data.data),
   });
 
+  // 检查域名是否被禁用
+  useEffect(() => {
+    if (domain && domain.enabled === 0) {
+      toast.error(t('domains.domainDisabled'));
+      navigate('/domains');
+    }
+  }, [domain, navigate, toast, t]);
+
   const { data: account } = useQuery({
     queryKey: ['account-for-domain', domain?.account_id],
     enabled: Boolean(domain?.account_id),

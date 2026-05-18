@@ -780,7 +780,8 @@
       "whoisUpdateFailed": "WHOIS update failed",
       "expiryAlert": "Expiry Alert",
       "expiryAlertDesc": "Send notification before domain expires",
-      "daysBefore": "Days before"
+      "daysBefore": "Days before",
+      "domainDisabled": "This domain is disabled and cannot access DNS records"
     },
     "tokens": {
       "title": "API Token Management",

@@ -233,6 +233,8 @@
       "selectAll": "全选",
       "settings": "设置",
       "status": "状态",
+      "enabled": "已启用",
+      "disabled": "已禁用",
       "submit": "提交",
       "success": "成功",
       "system": "系统",
@@ -442,7 +444,8 @@
       "expiryAlert": "到期提醒",
       "expiryAlertDesc": "在域名到期前发送通知",
       "daysBefore": "提前天数",
-      "configureFailover": "配置故障转移"
+      "configureFailover": "配置故障转移",
+      "domainDisabled": "该域名已被禁用，无法访问解析记录"
     },
     "login": {
       "authCode": "验证码",
