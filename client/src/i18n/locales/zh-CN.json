@@ -440,6 +440,8 @@
       "pinFailed": "操作失败",
       "toggleStatusSuccess": "状态更新成功",
       "toggleStatusFailed": "状态更新失败",
+      "enable": "启用域名",
+      "disable": "禁用域名",
       "localStatus": "本地状态",
       "domainStatus": "域名状态",
       "whoisUpdated": "WHOIS 已更新",

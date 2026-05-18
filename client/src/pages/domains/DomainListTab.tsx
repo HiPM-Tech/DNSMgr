@@ -319,13 +319,23 @@ export function DomainListTab() {
   });
 
   const toggleEnabledMutation = useMutation({
-    mutationFn: ({ id, enabled }: { id: number; enabled: number }) => domainsApi.update(id, { enabled }),
+    mutationFn: ({ id, enabled }: { id: number; enabled: number }) => {
+      console.log('[DomainList] Toggling enabled status:', { id, enabled });
+      return domainsApi.update(id, { enabled });
+    },
     onSuccess: (res) => {
-      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      console.log('[DomainList] Toggle success:', res.data);
+      if (res.data.code !== 0) { 
+        toast.error(res.data.msg || t('domains.toggleStatusFailed')); 
+        return; 
+      }
       qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
       toast.success(t('domains.toggleStatusSuccess'));
     },
-    onError: () => toast.error(t('domains.toggleStatusFailed')),
+    onError: (error) => {
+      console.error('[DomainList] Toggle failed:', error);
+      toast.error(t('domains.toggleStatusFailed'));
+    },
   });
 
   const accountMap = Object.fromEntries(accounts.map((account) => [account.id, account]));
@@ -482,8 +492,12 @@ export function DomainListTab() {
               variant="text"
               theme={isEnabled ? 'default' : 'success'}
               icon={<PoweroffIcon />}
-              onClick={() => toggleEnabledMutation.mutate({ id: row.id, enabled: isEnabled ? 0 : 1 })}
+              onClick={() => {
+                console.log('[DomainList] Button clicked:', { id: row.id, currentEnabled: isEnabled, canManage });
+                toggleEnabledMutation.mutate({ id: row.id, enabled: isEnabled ? 0 : 1 });
+              }}
               disabled={!canManage}
+              title={!canManage ? t('common.permissionDenied') : (isEnabled ? t('domains.disable') : t('domains.enable'))}
             />
             <Button
               shape="square"
