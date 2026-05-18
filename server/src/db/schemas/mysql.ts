@@ -80,6 +80,7 @@ export const mysqlSchema: SchemaDefinition = {
       third_id VARCHAR(255) NOT NULL DEFAULT '',
       remark TEXT,
       is_hidden TINYINT NOT NULL DEFAULT 0,
+      enabled TINYINT NOT NULL DEFAULT 1,
       record_count INT NOT NULL DEFAULT 0,
       expires_at DATETIME,
       apex_expires_at DATETIME,
@@ -89,7 +90,8 @@ export const mysqlSchema: SchemaDefinition = {
       UNIQUE KEY unique_account_name (account_id, name),
       INDEX idx_account_id (account_id),
       INDEX idx_name (name),
-      INDEX idx_is_hidden (is_hidden)
+      INDEX idx_is_hidden (is_hidden),
+      INDEX idx_enabled (enabled)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS domain_permissions (
       id INT AUTO_INCREMENT PRIMARY KEY,

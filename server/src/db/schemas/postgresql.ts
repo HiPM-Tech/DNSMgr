@@ -106,6 +106,7 @@ export const postgresqlSchema: SchemaDefinition = {
       third_id VARCHAR(255) NOT NULL DEFAULT '',
       remark TEXT NOT NULL DEFAULT '',
       is_hidden SMALLINT NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
       record_count INTEGER NOT NULL DEFAULT 0,
       expires_at TIMESTAMP,
       apex_expires_at TIMESTAMP,
@@ -116,6 +117,7 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_domains_account_id ON domains(account_id)`,
     `CREATE INDEX IF NOT EXISTS idx_domains_name ON domains(name)`,
     `CREATE INDEX IF NOT EXISTS idx_domains_is_hidden ON domains(is_hidden)`,
+    `CREATE INDEX IF NOT EXISTS idx_domains_enabled ON domains(enabled)`,
     `CREATE TABLE IF NOT EXISTS domain_permissions (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -456,6 +458,8 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TIMESTAMP`,
     // Migration: Add whois_status column to domains table for WHOIS status tracking
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS whois_status TEXT`,
+    // Migration: Add enabled column to domains table for domain enable/disable tracking
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
     // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,

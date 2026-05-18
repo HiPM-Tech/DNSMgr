@@ -91,6 +91,7 @@ export const sqliteSchema: SchemaDefinition = {
       third_id TEXT NOT NULL DEFAULT '',
       remark TEXT NOT NULL DEFAULT '',
       is_hidden INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
       record_count INTEGER NOT NULL DEFAULT 0,
       expires_at TEXT,
       apex_expires_at TEXT,

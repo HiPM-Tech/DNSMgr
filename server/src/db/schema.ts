@@ -99,7 +99,12 @@ async function handleMySQLMigrations(
     // 迁移2: 删除旧的域名级 NS 监测表（已废弃，改为用户级）
     await dropOldNsMonitorTables(conn);
 
-    // 迁移3: 添加 encrypted_ns, plain_ns, is_poisoned 字段到 ns_monitor_domains
+    // 迁移3: 添加 enabled 字段到 domains 表
+    log.info('Schema', 'Starting domains enabled column migration...');
+    await addDomainsEnabledColumn(conn);
+    log.info('Schema', 'Completed domains enabled column migration');
+
+    // 迁移4: 添加 encrypted_ns, plain_ns, is_poisoned 字段到 ns_monitor_domains
     log.info('Schema', 'Starting ns_monitor_domains columns migration...');
     await addNsMonitorColumns(conn);
     log.info('Schema', 'Completed ns_monitor_domains columns migration');
@@ -370,6 +375,61 @@ async function addPinnedDomainsColumn(
 }
 
 /**
+ * 添加 enabled 字段到 domains 表 - MySQL
+ */
+async function addDomainsEnabledColumn(
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+): Promise<void> {
+  try {
+    // Get current database name
+    let dbName = '';
+    if (conn.execute) {
+      const dbResult = await conn.execute('SELECT DATABASE() as db');
+      if (Array.isArray(dbResult) && dbResult.length > 0) {
+        dbName = (dbResult[0] as Record<string, string>)?.db || '';
+      }
+    }
+
+    // 检查字段是否存在
+    const checkColumnSql = dbName
+      ? `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = '${dbName}' AND TABLE_NAME = 'domains' AND COLUMN_NAME = 'enabled'`
+      : `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'enabled'`;
+
+    let columnExists = false;
+    if (conn.execute) {
+      const result = await conn.execute(checkColumnSql);
+      if (Array.isArray(result) && result.length > 0) {
+        const row = result[0] as Record<string, number>;
+        const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+        columnExists = parseInt(String(count), 10) > 0;
+      }
+    }
+
+    if (!columnExists) {
+      // 添加字段
+      const addColumnSql = `ALTER TABLE domains ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1`;
+      if (conn.execute) {
+        await conn.execute(addColumnSql);
+      } else if (conn.exec) {
+        conn.exec(addColumnSql);
+      }
+      log.info('Schema', 'Added enabled column to domains table');
+    } else {
+      log.debug('Schema', 'enabled column already exists in domains table');
+    }
+  } catch (error) {
+    const errorMsg = (error as Error).message || '';
+    if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+      log.info('Schema', 'enabled column already exists');
+    } else {
+      log.warn('Schema', 'Failed to add enabled column', { error: errorMsg });
+    }
+  }
+}
+
+/**
  * 添加文本字段到 user_preferences 表 - MySQL
  */
 async function addUserPreferencesTextColumn(
@@ -523,6 +583,9 @@ async function handleSQLiteMigrations(
 
   // Migration: Add whois_status column to domains table
   await addSQLiteColumn(conn, 'domains', 'whois_status', 'TEXT');
+
+  // Migration: Add enabled column to domains table
+  await addSQLiteColumn(conn, 'domains', 'enabled', 'INTEGER NOT NULL DEFAULT 1');
 
   // Migration: Add columns to ns_monitor_domains table
   await addSQLiteColumn(conn, 'ns_monitor_domains', 'encrypted_ns', 'TEXT');
