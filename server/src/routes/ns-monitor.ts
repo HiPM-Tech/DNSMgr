@@ -269,10 +269,10 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     return;
   }
 
-  // Get domain name
+  // Get domain name and verify domain exists in domains table
   const domain = await DomainOperations.getById(domain_id);
   if (!domain || !domain.name) {
-    res.status(404).json({ success: false, error: 'Domain not found' });
+    res.status(404).json({ success: false, error: 'Domain not found in domains table' });
     return;
   }
   const domainName = domain.name as string;
@@ -289,8 +289,12 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   // Check if already exists for this domain name
   const existing = await NSMonitorOperations.getByDomainName(userId, domainName);
   if (existing) {
-    res.status(409).json({ success: false, error: 'Monitor already exists for this domain' });
-    return;
+    // Delete old monitor config first
+    log.info('NSMonitor', 'Deleting old monitor config for same domain name', {
+      oldMonitorId: existing.id,
+      domainName,
+    });
+    await NSMonitorOperations.delete(existing.id as number, userId);
   }
 
   // Auto-fetch expected NS if not provided

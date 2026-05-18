@@ -858,9 +858,31 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
   }
   await DomainOperations.delete(id);
   
-  // Note: NS monitor configs are independent of domain_id
-  // They are based on domain_name and will persist even if domain is deleted
-  // No cleanup needed here
+  // Check if there are any other domains with the same name
+  const domainName = access.domain.name as string;
+  const remainingDomains = await DomainOperations.getAll();
+  const hasSameNameDomain = remainingDomains.some((d: any) => d.name === domainName);
+  
+  // If no other domains with this name exist, delete NS monitor configs
+  if (!hasSameNameDomain) {
+    log.info('Domains', 'No remaining domains with this name, deleting NS monitors', { domainName });
+    // Find and delete NS monitor configs for this domain name
+    const userId = req.user!.userId;
+    try {
+      const monitors = await NSMonitorOperations.getUserMonitors(userId);
+      for (const monitor of monitors) {
+        if ((monitor as any).domain_name === domainName) {
+          await NSMonitorOperations.delete(monitor.id as number, userId);
+          log.info('Domains', 'Deleted NS monitor for removed domain', {
+            monitorId: monitor.id,
+            domainName,
+          });
+        }
+      }
+    } catch (error) {
+      log.error('Domains', 'Failed to cleanup NS monitors', { error });
+    }
+  }
   
   await logAuditOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id }, req);
   
