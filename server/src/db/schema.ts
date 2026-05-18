@@ -210,21 +210,33 @@ async function addNsMonitorColumns(
   
   // Migration: Drop domain_id column (deprecated) (always execute)
   try {
-    log.info('Schema', 'Dropping deprecated domain_id column...');
-    const dropSql = 'ALTER TABLE ns_monitor_domains DROP COLUMN domain_id';
+    log.info('Schema', 'Checking if domain_id column exists before dropping...');
+    // First check if column exists
+    const checkSql = 'SHOW COLUMNS FROM ns_monitor_domains LIKE \'domain_id\'';
+    let columnExists = false;
     if (conn.execute) {
-      await conn.execute(dropSql);
-    } else if (conn.exec) {
-      conn.exec(dropSql);
+      const result = await conn.execute(checkSql);
+      if (Array.isArray(result)) {
+        columnExists = result.length > 0;
+        log.info('Schema', `domain_id column exists: ${columnExists}`);
+      }
     }
-    log.info('Schema', 'Successfully dropped domain_id column');
+    
+    if (!columnExists) {
+      log.info('Schema', 'domain_id column does not exist, skipping drop');
+    } else {
+      log.info('Schema', 'Dropping deprecated domain_id column...');
+      const dropSql = 'ALTER TABLE ns_monitor_domains DROP COLUMN domain_id';
+      if (conn.execute) {
+        await conn.execute(dropSql);
+      } else if (conn.exec) {
+        conn.exec(dropSql);
+      }
+      log.info('Schema', 'Successfully dropped domain_id column');
+    }
   } catch (error) {
     const errorMsg = (error as Error).message || '';
-    if (errorMsg.includes('CANT_DROP_FIELD_OR_KEY') || errorMsg.includes('check that column/key exists')) {
-      log.info('Schema', 'domain_id column already dropped');
-    } else {
-      log.warn('Schema', 'Failed to drop domain_id column', { error: errorMsg });
-    }
+    log.error('Schema', 'Failed to drop domain_id column', { error: errorMsg });
   }
   
   // Migration: Drop idx_domain_id index (always execute)
