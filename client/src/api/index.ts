@@ -309,7 +309,7 @@ export const domainsApi = {
     { name: string; account_id: number; third_id?: string; remark?: string } |
     { account_id: number; remark?: string; domains: ProviderDomainOption[] }) =>
     api.post<ApiResponse<{ id?: number; added?: number; skipped?: number; duplicates?: string[] }>>('/domains', data),
-  update: (id: number, data: { remark?: string }) =>
+  update: (id: number, data: { remark?: string; enabled?: number }) =>
     api.put<ApiResponse<null>>(`/domains/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/domains/${id}`),
   lines: (id: number) => api.get<ApiResponse<DnsLine[]>>(`/domains/${id}/lines`),

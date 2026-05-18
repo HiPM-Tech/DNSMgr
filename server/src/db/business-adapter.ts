@@ -815,6 +815,15 @@ export const DomainOperations = {
     return !!result;
   },
 
+  /** 设置域名的启用状态 */
+  async setEnabled(id: number, enabled: number): Promise<void> {
+    await executeInternal(
+      'UPDATE domains SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [enabled, id],
+      { operation: 'Domain.setEnabled', table: 'domains' }
+    );
+  },
+
   /** 获取用户可访问的域名列表（用于令牌创建） */
   async getUserAccessibleDomains(userId: number): Promise<QueryResult[]> {
     return queryInternal(

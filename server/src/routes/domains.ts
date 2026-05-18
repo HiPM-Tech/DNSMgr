@@ -796,9 +796,15 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
     sendError(res, 'Permission denied');
     return;
   }
-  const { remark, is_hidden } = req.body as { remark?: string; is_hidden?: number };
+  const { remark, is_hidden, enabled } = req.body as { remark?: string; is_hidden?: number; enabled?: number };
   await DomainOperations.updateRemarkAndHidden(id, remark, is_hidden);
-  await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden }, req);
+  
+  // Update enabled status if provided
+  if (enabled !== undefined) {
+    await DomainOperations.setEnabled(id, enabled);
+  }
+  
+  await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden, enabled }, req);
   
   // 推送 WebSocket 消息
   try {

@@ -9,6 +9,7 @@ import {
   JumpIcon,
   LayersIcon,
   PinIcon,
+  PoweroffIcon,
   RootListIcon,
   SearchIcon,
 } from 'tdesign-icons-react';
@@ -311,10 +312,20 @@ export function DomainListTab() {
     },
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['pinnedDomains'] });
-      toast.success('操作成功');
+      qc.invalidateQueries({ queryKey: ['pinnedDomains'], refetchType: 'active' });
+      toast.success(t('domains.pinSuccess'));
     },
-    onError: () => toast.error('操作失败'),
+    onError: () => toast.error(t('domains.pinFailed')),
+  });
+
+  const toggleEnabledMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: number }) => domainsApi.update(id, { enabled }),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
+      toast.success(t('domains.toggleStatusSuccess'));
+    },
+    onError: () => toast.error(t('domains.toggleStatusFailed')),
   });
 
   const accountMap = Object.fromEntries(accounts.map((account) => [account.id, account]));
@@ -445,8 +456,17 @@ export function DomainListTab() {
       label: t('domains.actions'),
       render: (row: Domain) => {
         const isPinned = pinnedDomains.includes(row.id);
+        const isEnabled = row.enabled !== 0;
         return (
           <Space size="small">
+            <Button
+              shape="square"
+              variant="text"
+              theme={isEnabled ? 'default' : 'success'}
+              icon={<PoweroffIcon />}
+              onClick={() => toggleEnabledMutation.mutate({ id: row.id, enabled: isEnabled ? 0 : 1 })}
+              disabled={!canManage}
+            />
             <Button
               shape="square"
               variant="text"
