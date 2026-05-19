@@ -330,12 +330,30 @@ async function addNsMonitorColumns(
         log.error('Schema', 'Failed to cleanup duplicates', { error: (cleanupError as Error).message });
       }
       
-      // Step 3: Drop the domain_id column
+      // Step 3: Drop the unique index before dropping column
+      log.info('Schema', 'Dropping unique_user_domain index temporarily...');
+      try {
+        await conn.execute('ALTER TABLE ns_monitor_domains DROP INDEX unique_user_domain');
+        log.info('Schema', 'Successfully dropped unique_user_domain index');
+      } catch (indexError) {
+        log.warn('Schema', 'Failed to drop unique_user_domain index (may not exist)', { error: (indexError as Error).message });
+      }
+      
+      // Step 4: Drop the domain_id column
       log.info('Schema', 'Dropping domain_id column...');
       await conn.execute('ALTER TABLE ns_monitor_domains DROP COLUMN domain_id');
       log.info('Schema', 'Successfully dropped domain_id column');
       
-      // Step 3: Drop the idx_domain_id index
+      // Step 5: Recreate the unique index
+      log.info('Schema', 'Recreating unique_user_domain index...');
+      try {
+        await conn.execute('ALTER TABLE ns_monitor_domains ADD UNIQUE KEY unique_user_domain (user_id, domain_name)');
+        log.info('Schema', 'Successfully recreated unique_user_domain index');
+      } catch (recreateError) {
+        log.error('Schema', 'Failed to recreate unique_user_domain index', { error: (recreateError as Error).message });
+      }
+      
+      // Step 6: Drop the idx_domain_id index
       log.info('Schema', 'Dropping idx_domain_id index...');
       try {
         await conn.execute('DROP INDEX idx_domain_id ON ns_monitor_domains');
