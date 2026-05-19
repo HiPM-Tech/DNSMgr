@@ -245,45 +245,20 @@ async function addNsMonitorColumns(
   try {
     log.info('Schema', 'Starting domain_id cleanup (FK + column)...');
     
-    // Step 1: Find and drop all foreign keys on domain_id
-    const findFkSql = `
-      SELECT CONSTRAINT_NAME 
-      FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-      WHERE TABLE_NAME = 'ns_monitor_domains' 
-      AND COLUMN_NAME = 'domain_id'
-      AND REFERENCED_TABLE_NAME IS NOT NULL
-    `;
-    
-    let fkNames: string[] = [];
+    // Temporarily disable foreign key checks
+    log.info('Schema', 'Disabling foreign key checks...');
     if (conn.execute) {
-      const fkResult = await conn.execute(findFkSql);
-      if (Array.isArray(fkResult)) {
-        fkNames = fkResult.map((row: any) => row.CONSTRAINT_NAME).filter(Boolean);
-        log.info('Schema', `Found ${fkNames.length} foreign key(s) on domain_id: ${fkNames.join(', ')}`);
-      }
+      await conn.execute('SET FOREIGN_KEY_CHECKS=0');
     }
     
-    // Drop each foreign key
-    for (const fkName of fkNames) {
-      try {
-        log.info('Schema', `Dropping FK: ${fkName}...`);
-        if (conn.execute) {
-          await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
-        }
-        log.info('Schema', `Successfully dropped FK: ${fkName}`);
-      } catch (fkError) {
-        log.warn('Schema', `Failed to drop FK ${fkName}`, { error: (fkError as Error).message });
-      }
-    }
-    
-    // Step 2: Drop the domain_id column
+    // Drop the domain_id column (FK constraints are ignored)
     log.info('Schema', 'Dropping domain_id column...');
     if (conn.execute) {
       await conn.execute('ALTER TABLE ns_monitor_domains DROP COLUMN domain_id');
     }
     log.info('Schema', 'Successfully dropped domain_id column');
     
-    // Step 3: Drop the idx_domain_id index
+    // Drop the idx_domain_id index
     log.info('Schema', 'Dropping idx_domain_id index...');
     try {
       if (conn.execute) {
@@ -299,9 +274,23 @@ async function addNsMonitorColumns(
       }
     }
     
+    // Re-enable foreign key checks
+    log.info('Schema', 'Re-enabling foreign key checks...');
+    if (conn.execute) {
+      await conn.execute('SET FOREIGN_KEY_CHECKS=1');
+    }
+    
     log.info('Schema', 'Completed domain_id cleanup');
   } catch (error) {
     log.error('Schema', 'Failed to cleanup domain_id', { error: (error as Error).message });
+    // Ensure foreign key checks are re-enabled even on error
+    try {
+      if (conn.execute) {
+        await conn.execute('SET FOREIGN_KEY_CHECKS=1');
+      }
+    } catch (e) {
+      log.warn('Schema', 'Failed to re-enable foreign key checks', { error: (e as Error).message });
+    }
   }
 }
 
