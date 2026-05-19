@@ -211,11 +211,12 @@ async function handleMySQLMigrations(
     await addUserPreferencesTextColumn(conn, 'avatar_image');
     log.info('Schema', 'Completed user_preferences avatar_image column migration');
 
-    // Migration: Add enabled field to dns_accounts table
+    // Migration: Add enabled field to dns_accounts table using export-rebuild pattern
     await executeMigration(
       versionManager,
-      'Add enabled column to dns_accounts table',
+      'Add enabled column to dns_accounts table (export-rebuild)',
       async () => {
+        // Check if migration is needed
         const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
           WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
         
@@ -228,12 +229,50 @@ async function handleMySQLMigrations(
           }
         }
         
-        if (needMigration && conn.execute) {
-          log.info('Schema', 'Adding enabled column to dns_accounts...');
-          await conn.execute(`ALTER TABLE dns_accounts ADD COLUMN enabled TINYINT(1) NOT NULL DEFAULT 1`);
-          log.info('Schema', 'Successfully added enabled column to dns_accounts');
-        } else if (!needMigration) {
-          log.info('Schema', 'enabled column already exists in dns_accounts');
+        if (!needMigration) {
+          log.info('Schema', 'enabled column already exists in dns_accounts, skipping migration');
+          return;
+        }
+        
+        log.info('Schema', 'Starting export-rebuild migration for dns_accounts...');
+        
+        if (conn.execute) {
+          // Step 1: Create new table with enabled column
+          await conn.execute(`
+            CREATE TABLE dns_accounts_new (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              type VARCHAR(100) NOT NULL,
+              name VARCHAR(255) NOT NULL,
+              config JSON,
+              remark TEXT NOT NULL DEFAULT '',
+              created_by INT NOT NULL,
+              team_id INT DEFAULT NULL,
+              enabled TINYINT(1) NOT NULL DEFAULT 1,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              INDEX idx_created_by (created_by),
+              INDEX idx_team_id (team_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+          `);
+          log.info('Schema', 'Step 1: Created dns_accounts_new table');
+          
+          // Step 2: Copy data from old table
+          await conn.execute(`
+            INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
+            SELECT id, type, name, config, remark, created_by, team_id, 
+                   COALESCE(enabled, 1) as enabled, created_at
+            FROM dns_accounts
+          `);
+          log.info('Schema', 'Step 2: Copied data to dns_accounts_new');
+          
+          // Step 3: Drop old table
+          await conn.execute(`DROP TABLE dns_accounts`);
+          log.info('Schema', 'Step 3: Dropped old dns_accounts table');
+          
+          // Step 4: Rename new table
+          await conn.execute(`ALTER TABLE dns_accounts_new RENAME TO dns_accounts`);
+          log.info('Schema', 'Step 4: Renamed dns_accounts_new to dns_accounts');
+          
+          log.info('Schema', 'Export-rebuild migration completed successfully');
         }
       }
     );
