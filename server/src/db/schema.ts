@@ -140,6 +140,40 @@ async function addNsMonitorColumns(
 ): Promise<void> {
   log.info('Schema', 'addNsMonitorColumns called, checking ns_monitor_domains table');
   
+  // Check if domain_name column already exists
+  let domainNameExists = false;
+  try {
+    const checkSql = conn.type === 'mysql' 
+      ? `SHOW COLUMNS FROM ns_monitor_domains LIKE 'domain_name'`
+      : `PRAGMA table_info(ns_monitor_domains)`;
+    
+    if (conn.execute) {
+      const result = await conn.execute(checkSql);
+      if (Array.isArray(result)) {
+        if (conn.type === 'mysql') {
+          domainNameExists = result.length > 0;
+        } else {
+          // SQLite PRAGMA returns all columns, check if domain_name is in the list
+          domainNameExists = result.some((row: any) => row.name === 'domain_name');
+        }
+        log.info('Schema', `domain_name column exists: ${domainNameExists}`);
+      }
+    } else if (conn.exec) {
+      // For sync connections, skip check and assume migration needed
+      log.debug('Schema', 'Skipping column existence check for sync connection');
+      domainNameExists = false;
+    }
+  } catch (error) {
+    log.warn('Schema', 'Failed to check domain_name existence', { error: (error as Error).message });
+    domainNameExists = false;
+  }
+  
+  // If domain_name already exists, skip all migrations
+  if (domainNameExists) {
+    log.info('Schema', 'domain_name column already exists, skipping migration');
+    return;
+  }
+  
   const columns = [
     { name: 'encrypted_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN encrypted_ns TEXT' },
     { name: 'plain_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN plain_ns TEXT' },
@@ -675,51 +709,73 @@ async function handleSQLiteMigrations(
   await addSQLiteColumn(conn, 'ns_monitor_domains', 'plain_ns', 'TEXT');
   await addSQLiteColumn(conn, 'ns_monitor_domains', 'is_poisoned', 'INTEGER NOT NULL DEFAULT 0');
   
-  // Migration: Add domain_name column to ns_monitor_domains table
-  await addSQLiteColumn(conn, 'ns_monitor_domains', 'domain_name', 'TEXT NOT NULL DEFAULT \'\'');
-  
-  // Migration: Sync domain_name from domains table for existing records
+  // Check if domain_name column already exists before adding
+  let domainNameExists = false;
   try {
-    log.info('Schema', 'Syncing domain_name from domains table (SQLite)...');
-    const syncSql = `
-      UPDATE ns_monitor_domains 
-      SET domain_name = (
-        SELECT name FROM domains WHERE domains.id = ns_monitor_domains.domain_id
-      )
-      WHERE domain_name = '' AND domain_id IS NOT NULL
-    `;
-    if (conn.exec) {
-      conn.exec(syncSql);
-      log.info('Schema', 'Successfully synced domain_name (SQLite)');
+    if (conn.query) {
+      const result = await conn.query('PRAGMA table_info(ns_monitor_domains)') as unknown[];
+      if (Array.isArray(result)) {
+        domainNameExists = result.some((row: any) => row.name === 'domain_name');
+        log.info('Schema', `domain_name column exists: ${domainNameExists}`);
+      }
+    } else {
+      // If query is not available, assume migration is needed
+      log.debug('Schema', 'query method not available, assuming migration needed');
+      domainNameExists = false;
     }
   } catch (error) {
-    log.warn('Schema', 'Failed to sync domain_name (SQLite)', { error: (error as Error).message });
+    log.warn('Schema', 'Failed to check domain_name existence', { error: (error as Error).message });
   }
   
-  // Migration: Drop domain_id column (for performance)
-  try {
-    log.info('Schema', 'Dropping domain_id column (SQLite)...');
-    if (conn.exec) {
-      // SQLite requires table recreation to drop columns
-      conn.exec(`
-        CREATE TABLE ns_monitor_domains_new AS
-        SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
-               is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count,
-               created_at, updated_at
-        FROM ns_monitor_domains
-      `);
-      conn.exec('DROP TABLE ns_monitor_domains');
-      conn.exec('ALTER TABLE ns_monitor_domains_new RENAME TO ns_monitor_domains');
-      
-      // Recreate indexes (without domain_id index)
-      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
-      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
-      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
-      
-      log.info('Schema', 'Successfully dropped domain_id column and recreated indexes (SQLite)');
+  if (!domainNameExists) {
+    // Migration: Add domain_name column to ns_monitor_domains table
+    await addSQLiteColumn(conn, 'ns_monitor_domains', 'domain_name', 'TEXT NOT NULL DEFAULT \'\'');
+    
+    // Migration: Sync domain_name from domains table for existing records
+    try {
+      log.info('Schema', 'Syncing domain_name from domains table (SQLite)...');
+      const syncSql = `
+        UPDATE ns_monitor_domains 
+        SET domain_name = (
+          SELECT name FROM domains WHERE domains.id = ns_monitor_domains.domain_id
+        )
+        WHERE domain_name = '' AND domain_id IS NOT NULL
+      `;
+      if (conn.exec) {
+        conn.exec(syncSql);
+        log.info('Schema', 'Successfully synced domain_name (SQLite)');
+      }
+    } catch (error) {
+      log.warn('Schema', 'Failed to sync domain_name (SQLite)', { error: (error as Error).message });
     }
-  } catch (error) {
-    log.error('Schema', 'Failed to drop domain_id column (SQLite)', { error: (error as Error).message });
+    
+    // Migration: Drop domain_id column (for performance)
+    try {
+      log.info('Schema', 'Dropping domain_id column (SQLite)...');
+      if (conn.exec) {
+        // SQLite requires table recreation to drop columns
+        conn.exec(`
+          CREATE TABLE ns_monitor_domains_new AS
+          SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
+                 is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count,
+                 created_at, updated_at
+          FROM ns_monitor_domains
+        `);
+        conn.exec('DROP TABLE ns_monitor_domains');
+        conn.exec('ALTER TABLE ns_monitor_domains_new RENAME TO ns_monitor_domains');
+        
+        // Recreate indexes (without domain_id index)
+        conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
+        conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
+        conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
+        
+        log.info('Schema', 'Successfully dropped domain_id column and recreated indexes (SQLite)');
+      }
+    } catch (error) {
+      log.error('Schema', 'Failed to drop domain_id column (SQLite)', { error: (error as Error).message });
+    }
+  } else {
+    log.info('Schema', 'domain_name column already exists, skipping migration');
   }
 
   // Migration: Add pinned_domains column to user_preferences table
