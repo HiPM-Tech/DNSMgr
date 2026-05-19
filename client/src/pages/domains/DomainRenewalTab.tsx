@@ -184,12 +184,25 @@ export function DomainRenewalTab() {
     {
       key: 'name',
       label: t('common.name'),
-      render: (row: any) => <span className="page-strong">{formatDomainName(row.name)}</span>,
+      render: (row: any) => <span className="page-strong">{formatDomainName(row.full_domain || row.domain_name)}</span>,
     },
     {
       key: 'account_name',
       label: t('accounts.provider'),
-      render: (row: any) => <Tag theme="primary" variant="light">{row.account_name || 'DNSHE'}</Tag>,
+      render: (row: any) => (
+        <Tag theme="primary" variant="light">
+          {row.account_name || 'DNSHE'} ({row.provider_type})
+        </Tag>
+      ),
+    },
+    {
+      key: 'local_status',
+      label: t('domainRenewal.localStatus'),
+      render: (row: any) => (
+        <Tag theme={row.enabled ? 'success' : 'default'} variant="light">
+          {row.enabled ? t('common.enabled') : t('common.disabled')}
+        </Tag>
+      ),
     },
     {
       key: 'expires_at',
