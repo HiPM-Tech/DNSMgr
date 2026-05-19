@@ -16,11 +16,9 @@ export interface MigrationRecord {
 
 export class SchemaVersionManager {
   private conn: any;
-  private dbType: string;
 
-  constructor(conn: any, dbType: string) {
+  constructor(conn: any) {
     this.conn = conn;
-    this.dbType = dbType;
   }
 
   /**

@@ -56,7 +56,7 @@ async function executeMigration(
 async function handleMySQLMigrations(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
 ): Promise<void> {
-  const versionManager = new SchemaVersionManager(conn, 'mysql');
+  const versionManager = new SchemaVersionManager(conn);
   
   try {
     log.info('Schema', 'Starting MySQL migrations...');
@@ -846,6 +846,8 @@ async function migrateDnsAccountType(
 async function handleSQLiteMigrations(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> }
 ): Promise<void> {
+  const versionManager = new SchemaVersionManager(conn);
+  
   log.info('Schema', 'Starting SQLite migrations...');
 
   // Migration: Add apex_expires_at column to domains table
@@ -938,6 +940,16 @@ async function handleSQLiteMigrations(
 
   // 迁移：删除旧的域名级 NS 监測表
   await dropOldNsMonitorTablesSQLite(conn);
+
+  // Migration: Add enabled field to dns_accounts table
+  await executeMigration(
+    versionManager,
+    '2026.05.19.001',
+    'Add enabled column to dns_accounts table (SQLite)',
+    async () => {
+      await addSQLiteColumn(conn, 'dns_accounts', 'enabled', 'INTEGER NOT NULL DEFAULT 1');
+    }
+  );
 
   // Migration: Update dns_accounts type from dnsmgr to hidns
   await migrateDnsAccountType(conn);
@@ -1235,6 +1247,17 @@ export async function initSchemaAsync(
         // Migration errors are logged but not thrown (idempotent)
         log.warn('Schema', 'Migration skipped (may already be applied)', { error: (error as Error).message, sql: sql.substring(0, 100) });
       }
+    }
+
+    // Record PostgreSQL schema version after migrations
+    try {
+      const versionManager = new SchemaVersionManager(conn);
+      const isApplied = await versionManager.isVersionApplied('2026.05.19.001');
+      if (!isApplied) {
+        await versionManager.recordSuccess('2026.05.19.001', 'PostgreSQL initial migrations (including dns_accounts.enabled)', 0);
+      }
+    } catch (error) {
+      log.warn('Schema', 'Failed to record PostgreSQL migration version', { error: (error as Error).message });
     }
 
     // 迁移：删除旧的域名级 NS 监測表（已废弃，改为用户级）
