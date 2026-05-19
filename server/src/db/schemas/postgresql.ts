@@ -404,7 +404,6 @@ export const postgresqlSchema: SchemaDefinition = {
       UNIQUE(user_id, domain_name)
     )`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`,
     `CREATE TABLE IF NOT EXISTS rdap_server_cache (
       id SERIAL PRIMARY KEY,

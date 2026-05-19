@@ -716,7 +716,7 @@ async function handleSQLiteMigrations(
       conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
       conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
       
-      log.info('Schema', 'Successfully dropped domain_id column (SQLite)');
+      log.info('Schema', 'Successfully dropped domain_id column and recreated indexes (SQLite)');
     }
   } catch (error) {
     log.error('Schema', 'Failed to drop domain_id column (SQLite)', { error: (error as Error).message });
