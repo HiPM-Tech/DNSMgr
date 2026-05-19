@@ -246,10 +246,7 @@ async function addNsMonitorColumns(
     log.info('Schema', 'Starting domain_id cleanup (FK + column)...');
     
     if (conn.execute) {
-      // Use a transaction to ensure all operations use the same connection
-      await conn.execute('START TRANSACTION');
-      
-      // Disable foreign key checks for this transaction
+      // Disable foreign key checks
       await conn.execute('SET FOREIGN_KEY_CHECKS=0');
       log.info('Schema', 'Foreign key checks disabled');
       
@@ -317,8 +314,21 @@ async function addNsMonitorColumns(
       
       // Step 4: Drop the domain_id column
       log.info('Schema', 'Dropping domain_id column...');
-      await conn.execute('ALTER TABLE ns_monitor_domains DROP COLUMN domain_id');
-      log.info('Schema', 'Successfully dropped domain_id column');
+      try {
+        await conn.execute('ALTER TABLE ns_monitor_domains DROP COLUMN domain_id');
+        log.info('Schema', 'Successfully dropped domain_id column');
+      } catch (dropError) {
+        const errorMsg = (dropError as Error).message || '';
+        if (errorMsg.includes('Duplicate entry')) {
+          // If there's a duplicate entry error, it means the unique index is causing issues
+          // Try to drop the column with CASCADE (MySQL doesn't support this, so we'll just log and continue)
+          log.warn('Schema', 'Cannot drop domain_id due to unique constraint conflicts. Manual intervention may be required.');
+          log.warn('Schema', 'Please manually execute: ALTER TABLE ns_monitor_domains DROP COLUMN domain_id;');
+          throw dropError; // Re-throw to indicate failure
+        } else {
+          throw dropError;
+        }
+      }
       
       // Step 5: Recreate the unique index
       log.info('Schema', 'Recreating unique_user_domain index...');
@@ -343,10 +353,6 @@ async function addNsMonitorColumns(
         }
       }
       
-      // Commit the transaction
-      await conn.execute('COMMIT');
-      log.info('Schema', 'Transaction committed');
-      
       // Re-enable foreign key checks
       await conn.execute('SET FOREIGN_KEY_CHECKS=1');
       log.info('Schema', 'Foreign key checks re-enabled');
@@ -355,15 +361,14 @@ async function addNsMonitorColumns(
     log.info('Schema', 'Completed domain_id cleanup');
   } catch (error) {
     log.error('Schema', 'Failed to cleanup domain_id', { error: (error as Error).message });
-    // Rollback transaction on error
+    // Ensure foreign key checks are re-enabled even on error
     try {
       if (conn.execute) {
-        await conn.execute('ROLLBACK');
         await conn.execute('SET FOREIGN_KEY_CHECKS=1');
-        log.info('Schema', 'Transaction rolled back and FK checks re-enabled');
+        log.info('Schema', 'Foreign key checks re-enabled after error');
       }
-    } catch (rollbackError) {
-      log.warn('Schema', 'Failed to rollback', { error: (rollbackError as Error).message });
+    } catch (e) {
+      log.warn('Schema', 'Failed to re-enable foreign key checks', { error: (e as Error).message });
     }
   }
 }
