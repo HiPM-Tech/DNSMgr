@@ -45,37 +45,50 @@ export async function initSchema(): Promise<void> {
       return;
     }
     
-    log.info('DB', 'HiDNS system fully initialized, skipping initialization');
+    log.info('DB', 'HiDNS system fully initialized, running migration checks...');
+    // Continue to migration handling below
+  } else {
+    // Not a HiDNS system, check if it's a legacy system or first-time setup
+    
+    // Step 2: Check if this is a legacy system that needs migration detection
+    const isLegacySystem = await checkLegacySystem(conn);
+    
+    if (isLegacySystem) {
+      log.info('DB', 'Legacy system detected, running migration detection...');
+      // Migration will be handled by handleMySQLMigrations/handleSQLiteMigrations
+      // which includes auto-detection and promotion logic
+      return;
+    }
+    
+    // Step 3: First-time initialization - create all tables
+    log.info('DB', 'First-time initialization, creating schema...');
+
+    switch (type) {
+      case 'mysql':
+        await initMySQLSchema(conn);
+        break;
+      case 'postgresql':
+        await initPostgreSQLSchema(conn);
+        break;
+      case 'sqlite':
+      default:
+        await initSQLiteSchema(conn);
+        break;
+    }
+    
+    log.info('DB', 'Initial schema setup complete');
     return;
   }
 
-  // Step 2: Check if this is a legacy system that needs migration detection
-  const isLegacySystem = await checkLegacySystem(conn);
+  // Step 4: Run migrations for HiDNS systems (schema may have changed)
+  // Migrations will be skipped if already applied (version checking)
+  log.info('DB', 'Checking for pending migrations...');
   
-  if (isLegacySystem) {
-    log.info('DB', 'Legacy system detected, running migration detection...');
-    // Migration will be handled by handleMySQLMigrations/handleSQLiteMigrations
-    // which includes auto-detection and promotion logic
-    return;
-  }
+  // Import and call initSchemaAsync to run migration checks
+  const { initSchemaAsync } = await import('./schema');
+  await initSchemaAsync(conn, false); // false = don't reset tables
   
-  // Step 3: First-time initialization - create all tables
-  log.info('DB', 'First-time initialization, creating schema...');
-
-  switch (type) {
-    case 'mysql':
-      await initMySQLSchema(conn);
-      break;
-    case 'postgresql':
-      await initPostgreSQLSchema(conn);
-      break;
-    case 'sqlite':
-    default:
-      await initSQLiteSchema(conn);
-      break;
-  }
-  
-  log.info('DB', 'Initial schema setup complete');
+  log.info('DB', 'Migration checks completed');
 }
 
 /**
