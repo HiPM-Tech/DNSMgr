@@ -72,6 +72,18 @@ export const sqliteSchema: SchemaDefinition = {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       UNIQUE(team_id, user_id)
     )`,
+    // Schema version tracking table
+    `CREATE TABLE IF NOT EXISTS schema_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version TEXT NOT NULL UNIQUE,
+      description TEXT,
+      applied_at TEXT NOT NULL DEFAULT (datetime('now')),
+      success INTEGER NOT NULL DEFAULT 1,
+      error_message TEXT,
+      execution_time_ms INTEGER
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_version ON schema_versions(version)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_applied_at ON schema_versions(applied_at)`,
     `CREATE TABLE IF NOT EXISTS dns_accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL,

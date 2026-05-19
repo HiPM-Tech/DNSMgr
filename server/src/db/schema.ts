@@ -14,6 +14,40 @@ import { postgresqlSchema } from './schemas/postgresql';
 import { getConnection } from './core/connection';
 import type { DatabaseConnection } from './core/types';
 import { log } from '../lib/logger';
+import { SchemaVersionManager } from './migration-manager';
+
+/**
+ * Execute a migration with version tracking
+ */
+async function executeMigration(
+  versionManager: SchemaVersionManager,
+  version: string,
+  description: string,
+  migrationFn: () => Promise<void>
+): Promise<void> {
+  const isApplied = await versionManager.isVersionApplied(version);
+  
+  if (isApplied) {
+    log.info('Schema', `Migration ${version} already applied, skipping`);
+    return;
+  }
+  
+  const startTime = Date.now();
+  log.info('Schema', `Applying migration ${version}: ${description}`);
+  
+  try {
+    await migrationFn();
+    const executionTime = Date.now() - startTime;
+    await versionManager.recordSuccess(version, description, executionTime);
+    log.info('Schema', `Migration ${version} completed successfully in ${executionTime}ms`);
+  } catch (error) {
+    const executionTime = Date.now() - startTime;
+    const errorMessage = (error as Error).message;
+    await versionManager.recordFailure(version, description, errorMessage, executionTime);
+    log.error('Schema', `Migration ${version} failed after ${executionTime}ms: ${errorMessage}`);
+    throw error;
+  }
+}
 
 /**
  * Handle MySQL-specific migrations that require application-level checks
@@ -22,6 +56,8 @@ import { log } from '../lib/logger';
 async function handleMySQLMigrations(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
 ): Promise<void> {
+  const versionManager = new SchemaVersionManager(conn, 'mysql');
+  
   try {
     log.info('Schema', 'Starting MySQL migrations...');
     
@@ -161,33 +197,32 @@ async function handleMySQLMigrations(
     log.info('Schema', 'Completed user_preferences avatar_image column migration');
 
     // Migration: Add enabled field to dns_accounts table
-    log.info('Schema', 'Starting dns_accounts enabled column migration...');
-    try {
-      const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
-      
-      let needMigration = true;
-      if (conn.execute) {
-        const result = await conn.execute(checkSql) as any[];
-        if (Array.isArray(result) && result.length > 0) {
-          const count = (result[0] as any).cnt;
-          needMigration = count === 0;
+    await executeMigration(
+      versionManager,
+      '2026.05.19.001',
+      'Add enabled column to dns_accounts table',
+      async () => {
+        const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
+        
+        let needMigration = true;
+        if (conn.execute) {
+          const result = await conn.execute(checkSql) as any[];
+          if (Array.isArray(result) && result.length > 0) {
+            const count = (result[0] as any).cnt;
+            needMigration = count === 0;
+          }
+        }
+        
+        if (needMigration && conn.execute) {
+          log.info('Schema', 'Adding enabled column to dns_accounts...');
+          await conn.execute(`ALTER TABLE dns_accounts ADD COLUMN enabled TINYINT(1) NOT NULL DEFAULT 1`);
+          log.info('Schema', 'Successfully added enabled column to dns_accounts');
+        } else if (!needMigration) {
+          log.info('Schema', 'enabled column already exists in dns_accounts');
         }
       }
-      
-      if (needMigration && conn.execute) {
-        log.info('Schema', 'Adding enabled column to dns_accounts...');
-        await conn.execute(`ALTER TABLE dns_accounts ADD COLUMN enabled TINYINT(1) NOT NULL DEFAULT 1`);
-        log.info('Schema', 'Successfully added enabled column to dns_accounts');
-      } else if (!needMigration) {
-        log.info('Schema', 'enabled column already exists in dns_accounts');
-      }
-    } catch (error) {
-      log.error('Schema', 'Failed to add enabled column to dns_accounts', { error: (error as Error).message });
-      // Re-throw to prevent running with missing column
-      throw error;
-    }
-    log.info('Schema', 'Completed dns_accounts enabled column migration');
+    );
 
     // Migration: Update dns_accounts type from dnsmgr to hidns
     await migrateDnsAccountType(conn);

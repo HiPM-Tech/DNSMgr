@@ -58,6 +58,18 @@ export const mysqlSchema: SchemaDefinition = {
       INDEX idx_team_id (team_id),
       INDEX idx_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    // Schema version tracking table
+    `CREATE TABLE IF NOT EXISTS schema_versions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      version VARCHAR(50) NOT NULL UNIQUE,
+      description TEXT,
+      applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      success BOOLEAN NOT NULL DEFAULT TRUE,
+      error_message TEXT,
+      execution_time_ms INT,
+      INDEX idx_version (version),
+      INDEX idx_applied_at (applied_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS dns_accounts (
       id INT AUTO_INCREMENT PRIMARY KEY,
       type VARCHAR(100) NOT NULL,

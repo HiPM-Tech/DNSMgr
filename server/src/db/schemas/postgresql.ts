@@ -86,6 +86,18 @@ export const postgresqlSchema: SchemaDefinition = {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id)`,
     `CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id)`,
+    // Schema version tracking table
+    `CREATE TABLE IF NOT EXISTS schema_versions (
+      id SERIAL PRIMARY KEY,
+      version VARCHAR(50) NOT NULL UNIQUE,
+      description TEXT,
+      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      success BOOLEAN NOT NULL DEFAULT TRUE,
+      error_message TEXT,
+      execution_time_ms INTEGER
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_version ON schema_versions(version)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_applied_at ON schema_versions(applied_at)`,
     `CREATE TABLE IF NOT EXISTS dns_accounts (
       id SERIAL PRIMARY KEY,
       type VARCHAR(100) NOT NULL,
