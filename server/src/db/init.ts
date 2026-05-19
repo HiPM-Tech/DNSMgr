@@ -9,7 +9,17 @@ export async function initSchema(): Promise<void> {
   const conn = getConnection();
   const type = conn.type;
 
-  // Check if schema_versions table exists
+  // Step 1: Check if this is a legacy system that needs migration detection
+  const isLegacySystem = await checkLegacySystem(conn);
+  
+  if (isLegacySystem) {
+    log.info('DB', 'Legacy system detected, running migration detection...');
+    // Migration will be handled by handleMySQLMigrations/handleSQLiteMigrations
+    // which includes auto-detection and promotion logic
+    return;
+  }
+
+  // Step 2: Check if schema_versions table exists (already initialized)
   const hasVersionTable = await checkVersionTableExists(conn);
   
   if (hasVersionTable) {
@@ -18,7 +28,7 @@ export async function initSchema(): Promise<void> {
     return;
   }
   
-  // First-time initialization - create all tables
+  // Step 3: First-time initialization - create all tables
   log.info('DB', 'First-time initialization, creating schema...');
 
   switch (type) {
@@ -35,6 +45,81 @@ export async function initSchema(): Promise<void> {
   }
   
   log.info('DB', 'Initial schema setup complete');
+}
+
+/**
+ * Check if this is a legacy system by verifying key tables exist
+ * Legacy systems have the 4 core tables but no schema_versions table
+ */
+async function checkLegacySystem(conn: DatabaseConnection): Promise<boolean> {
+  try {
+    const dbType = conn.type;
+    
+    // Check for 4 critical tables:
+    // 1. domains (域名列表)
+    // 2. users (用户列表)
+    // 3. ns_monitor_domains (NS表)
+    // 4. whois_cache (WHOIS缓存表)
+    
+    const requiredTables = ['domains', 'users', 'ns_monitor_domains', 'whois_cache'];
+    let existingCount = 0;
+    
+    for (const tableName of requiredTables) {
+      const exists = await checkTableExists(conn, tableName);
+      if (exists) {
+        existingCount++;
+      }
+    }
+    
+    // If all 4 tables exist but schema_versions doesn't, it's a legacy system
+    const isLegacy = existingCount === requiredTables.length;
+    
+    if (isLegacy) {
+      log.info('DB', `Legacy system detected: all ${requiredTables.length} core tables exist`);
+    } else {
+      log.debug('DB', `Not a legacy system: ${existingCount}/${requiredTables.length} core tables found`);
+    }
+    
+    return isLegacy;
+  } catch (error) {
+    log.warn('DB', 'Failed to check legacy system status', { error: (error as Error).message });
+    return false;
+  }
+}
+
+/**
+ * Check if a specific table exists
+ */
+async function checkTableExists(conn: DatabaseConnection, tableName: string): Promise<boolean> {
+  try {
+    const dbType = conn.type;
+    let sql = '';
+    
+    switch (dbType) {
+      case 'mysql':
+        sql = `SELECT COUNT(*) as count FROM information_schema.tables 
+               WHERE table_schema = DATABASE() AND table_name = ?`;
+        break;
+      case 'postgresql':
+        sql = `SELECT COUNT(*) as count FROM information_schema.tables 
+               WHERE table_name = ?`;
+        break;
+      case 'sqlite':
+        sql = `SELECT COUNT(*) as count FROM sqlite_master 
+               WHERE type='table' AND name=?`;
+        break;
+    }
+    
+    const result = await conn.execute(sql, [tableName]);
+    if (Array.isArray(result) && result.length > 0) {
+      const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
+      return parseInt(String(count), 10) > 0;
+    }
+    
+    return false;
+  } catch (error) {
+    return false;
+  }
 }
 
 /**
