@@ -31,22 +31,22 @@ export async function initSchema(): Promise<void> {
   const conn = getConnection();
   const type = conn.type;
 
-  // Step 1: Check if this is a legacy system that needs migration detection
+  // Step 1: Check if schema_versions table exists AND is HiDNS system
+  const isHiDNSSystem = await checkHiDNSSystem(conn);
+  
+  if (isHiDNSSystem) {
+    // System is already initialized as HiDNS, skip everything
+    log.info('DB', 'HiDNS system detected via schema_versions, skipping initialization');
+    return;
+  }
+
+  // Step 2: Check if this is a legacy system that needs migration detection
   const isLegacySystem = await checkLegacySystem(conn);
   
   if (isLegacySystem) {
     log.info('DB', 'Legacy system detected, running migration detection...');
     // Migration will be handled by handleMySQLMigrations/handleSQLiteMigrations
     // which includes auto-detection and promotion logic
-    return;
-  }
-
-  // Step 2: Check if schema_versions table exists (already initialized)
-  const hasVersionTable = await checkVersionTableExists(conn);
-  
-  if (hasVersionTable) {
-    // System already initialized, skip everything
-    log.info('DB', 'Schema versions table found, system is already initialized');
     return;
   }
   
@@ -67,6 +67,58 @@ export async function initSchema(): Promise<void> {
   }
   
   log.info('DB', 'Initial schema setup complete');
+}
+
+/**
+ * Check if this is a HiDNS system by verifying schema_versions table exists and has hidns marker
+ */
+async function checkHiDNSSystem(conn: DatabaseConnection): Promise<boolean> {
+  try {
+    const dbType = conn.type;
+    let sql = '';
+    
+    switch (dbType) {
+      case 'mysql':
+        sql = `SELECT COUNT(*) as count FROM information_schema.tables 
+               WHERE table_schema = DATABASE() AND table_name = 'schema_versions'`;
+        break;
+      case 'postgresql':
+        sql = `SELECT COUNT(*) as count FROM information_schema.tables 
+               WHERE table_name = 'schema_versions'`;
+        break;
+      case 'sqlite':
+        sql = `SELECT COUNT(*) as count FROM sqlite_master 
+               WHERE type='table' AND name='schema_versions'`;
+        break;
+    }
+    
+    const result = await conn.execute(sql);
+    if (Array.isArray(result) && result.length > 0) {
+      const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
+      const tableExists = parseInt(String(count), 10) > 0;
+      
+      if (!tableExists) {
+        return false;
+      }
+      
+      // Table exists, check if it has HiDNS marker
+      const versionCheck = await conn.execute(
+        "SELECT COUNT(*) as count FROM schema_versions WHERE system_type = 'hidns' LIMIT 1"
+      );
+      
+      if (Array.isArray(versionCheck) && versionCheck.length > 0) {
+        const versionCount = (versionCheck[0] as any).count || (versionCheck[0] as any)['COUNT(*)'];
+        return parseInt(String(versionCount), 10) > 0;
+      }
+      
+      return false;
+    }
+    
+    return false;
+  } catch (error) {
+    log.debug('DB', 'HiDNS system check failed', { error: (error as Error).message });
+    return false;
+  }
 }
 
 /**

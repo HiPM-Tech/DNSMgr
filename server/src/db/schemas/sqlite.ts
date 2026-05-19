@@ -80,10 +80,12 @@ export const sqliteSchema: SchemaDefinition = {
       applied_at TEXT NOT NULL DEFAULT (datetime('now')),
       success INTEGER NOT NULL DEFAULT 1,
       error_message TEXT,
-      execution_time_ms INTEGER
+      execution_time_ms INTEGER,
+      system_type TEXT DEFAULT 'hidns'
     )`,
     `CREATE INDEX IF NOT EXISTS idx_schema_versions_version ON schema_versions(version)`,
     `CREATE INDEX IF NOT EXISTS idx_schema_versions_applied_at ON schema_versions(applied_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_system_type ON schema_versions(system_type)`,
     `CREATE TABLE IF NOT EXISTS dns_accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL,

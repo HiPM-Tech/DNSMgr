@@ -94,10 +94,12 @@ export const postgresqlSchema: SchemaDefinition = {
       applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       success BOOLEAN NOT NULL DEFAULT TRUE,
       error_message TEXT,
-      execution_time_ms INTEGER
+      execution_time_ms INTEGER,
+      system_type VARCHAR(50) DEFAULT 'hidns'
     )`,
     `CREATE INDEX IF NOT EXISTS idx_schema_versions_version ON schema_versions(version)`,
     `CREATE INDEX IF NOT EXISTS idx_schema_versions_applied_at ON schema_versions(applied_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_system_type ON schema_versions(system_type)`,
     `CREATE TABLE IF NOT EXISTS dns_accounts (
       id SERIAL PRIMARY KEY,
       type VARCHAR(100) NOT NULL,

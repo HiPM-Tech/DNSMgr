@@ -191,11 +191,11 @@ export class SchemaVersionManager {
     description: string,
     executionTimeMs: number
   ): Promise<void> {
-    const sql = `INSERT INTO schema_versions (version, description, success, execution_time_ms) 
-                 VALUES (?, ?, 1, ?)`;
+    const sql = `INSERT INTO schema_versions (version, description, success, execution_time_ms, system_type) 
+                 VALUES (?, ?, 1, ?, 'hidns')`;
     
     await this.conn.execute(sql, [this.schemaHash, description, executionTimeMs]);
-    log.info('SchemaVersion', `Schema version ${this.schemaHash} recorded as successful`);
+    log.info('SchemaVersion', `Schema version ${this.schemaHash} recorded as successful (HiDNS)`);
   }
 
   /**
@@ -206,11 +206,11 @@ export class SchemaVersionManager {
     errorMessage: string,
     executionTimeMs: number
   ): Promise<void> {
-    const sql = `INSERT INTO schema_versions (version, description, success, error_message, execution_time_ms) 
-                 VALUES (?, ?, 0, ?, ?)`;
+    const sql = `INSERT INTO schema_versions (version, description, success, error_message, execution_time_ms, system_type) 
+                 VALUES (?, ?, 0, ?, ?, 'hidns')`;
     
     await this.conn.execute(sql, [this.schemaHash, description, errorMessage, executionTimeMs]);
-    log.error('SchemaVersion', `Schema version ${this.schemaHash} recorded as failed: ${errorMessage}`);
+    log.error('SchemaVersion', `Schema version ${this.schemaHash} recorded as failed (HiDNS): ${errorMessage}`);
   }
 
   /**
