@@ -24,11 +24,27 @@ async function executeMigration(
   description: string,
   migrationFn: () => Promise<void>
 ): Promise<void> {
-  const isApplied = await versionManager.isCurrentVersionApplied();
+  // Check if version table exists
+  const hasVersionTable = await versionManager.hasVersionTable();
   
-  if (isApplied) {
-    log.info('Schema', `Schema version ${versionManager.getCurrentVersion()} already applied, skipping`);
-    return;
+  if (!hasVersionTable) {
+    // Auto-detect and promote if database appears to be already migrated
+    log.info('Schema', 'schema_versions table not found, attempting auto-detection...');
+    const isPromoted = await versionManager.autoDetectAndPromote(description);
+    
+    if (isPromoted) {
+      log.info('Schema', 'Auto-detection successful, skipping migration');
+      return;
+    }
+    // If not promoted, continue with normal migration flow
+  } else {
+    // Version table exists, check normally
+    const isApplied = await versionManager.isCurrentVersionApplied();
+    
+    if (isApplied) {
+      log.info('Schema', `Schema version ${versionManager.getCurrentVersion()} already applied, skipping`);
+      return;
+    }
   }
   
   const startTime = Date.now();

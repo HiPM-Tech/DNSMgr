@@ -18,9 +18,11 @@ export interface MigrationRecord {
 export class SchemaVersionManager {
   private conn: any;
   private schemaHash: string;
+  private schema: SchemaDefinition;
 
   constructor(conn: any, schema: SchemaDefinition) {
     this.conn = conn;
+    this.schema = schema;
     this.schemaHash = calculateSchemaHash(schema);
   }
 
@@ -29,6 +31,134 @@ export class SchemaVersionManager {
    */
   getCurrentVersion(): string {
     return this.schemaHash;
+  }
+
+  /**
+   * Check if schema_versions table exists
+   */
+  async hasVersionTable(): Promise<boolean> {
+    try {
+      await this.conn.execute('SELECT 1 FROM schema_versions LIMIT 1');
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Auto-detect and promote migration status based on actual database state
+   * Used when schema_versions table doesn't exist (first-time setup or legacy upgrade)
+   */
+  async autoDetectAndPromote(description: string): Promise<boolean> {
+    const dbType = (this.conn as any).type || 'unknown';
+    log.info('SchemaVersion', `Auto-detecting migration status for ${dbType}...`);
+
+    try {
+      // Check key indicators to determine if migration is already applied
+      const isMigrated = await this.checkMigrationIndicators(dbType);
+      
+      if (isMigrated) {
+        log.info('SchemaVersion', 'Database appears to be already migrated, promoting status...');
+        
+        // Create version record to mark as completed
+        await this.recordSuccess(description, 0);
+        log.info('SchemaVersion', `Auto-promoted schema version ${this.schemaHash} as successful`);
+        return true;
+      } else {
+        log.info('SchemaVersion', 'Database needs migration');
+        return false;
+      }
+    } catch (error) {
+      log.error('SchemaVersion', 'Failed to auto-detect migration status', { error: (error as Error).message });
+      return false;
+    }
+  }
+
+  /**
+   * Check migration indicators based on database type
+   */
+  private async checkMigrationIndicators(dbType: string): Promise<boolean> {
+    switch (dbType) {
+      case 'mysql':
+        return await this.checkMySQLIndicators();
+      case 'postgresql':
+        return await this.checkPostgreSQLIndicators();
+      case 'sqlite':
+        return await this.checkSQLiteIndicators();
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Check MySQL migration indicators
+   */
+  private async checkMySQLIndicators(): Promise<boolean> {
+    try {
+      // Check if dns_accounts.enabled column exists
+      const checkSql = `
+        SELECT COUNT(*) as count 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'
+      `;
+      const result = await this.conn.execute(checkSql);
+      
+      if (Array.isArray(result) && result.length > 0) {
+        const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
+        return parseInt(String(count), 10) > 0;
+      }
+      
+      return false;
+    } catch (error) {
+      log.warn('SchemaVersion', 'Failed to check MySQL indicators', { error: (error as Error).message });
+      return false;
+    }
+  }
+
+  /**
+   * Check PostgreSQL migration indicators
+   */
+  private async checkPostgreSQLIndicators(): Promise<boolean> {
+    try {
+      // Check if dns_accounts.enabled column exists
+      const checkSql = `
+        SELECT COUNT(*) as count 
+        FROM information_schema.columns 
+        WHERE table_name = 'dns_accounts' AND column_name = 'enabled'
+      `;
+      const result = await this.conn.execute(checkSql);
+      
+      if (Array.isArray(result) && result.length > 0) {
+        const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
+        return parseInt(String(count), 10) > 0;
+      }
+      
+      return false;
+    } catch (error) {
+      log.warn('SchemaVersion', 'Failed to check PostgreSQL indicators', { error: (error as Error).message });
+      return false;
+    }
+  }
+
+  /**
+   * Check SQLite migration indicators
+   */
+  private async checkSQLiteIndicators(): Promise<boolean> {
+    try {
+      // Check if dns_accounts.enabled column exists
+      const checkSql = `PRAGMA table_info(dns_accounts)`;
+      const result = await this.conn.execute(checkSql);
+      
+      if (Array.isArray(result)) {
+        const hasEnabledColumn = result.some((row: any) => row.name === 'enabled');
+        return hasEnabledColumn;
+      }
+      
+      return false;
+    } catch (error) {
+      log.warn('SchemaVersion', 'Failed to check SQLite indicators', { error: (error as Error).message });
+      return false;
+    }
   }
 
   /**
