@@ -106,7 +106,44 @@ async function handleMySQLMigrations(
 
     // 迁移4: 添加 encrypted_ns, plain_ns, is_poisoned 字段到 ns_monitor_domains
     log.info('Schema', 'Starting ns_monitor_domains columns migration...');
-    await addNsMonitorColumns(conn);
+    
+    // Use transaction for domain_id cleanup to ensure same connection
+    const mysqlDriver = (conn as any).driver;
+    if (mysqlDriver && mysqlDriver.beginTransaction) {
+      let tx: any = null;
+      try {
+        tx = await mysqlDriver.beginTransaction();
+        log.info('Schema', 'Transaction started for ns_monitor_domains migration');
+        
+        // Create a wrapper that uses the transaction
+        const txConn = {
+          type: 'mysql' as const,
+          execute: async (sql: string, params?: unknown[]) => {
+            await tx.execute(sql, params);
+          }
+        };
+        
+        await addNsMonitorColumns(txConn);
+        
+        // Commit transaction
+        await tx.commit?.();
+        log.info('Schema', 'Transaction committed');
+      } catch (error) {
+        // Rollback on error
+        try {
+          await tx?.rollback?.();
+          log.info('Schema', 'Transaction rolled back');
+        } catch (rollbackError) {
+          log.warn('Schema', 'Failed to rollback', { error: (rollbackError as Error).message });
+        }
+        throw error;
+      }
+    } else {
+      // Fallback: use regular connection (may have issues with FK checks)
+      log.warn('Schema', 'Transaction not available, using regular connection');
+      await addNsMonitorColumns(conn);
+    }
+    
     log.info('Schema', 'Completed ns_monitor_domains columns migration');
     
     // 迁移4: 创建 whois_cache 表
@@ -246,9 +283,6 @@ async function addNsMonitorColumns(
     log.info('Schema', 'Starting domain_id cleanup (FK + column)...');
     
     if (conn.execute) {
-      // Disable foreign key checks
-      await conn.execute('SET FOREIGN_KEY_CHECKS=0');
-      log.info('Schema', 'Foreign key checks disabled');
       
       // Step 1: Try to drop foreign key constraints
       log.info('Schema', 'Attempting to drop FK constraints on domain_id...');
@@ -352,24 +386,12 @@ async function addNsMonitorColumns(
           log.warn('Schema', 'Failed to drop idx_domain_id index', { error: errorMsg });
         }
       }
-      
-      // Re-enable foreign key checks
-      await conn.execute('SET FOREIGN_KEY_CHECKS=1');
-      log.info('Schema', 'Foreign key checks re-enabled');
     }
     
     log.info('Schema', 'Completed domain_id cleanup');
   } catch (error) {
     log.error('Schema', 'Failed to cleanup domain_id', { error: (error as Error).message });
-    // Ensure foreign key checks are re-enabled even on error
-    try {
-      if (conn.execute) {
-        await conn.execute('SET FOREIGN_KEY_CHECKS=1');
-        log.info('Schema', 'Foreign key checks re-enabled after error');
-      }
-    } catch (e) {
-      log.warn('Schema', 'Failed to re-enable foreign key checks', { error: (e as Error).message });
-    }
+    throw error; // Re-throw to trigger transaction rollback
   }
 }
 
