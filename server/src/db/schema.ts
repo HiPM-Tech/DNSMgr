@@ -245,52 +245,51 @@ async function addNsMonitorColumns(
   try {
     log.info('Schema', 'Starting domain_id cleanup (FK + column)...');
     
-    // Temporarily disable foreign key checks
-    log.info('Schema', 'Disabling foreign key checks...');
     if (conn.execute) {
-      await conn.execute('SET FOREIGN_KEY_CHECKS=0');
-    }
-    
-    // Drop the domain_id column (FK constraints are ignored)
-    log.info('Schema', 'Dropping domain_id column...');
-    if (conn.execute) {
-      await conn.execute('ALTER TABLE ns_monitor_domains DROP COLUMN domain_id');
-    }
-    log.info('Schema', 'Successfully dropped domain_id column');
-    
-    // Drop the idx_domain_id index
-    log.info('Schema', 'Dropping idx_domain_id index...');
-    try {
-      if (conn.execute) {
-        await conn.execute('DROP INDEX idx_domain_id ON ns_monitor_domains');
-      }
-      log.info('Schema', 'Successfully dropped idx_domain_id index');
-    } catch (indexError) {
-      const errorMsg = (indexError as Error).message || '';
-      if (errorMsg.includes('CANT_DROP') || errorMsg.includes('check that key/index exists')) {
-        log.info('Schema', 'idx_domain_id index already dropped');
+      // Step 1: Find and drop the foreign key constraint
+      log.info('Schema', 'Finding foreign key constraint on domain_id...');
+      const findFkSql = `
+        SELECT CONSTRAINT_NAME 
+        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+        WHERE TABLE_NAME = 'ns_monitor_domains' 
+        AND COLUMN_NAME = 'domain_id'
+        AND REFERENCED_TABLE_NAME IS NOT NULL
+        LIMIT 1
+      `;
+      
+      const fkResult = await conn.execute(findFkSql) as any[];
+      if (Array.isArray(fkResult) && fkResult.length > 0) {
+        const fkName = fkResult[0].CONSTRAINT_NAME;
+        log.info('Schema', `Found FK constraint: ${fkName}, dropping it...`);
+        await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
+        log.info('Schema', 'Successfully dropped FK constraint');
       } else {
-        log.warn('Schema', 'Failed to drop idx_domain_id index', { error: errorMsg });
+        log.info('Schema', 'No FK constraint found on domain_id');
       }
-    }
-    
-    // Re-enable foreign key checks
-    log.info('Schema', 'Re-enabling foreign key checks...');
-    if (conn.execute) {
-      await conn.execute('SET FOREIGN_KEY_CHECKS=1');
+      
+      // Step 2: Drop the domain_id column
+      log.info('Schema', 'Dropping domain_id column...');
+      await conn.execute('ALTER TABLE ns_monitor_domains DROP COLUMN domain_id');
+      log.info('Schema', 'Successfully dropped domain_id column');
+      
+      // Step 3: Drop the idx_domain_id index
+      log.info('Schema', 'Dropping idx_domain_id index...');
+      try {
+        await conn.execute('DROP INDEX idx_domain_id ON ns_monitor_domains');
+        log.info('Schema', 'Successfully dropped idx_domain_id index');
+      } catch (indexError) {
+        const errorMsg = (indexError as Error).message || '';
+        if (errorMsg.includes('CANT_DROP') || errorMsg.includes('check that key/index exists')) {
+          log.info('Schema', 'idx_domain_id index already dropped');
+        } else {
+          log.warn('Schema', 'Failed to drop idx_domain_id index', { error: errorMsg });
+        }
+      }
     }
     
     log.info('Schema', 'Completed domain_id cleanup');
   } catch (error) {
     log.error('Schema', 'Failed to cleanup domain_id', { error: (error as Error).message });
-    // Ensure foreign key checks are re-enabled even on error
-    try {
-      if (conn.execute) {
-        await conn.execute('SET FOREIGN_KEY_CHECKS=1');
-      }
-    } catch (e) {
-      log.warn('Schema', 'Failed to re-enable foreign key checks', { error: (e as Error).message });
-    }
   }
 }
 
