@@ -3600,11 +3600,9 @@ export const NSMonitorOperations = {
   /** 获取用户所有的域名监测配置 */
   async getUserMonitors(userId: number): Promise<QueryResult[]> {
     return queryInternal(
-      `SELECT m.*, d.name as domain_name
-       FROM ns_monitor_domains m
-       JOIN domains d ON d.id = m.domain_id
-       WHERE m.user_id = ?
-       ORDER BY d.name`,
+      `SELECT * FROM ns_monitor_domains
+       WHERE user_id = ?
+       ORDER BY domain_name`,
       [userId],
       { operation: 'NSMonitor.getUserMonitors', table: 'ns_monitor_domains' }
     );
@@ -3615,10 +3613,9 @@ export const NSMonitorOperations = {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'true' : '1';
     return queryInternal(
-      `SELECT m.*, d.name as domain_name, m.user_id as created_by
-       FROM ns_monitor_domains m
-       JOIN domains d ON d.id = m.domain_id
-       WHERE m.enabled = ${enabledValue}`,
+      `SELECT *, user_id as created_by
+       FROM ns_monitor_domains
+       WHERE enabled = ${enabledValue}`,
       [],
       { operation: 'NSMonitor.getAllEnabled', table: 'ns_monitor_domains' }
     );
@@ -3628,34 +3625,26 @@ export const NSMonitorOperations = {
   async getById(id: number, userId?: number): Promise<QueryResult | undefined> {
     if (userId) {
       return getInternal(
-        `SELECT m.*, d.name as domain_name
-         FROM ns_monitor_domains m
-         JOIN domains d ON d.id = m.domain_id
-         WHERE m.id = ? AND m.user_id = ?`,
+        `SELECT * FROM ns_monitor_domains
+         WHERE id = ? AND user_id = ?`,
         [id, userId],
         { operation: 'NSMonitor.getById', table: 'ns_monitor_domains' }
       );
     }
     return getInternal(
-      `SELECT m.*, d.name as domain_name
-       FROM ns_monitor_domains m
-       JOIN domains d ON d.id = m.domain_id
-       WHERE m.id = ?`,
+      `SELECT * FROM ns_monitor_domains
+       WHERE id = ?`,
       [id],
       { operation: 'NSMonitor.getById', table: 'ns_monitor_domains' }
     );
   },
 
-  /** 根据域名ID获取用户的监测配置 */
+  /** 根据域名ID获取用户的监测配置（已废弃，使用 getByDomainName） */
   async getByDomain(userId: number, domainId: number): Promise<QueryResult | undefined> {
-    return getInternal(
-      `SELECT m.*, d.name as domain_name
-       FROM ns_monitor_domains m
-       JOIN domains d ON d.id = m.domain_id
-       WHERE m.user_id = ? AND m.domain_id = ?`,
-      [userId, domainId],
-      { operation: 'NSMonitor.getByDomain', table: 'ns_monitor_domains' }
-    );
+    // This method is deprecated - domain_id column has been removed
+    // Use getByDomainName instead
+    log.warn('BusinessAdapter', 'getByDomain is deprecated, use getByDomainName instead');
+    return undefined;
   },
 
   /** 根据域名名称获取用户的监测配置（支持重名场景） */
