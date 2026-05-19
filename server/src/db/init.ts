@@ -35,8 +35,17 @@ export async function initSchema(): Promise<void> {
   const isHiDNSSystem = await checkHiDNSSystem(conn);
   
   if (isHiDNSSystem) {
-    // System is already initialized as HiDNS, skip everything
-    log.info('DB', 'HiDNS system detected via schema_versions, skipping initialization');
+    // System is already initialized as HiDNS, check if users exist
+    log.info('DB', 'HiDNS system detected via schema_versions');
+    
+    const hasUsers = await checkUsersExist(conn);
+    if (!hasUsers) {
+      log.warn('DB', 'HiDNS system found but no users exist, entering initialization mode');
+      log.info('DB', 'Please complete the web initialization wizard to create admin user');
+      return;
+    }
+    
+    log.info('DB', 'HiDNS system fully initialized, skipping initialization');
     return;
   }
 
@@ -117,6 +126,23 @@ async function checkHiDNSSystem(conn: DatabaseConnection): Promise<boolean> {
     return false;
   } catch (error) {
     log.debug('DB', 'HiDNS system check failed', { error: (error as Error).message });
+    return false;
+  }
+}
+
+/**
+ * Check if users table has any data
+ */
+async function checkUsersExist(conn: DatabaseConnection): Promise<boolean> {
+  try {
+    const result = await conn.execute('SELECT COUNT(*) as count FROM users');
+    if (Array.isArray(result) && result.length > 0) {
+      const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
+      return parseInt(String(count), 10) > 0;
+    }
+    return false;
+  } catch (error) {
+    log.warn('DB', 'Failed to check users table', { error: (error as Error).message });
     return false;
   }
 }
