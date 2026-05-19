@@ -473,6 +473,8 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS whois_status TEXT`,
     // Migration: Add enabled column to domains table for domain enable/disable tracking
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
+    // Migration: Add enabled column to dns_accounts table for account enable/disable tracking
+    `ALTER TABLE dns_accounts ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE`,
     // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,

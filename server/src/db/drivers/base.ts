@@ -24,13 +24,85 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract readonly type: DatabaseType;
   protected _stats: ConnectionStats = { queries: 0, acquired: 0, released: 0, errors: 0 };
   protected config: DriverConfig;
+  protected slowQueryThreshold: number; // 慢查询阈值（毫秒）
 
   constructor(config: DriverConfig = {}) {
     this.config = config;
+    this.slowQueryThreshold = config.slowQueryThreshold || 1000; // 默认 1 秒
   }
 
   get stats(): ConnectionStats {
     return { ...this._stats };
+  }
+
+  /**
+   * Execute query with slow query detection
+   */
+  protected async executeWithSlowQueryCheck<T>(
+    operation: string,
+    sql: string,
+    params: unknown[] | undefined,
+    executor: () => Promise<T>
+  ): Promise<T> {
+    const startTime = Date.now();
+    
+    try {
+      const result = await executor();
+      const duration = Date.now() - startTime;
+      
+      // Check if query is slow
+      if (duration > this.slowQueryThreshold) {
+        this.logSlowQuery(operation, sql, params, duration);
+      }
+      
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this._stats.errors++;
+      
+      // Also log slow failed queries
+      if (duration > this.slowQueryThreshold) {
+        this.logSlowQuery(operation, sql, params, duration, error as Error);
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Log slow query information
+   */
+  protected logSlowQuery(
+    operation: string,
+    sql: string,
+    params: unknown[] | undefined,
+    duration: number,
+    error?: Error
+  ): void {
+    const logData: any = {
+      operation,
+      duration: `${duration}ms`,
+      threshold: `${this.slowQueryThreshold}ms`,
+      sql: sql.substring(0, 200), // Limit SQL length
+    };
+    
+    if (params && params.length > 0) {
+      logData.params = params;
+    }
+    
+    if (error) {
+      logData.error = error.message;
+    }
+    
+    // Use console.warn for slow queries to ensure visibility
+    console.warn(`[Slow Query] ${operation} took ${duration}ms (threshold: ${this.slowQueryThreshold}ms)`);
+    console.warn('  SQL:', sql.substring(0, 200));
+    if (params && params.length > 0) {
+      console.warn('  Params:', params);
+    }
+    if (error) {
+      console.warn('  Error:', error.message);
+    }
   }
 
   abstract get isConnected(): boolean;
