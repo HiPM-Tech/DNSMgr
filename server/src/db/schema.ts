@@ -168,62 +168,61 @@ async function addNsMonitorColumns(
     domainNameExists = false;
   }
   
-  // If domain_name already exists, skip all migrations
-  if (domainNameExists) {
-    log.info('Schema', 'domain_name column already exists, skipping migration');
-    return;
-  }
-  
-  const columns = [
-    { name: 'encrypted_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN encrypted_ns TEXT' },
-    { name: 'plain_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN plain_ns TEXT' },
-    { name: 'is_poisoned', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN is_poisoned TINYINT NOT NULL DEFAULT 0' },
-    { name: 'domain_name', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN domain_name VARCHAR(255) NOT NULL DEFAULT \'\'' }
-  ];
+  // Only skip adding the column if it already exists, but continue with other migrations
+  if (!domainNameExists) {
+    const columns = [
+      { name: 'encrypted_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN encrypted_ns TEXT' },
+      { name: 'plain_ns', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN plain_ns TEXT' },
+      { name: 'is_poisoned', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN is_poisoned TINYINT NOT NULL DEFAULT 0' },
+      { name: 'domain_name', sql: 'ALTER TABLE ns_monitor_domains ADD COLUMN domain_name VARCHAR(255) NOT NULL DEFAULT \'\'' }
+    ];
 
-  for (const column of columns) {
-    try {
-      // 检查列是否存在 - 使用 SHOW COLUMNS 更可靠
-      const checkColumnSql = `SHOW COLUMNS FROM ns_monitor_domains LIKE '${column.name}'`;
+    for (const column of columns) {
+      try {
+        // 检查列是否存在 - 使用 SHOW COLUMNS 更可靠
+        const checkColumnSql = `SHOW COLUMNS FROM ns_monitor_domains LIKE '${column.name}'`;
 
-      let columnExists = false;
-      if (conn.execute) {
-        const result = await conn.execute(checkColumnSql);
-        // SHOW COLUMNS 返回空数组表示字段不存在，有数据表示存在
-        if (Array.isArray(result)) {
-          columnExists = result.length > 0;
-          log.debug('Schema', `Check ${column.name}: found ${result.length} rows, exists=${columnExists}`);
+        let columnExists = false;
+        if (conn.execute) {
+          const result = await conn.execute(checkColumnSql);
+          // SHOW COLUMNS 返回空数组表示字段不存在，有数据表示存在
+          if (Array.isArray(result)) {
+            columnExists = result.length > 0;
+            log.debug('Schema', `Check ${column.name}: found ${result.length} rows, exists=${columnExists}`);
+          }
+        } else if (conn.exec) {
+          // 对于同步exec方法，也尝试检查（虽然通常不会用到）
+          log.debug('Schema', `Skipping column existence check for ${column.name} (sync connection)`);
+          columnExists = false;  // 同步连接不做检查，直接尝试添加
         }
-      } else if (conn.exec) {
-        // 对于同步exec方法，也尝试检查（虽然通常不会用到）
-        log.debug('Schema', `Skipping column existence check for ${column.name} (sync connection)`);
-        columnExists = false;  // 同步连接不做检查，直接尝试添加
-      }
 
-      if (columnExists) {
-        log.info('Schema', `${column.name} column already exists in ns_monitor_domains table, skipping ALTER TABLE`);
-        continue;  // 跳过此列，不执行ALTER TABLE
-      }
-      
-      // 只在字段不存在时才执行ALTER TABLE，避免触发驱动层ERROR日志
-      log.info('Schema', `Adding ${column.name} column to ns_monitor_domains table...`);
-      if (conn.execute) {
-        await conn.execute(column.sql);
-      } else if (conn.exec) {
-        conn.exec(column.sql);
-      }
-      log.info('Schema', `Successfully added ${column.name} column`);
-    } catch (error) {
-      const errorMsg = (error as Error).message || '';
-      if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
-        log.info('Schema', `${column.name} column already exists`);
-      } else {
-        log.warn('Schema', `Failed to add ${column.name} column`, { error: errorMsg });
+        if (columnExists) {
+          log.info('Schema', `${column.name} column already exists in ns_monitor_domains table, skipping ALTER TABLE`);
+          continue;  // 跳过此列，不执行ALTER TABLE
+        }
+        
+        // 只在字段不存在时才执行ALTER TABLE，避免触发驱动层ERROR日志
+        log.info('Schema', `Adding ${column.name} column to ns_monitor_domains table...`);
+        if (conn.execute) {
+          await conn.execute(column.sql);
+        } else if (conn.exec) {
+          conn.exec(column.sql);
+        }
+        log.info('Schema', `Successfully added ${column.name} column`);
+      } catch (error) {
+        const errorMsg = (error as Error).message || '';
+        if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+          log.info('Schema', `${column.name} column already exists`);
+        } else {
+          log.warn('Schema', `Failed to add ${column.name} column`, { error: errorMsg });
+        }
       }
     }
+  } else {
+    log.info('Schema', 'domain_name column already exists, skipping column addition');
   }
   
-  // Migration: Sync domain_name from domains table for existing records (always execute)
+  // Always sync domain_name data (even if column already exists)
   try {
     log.info('Schema', 'Syncing domain_name from domains table...');
     const syncSql = `
@@ -242,7 +241,7 @@ async function addNsMonitorColumns(
     log.warn('Schema', 'Failed to sync domain_name', { error: (error as Error).message });
   }
   
-  // Migration: Drop foreign key and domain_id column (for performance)
+  // Always drop domain_id column (for performance)
   try {
     log.info('Schema', 'Starting domain_id cleanup (FK + column)...');
     
@@ -730,52 +729,52 @@ async function handleSQLiteMigrations(
   if (!domainNameExists) {
     // Migration: Add domain_name column to ns_monitor_domains table
     await addSQLiteColumn(conn, 'ns_monitor_domains', 'domain_name', 'TEXT NOT NULL DEFAULT \'\'');
-    
-    // Migration: Sync domain_name from domains table for existing records
-    try {
-      log.info('Schema', 'Syncing domain_name from domains table (SQLite)...');
-      const syncSql = `
-        UPDATE ns_monitor_domains 
-        SET domain_name = (
-          SELECT name FROM domains WHERE domains.id = ns_monitor_domains.domain_id
-        )
-        WHERE domain_name = '' AND domain_id IS NOT NULL
-      `;
-      if (conn.exec) {
-        conn.exec(syncSql);
-        log.info('Schema', 'Successfully synced domain_name (SQLite)');
-      }
-    } catch (error) {
-      log.warn('Schema', 'Failed to sync domain_name (SQLite)', { error: (error as Error).message });
-    }
-    
-    // Migration: Drop domain_id column (for performance)
-    try {
-      log.info('Schema', 'Dropping domain_id column (SQLite)...');
-      if (conn.exec) {
-        // SQLite requires table recreation to drop columns
-        conn.exec(`
-          CREATE TABLE ns_monitor_domains_new AS
-          SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
-                 is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count,
-                 created_at, updated_at
-          FROM ns_monitor_domains
-        `);
-        conn.exec('DROP TABLE ns_monitor_domains');
-        conn.exec('ALTER TABLE ns_monitor_domains_new RENAME TO ns_monitor_domains');
-        
-        // Recreate indexes (without domain_id index)
-        conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
-        conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
-        conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
-        
-        log.info('Schema', 'Successfully dropped domain_id column and recreated indexes (SQLite)');
-      }
-    } catch (error) {
-      log.error('Schema', 'Failed to drop domain_id column (SQLite)', { error: (error as Error).message });
-    }
   } else {
-    log.info('Schema', 'domain_name column already exists, skipping migration');
+    log.info('Schema', 'domain_name column already exists, skipping column addition');
+  }
+  
+  // Always sync domain_name data (even if column already exists)
+  try {
+    log.info('Schema', 'Syncing domain_name from domains table (SQLite)...');
+    const syncSql = `
+      UPDATE ns_monitor_domains 
+      SET domain_name = (
+        SELECT name FROM domains WHERE domains.id = ns_monitor_domains.domain_id
+      )
+      WHERE domain_name = '' AND domain_id IS NOT NULL
+    `;
+    if (conn.exec) {
+      conn.exec(syncSql);
+      log.info('Schema', 'Successfully synced domain_name (SQLite)');
+    }
+  } catch (error) {
+    log.warn('Schema', 'Failed to sync domain_name (SQLite)', { error: (error as Error).message });
+  }
+  
+  // Always drop domain_id column (for performance)
+  try {
+    log.info('Schema', 'Dropping domain_id column (SQLite)...');
+    if (conn.exec) {
+      // SQLite requires table recreation to drop columns
+      conn.exec(`
+        CREATE TABLE ns_monitor_domains_new AS
+        SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
+               is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count,
+               created_at, updated_at
+        FROM ns_monitor_domains
+      `);
+      conn.exec('DROP TABLE ns_monitor_domains');
+      conn.exec('ALTER TABLE ns_monitor_domains_new RENAME TO ns_monitor_domains');
+      
+      // Recreate indexes (without domain_id index)
+      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
+      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
+      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
+      
+      log.info('Schema', 'Successfully dropped domain_id column and recreated indexes (SQLite)');
+    }
+  } catch (error) {
+    log.error('Schema', 'Failed to drop domain_id column (SQLite)', { error: (error as Error).message });
   }
 
   // Migration: Add pinned_domains column to user_preferences table
