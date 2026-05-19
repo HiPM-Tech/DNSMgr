@@ -126,12 +126,13 @@ export const mysqlSchema: SchemaDefinition = {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS operation_logs (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
+      user_id INT NOT NULL DEFAULT 0,
       action VARCHAR(255) NOT NULL,
       domain VARCHAR(255) NOT NULL DEFAULT '',
       data JSON,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      -- Note: Foreign key removed to allow system operations (user_id=0)
+      -- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       INDEX idx_user_id (user_id),
       INDEX idx_action (action),
       INDEX idx_domain (domain),
@@ -470,6 +471,8 @@ export const mysqlSchema: SchemaDefinition = {
     // Migration: Add 'admin' to team_members role enum
     // This modifies the existing ENUM to include 'admin' role
     `ALTER TABLE team_members MODIFY COLUMN role ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member'`,
+    // Migration: Remove foreign key constraint from operation_logs to allow system operations (user_id=0)
+    `ALTER TABLE operation_logs DROP FOREIGN KEY operation_logs_ibfk_1`,
     // Note: apex_expires_at column is added via handleMySQLMigrations() in schema.ts
     // (stored procedures are not supported in prepared statement protocol)
     // Note: encrypted_ns, plain_ns, is_poisoned columns are added via addNsMonitorColumns() in schema.ts
