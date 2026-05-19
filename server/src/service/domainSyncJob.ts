@@ -35,6 +35,7 @@ async function syncAccountDomains(account: any): Promise<void> {
     let page = 1;
     const pageSize = 50;
     let hasMore = true;
+    let apiError = false;
     
     while (hasMore) {
       try {
@@ -63,13 +64,39 @@ async function syncAccountDomains(account: any): Promise<void> {
         // 避免请求过快
         await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        
+        // Check for timeout or 404 errors
+        if (errorMsg.includes('timeout') || 
+            errorMsg.includes('ETIMEDOUT') ||
+            errorMsg.includes('404') ||
+            errorMsg.includes('Not Found')) {
+          log.error('DomainSyncJob', `API timeout or 404, skipping sync for this account`, {
+            accountId,
+            page,
+            error: errorMsg,
+          });
+          apiError = true;
+          hasMore = false;
+          break;
+        }
+        
         log.error('DomainSyncJob', `Failed to fetch domains page ${page}`, {
           accountId,
           page,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMsg,
         });
         hasMore = false;
       }
+    }
+    
+    // If API failed, skip the sync to avoid disabling domains incorrectly
+    if (apiError) {
+      log.warn('DomainSyncJob', `Skipping domain sync due to API error`, {
+        accountId,
+        accountName,
+      });
+      return;
     }
     
     log.info('DomainSyncJob', `Fetched ${providerDomains.length} domains from provider`, {
