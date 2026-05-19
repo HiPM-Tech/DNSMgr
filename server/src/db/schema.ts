@@ -208,43 +208,68 @@ async function addNsMonitorColumns(
     log.warn('Schema', 'Failed to sync domain_name', { error: (error as Error).message });
   }
   
-  // Migration: Make domain_id nullable (if it exists and is NOT NULL)
+  // Migration: Drop foreign key and domain_id column (for performance)
   try {
-    log.info('Schema', 'Checking if domain_id column needs to be made nullable...');
-    const checkSql = `
-      SELECT IS_NULLABLE 
-      FROM INFORMATION_SCHEMA.COLUMNS 
+    log.info('Schema', 'Starting domain_id cleanup (FK + column)...');
+    
+    // Step 1: Find and drop all foreign keys on domain_id
+    const findFkSql = `
+      SELECT CONSTRAINT_NAME 
+      FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
       WHERE TABLE_NAME = 'ns_monitor_domains' 
       AND COLUMN_NAME = 'domain_id'
+      AND REFERENCED_TABLE_NAME IS NOT NULL
     `;
     
-    let isNullable = false;
+    let fkNames: string[] = [];
     if (conn.execute) {
-      const result = await conn.execute(checkSql);
-      if (Array.isArray(result) && result.length > 0) {
-        isNullable = (result[0] as any).IS_NULLABLE === 'YES';
-        log.info('Schema', `domain_id IS_NULLABLE: ${isNullable}`);
+      const fkResult = await conn.execute(findFkSql);
+      if (Array.isArray(fkResult)) {
+        fkNames = fkResult.map((row: any) => row.CONSTRAINT_NAME).filter(Boolean);
+        log.info('Schema', `Found ${fkNames.length} foreign key(s) on domain_id: ${fkNames.join(', ')}`);
       }
     }
     
-    if (!isNullable) {
-      log.info('Schema', 'Making domain_id column nullable...');
-      const alterSql = 'ALTER TABLE ns_monitor_domains MODIFY domain_id INT DEFAULT NULL';
-      if (conn.execute) {
-        await conn.execute(alterSql);
-      } else if (conn.exec) {
-        conn.exec(alterSql);
+    // Drop each foreign key
+    for (const fkName of fkNames) {
+      try {
+        log.info('Schema', `Dropping FK: ${fkName}...`);
+        if (conn.execute) {
+          await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
+        }
+        log.info('Schema', `Successfully dropped FK: ${fkName}`);
+      } catch (fkError) {
+        log.warn('Schema', `Failed to drop FK ${fkName}`, { error: (fkError as Error).message });
       }
-      log.info('Schema', 'Successfully made domain_id nullable');
-    } else {
-      log.info('Schema', 'domain_id is already nullable, skipping');
     }
+    
+    // Step 2: Drop the domain_id column
+    log.info('Schema', 'Dropping domain_id column...');
+    if (conn.execute) {
+      await conn.execute('ALTER TABLE ns_monitor_domains DROP COLUMN domain_id');
+    }
+    log.info('Schema', 'Successfully dropped domain_id column');
+    
+    // Step 3: Drop the idx_domain_id index
+    log.info('Schema', 'Dropping idx_domain_id index...');
+    try {
+      if (conn.execute) {
+        await conn.execute('DROP INDEX idx_domain_id ON ns_monitor_domains');
+      }
+      log.info('Schema', 'Successfully dropped idx_domain_id index');
+    } catch (indexError) {
+      const errorMsg = (indexError as Error).message || '';
+      if (errorMsg.includes('CANT_DROP') || errorMsg.includes('check that key/index exists')) {
+        log.info('Schema', 'idx_domain_id index already dropped');
+      } else {
+        log.warn('Schema', 'Failed to drop idx_domain_id index', { error: errorMsg });
+      }
+    }
+    
+    log.info('Schema', 'Completed domain_id cleanup');
   } catch (error) {
-    log.warn('Schema', 'Failed to make domain_id nullable', { error: (error as Error).message });
+    log.error('Schema', 'Failed to cleanup domain_id', { error: (error as Error).message });
   }
-  
-  // Note: domain_id column is kept but set to NULL for backward compatibility
-  // It will be deprecated in future versions
 }
 
 /**
@@ -671,8 +696,31 @@ async function handleSQLiteMigrations(
     log.warn('Schema', 'Failed to sync domain_name (SQLite)', { error: (error as Error).message });
   }
   
-  // Note: domain_id column is kept but set to NULL for backward compatibility
-  // It will be deprecated in future versions
+  // Migration: Drop domain_id column (for performance)
+  try {
+    log.info('Schema', 'Dropping domain_id column (SQLite)...');
+    if (conn.exec) {
+      // SQLite requires table recreation to drop columns
+      conn.exec(`
+        CREATE TABLE ns_monitor_domains_new AS
+        SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
+               is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count,
+               created_at, updated_at
+        FROM ns_monitor_domains
+      `);
+      conn.exec('DROP TABLE ns_monitor_domains');
+      conn.exec('ALTER TABLE ns_monitor_domains_new RENAME TO ns_monitor_domains');
+      
+      // Recreate indexes (without domain_id index)
+      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
+      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
+      conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
+      
+      log.info('Schema', 'Successfully dropped domain_id column (SQLite)');
+    }
+  } catch (error) {
+    log.error('Schema', 'Failed to drop domain_id column (SQLite)', { error: (error as Error).message });
+  }
 
   // Migration: Add pinned_domains column to user_preferences table
   await addSQLiteColumn(conn, 'user_preferences', 'pinned_domains', "TEXT DEFAULT '[]'");
