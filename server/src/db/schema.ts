@@ -155,62 +155,6 @@ async function handleMySQLMigrations(
     await addDomainsEnabledColumn(conn);
     log.info('Schema', 'Completed domains enabled column migration');
 
-    // 迁移4: 添加 encrypted_ns, plain_ns, is_poisoned 字段到 ns_monitor_domains
-    log.info('Schema', 'Starting ns_monitor_domains columns migration...');
-    
-    // Use transaction for domain_id cleanup to ensure same connection
-    const mysqlDriver = (conn as any).driver;
-    if (mysqlDriver && mysqlDriver.beginTransaction) {
-      let tx: any = null;
-      try {
-        tx = await mysqlDriver.beginTransaction();
-        log.info('Schema', 'Transaction started for ns_monitor_domains migration');
-        
-        // Create a wrapper that uses the transaction
-        const txConn = {
-          type: 'mysql' as const,
-          execute: async (sql: string, params?: unknown[]) => {
-            await tx.execute(sql, params);
-          }
-        };
-        
-        await addNsMonitorColumns(txConn);
-        
-        // Commit transaction
-        await tx.commit?.();
-        log.info('Schema', 'Transaction committed');
-      } catch (error) {
-        // Rollback on error
-        try {
-          await tx?.rollback?.();
-          log.info('Schema', 'Transaction rolled back');
-        } catch (rollbackError) {
-          log.warn('Schema', 'Failed to rollback', { error: (rollbackError as Error).message });
-        }
-        throw error;
-      }
-    } else {
-      // Fallback: use regular connection (may have issues with FK checks)
-      log.warn('Schema', 'Transaction not available, using regular connection');
-      await addNsMonitorColumns(conn);
-    }
-    
-    log.info('Schema', 'Completed ns_monitor_domains columns migration');
-    
-    // 迁移4: 创建 whois_cache 表
-    log.info('Schema', 'Starting whois_cache table migration...');
-    await ensureWhoisCacheTableMySQL(conn);
-    log.info('Schema', 'Completed whois_cache table migration');
-    
-    // 迁移5: 添加 pinned_domains 字段到 user_preferences 表
-    log.info('Schema', 'Starting user_preferences pinned_domains column migration...');
-    await addPinnedDomainsColumn(conn);
-    log.info('Schema', 'Completed user_preferences pinned_domains column migration');
-
-    log.info('Schema', 'Starting user_preferences avatar_image column migration...');
-    await addUserPreferencesTextColumn(conn, 'avatar_image');
-    log.info('Schema', 'Completed user_preferences avatar_image column migration');
-
     // Migration: Add enabled field to dns_accounts table using export-rebuild pattern
     // Note: This migration runs on every startup but checks if column exists first (idempotent)
     log.info('Schema', 'Checking dns_accounts.enabled column...');
@@ -279,6 +223,62 @@ async function handleMySQLMigrations(
       log.error('Schema', 'Failed to add enabled column to dns_accounts', { error: (error as Error).message });
       throw error; // Re-throw to prevent silent failures
     }
+
+    // 迁移4: 添加 encrypted_ns, plain_ns, is_poisoned 字段到 ns_monitor_domains
+    log.info('Schema', 'Starting ns_monitor_domains columns migration...');
+    
+    // Use transaction for domain_id cleanup to ensure same connection
+    const mysqlDriver = (conn as any).driver;
+    if (mysqlDriver && mysqlDriver.beginTransaction) {
+      let tx: any = null;
+      try {
+        tx = await mysqlDriver.beginTransaction();
+        log.info('Schema', 'Transaction started for ns_monitor_domains migration');
+        
+        // Create a wrapper that uses the transaction
+        const txConn = {
+          type: 'mysql' as const,
+          execute: async (sql: string, params?: unknown[]) => {
+            await tx.execute(sql, params);
+          }
+        };
+        
+        await addNsMonitorColumns(txConn);
+        
+        // Commit transaction
+        await tx.commit?.();
+        log.info('Schema', 'Transaction committed');
+      } catch (error) {
+        // Rollback on error
+        try {
+          await tx?.rollback?.();
+          log.info('Schema', 'Transaction rolled back');
+        } catch (rollbackError) {
+          log.warn('Schema', 'Failed to rollback', { error: (rollbackError as Error).message });
+        }
+        throw error;
+      }
+    } else {
+      // Fallback: use regular connection (may have issues with FK checks)
+      log.warn('Schema', 'Transaction not available, using regular connection');
+      await addNsMonitorColumns(conn);
+    }
+    
+    log.info('Schema', 'Completed ns_monitor_domains columns migration');
+    
+    // 迁移4: 创建 whois_cache 表
+    log.info('Schema', 'Starting whois_cache table migration...');
+    await ensureWhoisCacheTableMySQL(conn);
+    log.info('Schema', 'Completed whois_cache table migration');
+    
+    // 迁移5: 添加 pinned_domains 字段到 user_preferences 表
+    log.info('Schema', 'Starting user_preferences pinned_domains column migration...');
+    await addPinnedDomainsColumn(conn);
+    log.info('Schema', 'Completed user_preferences pinned_domains column migration');
+
+    log.info('Schema', 'Starting user_preferences avatar_image column migration...');
+    await addUserPreferencesTextColumn(conn, 'avatar_image');
+    log.info('Schema', 'Completed user_preferences avatar_image column migration');
 
     // Migration: Update dns_accounts type from dnsmgr to hidns
     await migrateDnsAccountType(conn);
