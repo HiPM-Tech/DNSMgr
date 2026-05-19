@@ -4,13 +4,96 @@
  * 如果域名在提供商 API 中不存在，则自动禁用该域名
  */
 
-import { DnsAccountOperations, DomainOperations } from '../db/business-adapter';
+import { DnsAccountOperations, DomainOperations, RenewableDomainOperations } from '../db/business-adapter';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { taskManager } from './taskManager';
 import { logAuditOperation } from './audit';
 import { log } from '../lib/logger';
 
 let syncInterval: NodeJS.Timeout | null = null;
+
+/**
+ * 同步检测续期域名
+ */
+async function syncRenewableDomains(account: any, providerDomainSet: Set<string>): Promise<void> {
+  const accountId = account.id;
+  const accountName = account.name;
+  
+  try {
+    // 获取该账户的所有续期域名
+    const renewableDomains = await RenewableDomainOperations.getByAccountId(accountId);
+    
+    if (renewableDomains.length === 0) {
+      return;
+    }
+    
+    log.info('DomainSyncJob', `Checking ${renewableDomains.length} renewable domains for account: ${accountName}`);
+    
+    let disabledCount = 0;
+    const disabledDomains: string[] = [];
+    
+    for (const renewableDomain of renewableDomains) {
+      const domainName = (renewableDomain as any).full_domain?.toLowerCase() || 
+                        (renewableDomain as any).domain_name?.toLowerCase();
+      
+      if (!domainName) {
+        log.warn('DomainSyncJob', 'Renewable domain has no name, skipping', {
+          id: (renewableDomain as any).id,
+        });
+        continue;
+      }
+      
+      // 如果域名不在提供商列表中，且当前状态是启用，则禁用
+      if (!providerDomainSet.has(domainName) && (renewableDomain as any).enabled !== false) {
+        log.warn('DomainSyncJob', `Renewable domain not found in provider, disabling: ${domainName}`, {
+          accountId,
+          renewableDomainId: (renewableDomain as any).id,
+        });
+        
+        // 禁用续期域名
+        await RenewableDomainOperations.toggleEnabled((renewableDomain as any).id, false);
+        
+        // 记录审计日志（使用系统用户 ID 0）
+        try {
+          await logAuditOperation(
+            0, // System user
+            'auto_disable_renewable_domain',
+            domainName,
+            {
+              accountId,
+              accountName,
+              reason: 'Renewable domain not found in provider API',
+              thirdId: (renewableDomain as any).third_id,
+            },
+            undefined // No request object for scheduled tasks
+          );
+        } catch (auditError) {
+          log.error('DomainSyncJob', 'Failed to log audit operation for renewable domain', {
+            domain: domainName,
+            error: auditError,
+          });
+        }
+        
+        disabledCount++;
+        disabledDomains.push(domainName);
+      }
+    }
+    
+    if (disabledCount > 0) {
+      log.info('DomainSyncJob', `Disabled ${disabledCount} renewable domains`, {
+        accountId,
+        accountName,
+        disabledDomains,
+      });
+    }
+  } catch (error) {
+    log.error('DomainSyncJob', `Failed to sync renewable domains`, {
+      accountId,
+      accountName,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 
 /**
  * 同步检测单个账户的域名
@@ -167,6 +250,9 @@ async function syncAccountDomains(account: any): Promise<void> {
         accountName,
       });
     }
+    
+    // Sync renewable_domains table
+    await syncRenewableDomains(account, providerDomainSet);
   } catch (error) {
     log.error('DomainSyncJob', `Failed to sync account domains`, {
       accountId,
