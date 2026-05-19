@@ -208,6 +208,41 @@ async function addNsMonitorColumns(
     log.warn('Schema', 'Failed to sync domain_name', { error: (error as Error).message });
   }
   
+  // Migration: Make domain_id nullable (if it exists and is NOT NULL)
+  try {
+    log.info('Schema', 'Checking if domain_id column needs to be made nullable...');
+    const checkSql = `
+      SELECT IS_NULLABLE 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'ns_monitor_domains' 
+      AND COLUMN_NAME = 'domain_id'
+    `;
+    
+    let isNullable = false;
+    if (conn.execute) {
+      const result = await conn.execute(checkSql);
+      if (Array.isArray(result) && result.length > 0) {
+        isNullable = (result[0] as any).IS_NULLABLE === 'YES';
+        log.info('Schema', `domain_id IS_NULLABLE: ${isNullable}`);
+      }
+    }
+    
+    if (!isNullable) {
+      log.info('Schema', 'Making domain_id column nullable...');
+      const alterSql = 'ALTER TABLE ns_monitor_domains MODIFY domain_id INT DEFAULT NULL';
+      if (conn.execute) {
+        await conn.execute(alterSql);
+      } else if (conn.exec) {
+        conn.exec(alterSql);
+      }
+      log.info('Schema', 'Successfully made domain_id nullable');
+    } else {
+      log.info('Schema', 'domain_id is already nullable, skipping');
+    }
+  } catch (error) {
+    log.warn('Schema', 'Failed to make domain_id nullable', { error: (error as Error).message });
+  }
+  
   // Note: domain_id column is kept but set to NULL for backward compatibility
   // It will be deprecated in future versions
 }
