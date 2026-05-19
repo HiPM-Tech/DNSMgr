@@ -251,10 +251,10 @@ async function addNsMonitorColumns(
       const findFkSql = `
         SELECT CONSTRAINT_NAME 
         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-        WHERE TABLE_NAME = 'ns_monitor_domains' 
+        WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'ns_monitor_domains' 
         AND COLUMN_NAME = 'domain_id'
         AND REFERENCED_TABLE_NAME IS NOT NULL
-        LIMIT 1
       `;
       
       const fkResult = await conn.execute(findFkSql) as any[];
@@ -264,7 +264,22 @@ async function addNsMonitorColumns(
         await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
         log.info('Schema', 'Successfully dropped FK constraint');
       } else {
-        log.info('Schema', 'No FK constraint found on domain_id');
+        log.info('Schema', 'No FK constraint found on domain_id, trying to list all constraints...');
+        // Debug: List all constraints on the table
+        try {
+          const debugSql = `
+            SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME
+            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'ns_monitor_domains'
+          `;
+          const debugResult = await conn.execute(debugSql) as any[];
+          if (Array.isArray(debugResult)) {
+            log.info('Schema', `All constraints on ns_monitor_domains:`, debugResult.map((r: any) => `${r.CONSTRAINT_NAME}(${r.COLUMN_NAME}) -> ${r.REFERENCED_TABLE_NAME || 'NULL'}`).join(', '));
+          }
+        } catch (debugError) {
+          log.warn('Schema', 'Failed to debug constraints', { error: (debugError as Error).message });
+        }
       }
       
       // Step 2: Drop the domain_id column
