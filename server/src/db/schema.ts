@@ -298,20 +298,36 @@ async function addNsMonitorColumns(
       // Step 2: Clean up duplicate records before dropping column
       log.info('Schema', 'Checking for duplicate (user_id, domain_name) combinations...');
       try {
-        // Find and keep only the first record for each (user_id, domain_name) pair
-        const cleanupSql = `
-          DELETE n1 FROM ns_monitor_domains n1
-          INNER JOIN ns_monitor_domains n2 
-          WHERE n1.id > n2.id 
-          AND n1.user_id = n2.user_id 
-          AND n1.domain_name = n2.domain_name
+        // First, find duplicates
+        const findDuplicatesSql = `
+          SELECT user_id, domain_name, COUNT(*) as count
+          FROM ns_monitor_domains
+          GROUP BY user_id, domain_name
+          HAVING count > 1
         `;
+        
         if (conn.execute) {
-          await conn.execute(cleanupSql);
-          log.info('Schema', 'Cleaned up duplicate records');
+          const duplicates = await conn.execute(findDuplicatesSql) as any[];
+          if (Array.isArray(duplicates) && duplicates.length > 0) {
+            log.warn('Schema', `Found ${duplicates.length} duplicate (user_id, domain_name) combinations:`, 
+              duplicates.map((d: any) => `(${d.user_id}, ${d.domain_name}) x${d.count}`).join(', '));
+            
+            // Delete duplicates, keeping only the first record (lowest id)
+            const cleanupSql = `
+              DELETE n1 FROM ns_monitor_domains n1
+              INNER JOIN ns_monitor_domains n2 
+              WHERE n1.id > n2.id 
+              AND n1.user_id = n2.user_id 
+              AND n1.domain_name = n2.domain_name
+            `;
+            await conn.execute(cleanupSql);
+            log.info('Schema', 'Cleaned up duplicate records');
+          } else {
+            log.info('Schema', 'No duplicate records found');
+          }
         }
       } catch (cleanupError) {
-        log.warn('Schema', 'Failed to cleanup duplicates', { error: (cleanupError as Error).message });
+        log.error('Schema', 'Failed to cleanup duplicates', { error: (cleanupError as Error).message });
       }
       
       // Step 3: Drop the domain_id column
