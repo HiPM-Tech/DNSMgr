@@ -46,6 +46,77 @@ export class SchemaVersionManager {
   }
 
   /**
+   * Ensure schema_versions table exists, create it if not
+   */
+  async ensureVersionTableExists(): Promise<void> {
+    const dbType = (this.conn as any).type || 'unknown';
+    
+    // Check if table already exists
+    if (await this.hasVersionTable()) {
+      return; // Table already exists
+    }
+    
+    log.info('SchemaVersion', 'Creating schema_versions table...');
+    
+    // Create table based on database type
+    let createTableSQL = '';
+    
+    switch (dbType) {
+      case 'mysql':
+        createTableSQL = `
+          CREATE TABLE IF NOT EXISTS schema_versions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            version VARCHAR(50) NOT NULL UNIQUE,
+            description TEXT,
+            applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            success BOOLEAN NOT NULL DEFAULT TRUE,
+            error_message TEXT,
+            execution_time_ms INT,
+            system_type VARCHAR(50) DEFAULT 'hidns',
+            INDEX idx_version (version),
+            INDEX idx_applied_at (applied_at),
+            INDEX idx_system_type (system_type)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `;
+        break;
+      
+      case 'postgresql':
+        createTableSQL = `
+          CREATE TABLE IF NOT EXISTS schema_versions (
+            id SERIAL PRIMARY KEY,
+            version VARCHAR(50) NOT NULL UNIQUE,
+            description TEXT,
+            applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            success BOOLEAN NOT NULL DEFAULT TRUE,
+            error_message TEXT,
+            execution_time_ms INTEGER,
+            system_type VARCHAR(50) DEFAULT 'hidns'
+          )
+        `;
+        break;
+      
+      case 'sqlite':
+      default:
+        createTableSQL = `
+          CREATE TABLE IF NOT EXISTS schema_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            version TEXT NOT NULL UNIQUE,
+            description TEXT,
+            applied_at TEXT NOT NULL DEFAULT (datetime('now')),
+            success INTEGER NOT NULL DEFAULT 1,
+            error_message TEXT,
+            execution_time_ms INTEGER,
+            system_type TEXT DEFAULT 'hidns'
+          )
+        `;
+        break;
+    }
+    
+    await this.conn.execute(createTableSQL);
+    log.info('SchemaVersion', 'schema_versions table created successfully');
+  }
+
+  /**
    * Auto-detect and promote migration status based on actual database state
    * Used when schema_versions table doesn't exist (first-time setup or legacy upgrade)
    */
@@ -59,6 +130,9 @@ export class SchemaVersionManager {
       
       if (isMigrated) {
         log.info('SchemaVersion', 'Database appears to be already migrated, promoting status...');
+        
+        // Create schema_versions table if it doesn't exist
+        await this.ensureVersionTableExists();
         
         // Create version record to mark as completed
         await this.recordSuccess(description, 0);
