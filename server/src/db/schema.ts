@@ -246,40 +246,53 @@ async function addNsMonitorColumns(
     log.info('Schema', 'Starting domain_id cleanup (FK + column)...');
     
     if (conn.execute) {
-      // Step 1: Find and drop the foreign key constraint
-      log.info('Schema', 'Finding foreign key constraint on domain_id...');
-      const findFkSql = `
-        SELECT CONSTRAINT_NAME 
-        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'ns_monitor_domains' 
-        AND COLUMN_NAME = 'domain_id'
-        AND REFERENCED_TABLE_NAME IS NOT NULL
-      `;
+      // Step 1: Try to drop foreign key constraints
+      log.info('Schema', 'Attempting to drop FK constraints on domain_id...');
       
-      const fkResult = await conn.execute(findFkSql) as any[];
-      if (Array.isArray(fkResult) && fkResult.length > 0) {
-        const fkName = fkResult[0].CONSTRAINT_NAME;
-        log.info('Schema', `Found FK constraint: ${fkName}, dropping it...`);
-        await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
-        log.info('Schema', 'Successfully dropped FK constraint');
-      } else {
-        log.info('Schema', 'No FK constraint found on domain_id, trying to list all constraints...');
-        // Debug: List all constraints on the table
+      // Try common FK naming patterns
+      const possibleFkNames = [
+        'ns_monitor_domains_ibfk_1',
+        'ns_monitor_domains_ibfk_2', 
+        'ns_monitor_domains_ibfk_3',
+        'fk_ns_monitor_domains_domain_id',
+        'ns_monitor_domains_domain_id_fkey'
+      ];
+      
+      for (const fkName of possibleFkNames) {
         try {
-          const debugSql = `
-            SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME
-            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-            WHERE TABLE_SCHEMA = DATABASE()
-            AND TABLE_NAME = 'ns_monitor_domains'
-          `;
-          const debugResult = await conn.execute(debugSql) as any[];
-          if (Array.isArray(debugResult)) {
-            log.info('Schema', `All constraints on ns_monitor_domains:`, debugResult.map((r: any) => `${r.CONSTRAINT_NAME}(${r.COLUMN_NAME}) -> ${r.REFERENCED_TABLE_NAME || 'NULL'}`).join(', '));
+          await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
+          log.info('Schema', `Successfully dropped FK: ${fkName}`);
+        } catch (error) {
+          // Ignore errors - FK might not exist
+          const errorMsg = (error as Error).message || '';
+          if (!errorMsg.includes('check that it exists') && !errorMsg.includes('ER_CANT_DROP_FIELD_OR_KEY')) {
+            log.debug('Schema', `FK ${fkName} does not exist or already dropped`);
           }
-        } catch (debugError) {
-          log.warn('Schema', 'Failed to debug constraints', { error: (debugError as Error).message });
         }
+      }
+      
+      // Also query INFORMATION_SCHEMA to find any remaining FKs
+      try {
+        const findFkSql = `
+          SELECT CONSTRAINT_NAME 
+          FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+          WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'ns_monitor_domains' 
+          AND COLUMN_NAME = 'domain_id'
+          AND REFERENCED_TABLE_NAME IS NOT NULL
+        `;
+        
+        const fkResult = await conn.execute(findFkSql) as any[];
+        if (Array.isArray(fkResult) && fkResult.length > 0) {
+          for (const row of fkResult) {
+            const fkName = row.CONSTRAINT_NAME;
+            log.info('Schema', `Found FK via INFORMATION_SCHEMA: ${fkName}, dropping...`);
+            await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
+            log.info('Schema', `Successfully dropped FK: ${fkName}`);
+          }
+        }
+      } catch (queryError) {
+        log.warn('Schema', 'Failed to query INFORMATION_SCHEMA', { error: (queryError as Error).message });
       }
       
       // Step 2: Drop the domain_id column
