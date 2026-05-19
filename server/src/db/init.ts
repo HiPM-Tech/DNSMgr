@@ -46,7 +46,7 @@ export async function initSchema(): Promise<void> {
     }
     
     log.info('DB', 'HiDNS system fully initialized, running migration checks...');
-    // Continue to migration handling below
+    // Continue to migration handling below - will call initSchemaAsync
   } else {
     // Not a HiDNS system, check if it's a legacy system or first-time setup
     

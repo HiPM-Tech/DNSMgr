@@ -212,28 +212,24 @@ async function handleMySQLMigrations(
     log.info('Schema', 'Completed user_preferences avatar_image column migration');
 
     // Migration: Add enabled field to dns_accounts table using export-rebuild pattern
-    await executeMigration(
-      versionManager,
-      'Add enabled column to dns_accounts table (export-rebuild)',
-      async () => {
-        // Check if migration is needed
-        const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-          WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
-        
-        let needMigration = true;
-        if (conn.execute) {
-          const result = await conn.execute(checkSql) as any[];
-          if (Array.isArray(result) && result.length > 0) {
-            const count = (result[0] as any).cnt;
-            needMigration = count === 0;
-          }
+    // Note: This migration runs on every startup but checks if column exists first (idempotent)
+    log.info('Schema', 'Checking dns_accounts.enabled column...');
+    try {
+      const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
+      
+      let needMigration = true;
+      if (conn.execute) {
+        const result = await conn.execute(checkSql) as any[];
+        if (Array.isArray(result) && result.length > 0) {
+          const count = (result[0] as any).cnt;
+          needMigration = count === 0;
         }
-        
-        if (!needMigration) {
-          log.info('Schema', 'enabled column already exists in dns_accounts, skipping migration');
-          return;
-        }
-        
+      }
+      
+      if (!needMigration) {
+        log.info('Schema', 'enabled column already exists in dns_accounts, skipping migration');
+      } else {
         log.info('Schema', 'Starting export-rebuild migration for dns_accounts...');
         
         if (conn.execute) {
@@ -279,7 +275,10 @@ async function handleMySQLMigrations(
           log.info('Schema', 'Export-rebuild migration completed successfully');
         }
       }
-    );
+    } catch (error) {
+      log.error('Schema', 'Failed to add enabled column to dns_accounts', { error: (error as Error).message });
+      throw error; // Re-throw to prevent silent failures
+    }
 
     // Migration: Update dns_accounts type from dnsmgr to hidns
     await migrateDnsAccountType(conn);
@@ -1003,13 +1002,15 @@ async function handleSQLiteMigrations(
   await dropOldNsMonitorTablesSQLite(conn);
 
   // Migration: Add enabled field to dns_accounts table
-  await executeMigration(
-    versionManager,
-    'Add enabled column to dns_accounts table (SQLite)',
-    async () => {
-      await addSQLiteColumn(conn, 'dns_accounts', 'enabled', 'INTEGER NOT NULL DEFAULT 1');
-    }
-  );
+  // Note: This migration runs on every startup but checks if column exists first (idempotent)
+  log.info('Schema', 'Checking dns_accounts.enabled column (SQLite)...');
+  try {
+    await addSQLiteColumn(conn, 'dns_accounts', 'enabled', 'INTEGER NOT NULL DEFAULT 1');
+    log.info('Schema', 'dns_accounts.enabled column check completed');
+  } catch (error) {
+    log.error('Schema', 'Failed to add/check enabled column in dns_accounts', { error: (error as Error).message });
+    throw error;
+  }
 
   // Migration: Update dns_accounts type from dnsmgr to hidns
   await migrateDnsAccountType(conn);
