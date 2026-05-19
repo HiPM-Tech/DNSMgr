@@ -77,7 +77,7 @@ export async function initSchema(): Promise<void> {
     }
     
     log.info('DB', 'Initial schema setup complete');
-    return;
+    // DO NOT return here! Continue to migration checks to handle legacy databases
   }
 
   // Step 4: Run migrations for HiDNS systems (schema may have changed)
