@@ -133,7 +133,7 @@ async function handleMySQLMigrations(
 }
 
 /**
- * 添加 NS 监测相关字段到 ns_monitor_domains 表 - MySQL
+ * 添加 NS 监測相关字段到 ns_monitor_domains 表 - MySQL
  */
 async function addNsMonitorColumns(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
@@ -246,10 +246,16 @@ async function addNsMonitorColumns(
     log.info('Schema', 'Starting domain_id cleanup (FK + column)...');
     
     if (conn.execute) {
+      // Use a transaction to ensure all operations use the same connection
+      await conn.execute('START TRANSACTION');
+      
+      // Disable foreign key checks for this transaction
+      await conn.execute('SET FOREIGN_KEY_CHECKS=0');
+      log.info('Schema', 'Foreign key checks disabled');
+      
       // Step 1: Try to drop foreign key constraints
       log.info('Schema', 'Attempting to drop FK constraints on domain_id...');
       
-      // Try common FK naming patterns
       const possibleFkNames = [
         'ns_monitor_domains_ibfk_1',
         'ns_monitor_domains_ibfk_2', 
@@ -263,7 +269,6 @@ async function addNsMonitorColumns(
           await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
           log.info('Schema', `Successfully dropped FK: ${fkName}`);
         } catch (error) {
-          // Ignore errors - FK might not exist
           const errorMsg = (error as Error).message || '';
           if (!errorMsg.includes('check that it exists') && !errorMsg.includes('ER_CANT_DROP_FIELD_OR_KEY')) {
             log.debug('Schema', `FK ${fkName} does not exist or already dropped`);
@@ -271,34 +276,9 @@ async function addNsMonitorColumns(
         }
       }
       
-      // Also query INFORMATION_SCHEMA to find any remaining FKs
-      try {
-        const findFkSql = `
-          SELECT CONSTRAINT_NAME 
-          FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-          WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'ns_monitor_domains' 
-          AND COLUMN_NAME = 'domain_id'
-          AND REFERENCED_TABLE_NAME IS NOT NULL
-        `;
-        
-        const fkResult = await conn.execute(findFkSql) as any[];
-        if (Array.isArray(fkResult) && fkResult.length > 0) {
-          for (const row of fkResult) {
-            const fkName = row.CONSTRAINT_NAME;
-            log.info('Schema', `Found FK via INFORMATION_SCHEMA: ${fkName}, dropping...`);
-            await conn.execute(`ALTER TABLE ns_monitor_domains DROP FOREIGN KEY ${fkName}`);
-            log.info('Schema', `Successfully dropped FK: ${fkName}`);
-          }
-        }
-      } catch (queryError) {
-        log.warn('Schema', 'Failed to query INFORMATION_SCHEMA', { error: (queryError as Error).message });
-      }
-      
-      // Step 2: Clean up duplicate records before dropping column
+      // Step 2: Clean up duplicate records
       log.info('Schema', 'Checking for duplicate (user_id, domain_name) combinations...');
       try {
-        // First, find duplicates
         const findDuplicatesSql = `
           SELECT user_id, domain_name, COUNT(*) as count
           FROM ns_monitor_domains
@@ -306,37 +286,33 @@ async function addNsMonitorColumns(
           HAVING count > 1
         `;
         
-        if (conn.execute) {
-          const duplicates = await conn.execute(findDuplicatesSql) as any[];
-          if (Array.isArray(duplicates) && duplicates.length > 0) {
-            log.warn('Schema', `Found ${duplicates.length} duplicate (user_id, domain_name) combinations:`, 
-              duplicates.map((d: any) => `(${d.user_id}, ${d.domain_name}) x${d.count}`).join(', '));
-            
-            // Delete duplicates, keeping only the first record (lowest id)
-            const cleanupSql = `
-              DELETE n1 FROM ns_monitor_domains n1
-              INNER JOIN ns_monitor_domains n2 
-              WHERE n1.id > n2.id 
-              AND n1.user_id = n2.user_id 
-              AND n1.domain_name = n2.domain_name
-            `;
-            await conn.execute(cleanupSql);
-            log.info('Schema', 'Cleaned up duplicate records');
-          } else {
-            log.info('Schema', 'No duplicate records found');
-          }
+        const duplicates = await conn.execute(findDuplicatesSql) as any[];
+        if (Array.isArray(duplicates) && duplicates.length > 0) {
+          log.warn('Schema', `Found ${duplicates.length} duplicate combinations`);
+          
+          const cleanupSql = `
+            DELETE n1 FROM ns_monitor_domains n1
+            INNER JOIN ns_monitor_domains n2 
+            WHERE n1.id > n2.id 
+            AND n1.user_id = n2.user_id 
+            AND n1.domain_name = n2.domain_name
+          `;
+          await conn.execute(cleanupSql);
+          log.info('Schema', 'Cleaned up duplicate records');
+        } else {
+          log.info('Schema', 'No duplicate records found');
         }
       } catch (cleanupError) {
         log.error('Schema', 'Failed to cleanup duplicates', { error: (cleanupError as Error).message });
       }
       
-      // Step 3: Drop the unique index before dropping column
-      log.info('Schema', 'Dropping unique_user_domain index temporarily...');
+      // Step 3: Drop the unique index
+      log.info('Schema', 'Dropping unique_user_domain index...');
       try {
         await conn.execute('ALTER TABLE ns_monitor_domains DROP INDEX unique_user_domain');
         log.info('Schema', 'Successfully dropped unique_user_domain index');
       } catch (indexError) {
-        log.warn('Schema', 'Failed to drop unique_user_domain index (may not exist)', { error: (indexError as Error).message });
+        log.warn('Schema', 'Failed to drop unique_user_domain index', { error: (indexError as Error).message });
       }
       
       // Step 4: Drop the domain_id column
@@ -366,16 +342,34 @@ async function addNsMonitorColumns(
           log.warn('Schema', 'Failed to drop idx_domain_id index', { error: errorMsg });
         }
       }
+      
+      // Commit the transaction
+      await conn.execute('COMMIT');
+      log.info('Schema', 'Transaction committed');
+      
+      // Re-enable foreign key checks
+      await conn.execute('SET FOREIGN_KEY_CHECKS=1');
+      log.info('Schema', 'Foreign key checks re-enabled');
     }
     
     log.info('Schema', 'Completed domain_id cleanup');
   } catch (error) {
     log.error('Schema', 'Failed to cleanup domain_id', { error: (error as Error).message });
+    // Rollback transaction on error
+    try {
+      if (conn.execute) {
+        await conn.execute('ROLLBACK');
+        await conn.execute('SET FOREIGN_KEY_CHECKS=1');
+        log.info('Schema', 'Transaction rolled back and FK checks re-enabled');
+      }
+    } catch (rollbackError) {
+      log.warn('Schema', 'Failed to rollback', { error: (rollbackError as Error).message });
+    }
   }
 }
 
 /**
- * 删除旧的域名级 NS 监测表（迁移到用户级）- MySQL
+ * 删除旧的域名级 NS 监測表（迁移到用户级）- MySQL
  */
 async function dropOldNsMonitorTables(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
@@ -850,7 +844,7 @@ async function handleSQLiteMigrations(
   await addSQLiteColumn(conn, 'user_preferences', 'pinned_domains', "TEXT DEFAULT '[]'");
   await addSQLiteColumn(conn, 'user_preferences', 'avatar_image', 'TEXT');
 
-  // 迁移：删除旧的域名级 NS 监测表
+  // 迁移：删除旧的域名级 NS 监測表
   await dropOldNsMonitorTablesSQLite(conn);
 
   // Migration: Update dns_accounts type from dnsmgr to hidns
@@ -860,7 +854,7 @@ async function handleSQLiteMigrations(
 }
 
 /**
- * 删除旧的域名级 NS 监测表（迁移到用户级）- SQLite
+ * 删除旧的域名级 NS 监測表（迁移到用户级）- SQLite
  */
 async function dropOldNsMonitorTablesSQLite(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> }
@@ -888,7 +882,7 @@ async function dropOldNsMonitorTablesSQLite(
 }
 
 /**
- * 删除旧的域名级 NS 监测表（迁移到用户级）- PostgreSQL
+ * 删除旧的域名级 NS 监測表（迁移到用户级）- PostgreSQL
  */
 async function dropOldNsMonitorTablesPostgreSQL(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
@@ -1151,7 +1145,7 @@ export async function initSchemaAsync(
       }
     }
 
-    // 迁移：删除旧的域名级 NS 监测表（已废弃，改为用户级）
+    // 迁移：删除旧的域名级 NS 监測表（已废弃，改为用户级）
     await dropOldNsMonitorTablesPostgreSQL(conn);
 
     // Migration: Update dns_accounts type from dnsmgr to hidns
