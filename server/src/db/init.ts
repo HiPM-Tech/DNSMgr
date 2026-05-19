@@ -3,33 +3,22 @@ import type { DatabaseConnection, DatabaseType } from './core/types';
 import { sqliteSchema } from './schemas/sqlite';
 import { mysqlSchema } from './schemas/mysql';
 import { postgresqlSchema } from './schemas/postgresql';
-import { UserOperations } from './business-adapter';
-import bcrypt from 'bcryptjs';
 import { log } from '../lib/logger';
 
 export async function initSchema(): Promise<void> {
   const conn = getConnection();
   const type = conn.type;
 
-  // Step 1: Check if schema_versions table exists
+  // Check if schema_versions table exists
   const hasVersionTable = await checkVersionTableExists(conn);
   
   if (hasVersionTable) {
-    // System already initialized, skip table creation
-    log.info('DB', 'Schema versions table found, skipping initial schema creation');
-    
-    // Check if users table has data
-    const hasUsers = await checkUsersExist(conn);
-    if (!hasUsers) {
-      log.warn('DB', 'No users found in database, creating default admin user...');
-      await createDefaultAdminUser(conn);
-    } else {
-      log.info('DB', 'Users table has data, initialization complete');
-    }
+    // System already initialized, skip everything
+    log.info('DB', 'Schema versions table found, system is already initialized');
     return;
   }
   
-  // Step 2: First-time initialization - create all tables
+  // First-time initialization - create all tables
   log.info('DB', 'First-time initialization, creating schema...');
 
   switch (type) {
@@ -44,10 +33,6 @@ export async function initSchema(): Promise<void> {
       await initSQLiteSchema(conn);
       break;
   }
-  
-  // Step 3: Create default admin user
-  log.info('DB', 'Creating default admin user...');
-  await createDefaultAdminUser(conn);
   
   log.info('DB', 'Initial schema setup complete');
 }
@@ -85,54 +70,6 @@ async function checkVersionTableExists(conn: DatabaseConnection): Promise<boolea
   } catch (error) {
     log.debug('DB', 'schema_versions table does not exist', { error: (error as Error).message });
     return false;
-  }
-}
-
-/**
- * Check if users table has any data
- */
-async function checkUsersExist(conn: DatabaseConnection): Promise<boolean> {
-  try {
-    const result = await conn.execute('SELECT COUNT(*) as count FROM users');
-    if (Array.isArray(result) && result.length > 0) {
-      const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
-      return parseInt(String(count), 10) > 0;
-    }
-    return false;
-  } catch (error) {
-    log.warn('DB', 'Failed to check users table', { error: (error as Error).message });
-    return false;
-  }
-}
-
-/**
- * Create default admin user
- */
-async function createDefaultAdminUser(conn: DatabaseConnection): Promise<void> {
-  try {
-    // Check if admin user already exists
-    const existing = await UserOperations.getByUsername('admin');
-    if (existing) {
-      log.info('DB', 'Admin user already exists');
-      return;
-    }
-    
-    // Create default admin user
-    const hashedPassword = bcrypt.hashSync('admin123', 10);
-    await UserOperations.create({
-      username: 'admin',
-      nickname: 'Administrator',
-      email: 'admin@example.com',
-      password_hash: hashedPassword,
-      role: 'super_admin',
-      role_level: 0,
-    });
-    
-    log.info('DB', 'Default admin user created (username: admin, password: admin123)');
-    log.warn('DB', '⚠️  Please change the default password immediately!');
-  } catch (error) {
-    log.error('DB', 'Failed to create default admin user', { error: (error as Error).message });
-    throw error;
   }
 }
 
