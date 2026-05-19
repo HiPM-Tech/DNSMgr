@@ -76,6 +76,25 @@ export async function executeDomainRenewal(): Promise<void> {
               continue;
             }
 
+            // Check if domain is enabled in database
+            const dbDomain = await RenewableDomainOperations.getById(Number(domainId));
+            if (!dbDomain) {
+              log.warn('DomainRenewalJob', 'Domain not found in database, skipping', {
+                domainId,
+                domainName: domain.name || domain.full_domain,
+              });
+              continue;
+            }
+
+            if (!dbDomain.enabled) {
+              log.info('DomainRenewalJob', 'Skipping disabled domain', {
+                domainId,
+                domainName: dbDomain.full_domain,
+                enabled: dbDomain.enabled,
+              });
+              continue;
+            }
+
             log.info('DomainRenewalJob', 'Attempting domain renewal via scheduler', {
               domainName: domain.name || domain.full_domain,
               domainId,

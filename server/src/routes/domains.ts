@@ -1151,6 +1151,17 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
     return;
   }
   
+  // Check if domain is enabled
+  if (!renewableDomain.enabled) {
+    log.warn('Domains', 'Cannot renew disabled domain', { 
+      renewableDomainId,
+      full_domain: renewableDomain.full_domain,
+      enabled: renewableDomain.enabled
+    });
+    sendError(res, 'Cannot renew disabled domain. Please enable it first.');
+    return;
+  }
+  
   log.info('Domains', 'Renewable domain retrieved', { 
     id: renewableDomain.id,
     full_domain: renewableDomain.full_domain,
