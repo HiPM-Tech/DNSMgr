@@ -79,6 +79,7 @@ export interface DnsAccount {
   name: string;
   config: Record<string, string>;
   remark: string;
+  enabled?: boolean;
   created_by: number;
   team_id?: number;
   created_at: string;
@@ -295,6 +296,8 @@ export const accountsApi = {
   update: (id: number, data: { name?: string; config?: Record<string, string | boolean>; remark?: string }) =>
     api.put<ApiResponse<null>>(`/accounts/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/accounts/${id}`),
+  toggleEnabled: (id: number, enabled: boolean) =>
+    api.patch<ApiResponse<{ enabled: boolean }>>(`/accounts/${id}/toggle-enabled`, { enabled }),
 };
 
 // ─── Domains ──────────────────────────────────────────────────────────────────

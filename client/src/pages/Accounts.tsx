@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
-import { AddIcon, DeleteIcon, EditIcon } from 'tdesign-icons-react';
+import { AddIcon, DeleteIcon, EditIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
 import { accountsApi } from '../api';
 import type { DnsAccount, Provider, ProviderField } from '../api';
 import { Table } from '../components/Table';
@@ -252,9 +252,28 @@ export function Accounts() {
     onError: () => toast.error(t('accounts.deleteFailed')),
   });
 
+  const toggleEnabledMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => 
+      accountsApi.toggleEnabled(id, enabled),
+    onSuccess: (_, { enabled }) => {
+      qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
+      toast.success(enabled ? t('common.enabled') : t('common.disabled'));
+    },
+    onError: () => toast.error(t('common.operationFailed')),
+  });
+
   const columns = [
     { key: 'name', label: t('common.name'), render: (row: DnsAccount) => <span className="page-strong">{row.name}</span> },
     { key: 'type', label: t('accounts.provider'), render: (row: DnsAccount) => <ProviderBadge type={row.type} /> },
+    { 
+      key: 'enabled', 
+      label: t('common.status'), 
+      render: (row: DnsAccount) => (
+        <span className={`page-status ${row.enabled !== false ? 'page-status--success' : 'page-status--default'}`}>
+          {row.enabled !== false ? t('common.enabled') : t('common.disabled')}
+        </span>
+      )
+    },
     { key: 'remark', label: t('common.remark'), render: (row: DnsAccount) => <span className="page-muted">{row.remark || '-'}</span> },
     { key: 'created_at', label: t('common.created'), render: (row: DnsAccount) => <span className="page-muted">{new Date(row.created_at).toLocaleDateString()}</span> },
     {
@@ -262,6 +281,14 @@ export function Accounts() {
       label: t('common.actions'),
       render: (row: DnsAccount) => (
         <Space size="small">
+          <Button
+            shape="square"
+            variant="text"
+            theme={row.enabled !== false ? 'warning' : 'success'}
+            icon={row.enabled !== false ? <StopCircleIcon /> : <PlayCircleIcon />}
+            disabled={!canManage || toggleEnabledMutation.isPending}
+            onClick={() => toggleEnabledMutation.mutate({ id: row.id, enabled: row.enabled === false })}
+          />
           <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => setEditingId(row.id)} />
           <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(row)} />
         </Space>
