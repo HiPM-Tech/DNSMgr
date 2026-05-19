@@ -3,9 +3,31 @@ import type { DatabaseConnection, DatabaseType } from './core/types';
 import { sqliteSchema } from './schemas/sqlite';
 import { mysqlSchema } from './schemas/mysql';
 import { postgresqlSchema } from './schemas/postgresql';
+import { getDatabaseConfig } from './core/config';
+import fs from 'fs';
+import path from 'path';
 import { log } from '../lib/logger';
 
 export async function initSchema(): Promise<void> {
+  const config = getDatabaseConfig();
+  
+  // Special handling for SQLite: check if database file exists
+  if (config.type === 'sqlite') {
+    const dbPath = (config as any).path;
+    const dbFileExists = fs.existsSync(dbPath);
+    
+    if (!dbFileExists) {
+      // Database file doesn't exist - this is a fresh install
+      // Don't create the file yet, let the web initialization handle it
+      log.info('DB', 'SQLite database file not found, entering initialization mode');
+      log.info('DB', 'Please complete the web initialization wizard to configure the database');
+      return;
+    }
+    
+    // File exists, continue with normal checks
+    log.info('DB', 'SQLite database file found, checking system status...');
+  }
+  
   const conn = getConnection();
   const type = conn.type;
 
