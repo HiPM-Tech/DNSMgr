@@ -469,8 +469,12 @@ export const postgresqlSchema: SchemaDefinition = {
     // Migration: Sync domain_name from domains table for existing records
     `UPDATE ns_monitor_domains n SET domain_name = d.name FROM domains d WHERE n.domain_id = d.id AND n.domain_name = ''`,
     // Migration: Drop domain_id column (for performance)
+    `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_domain_id_fkey`,
     `ALTER TABLE ns_monitor_domains DROP COLUMN IF EXISTS domain_id`,
     `DROP INDEX IF EXISTS idx_ns_monitor_domains_domain_id`,
+    // Migration: Recreate unique constraint on (user_id, domain_name)
+    `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_user_id_domain_name_key`,
+    `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_user_id_domain_name_key UNIQUE (user_id, domain_name)`,
     // Migration: Update status check constraint to include 'poisoned'
     `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_status_check`,
     `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_status_check CHECK (status IN ('ok', 'mismatch', 'missing', 'poisoned'))`,

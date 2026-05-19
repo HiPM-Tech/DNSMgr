@@ -887,6 +887,7 @@ async function handleSQLiteMigrations(
       conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)');
       conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)');
       conn.exec('CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)');
+      conn.exec('CREATE UNIQUE INDEX IF NOT EXISTS unique_user_domain ON ns_monitor_domains(user_id, domain_name)');
       
       log.info('Schema', 'Successfully dropped domain_id column and recreated indexes (SQLite)');
     }
