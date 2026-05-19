@@ -473,8 +473,31 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS whois_status TEXT`,
     // Migration: Add enabled column to domains table for domain enable/disable tracking
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
-    // Migration: Add enabled column to dns_accounts table for account enable/disable tracking
-    `ALTER TABLE dns_accounts ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+    // Migration: Add enabled column to dns_accounts table using export-rebuild pattern
+    // Step 1: Create new table with enabled column
+    `CREATE TABLE IF NOT EXISTS dns_accounts_new (
+      id SERIAL PRIMARY KEY,
+      type VARCHAR(100) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      config JSONB NOT NULL DEFAULT '{}',
+      remark TEXT NOT NULL DEFAULT '',
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    // Step 2: Copy data from old table to new table
+    `INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
+     SELECT id, type, name, config, remark, created_by, team_id, 
+            COALESCE(enabled, TRUE) as enabled, created_at
+     FROM dns_accounts
+     ON CONFLICT (id) DO NOTHING`,
+    // Step 3: Drop old table
+    `DROP TABLE IF EXISTS dns_accounts`,
+    // Step 4: Rename new table to original name
+    `ALTER TABLE dns_accounts_new RENAME TO dns_accounts`,
+    // Step 5: Recreate sequences if needed
+    `SELECT setval('dns_accounts_id_seq', COALESCE((SELECT MAX(id) FROM dns_accounts), 1))`,
     // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
