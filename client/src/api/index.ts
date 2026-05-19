@@ -361,6 +361,8 @@ export const domainRenewalApi = {
     api.post<ApiResponse<{ id: number }>>('/domains/renewable-domains', data),
   deleteRenewableDomain: (id: number) =>
     api.delete<ApiResponse<void>>(`/domains/renewable-domains/${id}`),
+  toggleEnabled: (id: number, enabled: boolean) =>
+    api.patch<ApiResponse<{ enabled: boolean }>>(`/domains/renewable-domains/${id}/toggle-enabled`, { enabled }),
 };
 
 export interface RenewalInfo {

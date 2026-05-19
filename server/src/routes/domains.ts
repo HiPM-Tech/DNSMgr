@@ -1489,6 +1489,75 @@ router.delete('/renewable-domains/:id', authMiddleware, asyncHandler(async (req:
 }));
 
 /**
+ * Toggle renewable domain enabled status
+ */
+router.patch('/renewable-domains/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  // Only allow admins and super admins
+  const role = normalizeRole(req.user?.role);
+  if (role < 2) {
+    log.warn('Domains', 'Unauthorized attempt to toggle renewable domain', { userId: req.user?.userId, role });
+    sendError(res, 'Permission denied');
+    return;
+  }
+  
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    log.error('Domains', 'Invalid renewable domain ID', { id: req.params.id });
+    sendError(res, 'Invalid ID');
+    return;
+  }
+  
+  const { enabled } = req.body;
+  if (typeof enabled !== 'boolean') {
+    log.error('Domains', 'Missing or invalid enabled field', { enabled });
+    sendError(res, 'Enabled field is required and must be boolean');
+    return;
+  }
+  
+  log.info('Domains', 'Toggle renewable domain enabled status', { 
+    id, 
+    enabled,
+    userId: req.user?.userId 
+  });
+  
+  try {
+    // Get current domain info for audit log
+    const domain = await RenewableDomainOperations.getById(id);
+    if (!domain) {
+      log.error('Domains', 'Renewable domain not found', { id });
+      sendError(res, 'Renewable domain not found');
+      return;
+    }
+    
+    await RenewableDomainOperations.toggleEnabled(id, enabled);
+    
+    // Log audit operation
+    await logAuditOperation(
+      req.user!.userId,
+      enabled ? 'enable_domain_renewal' : 'disable_domain_renewal',
+      domain.full_domain,
+      { enabled },
+      req
+    );
+    
+    log.info('Domains', 'Successfully toggled renewable domain enabled status', { 
+      id, 
+      enabled,
+      userId: req.user?.userId 
+    });
+    
+    sendSuccess(res, { enabled });
+  } catch (error) {
+    log.error('Domains', 'Failed to toggle renewable domain enabled status', { 
+      id,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    sendError(res, 'Failed to update enabled status');
+  }
+}));
+
+/**
  * Sync domains from provider to renewable list (admin only)
  */
 router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: Request, res: Response) => {

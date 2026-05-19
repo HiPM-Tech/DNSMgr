@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Checkbox, Empty, Loading, Select, Space, Tag } from 'tdesign-react';
-import { AddIcon, CalendarIcon, CheckCircleIcon, DeleteIcon, ErrorCircleIcon, RefreshIcon, TimeIcon } from 'tdesign-icons-react';
+import { AddIcon, CalendarIcon, CheckCircleIcon, DeleteIcon, ErrorCircleIcon, RefreshIcon, TimeIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
 import { domainRenewalApi, accountsApi, api } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
@@ -94,6 +94,18 @@ export function DomainRenewalTab() {
     },
     onError: () => {
       toast.error(t('domainRenewal.deleteFailed'));
+    },
+  });
+
+  const toggleEnabledMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => 
+      domainRenewalApi.toggleEnabled(id, enabled),
+    onSuccess: (_, { enabled }) => {
+      queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
+      toast.success(enabled ? t('common.enabled') : t('common.disabled'));
+    },
+    onError: () => {
+      toast.error(t('common.operationFailed'));
     },
   });
 
@@ -245,7 +257,7 @@ export function DomainRenewalTab() {
               variant="text"
               icon={<RefreshIcon />}
               loading={isRenewing}
-              disabled={!subdomainId}
+              disabled={!subdomainId || !row.enabled}
               onClick={() => {
                 if (subdomainId) {
                   setRenewing(Number(subdomainId));
@@ -255,6 +267,14 @@ export function DomainRenewalTab() {
             >
               {isRenewing ? t('domainRenewal.renewing') : t('domainRenewal.renew')}
             </Button>
+            <Button
+              shape="square"
+              variant="text"
+              theme={row.enabled ? 'warning' : 'success'}
+              icon={row.enabled ? <StopCircleIcon /> : <PlayCircleIcon />}
+              disabled={toggleEnabledMutation.isPending}
+              onClick={() => toggleEnabledMutation.mutate({ id: row.id, enabled: !row.enabled })}
+            />
             <Button
               shape="square"
               variant="text"
