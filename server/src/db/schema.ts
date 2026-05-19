@@ -21,30 +21,29 @@ import { SchemaVersionManager } from './migration-manager';
  */
 async function executeMigration(
   versionManager: SchemaVersionManager,
-  version: string,
   description: string,
   migrationFn: () => Promise<void>
 ): Promise<void> {
-  const isApplied = await versionManager.isVersionApplied(version);
+  const isApplied = await versionManager.isCurrentVersionApplied();
   
   if (isApplied) {
-    log.info('Schema', `Migration ${version} already applied, skipping`);
+    log.info('Schema', `Schema version ${versionManager.getCurrentVersion()} already applied, skipping`);
     return;
   }
   
   const startTime = Date.now();
-  log.info('Schema', `Applying migration ${version}: ${description}`);
+  log.info('Schema', `Applying schema version ${versionManager.getCurrentVersion()}: ${description}`);
   
   try {
     await migrationFn();
     const executionTime = Date.now() - startTime;
-    await versionManager.recordSuccess(version, description, executionTime);
-    log.info('Schema', `Migration ${version} completed successfully in ${executionTime}ms`);
+    await versionManager.recordSuccess(description, executionTime);
+    log.info('Schema', `Schema version ${versionManager.getCurrentVersion()} completed successfully in ${executionTime}ms`);
   } catch (error) {
     const executionTime = Date.now() - startTime;
     const errorMessage = (error as Error).message;
-    await versionManager.recordFailure(version, description, errorMessage, executionTime);
-    log.error('Schema', `Migration ${version} failed after ${executionTime}ms: ${errorMessage}`);
+    await versionManager.recordFailure(description, errorMessage, executionTime);
+    log.error('Schema', `Schema version ${versionManager.getCurrentVersion()} failed after ${executionTime}ms: ${errorMessage}`);
     throw error;
   }
 }
@@ -56,7 +55,7 @@ async function executeMigration(
 async function handleMySQLMigrations(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
 ): Promise<void> {
-  const versionManager = new SchemaVersionManager(conn);
+  const versionManager = new SchemaVersionManager(conn, mysqlSchema);
   
   try {
     log.info('Schema', 'Starting MySQL migrations...');
@@ -199,7 +198,6 @@ async function handleMySQLMigrations(
     // Migration: Add enabled field to dns_accounts table
     await executeMigration(
       versionManager,
-      '2026.05.19.001',
       'Add enabled column to dns_accounts table',
       async () => {
         const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
@@ -846,7 +844,7 @@ async function migrateDnsAccountType(
 async function handleSQLiteMigrations(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> }
 ): Promise<void> {
-  const versionManager = new SchemaVersionManager(conn);
+  const versionManager = new SchemaVersionManager(conn, sqliteSchema);
   
   log.info('Schema', 'Starting SQLite migrations...');
 
@@ -944,7 +942,6 @@ async function handleSQLiteMigrations(
   // Migration: Add enabled field to dns_accounts table
   await executeMigration(
     versionManager,
-    '2026.05.19.001',
     'Add enabled column to dns_accounts table (SQLite)',
     async () => {
       await addSQLiteColumn(conn, 'dns_accounts', 'enabled', 'INTEGER NOT NULL DEFAULT 1');
@@ -1251,10 +1248,10 @@ export async function initSchemaAsync(
 
     // Record PostgreSQL schema version after migrations
     try {
-      const versionManager = new SchemaVersionManager(conn);
-      const isApplied = await versionManager.isVersionApplied('2026.05.19.001');
+      const versionManager = new SchemaVersionManager(conn, postgresqlSchema);
+      const isApplied = await versionManager.isCurrentVersionApplied();
       if (!isApplied) {
-        await versionManager.recordSuccess('2026.05.19.001', 'PostgreSQL initial migrations (including dns_accounts.enabled)', 0);
+        await versionManager.recordSuccess('PostgreSQL initial migrations (including dns_accounts.enabled)', 0);
       }
     } catch (error) {
       log.warn('Schema', 'Failed to record PostgreSQL migration version', { error: (error as Error).message });

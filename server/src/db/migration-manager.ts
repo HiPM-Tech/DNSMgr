@@ -4,9 +4,10 @@
  */
 
 import { log } from '../lib/logger';
+import { calculateSchemaHash, SchemaDefinition } from './schemas';
 
 export interface MigrationRecord {
-  version: string;
+  version: string;  // Schema hash
   description?: string;
   appliedAt: Date;
   success: boolean;
@@ -16,18 +17,27 @@ export interface MigrationRecord {
 
 export class SchemaVersionManager {
   private conn: any;
+  private schemaHash: string;
 
-  constructor(conn: any) {
+  constructor(conn: any, schema: SchemaDefinition) {
     this.conn = conn;
+    this.schemaHash = calculateSchemaHash(schema);
   }
 
   /**
-   * 检查版本是否已应用
+   * Get current schema hash (version)
    */
-  async isVersionApplied(version: string): Promise<boolean> {
+  getCurrentVersion(): string {
+    return this.schemaHash;
+  }
+
+  /**
+   * Check if current schema version is already applied
+   */
+  async isCurrentVersionApplied(): Promise<boolean> {
     try {
       const sql = 'SELECT COUNT(*) as count FROM schema_versions WHERE version = ? AND success = 1';
-      const result = await this.conn.execute(sql, [version]);
+      const result = await this.conn.execute(sql, [this.schemaHash]);
       
       if (Array.isArray(result) && result.length > 0) {
         const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
@@ -36,7 +46,7 @@ export class SchemaVersionManager {
       
       return false;
     } catch (error) {
-      // 如果表不存在，返回 false
+      // If table doesn't exist, return false
       if ((error as Error).message?.includes('schema_versions')) {
         return false;
       }
@@ -45,25 +55,23 @@ export class SchemaVersionManager {
   }
 
   /**
-   * 记录迁移成功
+   * Record successful migration
    */
   async recordSuccess(
-    version: string,
     description: string,
     executionTimeMs: number
   ): Promise<void> {
     const sql = `INSERT INTO schema_versions (version, description, success, execution_time_ms) 
                  VALUES (?, ?, 1, ?)`;
     
-    await this.conn.execute(sql, [version, description, executionTimeMs]);
-    log.info('SchemaVersion', `Migration ${version} recorded as successful`);
+    await this.conn.execute(sql, [this.schemaHash, description, executionTimeMs]);
+    log.info('SchemaVersion', `Schema version ${this.schemaHash} recorded as successful`);
   }
 
   /**
-   * 记录迁移失败
+   * Record failed migration
    */
   async recordFailure(
-    version: string,
     description: string,
     errorMessage: string,
     executionTimeMs: number
@@ -71,8 +79,8 @@ export class SchemaVersionManager {
     const sql = `INSERT INTO schema_versions (version, description, success, error_message, execution_time_ms) 
                  VALUES (?, ?, 0, ?, ?)`;
     
-    await this.conn.execute(sql, [version, description, errorMessage, executionTimeMs]);
-    log.error('SchemaVersion', `Migration ${version} recorded as failed: ${errorMessage}`);
+    await this.conn.execute(sql, [this.schemaHash, description, errorMessage, executionTimeMs]);
+    log.error('SchemaVersion', `Schema version ${this.schemaHash} recorded as failed: ${errorMessage}`);
   }
 
   /**
