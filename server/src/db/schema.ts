@@ -184,6 +184,8 @@ async function handleMySQLMigrations(
       }
     } catch (error) {
       log.error('Schema', 'Failed to add enabled column to dns_accounts', { error: (error as Error).message });
+      // Re-throw to prevent running with missing column
+      throw error;
     }
     log.info('Schema', 'Completed dns_accounts enabled column migration');
 
