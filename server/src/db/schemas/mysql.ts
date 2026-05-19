@@ -64,6 +64,7 @@ export const mysqlSchema: SchemaDefinition = {
       name VARCHAR(255) NOT NULL,
       config JSON,
       remark TEXT,
+      enabled TINYINT(1) NOT NULL DEFAULT 1,
       created_by INT NOT NULL,
       team_id INT DEFAULT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -71,7 +72,8 @@ export const mysqlSchema: SchemaDefinition = {
       FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
       INDEX idx_created_by (created_by),
       INDEX idx_team_id (team_id),
-      INDEX idx_type (type)
+      INDEX idx_type (type),
+      INDEX idx_enabled (enabled)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS domains (
       id INT AUTO_INCREMENT PRIMARY KEY,

@@ -622,6 +622,15 @@ export const DnsAccountOperations = {
       { operation: 'DnsAccount.getByTypeAndUserOrTeams', table: 'dns_accounts' }
     );
   },
+
+  /** 更新账号启用状态 */
+  async updateEnabled(id: number, enabled: boolean): Promise<void> {
+    await executeInternal(
+      'UPDATE dns_accounts SET enabled = ? WHERE id = ?',
+      [enabled ? 1 : 0, id],
+      { operation: 'DnsAccount.updateEnabled', table: 'dns_accounts' }
+    );
+  },
 };
 
 // ============================================================================
@@ -685,18 +694,20 @@ export const DomainOperations = {
 
   /** 获取所有域名（用于超级管理员Token认证） */
   async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
-    let sql = 'SELECT * FROM domains WHERE 1=1';
+    let sql = `SELECT d.* FROM domains d 
+               INNER JOIN dns_accounts a ON d.account_id = a.id 
+               WHERE a.enabled = 1`;
     const params: unknown[] = [];
 
     if (options?.accountId) {
-      sql += ' AND account_id = ?';
+      sql += ' AND d.account_id = ?';
       params.push(options.accountId);
     }
     if (options?.keyword) {
-      sql += ' AND name LIKE ?';
+      sql += ' AND d.name LIKE ?';
       params.push(`%${options.keyword}%`);
     }
-    sql += ' ORDER BY id';
+    sql += ' ORDER BY d.id';
 
     return queryInternal(sql, params, { operation: 'Domain.getAllForSuperAdmin', table: 'domains' });
   },
@@ -774,11 +785,13 @@ export const DomainOperations = {
     const { userId, teamIds, accountId, keyword, isSuper } = params;
     
     if (isSuper) {
-      let sql = 'SELECT * FROM domains WHERE 1=1';
+      let sql = `SELECT d.* FROM domains d 
+                 INNER JOIN dns_accounts a ON d.account_id = a.id 
+                 WHERE a.enabled = 1`;
       const queryParams: unknown[] = [];
-      if (accountId) { sql += ' AND account_id = ?'; queryParams.push(accountId); }
-      if (keyword) { sql += ' AND name LIKE ?'; queryParams.push(`%${keyword}%`); }
-      sql += ' ORDER BY id';
+      if (accountId) { sql += ' AND d.account_id = ?'; queryParams.push(accountId); }
+      if (keyword) { sql += ' AND d.name LIKE ?'; queryParams.push(`%${keyword}%`); }
+      sql += ' ORDER BY d.id';
       return queryInternal(sql, queryParams, { operation: 'Domain.getAccessibleDomains.super', table: 'domains' });
     }
     
@@ -787,7 +800,7 @@ export const DomainOperations = {
     const teamPermFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
     
     let sql = `SELECT d.* FROM domains d WHERE (d.account_id IN (
-      SELECT id FROM dns_accounts WHERE created_by = ? ${teamFilter}
+      SELECT id FROM dns_accounts WHERE created_by = ? AND enabled = 1 ${teamFilter}
     ) OR d.id IN (
       SELECT domain_id FROM domain_permissions WHERE user_id = ? ${teamPermFilter}
     ))`;

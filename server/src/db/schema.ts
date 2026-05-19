@@ -160,6 +160,33 @@ async function handleMySQLMigrations(
     await addUserPreferencesTextColumn(conn, 'avatar_image');
     log.info('Schema', 'Completed user_preferences avatar_image column migration');
 
+    // Migration: Add enabled field to dns_accounts table
+    log.info('Schema', 'Starting dns_accounts enabled column migration...');
+    try {
+      const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
+      
+      let needMigration = true;
+      if (conn.execute) {
+        const result = await conn.execute(checkSql) as any[];
+        if (Array.isArray(result) && result.length > 0) {
+          const count = (result[0] as any).cnt;
+          needMigration = count === 0;
+        }
+      }
+      
+      if (needMigration && conn.execute) {
+        log.info('Schema', 'Adding enabled column to dns_accounts...');
+        await conn.execute(`ALTER TABLE dns_accounts ADD COLUMN enabled TINYINT(1) NOT NULL DEFAULT 1`);
+        log.info('Schema', 'Successfully added enabled column to dns_accounts');
+      } else if (!needMigration) {
+        log.info('Schema', 'enabled column already exists in dns_accounts');
+      }
+    } catch (error) {
+      log.error('Schema', 'Failed to add enabled column to dns_accounts', { error: (error as Error).message });
+    }
+    log.info('Schema', 'Completed dns_accounts enabled column migration');
+
     // Migration: Update dns_accounts type from dnsmgr to hidns
     await migrateDnsAccountType(conn);
     

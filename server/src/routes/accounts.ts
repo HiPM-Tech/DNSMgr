@@ -8,6 +8,7 @@ import { normalizeProviderType } from '../lib/dns/providerAlias';
 import { isAdmin, isSuper, normalizeRole, ROLE_ADMIN } from '../utils/roles';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { wsService } from '../service/websocket';
+import { logAuditOperation } from '../service/audit';
 import { log } from '../lib/logger';
 
 const router = Router();
@@ -406,6 +407,71 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
   }
   
   sendSuccess(res);
+}));
+
+/**
+ * Toggle DNS account enabled status
+ */
+router.patch('/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
+  const account = await DnsAccountOperations.getById(id) as DnsAccount | undefined;
+  if (!account || !canManageAccount(account, req.user!.userId, normalizeRole(req.user?.role))) {
+    sendError(res, 'Account not found');
+    return;
+  }
+  
+  const { enabled } = req.body;
+  if (typeof enabled !== 'boolean') {
+    sendError(res, 'Enabled field is required and must be boolean');
+    return;
+  }
+  
+  log.info('Accounts', 'Toggle account enabled status', { 
+    id, 
+    enabled,
+    userId: req.user?.userId 
+  });
+  
+  try {
+    await DnsAccountOperations.updateEnabled(id, enabled);
+    
+    // Log audit operation
+    await logAuditOperation(
+      req.user!.userId,
+      enabled ? 'enable_dns_account' : 'disable_dns_account',
+      account.name,
+      { enabled, accountId: id },
+      req
+    );
+    
+    log.info('Accounts', 'Successfully toggled account enabled status', { 
+      id, 
+      enabled,
+      userId: req.user?.userId 
+    });
+    
+    // Broadcast WebSocket event
+    try {
+      wsService.broadcast({
+        type: 'account_updated',
+        data: {
+          accountId: id,
+          name: account.name,
+          enabled,
+        },
+      });
+    } catch (error) {
+      log.error('Accounts', 'Failed to broadcast account_updated event', { error });
+    }
+    
+    sendSuccess(res, { enabled });
+  } catch (error) {
+    log.error('Accounts', 'Failed to toggle account enabled status', { 
+      id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    sendError(res, 'Failed to update enabled status');
+  }
 }));
 
 export default router;
