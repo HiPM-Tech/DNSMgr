@@ -237,6 +237,10 @@ async function handleMySQLMigrations(
         log.info('Schema', 'Starting export-rebuild migration for dns_accounts...');
         
         if (conn.execute) {
+          // Step 0: Clean up any leftover temporary table from previous failed migration
+          await conn.execute(`DROP TABLE IF EXISTS dns_accounts_new`);
+          log.info('Schema', 'Step 0: Cleaned up any existing dns_accounts_new table');
+          
           // Step 1: Create new table with enabled column
           await conn.execute(`
             CREATE TABLE dns_accounts_new (
@@ -964,6 +968,10 @@ async function handleSQLiteMigrations(
   try {
     log.info('Schema', 'Dropping domain_id column (SQLite)...');
     if (conn.exec) {
+      // Step 0: Clean up any leftover temporary table from previous failed migration
+      conn.exec('DROP TABLE IF EXISTS ns_monitor_domains_new');
+      log.info('Schema', 'Step 0: Cleaned up any existing ns_monitor_domains_new table');
+      
       // SQLite requires table recreation to drop columns
       conn.exec(`
         CREATE TABLE ns_monitor_domains_new AS

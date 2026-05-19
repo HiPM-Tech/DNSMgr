@@ -474,6 +474,8 @@ export const postgresqlSchema: SchemaDefinition = {
     // Migration: Add enabled column to domains table for domain enable/disable tracking
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
     // Migration: Add enabled column to dns_accounts table using export-rebuild pattern
+    // Step 0: Clean up any leftover temporary table from previous failed migration
+    `DROP TABLE IF EXISTS dns_accounts_new`,
     // Step 1: Create new table with enabled column
     `CREATE TABLE IF NOT EXISTS dns_accounts_new (
       id SERIAL PRIMARY KEY,
