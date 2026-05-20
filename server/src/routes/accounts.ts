@@ -433,7 +433,9 @@ router.patch('/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Req
   });
   
   try {
+    log.info('Accounts', 'Before updateEnabled', { id, enabled });
     await DnsAccountOperations.updateEnabled(id, enabled);
+    log.info('Accounts', 'After updateEnabled', { id, enabled });
     
     // Log audit operation
     await logAuditOperation(
@@ -452,10 +454,12 @@ router.patch('/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Req
     
     // Broadcast WebSocket event with full account data
     try {
+      log.info('Accounts', 'Fetching updated account for WebSocket broadcast', { id });
       const updatedAccount = await DnsAccountOperations.getById(id);
       log.info('Accounts', 'Broadcasting account_updated event', { 
         accountId: id, 
-        enabled: (updatedAccount as any)?.enabled 
+        enabled: (updatedAccount as any)?.enabled,
+        fullAccount: updatedAccount
       });
       wsService.broadcast({
         type: 'account_updated',

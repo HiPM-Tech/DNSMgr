@@ -526,7 +526,9 @@ export const UserOperations = {
 export const DnsAccountOperations = {
   /** 根据ID获取账号 */
   async getById(id: number): Promise<QueryResult | undefined> {
-    return getInternal('SELECT * FROM dns_accounts WHERE id = ?', [id], { operation: 'DnsAccount.getById', table: 'dns_accounts' });
+    const result = await getInternal('SELECT * FROM dns_accounts WHERE id = ?', [id], { operation: 'DnsAccount.getById', table: 'dns_accounts' });
+    log.debug('DnsAccount', 'getById result', { id, enabled: (result as any)?.enabled });
+    return result;
   },
 
   /** 获取所有账号 */
