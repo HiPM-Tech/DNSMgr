@@ -526,9 +526,7 @@ export const UserOperations = {
 export const DnsAccountOperations = {
   /** 根据ID获取账号 */
   async getById(id: number): Promise<QueryResult | undefined> {
-    const result = await getInternal('SELECT * FROM dns_accounts WHERE id = ?', [id], { operation: 'DnsAccount.getById', table: 'dns_accounts' });
-    log.debug('DnsAccount', 'getById result', { id, enabled: (result as any)?.enabled });
-    return result;
+    return getInternal('SELECT * FROM dns_accounts WHERE id = ?', [id], { operation: 'DnsAccount.getById', table: 'dns_accounts' });
   },
 
   /** 获取所有账号 */
@@ -627,13 +625,11 @@ export const DnsAccountOperations = {
 
   /** 更新账号启用状态 */
   async updateEnabled(id: number, enabled: boolean): Promise<void> {
-    log.debug('DnsAccount', 'Updating enabled status', { id, enabled });
-    const result = await executeInternal(
+    await executeInternal(
       'UPDATE dns_accounts SET enabled = ? WHERE id = ?',
       [enabled ? 1 : 0, id],
       { operation: 'DnsAccount.updateEnabled', table: 'dns_accounts' }
     );
-    log.debug('DnsAccount', 'Update enabled result', { id, enabled, result });
   },
 };
 
@@ -3491,13 +3487,11 @@ export const RenewableDomainOperations = {
 
   /** 禁用/启用续期域名 */
   async toggleEnabled(id: number, enabled: boolean): Promise<void> {
-    log.info('RenewableDomain', 'Toggling enabled status', { id, enabled });
     await executeInternal(
       'UPDATE renewable_domains SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [enabled ? 1 : 0, id],
       { operation: 'RenewableDomain.toggleEnabled', table: 'renewable_domains' }
     );
-    log.info('RenewableDomain', 'Toggle completed', { id, enabled });
   },
 
   /** 检查域名是否已添加 */

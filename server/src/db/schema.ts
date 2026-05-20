@@ -169,18 +169,12 @@ async function handleMySQLMigrations(
         if (Array.isArray(result) && result.length > 0) {
           const count = (result[0] as any).cnt;
           needMigration = count === 0;
-          log.info('Schema', `dns_accounts.enabled column check result: count=${count}, needMigration=${needMigration}`);
-        } else {
-          log.warn('Schema', 'dns_accounts.enabled column check returned no results');
         }
-      } else {
-        log.warn('Schema', 'conn.execute is not available');
       }
       
       if (!needMigration) {
         log.info('Schema', 'enabled column already exists in dns_accounts, skipping migration');
       } else {
-        log.warn('Schema', 'enabled column does NOT exist, starting export-rebuild migration');
         log.info('Schema', 'Starting export-rebuild migration for dns_accounts...');
         
         if (conn.execute) {
@@ -216,26 +210,18 @@ async function handleMySQLMigrations(
           
           if (hasEnabledColumn) {
             // Old table has enabled column, preserve existing values
-            const copyResult = await conn.execute(`
+            await conn.execute(`
               INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
               SELECT id, type, name, config, remark, created_by, team_id, enabled, created_at
               FROM dns_accounts
             `);
-            log.info('Schema', `Step 2: Copied data with existing enabled values. Rows affected: ${(copyResult as any)?.affectedRows || 'unknown'}`);
-            
-            // Log sample of enabled values
-            const sampleResult = await conn.execute(`SELECT id, name, enabled FROM dns_accounts_new LIMIT 5`) as any[];
-            if (Array.isArray(sampleResult)) {
-              log.info('Schema', 'Sample of copied enabled values:', sampleResult);
-            }
           } else {
             // Old table doesn't have enabled column, set default value 1
-            const copyResult = await conn.execute(`
+            await conn.execute(`
               INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
               SELECT id, type, name, config, remark, created_by, team_id, 1 as enabled, created_at
               FROM dns_accounts
             `);
-            log.info('Schema', `Step 2: Copied data with default enabled=1. Rows affected: ${(copyResult as any)?.affectedRows || 'unknown'}`);
           }
           log.info('Schema', 'Step 2: Copied data to dns_accounts_new');
           

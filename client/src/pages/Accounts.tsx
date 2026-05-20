@@ -198,8 +198,10 @@ export function Accounts() {
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsApi.list().then((r) => r.data.data ?? []),
-    // Always refetch on mount to ensure fresh data (bypass staleTime)
+    // Use realtime config for account status (high consistency requirement)
+    staleTime: 0,
     refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   const { data: providers = [] } = useQuery({
