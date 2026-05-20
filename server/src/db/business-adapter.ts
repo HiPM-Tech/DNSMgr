@@ -3355,6 +3355,15 @@ export const RenewableDomainOperations = {
     );
   },
 
+  /** 获取所有续期域名（包括启用和禁用） */
+  async getAll(): Promise<any[]> {
+    return await queryInternal(
+      'SELECT * FROM renewable_domains ORDER BY expires_at ASC',
+      [],
+      { operation: 'RenewableDomain.getAll', table: 'renewable_domains' }
+    );
+  },
+
   /** 获取所有启用的续期域名 */
   async getAllEnabled(): Promise<any[]> {
     const dbType = getDbType();

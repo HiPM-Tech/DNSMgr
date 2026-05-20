@@ -341,10 +341,10 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
   log.info('Domains', 'Fetching renewable domains', { userId: req.user?.userId });
   
   try {
-    // Query from renewable_domains table
+    // Query from renewable_domains table (include both enabled and disabled)
     const startTime = Date.now();
-    log.debug('Domains', 'Calling RenewableDomainOperations.getAllEnabled()');
-    const renewableDomains = await RenewableDomainOperations.getAllEnabled();
+    log.debug('Domains', 'Calling RenewableDomainOperations.getAll()');
+    const renewableDomains = await RenewableDomainOperations.getAll();
     const queryDuration = Date.now() - startTime;
     
     log.info('Domains', 'Fetched renewable domains from database', { 

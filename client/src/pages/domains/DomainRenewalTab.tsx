@@ -273,7 +273,11 @@ export function DomainRenewalTab() {
               theme={row.enabled ? 'warning' : 'success'}
               icon={row.enabled ? <StopCircleIcon /> : <PlayCircleIcon />}
               disabled={toggleEnabledMutation.isPending}
-              onClick={() => toggleEnabledMutation.mutate({ id: row.id, enabled: !row.enabled })}
+              onClick={() => {
+                // Toggle enabled state (handle both boolean and number from database)
+                const currentEnabled = !!row.enabled;
+                toggleEnabledMutation.mutate({ id: row.id, enabled: !currentEnabled });
+              }}
             />
             <Button
               shape="square"
