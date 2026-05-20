@@ -224,8 +224,10 @@ async function handleMySQLMigrations(
           }
           log.info('Schema', 'Step 2: Copied data to dns_accounts_new');
           
-          // Step 3: Drop old table
+          // Step 3: Drop old table (disable foreign key checks first)
+          await conn.execute(`SET FOREIGN_KEY_CHECKS = 0`);
           await conn.execute(`DROP TABLE dns_accounts`);
+          await conn.execute(`SET FOREIGN_KEY_CHECKS = 1`);
           log.info('Schema', 'Step 3: Dropped old dns_accounts table');
           
           // Step 4: Rename new table
