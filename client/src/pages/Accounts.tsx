@@ -198,6 +198,8 @@ export function Accounts() {
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsApi.list().then((r) => r.data.data ?? []),
+    // Always refetch on mount to ensure fresh data (bypass staleTime)
+    refetchOnMount: true,
   });
 
   const { data: providers = [] } = useQuery({
@@ -280,8 +282,8 @@ export function Accounts() {
       toast.error(t('common.operationFailed'));
     },
     onSuccess: (_, { enabled }) => {
-      // Still invalidate to ensure consistency with server
-      qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
+      // Force refetch to ensure consistency with server (bypass staleTime)
+      qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'all' });
       toast.success(enabled ? t('common.enabled') : t('common.disabled'));
     },
   });
