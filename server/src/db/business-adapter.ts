@@ -2758,10 +2758,17 @@ export const AuditExportOperations = {
   /** 获取审计日志列表 */
   async getLogs(where: string, params: unknown[], pageSize: number, offset: number): Promise<QueryResult[]> {
     const dbType = getDbType();
+    // Use CASE WHEN to display 'Root' for user_id = 0
     const listSql = dbType === 'postgresql'
-      ? `SELECT l.*, u.username, u.nickname FROM operation_logs l
+      ? `SELECT l.*, 
+          CASE WHEN l.user_id = 0 THEN 'Root' ELSE u.username END as username,
+          CASE WHEN l.user_id = 0 THEN '后端' ELSE u.nickname END as nickname
+         FROM operation_logs l
          LEFT JOIN users u ON u.id = l.user_id WHERE ${where} ORDER BY l.id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
-      : `SELECT l.*, u.username, u.nickname FROM operation_logs l
+      : `SELECT l.*, 
+          CASE WHEN l.user_id = 0 THEN 'Root' ELSE u.username END as username,
+          CASE WHEN l.user_id = 0 THEN '后端' ELSE u.nickname END as nickname
+         FROM operation_logs l
          LEFT JOIN users u ON u.id = l.user_id WHERE ${where} ORDER BY l.id DESC LIMIT ? OFFSET ?`;
     const finalSql = dbType === 'mysql'
       ? listSql.replace('LIMIT ? OFFSET ?', `LIMIT ${pageSize} OFFSET ${offset}`)

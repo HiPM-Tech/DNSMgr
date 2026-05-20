@@ -76,6 +76,12 @@ async function syncRenewableDomains(account: any, providerDomainSet: Set<string>
         
         disabledCount++;
         disabledDomains.push(domainName);
+      } else if (!providerDomainSet.has(domainName)) {
+        // 域名不在提供商列表中，但已经是禁用状态，跳过
+        log.debug('DomainSyncJob', `Renewable domain already disabled, skipping: ${domainName}`, {
+          accountId,
+          renewableDomainId: (renewableDomain as any).id,
+        });
       }
     }
     
@@ -235,6 +241,12 @@ async function syncAccountDomains(account: any): Promise<void> {
         
         disabledCount++;
         disabledDomains.push((dbDomain as any).name);
+      } else if (!providerDomainSet.has(domainName)) {
+        // 域名不在提供商列表中，但已经是禁用状态，跳过
+        log.debug('DomainSyncJob', `Domain already disabled, skipping: ${(dbDomain as any).name}`, {
+          accountId,
+          domainId: (dbDomain as any).id,
+        });
       }
     }
     
