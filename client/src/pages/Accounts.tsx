@@ -283,9 +283,21 @@ export function Accounts() {
       }
       toast.error(t('common.operationFailed'));
     },
-    onSuccess: (_, { enabled }) => {
-      // Force refetch to ensure consistency with server (bypass staleTime)
-      qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'all' });
+    onSuccess: (_response, { id, enabled }) => {
+      // Update cache directly with the confirmed value from server response
+      // This avoids race condition with WebSocket event and refetch
+      qc.setQueryData(['accounts'], (old: DnsAccount[] | undefined) => {
+        if (!old) return old;
+        return old.map(account => 
+          account.id === id ? { ...account, enabled } : account
+        );
+      });
+      
+      // Still invalidate to refresh other fields that might have changed
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
+      }, 100); // Small delay to avoid race condition
+      
       toast.success(enabled ? t('common.enabled') : t('common.disabled'));
     },
   });
