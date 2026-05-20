@@ -159,8 +159,9 @@ async function handleMySQLMigrations(
     // Note: This migration runs on every startup but checks if column exists first (idempotent)
     log.info('Schema', 'Checking dns_accounts.enabled column...');
     try {
+      // Use LOWER() for case-insensitive comparison to handle different MySQL configurations
       const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
+        WHERE LOWER(TABLE_NAME) = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
       
       let needMigration = true;
       if (conn.execute) {
