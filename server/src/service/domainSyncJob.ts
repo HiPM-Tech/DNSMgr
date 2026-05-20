@@ -44,7 +44,8 @@ async function syncRenewableDomains(account: any, providerDomainSet: Set<string>
       }
       
       // 如果域名不在提供商列表中，且当前状态是启用，则禁用
-      if (!providerDomainSet.has(domainName) && (renewableDomain as any).enabled !== false) {
+      const isEnabled = Boolean((renewableDomain as any).enabled);
+      if (!providerDomainSet.has(domainName) && isEnabled) {
         log.warn('DomainSyncJob', `Renewable domain not found in provider, disabling: ${domainName}`, {
           accountId,
           renewableDomainId: (renewableDomain as any).id,
@@ -209,7 +210,8 @@ async function syncAccountDomains(account: any): Promise<void> {
       const domainName = (dbDomain as any).name.toLowerCase();
       
       // 如果域名不在提供商列表中，且当前状态是启用，则禁用
-      if (!providerDomainSet.has(domainName) && (dbDomain as any).enabled !== false) {
+      const isEnabled = Boolean((dbDomain as any).enabled);
+      if (!providerDomainSet.has(domainName) && isEnabled) {
         log.warn('DomainSyncJob', `Domain not found in provider, disabling: ${(dbDomain as any).name}`, {
           accountId,
           domainId: (dbDomain as any).id,
