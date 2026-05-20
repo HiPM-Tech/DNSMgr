@@ -188,7 +188,7 @@ async function handleMySQLMigrations(
               type VARCHAR(100) NOT NULL,
               name VARCHAR(255) NOT NULL,
               config JSON,
-              remark TEXT NOT NULL DEFAULT '',
+              remark TEXT,
               created_by INT NOT NULL,
               team_id INT DEFAULT NULL,
               enabled TINYINT(1) NOT NULL DEFAULT 1,
