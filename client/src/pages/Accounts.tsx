@@ -255,11 +255,35 @@ export function Accounts() {
   const toggleEnabledMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => 
       accountsApi.toggleEnabled(id, enabled),
+    onMutate: async ({ id, enabled }) => {
+      // Cancel any outgoing refetches
+      await qc.cancelQueries({ queryKey: ['accounts'] });
+      
+      // Snapshot the previous value
+      const previousAccounts = qc.getQueryData(['accounts']) as DnsAccount[] | undefined;
+      
+      // Optimistically update to the new value
+      if (previousAccounts) {
+        qc.setQueryData(['accounts'], previousAccounts.map(account => 
+          account.id === id ? { ...account, enabled } : account
+        ));
+      }
+      
+      // Return a context object with the snapshotted value
+      return { previousAccounts };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback to the previous value
+      if (context?.previousAccounts) {
+        qc.setQueryData(['accounts'], context.previousAccounts);
+      }
+      toast.error(t('common.operationFailed'));
+    },
     onSuccess: (_, { enabled }) => {
+      // Still invalidate to ensure consistency with server
       qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
       toast.success(enabled ? t('common.enabled') : t('common.disabled'));
     },
-    onError: () => toast.error(t('common.operationFailed')),
   });
 
   const columns = [
