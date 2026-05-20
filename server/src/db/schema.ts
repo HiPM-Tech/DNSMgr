@@ -200,12 +200,28 @@ async function handleMySQLMigrations(
           log.info('Schema', 'Step 1: Created dns_accounts_new table');
           
           // Step 2: Copy data from old table
-          await conn.execute(`
-            INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
-            SELECT id, type, name, config, remark, created_by, team_id, 
-                   COALESCE(enabled, 1) as enabled, created_at
-            FROM dns_accounts
-          `);
+          // Check if old table has enabled column
+          const checkOldColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
+          const checkResult = await conn.execute(checkOldColumnSql) as any[];
+          const hasEnabledColumn = Array.isArray(checkResult) && checkResult.length > 0 && 
+                                   parseInt(String((checkResult[0] as any).cnt), 10) > 0;
+          
+          if (hasEnabledColumn) {
+            // Old table has enabled column, preserve existing values
+            await conn.execute(`
+              INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
+              SELECT id, type, name, config, remark, created_by, team_id, enabled, created_at
+              FROM dns_accounts
+            `);
+          } else {
+            // Old table doesn't have enabled column, set default value 1
+            await conn.execute(`
+              INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
+              SELECT id, type, name, config, remark, created_by, team_id, 1 as enabled, created_at
+              FROM dns_accounts
+            `);
+          }
           log.info('Schema', 'Step 2: Copied data to dns_accounts_new');
           
           // Step 3: Drop old table
