@@ -450,14 +450,14 @@ router.patch('/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Req
       userId: req.user?.userId 
     });
     
-    // Broadcast WebSocket event
+    // Broadcast WebSocket event with full account data
     try {
+      const updatedAccount = await DnsAccountOperations.getById(id);
       wsService.broadcast({
         type: 'account_updated',
         data: {
           accountId: id,
-          name: account.name,
-          enabled,
+          account: updatedAccount,
         },
       });
     } catch (error) {
