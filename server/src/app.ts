@@ -9,7 +9,7 @@ import { loadEnv } from './config/env';
 // Get the current file directory
 const APP_ROOT = path.resolve();
 import { createConnection, isDbInitialized, hasUsers, connect } from './db/connection';
-import { initSchema, initSchemaAsync } from './db/schema';
+import { initSchema } from './db/schema';
 import { initSchema as initSchemaWithMigration } from './db/init';
 import { disconnect } from './db/core/connection';
 import { authMiddleware, adminOnly } from './middleware/auth';
@@ -372,10 +372,8 @@ async function initializeApp() {
     // Initialize new database system (used by some routes like auth.ts)
     await connect();
 
-    // Initialize schema if needed (use async version for all database types)
-    await initSchemaAsync(conn);
-
-    // Run column migration for existing tables (adds missing columns like background_image)
+    // Run unified schema initialization and migration checks
+    // This function internally calls initSchemaAsync() if needed
     await initSchemaWithMigration();
 
     // Check if system is initialized
@@ -478,7 +476,7 @@ async function initializeApp() {
       try {
         const conn = await createConnection();
         await connect();
-        await initSchemaAsync(conn);
+        await initSchemaWithMigration();
         const newState = await checkInitialization();
         if (newState) {
           isInitialized = true;
