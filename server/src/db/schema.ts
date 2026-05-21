@@ -159,17 +159,48 @@ async function handleMySQLMigrations(
     // Note: This migration runs on every startup but checks if column exists first (idempotent)
     log.info('Schema', 'Checking dns_accounts.enabled column...');
     try {
-      // Use LOWER() for case-insensitive comparison to handle different MySQL configurations
-      const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE LOWER(TABLE_NAME) = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
+      // Use multiple strategies for case-insensitive comparison
+      // Strategy 1: Try exact match first
+      let checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
       
       let needMigration = true;
+      let count = 0;
+      
       if (conn.execute) {
         const result = await conn.execute(checkSql) as any[];
+        log.debug('Schema', 'Strategy 1 - Exact match result', { result: JSON.stringify(result) });
+        
         if (Array.isArray(result) && result.length > 0) {
-          const count = (result[0] as any).cnt;
-          needMigration = count === 0;
+          count = (result[0] as any).cnt;
         }
+        
+        // Strategy 2: If not found, try case-insensitive match
+        if (count === 0) {
+          checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE LOWER(TABLE_NAME) = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
+          const result2 = await conn.execute(checkSql) as any[];
+          log.debug('Schema', 'Strategy 2 - LOWER() match result', { result: JSON.stringify(result2) });
+          
+          if (Array.isArray(result2) && result2.length > 0) {
+            count = (result2[0] as any).cnt;
+          }
+        }
+        
+        // Strategy 3: If still not found, try LIKE (case-insensitive in most MySQL configs)
+        if (count === 0) {
+          checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME LIKE 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
+          const result3 = await conn.execute(checkSql) as any[];
+          log.debug('Schema', 'Strategy 3 - LIKE match result', { result: JSON.stringify(result3) });
+          
+          if (Array.isArray(result3) && result3.length > 0) {
+            count = (result3[0] as any).cnt;
+          }
+        }
+        
+        log.info('Schema', 'Final column check result', { count, needMigration: count === 0 });
+        needMigration = count === 0;
       }
       
       if (!needMigration) {
