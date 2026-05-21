@@ -217,6 +217,13 @@ export const mysqlSchema: SchemaDefinition = {
       INDEX idx_ip_address (ip_address),
       INDEX idx_locked_until (locked_until)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS password_resets (
+      email VARCHAR(255) PRIMARY KEY,
+      code VARCHAR(6) NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_expires_at (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS system_settings (
       \`key\` VARCHAR(255) PRIMARY KEY,
       \`value\` TEXT NOT NULL,

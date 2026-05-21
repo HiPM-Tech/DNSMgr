@@ -204,6 +204,12 @@ export const sqliteSchema: SchemaDefinition = {
       locked_until TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
+    `CREATE TABLE IF NOT EXISTS password_resets (
+      email TEXT PRIMARY KEY,
+      code TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
     `CREATE TABLE IF NOT EXISTS system_settings (
       "key" TEXT PRIMARY KEY,
       "value" TEXT NOT NULL,

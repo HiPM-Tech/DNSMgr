@@ -3900,6 +3900,67 @@ export const SystemCacheOperations = {
   },
 };
 
+/**
+ * Password Reset Operations
+ * 密码重置验证码操作（持久化存储）
+ */
+const PasswordResetOperations = {
+  /**
+   * 创建或更新密码重置验证码
+   */
+  async upsertCode(email: string, code: string, expiresAt: number): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    await executeInternal(
+      'INSERT INTO password_resets (email, code, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE code = ?, expires_at = ?',
+      [normalizedEmail, code, new Date(expiresAt), code, new Date(expiresAt)],
+      { operation: 'PasswordReset.upsertCode', table: 'password_resets' }
+    );
+  },
+
+  /**
+   * 获取密码重置验证码
+   */
+  async getCode(email: string): Promise<{ code: string; expiresAt: number } | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const row = await getInternal<{ code: string; expires_at: string }>(
+      'SELECT code, expires_at FROM password_resets WHERE email = ? AND expires_at > NOW()',
+      [normalizedEmail],
+      { operation: 'PasswordReset.getCode', table: 'password_resets' }
+    );
+    
+    if (!row) return null;
+    
+    return {
+      code: row.code,
+      expiresAt: new Date(row.expires_at).getTime(),
+    };
+  },
+
+  /**
+   * 删除密码重置验证码
+   */
+  async deleteCode(email: string): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    await executeInternal(
+      'DELETE FROM password_resets WHERE email = ?',
+      [normalizedEmail],
+      { operation: 'PasswordReset.deleteCode', table: 'password_resets' }
+    );
+  },
+
+  /**
+   * 清理过期的验证码
+   */
+  async cleanupExpired(): Promise<number> {
+    const result = await runInternal(
+      'DELETE FROM password_resets WHERE expires_at <= NOW()',
+      [],
+      { operation: 'PasswordReset.cleanupExpired', table: 'password_resets' }
+    );
+    return result.changes;
+  },
+};
+
 // ============================================================================
 // 导出默认对象（兼容旧代码）
 // ============================================================================
@@ -3952,4 +4013,5 @@ export default {
   RdapCache: RdapCacheOperations,
   SystemCache: SystemCacheOperations,
   RenewableDomain: RenewableDomainOperations,
+  PasswordReset: PasswordResetOperations,
 };

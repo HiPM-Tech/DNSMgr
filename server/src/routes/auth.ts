@@ -15,15 +15,16 @@ import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, U
 import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, SecurityPolicy } from '../service/securityPolicy';
 import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/deviceTrust';
 import { getRequestIP } from '../middleware/clientIP';
+import db from '../db/business-adapter';
 
 
 const router = Router();
-const resetStore = new Map<string, { code: string; expiresAt: number }>();
 // OAuth state 现在存储在数据库中，不再使用内存 Map
 // const oauthStateStore = new Map<string, { mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId?: number; expiresAt: number }>();
 const processingCallbacks = new Set<string>();
-// 记录已成功处理的code，避免重复处理（最多保留1000个，避免内存泄漏）
-const processedCodes = new Set<string>();
+// 记录已成功处理的code，使用 Map 带时间戳支持自动过期（最多保留1000个，避免内存泄漏）
+const processedCodes = new Map<string, number>(); // code -> timestamp
+const PROCESSED_CODES_TTL = 5 * 60 * 1000; // 5分钟TTL
 const MAX_PROCESSED_CODES = 1000;
 
 type OAuthConfig = {
@@ -78,15 +79,31 @@ function randomHex(size: number): string {
 }
 
 function addProcessedCode(code: string): void {
-  // 限制集合大小，避免内存泄漏
-  if (processedCodes.size >= MAX_PROCESSED_CODES) {
-    // 删除一些元素（Set没有顺序，所以转换为数组后删除前几个）
-    const codesArray = Array.from(processedCodes);
-    for (let i = 0; i < 10 && i < codesArray.length; i++) {
-      processedCodes.delete(codesArray[i]);
+  const now = Date.now();
+  
+  // 先清理过期条目
+  for (const [key, timestamp] of processedCodes.entries()) {
+    if (now - timestamp > PROCESSED_CODES_TTL) {
+      processedCodes.delete(key);
     }
   }
-  processedCodes.add(code);
+  
+  // 如果仍然超过限制，删除最旧的条目
+  if (processedCodes.size >= MAX_PROCESSED_CODES) {
+    let oldestKey: string | undefined;
+    let oldestTime = Infinity;
+    for (const [key, timestamp] of processedCodes.entries()) {
+      if (timestamp < oldestTime) {
+        oldestTime = timestamp;
+        oldestKey = key;
+      }
+    }
+    if (oldestKey) {
+      processedCodes.delete(oldestKey);
+    }
+  }
+  
+  processedCodes.set(code, now);
 }
 
 function sanitizeConfigValue(value: string): string {
@@ -749,7 +766,8 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
       log.warn('OAuth', 'State not found in store', { state: state.substring(0, 16) + '...', code: code?.substring(0, 16) + '...' });
       
       // 检查这个code是否已经被处理过
-      if (processedCodes.has(code)) {
+      const processedTimestamp = processedCodes.get(code);
+      if (processedTimestamp && Date.now() - processedTimestamp <= PROCESSED_CODES_TTL) {
         log.info('OAuth', 'Code already processed, returning success', { code: code?.substring(0, 16) + '...' });
         // 如果已经处理过，返回成功（幂等性）
         // 对于绑定模式，返回成功
@@ -766,7 +784,8 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // 再次检查是否已经被处理
-      if (processedCodes.has(code)) {
+      const processedTimestamp2 = processedCodes.get(code);
+      if (processedTimestamp2 && Date.now() - processedTimestamp2 <= PROCESSED_CODES_TTL) {
         log.info('OAuth', 'Code processed after waiting, returning success', { code: code?.substring(0, 16) + '...' });
         addProcessedCode(code);
         res.json({ code: 0, data: { mode: 'login' }, msg: 'OAuth flow completed after retry' });
@@ -1081,7 +1100,7 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
     const user = await UserOperations.getByEmail(normalized);
     if (user) {
       const code = String(Math.floor(100000 + Math.random() * 900000));
-      resetStore.set(normalized, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
+      await db.PasswordReset.upsertCode(normalized, code, Date.now() + 10 * 60 * 1000);
       await sendSmtpEmail(normalized, 'HiDNS Password Reset Code', `Hi ${user.username},\n\nYour password reset code is: ${code}\nThis code will expire in 10 minutes.`);
       await logAuditOperation(user.id as number, 'send_password_reset_code', 'system', { email: normalized });
     }
@@ -1102,7 +1121,7 @@ router.post('/password-reset/confirm', async (req: Request, res: Response) => {
     res.status(400).json({ code: 400, msg: 'Password must be at least 6 characters' });
     return;
   }
-  const entry = resetStore.get(normalized);
+  const entry = await db.PasswordReset.getCode(normalized);
   if (!entry || entry.code !== code.trim() || Date.now() > entry.expiresAt) {
     res.status(400).json({ code: 400, msg: 'Invalid or expired reset code' });
     return;
@@ -1115,7 +1134,7 @@ router.post('/password-reset/confirm', async (req: Request, res: Response) => {
     }
     const hash = bcrypt.hashSync(newPassword, 10);
     await UserOperations.updatePassword(user.id as number, hash);
-    resetStore.delete(normalized);
+    await db.PasswordReset.deleteCode(normalized);
     await logAuditOperation(user.id as number, 'reset_password_by_email', 'system', { email: normalized });
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
