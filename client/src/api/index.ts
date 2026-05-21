@@ -12,6 +12,14 @@ export { authApi } from './auth';
 export { accountsApi, tunnelsApi } from './accounts';
 export { domainsApi, domainRenewalApi } from './domains';
 export { recordsApi } from './records';
+export { usersApi } from './users';
+export { teamsApi } from './teams';
+export { logsApi } from './logs';
+export { systemApi, settingsApi, securityApi } from './settings';
+export { tokensApi } from './tokens';
+export { nsMonitorApi } from './ns-monitor';
+export { networkApi } from './network';
+export { initApi } from './init';
 
 // Legacy API exports (deprecated - will be removed after full migration)
 // These are kept for backward compatibility with existing imports
