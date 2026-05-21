@@ -9,6 +9,9 @@ export * from './types';
 
 // Modular APIs (new structure - preferred)
 export { authApi } from './auth';
+export { accountsApi, tunnelsApi } from './accounts';
+export { domainsApi, domainRenewalApi } from './domains';
+export { recordsApi } from './records';
 
 // Legacy API exports (deprecated - will be removed after full migration)
 // These are kept for backward compatibility with existing imports
