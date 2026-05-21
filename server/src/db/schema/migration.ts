@@ -1,6 +1,10 @@
 /**
  * 迁移系统
  * 管理数据库版本迁移和回滚
+ * 
+ * @deprecated This migration system is deprecated. Use SchemaVersionManager from '../migration-manager' instead.
+ * The new system provides better version tracking based on schema hash and unified initialization flow.
+ * This file is kept for backward compatibility but should not be used in new code.
  */
 
 import type { DatabaseConnection, Transaction } from '../core/types';
