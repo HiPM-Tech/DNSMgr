@@ -334,6 +334,35 @@ if (clientBuildPath) {
 // Global error handler (must be last)
 app.use(errorHandler);
 
+/**
+ * Graceful shutdown handler
+ */
+async function gracefulShutdown(
+  signal: string,
+  initCheckInterval?: NodeJS.Timeout,
+  oauthStateCleanupInterval?: NodeJS.Timeout
+): Promise<void> {
+  if (initCheckInterval) clearInterval(initCheckInterval);
+  if (oauthStateCleanupInterval) clearInterval(oauthStateCleanupInterval);
+  
+  log.info('Server', `${signal} received, starting graceful shutdown...`);
+  
+  // Shutdown WebSocket service
+  wsService.shutdown();
+  
+  try {
+    await disconnect();
+    log.info('Server', 'Database disconnected gracefully');
+  } catch (err) {
+    log.error('Server', 'Error during database disconnect', { error: err });
+  }
+  
+  server.close(() => {
+    log.info('Server', 'Server closed');
+    process.exit(0);
+  });
+}
+
 // Initialize database connection and check state
 async function initializeApp() {
   try {
@@ -423,45 +452,8 @@ async function initializeApp() {
     }, 10 * 60 * 1000);
 
     // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      clearInterval(initCheckInterval);
-      clearInterval(oauthStateCleanupInterval);
-      log.info('Server', 'SIGTERM received, starting graceful shutdown...');
-      
-      // Shutdown WebSocket service
-      wsService.shutdown();
-      
-      try {
-        await disconnect();
-        log.info('Server', 'Database disconnected gracefully');
-      } catch (err) {
-        log.error('Server', 'Error during database disconnect', { error: err });
-      }
-      server.close(() => {
-        log.info('Server', 'Server closed');
-        process.exit(0);
-      });
-    });
-
-    process.on('SIGINT', async () => {
-      clearInterval(initCheckInterval);
-      clearInterval(oauthStateCleanupInterval);
-      log.info('Server', 'SIGINT received, starting graceful shutdown...');
-      
-      // Shutdown WebSocket service
-      wsService.shutdown();
-      
-      try {
-        await disconnect();
-        log.info('Server', 'Database disconnected gracefully');
-      } catch (err) {
-        log.error('Server', 'Error during database disconnect', { error: err });
-      }
-      server.close(() => {
-        log.info('Server', 'Server closed');
-        process.exit(0);
-      });
-    });
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM', initCheckInterval, oauthStateCleanupInterval));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT', initCheckInterval, oauthStateCleanupInterval));
 
   } catch (error) {
     log.info('Server', 'Database not configured. Running in initialization mode.');
