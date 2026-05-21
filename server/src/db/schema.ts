@@ -65,6 +65,54 @@ async function executeMigration(
 }
 
 /**
+ * Generic helper to add column if not exists (MySQL)
+ */
+async function addColumnIfNotExists(
+  conn: { execute?: Function; exec?: Function },
+  tableName: string,
+  columnName: string,
+  columnDef: string
+): Promise<void> {
+  const checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_NAME = ? AND COLUMN_NAME = ?`;
+  
+  let columnExists = false;
+  if (conn.execute) {
+    try {
+      const result = await conn.execute(checkSql, [tableName, columnName]);
+      if (Array.isArray(result) && result.length > 0) {
+        const row = result[0] as Record<string, number>;
+        const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+        columnExists = parseInt(String(count), 10) > 0;
+      }
+    } catch (error) {
+      log.warn('Schema', `Failed to check column ${columnName}`, { error: (error as Error).message });
+    }
+  }
+
+  if (columnExists) {
+    log.debug('Schema', `${columnName} column already exists in ${tableName}`);
+  } else {
+    const addColumnSql = `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`;
+    try {
+      if (conn.execute) {
+        await conn.execute(addColumnSql);
+      } else if (conn.exec) {
+        conn.exec(addColumnSql);
+      }
+      log.info('Schema', `Added ${columnName} column to ${tableName}`);
+    } catch (error) {
+      const errorMsg = (error as Error).message || '';
+      if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
+        log.info('Schema', `${columnName} column already exists (caught during ALTER)`);
+      } else {
+        log.warn('Schema', `Failed to add ${columnName} column`, { error: errorMsg });
+      }
+    }
+  }
+}
+
+/**
  * Handle MySQL-specific migrations that require application-level checks
  * (stored procedures are not supported in prepared statement protocol)
  */
@@ -77,75 +125,10 @@ async function handleMySQLMigrations(
     log.info('Schema', 'Starting MySQL migrations...');
     
     // 迁移1: 添加 apex_expires_at 字段到 domains 表
-    try {
-      const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'apex_expires_at'`;
-
-      let columnExists = false;
-      if (conn.execute) {
-        const result = await conn.execute(checkColumnSql);
-        if (Array.isArray(result) && result.length > 0) {
-          const row = result[0] as Record<string, number>;
-          const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
-          columnExists = parseInt(String(count), 10) > 0;
-        }
-      }
-
-      if (columnExists) {
-        log.debug('Schema', 'apex_expires_at column already exists in domains table');
-      } else {
-        // 只在字段不存在时才执行ALTER TABLE，避免触发驱动层ERROR日志
-        const addColumnSql = `ALTER TABLE domains ADD COLUMN apex_expires_at DATETIME`;
-        if (conn.execute) {
-          await conn.execute(addColumnSql);
-        } else if (conn.exec) {
-          conn.exec(addColumnSql);
-        }
-        log.info('Schema', 'Added apex_expires_at column to domains table');
-      }
-    } catch (error) {
-      const errorMsg = (error as Error).message || '';
-      if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
-        log.info('Schema', 'apex_expires_at column already exists');
-      } else {
-        log.warn('Schema', 'Failed to add apex_expires_at column', { error: errorMsg });
-      }
-    }
+    await addColumnIfNotExists(conn, 'domains', 'apex_expires_at', 'DATETIME');
 
     // 迁移1.5: 添加 whois_status 字段到 domains 表
-    try {
-      const checkColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_NAME = 'domains' AND COLUMN_NAME = 'whois_status'`;
-
-      let columnExists = false;
-      if (conn.execute) {
-        const result = await conn.execute(checkColumnSql);
-        if (Array.isArray(result) && result.length > 0) {
-          const row = result[0] as Record<string, number>;
-          const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
-          columnExists = parseInt(String(count), 10) > 0;
-        }
-      }
-
-      if (columnExists) {
-        log.debug('Schema', 'whois_status column already exists in domains table');
-      } else {
-        const addColumnSql = `ALTER TABLE domains ADD COLUMN whois_status TEXT`;
-        if (conn.execute) {
-          await conn.execute(addColumnSql);
-        } else if (conn.exec) {
-          conn.exec(addColumnSql);
-        }
-        log.info('Schema', 'Added whois_status column to domains table');
-      }
-    } catch (error) {
-      const errorMsg = (error as Error).message || '';
-      if (errorMsg.includes('Duplicate column') || errorMsg.includes('ER_DUP_FIELDNAME')) {
-        log.info('Schema', 'whois_status column already exists');
-      } else {
-        log.warn('Schema', 'Failed to add whois_status column', { error: errorMsg });
-      }
-    }
+    await addColumnIfNotExists(conn, 'domains', 'whois_status', 'TEXT');
 
     // 迁移2: 删除旧的域名级 NS 监测表（已废弃，改为用户级）
     await dropOldNsMonitorTables(conn);
