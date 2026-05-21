@@ -188,11 +188,14 @@ export function Accounts() {
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<DnsAccount | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [isMutating, setIsMutating] = useState(false);
 
+  // Disable WebSocket auto-refresh during mutation to avoid race condition
   useRealtimeData({
     queryKey: ['accounts'],
     websocketEventTypes: ['account_created', 'account_updated', 'account_deleted'],
-    pollingInterval: 60000,
+    pollingInterval: isMutating ? 0 : 60000, // Disable polling during mutation
+    enabled: !isMutating, // Disable WebSocket events during mutation
   });
 
   const { data: accounts = [], isLoading } = useQuery({
@@ -260,6 +263,9 @@ export function Accounts() {
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => 
       accountsApi.toggleEnabled(id, enabled),
     onMutate: async ({ id, enabled }) => {
+      // Set mutating flag to disable WebSocket auto-refresh
+      setIsMutating(true);
+      
       // Cancel any outgoing refetches
       await qc.cancelQueries({ queryKey: ['accounts'] });
       
@@ -277,6 +283,9 @@ export function Accounts() {
       return { previousAccounts };
     },
     onError: (_err, _variables, context) => {
+      // Reset mutating flag
+      setIsMutating(false);
+      
       // Rollback to the previous value
       if (context?.previousAccounts) {
         qc.setQueryData(['accounts'], context.previousAccounts);
@@ -292,6 +301,11 @@ export function Accounts() {
           account.id === id ? { ...account, enabled } : account
         );
       });
+      
+      // Reset mutating flag after a short delay to ensure cache is stable
+      setTimeout(() => {
+        setIsMutating(false);
+      }, 500);
       
       // Still invalidate to refresh other fields that might have changed
       setTimeout(() => {
