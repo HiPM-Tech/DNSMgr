@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Alert, Button, Form, Input, Select, Space } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
@@ -122,20 +122,23 @@ function isRecordHost(value: string): boolean {
 function parseSrvValue(initial?: DnsRecord): SrvFields {
   const raw = (initial?.value ?? '').trim();
   const parts = raw.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2 && /^\d+$/.test(parts[0])) {
+  
+  // SRV format: "priority weight port target" (4 parts)
+  if (parts.length === 4 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1]) && /^\d+$/.test(parts[2])) {
     return {
-      priority: initial?.mx ?? 10,
-      weight: initial?.weight ?? 10,
-      port: parts[0],
-      target: parts.slice(1).join(' '),
+      priority: parseInt(parts[0], 10),
+      weight: parseInt(parts[1], 10),
+      port: parts[2],
+      target: parts[3],
     };
   }
 
+  // Fallback: use mx/weight fields from record, parse remaining as port target
   return {
     priority: initial?.mx ?? 10,
     weight: initial?.weight ?? 10,
-    port: '',
-    target: raw,
+    port: parts[0] ?? '',
+    target: parts.slice(1).join(' ') ?? '',
   };
 }
 
@@ -174,6 +177,24 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
 
+  // ✅ Sync form state when initial changes (editing different record)
+  useEffect(() => {
+    if (!initial) return;
+    
+    setForm({
+      name: initial.name ?? '@',
+      type: initial.type ?? 'A',
+      value: initial.value ?? '',
+      ttl: initial.ttl ?? 600,
+      mx: initial.mx ?? 10,
+      weight: initial.weight ?? 10,
+      line: initial.line ?? defaultLine,
+      remark: initial.remark ?? '',
+    });
+    setSrv(parseSrvValue(initial));
+    setErrors({});
+  }, [initial?.id, defaultLine]);
+
   const set = (k: keyof DnsRecord, v: unknown) => {
     setForm((f) => ({ ...f, [k]: v }));
     setErrors((current) => ({ ...current, [k as keyof typeof current]: undefined }));
@@ -193,11 +214,13 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     : true;
 
   const normalizedSrvValue = useMemo(() => {
+    const priority = Number(form.mx ?? srv.priority);
+    const weight = Number(form.weight ?? srv.weight);
     const port = srv.port.trim();
     const target = srv.target.trim();
     if (!port || !target) return '';
-    return `${port} ${target}`;
-  }, [srv.port, srv.target]);
+    return `${priority} ${weight} ${port} ${target}`;
+  }, [form.mx, form.weight, srv.port, srv.target, srv.priority, srv.weight]);
 
   const validate = () => {
     const nextErrors: typeof errors = {};
