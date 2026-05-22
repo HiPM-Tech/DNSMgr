@@ -187,7 +187,31 @@ async function handleMySQLMigrations(
       }
       
       if (!needMigration) {
-        log.info('Schema', 'enabled column already exists in dns_accounts, skipping migration');
+        log.info('Schema', 'enabled column already exists in dns_accounts, checking DEFAULT constraint...');
+        
+        // Check if the column has DEFAULT constraint
+        const checkDefaultSql = `SELECT COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled' LIMIT 1`;
+        
+        if (conn.execute) {
+          const defaultResult = await conn.execute(checkDefaultSql) as any[];
+          if (Array.isArray(defaultResult) && defaultResult.length > 0) {
+            const columnDefault = (defaultResult[0] as any).COLUMN_DEFAULT;
+            log.info('Schema', 'Current enabled column DEFAULT value', { columnDefault });
+            
+            // If DEFAULT is NULL or not '1', we need to fix it
+            if (columnDefault === null || columnDefault === 'NULL' || String(columnDefault) !== '1') {
+              log.warn('Schema', 'enabled column missing DEFAULT constraint, fixing with export-rebuild...');
+              needMigration = true; // Force migration to add DEFAULT constraint
+            } else {
+              log.info('Schema', 'enabled column has correct DEFAULT constraint, skipping migration');
+            }
+          }
+        }
+      }
+      
+      if (!needMigration) {
+        log.info('Schema', 'enabled column already exists in dns_accounts with correct DEFAULT, skipping migration');
       } else {
         log.info('Schema', 'Starting export-rebuild migration for dns_accounts...');
         
