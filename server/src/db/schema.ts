@@ -273,6 +273,23 @@ async function handleMySQLMigrations(
           await conn.execute(`ALTER TABLE dns_accounts_new RENAME TO dns_accounts`);
           log.info('Schema', 'Step 4: Renamed dns_accounts_new to dns_accounts');
           
+          // Step 5: Verify the enabled column has correct DEFAULT constraint
+          try {
+            const verifySql = `SELECT COLUMN_DEFAULT, COLUMN_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS 
+              WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled' LIMIT 1`;
+            const verifyResult = await conn.execute(verifySql) as any[];
+            if (Array.isArray(verifyResult) && verifyResult.length > 0) {
+              const colInfo = verifyResult[0];
+              log.info('Schema', 'Verified dns_accounts.enabled column after migration', {
+                COLUMN_DEFAULT: colInfo.COLUMN_DEFAULT,
+                COLUMN_TYPE: colInfo.COLUMN_TYPE,
+                IS_NULLABLE: colInfo.IS_NULLABLE
+              });
+            }
+          } catch (verifyError) {
+            log.warn('Schema', 'Failed to verify enabled column after migration', { error: (verifyError as Error).message });
+          }
+          
           log.info('Schema', 'Export-rebuild migration completed successfully');
         }
       }
