@@ -90,7 +90,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       // Mask all values
       for (const k of Object.keys(cfg)) masked[k] = '***';
     }
-    return { ...a, type: normalizeProviderType(a.type), config: masked };
+    return { ...a, type: normalizeProviderType(a.type), config: masked, enabled: Boolean(a.enabled) };
   });
   sendSuccess(res, safe);
 }));
@@ -245,7 +245,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
     // Mask all values
     for (const k of Object.keys(cfg)) masked[k] = '***';
   }
-  sendSuccess(res, { ...account, type: normalizeProviderType(account.type), config: masked });
+  sendSuccess(res, { ...account, type: normalizeProviderType(account.type), config: masked, enabled: Boolean(account.enabled) });
 }));
 
 /**
@@ -457,7 +457,7 @@ router.patch('/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Req
         type: 'account_updated',
         data: {
           accountId: id,
-          account: updatedAccount,
+          account: updatedAccount ? { ...updatedAccount, enabled: Boolean(updatedAccount.enabled) } : null,
         },
       });
     } catch (error) {
