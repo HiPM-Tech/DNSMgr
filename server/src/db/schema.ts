@@ -241,18 +241,29 @@ async function handleMySQLMigrations(
           // Step 2: Copy data from old table
           // Check if old table has enabled column
           const checkOldColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
-          const checkResult = await conn.execute(checkOldColumnSql) as any[];
-          log.info('Schema', 'Checking if old dns_accounts table has enabled column', {
-            checkResult: JSON.stringify(checkResult),
-            isArray: Array.isArray(checkResult),
-            length: checkResult?.length,
-            firstRow: checkResult?.[0],
-            cntValue: checkResult?.[0]?.cnt
-          });
+            WHERE TABLE_NAME = ? AND COLUMN_NAME = ?`;
           
-          const hasEnabledColumn = Array.isArray(checkResult) && checkResult.length > 0 && 
-                                   parseInt(String((checkResult[0] as any).cnt), 10) > 0;
+          let hasEnabledColumn = false;
+          try {
+            const checkResult = await conn.execute(checkOldColumnSql, ['dns_accounts', 'enabled']) as any[];
+            log.info('Schema', 'Checking if old dns_accounts table has enabled column', {
+              checkResult: JSON.stringify(checkResult),
+              isArray: Array.isArray(checkResult),
+              length: checkResult?.length,
+              firstRow: checkResult?.[0],
+              cntValue: checkResult?.[0]?.cnt
+            });
+            
+            if (Array.isArray(checkResult) && checkResult.length > 0) {
+              const row = checkResult[0] as Record<string, number>;
+              const count = row?.cnt ?? row?.CNT ?? row?.['COUNT(*)'] ?? row?.count ?? 0;
+              hasEnabledColumn = parseInt(String(count), 10) > 0;
+            }
+          } catch (error) {
+            log.warn('Schema', 'Failed to check if enabled column exists', { error: (error as Error).message });
+            // If check fails, assume column doesn't exist and set default
+            hasEnabledColumn = false;
+          }
           
           log.info('Schema', 'Old table enabled column check result', { hasEnabledColumn });
           
