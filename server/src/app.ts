@@ -87,6 +87,9 @@ import { OAuthOperations } from './db/business-adapter';
 
 const app = express();
 
+// Server instance for graceful shutdown
+let server: http.Server | null = null;
+
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Global state to track initialization
@@ -357,10 +360,15 @@ async function gracefulShutdown(
     log.error('Server', 'Error during database disconnect', { error: err });
   }
   
-  server.close(() => {
-    log.info('Server', 'Server closed');
+  if (server) {
+    server.close(() => {
+      log.info('Server', 'Server closed');
+      process.exit(0);
+    });
+  } else {
+    log.info('Server', 'No server instance to close');
     process.exit(0);
-  });
+  }
 }
 
 // Initialize database connection and check state
@@ -401,7 +409,7 @@ async function initializeApp() {
     }
 
     // Start server with WebSocket support
-    const server = http.createServer(app);
+    server = http.createServer(app);
     
     // Initialize WebSocket service
     wsService.initialize(server);
@@ -457,7 +465,7 @@ async function initializeApp() {
     log.info('Server', 'Database not configured. Running in initialization mode.');
     log.info('Server', 'Please access the setup wizard to configure the system.');
 
-    const server = http.createServer(app);
+    server = http.createServer(app);
     
     // Initialize WebSocket service
     wsService.initialize(server);
@@ -512,10 +520,14 @@ async function initializeApp() {
       } catch (err) {
         log.error('Server', 'Error during database disconnect', { error: err });
       }
-      server.close(() => {
-        log.info('Server', 'Server closed');
+      if (server) {
+        server.close(() => {
+          log.info('Server', 'Server closed');
+          process.exit(0);
+        });
+      } else {
         process.exit(0);
-      });
+      }
     });
 
     process.on('SIGINT', async () => {
@@ -531,10 +543,14 @@ async function initializeApp() {
       } catch (err) {
         log.error('Server', 'Error during database disconnect', { error: err });
       }
-      server.close(() => {
-        log.info('Server', 'Server closed');
+      if (server) {
+        server.close(() => {
+          log.info('Server', 'Server closed');
+          process.exit(0);
+        });
+      } else {
         process.exit(0);
-      });
+      }
     });
   }
 }
