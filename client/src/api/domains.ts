@@ -1,4 +1,5 @@
-import { api, ApiResponse } from './client';
+import { api } from './client';
+import type { ApiResponse } from './client';
 import type { Domain, ProviderDomainOption, DnsLine, RenewalInfo, WhoisInfo } from './types';
 
 // ─── Domains API ──────────────────────────────────────────────────────────────

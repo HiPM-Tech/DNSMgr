@@ -1,4 +1,5 @@
-import { api, ApiResponse } from './client';
+import { api } from './client';
+import type { ApiResponse } from './client';
 import type { DnsAccount, Provider, Tunnel, TunnelConfig } from './types';
 
 // ─── DNS Accounts API ─────────────────────────────────────────────────────────

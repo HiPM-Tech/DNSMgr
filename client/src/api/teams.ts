@@ -1,4 +1,5 @@
-import { api, ApiResponse } from './client';
+import { api } from './client';
+import type { ApiResponse } from './client';
 import type { Team, TeamMember, DomainPermission } from './types';
 
 // ─── Teams API ────────────────────────────────────────────────────────────────

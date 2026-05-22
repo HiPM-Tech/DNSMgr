@@ -1,7 +1,8 @@
-import { api, ApiResponse } from './client';
+import { api } from './client';
+import type { ApiResponse } from './client';
 import type { 
   SystemInfo, LoginLimitConfig, LoginAttemptStats, JwtSecretInfo, 
-  SmtpConfig, SecurityConfig, OAuthStatus, OAuthBinding, OAuthConfig 
+  SmtpConfig, SecurityConfig, OAuthConfig 
 } from './types';
 
 // ─── System API ───────────────────────────────────────────────────────────────

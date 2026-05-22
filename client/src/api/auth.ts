@@ -1,4 +1,5 @@
-import { api, ApiResponse } from './client';
+import { api } from './client';
+import type { ApiResponse } from './client';
 import type { User, WebAuthnResponse, WebAuthnCredential, OAuthStatus, OAuthBinding, FailoverData } from './types';
 
 // ─── Auth API ─────────────────────────────────────────────────────────────────

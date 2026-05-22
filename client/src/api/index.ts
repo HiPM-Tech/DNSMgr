@@ -20,6 +20,7 @@ export { tokensApi } from './tokens';
 export { nsMonitorApi } from './ns-monitor';
 export { networkApi } from './network';
 export { initApi } from './init';
+export type { InitDbConfig, InitDatabaseType } from './init';
 
 // Legacy API exports (deprecated - will be removed after full migration)
 // These are kept for backward compatibility with existing imports
