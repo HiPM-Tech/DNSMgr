@@ -243,8 +243,18 @@ async function handleMySQLMigrations(
           const checkOldColumnSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
           const checkResult = await conn.execute(checkOldColumnSql) as any[];
+          log.info('Schema', 'Checking if old dns_accounts table has enabled column', {
+            checkResult: JSON.stringify(checkResult),
+            isArray: Array.isArray(checkResult),
+            length: checkResult?.length,
+            firstRow: checkResult?.[0],
+            cntValue: checkResult?.[0]?.cnt
+          });
+          
           const hasEnabledColumn = Array.isArray(checkResult) && checkResult.length > 0 && 
                                    parseInt(String((checkResult[0] as any).cnt), 10) > 0;
+          
+          log.info('Schema', 'Old table enabled column check result', { hasEnabledColumn });
           
           if (hasEnabledColumn) {
             // Old table has enabled column, preserve existing values
