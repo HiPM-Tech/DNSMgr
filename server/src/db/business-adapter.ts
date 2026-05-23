@@ -643,15 +643,23 @@ export const DomainOperations = {
     return getInternal('SELECT * FROM domains WHERE id = ?', [id], { operation: 'Domain.getById', table: 'domains' });
   },
 
-  /** 根据名称获取域名 */
+  /** 根据名称获取域名（过滤掉已禁用账号的域名） */
   async getByName(name: string): Promise<QueryResult | undefined> {
-    return getInternal('SELECT * FROM domains WHERE name = ?', [name], { operation: 'Domain.getByName', table: 'domains' });
+    return getInternal(
+      `SELECT d.* FROM domains d 
+       INNER JOIN dns_accounts a ON d.account_id = a.id 
+       WHERE d.name = ? AND a.enabled = 1`,
+      [name],
+      { operation: 'Domain.getByName', table: 'domains' }
+    );
   },
 
-  /** 根据名称和账号ID获取域名 */
+  /** 根据名称和账号ID获取域名（过滤掉已禁用账号的域名） */
   async getByAccountIdAndName(accountId: number, name: string): Promise<QueryResult | undefined> {
     return getInternal(
-      'SELECT * FROM domains WHERE account_id = ? AND name = ?',
+      `SELECT d.* FROM domains d 
+       INNER JOIN dns_accounts a ON d.account_id = a.id 
+       WHERE d.account_id = ? AND d.name = ? AND a.enabled = 1`,
       [accountId, name],
       { operation: 'Domain.getByAccountIdAndName', table: 'domains' }
     );
