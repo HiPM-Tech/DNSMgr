@@ -49,7 +49,7 @@ function App() {
                     <Route path="/oauth/callback" element={<OAuthCallback />} />
                     <Route element={<ProtectedRoute />}>
                       <Route element={<Layout />}>
-                        <Route index element={<Dashboard />} />
+                        <Route path="dash" element={<Dashboard />} />
                         <Route path="accounts" element={<Accounts />} />
                         <Route path="domains" element={<Domains activeTab="list" />} />
                         <Route path="domains/failover" element={<Domains activeTab="failover" />} />

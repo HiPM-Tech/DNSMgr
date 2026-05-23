@@ -39,7 +39,7 @@ interface NavItem {
 }
 
 const primaryItems: NavItem[] = [
-  { to: '/', icon: <DashboardIcon />, key: 'common.dashboard', end: true },
+  { to: '/dash', icon: <DashboardIcon />, key: 'common.dashboard', end: true },
   { to: '/accounts', icon: <ServerIcon />, key: 'common.dnsAccounts' },
   { to: '/teams', icon: <UsergroupIcon />, key: 'common.teams' },
   { to: '/tokens', icon: <KeyIcon />, key: 'common.tokens' },
