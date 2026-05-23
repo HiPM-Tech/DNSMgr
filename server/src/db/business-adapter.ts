@@ -3369,12 +3369,16 @@ export const RenewableDomainOperations = {
     );
   },
 
-  /** 获取所有启用的续期域名 */
+  /** 获取所有启用的续期域名（过滤掉已禁用账号的域名） */
   async getAllEnabled(): Promise<any[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
+    // Join with dns_accounts to filter out domains from disabled accounts
     return await queryInternal(
-      `SELECT * FROM renewable_domains WHERE enabled = ${enabledValue} ORDER BY expires_at ASC`,
+      `SELECT rd.* FROM renewable_domains rd 
+       INNER JOIN dns_accounts da ON rd.account_id = da.id 
+       WHERE rd.enabled = ${enabledValue} AND da.enabled = 1
+       ORDER BY rd.expires_at ASC`,
       [],
       { operation: 'RenewableDomain.getAllEnabled', table: 'renewable_domains' }
     );
