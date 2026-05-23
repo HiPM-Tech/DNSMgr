@@ -205,9 +205,19 @@ export function requireTokenDomainPermission(paramName: string = 'id') {
       return;
     }
 
-    // 如果 allowed_domains 为空数组，表示允许所有域名
-    if (!tokenPayload.allowedDomains || tokenPayload.allowedDomains.length === 0) {
+    // 如果 allowed_domains 为 null/undefined，表示允许所有域名（向后兼容）
+    // 如果为空数组 []，表示不允许任何域名（白名单机制）
+    if (tokenPayload.allowedDomains === null || tokenPayload.allowedDomains === undefined) {
       next();
+      return;
+    }
+    
+    // 空数组表示拒绝所有域名
+    if (tokenPayload.allowedDomains.length === 0) {
+      res.status(403).json({
+        code: -1,
+        msg: 'API token has no domain permissions configured'
+      });
       return;
     }
 
