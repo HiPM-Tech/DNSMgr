@@ -50,11 +50,11 @@ export const apiLimiter = rateLimit({
 
 /**
  * 严格的 API 端点速率限制 - 用于敏感操作
- * 默认：1 分钟内最多 120 个请求
+ * 默认：1 分钟内最多 30 个请求（比 apiLimiter 更严格）
  */
 export const strictApiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 分钟
-  max: 120, // 限制请求数
+  max: 30, // 限制请求数（更严格）
   message: 'Too many requests to this endpoint, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,

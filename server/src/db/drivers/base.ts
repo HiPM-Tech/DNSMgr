@@ -18,6 +18,7 @@ import type {
   OrderBy,
 } from '../core/types';
 import type { DatabaseDriver, DriverConfig, ConnectionStats } from './types';
+import { log } from '../../lib/logger';
 
 /** 抽象基础驱动类 */
 export abstract class BaseDriver implements DatabaseDriver {
@@ -94,15 +95,12 @@ export abstract class BaseDriver implements DatabaseDriver {
       logData.error = error.message;
     }
     
-    // Use console.warn for slow queries to ensure visibility
-    console.warn(`[Slow Query] ${operation} took ${duration}ms (threshold: ${this.slowQueryThreshold}ms)`);
-    console.warn('  SQL:', sql.substring(0, 200));
-    if (params && params.length > 0) {
-      console.warn('  Params:', params);
-    }
-    if (error) {
-      console.warn('  Error:', error.message);
-    }
+    // Log slow query using unified logging system
+    log.warn('DB', `Slow Query: ${operation} took ${duration}ms (threshold: ${this.slowQueryThreshold}ms)`, {
+      sql: sql.substring(0, 200),
+      params: params && params.length > 0 ? params : undefined,
+      error: error?.message,
+    });
   }
 
   abstract get isConnected(): boolean;
