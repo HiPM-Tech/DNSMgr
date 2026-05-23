@@ -45,6 +45,10 @@ interface WSClient {
   userId: number;
   role: string;
   isAlive: boolean;
+  // Rate limiting
+  messageCount: number; // Messages in current window
+  lastMessageTime: number; // Timestamp of last message
+  rateLimitWindow: number; // Window start time
 }
 
 class WSService {
@@ -135,6 +139,9 @@ class WSService {
         userId,
         role,
         isAlive: true,
+        messageCount: 0,
+        lastMessageTime: Date.now(),
+        rateLimitWindow: Date.now(),
       };
 
       this.clients.set(userId, client);
@@ -191,9 +198,46 @@ class WSService {
    * 处理客户端消息
    */
   private handleMessage(userId: number, message: string): void {
+    const client = this.clients.get(userId);
+    if (!client) return;
+
+    // Rate limiting: max 10 messages per second
+    const now = Date.now();
+    const RATE_LIMIT_WINDOW = 1000; // 1 second window
+    const MAX_MESSAGES_PER_WINDOW = 10;
+
+    // Reset window if expired
+    if (now - client.rateLimitWindow > RATE_LIMIT_WINDOW) {
+      client.messageCount = 0;
+      client.rateLimitWindow = now;
+    }
+
+    // Check rate limit
+    client.messageCount++;
+    if (client.messageCount > MAX_MESSAGES_PER_WINDOW) {
+      log.warn('WSService', 'Rate limit exceeded, closing connection', { 
+        userId, 
+        messageCount: client.messageCount 
+      });
+      client.ws.close(4004, 'Rate limit exceeded');
+      return;
+    }
+
+    client.lastMessageTime = now;
+
     try {
       const data = JSON.parse(message);
       log.debug('WSService', 'Received message from client', { userId, type: data.type });
+
+      // Limit message size to 64KB
+      if (message.length > 64 * 1024) {
+        log.warn('WSService', 'Message too large', { userId, size: message.length });
+        this.sendToClient(userId, { 
+          type: 'error', 
+          data: { message: 'Message too large (max 64KB)' } 
+        });
+        return;
+      }
 
       // 可以根据消息类型处理不同的请求
       switch (data.type) {
