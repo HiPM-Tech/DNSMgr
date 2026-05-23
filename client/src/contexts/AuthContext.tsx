@@ -19,7 +19,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  // Use sessionStorage instead of localStorage for better security (token expires on browser close)
+  const [token, setToken] = useState<string | null>(() => sessionStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -30,9 +31,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authApi.me()
       .then((res) => {
         if (res.data.code === 0) setUser(res.data.data);
-        else { localStorage.removeItem('token'); setToken(null); }
+        else { sessionStorage.removeItem('token'); setToken(null); }
       })
-      .catch(() => { localStorage.removeItem('token'); setToken(null); })
+      .catch(() => { sessionStorage.removeItem('token'); setToken(null); })
       .finally(() => setIsLoading(false));
   }, [token]);
 
@@ -46,13 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (res.data.code !== 0) throw new Error(res.data.msg);
     const { token: tok, user: u } = res.data.data;
-    if (tok) localStorage.setItem('token', tok);
+    if (tok) sessionStorage.setItem('token', tok);
     if (tok) setToken(tok);
     if (u) setUser(u);
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
     setToken(null);
     setUser(null);
   };
@@ -62,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginWithToken = (nextToken: string, nextUser: User) => {
-    localStorage.setItem('token', nextToken);
+    sessionStorage.setItem('token', nextToken);
     setToken(nextToken);
     setUser(nextUser);
   };
