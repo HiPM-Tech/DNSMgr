@@ -16,10 +16,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      // Token will be cleared by server via cookie
-      window.location.href = '/login';
-    }
+    // Don't automatically redirect on 401
+    // Let individual components handle authentication errors
+    // This prevents unwanted redirects on public pages like Landing
     return Promise.reject(err);
   }
 );
