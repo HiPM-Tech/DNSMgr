@@ -205,6 +205,19 @@ async function checkLegacySystem(conn: DatabaseConnection): Promise<boolean> {
  */
 async function checkTableExists(conn: DatabaseConnection, tableName: string): Promise<boolean> {
   try {
+    // Whitelist validation to prevent SQL injection
+    const allowedTables = [
+      'users', 'dns_accounts', 'domains', 'domain_records', 'teams', 
+      'team_members', 'team_accounts', 'api_tokens', 'token_domain_permissions',
+      'domain_permissions', 'oauth_states', 'audit_logs', 'security_policies',
+      'trusted_devices', 'renewable_domains', 'ns_monitors', 'rdap_cache',
+      'system_cache', 'password_resets'
+    ];
+    
+    if (!allowedTables.includes(tableName)) {
+      throw new Error(`Invalid table name: ${tableName}`);
+    }
+    
     const dbType = conn.type;
     let sql = '';
     
