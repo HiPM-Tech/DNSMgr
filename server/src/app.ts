@@ -374,10 +374,7 @@ async function gracefulShutdown(
 // Initialize database connection and check state
 async function initializeApp() {
   try {
-    // Try to create database connection (legacy system)
-    const conn = await createConnection();
-
-    // Initialize new database system (used by some routes like auth.ts)
+    // Initialize new database system (unified connection)
     await connect();
 
     // Run unified schema initialization and migration checks
@@ -482,7 +479,6 @@ async function initializeApp() {
     // Re-check initialization status periodically
     const initCheckInterval = setInterval(async () => {
       try {
-        const conn = await createConnection();
         await connect();
         await initSchemaWithMigration();
         const newState = await checkInitialization();
@@ -506,52 +502,10 @@ async function initializeApp() {
       }
     }, 5000);
 
-    // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      clearInterval(initCheckInterval);
-      log.info('Server', 'SIGTERM received, starting graceful shutdown...');
-      
-      // Shutdown WebSocket service
-      wsService.shutdown();
-      
-      try {
-        await disconnect();
-        log.info('Server', 'Database disconnected gracefully');
-      } catch (err) {
-        log.error('Server', 'Error during database disconnect', { error: err });
-      }
-      if (server) {
-        server.close(() => {
-          log.info('Server', 'Server closed');
-          process.exit(0);
-        });
-      } else {
-        process.exit(0);
-      }
-    });
-
-    process.on('SIGINT', async () => {
-      clearInterval(initCheckInterval);
-      log.info('Server', 'SIGINT received, starting graceful shutdown...');
-      
-      // Shutdown WebSocket service
-      wsService.shutdown();
-      
-      try {
-        await disconnect();
-        log.info('Server', 'Database disconnected gracefully');
-      } catch (err) {
-        log.error('Server', 'Error during database disconnect', { error: err });
-      }
-      if (server) {
-        server.close(() => {
-          log.info('Server', 'Server closed');
-          process.exit(0);
-        });
-      } else {
-        process.exit(0);
-      }
-    });
+    // Graceful shutdown - use the unified gracefulShutdown function
+    // Note: oauthStateCleanupInterval is not started in this branch, so pass undefined
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM', initCheckInterval));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT', initCheckInterval));
   }
 }
 
