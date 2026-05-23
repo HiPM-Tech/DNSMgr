@@ -762,47 +762,36 @@ export const DomainOperations = {
   }): Promise<QueryResult[]> {
     const { userId, teamIds, accountId, keyword, isSuper } = params;
     
+    let builder: DomainQueryBuilder;
+    
     if (isSuper) {
-      let sql = `SELECT d.* FROM domains d 
-                 INNER JOIN dns_accounts a ON d.account_id = a.id 
-                 WHERE a.enabled = 1`;
-      const queryParams: unknown[] = [];
-      if (accountId) { sql += ' AND d.account_id = ?'; queryParams.push(accountId); }
-      if (keyword) { sql += ' AND d.name LIKE ?'; queryParams.push(`%${keyword}%`); }
-      sql += ' ORDER BY d.id';
-      return queryInternal(sql, queryParams, { operation: 'Domain.getAccessibleDomains.super', table: 'domains' });
+      // Super admin: use simplified query
+      builder = DomainQueryBuilder.accessibleForSuperAdmin({ accountId, keyword });
+    } else {
+      // Regular user: full permission check with teams
+      builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
     }
     
-    // 非超级管理员需要检查权限
-    const teamFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
-    const teamPermFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
+    const { sql, params: queryParams } = builder.build();
     
-    let sql = `SELECT d.* FROM domains d WHERE (d.account_id IN (
-      SELECT id FROM dns_accounts WHERE created_by = ? AND enabled = 1 ${teamFilter}
-    ) OR d.id IN (
-      SELECT domain_id FROM domain_permissions WHERE user_id = ? ${teamPermFilter}
-    ))`;
-    
-    const queryParams: unknown[] = [userId, ...teamIds, userId, ...teamIds];
-    
-    if (accountId) { sql += ' AND d.account_id = ?'; queryParams.push(accountId); }
-    if (keyword) { sql += ' AND d.name LIKE ?'; queryParams.push(`%${keyword}%`); }
-    sql += ' ORDER BY d.id';
-    
-    return queryInternal(sql, queryParams, { operation: 'Domain.getAccessibleDomains', table: 'domains' });
+    return queryInternal(sql, queryParams, { 
+      operation: isSuper 
+        ? 'Domain.getAccessibleDomains.super' 
+        : 'Domain.getAccessibleDomains', 
+      table: 'domains' 
+    });
   },
 
   /** 检查用户是否有权限访问特定域名（用于令牌权限验证） */
   async checkUserDomainAccess(domainId: number, userId: number): Promise<boolean> {
-    const result = await getInternal<{ id: number }>(
-      `SELECT d.id FROM domains d
-       JOIN dns_accounts da ON d.account_id = da.id
-       WHERE d.enabled != 0 AND d.id = ? AND (da.created_by = ? OR d.id IN (
-         SELECT domain_id FROM domain_permissions WHERE user_id = ?
-       ))`,
-      [domainId, userId, userId],
-      { operation: 'Domain.checkUserDomainAccess', table: 'domains' }
-    );
+    const builder = DomainQueryBuilder.checkUserAccess(domainId, userId);
+    const { sql, params } = builder.build();
+    
+    const result = await getInternal<{ id: number }>(sql, params, { 
+      operation: 'Domain.checkUserDomainAccess', 
+      table: 'domains' 
+    });
+    
     return !!result;
   },
 

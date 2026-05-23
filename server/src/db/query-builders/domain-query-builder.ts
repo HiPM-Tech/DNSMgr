@@ -208,4 +208,65 @@ export class DomainQueryBuilder {
     builder.params.push(userId);
     return builder;
   }
+
+  /**
+   * Level 3: 可访问域名 - 超级管理员
+   */
+  static accessibleForSuperAdmin(options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
+    const builder = DomainQueryBuilder.withAccountFilter();
+    
+    if (options?.accountId) {
+      builder.whereAccountId(options.accountId);
+    }
+    if (options?.keyword) {
+      builder.whereKeyword(options.keyword);
+    }
+    
+    return builder;
+  }
+
+  /**
+   * Level 3: 可访问域名 - 普通用户（带团队和权限检查）
+   */
+  static accessibleForUser(userId: number, teamIds: number[], options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
+    const builder = new DomainQueryBuilder();
+    
+    // Build permission check subqueries
+    const teamFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
+    const teamPermFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
+    
+    // Main permission check
+    builder.wheres.push(`(d.account_id IN (
+      SELECT id FROM dns_accounts WHERE created_by = ? AND enabled = 1 ${teamFilter}
+    ) OR d.id IN (
+      SELECT domain_id FROM domain_permissions WHERE user_id = ? ${teamPermFilter}
+    ))`);
+    
+    // Add parameters: userId, teamIds..., userId, teamIds...
+    builder.params.push(userId, ...teamIds, userId, ...teamIds);
+    
+    // Add optional filters
+    if (options?.accountId) {
+      builder.whereAccountId(options.accountId);
+    }
+    if (options?.keyword) {
+      builder.whereKeyword(options.keyword);
+    }
+    
+    return builder;
+  }
+
+  /**
+   * Level 2: 用户域名访问检查（用于 Token 权限验证）
+   */
+  static checkUserAccess(domainId: number, userId: number): DomainQueryBuilder {
+    const builder = new DomainQueryBuilder();
+    builder.selectColumns = 'd.id';
+    builder.joins.push('JOIN dns_accounts da ON d.account_id = da.id');
+    builder.wheres.push(`d.enabled != 0 AND d.id = ? AND (da.created_by = ? OR d.id IN (
+      SELECT domain_id FROM domain_permissions WHERE user_id = ?
+    ))`);
+    builder.params.push(domainId, userId, userId);
+    return builder;
+  }
 }
