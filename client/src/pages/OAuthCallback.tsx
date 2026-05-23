@@ -32,7 +32,7 @@ function cleanupOldOAuthEntries() {
 }
 
 export function OAuthCallback() {
-  const { loginWithToken } = useAuth();
+  const { updateUser } = useAuth();
   const { t } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
@@ -114,7 +114,7 @@ export function OAuthCallback() {
           }
 
           setSucceeded(true); // 标记为成功
-          const { token, user, mode } = res.data.data;
+          const { user, mode } = res.data.data;
           
           if (mode === 'bind') {
             localStorage.setItem(storageKey, `success_bind:timestamp:${Date.now()}`); // 标记为绑定成功
@@ -123,9 +123,10 @@ export function OAuthCallback() {
             return;
           }
 
-          if (token && user) {
+          if (user) {
             localStorage.setItem(storageKey, `success_login:timestamp:${Date.now()}`); // 标记为登录成功
-            loginWithToken(token, user);
+            // Token is now in httpOnly cookie, just update user state
+            updateUser(user);
             navigate('/');
             return;
           }

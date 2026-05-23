@@ -15,7 +15,7 @@ interface UseRealtimeOptions {
 }
 
 export function useRealtimeData(options: UseRealtimeOptions) {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const wsRef = useRef<WebSocket | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -37,14 +37,13 @@ export function useRealtimeData(options: UseRealtimeOptions) {
 
   // 连接 WebSocket
   const connectWebSocket = useCallback(() => {
-    if (!token || !enabled) return;
+    if (!user || !enabled) return;
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      // 对 token 进行 URL 编码，避免特殊字符导致连接失败
-      const encodedToken = encodeURIComponent(token);
-      const wsUrl = `${protocol}//${host}/ws?token=${encodedToken}`;
+      // Token is now stored in httpOnly cookie, browser will send it automatically
+      const wsUrl = `${protocol}//${host}/ws`;
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -111,7 +110,7 @@ export function useRealtimeData(options: UseRealtimeOptions) {
       hasWsConnectionRef.current = false;
       startPolling();
     }
-  }, [token, enabled, websocketEventTypes, refreshData]);
+  }, [user, enabled, websocketEventTypes, refreshData]);
 
   // 启动轮询
   const startPolling = useCallback(() => {
