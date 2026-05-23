@@ -855,6 +855,29 @@ export const DomainOperations = {
       { operation: 'Domain.getUserAccessibleDomains', table: 'domains' }
     );
   },
+
+  /** 获取 NS 监控可用的域名列表（Level 1 - ALL，不过滤 enabled 状态） */
+  async getAvailableDomainsForNSMonitor(userId: number, isSuperAdmin: boolean): Promise<QueryResult[]> {
+    if (isSuperAdmin) {
+      // Super admin: get all domains without any filters
+      return queryInternal(
+        `SELECT d.id, d.name, d.account_id FROM domains ORDER BY d.name`,
+        [],
+        { operation: 'Domain.getAvailableDomainsForNSMonitor.super', table: 'domains' }
+      );
+    } else {
+      // Regular user: get domains from their accounts only, no enabled filter
+      return queryInternal(
+        `SELECT d.id, d.name, d.account_id FROM domains d
+         WHERE d.account_id IN (
+           SELECT id FROM dns_accounts WHERE created_by = ?
+         )
+         ORDER BY d.name`,
+        [userId],
+        { operation: 'Domain.getAvailableDomainsForNSMonitor.user', table: 'domains' }
+      );
+    }
+  },
 };
 
 // ============================================================================

@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { NSMonitorOperations, DomainOperations, getDbType, formatDateForDB, query } from '../db/business-adapter';
+import { NSMonitorOperations, DomainOperations, getDbType, formatDateForDB } from '../db/business-adapter';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { log } from '../lib/logger';
@@ -268,21 +268,10 @@ router.get('/available-domains', authMiddleware, asyncHandler(async (req: Reques
   const role = normalizeRole(req.user!.role);
 
   // Level 1: Get all domains without filtering by enabled status
-  let allDomains: any[];
-  
-  if (isSuper(role)) {
-    // Super admin: get all domains (no permission check needed)
-    allDomains = await DomainOperations.getAll() as any[];
-  } else {
-    // Regular user: get domains from their accounts only
-    // Use raw query to avoid enabled filtering in business-adapter
-    const dbType = getDbType();
-    const sql = dbType === 'postgresql'
-      ? `SELECT d.* FROM domains d WHERE d.account_id IN (SELECT id FROM dns_accounts WHERE created_by = $1) ORDER BY d.name`
-      : `SELECT d.* FROM domains d WHERE d.account_id IN (SELECT id FROM dns_accounts WHERE created_by = ?) ORDER BY d.name`;
-    
-    allDomains = await query(sql, [userId]) as any[];
-  }
+  const allDomains = await DomainOperations.getAvailableDomainsForNSMonitor(
+    userId,
+    isSuper(role)
+  ) as any[];
 
   // Filter out domains that already have NS monitor configured
   const monitoredDomainNames = new Set(
