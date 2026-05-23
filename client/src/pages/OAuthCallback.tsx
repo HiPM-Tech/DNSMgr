@@ -189,7 +189,7 @@ export function OAuthCallback() {
     };
 
     processCallback();
-  }, [loginWithToken, navigate, searchParams, t, toast]);
+  }, [updateUser, navigate, searchParams, t, toast]);
 
   if (error && !succeeded) {
     return (
