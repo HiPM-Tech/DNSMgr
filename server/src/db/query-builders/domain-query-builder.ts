@@ -141,4 +141,71 @@ export class DomainQueryBuilder {
       params: this.params
     };
   }
+
+  // ============================================================================
+  // 常用查询预设（静态工厂方法）
+  // ============================================================================
+
+  /**
+   * Level 1: ALL - 查询所有域名（无过滤）
+   */
+  static all(): DomainQueryBuilder {
+    return new DomainQueryBuilder();
+  }
+
+  /**
+   * Level 3: 带账号关联和 enabled 过滤
+   */
+  static withAccountFilter(): DomainQueryBuilder {
+    return new DomainQueryBuilder()
+      .joinAccounts()
+      .whereAccountEnabled();
+  }
+
+  /**
+   * Level 3: Token 认证 - 按 ID 列表查询
+   */
+  static forTokenAuth(domainIds: number[], options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
+    const builder = new DomainQueryBuilder()
+      .joinAccounts()
+      .whereAccountEnabled()
+      .whereDomainIds(domainIds);
+    
+    if (options?.accountId) {
+      builder.whereAccountId(options.accountId);
+    }
+    if (options?.keyword) {
+      builder.whereKeyword(options.keyword);
+    }
+    
+    return builder;
+  }
+
+  /**
+   * Level 3: 超级管理员查询
+   */
+  static forSuperAdmin(options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
+    const builder = new DomainQueryBuilder()
+      .joinAccounts()
+      .whereAccountEnabled();
+    
+    if (options?.accountId) {
+      builder.whereAccountId(options.accountId);
+    }
+    if (options?.keyword) {
+      builder.whereKeyword(options.keyword);
+    }
+    
+    return builder;
+  }
+
+  /**
+   * Level 1: NS 监控专用 - 普通用户查询（不过滤 enabled）
+   */
+  static forNSMonitorUser(userId: number): DomainQueryBuilder {
+    const builder = new DomainQueryBuilder();
+    builder.wheres.push('d.account_id IN (SELECT id FROM dns_accounts WHERE created_by = ?)');
+    builder.params.push(userId);
+    return builder;
+  }
 }

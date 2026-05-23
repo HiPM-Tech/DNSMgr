@@ -119,4 +119,46 @@ export class RenewableDomainQueryBuilder {
       params: this.params
     };
   }
+
+  // ============================================================================
+  // 常用查询预设（静态工厂方法）
+  // ============================================================================
+
+  /**
+   * Level 3: 主列表 - 所有续期域名（过滤禁用账号）
+   */
+  static all(): RenewableDomainQueryBuilder {
+    return new RenewableDomainQueryBuilder()
+      .joinAccounts()
+      .whereAccountEnabled();
+  }
+
+  /**
+   * Level 3: 按提供商类型查询（过滤启用状态和账号）
+   */
+  static byProviderType(providerType: string, enabledValue: string = '1'): RenewableDomainQueryBuilder {
+    return new RenewableDomainQueryBuilder()
+      .joinAccounts()
+      .whereProviderType(providerType)
+      .whereRenewableEnabled(enabledValue)
+      .whereAccountEnabled();
+  }
+
+  /**
+   * Level 3: 获取所有启用的续期域名（后台任务用）
+   */
+  static allEnabled(enabledValue: string = '1'): RenewableDomainQueryBuilder {
+    return new RenewableDomainQueryBuilder()
+      .joinAccounts()
+      .whereRenewableEnabled(enabledValue)
+      .whereAccountEnabled();
+  }
+
+  /**
+   * Level 2: 按账号 ID 查询（不过滤账号 enabled）
+   */
+  static byAccountId(accountId: number): RenewableDomainQueryBuilder {
+    return new RenewableDomainQueryBuilder()
+      .whereAccountId(accountId);
+  }
 }
