@@ -24,8 +24,8 @@ function setAuthCookie(res: Response, token: string): void {
   const isProduction = process.env.NODE_ENV === 'production';
   res.cookie('token', token, {
     httpOnly: true, // Prevent XSS access
-    secure: isProduction, // Only send over HTTPS in production
-    sameSite: 'strict', // CSRF protection
+    secure: isProduction, // Only send over HTTPS in production (fixes HTTP dev environment)
+    sameSite: 'lax', // CSRF protection (lax allows top-level navigation)
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     path: '/',
   });

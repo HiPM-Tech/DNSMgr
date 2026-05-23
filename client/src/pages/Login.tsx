@@ -111,7 +111,7 @@ export function Login() {
         require2FA && !useBackupCode ? totpCode : undefined,
         require2FA && useBackupCode ? backupCode : undefined,
       );
-      navigate('/');
+      navigate('/dash');
     } catch (err: any) {
       if (err.message === '2FA_REQUIRED') {
         setRequire2FA(true);
@@ -135,7 +135,7 @@ export function Login() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as any });
       await login(username, password, undefined, undefined, attResp as unknown as WebAuthnResponse);
-      navigate('/');
+      navigate('/dash');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t('login.failed'));
     } finally {
