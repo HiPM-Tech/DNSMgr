@@ -3353,10 +3353,14 @@ export const RenewableDomainOperations = {
     );
   },
 
-  /** 获取所有续期域名（包括启用和禁用） */
+  /** 获取所有续期域名（包括启用和禁用，但过滤掉已禁用账号的域名） */
   async getAll(): Promise<any[]> {
+    // Join with dns_accounts to filter out domains from disabled accounts
     return await queryInternal(
-      'SELECT * FROM renewable_domains ORDER BY expires_at ASC',
+      `SELECT rd.* FROM renewable_domains rd 
+       INNER JOIN dns_accounts da ON rd.account_id = da.id 
+       WHERE da.enabled = 1
+       ORDER BY rd.expires_at ASC`,
       [],
       { operation: 'RenewableDomain.getAll', table: 'renewable_domains' }
     );
@@ -3382,12 +3386,16 @@ export const RenewableDomainOperations = {
     );
   },
 
-  /** 根据提供商类型获取续期域名列表 */
+  /** 根据提供商类型获取续期域名列表（过滤掉已禁用账号的域名） */
   async getByProviderType(providerType: string): Promise<any[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
+    // Join with dns_accounts to filter out domains from disabled accounts
     return await queryInternal(
-      `SELECT * FROM renewable_domains WHERE provider_type = ? AND enabled = ${enabledValue} ORDER BY expires_at ASC`,
+      `SELECT rd.* FROM renewable_domains rd 
+       INNER JOIN dns_accounts da ON rd.account_id = da.id 
+       WHERE rd.provider_type = ? AND rd.enabled = ${enabledValue} AND da.enabled = 1
+       ORDER BY rd.expires_at ASC`,
       [providerType],
       { operation: 'RenewableDomain.getByProviderType', table: 'renewable_domains' }
     );
