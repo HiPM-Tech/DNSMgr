@@ -64,16 +64,23 @@ try {
  * 打印启动横幅
  */
 function printBanner(port: number): void {
+  // Use named constants for better maintainability
+  const CYAN = '\x1b[36m';
+  const MAGENTA = '\x1b[35m';
+  const GRAY = '\x1b[90m';
+  const RESET = '\x1b[0m';
+  const BOLD = '\x1b[1m';
+  
   const banner = `
-[36m╔═══════════════════════════════════════════════════════════╗[0m
-[36m║[0m                                                       [36m║[0m
-[36m║[0m   [1m[35mHiDNS Manager[0m                                    [36m║[0m
-[36m║[0m                                                       [36m║[0m
-[36m║[0m   [90mProject:[0m HiDNS Manager                         [36m║[0m
-[36m║[0m   [90mVersion:[0m ${packageVersion.padEnd(42)}[36m║[0m
-[36m║[0m   [90mGitHub:[0m  https://github.com/HiPM-Tech/HiDNS    [36m║[0m
-[36m║[0m                                                       [36m║[0m
-[36m╚═══════════════════════════════════════════════════════════╝[0m
+${CYAN}╔═══════════════════════════════════════════════════════════╗${RESET}
+${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
+${CYAN}║${RESET}   ${BOLD}${MAGENTA}HiDNS Manager${RESET}                                    ${CYAN}║${RESET}
+${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
+${CYAN}║${RESET}   ${GRAY}Project:${RESET} HiDNS Manager                         ${CYAN}║${RESET}
+${CYAN}║${RESET}   ${GRAY}Version:${RESET} ${packageVersion.padEnd(42)}${CYAN}║${RESET}
+${CYAN}║${RESET}   ${GRAY}GitHub:${RESET}  https://github.com/HiPM-Tech/HiDNS    ${CYAN}║${RESET}
+${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
+${CYAN}╚═══════════════════════════════════════════════════════════╝${RESET}
 `;
   console.log(banner);
 }
@@ -154,7 +161,12 @@ restricted to specific domains and time ranges.
 - Time restrictions: Tokens can have start/end time limits
 - All API endpoints support both JWT and API token authentication`,
     },
-    servers: [{ url: `http://localhost:${PORT}` }],
+    servers: [
+      {
+        url: process.env.API_BASE_URL || `http://localhost:${PORT}`,
+        description: process.env.API_BASE_URL ? 'Custom API URL' : 'Local development',
+      },
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {
