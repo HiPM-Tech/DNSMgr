@@ -18,7 +18,7 @@ import { getDefaultCompiler } from './query/compiler';
 import { transaction, getConnection } from './core/connection';
 import { log } from '../lib/logger';
 import { DomainQueryBuilder, RenewableDomainQueryBuilder } from './query-builders';
-import { UserPermissionAdapter } from './user-permission-adapter';
+import { UserPermissionAdapter } from './permissions';
 
 // 本地 db 对象，避免循环依赖
 const db = {
@@ -4013,5 +4013,5 @@ export default {
 // Export query builders module for advanced usage
 export * from './query-builders';
 
-// Export user permission adapter
-export { UserPermissionAdapter } from './user-permission-adapter';
+// Export permissions module
+export * from './permissions';
