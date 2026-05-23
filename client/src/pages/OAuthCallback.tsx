@@ -127,7 +127,7 @@ export function OAuthCallback() {
             localStorage.setItem(storageKey, `success_login:timestamp:${Date.now()}`); // 标记为登录成功
             // Token is now in httpOnly cookie, just update user state
             updateUser(user);
-            navigate('/');
+            navigate('/dash');
             return;
           }
 
