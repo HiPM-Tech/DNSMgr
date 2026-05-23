@@ -17,8 +17,7 @@ import type { SQLCompiler } from './query/compiler';
 import { getDefaultCompiler } from './query/compiler';
 import { transaction, getConnection } from './core/connection';
 import { log } from '../lib/logger';
-import { DomainQueryBuilder, RenewableDomainQueryBuilder } from './query-builders';
-import { UserPermissionAdapter } from './permissions';
+import { DomainQueryBuilder, RenewableDomainQueryBuilder, AccountQueryBuilder, TeamQueryBuilder } from './query-builders';
 
 // 本地 db 对象，避免循环依赖
 const db = {
@@ -785,8 +784,15 @@ export const DomainOperations = {
 
   /** 检查用户是否有权限访问特定域名（用于令牌权限验证） */
   async checkUserDomainAccess(domainId: number, userId: number): Promise<boolean> {
-    // Delegate to UserPermissionAdapter for consistent permission checking
-    return await UserPermissionAdapter.checkDomainAccess(domainId, userId);
+    const builder = DomainQueryBuilder.checkUserAccess(domainId, userId);
+    const { sql, params } = builder.build();
+    
+    const result = await getInternal<{ id: number }>(sql, params, { 
+      operation: 'Domain.checkUserDomainAccess', 
+      table: 'domains' 
+    });
+    
+    return !!result;
   },
 
   /** 设置域名的启用状态 */
@@ -4012,6 +4018,3 @@ export default {
 
 // Export query builders module for advanced usage
 export * from './query-builders';
-
-// Export permissions module
-export * from './permissions';

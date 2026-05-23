@@ -269,4 +269,41 @@ export class DomainQueryBuilder {
     builder.params.push(domainId, userId, userId);
     return builder;
   }
+
+  /**
+   * Level 3: 批量过滤可访问的域名
+   */
+  static filterAccessibleDomains(domainIds: number[], userId: number): DomainQueryBuilder {
+    if (domainIds.length === 0) {
+      const builder = new DomainQueryBuilder();
+      builder.wheres.push('1=0'); // 永远返回空
+      return builder;
+    }
+
+    const builder = new DomainQueryBuilder();
+    builder.selectColumns = 'd.id';
+    builder.joins.push('JOIN dns_accounts da ON d.account_id = da.id');
+    
+    const placeholders = domainIds.map(() => '?').join(',');
+    builder.wheres.push(`d.id IN (${placeholders}) 
+      AND d.enabled != 0
+      AND (da.created_by = ? OR d.id IN (
+        SELECT domain_id FROM domain_permissions WHERE user_id = ?
+      ))`);
+    builder.params.push(...domainIds, userId, userId);
+    
+    return builder;
+  }
+
+  /**
+   * Level 2: 检查域名所有者
+   */
+  static checkDomainOwner(domainId: number, userId: number): DomainQueryBuilder {
+    const builder = new DomainQueryBuilder();
+    builder.selectColumns = 'd.id';
+    builder.joins.push('JOIN dns_accounts da ON d.account_id = da.id');
+    builder.wheres.push('d.id = ? AND da.created_by = ?');
+    builder.params.push(domainId, userId);
+    return builder;
+  }
 }
