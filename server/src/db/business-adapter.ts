@@ -4066,6 +4066,5 @@ export default {
   PasswordReset: PasswordResetOperations,
 };
 
-// Export query builders for advanced usage
-export { DomainQueryBuilder } from './domain-query-builder';
-export { RenewableDomainQueryBuilder } from './renewable-domain-query-builder';
+// Export query builders module for advanced usage
+export * from './query-builders';
