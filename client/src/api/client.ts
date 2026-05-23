@@ -8,8 +8,8 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  // Token is now stored in httpOnly cookie, automatically sent by browser
+  // No need to manually add Authorization header for most requests
   return config;
 });
 
@@ -17,7 +17,7 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      sessionStorage.removeItem('token');
+      // Token will be cleared by server via cookie
       window.location.href = '/login';
     }
     return Promise.reject(err);

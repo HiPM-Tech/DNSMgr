@@ -67,12 +67,20 @@ async function getJwtSecret(): Promise<string> {
 }
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
+  // Try to get token from httpOnly cookie first, then fallback to Authorization header
+  let token = req.cookies?.token;
+  
+  if (!token) {
+    const header = req.headers.authorization;
+    if (header?.startsWith('Bearer ')) {
+      token = header.slice(7);
+    }
+  }
+  
+  if (!token) {
     res.status(401).json({ code: -1, msg: 'Unauthorized' });
     return;
   }
-  const token = header.slice(7);
   
   // First try to verify as JWT
   try {

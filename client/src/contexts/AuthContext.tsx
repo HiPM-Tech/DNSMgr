@@ -6,11 +6,9 @@ import { isAdmin } from '../utils/roles';
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
   login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse) => Promise<void>;
-  loginWithToken: (token: string, user: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUser: (user: User) => void;
   isAdmin: boolean;
 }
@@ -19,23 +17,21 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  // Use sessionStorage instead of localStorage for better security (token expires on browser close)
-  const [token, setToken] = useState<string | null>(() => sessionStorage.getItem('token'));
+  // Token is now stored in httpOnly cookie, managed by server
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
+    // Check if user is authenticated by calling /me endpoint
     authApi.me()
       .then((res) => {
         if (res.data.code === 0) setUser(res.data.data);
-        else { sessionStorage.removeItem('token'); setToken(null); }
       })
-      .catch(() => { sessionStorage.removeItem('token'); setToken(null); })
+      .catch(() => {
+        // Not authenticated or token expired
+        setUser(null);
+      })
       .finally(() => setIsLoading(false));
-  }, [token]);
+  }, []);
 
   const login = async (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse) => {
     const res = await authApi.login(username, password, totpCode, backupCode, webauthnResponse);
@@ -46,30 +42,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw err;
     }
     if (res.data.code !== 0) throw new Error(res.data.msg);
-    const { token: tok, user: u } = res.data.data;
-    if (tok) sessionStorage.setItem('token', tok);
-    if (tok) setToken(tok);
+    // Token is set via httpOnly cookie by server
+    const { user: u } = res.data.data;
     if (u) setUser(u);
   };
 
-  const logout = () => {
-    sessionStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      // Ignore errors during logout
+    } finally {
+      setUser(null);
+    }
   };
 
   const updateUser = (nextUser: User) => {
     setUser(nextUser);
   };
 
-  const loginWithToken = (nextToken: string, nextUser: User) => {
-    sessionStorage.setItem('token', nextToken);
-    setToken(nextToken);
-    setUser(nextUser);
-  };
-
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, loginWithToken, logout, updateUser, isAdmin: isAdmin(user?.role) }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser, isAdmin: isAdmin(user?.role) }}>
       {children}
     </AuthContext.Provider>
   );

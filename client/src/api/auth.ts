@@ -40,4 +40,5 @@ export const authApi = {
   getPinnedDomains: () => api.get<ApiResponse<{ pinnedDomains: number[] }>>('/auth/preferences/pinned-domains'),
   updatePinnedDomains: (domainIds: number[]) =>
     api.put<ApiResponse<null>>('/auth/preferences/pinned-domains', { domainIds }),
+  logout: () => api.post<ApiResponse<null>>('/auth/logout'),
 };

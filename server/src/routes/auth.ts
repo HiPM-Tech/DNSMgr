@@ -17,6 +17,20 @@ import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/de
 import { getRequestIP } from '../middleware/clientIP';
 import db from '../db/business-adapter';
 
+/**
+ * Set secure httpOnly cookie for JWT token
+ */
+function setAuthCookie(res: Response, token: string): void {
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.cookie('token', token, {
+    httpOnly: true, // Prevent XSS access
+    secure: isProduction, // Only send over HTTPS in production
+    sameSite: 'strict', // CSRF protection
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/',
+  });
+}
+
 
 const router = Router();
 // OAuth state 现在存储在数据库中，不再使用内存 Map
@@ -508,10 +522,13 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     }
     
     const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
+    
+    // Set httpOnly cookie (secure, XSS-proof)
+    setAuthCookie(res, token);
+    
     res.json({
       code: 0,
       data: { 
-        token, 
         user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role },
         deviceId,
         require2FASetup: force2FA && !userHas2FA,
@@ -873,11 +890,15 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     }
 
     const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
+    
+    // Set httpOnly cookie (secure, XSS-proof)
+    setAuthCookie(res, token);
+    
     await logAuditOperation(user.id, 'oauth_login', 'system', { provider: providerKey });
     addProcessedCode(code);
     res.json({
       code: 0,
-      data: { mode: 'login', token, user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },
+      data: { mode: 'login', user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },
       msg: 'success',
     });
   } catch (error) {
@@ -1257,6 +1278,30 @@ router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, r
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update pinned domains' });
   }
+});
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Logout and clear auth cookie
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully logged out
+ */
+router.post('/logout', authMiddleware, (req: Request, res: Response) => {
+  // Clear the httpOnly cookie
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/',
+  });
+  
+  res.json({ code: 0, msg: 'Logged out successfully' });
 });
 
 export default router;

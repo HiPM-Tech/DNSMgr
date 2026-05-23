@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import http from 'http';
@@ -125,6 +126,9 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false, // Allow embedding resources
 }));
+
+// Parse cookies (for httpOnly JWT cookie)
+app.use(cookieParser());
 
 // CORS configuration - restrict to specific origins in production
 const corsOptions = {
