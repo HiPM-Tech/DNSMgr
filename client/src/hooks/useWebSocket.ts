@@ -55,7 +55,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       // Token is now stored in httpOnly cookie, browser will send it automatically
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/ws`;
+      const wsUrl = `${protocol}//${host}/api/socket/ws`;
 
       console.log('[WebSocket] Connecting...', wsUrl);
 

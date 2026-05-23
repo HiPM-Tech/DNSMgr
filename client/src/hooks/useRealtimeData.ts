@@ -43,7 +43,7 @@ export function useRealtimeData(options: UseRealtimeOptions) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
       // Token is now stored in httpOnly cookie, browser will send it automatically
-      const wsUrl = `${protocol}//${host}/ws`;
+      const wsUrl = `${protocol}//${host}/api/socket/ws`;
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;

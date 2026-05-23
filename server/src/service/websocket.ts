@@ -62,7 +62,7 @@ class WSService {
   initialize(server: any): void {
     this.wss = new WebSocketServer({ 
       server,
-      path: '/ws',
+      path: '/api/socket/ws',
       maxPayload: 1024 * 1024, // 1MB
     });
 
@@ -77,7 +77,7 @@ class WSService {
     // 启动心跳检测
     this.startHeartbeat();
 
-    log.info('WSService', 'WebSocket server initialized on /ws');
+    log.info('WSService', 'WebSocket server initialized on /api/socket/ws');
   }
 
   /**
