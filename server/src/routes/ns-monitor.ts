@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { NSMonitorOperations, DomainOperations, getDbType, formatDateForDB } from '../db/business-adapter';
+import { NSMonitorOperations, DomainOperations, getDbType, formatDateForDB, query } from '../db/business-adapter';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { log } from '../lib/logger';
@@ -275,21 +275,13 @@ router.get('/available-domains', authMiddleware, asyncHandler(async (req: Reques
     allDomains = await DomainOperations.getAll() as any[];
   } else {
     // Regular user: get domains from their accounts only
-    // Use raw query to avoid enabled filtering
+    // Use raw query to avoid enabled filtering in business-adapter
     const dbType = getDbType();
-    allDomains = await (
-      dbType === 'postgresql'
-        ? import('../db/business-adapter').then(m => m.queryInternal(
-            `SELECT d.* FROM domains d WHERE d.account_id IN (SELECT id FROM dns_accounts WHERE created_by = $1) ORDER BY d.name`,
-            [userId],
-            { operation: 'NSMonitor.getAvailableDomains', table: 'domains' }
-          ))
-        : import('../db/business-adapter').then(m => m.queryInternal(
-            `SELECT d.* FROM domains d WHERE d.account_id IN (SELECT id FROM dns_accounts WHERE created_by = ?) ORDER BY d.name`,
-            [userId],
-            { operation: 'NSMonitor.getAvailableDomains', table: 'domains' }
-          ))
-    );
+    const sql = dbType === 'postgresql'
+      ? `SELECT d.* FROM domains d WHERE d.account_id IN (SELECT id FROM dns_accounts WHERE created_by = $1) ORDER BY d.name`
+      : `SELECT d.* FROM domains d WHERE d.account_id IN (SELECT id FROM dns_accounts WHERE created_by = ?) ORDER BY d.name`;
+    
+    allDomains = await query(sql, [userId]) as any[];
   }
 
   // Filter out domains that already have NS monitor configured
