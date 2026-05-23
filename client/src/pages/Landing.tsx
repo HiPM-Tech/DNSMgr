@@ -72,7 +72,7 @@ export function Landing() {
             <Button 
               variant="outline" 
               size="large"
-              onClick={() => navigate('/about')}
+              onClick={() => navigate('/dash/about')}
             >
               {t('landing.actions.learnMore')}
             </Button>
@@ -126,7 +126,7 @@ export function Landing() {
           <span>•</span>
           <button 
             className="landing-footer-link-button"
-            onClick={() => navigate('/about')}
+            onClick={() => navigate('/dash/about')}
           >
             {t('landing.footer.about')}
           </button>

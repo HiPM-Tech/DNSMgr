@@ -12,6 +12,6 @@ export function ProtectedRoute() {
 export function AdminRoute() {
   const { user, isAdmin } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (!isAdmin) return <Navigate to="/" replace />;
+  if (!isAdmin) return <Navigate to="/dash" replace />;
   return <Outlet />;
 }

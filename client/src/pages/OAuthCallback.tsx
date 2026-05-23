@@ -69,7 +69,7 @@ export function OAuthCallback() {
       if (status === 'success_bind' || status === 'success_login' || 
           status === 'redirected') {
         // 已经成功处理过，直接跳转
-        navigate('/settings');
+        navigate('/dash/settings');
         return;
       } else if (status === 'failed_permanent') {
         // 之前永久失败，显示错误
@@ -87,7 +87,7 @@ export function OAuthCallback() {
               // 状态已更新，根据新状态处理
               if (updatedStatusValue === 'success_bind' || updatedStatusValue === 'success_login' || 
                   updatedStatusValue === 'redirected') {
-                navigate('/settings');
+                navigate('/dash/settings');
               }
             }
           }
@@ -119,7 +119,7 @@ export function OAuthCallback() {
           if (mode === 'bind') {
             localStorage.setItem(storageKey, `success_bind:timestamp:${Date.now()}`); // 标记为绑定成功
             toast.success(t('settings.oauthBindSuccess'));
-            navigate('/settings');
+            navigate('/dash/settings');
             return;
           }
 
@@ -132,7 +132,7 @@ export function OAuthCallback() {
           }
 
           localStorage.setItem(storageKey, `redirected:timestamp:${Date.now()}`); // 标记为重定向
-          navigate('/settings');
+          navigate('/dash/settings');
         })
         .catch((err: any) => {
           // 处理Axios错误，提取服务器返回的错误消息

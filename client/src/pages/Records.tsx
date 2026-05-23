@@ -58,7 +58,7 @@ export function Records() {
   useEffect(() => {
     if (domain && domain.enabled === 0) {
       toast.error(t('domains.domainDisabled'));
-      navigate('/domains');
+      navigate('/dash/domains');
     }
   }, [domain, navigate, toast, t]);
 
@@ -236,7 +236,7 @@ export function Records() {
     <div className="page-shell">
       <section className="page-heading">
         <div className="page-actions">
-          <Button shape="square" variant="text" icon={<ArrowLeftIcon />} onClick={() => navigate('/domains')} />
+          <Button shape="square" variant="text" icon={<ArrowLeftIcon />} onClick={() => navigate('/dash/domains')} />
           <div>
             <h1>{domain?.name ?? t('records.title')}</h1>
             <p>{t('records.subtitle')}</p>
