@@ -54,6 +54,12 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
       return null;
     }
 
+    // Check if the DNS account is enabled before querying provider API
+    if (!account.enabled) {
+      log.debug('WhoisChecker', `DNS account ${account.id} (${account.name}) is disabled, skipping provider WHOIS for ${domainName}`);
+      return null;
+    }
+
     log.info('WhoisChecker', `Querying provider ${account.type} for domain ${domainName}`);
 
     // 检查是否有注册的 WHOIS 适配器
