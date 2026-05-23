@@ -412,7 +412,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       ? bcrypt.compareSync(password, user.password_hash)
       : bcrypt.compareSync(password, fakeHash);
 
-    if (!passwordMatch) {
+    if (!passwordMatch || !user) {
       // Record failed attempt
       const failedResult = await recordFailedAttempt(loginIdentifier, ipAddress);
       if (failedResult.locked) {
@@ -422,7 +422,11 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       }
       return;
     }
-    if (user.status === 0) {
+    
+    // At this point, user is guaranteed to exist and password matches
+    // Use non-null assertion to satisfy TypeScript
+    const authenticatedUser = user!;
+    if (authenticatedUser.status === 0) {
       res.json({ code: -1, msg: 'Account is disabled' });
       return;
     }
@@ -431,14 +435,14 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     const twoFAValidationEnabled = Boolean(securityPolicy.require2FAGlobal);
 
     // Check 2FA
-    const totpStatus = await getTOTPStatus(user.id);
-    const isWebauthnEnabled = await TwoFAOperations.isWebAuthnEnabled(user.id);
+    const totpStatus = await getTOTPStatus(authenticatedUser.id);
+    const isWebauthnEnabled = await TwoFAOperations.isWebAuthnEnabled(authenticatedUser.id);
     const isTotpEnabled = totpStatus.enabled;
     const has2FA = isTotpEnabled || isWebauthnEnabled;
     
     // 检查是否需要强制 2FA
-    const force2FA = twoFAValidationEnabled && (await requires2FA(user.id));
-    const userHas2FA = await has2FAEnabled(user.id);
+    const force2FA = twoFAValidationEnabled && (await requires2FA(authenticatedUser.id));
+    const userHas2FA = await has2FAEnabled(authenticatedUser.id);
     
     // 如果强制 2FA 但用户未设置，要求先设置 2FA
     if (force2FA && !userHas2FA) {
@@ -452,20 +456,20 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
 
     if (twoFAValidationEnabled && has2FA) {
       if (backupCode) {
-        const isValid = await verifyBackupCode(user.id, backupCode);
+        const isValid = await verifyBackupCode(authenticatedUser.id, backupCode);
         if (!isValid) {
           res.json({ code: -1, msg: 'Invalid backup code' });
           return;
         }
       } else if (totpCode && isTotpEnabled) {
-        const secret = await TwoFAOperations.getTOTPSecret(user.id);
+        const secret = await TwoFAOperations.getTOTPSecret(authenticatedUser.id);
         if (!secret || !verifyTOTPToken(secret, totpCode)) {
           res.json({ code: -1, msg: 'Invalid 2FA code' });
           return;
         }
       } else if (webauthnResponse && isWebauthnEnabled) {
         // webauthnResponse verification is handled by another endpoint or we verify it here
-        const expectedChallenge = (global as any).loginChallengeStore?.get(user.id);
+        const expectedChallenge = (global as any).loginChallengeStore?.get(authenticatedUser.id);
         if (!expectedChallenge) {
           res.json({ code: -1, msg: 'WebAuthn challenge expired or missing' });
           return;
@@ -473,7 +477,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         
         const { verifyAuthenticationResponse } = require('@simplewebauthn/server');
         const { getUserWebAuthnCredentials, updateWebAuthnCredentialCounter } = require('../service/webauthn');
-        const userCreds = await getUserWebAuthnCredentials(user.id);
+        const userCreds = await getUserWebAuthnCredentials(authenticatedUser.id);
         const cred = userCreds.find((c: any) => c.id === webauthnResponse.id);
         if (!cred) {
           res.json({ code: -1, msg: 'Credential not found' });
@@ -499,7 +503,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
             return;
           }
           await updateWebAuthnCredentialCounter(cred.id, verification.authenticationInfo.newCounter);
-          (global as any).loginChallengeStore.delete(user.id);
+          (global as any).loginChallengeStore.delete(authenticatedUser.id);
         } catch (e: any) {
           res.json({ code: -1, msg: e.message });
           return;
@@ -524,10 +528,10 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         userAgent: req.headers['user-agent'] || '',
         ipAddress: getRequestIP(req),
       };
-      deviceId = await addTrustedDevice(user.id, deviceInfo);
+      deviceId = await addTrustedDevice(authenticatedUser.id, deviceInfo);
     }
     
-    const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
+    const token = await signToken({ userId: authenticatedUser.id, username: authenticatedUser.username, nickname: authenticatedUser.nickname, role: authenticatedUser.role });
     
     // Set httpOnly cookie (secure, XSS-proof)
     setAuthCookie(res, token);
@@ -535,7 +539,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     res.json({
       code: 0,
       data: { 
-        user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role },
+        user: { id: authenticatedUser.id, username: authenticatedUser.username, nickname: authenticatedUser.nickname, email: authenticatedUser.email, role: authenticatedUser.role },
         deviceId,
         require2FASetup: force2FA && !userHas2FA,
       },
