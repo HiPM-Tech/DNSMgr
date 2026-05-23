@@ -22,7 +22,7 @@ export async function getPublicKey(): Promise<string> {
       throw new Error(data.msg || 'Failed to get public key');
     }
     
-    publicKey = data.data.publicKey;
+    publicKey = data.data.publicKey as string;
     return publicKey;
   } catch (error) {
     console.error('Failed to fetch public key:', error);
