@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
 import { OAuthCallback } from './pages/OAuthCallback';
 import { Setup } from './pages/Setup';
@@ -42,6 +43,7 @@ function App() {
               <AuthProvider>
                 <BrowserRouter>
                   <Routes>
+                    <Route path="/" element={<Landing />} />
                     <Route path="/setup" element={<Setup />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/oauth/callback" element={<OAuthCallback />} />
