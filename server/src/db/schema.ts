@@ -117,7 +117,7 @@ async function addColumnIfNotExists(
  * (stored procedures are not supported in prepared statement protocol)
  */
 async function handleMySQLMigrations(
-  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown> }
+  conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<void>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> }
 ): Promise<void> {
   const versionManager = new SchemaVersionManager(conn, mysqlSchema);
   
@@ -245,7 +245,8 @@ async function handleMySQLMigrations(
           
           let hasEnabledColumn = false;
           try {
-            const checkResult = await conn.execute(checkOldColumnSql, ['dns_accounts', 'enabled']) as any[];
+            // Use query() for SELECT statements, not execute()
+            const checkResult = await conn.query!(checkOldColumnSql, ['dns_accounts', 'enabled']) as any[];
             log.info('Schema', 'Checking if old dns_accounts table has enabled column', {
               checkResult: JSON.stringify(checkResult),
               isArray: Array.isArray(checkResult),
