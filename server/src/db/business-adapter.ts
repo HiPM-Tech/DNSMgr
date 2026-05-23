@@ -17,6 +17,7 @@ import type { SQLCompiler } from './query/compiler';
 import { getDefaultCompiler } from './query/compiler';
 import { transaction, getConnection } from './core/connection';
 import { log } from '../lib/logger';
+import { DomainQueryBuilder, RenewableDomainQueryBuilder } from './query-builders';
 
 // 本地 db 对象，避免循环依赖
 const db = {
@@ -675,43 +676,17 @@ export const DomainOperations = {
   async getByIds(ids: number[], options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
     if (ids.length === 0) return [];
 
-    const placeholders = ids.map(() => '?').join(',');
-    // Join with dns_accounts to filter out domains from disabled accounts
-    let sql = `SELECT d.* FROM domains d 
-               INNER JOIN dns_accounts a ON d.account_id = a.id 
-               WHERE d.id IN (${placeholders}) AND a.enabled = 1`;
-    const params: unknown[] = [...ids];
-
-    if (options?.accountId) {
-      sql += ' AND d.account_id = ?';
-      params.push(options.accountId);
-    }
-    if (options?.keyword) {
-      sql += ' AND d.name LIKE ?';
-      params.push(`%${options.keyword}%`);
-    }
-    sql += ' ORDER BY d.id';
-
+    const builder = DomainQueryBuilder.forTokenAuth(ids, options);
+    const { sql, params } = builder.build();
+    
     return queryInternal(sql, params, { operation: 'Domain.getByIds', table: 'domains' });
   },
 
   /** 获取所有域名（用于超级管理员Token认证） */
   async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
-    let sql = `SELECT d.* FROM domains d 
-               INNER JOIN dns_accounts a ON d.account_id = a.id 
-               WHERE a.enabled = 1`;
-    const params: unknown[] = [];
-
-    if (options?.accountId) {
-      sql += ' AND d.account_id = ?';
-      params.push(options.accountId);
-    }
-    if (options?.keyword) {
-      sql += ' AND d.name LIKE ?';
-      params.push(`%${options.keyword}%`);
-    }
-    sql += ' ORDER BY d.id';
-
+    const builder = DomainQueryBuilder.forSuperAdmin(options);
+    const { sql, params } = builder.build();
+    
     return queryInternal(sql, params, { operation: 'Domain.getAllForSuperAdmin', table: 'domains' });
   },
 
@@ -858,25 +833,25 @@ export const DomainOperations = {
 
   /** 获取 NS 监控可用的域名列表（Level 1 - ALL，不过滤 enabled 状态） */
   async getAvailableDomainsForNSMonitor(userId: number, isSuperAdmin: boolean): Promise<QueryResult[]> {
+    let builder: DomainQueryBuilder;
+    
     if (isSuperAdmin) {
-      // Super admin: get all domains without any filters
-      return queryInternal(
-        `SELECT d.id, d.name, d.account_id FROM domains ORDER BY d.name`,
-        [],
-        { operation: 'Domain.getAvailableDomainsForNSMonitor.super', table: 'domains' }
-      );
+      // Super admin: reuse getAll() pattern but select specific columns
+      builder = DomainQueryBuilder.all().select('d.id, d.name, d.account_id').orderByColumn('d.name');
     } else {
-      // Regular user: get domains from their accounts only, no enabled filter
-      return queryInternal(
-        `SELECT d.id, d.name, d.account_id FROM domains d
-         WHERE d.account_id IN (
-           SELECT id FROM dns_accounts WHERE created_by = ?
-         )
-         ORDER BY d.name`,
-        [userId],
-        { operation: 'Domain.getAvailableDomainsForNSMonitor.user', table: 'domains' }
-      );
+      // Regular user: use dedicated builder
+      builder = DomainQueryBuilder.forNSMonitorUser(userId)
+        .select('d.id, d.name, d.account_id')
+        .orderByColumn('d.name');
     }
+    
+    const { sql, params } = builder.build();
+    return queryInternal(sql, params, { 
+      operation: isSuperAdmin 
+        ? 'Domain.getAvailableDomainsForNSMonitor.super' 
+        : 'Domain.getAvailableDomainsForNSMonitor.user', 
+      table: 'domains' 
+    });
   },
 };
 
@@ -3382,54 +3357,40 @@ export const RenewableDomainOperations = {
 
   /** 获取所有续期域名（包括启用和禁用，但过滤掉已禁用账号的域名） */
   async getAll(): Promise<any[]> {
-    // Join with dns_accounts to filter out domains from disabled accounts
-    return await queryInternal(
-      `SELECT rd.* FROM renewable_domains rd 
-       INNER JOIN dns_accounts da ON rd.account_id = da.id 
-       WHERE da.enabled = 1
-       ORDER BY rd.expires_at ASC`,
-      [],
-      { operation: 'RenewableDomain.getAll', table: 'renewable_domains' }
-    );
+    const builder = RenewableDomainQueryBuilder.all();
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getAll', table: 'renewable_domains' });
   },
 
   /** 获取所有启用的续期域名（过滤掉已禁用账号的域名） */
   async getAllEnabled(): Promise<any[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
-    // Join with dns_accounts to filter out domains from disabled accounts
-    return await queryInternal(
-      `SELECT rd.* FROM renewable_domains rd 
-       INNER JOIN dns_accounts da ON rd.account_id = da.id 
-       WHERE rd.enabled = ${enabledValue} AND da.enabled = 1
-       ORDER BY rd.expires_at ASC`,
-      [],
-      { operation: 'RenewableDomain.getAllEnabled', table: 'renewable_domains' }
-    );
+    
+    const builder = RenewableDomainQueryBuilder.allEnabled(enabledValue);
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getAllEnabled', table: 'renewable_domains' });
   },
 
   /** 根据账号 ID 获取续期域名列表 */
   async getByAccountId(accountId: number): Promise<any[]> {
-    return await queryInternal(
-      'SELECT * FROM renewable_domains WHERE account_id = ? ORDER BY expires_at ASC',
-      [accountId],
-      { operation: 'RenewableDomain.getByAccountId', table: 'renewable_domains' }
-    );
+    const builder = RenewableDomainQueryBuilder.byAccountId(accountId);
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getByAccountId', table: 'renewable_domains' });
   },
 
   /** 根据提供商类型获取续期域名列表（过滤掉已禁用账号的域名） */
   async getByProviderType(providerType: string): Promise<any[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
-    // Join with dns_accounts to filter out domains from disabled accounts
-    return await queryInternal(
-      `SELECT rd.* FROM renewable_domains rd 
-       INNER JOIN dns_accounts da ON rd.account_id = da.id 
-       WHERE rd.provider_type = ? AND rd.enabled = ${enabledValue} AND da.enabled = 1
-       ORDER BY rd.expires_at ASC`,
-      [providerType],
-      { operation: 'RenewableDomain.getByProviderType', table: 'renewable_domains' }
-    );
+    
+    const builder = RenewableDomainQueryBuilder.byProviderType(providerType, enabledValue);
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getByProviderType', table: 'renewable_domains' });
   },
 
   /** 添加续期域名 */
