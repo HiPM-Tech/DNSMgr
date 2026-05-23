@@ -1233,6 +1233,9 @@
                                        }
                  },
     "landing":  {
+                    "header":  {
+                                   "console":  "Console"
+                               },
                     "cta":  {
                                 "title":  "Ready to Get Started?",
                                 "description":  "Join thousands of users who trust HiDNS for their DNS management needs.",

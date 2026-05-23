@@ -1232,6 +1232,9 @@
       "expires": "到期时间"
     },
     "landing": {
+      "header": {
+        "console": "控制台"
+      },
       "hero": {
         "subtitle": "专业 DNS 管理平台",
         "description": "管理您的 DNS 记录，监控 NS 变化，通过我们全面的 DNS 管理解决方案确保域名安全。"

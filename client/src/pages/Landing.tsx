@@ -33,6 +33,23 @@ export function Landing() {
 
   return (
     <div className="landing-page">
+      {/* Header with Console Button */}
+      <header className="landing-header">
+        <div className="landing-header-content">
+          <div className="landing-header-logo">
+            <RocketIcon size="large" />
+            <span className="landing-header-title">HiDNS</span>
+          </div>
+          <Button 
+            theme="default" 
+            variant="outline"
+            onClick={() => navigate('/login')}
+          >
+            {t('landing.header.console')}
+          </Button>
+        </div>
+      </header>
+
       {/* Hero Section */}
       <section className="landing-hero">
         <div className="landing-hero-content">
