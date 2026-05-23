@@ -107,17 +107,17 @@ export function Login() {
     setLoading(true);
     try {
       // Encrypt password before sending
-      let encryptedPassword: string;
+      let passwordToSend: string;
       try {
-        encryptedPassword = await encryptPassword(password);
+        passwordToSend = await encryptPassword(password);
       } catch (encryptError) {
         console.warn('Password encryption failed, falling back to plain text:', encryptError);
-        encryptedPassword = password; // Fallback to plain text if encryption fails
+        passwordToSend = password; // Fallback to plain text if encryption fails
       }
       
       await login(
         username,
-        encryptedPassword,
+        passwordToSend,
         require2FA && !useBackupCode ? totpCode : undefined,
         require2FA && useBackupCode ? backupCode : undefined,
         undefined,
@@ -146,7 +146,17 @@ export function Login() {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as any });
-      await login(username, password, undefined, undefined, attResp as unknown as WebAuthnResponse);
+      
+      // Encrypt password for WebAuthn login too
+      let passwordToSend: string;
+      try {
+        passwordToSend = await encryptPassword(password);
+      } catch (encryptError) {
+        console.warn('Password encryption failed, falling back to plain text:', encryptError);
+        passwordToSend = password;
+      }
+      
+      await login(username, passwordToSend, undefined, undefined, attResp as unknown as WebAuthnResponse, true);
       navigate('/dash');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t('login.failed'));

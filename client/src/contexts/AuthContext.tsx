@@ -7,7 +7,7 @@ import { isAdmin } from '../utils/roles';
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse) => Promise<void>;
+  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse, encrypted?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (user: User) => void;
   isAdmin: boolean;
