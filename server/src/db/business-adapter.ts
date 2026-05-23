@@ -676,18 +676,21 @@ export const DomainOperations = {
     if (ids.length === 0) return [];
 
     const placeholders = ids.map(() => '?').join(',');
-    let sql = `SELECT * FROM domains WHERE id IN (${placeholders})`;
+    // Join with dns_accounts to filter out domains from disabled accounts
+    let sql = `SELECT d.* FROM domains d 
+               INNER JOIN dns_accounts a ON d.account_id = a.id 
+               WHERE d.id IN (${placeholders}) AND a.enabled = 1`;
     const params: unknown[] = [...ids];
 
     if (options?.accountId) {
-      sql += ' AND account_id = ?';
+      sql += ' AND d.account_id = ?';
       params.push(options.accountId);
     }
     if (options?.keyword) {
-      sql += ' AND name LIKE ?';
+      sql += ' AND d.name LIKE ?';
       params.push(`%${options.keyword}%`);
     }
-    sql += ' ORDER BY id';
+    sql += ' ORDER BY d.id';
 
     return queryInternal(sql, params, { operation: 'Domain.getByIds', table: 'domains' });
   },
