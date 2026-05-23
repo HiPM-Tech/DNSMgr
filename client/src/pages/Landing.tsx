@@ -1,5 +1,5 @@
 import { Button, Space } from 'tdesign-react';
-import { ArrowRightIcon, CloudIcon, InternetIcon, LockOnIcon, RocketIcon, SafeIcon } from 'tdesign-icons-react';
+import { ArrowRightIcon, CloudIcon, InternetIcon, LockOnIcon, RocketIcon, SecuredIcon } from 'tdesign-icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../contexts/I18nContext';
 import './Landing.css';
@@ -15,7 +15,7 @@ export function Landing() {
       description: t('landing.features.dnsManagement.description'),
     },
     {
-      icon: <SafeIcon size="large" />,
+      icon: <SecuredIcon size="large" />,
       title: t('landing.features.nsMonitoring.title'),
       description: t('landing.features.nsMonitoring.description'),
     },
