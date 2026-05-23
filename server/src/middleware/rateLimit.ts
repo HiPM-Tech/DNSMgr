@@ -13,8 +13,10 @@ export const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
-    // 使用用户名或邮箱作为 key，而不是 IP
-    return (req.body?.username || req.body?.email || getRequestIP(req) || 'unknown').toLowerCase();
+    // 使用 username/IP 组合作为 key，防止用户名枚举绕过
+    const identifier = req.body?.username || req.body?.email || 'unknown';
+    const ip = getRequestIP(req) || 'unknown';
+    return `${identifier.toLowerCase()}:${ip}`;
   },
 });
 
