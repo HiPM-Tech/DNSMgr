@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Switch, Tag } from 'tdesign-react';
 import { ClearIcon, ImageIcon, LockOnIcon, UserSettingIcon } from 'tdesign-icons-react';
 import { authApi } from '../api';
+import { encryptPassword } from '../utils/rsaEncrypt';
 
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
@@ -166,7 +167,22 @@ export function Settings() {
   });
 
   const passwordMutation = useMutation({
-    mutationFn: () => authApi.changePassword(oldPassword, newPassword),
+    mutationFn: async () => {
+      // Encrypt passwords before sending
+      let encryptedOldPassword: string;
+      let encryptedNewPassword: string;
+      
+      try {
+        encryptedOldPassword = await encryptPassword(oldPassword);
+        encryptedNewPassword = await encryptPassword(newPassword);
+      } catch (encryptError) {
+        console.warn('Password encryption failed, falling back to plain text:', encryptError);
+        encryptedOldPassword = oldPassword;
+        encryptedNewPassword = newPassword;
+      }
+      
+      return authApi.changePassword(encryptedOldPassword, encryptedNewPassword, true);
+    },
     onSuccess: (res) => {
       if (res.data.code !== 0) { setError(res.data.msg); return; }
       setSuccess(true);

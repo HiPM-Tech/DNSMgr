@@ -1107,28 +1107,48 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
  *         description: Password changed
  */
 router.put('/password', authMiddleware, async (req: Request, res: Response) => {
-  const { oldPassword, newPassword } = req.body as { oldPassword: string; newPassword: string };
+  const { oldPassword, newPassword, encrypted } = req.body as { 
+    oldPassword: string; 
+    newPassword: string;
+    encrypted?: boolean;
+  };
   if (!oldPassword || !newPassword) {
     res.json({ code: -1, msg: 'Old and new passwords are required' });
     return;
   }
 
   try {
+    // Decrypt passwords if encrypted
+    let actualOldPassword = oldPassword;
+    let actualNewPassword = newPassword;
+    
+    if (encrypted) {
+      try {
+        actualOldPassword = decryptPassword(oldPassword);
+        actualNewPassword = decryptPassword(newPassword);
+        log.debug('Auth', 'Passwords decrypted successfully for password change');
+      } catch (decryptError) {
+        log.warn('Auth', 'Failed to decrypt passwords, using as-is', { 
+          error: decryptError instanceof Error ? decryptError.message : String(decryptError) 
+        });
+      }
+    }
+    
     const user = await UserOperations.getById(req.user!.userId);
 
-    if (!user || !bcrypt.compareSync(oldPassword, user.password_hash as string)) {
+    if (!user || !bcrypt.compareSync(actualOldPassword, user.password_hash as string)) {
       res.json({ code: -1, msg: 'Old password is incorrect' });
       return;
     }
     
     // 验证新密码强度
-    const passwordCheck = await validatePassword(newPassword);
+    const passwordCheck = await validatePassword(actualNewPassword);
     if (!passwordCheck.valid) {
       res.json({ code: -1, msg: passwordCheck.message });
       return;
     }
     
-    const hash = bcrypt.hashSync(newPassword, 10);
+    const hash = bcrypt.hashSync(actualNewPassword, 10);
 
     await UserOperations.updatePassword(user.id as number, hash);
     
@@ -1255,13 +1275,32 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
 });
 
 router.post('/password-reset/confirm', async (req: Request, res: Response) => {
-  const { email, code, newPassword } = req.body as { email?: string; code?: string; newPassword?: string };
+  const { email, code, newPassword, encrypted } = req.body as { 
+    email?: string; 
+    code?: string; 
+    newPassword?: string;
+    encrypted?: boolean;
+  };
   const normalized = (email || '').trim().toLowerCase();
   if (!normalized || !code || !newPassword) {
     res.status(400).json({ code: 400, msg: 'Email, code and newPassword are required' });
     return;
   }
-  if (newPassword.length < 6) {
+  
+  // Decrypt password if encrypted
+  let actualNewPassword = newPassword;
+  if (encrypted) {
+    try {
+      actualNewPassword = decryptPassword(newPassword);
+      log.debug('Auth', 'Password decrypted successfully for reset');
+    } catch (decryptError) {
+      log.warn('Auth', 'Failed to decrypt password, using as-is', { 
+        error: decryptError instanceof Error ? decryptError.message : String(decryptError) 
+      });
+    }
+  }
+  
+  if (actualNewPassword.length < 6) {
     res.status(400).json({ code: 400, msg: 'Password must be at least 6 characters' });
     return;
   }
@@ -1275,7 +1314,7 @@ router.post('/password-reset/confirm', async (req: Request, res: Response) => {
     // If the code is valid but user was deleted, just fail silently
     const user = await UserOperations.getByEmail(normalized);
     if (user) {
-      const hash = bcrypt.hashSync(newPassword, 10);
+      const hash = bcrypt.hashSync(actualNewPassword, 10);
       await UserOperations.updatePassword(user.id as number, hash);
       await logAuditOperation(user.id as number, 'reset_password_by_email', 'system', { email: normalized });
     }

@@ -192,7 +192,16 @@ export function Login() {
     }
     setResetLoading(true);
     try {
-      const res = await authApi.confirmPasswordReset(resetEmail.trim(), resetCode.trim(), resetNewPassword);
+      // Encrypt password before sending
+      let encryptedPassword: string;
+      try {
+        encryptedPassword = await encryptPassword(resetNewPassword);
+      } catch (encryptError) {
+        console.warn('Password encryption failed, falling back to plain text:', encryptError);
+        encryptedPassword = resetNewPassword;
+      }
+      
+      const res = await authApi.confirmPasswordReset(resetEmail.trim(), resetCode.trim(), encryptedPassword, true);
       if (res.data.code !== 0) {
         toast.error(res.data.msg || t('login.resetConfirmFailed'));
         return;

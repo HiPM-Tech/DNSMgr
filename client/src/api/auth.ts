@@ -20,16 +20,16 @@ export const authApi = {
   oauthBindings: () => api.get<ApiResponse<OAuthBinding[]>>('/auth/oauth/bindings'),
   unbindOAuth: (provider: string) => api.delete<ApiResponse<null>>(`/auth/oauth/bindings/${encodeURIComponent(provider)}`),
   me: () => api.get<ApiResponse<User>>('/auth/me'),
-  changePassword: (oldPassword: string, newPassword: string) =>
-    api.put<ApiResponse<null>>('/auth/password', { oldPassword, newPassword }),
+  changePassword: (oldPassword: string, newPassword: string, encrypted?: boolean) =>
+    api.put<ApiResponse<null>>('/auth/password', { oldPassword, newPassword, encrypted }),
   updateProfile: (data: { nickname?: string; email?: string; emailCode?: string }) =>
     api.put<ApiResponse<User>>('/auth/profile', data),
   sendEmailVerificationCode: (email: string) =>
     api.post<ApiResponse<null>>('/auth/profile/email-code', { email }),
   requestPasswordReset: (email: string) =>
     api.post<ApiResponse<null>>('/auth/password-reset/request', { email }),
-  confirmPasswordReset: (email: string, code: string, newPassword: string) =>
-    api.post<ApiResponse<null>>('/auth/password-reset/confirm', { email, code, newPassword }),
+  confirmPasswordReset: (email: string, code: string, newPassword: string, encrypted?: boolean) =>
+    api.post<ApiResponse<null>>('/auth/password-reset/confirm', { email, code, newPassword, encrypted }),
   getFailover: (id: number) => api.get<ApiResponse<FailoverData>>(`/domains/${id}/failover`),
   createFailover: (id: number, data: Partial<any>) => api.post<ApiResponse<any>>(`/domains/${id}/failover`, data),
   updateFailover: (id: number, data: Partial<any>) => api.put<ApiResponse<any>>(`/domains/${id}/failover`, data),
