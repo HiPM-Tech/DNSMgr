@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Login } from './pages/Login';
 import { OAuthCallback } from './pages/OAuthCallback';
 import { Setup } from './pages/Setup';
@@ -33,51 +34,53 @@ function App() {
   useDialogAutoHideScrollbar();
 
   return (
-    <UiScaleProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <I18nProvider>
-            <AuthProvider>
-              <BrowserRouter>
-                <Routes>
-                  <Route path="/setup" element={<Setup />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/oauth/callback" element={<OAuthCallback />} />
-                  <Route element={<ProtectedRoute />}>
-                    <Route element={<Layout />}>
-                      <Route index element={<Dashboard />} />
-                      <Route path="accounts" element={<Accounts />} />
-                      <Route path="domains" element={<Domains activeTab="list" />} />
-                      <Route path="domains/failover" element={<Domains activeTab="failover" />} />
-                      <Route path="domains/ns-monitor" element={<Domains activeTab="ns-monitor" />} />
-                      <Route path="domains/renewal" element={<Domains activeTab="renewal" />} />
-                      <Route path="domains/:id/records" element={<Records />} />
-                      <Route path="tunnels" element={<Tunnels />} />
-                      <Route path="tokens" element={<Tokens />} />
-                      <Route path="teams" element={<Teams />} />
-                      <Route path="settings" element={<Settings />} />
-                      <Route path="security" element={<Security />} />
-                      <Route path="about" element={<About />} />
-                      <Route element={<AdminRoute />}>
-                        <Route path="users" element={<Users />} />
-                        <Route path="audit" element={<Audit />} />
-                        <Route path="system" element={<System activeTab="overview" />} />
-                        <Route path="system/database" element={<System activeTab="database" />} />
-                        <Route path="system/security" element={<System activeTab="security" />} />
-                        <Route path="system/access" element={<System activeTab="access" />} />
-                        <Route path="system/network" element={<System activeTab="network" />} />
-                        <Route path="system/notifications" element={<System activeTab="notifications" />} />
+    <ErrorBoundary>
+      <UiScaleProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <I18nProvider>
+              <AuthProvider>
+                <BrowserRouter>
+                  <Routes>
+                    <Route path="/setup" element={<Setup />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/oauth/callback" element={<OAuthCallback />} />
+                    <Route element={<ProtectedRoute />}>
+                      <Route element={<Layout />}>
+                        <Route index element={<Dashboard />} />
+                        <Route path="accounts" element={<Accounts />} />
+                        <Route path="domains" element={<Domains activeTab="list" />} />
+                        <Route path="domains/failover" element={<Domains activeTab="failover" />} />
+                        <Route path="domains/ns-monitor" element={<Domains activeTab="ns-monitor" />} />
+                        <Route path="domains/renewal" element={<Domains activeTab="renewal" />} />
+                        <Route path="domains/:id/records" element={<Records />} />
+                        <Route path="tunnels" element={<Tunnels />} />
+                        <Route path="tokens" element={<Tokens />} />
+                        <Route path="teams" element={<Teams />} />
+                        <Route path="settings" element={<Settings />} />
+                        <Route path="security" element={<Security />} />
+                        <Route path="about" element={<About />} />
+                        <Route element={<AdminRoute />}>
+                          <Route path="users" element={<Users />} />
+                          <Route path="audit" element={<Audit />} />
+                          <Route path="system" element={<System activeTab="overview" />} />
+                          <Route path="system/database" element={<System activeTab="database" />} />
+                          <Route path="system/security" element={<System activeTab="security" />} />
+                          <Route path="system/access" element={<System activeTab="access" />} />
+                          <Route path="system/network" element={<System activeTab="network" />} />
+                          <Route path="system/notifications" element={<System activeTab="notifications" />} />
+                        </Route>
                       </Route>
                     </Route>
-                  </Route>
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </BrowserRouter>
-            </AuthProvider>
-          </I18nProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </UiScaleProvider>
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </BrowserRouter>
+              </AuthProvider>
+            </I18nProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </UiScaleProvider>
+    </ErrorBoundary>
   );
 }
 
