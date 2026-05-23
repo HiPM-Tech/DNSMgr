@@ -3653,7 +3653,7 @@ export const NSMonitorOperations = {
     );
   },
 
-  /** 获取所有启用的域名监测（用于定时任务） */
+  /** 获取所有启用的域名监测（用于定时任务，Level 2 - 仅检查 NS 监控自身状态） */
   async getAllEnabled(): Promise<QueryResult[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'true' : '1';
@@ -3663,6 +3663,17 @@ export const NSMonitorOperations = {
        WHERE enabled = ${enabledValue}`,
       [],
       { operation: 'NSMonitor.getAllEnabled', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 获取所有域名监测配置（Level 1 - ALL，无任何约束，用于调试/管理） */
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT *, user_id as created_by
+       FROM ns_monitor_domains
+       ORDER BY domain_name`,
+      [],
+      { operation: 'NSMonitor.getAll', table: 'ns_monitor_domains' }
     );
   },
 
