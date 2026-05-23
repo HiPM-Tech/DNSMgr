@@ -18,6 +18,69 @@ import { getRequestIP } from '../middleware/clientIP';
 import db from '../db/business-adapter';
 
 /**
+ * RSA Key Pair for password encryption
+ * Generated once and cached for the lifetime of the server
+ */
+interface RSAKeyPair {
+  publicKey: string;
+  privateKey: string;
+}
+
+let rsaKeyPair: RSAKeyPair | null = null;
+const KEY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+let keyGeneratedAt = 0;
+
+function getOrGenerateRSAKeyPair(): RSAKeyPair {
+  const now = Date.now();
+  
+  // Regenerate keys if expired or not generated
+  if (!rsaKeyPair || (now - keyGeneratedAt) > KEY_CACHE_TTL) {
+    log.info('Auth', 'Generating new RSA key pair for password encryption');
+    
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: {
+        type: 'spki',
+        format: 'pem'
+      },
+      privateKeyEncoding: {
+        type: 'pkcs8',
+        format: 'pem'
+      }
+    });
+    
+    rsaKeyPair = { publicKey, privateKey };
+    keyGeneratedAt = now;
+  }
+  
+  return rsaKeyPair;
+}
+
+function decryptPassword(encryptedPassword: string): string {
+  try {
+    const keyPair = getOrGenerateRSAKeyPair();
+    
+    // Decode from base64
+    const buffer = Buffer.from(encryptedPassword, 'base64');
+    
+    // Decrypt using private key
+    const decrypted = crypto.privateDecrypt(
+      {
+        key: keyPair.privateKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: 'sha256'
+      },
+      buffer
+    );
+    
+    return decrypted.toString('utf-8');
+  } catch (error) {
+    log.error('Auth', 'Failed to decrypt password', { error: error instanceof Error ? error.message : String(error) });
+    throw new Error('Invalid encrypted password');
+  }
+}
+
+/**
  * Set secure httpOnly cookie for JWT token
  */
 function setAuthCookie(res: Response, token: string): void {
@@ -355,6 +418,30 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
 
 /**
  * @swagger
+ * /api/auth/public-key:
+ *   get:
+ *     summary: Get RSA public key for password encryption
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: RSA public key in PEM format
+ */
+router.get('/public-key', (req: Request, res: Response) => {
+  try {
+    const keyPair = getOrGenerateRSAKeyPair();
+    res.json({
+      code: 0,
+      data: { publicKey: keyPair.publicKey },
+      msg: 'success'
+    });
+  } catch (error) {
+    log.error('Auth', 'Failed to generate public key', { error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ code: 500, msg: 'Failed to generate public key' });
+  }
+});
+
+/**
+ * @swagger
  * /api/auth/login:
  *   post:
  *     summary: Login with username/email and password
@@ -372,18 +459,23 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
  *                 description: Username or email address
  *               password:
  *                 type: string
+ *                 description: Password (can be encrypted with RSA public key)
+ *               encrypted:
+ *                 type: boolean
+ *                 description: Whether the password is encrypted
  *     responses:
  *       200:
  *         description: JWT token returned
  */
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
-  const { username, password, totpCode, backupCode, webauthnResponse, trustDevice } = req.body as { 
+  const { username, password, totpCode, backupCode, webauthnResponse, trustDevice, encrypted } = req.body as { 
     username: string; 
     password: string; 
     totpCode?: string; 
     backupCode?: string; 
     webauthnResponse?: any;
     trustDevice?: boolean;
+    encrypted?: boolean;
   };
   if (!username || !password) {
     res.json({ code: -1, msg: 'Username/email and password are required' });
@@ -391,6 +483,18 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   }
 
   try {
+    // Decrypt password if encrypted
+    let actualPassword = password;
+    if (encrypted) {
+      try {
+        actualPassword = decryptPassword(password);
+        log.debug('Auth', 'Password decrypted successfully');
+      } catch (decryptError) {
+        log.warn('Auth', 'Failed to decrypt password, using as-is', { error: decryptError instanceof Error ? decryptError.message : String(decryptError) });
+        // If decryption fails, continue with the original password (backward compatibility)
+      }
+    }
+
     // Check if input is an email (contains @)
     const isEmail = username.includes('@');
     
@@ -417,8 +521,8 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     // Timing attack prevention: always execute bcrypt to maintain constant response time
     const fakeHash = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'; // Fixed dummy hash
     const passwordMatch = user 
-      ? bcrypt.compareSync(password, user.password_hash)
-      : bcrypt.compareSync(password, fakeHash);
+      ? bcrypt.compareSync(actualPassword, user.password_hash)
+      : bcrypt.compareSync(actualPassword, fakeHash);
 
     if (!passwordMatch || !user) {
       // Record failed attempt

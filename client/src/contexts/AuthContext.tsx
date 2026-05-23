@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse) => {
-    const res = await authApi.login(username, password, totpCode, backupCode, webauthnResponse);
+  const login = async (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse, encrypted?: boolean) => {
+    const res = await authApi.login(username, password, totpCode, backupCode, webauthnResponse, encrypted);
     if (res.data.code === -2) {
       // 2FA required
       const err = new Error('2FA_REQUIRED') as Error & { types?: string[] };

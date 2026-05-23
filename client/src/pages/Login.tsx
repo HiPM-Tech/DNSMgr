@@ -15,6 +15,7 @@ import { authApi, initApi } from '../api';
 import type { WebAuthnResponse } from '../api';
 import { useToast } from '../hooks/useToast';
 import { startAuthentication } from '@simplewebauthn/browser';
+import { encryptPassword } from '../utils/rsaEncrypt';
 import './Login.css';
 
 type ApiErrorPayload = {
@@ -105,11 +106,22 @@ export function Login() {
     setError('');
     setLoading(true);
     try {
+      // Encrypt password before sending
+      let encryptedPassword: string;
+      try {
+        encryptedPassword = await encryptPassword(password);
+      } catch (encryptError) {
+        console.warn('Password encryption failed, falling back to plain text:', encryptError);
+        encryptedPassword = password; // Fallback to plain text if encryption fails
+      }
+      
       await login(
         username,
-        password,
+        encryptedPassword,
         require2FA && !useBackupCode ? totpCode : undefined,
         require2FA && useBackupCode ? backupCode : undefined,
+        undefined,
+        true, // encrypted flag
       );
       navigate('/dash');
     } catch (err: any) {

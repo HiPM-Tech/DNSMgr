@@ -5,8 +5,8 @@ import type { User, WebAuthnResponse, WebAuthnCredential, OAuthStatus, OAuthBind
 // ─── Auth API ─────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse) =>
-    api.post<ApiResponse<{ token?: string; user?: User; types?: string[] }>>('/auth/login', { username, password, totpCode, backupCode, webauthnResponse }),
+  login: (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse, encrypted?: boolean) =>
+    api.post<ApiResponse<{ token?: string; user?: User; types?: string[] }>>('/auth/login', { username, password, totpCode, backupCode, webauthnResponse, encrypted }),
   webauthnRegOptions: () => api.get<ApiResponse<{ options: unknown }>>('/auth/webauthn/registration-options'),
   webauthnRegVerify: (data: { credential: unknown }) => api.post<ApiResponse<{ success: boolean }>>('/auth/webauthn/registration-verify', data),
   webauthnLoginOptions: (username: string) => api.get<ApiResponse<{ options: unknown }>>(`/auth/webauthn/login-options?username=${encodeURIComponent(username)}`),
