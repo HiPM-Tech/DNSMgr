@@ -150,8 +150,8 @@ async function handleMySQLMigrations(
       let needMigration = true;
       let count = 0;
       
-      if (conn.execute) {
-        const result = await conn.execute(checkSql) as any[];
+      if (conn.query) {
+        const result = await conn.query(checkSql) as any[];
         log.debug('Schema', 'Strategy 1 - Exact match result', { result: JSON.stringify(result) });
         
         if (Array.isArray(result) && result.length > 0) {
@@ -162,7 +162,7 @@ async function handleMySQLMigrations(
         if (count === 0) {
           checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE LOWER(TABLE_NAME) = 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
-          const result2 = await conn.execute(checkSql) as any[];
+          const result2 = await conn.query(checkSql) as any[];
           log.debug('Schema', 'Strategy 2 - LOWER() match result', { result: JSON.stringify(result2) });
           
           if (Array.isArray(result2) && result2.length > 0) {
@@ -174,7 +174,7 @@ async function handleMySQLMigrations(
         if (count === 0) {
           checkSql = `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_NAME LIKE 'dns_accounts' AND COLUMN_NAME = 'enabled'`;
-          const result3 = await conn.execute(checkSql) as any[];
+          const result3 = await conn.query(checkSql) as any[];
           log.debug('Schema', 'Strategy 3 - LIKE match result', { result: JSON.stringify(result3) });
           
           if (Array.isArray(result3) && result3.length > 0) {
@@ -193,8 +193,8 @@ async function handleMySQLMigrations(
         const checkDefaultSql = `SELECT COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS 
           WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled' LIMIT 1`;
         
-        if (conn.execute) {
-          const defaultResult = await conn.execute(checkDefaultSql) as any[];
+        if (conn.query) {
+          const defaultResult = await conn.query(checkDefaultSql) as any[];
           if (Array.isArray(defaultResult) && defaultResult.length > 0) {
             const columnDefault = (defaultResult[0] as any).COLUMN_DEFAULT;
             log.info('Schema', 'Current enabled column DEFAULT value', { columnDefault });
@@ -310,7 +310,7 @@ async function handleMySQLMigrations(
           try {
             const verifySql = `SELECT COLUMN_DEFAULT, COLUMN_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS 
               WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled' LIMIT 1`;
-            const verifyResult = await conn.execute(verifySql) as any[];
+            const verifyResult = await conn.query!(verifySql) as any[];
             if (Array.isArray(verifyResult) && verifyResult.length > 0) {
               const colInfo = verifyResult[0];
               log.info('Schema', 'Verified dns_accounts.enabled column after migration', {
