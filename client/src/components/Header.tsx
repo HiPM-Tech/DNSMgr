@@ -59,29 +59,30 @@ export function Header({ collapsed, avatarImage, onMenuClick, onToggleCollapse }
   const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
   const pageTitleMap: Record<string, string> = {
     '/': t('common.dashboard'),
-    '/accounts': t('common.dnsAccounts'),
-    '/domains': t('domains.tabs.list'),
-    '/domains/failover': t('domains.tabs.failover'),
-    '/domains/ns-monitor': t('domains.tabs.nsMonitor'),
-    '/domains/renewal': t('domains.tabs.renewal'),
-    '/tunnels': t('tunnels.title'),
-    '/tokens': t('common.tokens'),
-    '/teams': t('common.teams'),
-    '/settings': t('common.settings'),
-    '/security': t('common.security'),
-    '/about': t('common.about'),
-    '/users': t('common.users'),
-    '/audit': t('common.audit'),
-    '/system': t('system.tabs.overview'),
-    '/system/database': t('system.tabs.database'),
-    '/system/security': t('system.tabs.security'),
-    '/system/access': t('system.tabs.access'),
-    '/system/network': t('system.tabs.network'),
-    '/system/notifications': t('system.tabs.notifications'),
+    '/dash': t('common.dashboard'),
+    '/dash/accounts': t('common.dnsAccounts'),
+    '/dash/domains': t('domains.tabs.list'),
+    '/dash/domains/failover': t('domains.tabs.failover'),
+    '/dash/domains/ns-monitor': t('domains.tabs.nsMonitor'),
+    '/dash/domains/renewal': t('domains.tabs.renewal'),
+    '/dash/tunnels': t('tunnels.title'),
+    '/dash/tokens': t('common.tokens'),
+    '/dash/teams': t('common.teams'),
+    '/dash/settings': t('common.settings'),
+    '/dash/security': t('common.security'),
+    '/dash/about': t('common.about'),
+    '/dash/users': t('common.users'),
+    '/dash/audit': t('common.audit'),
+    '/dash/system': t('system.tabs.overview'),
+    '/dash/system/database': t('system.tabs.database'),
+    '/dash/system/security': t('system.tabs.security'),
+    '/dash/system/access': t('system.tabs.access'),
+    '/dash/system/network': t('system.tabs.network'),
+    '/dash/system/notifications': t('system.tabs.notifications'),
   };
   const pageKey = segments.length ? segments[segments.length - 1] : '';
   const pageTitle = pageTitleMap[normalizedPath]
-    ?? (/^\/domains\/[^/]+\/records$/.test(normalizedPath) ? t('common.records') : undefined)
+    ?? (/^\/dash\/domains\/[^/]+\/records$/.test(normalizedPath) ? t('common.records') : undefined)
     ?? pageKey
     ?? t('common.dashboard');
   const ThemeIcon = theme === 'light' ? ModeLightIcon : theme === 'dark' ? ModeDarkIcon : DesktopIcon;

@@ -108,8 +108,8 @@ function AppMenu({ collapsed, onClose }: AppMenuProps) {
   }, [isAdmin, showTunnels]);
 
   const activePath = getActivePath(location.pathname, menuItems);
-  const isDomainGroupActive = collapsed && location.pathname.startsWith('/domains');
-  const isSystemGroupActive = collapsed && location.pathname.startsWith('/system');
+  const isDomainGroupActive = collapsed && location.pathname.startsWith('/dash/domains');
+  const isSystemGroupActive = collapsed && location.pathname.startsWith('/dash/system');
   const menuValue = isDomainGroupActive
     ? '/domains-group'
     : isSystemGroupActive
@@ -117,10 +117,10 @@ function AppMenu({ collapsed, onClose }: AppMenuProps) {
       : activePath;
 
   useEffect(() => {
-    if (location.pathname.startsWith('/domains')) {
+    if (location.pathname.startsWith('/dash/domains')) {
       setExpanded((current) => (current.includes('/domains-group') ? current : [...current, '/domains-group']));
     }
-    if (location.pathname.startsWith('/system')) {
+    if (location.pathname.startsWith('/dash/system')) {
       setExpanded((current) => (current.includes('/system-group') ? current : [...current, '/system-group']));
     }
   }, [location.pathname]);
