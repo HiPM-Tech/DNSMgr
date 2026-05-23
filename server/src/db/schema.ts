@@ -246,7 +246,18 @@ async function handleMySQLMigrations(
           let hasEnabledColumn = false;
           try {
             // Use query() for SELECT statements, not execute()
+            log.trace('Schema', 'Executing INFORMATION_SCHEMA query', {
+              sql: checkOldColumnSql,
+              params: ['dns_accounts', 'enabled']
+            });
+            
             const checkResult = await conn.query!(checkOldColumnSql, ['dns_accounts', 'enabled']) as any[];
+            log.trace('Schema', 'INFORMATION_SCHEMA query result received', {
+              checkResult: JSON.stringify(checkResult),
+              isArray: Array.isArray(checkResult),
+              length: checkResult?.length
+            });
+            
             log.info('Schema', 'Checking if old dns_accounts table has enabled column', {
               checkResult: JSON.stringify(checkResult),
               isArray: Array.isArray(checkResult),

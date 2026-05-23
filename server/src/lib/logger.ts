@@ -10,7 +10,7 @@
  * - 日志必须包含详细操作信息（操作类型、操作对象、操作结果等）
  */
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
 interface LogEntry {
   timestamp: string;
@@ -44,6 +44,7 @@ class Logger {
   // ANSI 颜色代码
   private readonly colors = {
     reset: '\x1b[0m',
+    trace: '\x1b[90m',     // 深灰色（比 debug 更淡）
     debug: '\x1b[36m',      // 青色
     info: '\x1b[32m',       // 绿色
     warn: '\x1b[33m',       // 黄色
@@ -83,7 +84,7 @@ class Logger {
   }
 
   private shouldLog(level: LogLevel): boolean {
-    const levels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+    const levels: LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error'];
     return levels.indexOf(level) >= levels.indexOf(this.logLevel);
   }
 
@@ -198,6 +199,10 @@ class Logger {
         console.error(formatted, formattedData !== undefined ? formattedData : '');
         break;
     }
+  }
+
+  trace(module: string, message: string, data?: unknown): void {
+    this.log('trace', module, message, data);
   }
 
   debug(module: string, message: string, data?: unknown): void {
@@ -341,6 +346,7 @@ export const logger = Logger.getInstance();
 
 // 便捷导出
 export const log = {
+  trace: (module: string, message: string, data?: unknown) => logger.trace(module, message, data),
   debug: (module: string, message: string, data?: unknown) => logger.debug(module, message, data),
   info: (module: string, message: string, data?: unknown) => logger.info(module, message, data),
   warn: (module: string, message: string, data?: unknown) => logger.warn(module, message, data),
