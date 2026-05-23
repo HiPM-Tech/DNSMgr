@@ -840,15 +840,16 @@ export const DomainOperations = {
     );
   },
 
-  /** 获取用户可访问的域名列表（用于令牌创建） */
+  /** 获取用户可访问的域名列表（用于令牌创建，只显示启用账号的域名） */
   async getUserAccessibleDomains(userId: number): Promise<QueryResult[]> {
     return queryInternal(
       `SELECT d.id, d.name, da.name as account_name
        FROM domains d
        JOIN dns_accounts da ON d.account_id = da.id
-       WHERE da.created_by = ? OR d.id IN (
-         SELECT domain_id FROM domain_permissions WHERE user_id = ?
-       )
+       WHERE da.enabled = 1
+         AND (da.created_by = ? OR d.id IN (
+           SELECT domain_id FROM domain_permissions WHERE user_id = ?
+         ))
        ORDER BY d.name`,
       [userId, userId],
       { operation: 'Domain.getUserAccessibleDomains', table: 'domains' }
