@@ -196,7 +196,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
           keyword,
         }) as unknown as Domain[];
       } else {
-        // 普通用户 Token：使用原有权限检查逻辑
+        // 普通用户 Token：使用权限检查逻辑
         const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
         domains = await DomainOperations.getAccessibleDomains({
           userId,
@@ -212,16 +212,24 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       count: domains.length 
     });
   } else {
-    // 非 Token 认证或允许所有域名的 Token，使用原有逻辑
-    const teamIds = isSuper(role) ? [] : await TeamOperations.getTeamIdsByUserId(userId);
-    
-    domains = await DomainOperations.getAccessibleDomains({
-      userId,
-      teamIds,
-      accountId: account_id ? parseInteger(account_id) : undefined,
-      keyword,
-      isSuper: isSuper(role),
-    }) as unknown as Domain[];
+    // Session 认证：根据角色选择查询方式
+    if (isSuper(role)) {
+      // 超管：直接查询所有域名
+      domains = await DomainOperations.getAllForSuperAdmin({
+        accountId: account_id ? parseInteger(account_id) : undefined,
+        keyword,
+      }) as unknown as Domain[];
+    } else {
+      // 普通用户：使用权限检查逻辑
+      const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
+      domains = await DomainOperations.getAccessibleDomains({
+        userId,
+        teamIds,
+        accountId: account_id ? parseInteger(account_id) : undefined,
+        keyword,
+        isSuper: false,
+      }) as unknown as Domain[];
+    }
   }
 
   // 根据域名类型过滤
