@@ -406,7 +406,13 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       user = await UserOperations.getByUsername(username) as User | undefined;
     }
 
-    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    // Timing attack prevention: always execute bcrypt to maintain constant response time
+    const fakeHash = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'; // Fixed dummy hash
+    const passwordMatch = user 
+      ? bcrypt.compareSync(password, user.password_hash)
+      : bcrypt.compareSync(password, fakeHash);
+
+    if (!passwordMatch) {
       // Record failed attempt
       const failedResult = await recordFailedAttempt(loginIdentifier, ipAddress);
       if (failedResult.locked) {
@@ -1120,7 +1126,8 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
     }
     const user = await UserOperations.getByEmail(normalized);
     if (user) {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      // Use cryptographically secure random number for reset code
+      const code = String(crypto.randomInt(100000, 999999));
       await db.PasswordReset.upsertCode(normalized, code, Date.now() + 10 * 60 * 1000);
       await sendSmtpEmail(normalized, 'HiDNS Password Reset Code', `Hi ${user.username},\n\nYour password reset code is: ${code}\nThis code will expire in 10 minutes.`);
       await logAuditOperation(user.id as number, 'send_password_reset_code', 'system', { email: normalized });
@@ -1148,15 +1155,16 @@ router.post('/password-reset/confirm', async (req: Request, res: Response) => {
     return;
   }
   try {
+    // Don't check user existence separately to avoid leaking information
+    // If the code is valid but user was deleted, just fail silently
     const user = await UserOperations.getByEmail(normalized);
-    if (!user) {
-      res.status(400).json({ code: 400, msg: 'Email not found' });
-      return;
+    if (user) {
+      const hash = bcrypt.hashSync(newPassword, 10);
+      await UserOperations.updatePassword(user.id as number, hash);
+      await logAuditOperation(user.id as number, 'reset_password_by_email', 'system', { email: normalized });
     }
-    const hash = bcrypt.hashSync(newPassword, 10);
-    await UserOperations.updatePassword(user.id as number, hash);
+    // Always delete the code regardless of whether user exists
     await db.PasswordReset.deleteCode(normalized);
-    await logAuditOperation(user.id as number, 'reset_password_by_email', 'system', { email: normalized });
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to reset password' });
