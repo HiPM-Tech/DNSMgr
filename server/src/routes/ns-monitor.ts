@@ -267,11 +267,17 @@ router.get('/available-domains', authMiddleware, asyncHandler(async (req: Reques
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
 
-  // Level 1: Get all domains without filtering by enabled status
-  const allDomains = await DomainOperations.getAvailableDomainsForNSMonitor(
-    userId,
-    isSuper(role)
-  ) as any[];
+  // Level 1: Reuse DomainOperations.getAll() for super admin
+  // For regular users, use dedicated function that filters by user's accounts
+  let allDomains: any[];
+  
+  if (isSuper(role)) {
+    // Super admin: reuse existing getAll() function
+    allDomains = await DomainOperations.getAll() as any[];
+  } else {
+    // Regular user: use dedicated function (no enabled filter)
+    allDomains = await DomainOperations.getAvailableDomainsForNSMonitor(userId, false) as any[];
+  }
 
   // Filter out domains that already have NS monitor configured
   const monitoredDomainNames = new Set(

@@ -4065,3 +4065,7 @@ export default {
   RenewableDomain: RenewableDomainOperations,
   PasswordReset: PasswordResetOperations,
 };
+
+// Export query builders for advanced usage
+export { DomainQueryBuilder } from './domain-query-builder';
+export { RenewableDomainQueryBuilder } from './renewable-domain-query-builder';
