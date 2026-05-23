@@ -8,6 +8,7 @@ export const nsMonitorApi = {
   list: () => api.get<ApiResponse<NSMonitorConfig[]>>('/ns-monitor'),
   get: (id: number) => api.get<ApiResponse<NSMonitorConfig & { alerts: any[] }>>(`/ns-monitor/${id}`),
   getByDomain: (domainId: number) => api.get<ApiResponse<NSMonitorConfig | null>>(`/ns-monitor/domain/${domainId}`),
+  getAvailableDomains: () => api.get<ApiResponse<Array<{ id: number; name: string; account_id: number }>>>('/ns-monitor/available-domains'),
   create: (data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) =>
     api.post<ApiResponse<{ id: number }>>('/ns-monitor', data),
   update: (id: number, data: { expected_ns?: string; enabled?: boolean }) =>

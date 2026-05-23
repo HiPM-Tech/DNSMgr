@@ -14,8 +14,7 @@ import {
   SearchIcon,
   ShieldErrorIcon,
 } from 'tdesign-icons-react';
-import { nsMonitorApi, domainsApi } from '../../api';
-import type { Domain } from '../../api';
+import { nsMonitorApi } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -98,9 +97,9 @@ export function NSMonitorTab() {
     queryFn: () => nsMonitorApi.getUserPrefs().then((r) => r.data.data),
   });
 
-  const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
-    queryKey: ['domains-for-ns-monitor'],
-    queryFn: () => domainsApi.list({ pageSize: 1000 }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
+  const { data: domainsData } = useQuery<{ list: Array<{ id: number; name: string; account_id: number }> }>({
+    queryKey: ['ns-monitor-available-domains'],
+    queryFn: () => nsMonitorApi.getAvailableDomains().then((r) => ({ list: r.data.data ?? [] })),
     enabled: isAddModalOpen,
   });
 

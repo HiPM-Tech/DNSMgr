@@ -252,6 +252,67 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
 
 /**
  * @swagger
+ * /api/ns-monitor/available-domains:
+ *   get:
+ *     summary: Get available domains for NS monitor (Level 1 - ALL, no enabled filters)
+ *     description: Returns all domains accessible to the user, regardless of account/domain enabled status. Used for NS monitor domain selection.
+ *     tags: [NS Monitor]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of available domains
+ */
+router.get('/available-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const role = normalizeRole(req.user!.role);
+
+  // Level 1: Get all domains without filtering by enabled status
+  let allDomains: any[];
+  
+  if (isSuper(role)) {
+    // Super admin: get all domains (no permission check needed)
+    allDomains = await DomainOperations.getAll() as any[];
+  } else {
+    // Regular user: get domains from their accounts only
+    // Use raw query to avoid enabled filtering
+    const dbType = getDbType();
+    allDomains = await (
+      dbType === 'postgresql'
+        ? import('../db/business-adapter').then(m => m.queryInternal(
+            `SELECT d.* FROM domains d WHERE d.account_id IN (SELECT id FROM dns_accounts WHERE created_by = $1) ORDER BY d.name`,
+            [userId],
+            { operation: 'NSMonitor.getAvailableDomains', table: 'domains' }
+          ))
+        : import('../db/business-adapter').then(m => m.queryInternal(
+            `SELECT d.* FROM domains d WHERE d.account_id IN (SELECT id FROM dns_accounts WHERE created_by = ?) ORDER BY d.name`,
+            [userId],
+            { operation: 'NSMonitor.getAvailableDomains', table: 'domains' }
+          ))
+    );
+  }
+
+  // Filter out domains that already have NS monitor configured
+  const monitoredDomainNames = new Set(
+    (await NSMonitorOperations.getUserMonitors(userId)).map((m: any) => m.domain_name)
+  );
+  
+  const availableDomains = allDomains.filter((domain: any) => 
+    !monitoredDomainNames.has(domain.name)
+  );
+
+  res.json({
+    success: true,
+    data: availableDomains.map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      account_id: d.account_id,
+    })),
+  });
+}));
+
+/**
+ * @swagger
  * /api/ns-monitor:
  *   post:
  *     summary: Create NS monitor configuration
