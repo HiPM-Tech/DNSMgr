@@ -81,30 +81,52 @@ function decryptPassword(encryptedPassword: string): string {
 }
 
 /**
+ * 从请求中解析客户端原始协议（支持多层反向代理）
+ *
+ * X-Forwarded-Proto 格式：
+ *   单层代理: https
+ *   多层代理: https, http, http  ← 取第一个值（最外层原始协议）
+ *   无代理: 直接从 req.protocol 获取
+ */
+function getClientProtocol(req: Request): string {
+  const forwardedProto = req.headers['x-forwarded-proto'];
+
+  if (Array.isArray(forwardedProto)) {
+    return forwardedProto[0].split(',')[0].trim();
+  }
+
+  if (forwardedProto) {
+    return forwardedProto.split(',')[0].trim();
+  }
+
+  return req.protocol || 'http';
+}
+
+/**
  * Set secure httpOnly cookie for JWT token
+ *
+ * secure flag behavior:
+ * - COOKIE_SECURE=true  → force HTTPS-only (most secure)
+ * - COOKIE_SECURE=false → allow HTTP (least secure, but flexible)
+ * - COOKIE_SECURE unset → auto-detect from request protocol:
+ *     HTTPS → secure: true, HTTP → secure: false
+ *   This ensures both HTTP and HTTPS work in production behind a reverse proxy.
  */
 function setAuthCookie(res: Response, token: string): void {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
-  // Allow overriding secure flag via environment variable
-  // Default: production requires HTTPS, development allows HTTP
-  // Set COOKIE_SECURE=false to allow HTTP in production (not recommended)
   const cookieSecureEnv = process.env.COOKIE_SECURE;
   let secureFlag: boolean;
-  
-  if (cookieSecureEnv !== undefined) {
-    // Explicitly set via environment variable
+
+  if (cookieSecureEnv !== undefined && cookieSecureEnv !== '') {
     secureFlag = cookieSecureEnv === 'true';
   } else {
-    // Default behavior: production=true, development=false
-    secureFlag = isProduction;
+    secureFlag = getClientProtocol(res.req!) === 'https';
   }
-  
+
   res.cookie('token', token, {
-    httpOnly: true, // Prevent XSS access
-    secure: secureFlag, // Control via COOKIE_SECURE env var or NODE_ENV
-    sameSite: 'lax', // CSRF protection (lax allows top-level navigation)
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    httpOnly: true,
+    secure: secureFlag,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
   });
 }
@@ -1463,14 +1485,13 @@ router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, r
  *         description: Successfully logged out
  */
 router.post('/logout', authMiddleware, (req: Request, res: Response) => {
-  // Clear the httpOnly cookie
   res.clearCookie('token', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: getClientProtocol(req) === 'https',
     sameSite: 'strict',
     path: '/',
   });
-  
+
   res.json({ code: 0, msg: 'Logged out successfully' });
 });
 
