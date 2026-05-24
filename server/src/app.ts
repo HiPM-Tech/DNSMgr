@@ -131,9 +131,28 @@ app.use(helmet({
 // Parse cookies (for httpOnly JWT cookie)
 app.use(cookieParser());
 
-// CORS configuration - restrict to specific origins in production
+// CORS configuration - automatically allow requesting origin
+// In production, you can restrict by setting CORS_ORIGIN env var (comma-separated)
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:5173', 'http://192.168.8.2:13002'],
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // If no origin specified (same-origin request), allow it
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // If CORS_ORIGIN is set, only allow those origins
+    if (process.env.CORS_ORIGIN) {
+      const allowedOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    }
+    
+    // Default: allow all origins (development mode)
+    // This makes it work out of the box without configuration
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
