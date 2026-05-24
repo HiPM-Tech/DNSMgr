@@ -115,7 +115,13 @@ const trustProxy = process.env.TRUST_PROXY;
 if (trustProxy !== undefined && trustProxy !== '') {
   app.set('trust proxy', trustProxy);
 } else if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', [
+    'loopback',
+    '10.0.0.0/8',
+    '172.16.0.0/12',
+    '192.168.0.0/16',
+    '169.254.0.0/16',
+  ]);
 }
 
 // Helmet - Security headers (must be before other middlewares)
