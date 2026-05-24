@@ -20,8 +20,9 @@ api.interceptors.response.use(
     // Handle 401 Unauthorized - redirect to login
     if (err.response?.status === 401) {
       // Only redirect if we're not already on the login page
+      // and we're not on the landing page (which is public)
       const currentPath = window.location.pathname;
-      if (currentPath !== '/login' && !currentPath.startsWith('/oauth/')) {
+      if (currentPath !== '/login' && currentPath !== '/' && !currentPath.startsWith('/oauth/')) {
         // Clear any cached auth state by reloading
         // The AuthContext will detect no valid session and set user to null
         window.location.href = '/login';
