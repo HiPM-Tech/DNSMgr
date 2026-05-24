@@ -133,7 +133,7 @@ app.use(cookieParser());
 
 // CORS configuration - restrict to specific origins in production
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173', // Default to Vite dev server
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:5173', 'http://192.168.8.2:13002'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
