@@ -85,9 +85,14 @@ function decryptPassword(encryptedPassword: string): string {
  */
 function setAuthCookie(res: Response, token: string): void {
   const isProduction = process.env.NODE_ENV === 'production';
+  
+  // In production, always use secure flag (requires HTTPS)
+  // In development, allow both HTTP and HTTPS
+  const secureFlag = isProduction;
+  
   res.cookie('token', token, {
     httpOnly: true, // Prevent XSS access
-    secure: isProduction, // Only send over HTTPS in production (fixes HTTP dev environment)
+    secure: secureFlag, // Only send over HTTPS in production
     sameSite: 'lax', // CSRF protection (lax allows top-level navigation)
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     path: '/',
