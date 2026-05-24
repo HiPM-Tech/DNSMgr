@@ -1,3 +1,8 @@
+// Load environment variables FIRST, before any other imports
+// This ensures JWT_SECRET and other env vars are available during module initialization
+import { loadEnv } from './config/env';
+loadEnv();
+
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -6,7 +11,6 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import http from 'http';
 import path from 'path';
-import { loadEnv } from './config/env';
 
 // Get the current file directory
 const APP_ROOT = path.resolve();
@@ -41,9 +45,6 @@ import networkRouter from './routes/network';
 import rdapRouter from './routes/rdap';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
-
-// Load environment variables (data/.env has priority over root .env)
-loadEnv();
 
 import { startFailoverJob } from './service/failoverJob';
 import { startWhoisJob } from './service/whois';
