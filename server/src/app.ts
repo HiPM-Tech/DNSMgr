@@ -110,6 +110,14 @@ async function checkInitialization(): Promise<boolean> {
 }
 
 // Middlewares
+// Trust proxy - enables correct req.protocol and req.ip behind reverse proxies
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy !== undefined && trustProxy !== '') {
+  app.set('trust proxy', trustProxy);
+} else if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 'loopback');
+}
+
 // Helmet - Security headers (must be before other middlewares)
 app.use(helmet({
   contentSecurityPolicy: {
