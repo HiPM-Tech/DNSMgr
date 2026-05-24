@@ -84,13 +84,10 @@ function decryptPassword(encryptedPassword: string): string {
  * Set secure httpOnly cookie for JWT token
  */
 function setAuthCookie(res: Response, token: string): void {
-  // Secure flag should only be true in production with HTTPS
-  // In development (HTTP), it must be false to allow cookie setting
   const isProduction = process.env.NODE_ENV === 'production';
-  
   res.cookie('token', token, {
     httpOnly: true, // Prevent XSS access
-    secure: isProduction, // Only send over HTTPS in production
+    secure: isProduction, // Only send over HTTPS in production (fixes HTTP dev environment)
     sameSite: 'lax', // CSRF protection (lax allows top-level navigation)
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     path: '/',
