@@ -73,6 +73,10 @@ export class GcoreAdapter implements DnsAdapter {
         providerName: 'Gcore',
         parseError: parseGcoreError,
       });
+      log.providerResponse('Gcore', 200, true, {
+        hasResult: !!data?.result || !!data?.results,
+        total: data?.total,
+      });
       return data ?? {};
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
