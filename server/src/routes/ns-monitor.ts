@@ -227,31 +227,6 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 
 /**
  * @swagger
- * /api/ns-monitor/{id}:
- *   get:
- *     summary: Get NS monitor configuration by ID
- *     tags: [NS Monitor]
- *     security:
- *       - bearerAuth: []
- */
-router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const userId = req.user!.userId;
-
-  const monitor = await NSMonitorOperations.getById(parseInt(id), userId);
-  if (!monitor) {
-    res.status(404).json({ success: false, error: 'Configuration not found' });
-    return;
-  }
-
-  res.json({
-    success: true,
-    data: monitor,
-  });
-}));
-
-/**
- * @swagger
  * /api/ns-monitor/available-domains:
  *   get:
  *     summary: Get available domains for NS monitor (Level 1 - ALL, no enabled filters)
@@ -295,6 +270,31 @@ router.get('/available-domains', authMiddleware, asyncHandler(async (req: Reques
       name: d.name,
       account_id: d.account_id,
     })),
+  });
+}));
+
+/**
+ * @swagger
+ * /api/ns-monitor/{id}:
+ *   get:
+ *     summary: Get NS monitor configuration by ID
+ *     tags: [NS Monitor]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const userId = req.user!.userId;
+
+  const monitor = await NSMonitorOperations.getById(parseInt(id), userId);
+  if (!monitor) {
+    res.status(404).json({ success: false, error: 'Configuration not found' });
+    return;
+  }
+
+  res.json({
+    success: true,
+    data: monitor,
   });
 }));
 
