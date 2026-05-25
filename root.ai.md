@@ -102,6 +102,7 @@
 2. 日志分类
     - 通用日志：`log.debug(module, message, data?)`、`log.info(module, message, data?)`、`log.warn(module, message, data?)`、`log.error(module, message, data?)`
     - DNS Provider 日志：`log.providerRequest()`、`log.providerResponse()`、`log.providerError()`
+    - 适配器方法调用日志：`log.providerRequest(provider, methodName, '', args)` — 由 `DnsHelper.ts` 中的 `createLoggingAdapter` Proxy 自动拦截所有 `DnsAdapter` 方法调用并记录，无需各适配器手动添加
     - 数据库日志：`log.dbQuery()`、`log.dbError()`
     - HTTP 请求日志：`log.httpRequest()`、`log.httpResponse()`
     - 业务操作日志：`log.business()`、`log.businessError()`
@@ -111,6 +112,11 @@
     - 日志必须包含上下文信息（模块名、函数名、行号等）。
     - 错误日志必须包含详细错误信息（错误类型、错误消息、错误栈等）。
     - 操作日志必须包含详细操作信息（操作类型、操作对象、操作结果等）。
+4. 适配器日志层（P0 约束）
+    - `DnsHelper.ts` 中的 `createLoggingAdapter` 使用 JavaScript Proxy 在 `createAdapter` 出口处统一包裹，自动拦截所有 `DnsAdapter` 接口方法的调用并记录日志。
+    - 日志内容：方法调用（参数）→ 成功/失败（耗时）。
+    - 适配器日志层与内部 HTTP 请求日志层（`log.providerRequest/Response/Error`）独立并存：适配器层记录方法级摘要，HTTP 层记录具体 API 请求细节。
+    - 新增 DNS 提供商后，无需手动添加日志代码即可自动获得方法调用日志。
 
 ### DNS提供商适配器
 1. DNS提供商适配器架构
@@ -118,7 +124,8 @@
     - 所有提供商需在 `server/src/lib/dns/providers/index.ts` 中导出，键名为提供商类型，值为提供商适配器类。
     - 提供商注册信息（名称、能力、配置字段）在 `server/src/lib/dns/providers/registry.ts` 中定义。
     - 提供商需要通过 `server/src/lib/dns/providers/internal.ts` 文件进行调用其它组件以扁平化依赖。
-    - 提供商尽可能接入代理模块 `fetchWithFallback`（`server/src/lib/proxy-http.ts`），以适配特殊网络环境。
+    - 提供商**必须**使用 `requestJson` / `requestXml`（定义在 `server/src/lib/dns/providers/http.ts`）进行 HTTP 请求，这些函数自动调用代理模块 `fetchWithFallback`（`server/src/lib/proxy-http.ts`），以适配特殊网络环境。
+    - 禁止直接使用原生 `fetch` 发起请求，否则将导致代理环境下请求挂死或静默超时。
     - 提供商需要保持模块化，每个提供商目录下包含 `adapter.ts`（适配器主逻辑）、`auth.ts`（认证逻辑）、`index.ts`（导出入口）。
 2. DNS接口定义
     - `DnsAdapter` 接口定义在 `server/src/lib/dns/DnsInterface.ts`，所有提供商必须实现该接口。

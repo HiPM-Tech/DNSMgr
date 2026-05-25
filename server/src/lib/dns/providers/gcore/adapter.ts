@@ -65,7 +65,7 @@ export class GcoreAdapter implements DnsAdapter {
     log.providerRequest('Gcore', method, url, body);
 
     try {
-      const data = await requestJson<GcoreApiResponse<T>>(url, {
+      const raw = await requestJson<GcoreApiResponse<T>>(url, {
         method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
         headers: buildAuthHeaders(this.config),
         body: body ? JSON.stringify(body) : undefined,
@@ -73,11 +73,13 @@ export class GcoreAdapter implements DnsAdapter {
         providerName: 'Gcore',
         parseError: parseGcoreError,
       });
+      // Gcore API may return bare array (e.g. zones list) instead of wrapped object
+      const data: GcoreApiResponse<T> = Array.isArray(raw) ? { results: raw, total: raw.length } : (raw ?? {});
       log.providerResponse('Gcore', 200, true, {
-        hasResult: !!data?.result || !!data?.results,
-        total: data?.total,
+        hasResult: !!data.result || !!data.results,
+        total: data.total,
       });
-      return data ?? {};
+      return data;
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       this.error = errorMessage;
@@ -433,7 +435,28 @@ export class GcoreAdapter implements DnsAdapter {
   }
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    return [{ id: '0', name: '默认' }];
+    try {
+      const res: any = await this.request('GET', '/locations');
+      const lines: Array<{ id: string; name: string }> = [{ id: '0', name: '默认' }];
+      if (res.continents) {
+        for (const [id, name] of Object.entries(res.continents)) {
+          lines.push({ id: `continent:${id}`, name: `[洲] ${name}` });
+        }
+      }
+      if (res.countries) {
+        for (const [id, name] of Object.entries(res.countries)) {
+          lines.push({ id: `country:${id}`, name: `[国家] ${name}` });
+        }
+      }
+      if (res.regions) {
+        for (const [id, name] of Object.entries(res.regions)) {
+          lines.push({ id: `region:${id}`, name: `[地区] ${name}` });
+        }
+      }
+      return lines;
+    } catch {
+      return [{ id: '0', name: '默认' }];
+    }
   }
 
   async getMinTTL(): Promise<number> {
