@@ -1,5 +1,150 @@
 # 更新日志
 
+## [1.6.0] - 2026-05-26
+
+### ✨ 新增功能
+
+#### 首页展示页重构（Landing Page）
+- **基于 AI_Animation 模板全面重构**
+  - 全屏滚动 + 点击切换的交互效果（4 个 Section：Hero / Pipeline / Features / Footer）
+  - Canvas 粒子背景 + 呼吸光晕动画 + 粒子间连线
+  - 渐变模糊光晕 Blob 装饰（3 层浮动径向渐变）
+  - 动画网格背景 + 噪点纹理位移
+  - 导航圆点指示器（环形 + 内圆 + 发光）
+  - 滚动提示鼠标动画
+  - 键盘导航（↑↓←→ / Home / End）+ 触摸滑动支持
+  - 响应式适配（窄屏 / 短屏 / 移动端）
+
+- **核心组件工作流水线图**
+  - 新增 Pipeline Section 展示 HiDNS 全链路架构
+  - 5 层流水线：接入层 → 安全层 → 核心引擎 → 适配层 → 运维保障
+  - 每层 3 个子项卡片，带图标 + 名称 + 描述
+  - 动画箭头连接器 + 逐层入场动画
+  - 悬浮高亮 + 微动效反馈
+
+#### DNS 提供商日志系统
+- **集中式适配器日志包装器**
+  - 实现 `createLoggingAdapter`，使用 Proxy 统一拦截所有 DnsAdapter 方法调用
+  - 自动记录 providerRequest / providerResponse / providerError 日志
+  - 集中管理日志格式和行为，减少适配器重复代码
+
+### 🔧 改进与优化
+
+#### 安全与认证
+- **Cookie 协议自适应**
+  - Cookie `secure` 标志自动适配 HTTP/HTTPS 协议
+  - 生产环境 HTTP 下不设置 secure，HTTPS 下自动启用
+  - 保证 HTTP 和 HTTPS 可共同使用 Cookie
+
+- **反向代理信任增强**
+  - 生产环境 `trust proxy` 默认信任内网（10.x / 172.16-31.x / 192.168.x）
+  - `getClientIP()` 自动信任内网代理 IP
+  - 添加 `trustProxyIps` 白名单配置支持
+
+- **CORS 智能配置**
+  - 默认允许所有来源（`Access-Control-Allow-Origin: *`）
+  - 前端自动携带 `withCredentials`，后端按来源自适应
+  - 移除手动 CORS 配置需求，简化部署
+
+- **前端路由鉴权完善**
+  - 401 拦截跳转排除公开展示页 `/`
+  - 有有效 Cookie 时登录页自动跳转到 `/dash`
+  - 路由守卫（ProtectedRoute）覆盖所有仪表盘子路由
+
+- **环境配置样板**
+  - 完善 `.env.example` 配置样板，覆盖所有可选环境变量
+  - 添加 `TRUST_PROXY_IPS`、`COOKIE_DOMAIN`、`CORS_ORIGINS` 等新配置项
+  - 补充配置注释说明
+
+#### 表单系统重构（RecordForm）
+- **彻底修复编辑记录数据不回显问题**
+  - 移除 TDesign FormItem 组件（其会克隆子组件并覆盖 `value`/`onChange`）
+  - 改用独立 `useState` 管理每个字段 + 自定义 div 布局
+  - `useEffect` 完整依赖数组确保数据同步
+  - `formKey`（基于 `initial?.id`）作为依赖，编辑不同记录时状态正确重置
+  - `lineOptions` 的 `value` 改为 `String(line.id)` 确保类型匹配
+
+- **预填充默认值**
+  - 添加域名解析时预填充默认值（类型=A, TTL=600, 线路=默认）
+  - 编辑记录时主机记录、类型、记录值、TTL、线路、备注完整回显
+  - 修复安全设置（登录限制 & 审计告警）默认值预填充
+  - 修复 API 令牌编辑时域名勾选在前端显示
+
+#### Gcore DNS 提供商优化
+- **API 认证修复**
+  - 修正认证头格式：`apikey` → `APIKey`（Gcore API 区分大小写）
+  - 使用 `requestJson` 替代原生 `fetch`，支持代理和超时
+
+- **响应格式兼容**
+  - 支持 `zones` / `rrsets` / `total_amount` 字段解析
+  - 适配器 `check()` 正确调用 `/zones?limit=1`
+
+- **线路列表实现**
+  - `getRecordLines()` 调用 Locations API 获取真实地理线路
+  - 支持洲（continent）/ 国家（country）/ 地区（region）三级线路
+
+- **日志层级优化**
+  - 移除冗余的 providerResponse 日志（由 `createLoggingAdapter` 统一处理）
+  - 保持与其他适配器一致的日志行为
+
+#### NS 监测修复
+- **路由顺序修复**
+  - `/available-domains` 静态路由移到 `/:id` 动态路由之前，解决 404 错误
+  - 完善 `GET /:id` 处理函数实现并正确闭合
+
+- **字段统一**
+  - 使用 `domain_name` 替代 `domain_id` 作为标识符
+  - 修复前端监测配置域名列表展示问题
+  - 自动获取结果直接填充到编辑栏
+
+- **冗余路由清理**
+  - 移除 `/api/ns-monitor/:id/check` 路由
+  - 提取 `performNsCheck` 共享函数
+
+#### 前端页面优化
+- 系统 > 安全 Tab：登录限制 & 审计告警默认值预填充，移除未使用的 `loginLimitQuery` 变量
+- API 令牌编辑：域名列表正确显示已勾选状态
+- 域名解析列表：点击域名跳转到解析列表而非 `/`
+- 添加域名解析：默认值预填充（类型=A, TTL=600, 线路=默认）
+
+### 🐛 Bug 修复
+
+- **TDesign Alert 弃用警告**
+  - `close` → `closeBtn`，消除控制台弃用警告
+
+- **crypto.subtle 不可用错误**
+  - `rsaEncrypt.ts` 添加 `window.crypto?.subtle` 存在性检查
+  - HTTP 环境下抛出清晰错误而非静默失败
+
+- **TypeScript 编译错误**
+  - 修复 `weight` 变量隐式 `any` 类型和声明前使用问题
+  - 修复未使用的 `loginLimitQuery` 变量
+  - 修复 Docker 构建中的 TS 错误（`tsc -b` 阶段）
+
+- **Docker CI 超时**
+  - `docker-build.yml` 中 `build-amd64` 和 `build-arm64` 添加 `timeout-minutes: 15`
+
+### 📦 技术细节
+
+#### 修改文件统计
+- **后端核心**：DnsHelper.ts（日志包装器）、Gcore 适配器、ns-monitor 路由
+- **前端页面**：Landing.tsx / Landing.css（全屏滚动 + 流水线图）、RecordForm.tsx、SecurityTab.tsx
+- **安全认证**：Cookie 中间件、CORS 配置、trust proxy、路由守卫
+- **配置文档**：.env.example、CHANGELOG.md、root.ai.md
+- **CI/CD**：docker-build.yml（超时限制）
+
+#### 版本升级说明
+- 版本号：1.5.1 → **1.6.0**
+- 22 次提交
+- 完全向后兼容
+
+### ⚠️ 注意事项
+- HTTP 与 HTTPS 混合部署时 Cookie 自动适配，无需手动配置
+- 反向代理场景建议检查 `TRUST_PROXY_IPS` 环境变量配置
+- 新 `.env.example` 为可选配置样板，现有部署无需修改
+
+---
+
 ## [1.5.1] - 2026-05-17
 
 ### ✨ 新增功能
