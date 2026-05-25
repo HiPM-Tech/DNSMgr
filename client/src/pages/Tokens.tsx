@@ -79,6 +79,7 @@ export function Tokens() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; tokenId: number | null }>({ show: false, tokenId: null });
   const [formData, setFormData] = useState<TokenFormState>(() => createDefaultTokenForm());
   const [formDirty, setFormDirty] = useState(false);
+  const [tokenEditKey, setTokenEditKey] = useState(0);
 
   useRealtimeData({
     queryKey: ['tokens'],
@@ -168,13 +169,6 @@ export function Tokens() {
   const currentEditingToken = editingToken;
 
   useEffect(() => {
-    if (currentEditingToken) {
-      if (!formDirty) {
-        setFormData(normalizeTokenForm(currentEditingToken));
-      }
-      return;
-    }
-
     if (showCreateModal) {
       if (!formDirty) {
         setFormData(createDefaultTokenForm());
@@ -182,13 +176,11 @@ export function Tokens() {
       return;
     }
 
-    setFormData(createDefaultTokenForm());
-    setFormDirty(false);
+    if (!currentEditingToken) {
+      setFormData(createDefaultTokenForm());
+      setFormDirty(false);
+    }
   }, [
-    currentEditingToken?.id,
-    currentEditingToken?.name,
-    currentEditingToken?.start_time,
-    currentEditingToken?.end_time,
     showCreateModal,
     formDirty,
   ]);
@@ -225,6 +217,7 @@ export function Tokens() {
     setFormData(normalizeTokenForm(token));
     setFormDirty(false);
     setEditingToken(token);
+    setTokenEditKey(prev => prev + 1);
   };
 
   const buildPayload = () => ({
@@ -528,7 +521,7 @@ export function Tokens() {
       )}
 
       {editingToken && (
-        <Modal title={t('tokens.editToken')} onClose={closeEditModal} size="lg">
+        <Modal key={`edit-token-${editingToken.id}-${tokenEditKey}`} title={t('tokens.editToken')} onClose={closeEditModal} size="lg">
           {renderTokenForm('edit')}
         </Modal>
       )}

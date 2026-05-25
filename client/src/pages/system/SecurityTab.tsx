@@ -74,11 +74,19 @@ export function SecurityTab() {
         setLoginLimitConfig(res.data.data);
         return res.data.data;
       }
+      if (res.data.code === 0 && !res.data.data) {
+        return null;
+      }
       throw new Error(res.data.msg);
     },
     staleTime: 0,
     refetchOnMount: 'always',
     gcTime: 0,
+    placeholderData: {
+      enabled: true,
+      maxAttempts: 10,
+      lockoutDuration: 60,
+    },
   });
 
   const { data: loginStats } = useQuery({
@@ -119,6 +127,9 @@ export function SecurityTab() {
       if (res.data.code === 0 && res.data.data) {
         setAuditRules(res.data.data);
         return res.data.data;
+      }
+      if (res.data.code === 0 && !res.data.data) {
+        return null;
       }
       throw new Error(res.data.msg);
     },

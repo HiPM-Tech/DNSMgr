@@ -152,60 +152,55 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const hasProxyMode = isCloudflare || isAliyunESA;
   const hasMultiLine = lines.length > 1 && !hasProxyMode;
   
-  // ✅ 动态计算默认线路
   const defaultLine = useMemo(() => {
     if (hasProxyMode) return '0';
     if (hasMultiLine && lines.length > 0) return String(lines[0]?.id ?? '0');
     return '0';
   }, [hasProxyMode, hasMultiLine, lines]);
 
-  // ✅ 使用 useState 惰性初始化（参考旧版本实现）
-  const [form, setForm] = useState<Partial<DnsRecord>>(() => {
-    console.log('[RecordForm] useState init - initial:', initial);
-    return {
-      name: initial?.name ?? '@',
-      type: initial?.type ?? 'A',
-      value: initial?.value ?? '',
-      ttl: initial?.ttl ?? 600,
-      mx: initial?.mx ?? 10,
-      weight: initial?.weight ?? 10,
-      line: initial?.line ?? defaultLine,
-      remark: initial?.remark ?? '',
-    };
-  });
-
+  const [name, setName] = useState(initial?.name ?? '@');
+  const [type, setType] = useState(initial?.type ?? 'A');
+  const [value, setValue] = useState(initial?.value ?? '');
+  const [ttl, setTtl] = useState(initial?.ttl ?? 600);
+  const [mx, setMx] = useState(initial?.mx ?? 10);
+  const [weight, setWeight] = useState(initial?.weight ?? 10);
+  const [line, setLine] = useState(initial?.line ?? defaultLine);
+  const [remark, setRemark] = useState(initial?.remark ?? '');
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
 
-  // ✅ Sync form state when initial changes (editing different record)
   useEffect(() => {
     if (initial) {
-      setForm({
-        name: initial.name ?? '@',
-        type: initial.type ?? 'A',
-        value: initial.value ?? '',
-        ttl: initial.ttl ?? 600,
-        mx: initial.mx ?? 10,
-        weight: initial.weight ?? 10,
-        line: initial.line ?? defaultLine,
-        remark: initial.remark ?? '',
-      });
+      setName(initial.name ?? '@');
+      setType(initial.type ?? 'A');
+      setValue(initial.value ?? '');
+      setTtl(initial.ttl ?? 600);
+      setMx(initial.mx ?? 10);
+      setWeight(initial.weight ?? 10);
+      setLine(initial.line ?? defaultLine);
+      setRemark(initial.remark ?? '');
       setSrv(parseSrvValue(initial));
       setErrors({});
     } else {
-      setForm(prev => ({
-        ...prev,
-        line: prev.line === '0' ? defaultLine : prev.line,
-      }));
+      setLine(prev => prev === '0' ? defaultLine : prev);
     }
-  }, [initial?.id, defaultLine]);
+  }, [initial?.id, initial?.name, initial?.type, initial?.value, initial?.ttl, initial?.mx, initial?.weight, initial?.line, initial?.remark, defaultLine]);
 
-  const set = (k: keyof DnsRecord, v: unknown) => {
-    setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: string, v: unknown) => {
+    switch (k) {
+      case 'name': setName(v as string); break;
+      case 'type': setType(v as string); break;
+      case 'value': setValue(v as string); break;
+      case 'ttl': setTtl(v as number); break;
+      case 'mx': setMx(v as number); break;
+      case 'weight': setWeight(v as number); break;
+      case 'line': setLine(v as string); break;
+      case 'remark': setRemark(v as string); break;
+    }
     setErrors((current) => ({ ...current, [k as keyof typeof current]: undefined }));
   };
 
-  const currentType = form.type ?? 'A';
+  const currentType = type ?? 'A';
   const isSrv = currentType === 'SRV';
   
   const canSelectProxy = hasProxyMode
@@ -219,50 +214,50 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     : true;
 
   const normalizedSrvValue = useMemo(() => {
-    const priority = Number(form.mx ?? srv.priority);
-    const weight = Number(form.weight ?? srv.weight);
+    const priority = Number(mx ?? srv.priority);
+    const weight = Number(weight ?? srv.weight);
     const port = srv.port.trim();
     const target = srv.target.trim();
     if (!port || !target) return '';
     return `${priority} ${weight} ${port} ${target}`;
-  }, [form.mx, form.weight, srv.port, srv.target, srv.priority, srv.weight]);
+  }, [mx, weight, srv.port, srv.target, srv.priority, srv.weight]);
 
   const validate = () => {
     const nextErrors: typeof errors = {};
-    const name = (form.name ?? '').toString().trim();
-    const value = isSrv ? normalizedSrvValue : (form.value ?? '').toString().trim();
-    const ttl = Number(form.ttl ?? 0);
+    const nameVal = (name ?? '').toString().trim();
+    const valueVal = isSrv ? normalizedSrvValue : (value ?? '').toString().trim();
+    const ttlVal = Number(ttl ?? 0);
 
-    if (!name) nextErrors.name = t('records.hostRequired');
-    else if (!isRecordHost(name)) nextErrors.name = t('records.hostInvalid');
+    if (!nameVal) nextErrors.name = t('records.hostRequired');
+    else if (!isRecordHost(nameVal)) nextErrors.name = t('records.hostInvalid');
     else if (currentType === 'CNAME') {
-      const hasConflict = existingRecords.some((r) => r.name === name && r.id !== initial?.id);
-      const isRoot = name === '@';
+      const hasConflict = existingRecords.some((r) => r.name === nameVal && r.id !== initial?.id);
+      const isRoot = nameVal === '@';
       if ((isRoot || hasConflict) && !provider?.capabilities?.cnameFlattening) {
         nextErrors.name = t('records.cnameConflict');
       }
     } else {
-      const hasCname = existingRecords.some((r) => r.name === name && r.id !== initial?.id && r.type === 'CNAME');
+      const hasCname = existingRecords.some((r) => r.name === nameVal && r.id !== initial?.id && r.type === 'CNAME');
       if (hasCname && !provider?.capabilities?.cnameFlattening) {
         nextErrors.name = t('records.cnameConflict');
       }
     }
 
-    if (!value) nextErrors.value = t('records.valueRequired');
-    else if (currentType === 'A' && !isIPv4(value)) nextErrors.value = t('records.invalidA');
-    else if (currentType === 'AAAA' && !isIPv6(value)) nextErrors.value = t('records.invalidAAAA');
-    else if (DOMAIN_VALUE_TYPES.has(currentType) && !isHostname(value)) nextErrors.value = t('records.invalidHostname', { type: currentType });
+    if (!valueVal) nextErrors.value = t('records.valueRequired');
+    else if (currentType === 'A' && !isIPv4(valueVal)) nextErrors.value = t('records.invalidA');
+    else if (currentType === 'AAAA' && !isIPv6(valueVal)) nextErrors.value = t('records.invalidAAAA');
+    else if (DOMAIN_VALUE_TYPES.has(currentType) && !isHostname(valueVal)) nextErrors.value = t('records.invalidHostname', { type: currentType });
 
-    if (!Number.isFinite(ttl) || ttl < 1) nextErrors.ttl = t('records.invalidTtl');
+    if (!Number.isFinite(ttlVal) || ttlVal < 1) nextErrors.ttl = t('records.invalidTtl');
 
     if (currentType === 'MX' || currentType === 'SRV') {
-      const priority = Number(form.mx ?? 0);
+      const priority = Number(mx ?? 0);
       if (!Number.isFinite(priority) || priority < 0) nextErrors.mx = t('records.invalidPriority');
     }
 
     if (currentType === 'SRV') {
-      const weight = Number(form.weight ?? 0);
-      if (!Number.isFinite(weight) || weight < 0) nextErrors.weight = t('records.invalidWeight');
+      const weightVal = Number(weight ?? 0);
+      if (!Number.isFinite(weightVal) || weightVal < 0) nextErrors.weight = t('records.invalidWeight');
       if (!srv.port.trim()) nextErrors.srvPort = t('records.invalidSrvPortRequired');
       else if (!/^\d+$/.test(srv.port.trim()) || Number(srv.port.trim()) < 1 || Number(srv.port.trim()) > 65535) {
         nextErrors.srvPort = t('records.invalidSrvPort');
@@ -281,18 +276,18 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       return;
     }
 
-    const lineValue = canSelectProxy ? form.line : undefined;
+    const lineValue = canSelectProxy ? line : undefined;
     const payload: Partial<DnsRecord> = {
-      ...form,
-      name: form.name?.toString().trim(),
-      value: isSrv ? normalizedSrvValue : form.value?.toString().trim(),
-      ttl: Number(form.ttl ?? 600),
-      mx: currentType === 'MX' || currentType === 'SRV' ? Number(form.mx ?? 0) : undefined,
-      weight: currentType === 'SRV' ? Number(form.weight ?? 0) : undefined,
+      name: (name ?? '').toString().trim(),
+      type,
+      value: isSrv ? normalizedSrvValue : (value ?? '').toString().trim(),
+      ttl: Number(ttl ?? 600),
+      mx: currentType === 'MX' || currentType === 'SRV' ? Number(mx ?? 0) : undefined,
+      weight: currentType === 'SRV' ? Number(weight ?? 0) : undefined,
       line: lineValue,
       cloudflare: (isCloudflare && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
       aliyunesa: (isAliyunESA && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
-      remark: form.remark?.toString() ?? '',
+      remark: (remark ?? '').toString() ?? '',
     };
 
     onSubmit(payload);
@@ -306,7 +301,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       { label: t('records.proxied'), value: '1' },
     ]
     : hasMultiLine
-      ? lines.map((line) => ({ label: line.name, value: line.id }))
+      ? lines.map((line) => ({ label: line.name, value: String(line.id) }))
       : [{ label: t('records.defaultLine') || '默认', value: '0' }];
   const currentTypeHelp = currentType === 'A'
     ? t('records.aHelp')
@@ -344,7 +339,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             clearable
             name={initial ? `record-host-${initial.id}` : 'record-host-create'}
             autocomplete="off"
-            value={String(form.name ?? '')}
+            value={String(name ?? '')}
             onChange={(value: any) => set('name', String(value))}
             placeholder={t('records.hostPlaceholder')}
             disabled={isVPS8 && !!initial}
@@ -353,7 +348,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         </Form.FormItem>
         <Form.FormItem label={t('common.type')}>
           <Select
-            value={String(form.type ?? 'A')}
+            value={String(type ?? 'A')}
             options={recordTypeOptions}
             onChange={(value: any) => {
               const nextType = toSelectString(value);
@@ -371,7 +366,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.priority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
               <Input
                 type="number"
-                value={String(form.mx ?? 10)}
+                value={String(mx ?? 10)}
                 onChange={(value: any) => set('mx', Number(value))}
                 status={errors.mx ? 'error' : undefined}
               />
@@ -379,7 +374,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Form.FormItem label={t('records.weight')} status={errors.weight ? 'error' : undefined} tips={errors.weight}>
               <Input
                 type="number"
-                value={String(form.weight ?? 10)}
+                value={String(weight ?? 10)}
                 onChange={(value: any) => set('weight', Number(value))}
                 status={errors.weight ? 'error' : undefined}
               />
@@ -423,7 +418,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             clearable
             name={initial ? `record-value-${initial.id}` : 'record-value-create'}
             autocomplete="off"
-            value={String(form.value ?? '')}
+            value={String(value ?? '')}
             onChange={(value: any) => set('value', value)}
             placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}
             status={errors.value ? 'error' : undefined}
@@ -435,7 +430,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         <Form.FormItem label={t('common.ttl')} status={errors.ttl ? 'error' : undefined} tips={errors.ttl}>
           <Input
             type="number"
-            value={String(form.ttl ?? 600)}
+            value={String(ttl ?? 600)}
             onChange={(value: any) => set('ttl', Number(value))}
             status={errors.ttl ? 'error' : undefined}
           />
@@ -444,7 +439,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Form.FormItem label={t('records.mxPriority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
             <Input
               type="number"
-              value={String(form.mx ?? 10)}
+              value={String(mx ?? 10)}
               onChange={(value: any) => set('mx', Number(value))}
               status={errors.mx ? 'error' : undefined}
             />
@@ -456,7 +451,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             tips={!hasProxyMode && !hasMultiLine ? t('records.singleLineHint') || '该提供商仅支持默认线路' : undefined}
           >
             <Select
-              value={String(form.line ?? '0')}
+              value={String(line ?? '0')}
               options={lineOptions}
               onChange={(value: any) => set('line', toSelectString(value))}
             />
@@ -467,7 +462,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       <Form.FormItem label={t('common.remark')}>
         <Input
           clearable
-          value={String(form.remark ?? '')}
+          value={String(remark ?? '')}
           onChange={(value: any) => set('remark', value)}
           placeholder={t('common.optionalRemark')}
         />

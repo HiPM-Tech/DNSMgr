@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Empty, Form, Input, Pagination, Radio, Space, Switch, Tag, Textarea } from 'tdesign-react';
+import { Button, Card, Empty, Form, Input, Loading, Pagination, Radio, Space, Switch, Tag, Textarea } from 'tdesign-react';
 import {
   AddIcon,
   BrushIcon,
@@ -97,10 +97,11 @@ export function NSMonitorTab() {
     queryFn: () => nsMonitorApi.getUserPrefs().then((r) => r.data.data),
   });
 
-  const { data: domainsData } = useQuery<{ list: Array<{ id: number; name: string; account_id: number }> }>({
+  const { data: domainsData, isFetching: isDomainsFetching } = useQuery<{ list: Array<{ id: number; name: string; account_id: number }> }>({
     queryKey: ['ns-monitor-available-domains'],
     queryFn: () => nsMonitorApi.getAvailableDomains().then((r) => ({ list: r.data.data ?? [] })),
     enabled: isAddModalOpen,
+    placeholderData: { list: [] },
   });
 
   // Filter domains: exclude domains that already have NS monitor (based on domain_name, not domain_id)
@@ -553,7 +554,9 @@ export function NSMonitorTab() {
               />
 
               <div className="ns-monitor-domain-picker">
-                {domains.length === 0 ? (
+                {isDomainsFetching ? (
+                  <div className="page-state"><Loading loading size="small" text={t('common.loading')} /></div>
+                ) : domains.length === 0 ? (
                   <Empty description={t('nsMonitor.noAvailableDomains')} />
                 ) : filteredDomains.length === 0 ? (
                   <Empty description={t('tokens.noMatchingDomains')} />
