@@ -8,7 +8,7 @@ export interface GcoreAuthConfig {
 export function buildAuthHeaders(config: GcoreAuthConfig): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Authorization': `apikey ${config.apiKey}`,
+    'Authorization': `APIKey ${config.apiKey}`,
   };
 
   return headers;
