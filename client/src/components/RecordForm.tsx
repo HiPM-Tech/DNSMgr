@@ -158,6 +158,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     return '0';
   }, [hasProxyMode, hasMultiLine, lines]);
 
+  const formKey = initial?.id ?? 'create';
+
   const [name, setName] = useState(initial?.name ?? '@');
   const [type, setType] = useState(initial?.type ?? 'A');
   const [value, setValue] = useState(initial?.value ?? '');
@@ -181,10 +183,14 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       setRemark(initial.remark ?? '');
       setSrv(parseSrvValue(initial));
       setErrors({});
-    } else {
+    }
+  }, [formKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!initial) {
       setLine(prev => prev === '0' ? defaultLine : prev);
     }
-  }, [initial?.id, initial?.name, initial?.type, initial?.value, initial?.ttl, initial?.mx, initial?.weight, initial?.line, initial?.remark, defaultLine]);
+  }, [defaultLine, initial]);
 
   const set = (k: string, v: unknown) => {
     switch (k) {
