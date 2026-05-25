@@ -67,34 +67,25 @@ async function importPublicKey(pem: string): Promise<CryptoKey> {
  * @returns Base64 encoded encrypted password
  */
 export async function encryptPassword(password: string): Promise<string> {
+  if (!window.crypto?.subtle) {
+    throw new Error('Password encryption is unavailable (non-HTTPS context)');
+  }
+
   try {
-    // Get public key
     const pem = await getPublicKey();
-    
-    // Import key
     const key = await importPublicKey(pem);
-    
-    // Encode password
     const encoder = new TextEncoder();
     const data = encoder.encode(password);
-    
-    // Encrypt
     const encrypted = await window.crypto.subtle.encrypt(
-      {
-        name: 'RSA-OAEP'
-      },
+      { name: 'RSA-OAEP' },
       key,
       data
     );
-    
-    // Convert to base64
     const encryptedArray = new Uint8Array(encrypted);
-    const base64 = btoa(String.fromCharCode(...encryptedArray));
-    
-    return base64;
+    return btoa(String.fromCharCode(...encryptedArray));
   } catch (error) {
     console.error('Failed to encrypt password:', error);
-    throw new Error('Password encryption failed');
+    throw new Error(`Password encryption failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
