@@ -10,9 +10,8 @@ import { buildAuthHeaders, type GcoreAuthConfig } from './auth';
 import { requestJson } from '../http';
 
 interface GcoreZone {
-  id: string;
+  id: number;
   name: string;
-  records_count?: number;
 }
 
 interface GcoreRRSet {
@@ -40,6 +39,9 @@ interface GcoreApiResponse<T> {
   result?: T;
   results?: T[];
   total?: number;
+  total_amount?: number;
+  zones?: T[];
+  rrsets?: T[];
   error?: string;
   errors?: Array<{ message: string }>;
 }
@@ -73,11 +75,10 @@ export class GcoreAdapter implements DnsAdapter {
         providerName: 'Gcore',
         parseError: parseGcoreError,
       });
-      // Gcore API may return bare array (e.g. zones list) instead of wrapped object
       const data: GcoreApiResponse<T> = Array.isArray(raw) ? { results: raw, total: raw.length } : (raw ?? {});
       log.providerResponse('Gcore', 200, true, {
-        hasResult: !!data.result || !!data.results,
-        total: data.total,
+        hasResult: !!data.zones || !!data.rrsets || !!data.result || !!data.results,
+        total: data.total_amount ?? data.total,
       });
       return data;
     } catch (e) {
@@ -96,9 +97,14 @@ export class GcoreAdapter implements DnsAdapter {
     return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Gcore');
   }
 
+  private get zoneName(): string | undefined {
+    return this.config.domain;
+  }
+
   async check(): Promise<boolean> {
-    const res = await this.request<GcoreZone[]>('GET', '/zones?limit=1');
-    return (res.results !== undefined || res.result !== undefined);
+    this.error = '';
+    await this.request<GcoreZone[]>('GET', '/zones?limit=1');
+    return !this.error;
   }
 
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
@@ -108,24 +114,21 @@ export class GcoreAdapter implements DnsAdapter {
         limit: String(pageSize),
         offset: String(offset),
       });
-      
+
       if (keyword) {
         params.set('name', keyword);
       }
 
-      const res = await this.request<any>(
-        'GET',
-        `/zones?${params.toString()}`
-      );
+      const res = await this.request<any>('GET', `/zones?${params.toString()}`);
 
-      const zones = Array.isArray(res.results) ? res.results : (Array.isArray(res.result) ? res.result : []);
+      const zones: any[] = Array.isArray(res.zones) ? res.zones : [];
       const list = zones.map((zone: any) => ({
         Domain: zone.name,
-        ThirdId: zone.id,
-        RecordCount: zone.records_count,
+        ThirdId: String(zone.id),
+        RecordCount: 0,
       }));
 
-      return { total: res.total || list.length, list };
+      return { total: res.total_amount ?? list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       log.error('Gcore', 'getDomainList failed', this.error);
@@ -144,8 +147,8 @@ export class GcoreAdapter implements DnsAdapter {
     status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      const domainId = await this.resolveDomainId();
-      if (!domainId) {
+      const zoneName = this.zoneName;
+      if (!zoneName) {
         return { total: 0, list: [] };
       }
 
@@ -159,13 +162,10 @@ export class GcoreAdapter implements DnsAdapter {
         params.set('type', type);
       }
 
-      const res = await this.request<any>(
-        'GET',
-        `/zones/${domainId}/rrsets?${params.toString()}`
-      );
+      const res = await this.request<any>('GET', `/zones/${zoneName}/rrsets?${params.toString()}`);
 
-      let rrsets: any[] = Array.isArray(res.results) ? res.results : (Array.isArray(res.result) ? res.result : []);
-      
+      let rrsets: any[] = Array.isArray(res.rrsets) ? res.rrsets : [];
+
       if (subdomain) {
         const lowerSubdomain = subdomain.toLowerCase();
         rrsets = rrsets.filter((rrset: any) => {
@@ -178,7 +178,7 @@ export class GcoreAdapter implements DnsAdapter {
         const lowerKeyword = keyword.toLowerCase();
         rrsets = rrsets.filter((rrset: any) =>
           rrset.name.toLowerCase().includes(lowerKeyword) ||
-          rrset.resource_records.some((rr: any) => 
+          rrset.resource_records.some((rr: any) =>
             rr.content.some((c: string) => c.toLowerCase().includes(lowerKeyword))
           )
         );
@@ -190,18 +190,18 @@ export class GcoreAdapter implements DnsAdapter {
         );
       }
 
-      const list = rrsets.flatMap((rrset) => this.mapRRSetToRecords(rrset, domainId));
+      const list = rrsets.flatMap((rrset) => this.mapRRSetToRecords(rrset, zoneName));
 
-      return { total: res.total || list.length, list };
+      return { total: res.total_amount ?? list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return { total: 0, list: [] };
     }
   }
 
-  private mapRRSetToRecords(rrset: GcoreRRSet, zoneId: string): DnsRecord[] {
+  private mapRRSetToRecords(rrset: GcoreRRSet, zoneName: string): DnsRecord[] {
     const records: DnsRecord[] = [];
-    
+
     for (const rr of rrset.resource_records) {
       if (!rr.enabled && rr.enabled !== undefined) continue;
 
@@ -229,8 +229,8 @@ export class GcoreAdapter implements DnsAdapter {
       }
 
       records.push({
-        RecordId: `${zoneId}:${rrset.name}:${rrset.type}`,
-        Domain: this.config.domain || '',
+        RecordId: `${zoneName}:${rrset.name}:${rrset.type}`,
+        Domain: zoneName,
         Name: rrset.name,
         Type: rrset.type.toUpperCase(),
         Value: value,
@@ -249,21 +249,19 @@ export class GcoreAdapter implements DnsAdapter {
 
   async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
     try {
-      const domainId = await this.resolveDomainId();
-      if (!domainId) return null;
+      const zoneName = this.zoneName;
+      if (!zoneName) return null;
 
       const parts = recordId.split(':');
       if (parts.length < 3) return null;
 
       const [, name, type] = parts;
-      const res = await this.request<GcoreRRSet>(
-        'GET',
-        `/zones/${domainId}/${name}/${type}`
-      );
+      const res = await this.request<any>('GET', `/zones/${zoneName}/${name}/${type}`);
 
-      if (!res.result) return null;
+      const rrsets: any[] = Array.isArray(res.rrsets) ? res.rrsets : [];
+      if (rrsets.length === 0) return null;
 
-      const records = this.mapRRSetToRecords(res.result, domainId);
+      const records = this.mapRRSetToRecords(rrsets[0] as GcoreRRSet, zoneName);
       return records[0] || null;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -282,8 +280,8 @@ export class GcoreAdapter implements DnsAdapter {
     remark?: string
   ): Promise<string | null> {
     try {
-      const domainId = await this.resolveDomainId();
-      if (!domainId) return null;
+      const zoneName = this.zoneName;
+      if (!zoneName) return null;
 
       let content: string[];
       switch (type.toUpperCase()) {
@@ -308,15 +306,9 @@ export class GcoreAdapter implements DnsAdapter {
         ttl,
       };
 
-      const res = await this.request<GcoreRRSet>(
-        'POST',
-        `/zones/${domainId}/${name}/${type.toUpperCase()}`,
-        body
-      );
+      await this.request<GcoreRRSet>('POST', `/zones/${zoneName}/${name}/${type.toUpperCase()}`, body);
 
-      if (!res.result) return null;
-
-      return `${domainId}:${name}:${type.toUpperCase()}`;
+      return `${zoneName}:${name}:${type.toUpperCase()}`;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return null;
@@ -335,8 +327,8 @@ export class GcoreAdapter implements DnsAdapter {
     remark?: string
   ): Promise<boolean> {
     try {
-      const domainId = await this.resolveDomainId();
-      if (!domainId) return false;
+      const zoneName = this.zoneName;
+      if (!zoneName) return false;
 
       let content: string[];
       switch (type.toUpperCase()) {
@@ -361,11 +353,7 @@ export class GcoreAdapter implements DnsAdapter {
         ttl,
       };
 
-      await this.request<GcoreRRSet>(
-        'PUT',
-        `/zones/${domainId}/${name}/${type.toUpperCase()}`,
-        body
-      );
+      await this.request<GcoreRRSet>('PUT', `/zones/${zoneName}/${name}/${type.toUpperCase()}`, body);
 
       return true;
     } catch (e) {
@@ -376,18 +364,15 @@ export class GcoreAdapter implements DnsAdapter {
 
   async deleteDomainRecord(recordId: string): Promise<boolean> {
     try {
-      const domainId = await this.resolveDomainId();
-      if (!domainId) return false;
+      const zoneName = this.zoneName;
+      if (!zoneName) return false;
 
       const parts = recordId.split(':');
       if (parts.length < 3) return false;
 
       const [, name, type] = parts;
 
-      await this.request(
-        'DELETE',
-        `/zones/${domainId}/${name}/${type}`
-      );
+      await this.request('DELETE', `/zones/${zoneName}/${name}/${type}`);
 
       return true;
     } catch (e) {
@@ -398,34 +383,29 @@ export class GcoreAdapter implements DnsAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
-      const domainId = await this.resolveDomainId();
-      if (!domainId) return false;
+      const zoneName = this.zoneName;
+      if (!zoneName) return false;
 
       const parts = recordId.split(':');
       if (parts.length < 3) return false;
 
       const [, name, type] = parts;
 
-      const res = await this.request<GcoreRRSet>(
-        'GET',
-        `/zones/${domainId}/${name}/${type}`
-      );
+      const res = await this.request<any>('GET', `/zones/${zoneName}/${name}/${type}`);
 
-      if (!res.result) return false;
+      const rrsets: any[] = Array.isArray(res.rrsets) ? res.rrsets : [];
+      if (rrsets.length === 0) return false;
 
-      const updatedRecords = res.result.resource_records.map((rr) => ({
+      const rrset = rrsets[0];
+      const updatedRecords = (rrset.resource_records || []).map((rr: any) => ({
         ...rr,
         enabled: status === 1,
       }));
 
-      await this.request<GcoreRRSet>(
-        'PUT',
-        `/zones/${domainId}/${name}/${type}`,
-        {
-          resource_records: updatedRecords,
-          ttl: res.result.ttl,
-        }
-      );
+      await this.request<GcoreRRSet>('PUT', `/zones/${zoneName}/${name}/${type}`, {
+        resource_records: updatedRecords,
+        ttl: rrset.ttl,
+      });
 
       return true;
     } catch (e) {
