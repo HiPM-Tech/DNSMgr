@@ -66,7 +66,7 @@ export function SecurityTab() {
     gcTime: 0,
   });
 
-  const loginLimitQuery = useQuery({
+  useQuery({
     queryKey: ['login-limit-config'],
     queryFn: async () => {
       const res = await settingsApi.getLoginLimit();
