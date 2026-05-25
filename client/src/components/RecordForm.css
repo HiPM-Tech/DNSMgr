@@ -3,8 +3,41 @@
   gap: 18px;
 }
 
-.record-form .t-form__item {
-  margin-bottom: 0;
+.record-form__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.record-form__item-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
+  line-height: 22px;
+}
+
+.record-form__item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.record-form__item-tips {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+  line-height: 18px;
+}
+
+.record-form__item-tips--error {
+  color: var(--td-error-color);
+}
+
+.record-form__item--error .t-input {
+  border-color: var(--td-error-color);
+}
+
+.record-form__item--error .t-select__wrap {
+  border-color: var(--td-error-color);
 }
 
 .record-form__grid {

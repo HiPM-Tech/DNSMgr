@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Alert, Button, Form, Input, Select, Space } from 'tdesign-react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
+import { Alert, Button, Input, Select, Space } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
 import { useToast } from '../hooks/useToast';
@@ -10,6 +10,18 @@ export const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'C
 export const CLOUDFLARE_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
 export const DOMAIN_VALUE_TYPES = new Set(['CNAME', 'MX', 'NS', 'PTR', 'HTTPS']);
 export const PROXIABLE_RECORD_TYPES = new Set(['A', 'AAAA', 'CNAME', 'HTTPS']);
+
+function FormItem({ label, status, tips, children }: { label?: ReactNode; status?: 'error' | 'warning' | 'success'; tips?: ReactNode; children: ReactNode }) {
+  return (
+    <div className={`record-form__item${status === 'error' ? ' record-form__item--error' : ''}`}>
+      {label && <div className="record-form__item-label">{label}</div>}
+      <div className="record-form__item-content">
+        {children}
+        {tips && <div className={`record-form__item-tips${status === 'error' ? ' record-form__item-tips--error' : ''}`}>{tips}</div>}
+      </div>
+    </div>
+  );
+}
 
 export interface RecordFormProps {
   domainId: number;
@@ -79,7 +91,7 @@ function isHostname(value: string): boolean {
 function isRecordHost(value: string): boolean {
   const normalized = value.trim();
   if (normalized === '@') return true;
-  if (normalized === '*') return true; // Support wildcard DNS records
+  if (normalized === '*') return true;
 
   const labels = normalized.split('.');
 
@@ -90,9 +102,8 @@ function isRecordHost(value: string): boolean {
       return false;
     }
 
-    // Wildcard can only be the first label
     if (label === '*') {
-      if (i !== 0) return false; // Wildcard must be first label
+      if (i !== 0) return false;
       continue;
     }
 
@@ -123,7 +134,6 @@ function parseSrvValue(initial?: DnsRecord): SrvFields {
   const raw = (initial?.value ?? '').trim();
   const parts = raw.split(/\s+/).filter(Boolean);
   
-  // SRV format: "priority weight port target" (4 parts)
   if (parts.length === 4 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1]) && /^\d+$/.test(parts[2])) {
     return {
       priority: parseInt(parts[0], 10),
@@ -133,7 +143,6 @@ function parseSrvValue(initial?: DnsRecord): SrvFields {
     };
   }
 
-  // Fallback: use mx/weight fields from record, parse remaining as port target
   return {
     priority: initial?.mx ?? 10,
     weight: initial?.weight ?? 10,
@@ -320,18 +329,15 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           : '';
 
   return (
-    <Form
-      layout="vertical"
-      colon={false}
-      requiredMark={false}
+    <form
       className="record-form"
-      onSubmit={({ e }: any) => {
+      onSubmit={(e: any) => {
         e?.preventDefault();
         submitRecord();
       }}
     >
       <div className="record-form__grid record-form__grid--two">
-        <Form.FormItem
+        <FormItem
           label={(
             <span>
               {t('records.hostName')}
@@ -351,8 +357,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             disabled={isVPS8 && !!initial}
             status={errors.name ? 'error' : undefined}
           />
-        </Form.FormItem>
-        <Form.FormItem label={t('common.type')}>
+        </FormItem>
+        <FormItem label={t('common.type')}>
           <Select
             value={String(type ?? 'A')}
             options={recordTypeOptions}
@@ -362,32 +368,32 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
               if (nextType !== 'SRV') setErrors((current) => ({ ...current, srvPort: undefined, srvTarget: undefined, weight: undefined }));
             }}
           />
-        </Form.FormItem>
+        </FormItem>
       </div>
 
       {isSrv ? (
         <div className="record-form__section">
           <Alert theme="info" message={t('records.srvHelp')} />
           <div className="record-form__grid record-form__grid--two">
-            <Form.FormItem label={t('records.priority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
+            <FormItem label={t('records.priority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
               <Input
                 type="number"
                 value={String(mx ?? 10)}
                 onChange={(value: any) => set('mx', Number(value))}
                 status={errors.mx ? 'error' : undefined}
               />
-            </Form.FormItem>
-            <Form.FormItem label={t('records.weight')} status={errors.weight ? 'error' : undefined} tips={errors.weight}>
+            </FormItem>
+            <FormItem label={t('records.weight')} status={errors.weight ? 'error' : undefined} tips={errors.weight}>
               <Input
                 type="number"
                 value={String(weight ?? 10)}
                 onChange={(value: any) => set('weight', Number(value))}
                 status={errors.weight ? 'error' : undefined}
               />
-            </Form.FormItem>
+            </FormItem>
           </div>
           <div className="record-form__grid record-form__grid--two">
-            <Form.FormItem label={t('records.port')} status={errors.srvPort ? 'error' : undefined} tips={errors.srvPort}>
+            <FormItem label={t('records.port')} status={errors.srvPort ? 'error' : undefined} tips={errors.srvPort}>
               <Input
                 type="number"
                 value={srv.port}
@@ -398,8 +404,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
                 placeholder="443"
                 status={errors.srvPort ? 'error' : undefined}
               />
-            </Form.FormItem>
-            <Form.FormItem label={t('records.target')} status={errors.srvTarget ? 'error' : undefined} tips={errors.srvTarget}>
+            </FormItem>
+            <FormItem label={t('records.target')} status={errors.srvTarget ? 'error' : undefined} tips={errors.srvTarget}>
               <Input
                 clearable
                 value={srv.target}
@@ -410,16 +416,16 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
                 placeholder="service.example.com"
                 status={errors.srvTarget ? 'error' : undefined}
               />
-            </Form.FormItem>
+            </FormItem>
           </div>
-          <Form.FormItem label={t('records.preview')} status={errors.value ? 'error' : undefined} tips={errors.value}>
+          <FormItem label={t('records.preview')} status={errors.value ? 'error' : undefined} tips={errors.value}>
             <div className="record-form__preview">
               {normalizedSrvValue || 'port target'}
             </div>
-          </Form.FormItem>
+          </FormItem>
         </div>
       ) : (
-        <Form.FormItem label={t('records.valueLabel')} status={errors.value ? 'error' : undefined} tips={errors.value}>
+        <FormItem label={t('records.valueLabel')} status={errors.value ? 'error' : undefined} tips={errors.value}>
           <Input
             clearable
             name={initial ? `record-value-${initial.id}` : 'record-value-create'}
@@ -429,30 +435,30 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}
             status={errors.value ? 'error' : undefined}
           />
-        </Form.FormItem>
+        </FormItem>
       )}
 
       <div className={`record-form__grid ${currentType === 'MX' || currentType === 'SRV' || canSelectProxy ? 'record-form__grid--two' : ''}`}>
-        <Form.FormItem label={t('common.ttl')} status={errors.ttl ? 'error' : undefined} tips={errors.ttl}>
+        <FormItem label={t('common.ttl')} status={errors.ttl ? 'error' : undefined} tips={errors.ttl}>
           <Input
             type="number"
             value={String(ttl ?? 600)}
             onChange={(value: any) => set('ttl', Number(value))}
             status={errors.ttl ? 'error' : undefined}
           />
-        </Form.FormItem>
+        </FormItem>
         {currentType === 'MX' && (
-          <Form.FormItem label={t('records.mxPriority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
+          <FormItem label={t('records.mxPriority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
             <Input
               type="number"
               value={String(mx ?? 10)}
               onChange={(value: any) => set('mx', Number(value))}
               status={errors.mx ? 'error' : undefined}
             />
-          </Form.FormItem>
+          </FormItem>
         )}
         {canSelectProxy && (
-          <Form.FormItem
+          <FormItem
             label={hasProxyMode ? t('records.proxy') : t('common.line')}
             tips={!hasProxyMode && !hasMultiLine ? t('records.singleLineHint') || '该提供商仅支持默认线路' : undefined}
           >
@@ -461,18 +467,18 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
               options={lineOptions}
               onChange={(value: any) => set('line', toSelectString(value))}
             />
-          </Form.FormItem>
+          </FormItem>
         )}
       </div>
 
-      <Form.FormItem label={t('common.remark')}>
+      <FormItem label={t('common.remark')}>
         <Input
           clearable
           value={String(remark ?? '')}
           onChange={(value: any) => set('remark', value)}
           placeholder={t('common.optionalRemark')}
         />
-      </Form.FormItem>
+      </FormItem>
 
       {currentTypeHelp && <Alert theme="info" message={currentTypeHelp} />}
 
@@ -481,6 +487,6 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           {initial ? t('common.saveChanges') : t('records.addRecord')}
         </Button>
       </Space>
-    </Form>
+    </form>
   );
 }
