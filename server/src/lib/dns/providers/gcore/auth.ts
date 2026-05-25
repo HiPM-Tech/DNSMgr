@@ -13,21 +13,3 @@ export function buildAuthHeaders(config: GcoreAuthConfig): Record<string, string
 
   return headers;
 }
-
-export async function authenticatedRequest(
-  url: string,
-  config: GcoreAuthConfig,
-  options: RequestInit = {}
-): Promise<Response> {
-  const headers = buildAuthHeaders(config);
-  
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...headers,
-      ...options.headers,
-    },
-  });
-
-  return response;
-}

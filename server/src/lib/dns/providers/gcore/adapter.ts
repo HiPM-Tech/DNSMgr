@@ -6,7 +6,8 @@ import {
   resolveDomainIdHelper,
   log,
 } from '../internal';
-import { buildAuthHeaders, authenticatedRequest, type GcoreAuthConfig } from './auth';
+import { buildAuthHeaders, type GcoreAuthConfig } from './auth';
+import { requestJson } from '../http';
 
 interface GcoreZone {
   id: string;
@@ -43,6 +44,13 @@ interface GcoreApiResponse<T> {
   errors?: Array<{ message: string }>;
 }
 
+function parseGcoreError(payload: unknown): string | undefined {
+  const data = payload as GcoreApiResponse<unknown>;
+  if (data?.errors?.length) return data.errors[0].message;
+  if (data?.error) return data.error;
+  return undefined;
+}
+
 export class GcoreAdapter implements DnsAdapter {
   private config: GcoreAuthConfig;
   private error: string = '';
@@ -55,44 +63,27 @@ export class GcoreAdapter implements DnsAdapter {
   private async request<T>(method: string, path: string, body?: unknown): Promise<GcoreApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
     log.providerRequest('Gcore', method, url, body);
-    
-    const options: RequestInit = {
-      method,
-      headers: buildAuthHeaders(this.config),
-      body: body ? JSON.stringify(body) : undefined,
-    };
-    
-    const res = await authenticatedRequest(url, this.config, options);
-    let data: GcoreApiResponse<T>;
-    
+
     try {
-      data = (await res.json()) as GcoreApiResponse<T>;
-    } catch {
-      data = {} as GcoreApiResponse<T>;
+      const data = await requestJson<GcoreApiResponse<T>>(url, {
+        method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+        headers: buildAuthHeaders(this.config),
+        body: body ? JSON.stringify(body) : undefined,
+        useProxy: this.config.useProxy ?? false,
+        providerName: 'Gcore',
+        parseError: parseGcoreError,
+      });
+      log.providerResponse('Gcore', 200, true, {
+        hasResult: !!data?.result || !!data?.results,
+        total: data?.total,
+      });
+      return data ?? {};
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      this.error = errorMessage;
+      log.providerError('Gcore', { error: errorMessage });
+      return {} as GcoreApiResponse<T>;
     }
-    
-    log.providerResponse('Gcore', res.status, res.ok, { 
-      hasResult: !!data.result || !!data.results,
-      total: data.total 
-    });
-    
-    if (!res.ok) {
-      if (data.errors?.length) {
-        this.error = data.errors[0].message;
-        log.providerError('Gcore', {
-          status: res.status,
-          errors: data.errors.map((e) => e.message),
-        });
-      } else if (data.error) {
-        this.error = data.error;
-        log.providerError('Gcore', { status: res.status, error: data.error });
-      } else {
-        this.error = `API request failed with status ${res.status}`;
-        log.providerError('Gcore', { status: res.status, path });
-      }
-    }
-    
-    return data;
   }
 
   getError(): string {
@@ -104,13 +95,8 @@ export class GcoreAdapter implements DnsAdapter {
   }
 
   async check(): Promise<boolean> {
-    try {
-      const res = await this.request<GcoreZone[]>('GET', '/zones?limit=1');
-      return (res.results !== undefined || res.result !== undefined);
-    } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
-      return false;
-    }
+    const res = await this.request<GcoreZone[]>('GET', '/zones?limit=1');
+    return (res.results !== undefined || res.result !== undefined);
   }
 
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
@@ -178,7 +164,6 @@ export class GcoreAdapter implements DnsAdapter {
 
       let rrsets: any[] = Array.isArray(res.results) ? res.results : (Array.isArray(res.result) ? res.result : []);
       
-      // 客户端过滤
       if (subdomain) {
         const lowerSubdomain = subdomain.toLowerCase();
         rrsets = rrsets.filter((rrset: any) => {
@@ -223,10 +208,8 @@ export class GcoreAdapter implements DnsAdapter {
       let mx = 0;
       let weight = undefined;
 
-      // 根据记录类型解析内容
       switch (rrset.type.toUpperCase()) {
         case 'SRV':
-          // SRV 格式: [priority, weight, port, target]
           if (content.length >= 4) {
             mx = Number(content[0]) || 0;
             weight = Number(content[1]) || 0;
@@ -234,14 +217,12 @@ export class GcoreAdapter implements DnsAdapter {
           }
           break;
         case 'MX':
-          // MX 格式: [priority, mailserver]
           if (content.length >= 2) {
             mx = Number(content[0]) || 0;
             value = content[1];
           }
           break;
         default:
-          // 其他类型通常只有一个值
           value = content[0] || '';
       }
 
@@ -251,10 +232,10 @@ export class GcoreAdapter implements DnsAdapter {
         Name: rrset.name,
         Type: rrset.type.toUpperCase(),
         Value: value,
-        Line: '0', // Gcore 使用 pickers 进行地理DNS，这里使用默认线路
+        Line: '0',
         TTL: rrset.ttl || 3600,
         MX: mx,
-        Status: 1, // Gcore 通过 enabled 字段控制状态
+        Status: 1,
         Weight: weight,
         Remark: undefined,
         UpdateTime: rrset.updated_at,
@@ -269,7 +250,6 @@ export class GcoreAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return null;
 
-      // recordId 格式: zoneId:name:type
       const parts = recordId.split(':');
       if (parts.length < 3) return null;
 
@@ -303,11 +283,9 @@ export class GcoreAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return null;
 
-      // 构建资源记录内容
       let content: string[];
       switch (type.toUpperCase()) {
         case 'SRV':
-          // SRV 格式: [priority, weight, port, target]
           const srvParts = value.split(/\s+/);
           content = [
             String(mx),
@@ -358,7 +336,6 @@ export class GcoreAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return false;
 
-      // 构建资源记录内容
       let content: string[];
       switch (type.toUpperCase()) {
         case 'SRV':
@@ -400,7 +377,6 @@ export class GcoreAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return false;
 
-      // recordId 格式: zoneId:name:type
       const parts = recordId.split(':');
       if (parts.length < 3) return false;
 
@@ -419,7 +395,6 @@ export class GcoreAdapter implements DnsAdapter {
   }
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
-    // Gcore 通过 enabled 字段控制状态，需要获取当前 RRSet 并更新
     try {
       const domainId = await this.resolveDomainId();
       if (!domainId) return false;
@@ -429,7 +404,6 @@ export class GcoreAdapter implements DnsAdapter {
 
       const [, name, type] = parts;
 
-      // 先获取当前 RRSet
       const res = await this.request<GcoreRRSet>(
         'GET',
         `/zones/${domainId}/${name}/${type}`
@@ -437,7 +411,6 @@ export class GcoreAdapter implements DnsAdapter {
 
       if (!res.result) return false;
 
-      // 更新 enabled 状态
       const updatedRecords = res.result.resource_records.map((rr) => ({
         ...rr,
         enabled: status === 1,
@@ -460,7 +433,6 @@ export class GcoreAdapter implements DnsAdapter {
   }
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    // Gcore 使用 pickers 进行地理DNS，不支持传统线路
     return [{ id: '0', name: '默认' }];
   }
 
