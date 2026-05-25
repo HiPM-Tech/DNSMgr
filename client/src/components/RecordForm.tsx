@@ -215,11 +215,11 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
 
   const normalizedSrvValue = useMemo(() => {
     const priority = Number(mx ?? srv.priority);
-    const weight = Number(weight ?? srv.weight);
+    const recordWeight = Number(weight ?? srv.weight);
     const port = srv.port.trim();
     const target = srv.target.trim();
     if (!port || !target) return '';
-    return `${priority} ${weight} ${port} ${target}`;
+    return `${priority} ${recordWeight} ${port} ${target}`;
   }, [mx, weight, srv.port, srv.target, srv.priority, srv.weight]);
 
   const validate = () => {
