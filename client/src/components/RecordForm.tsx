@@ -179,20 +179,25 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
 
   // ✅ Sync form state when initial changes (editing different record)
   useEffect(() => {
-    if (!initial) return;
-    
-    setForm({
-      name: initial.name ?? '@',
-      type: initial.type ?? 'A',
-      value: initial.value ?? '',
-      ttl: initial.ttl ?? 600,
-      mx: initial.mx ?? 10,
-      weight: initial.weight ?? 10,
-      line: initial.line ?? defaultLine,
-      remark: initial.remark ?? '',
-    });
-    setSrv(parseSrvValue(initial));
-    setErrors({});
+    if (initial) {
+      setForm({
+        name: initial.name ?? '@',
+        type: initial.type ?? 'A',
+        value: initial.value ?? '',
+        ttl: initial.ttl ?? 600,
+        mx: initial.mx ?? 10,
+        weight: initial.weight ?? 10,
+        line: initial.line ?? defaultLine,
+        remark: initial.remark ?? '',
+      });
+      setSrv(parseSrvValue(initial));
+      setErrors({});
+    } else {
+      setForm(prev => ({
+        ...prev,
+        line: prev.line === '0' ? defaultLine : prev.line,
+      }));
+    }
   }, [initial?.id, defaultLine]);
 
   const set = (k: keyof DnsRecord, v: unknown) => {

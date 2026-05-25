@@ -165,8 +165,7 @@ export function Tokens() {
     domain.account_name.toLowerCase().includes(domainSearch.toLowerCase())
   ));
   const paginatedDomains = filteredDomains.slice((domainPage - 1) * DOMAIN_PAGE_SIZE, domainPage * DOMAIN_PAGE_SIZE);
-  const currentEditingToken = editingToken ? tokens.find((token) => token.id === editingToken.id) ?? editingToken : null;
-  const editingAllowedDomainsSnapshot = (currentEditingToken?.allowed_domains ?? []).join('|');
+  const currentEditingToken = editingToken;
 
   useEffect(() => {
     if (currentEditingToken) {
@@ -190,7 +189,6 @@ export function Tokens() {
     currentEditingToken?.name,
     currentEditingToken?.start_time,
     currentEditingToken?.end_time,
-    editingAllowedDomainsSnapshot,
     showCreateModal,
     formDirty,
   ]);

@@ -365,7 +365,7 @@ export function DomainListTab() {
         const displayName = formatDomainName(row.name);
         return (
           <Space size="small">
-            <Button variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/domains/${row.id}/records`)}>
+            <Button variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)}>
               {displayName}
             </Button>
             {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />}>{t('domains.subdomain')}</Tag>}
@@ -511,7 +511,7 @@ export function DomainListTab() {
               icon={<PinIcon />}
               onClick={() => pinMutation.mutate({ domainId: row.id, isPinned: !isPinned })}
             />
-            <Button shape="square" variant="text" icon={<RootListIcon />} onClick={() => navigate(`/domains/${row.id}/records`)} />
+            <Button shape="square" variant="text" icon={<RootListIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)} />
             <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => openEdit(row)} />
             <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(row)} />
           </Space>

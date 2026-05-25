@@ -113,6 +113,7 @@ export function NSMonitorTab() {
   const domainEndIndex = Math.min(domainStartIndex + domainPageSize, filteredDomains.length);
   const paginatedDomains = filteredDomains.slice(domainStartIndex, domainEndIndex);
   const domains = domainsData?.list ?? [];
+  const allDomains = domainsData?.list ?? [];
 
   const updateMutation = useMutation({
     mutationFn: (data: { id: number; expected_ns: string; enabled: boolean }) => nsMonitorApi.update(data.id, data),
@@ -428,7 +429,8 @@ export function NSMonitorTab() {
   ];
 
   const selectedDomain = paginatedDomains.find((domain) => domain.id === selectedDomainId)
-    ?? filteredDomains.find((domain) => domain.id === selectedDomainId);
+    ?? filteredDomains.find((domain) => domain.id === selectedDomainId)
+    ?? allDomains.find((domain) => domain.id === selectedDomainId);
 
   return (
     <div className="page-shell">

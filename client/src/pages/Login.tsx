@@ -34,7 +34,7 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 }
 
 export function Login() {
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const { t } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
@@ -58,6 +58,10 @@ export function Login() {
   const [backupCode, setBackupCode] = useState('');
 
   useEffect(() => {
+    if (user) {
+      navigate('/dash', { replace: true });
+      return;
+    }
     initApi.status()
       .then((res) => {
         if (!res.data.data.initialized) {

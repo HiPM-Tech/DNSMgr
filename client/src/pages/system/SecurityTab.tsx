@@ -45,6 +45,11 @@ export function SecurityTab() {
   const [unlockIdentifier, setUnlockIdentifier] = useState('');
   const [smtpForm, setSmtpForm] = useState(DEFAULT_SMTP_FORM);
   const [auditRules, setAuditRules] = useState(DEFAULT_AUDIT_RULES);
+  const [loginLimitConfig, setLoginLimitConfig] = useState({
+    enabled: true,
+    maxAttempts: 10,
+    lockoutDuration: 60,
+  });
 
   useQuery({
     queryKey: ['smtp-config'],
@@ -61,20 +66,19 @@ export function SecurityTab() {
     gcTime: 0,
   });
 
-  const { data: loginLimitConfig } = useQuery({
+  const loginLimitQuery = useQuery({
     queryKey: ['login-limit-config'],
     queryFn: async () => {
       const res = await settingsApi.getLoginLimit();
-      if (res.data.code === 0) return res.data.data;
+      if (res.data.code === 0 && res.data.data) {
+        setLoginLimitConfig(res.data.data);
+        return res.data.data;
+      }
       throw new Error(res.data.msg);
     },
     staleTime: 0,
     refetchOnMount: 'always',
-    placeholderData: {
-      enabled: true,
-      maxAttempts: 10,
-      lockoutDuration: 60,
-    },
+    gcTime: 0,
   });
 
   const { data: loginStats } = useQuery({
