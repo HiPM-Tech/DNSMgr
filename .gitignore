@@ -37,3 +37,6 @@ Thumbs.db
 
 # PHP version (not part of this project)
 /dnsmgr/
+
+# Temp files
+tmp_ai_animation/
