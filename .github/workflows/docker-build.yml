@@ -88,6 +88,7 @@ jobs:
     name: Build AMD64
     runs-on: ubuntu-latest
     needs: prepare
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -138,6 +139,7 @@ jobs:
     name: Build ARM64
     runs-on: ubuntu-latest
     needs: prepare
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write

@@ -140,7 +140,7 @@ export function NSMonitorTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) => nsMonitorApi.create(data),
+    mutationFn: (data: { domain_name: string; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) => nsMonitorApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
       closeAddModal();
@@ -152,7 +152,7 @@ export function NSMonitorTab() {
   });
 
   const checkMutation = useMutation({
-    mutationFn: (id: number) => nsMonitorApi.check(id),
+    mutationFn: (domainName: string) => nsMonitorApi.check(domainName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
       toast.success(t('nsMonitor.checkSuccess'));
@@ -292,13 +292,13 @@ export function NSMonitorTab() {
   };
 
   const handleAdd = () => {
-    if (!selectedDomainId) {
+    if (!selectedDomainId || !selectedDomain) {
       toast.error(t('nsMonitor.selectDomain'));
       return;
     }
 
     createMutation.mutate({
-      domain_id: selectedDomainId,
+      domain_name: selectedDomain.name,
       expected_ns: addExpectedNs,
       enabled: addEnabled,
       notify_email: addNotifyEmail,
@@ -408,7 +408,7 @@ export function NSMonitorTab() {
             theme="primary"
             icon={<RefreshIcon />}
             loading={checkMutation.isPending}
-            onClick={() => checkMutation.mutate(row.id)}
+            onClick={() => checkMutation.mutate(row.domain_name)}
           />
           <Button
             shape="square"

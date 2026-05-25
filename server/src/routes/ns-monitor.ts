@@ -308,26 +308,27 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  *       - bearerAuth: []
  */
 router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { domain_id, expected_ns, enabled } = req.body;
+  const { domain_name, expected_ns, enabled } = req.body;
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
 
-  if (!domain_id) {
-    res.status(400).json({ success: false, error: 'domain_id is required' });
+  if (!domain_name) {
+    res.status(400).json({ success: false, error: 'domain_name is required' });
     return;
   }
 
-  // Get domain name and verify domain exists in domains table
-  const domain = await DomainOperations.getById(domain_id);
+  // Verify domain exists in domains table
+  const domain = await DomainOperations.getByName(domain_name);
   if (!domain || !domain.name) {
     res.status(404).json({ success: false, error: 'Domain not found in domains table' });
     return;
   }
+  const domainId = domain.id as number;
   const domainName = domain.name as string;
 
   // Check permission (optional, based on domain access)
   if (!isSuper(role)) {
-    const access = await getDomainAccess(domain_id, userId, role);
+    const access = await getDomainAccess(domainId, userId, role);
     if (!access.canWrite) {
       res.status(403).json({ success: false, error: 'Access denied' });
       return;
@@ -487,29 +488,15 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
   res.json({ success: true });
 }));
 
-/**
- * @swagger
- * /api/ns-monitor/{id}/check:
- *   post:
- *     summary: Manually trigger NS check
- *     tags: [NS Monitor]
- *     security:
- *       - bearerAuth: []
- */
-router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const userId = req.user!.userId;
-
-  const monitor = await NSMonitorOperations.getById(parseInt(id), userId);
-  if (!monitor) {
-    res.status(404).json({ success: false, error: 'Configuration not found' });
-    return;
-  }
-
-  const domain = await DomainOperations.getById(monitor.domain_id as number);
+/** 执行 NS 检查并返回结果 */
+async function performNsCheck(monitorId: number, monitor: any, userId: number): Promise<{
+  success: boolean;
+  statusCode?: number;
+  result?: any;
+}> {
+  const domain = await DomainOperations.getByName(monitor.domain_name as string);
   if (!domain) {
-    res.status(404).json({ success: false, error: 'Domain not found' });
-    return;
+    return { success: false, statusCode: 404, result: { success: false, error: 'Domain not found' } };
   }
 
   // Query current NS records with dual query (encrypted + plain)
@@ -531,14 +518,13 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
     status = 'poisoned';
   } else if (expectedNs) {
     const expectedList = expectedNs.split(',').map(s => s.trim()).filter(Boolean);
-    // 使用 validateNsRecords 进行标准化比较（忽略顺序和尾随点号）
     if (!validateNsRecords(currentNs, expectedList)) {
       status = 'mismatch';
     }
   }
 
   // Update status with encrypted and plain NS records
-  await NSMonitorOperations.updateStatus(parseInt(id), {
+  await NSMonitorOperations.updateStatus(monitorId, {
     current_ns: currentNsStr,
     encrypted_ns: encryptedNs.join(', '),
     plain_ns: plainNs.join(', '),
@@ -548,17 +534,17 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
   });
 
   log.info('NSMonitor', 'Manual check completed', {
-    monitorId: id,
-    domainId: monitor.domain_id,
+    monitorId,
+    domainName: monitor.domain_name,
     status,
     isPoisoned: nsResult.isPoisoned,
     encryptedCount: encryptedNs.length,
     plainCount: plainNs.length,
   });
 
-  res.json({
+  return {
     success: true,
-    data: {
+    result: {
       current_ns: currentNs,
       encrypted_ns: encryptedNs,
       plain_ns: plainNs,
@@ -566,7 +552,41 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
       expected_ns: expectedNs.split(',').map(s => s.trim()).filter(Boolean),
       status,
     },
-  });
+  };
+}
+
+/**
+ * @swagger
+ * /api/ns-monitor/check:
+ *   post:
+ *     summary: Manually trigger NS check by domain name
+ *     tags: [NS Monitor]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/check', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const { domain_name } = req.body;
+  const userId = req.user!.userId;
+
+  if (!domain_name) {
+    res.status(400).json({ success: false, error: 'domain_name is required' });
+    return;
+  }
+
+  const monitor = await NSMonitorOperations.getByDomainName(userId, domain_name);
+  if (!monitor) {
+    res.status(404).json({ success: false, error: 'Configuration not found for this domain' });
+    return;
+  }
+
+  const monitorId = monitor.id as number;
+  const result = await performNsCheck(monitorId, monitor, userId);
+  if (!result.success) {
+    res.status(result.statusCode!).json(result.result);
+    return;
+  }
+
+  res.json({ success: true, data: result.result });
 }));
 
 export default router;
