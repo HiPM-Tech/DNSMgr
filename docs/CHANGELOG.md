@@ -1,5 +1,35 @@
 # 更新日志
 
+## [1.6.3] - 2026-05-27
+
+### 🐛 修复
+
+#### 数据库迁移完整性修复
+- **问题描述**：PostgreSQL `dns_accounts` 表 export-rebuild 迁移后索引丢失；PostgreSQL 旧表升级时 `COALESCE(enabled, TRUE)` 读取不存在列；SQLite `dns_accounts` 表缺失 `enabled` 列定义及相关索引
+- **原因分析**：PostgreSQL export-rebuild 采用 DROP+CREATE+RENAME 模式，原表索引不会自动迁移到新表；`dns_accounts` CREATE TABLE 未定义 `enabled` 列，旧版本直接建表时该列不存在
+- **修复方案**：
+  - PostgreSQL：export-rebuild 迁移步骤后重建 `idx_dns_accounts_created_by`、`idx_team_id`、`idx_type`、`idx_enabled` 四个索引
+  - PostgreSQL：迁移脚本中 `COALESCE(enabled, TRUE)` 改为 `TRUE as enabled`，避免读取不存在列
+  - PostgreSQL：`dns_accounts` CREATE TABLE 添加 `enabled BOOLEAN NOT NULL DEFAULT TRUE`
+  - SQLite：`dns_accounts` CREATE TABLE 添加 `enabled INTEGER NOT NULL DEFAULT 1`
+  - SQLite：`createIndexes` 补全 `idx_dns_accounts_created_by`、`idx_team_id`、`idx_type`、`idx_enabled` 索引
+- **关联检查**：以 MySQL 表结构为基准，逐表逐列逐索引对比 PostgreSQL 和 SQLite，确认三数据库完全对齐，无遗漏
+
+#### PostgreSQL `idx_domains_enabled` 索引创建顺序修复
+- **问题描述**：PostgreSQL 初始化时 `CREATE INDEX idx_domains_enabled ON domains(enabled)` 在 `ALTER TABLE ADD COLUMN enabled` 之前执行，旧表升级时列不存在导致崩溃
+- **修复方案**：将 `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled` 提前到 `CREATE INDEX` 之前执行
+
+#### 系统 > 安全页配置预填充回显修复
+- **问题描述**：`/dash/system/security` 页面审计告警模块配置值无法正确回显到表单
+- **原因分析**：后端 `PUT /api/settings/audit-rules` 接口未返回 `data` 字段；前端 `setAuditRules` 直接覆盖状态可能丢失未提交的本地修改
+- **修复方案**：
+  - 后端：PUT 接口补充返回 `data` 字段，与 GET 接口格式对齐
+  - 前端：改用函数式合并更新 `setAuditRules((prev) => ({ ...prev, ...res.data.data }))`
+
+### 🔧 改进与优化
+- 更新版本号至 1.6.3
+- 全数据库迁移完整性验证：34 张表、全部索引和迁移脚本已对齐
+
 ## [1.6.2] - 2026-05-26
 
 ### 🐛 修复

@@ -511,6 +511,11 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE dns_accounts_new RENAME TO dns_accounts`,
     // Step 5: Recreate sequences if needed
     `SELECT setval('dns_accounts_id_seq', COALESCE((SELECT MAX(id) FROM dns_accounts), 1))`,
+    // Step 6: Recreate indexes (lost after export-rebuild)
+    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_created_by ON dns_accounts(created_by)`,
+    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_team_id ON dns_accounts(team_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_type ON dns_accounts(type)`,
+    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_enabled ON dns_accounts(enabled)`,
     // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
