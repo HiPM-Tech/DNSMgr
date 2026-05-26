@@ -3125,14 +3125,15 @@ export const WhoisOperations = {
         
         // 迁移：为已存在的表添加 status 字段（如果不存在）
         try {
-          // SQLite 不支持 INFORMATION_SCHEMA，直接尝试添加，捕获错误
+          // SQLite 3.35.0+ 支持 ADD COLUMN IF NOT EXISTS
           await executeInternal(
-            `ALTER TABLE whois_cache ADD COLUMN status TEXT`, 
+            `ALTER TABLE whois_cache ADD COLUMN IF NOT EXISTS status TEXT`, 
             [], 
             { operation: 'Whois.migrateAddStatusColumn', table: 'whois_cache' }
           );
           log.info('BusinessAdapter', 'Added status column to whois_cache table');
         } catch (e) {
+          // 兼容旧版 SQLite，捕获错误
           const errorMsg = e instanceof Error ? e.message : String(e);
           if (errorMsg.includes('duplicate column name')) {
             log.debug('BusinessAdapter', 'status column already exists in whois_cache table');

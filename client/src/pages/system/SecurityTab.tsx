@@ -125,7 +125,7 @@ export function SecurityTab() {
     queryFn: async () => {
       const res = await settingsApi.getAuditRules();
       if (res.data.code === 0 && res.data.data) {
-        setAuditRules(res.data.data);
+        setAuditRules((prev) => ({ ...prev, ...res.data.data }));
         return res.data.data;
       }
       if (res.data.code === 0 && !res.data.data) {
@@ -269,7 +269,7 @@ export function SecurityTab() {
       }
       // Immediately sync the response data
       if (res.data.data) {
-        setAuditRules(res.data.data);
+        setAuditRules((prev) => ({ ...prev, ...res.data.data }));
         queryClient.setQueryData(['audit-rules'], res.data.data);
       }
       // Invalidate to ensure fresh data on next refetch

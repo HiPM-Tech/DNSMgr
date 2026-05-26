@@ -260,7 +260,14 @@ router.put('/audit-rules', authMiddleware, noTokenAuth('system settings'), admin
   if (!rules) return res.status(400).json({ code: -1, msg: 'Rules required' });
   
   await AuditRuleOperations.saveRules(JSON.stringify(rules));
-  res.json({ code: 0, msg: 'success' });
+  const defaultRules = {
+    enabled: true,
+    maxDeletionsPerHour: 10,
+    maxFailedLogins: 5,
+    offHoursStart: '22:00',
+    offHoursEnd: '06:00'
+  };
+  res.json({ code: 0, data: { ...defaultRules, ...rules }, msg: 'success' });
 });
 
 router.get('/security', authMiddleware, noTokenAuth('system settings'), adminOnly, async (_req: Request, res: Response) => {
