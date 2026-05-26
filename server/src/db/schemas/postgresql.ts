@@ -128,6 +128,8 @@ export const postgresqlSchema: SchemaDefinition = {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(account_id, name)
     )`,
+    // Migration: Ensure enabled column exists before creating index (for upgraded schemas)
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
     `CREATE INDEX IF NOT EXISTS idx_domains_account_id ON domains(account_id)`,
     `CREATE INDEX IF NOT EXISTS idx_domains_name ON domains(name)`,
     `CREATE INDEX IF NOT EXISTS idx_domains_is_hidden ON domains(is_hidden)`,
