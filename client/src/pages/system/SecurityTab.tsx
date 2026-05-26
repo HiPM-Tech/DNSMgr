@@ -71,7 +71,7 @@ export function SecurityTab() {
     queryFn: async () => {
       const res = await settingsApi.getLoginLimit();
       if (res.data.code === 0 && res.data.data) {
-        setLoginLimitConfig(res.data.data);
+        setLoginLimitConfig((prev) => ({ ...prev, ...res.data.data }));
         return res.data.data;
       }
       if (res.data.code === 0 && !res.data.data) {
@@ -197,16 +197,20 @@ export function SecurityTab() {
     updateLoginLimitMutation.mutate({ enabled: !loginLimitConfig?.enabled });
   };
 
-  const handleUpdateMaxAttempts = (value: number) => {
-    if (value >= 1 && value <= 100) {
-      updateLoginLimitMutation.mutate({ maxAttempts: value });
-    }
+  const handleLoginLimitFieldChange = (field: 'maxAttempts' | 'lockoutDuration', value: number) => {
+    const clamp = field === 'maxAttempts'
+      ? Math.max(1, Math.min(100, value))
+      : Math.max(1, Math.min(1440, value));
+    setLoginLimitConfig((prev) => ({ ...prev, [field]: clamp }));
   };
 
-  const handleUpdateLockoutDuration = (value: number) => {
-    if (value >= 1 && value <= 1440) {
-      updateLoginLimitMutation.mutate({ lockoutDuration: value });
-    }
+  const handleSaveLoginLimitField = (field: 'maxAttempts' | 'lockoutDuration') => {
+    const value = loginLimitConfig?.[field];
+    if (value == null) return;
+    const clamped = field === 'maxAttempts'
+      ? Math.max(1, Math.min(100, value))
+      : Math.max(1, Math.min(1440, value));
+    updateLoginLimitMutation.mutate({ [field]: clamped });
   };
 
   const handleUnlockAccount = () => {
@@ -224,7 +228,7 @@ export function SecurityTab() {
       username: (smtpForm.username || '').trim(),
       password: smtpForm.password || '',
       fromEmail: (smtpForm.fromEmail || '').trim(),
-      fromName: (smtpForm.fromName || 'DNSMgr').trim(),
+      fromName: (smtpForm.fromName || '').trim(),
     }),
     onSuccess: (res) => {
       if (res.data.code !== 0) {
@@ -319,8 +323,9 @@ export function SecurityTab() {
                 type="number"
                 value={String(loginLimitConfig?.maxAttempts ?? 10)}
                 suffix={t('system.attempts')}
-                disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
-                onChange={(value: any) => handleUpdateMaxAttempts(Number(value))}
+                disabled={!loginLimitConfig?.enabled}
+                onChange={(value: any) => handleLoginLimitFieldChange('maxAttempts', Number(value))}
+                onBlur={() => handleSaveLoginLimitField('maxAttempts')}
               />
             </Form.FormItem>
             <Form.FormItem label={t('system.lockoutDuration')} help={t('system.lockoutDurationDesc')}>
@@ -328,8 +333,9 @@ export function SecurityTab() {
                 type="number"
                 value={String(loginLimitConfig?.lockoutDuration ?? 60)}
                 suffix={t('system.minutes')}
-                disabled={updateLoginLimitMutation.isPending || !loginLimitConfig?.enabled}
-                onChange={(value: any) => handleUpdateLockoutDuration(Number(value))}
+                disabled={!loginLimitConfig?.enabled}
+                onChange={(value: any) => handleLoginLimitFieldChange('lockoutDuration', Number(value))}
+                onBlur={() => handleSaveLoginLimitField('lockoutDuration')}
               />
             </Form.FormItem>
           </Form>

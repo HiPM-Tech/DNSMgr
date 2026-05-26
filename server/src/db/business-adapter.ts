@@ -150,12 +150,6 @@ function createOperationLogger(context: OperationContext) {
 /** SQL处理器 */
 function processSql(sql: string, dbType: string): string {
   const originalSql = sql;
-  
-  // 转换 PostgreSQL 的 $1, $2... 占位符
-  if (dbType === 'postgresql') {
-    let index = 0;
-    sql = sql.replace(/\?/g, () => `$${++index}`);
-  }
 
   // MySQL 兼容性处理
   if (dbType === 'mysql') {
