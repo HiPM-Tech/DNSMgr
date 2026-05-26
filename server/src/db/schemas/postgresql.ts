@@ -114,6 +114,8 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_created_by ON dns_accounts(created_by)`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_team_id ON dns_accounts(team_id)`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_type ON dns_accounts(type)`,
+    // Migration: Ensure enabled column exists before creating index (for upgraded schemas)
+    `ALTER TABLE dns_accounts ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_enabled ON dns_accounts(enabled)`,
     `CREATE TABLE IF NOT EXISTS domains (
       id SERIAL PRIMARY KEY,
