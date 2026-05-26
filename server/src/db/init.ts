@@ -290,6 +290,17 @@ async function initSQLiteSchema(conn: DatabaseConnection): Promise<void> {
     await conn.execute(sql);
   }
 
+  // Migration: Ensure dns_accounts.enabled column exists before creating index
+  // (for databases created by older versions without this column)
+  try {
+    await conn.execute("ALTER TABLE dns_accounts ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1");
+  } catch (e) {
+    // Ignore "duplicate column" errors - column already exists
+    if (e instanceof Error && !e.message.toLowerCase().includes('duplicate column')) {
+      throw e;
+    }
+  }
+
   // 创建索引
   for (const sql of sqliteSchema.createIndexes) {
     await conn.execute(sql);
