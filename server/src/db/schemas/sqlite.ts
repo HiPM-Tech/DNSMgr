@@ -94,6 +94,7 @@ export const sqliteSchema: SchemaDefinition = {
       remark TEXT NOT NULL DEFAULT '',
       created_by INTEGER NOT NULL,
       team_id INTEGER,
+      enabled INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (created_by) REFERENCES users(id),
       FOREIGN KEY (team_id) REFERENCES teams(id)

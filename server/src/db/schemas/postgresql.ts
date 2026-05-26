@@ -108,6 +108,7 @@ export const postgresqlSchema: SchemaDefinition = {
       remark TEXT NOT NULL DEFAULT '',
       created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_created_by ON dns_accounts(created_by)`,
@@ -500,7 +501,7 @@ export const postgresqlSchema: SchemaDefinition = {
     // Step 2: Copy data from old table to new table
     `INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
      SELECT id, type, name, config, remark, created_by, team_id, 
-            COALESCE(enabled, TRUE) as enabled, created_at
+            TRUE as enabled, created_at
      FROM dns_accounts
      ON CONFLICT (id) DO NOTHING`,
     // Step 3: Drop old table
