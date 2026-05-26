@@ -108,14 +108,14 @@ export const postgresqlSchema: SchemaDefinition = {
       remark TEXT NOT NULL DEFAULT '',
       created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
-      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      enabled INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_created_by ON dns_accounts(created_by)`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_team_id ON dns_accounts(team_id)`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_type ON dns_accounts(type)`,
     // Migration: Ensure enabled column exists before creating index (for upgraded schemas)
-    `ALTER TABLE dns_accounts ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+    `ALTER TABLE dns_accounts ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_enabled ON dns_accounts(enabled)`,
     `CREATE TABLE IF NOT EXISTS domains (
       id SERIAL PRIMARY KEY,
@@ -486,38 +486,9 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS whois_status TEXT`,
     // Migration: Add enabled column to domains table for domain enable/disable tracking
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
-    // Migration: Add enabled column to dns_accounts table using export-rebuild pattern
-    // Step 0: Clean up any leftover temporary table from previous failed migration
+    // Clean up zombie table from previous failed export-rebuild migration (if any)
+    // Note: enabled column is now handled by ALTER TABLE ADD COLUMN IF NOT EXISTS in createTables
     `DROP TABLE IF EXISTS dns_accounts_new`,
-    // Step 1: Create new table with enabled column
-    `CREATE TABLE IF NOT EXISTS dns_accounts_new (
-      id SERIAL PRIMARY KEY,
-      type VARCHAR(100) NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      config JSONB NOT NULL DEFAULT '{}',
-      remark TEXT NOT NULL DEFAULT '',
-      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
-      enabled BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`,
-    // Step 2: Copy data from old table to new table
-    `INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
-     SELECT id, type, name, config, remark, created_by, team_id, 
-            TRUE as enabled, created_at
-     FROM dns_accounts
-     ON CONFLICT (id) DO NOTHING`,
-    // Step 3: Drop old table
-    `DROP TABLE IF EXISTS dns_accounts`,
-    // Step 4: Rename new table to original name
-    `ALTER TABLE dns_accounts_new RENAME TO dns_accounts`,
-    // Step 5: Recreate sequences if needed
-    `SELECT setval('dns_accounts_id_seq', COALESCE((SELECT MAX(id) FROM dns_accounts), 1))`,
-    // Step 6: Recreate indexes (lost after export-rebuild)
-    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_created_by ON dns_accounts(created_by)`,
-    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_team_id ON dns_accounts(team_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_type ON dns_accounts(type)`,
-    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_enabled ON dns_accounts(enabled)`,
     // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
@@ -525,8 +496,16 @@ export const postgresqlSchema: SchemaDefinition = {
     // Migration: Add domain_name column and change unique constraint
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS domain_name VARCHAR(255) NOT NULL DEFAULT ''`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)`,
-    // Migration: Sync domain_name from domains table for existing records
-    `UPDATE ns_monitor_domains n SET domain_name = d.name FROM domains d WHERE n.domain_id = d.id AND n.domain_name = ''`,
+    // Migration: Sync domain_name from domains table for existing records (if domain_id still exists)
+    `DO $$
+     BEGIN
+       IF EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'ns_monitor_domains' AND column_name = 'domain_id'
+       ) THEN
+         UPDATE ns_monitor_domains n SET domain_name = d.name FROM domains d WHERE n.domain_id = d.id AND n.domain_name = '';
+       END IF;
+     END $$`,
     // Migration: Drop domain_id column (for performance)
     `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_domain_id_fkey`,
     `ALTER TABLE ns_monitor_domains DROP COLUMN IF EXISTS domain_id`,
