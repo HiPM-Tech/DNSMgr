@@ -94,12 +94,22 @@ export class PostgreSQLDriver extends BaseDriver {
     }
   }
 
+  /**
+   * 将 ? 占位符转换为 PostgreSQL 的 $N 格式
+   */
+  private convertPlaceholders(sql: string, params?: unknown[]): string {
+    if (!params || params.length === 0) return sql;
+    let idx = 0;
+    return sql.replace(/\?/g, () => `$${++idx}`);
+  }
+
   async query<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
     this._stats.queries++;
     const startTime = Date.now();
 
     try {
-      const result = await this.pool.query(sql, params);
+      const pgSql = this.convertPlaceholders(sql, params);
+      const result = await this.pool.query(pgSql, params);
       const duration = Date.now() - startTime;
 
       if (duration > (this.config.slowQueryThreshold || 100)) {
@@ -141,22 +151,27 @@ export class PostgreSQLDriver extends BaseDriver {
 
     return {
       query: async <T = unknown>(sql: string, params?: unknown[]): Promise<T[]> => {
-        const result = await client.query(sql, params);
+        const pgSql = this.convertPlaceholders(sql, params);
+        const result = await client.query(pgSql, params);
         return result.rows as T[];
       },
       get: async <T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> => {
-        const result = await client.query(sql, params);
+        const pgSql = this.convertPlaceholders(sql, params);
+        const result = await client.query(pgSql, params);
         return result.rows[0] as T | undefined;
       },
       execute: async (sql: string, params?: unknown[]): Promise<void> => {
-        await client.query(sql, params);
+        const pgSql = this.convertPlaceholders(sql, params);
+        await client.query(pgSql, params);
       },
       insert: async (sql: string, params?: unknown[]): Promise<number> => {
-        const result = await client.query(sql + ' RETURNING id', params);
+        const pgSql = this.convertPlaceholders(sql, params);
+        const result = await client.query(pgSql + ' RETURNING id', params);
         return result.rows[0]?.id || 0;
       },
       run: async (sql: string, params?: unknown[]): Promise<{ changes: number }> => {
-        await client.query(sql, params);
+        const pgSql = this.convertPlaceholders(sql, params);
+        await client.query(pgSql, params);
         return { changes: 0 };
       },
     };
