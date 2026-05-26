@@ -1,5 +1,15 @@
 # 更新日志
 
+## [1.6.2] - 2026-05-26
+
+### 🐛 修复
+
+#### PostgreSQL 初始化崩溃 - `idx_domains_enabled` 索引创建失败
+- **问题描述**：PostgreSQL 数据库中，`domains` 表升级迁移时 `enabled` 列尚未存在，但 `CREATE INDEX idx_domains_enabled ON domains(enabled)` 提前执行，导致 `column "enabled" does not exist` 错误，服务无法正常启动
+- **原因分析**：`createTables` 数组中的 `ALTER TABLE ADD COLUMN enabled` 放在 `migrate` 阶段，晚于 `CREATE INDEX` 执行
+- **修复方案**：将 `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled` 提前到 `CREATE INDEX` 之前执行，确保列存在后再建索引
+- **关联检查**：扫描全部 9 个迁移 ALTER TABLE + SQLite schema，确认仅此一处问题
+
 ## [1.6.1] - 2026-05-26
 
 ### 🐛 已知问题
