@@ -92,7 +92,7 @@ export const postgresqlSchema: SchemaDefinition = {
       version VARCHAR(50) NOT NULL UNIQUE,
       description TEXT,
       applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      success BOOLEAN NOT NULL DEFAULT TRUE,
+      success INTEGER NOT NULL DEFAULT 1,
       error_message TEXT,
       execution_time_ms INTEGER,
       system_type VARCHAR(50) DEFAULT 'hidns'
@@ -518,6 +518,9 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_status_check CHECK (status IN ('ok', 'mismatch', 'missing', 'poisoned'))`,
     // Migration: Add pinned_domains column to user_preferences table
     `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS pinned_domains JSONB DEFAULT '[]'::jsonb`,
-    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS avatar_image TEXT`
+    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS avatar_image TEXT`,
+    // Migration: Convert schema_versions.success from BOOLEAN to INTEGER
+    // PostgreSQL BOOLEAN != INTEGER, but queries use success = 1 (integer comparison)
+    `ALTER TABLE schema_versions ALTER COLUMN success TYPE INTEGER USING success::integer`,
   ],
 };
