@@ -360,12 +360,13 @@ export function DomainListTab() {
     {
       key: 'name',
       label: t('domains.domainName'),
+      width: 250,
       render: (row: Domain) => {
         const isApex = isApexDomain(row.name);
         const displayName = formatDomainName(row.name);
         return (
           <Space size="small">
-            <Button variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)}>
+            <Button className="domain-name-button" variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)} title={row.name}>
               {displayName}
             </Button>
             {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />}>{t('domains.subdomain')}</Tag>}

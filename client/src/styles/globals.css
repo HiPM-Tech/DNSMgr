@@ -1851,6 +1851,18 @@ html.dark .settings-image-preview__mask {
   gap: 4px;
 }
 
+/* Domain name column button text truncation */
+.domain-name-button {
+  max-width: 200px;
+  display: inline-block;
+}
+
+.domain-name-button .t-button__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .setup-choice strong {
   color: var(--td-text-color-primary);
   font-size: 14px;
