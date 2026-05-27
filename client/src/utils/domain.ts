@@ -1,3 +1,5 @@
+import punycode from 'punycode.js';
+
 /**
  * Convert Punycode domain to Unicode (IDN decoding)
  * Example: xn--fiqs8s.com -> 中国.com
@@ -9,24 +11,13 @@ export function decodePunycode(domain: string): string {
 
   try {
     // Check if domain contains Punycode labels (xn--)
-    const labels = domain.split('.');
-    const decodedLabels = labels.map((label) => {
-      // Only decode labels that start with xn--
-      if (label.toLowerCase().startsWith('xn--')) {
-        try {
-          // Use the built-in URL API for decoding
-          // Create a fake URL to leverage the browser's IDN decoding
-          const decoded = new URL(`http://${label}.example.com`).hostname.split('.')[0];
-          return decoded;
-        } catch {
-          // If decoding fails, return original label
-          return label;
-        }
-      }
-      return label;
-    });
+    const hasPunycode = domain.split('.').some(label => label.toLowerCase().startsWith('xn--'));
+    if (!hasPunycode) {
+      return domain;
+    }
 
-    return decodedLabels.join('.');
+    // Use punycode.js library for reliable IDN decoding
+    return punycode.toUnicode(domain);
   } catch {
     // If any error occurs, return original domain
     return domain;
