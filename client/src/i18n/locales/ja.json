@@ -1257,7 +1257,8 @@
             "addSelected": "選択したものを追加",
             "selectAll": "すべて選択",
             "selectDomainsToAdd": "追加するドメインを選択（{count}個選択）",
-            "expires": "有効期限"
+            "expires": "有効期限",
+            "localStatus": "ローカル状態"
         },
         "nav": {
             "settings": "設定"

@@ -1229,7 +1229,8 @@
             "addSelected": "添加选中的杂鱼域名~（{count}个）♡~快点啦笨蛋♡~",
             "selectAll": "全选哦~",
             "selectDomainsToAdd": "选择要调教的杂鱼域名~",
-            "expires": "到期时间喵~"
+            "expires": "到期时间喵~",
+            "localStatus": "本地状态（系统里的样子）"
         },
         "landing": {
             "header": {

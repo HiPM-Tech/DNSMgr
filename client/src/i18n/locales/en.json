@@ -1229,7 +1229,8 @@
             "addSelected": "Add Selected",
             "selectAll": "Select All",
             "selectDomainsToAdd": "Select domains to add ({count} selected)",
-            "expires": "Expires"
+            "expires": "Expires",
+            "localStatus": "Local Status"
         },
         "landing": {
             "header": {

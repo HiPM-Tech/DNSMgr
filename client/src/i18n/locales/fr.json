@@ -1167,7 +1167,8 @@
             "addSelected": "Ajouter la sélection",
             "selectAll": "Tout sélectionner",
             "selectDomainsToAdd": "Sélectionner les domaines à ajouter ({count} sélectionnés)",
-            "expires": "Expire"
+            "expires": "Expire",
+            "localStatus": "Statut local"
         },
         "landing": {
             "header": {

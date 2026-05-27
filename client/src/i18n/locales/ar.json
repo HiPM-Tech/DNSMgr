@@ -1129,7 +1129,8 @@
             "addSelected": "إضافة المحدد",
             "selectAll": "تحديد الكل",
             "selectDomainsToAdd": "حدد النطاقات المراد إضافتها ({count} محدد)",
-            "expires": "تنتهي"
+            "expires": "تنتهي",
+            "localStatus": "الحالة المحلية"
         },
         "landing": {
             "header": {

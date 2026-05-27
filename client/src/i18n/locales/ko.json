@@ -1204,7 +1204,8 @@
             "addSelected": "선택 항목 추가",
             "selectAll": "모두 선택",
             "selectDomainsToAdd": "추가할 도메인 선택 ({count}개 선택)",
-            "expires": "만료"
+            "expires": "만료",
+            "localStatus": "로컬 상태"
         },
         "landing": {
             "header": {

@@ -1229,7 +1229,8 @@
       "addSelected": "添加选中",
       "selectAll": "全选",
       "selectDomainsToAdd": "选择要添加的域名（已选 {count} 个）",
-      "expires": "到期时间"
+      "expires": "到期时间",
+      "localStatus": "本地状态"
     },
     "landing": {
       "header": {
