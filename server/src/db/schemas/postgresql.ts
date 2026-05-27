@@ -489,6 +489,15 @@ export const postgresqlSchema: SchemaDefinition = {
     // Clean up zombie table from previous failed export-rebuild migration (if any)
     // Note: enabled column is now handled by ALTER TABLE ADD COLUMN IF NOT EXISTS in createTables
     `DROP TABLE IF EXISTS dns_accounts_new`,
+    // Migration: Convert dns_accounts.enabled from BOOLEAN to INTEGER
+    // Column may already exist as BOOLEAN from older migrations. ADD COLUMN IF NOT EXISTS
+    // in createTables only applies to missing columns, so we need explicit type conversion.
+    `DO $$
+     BEGIN
+       ALTER TABLE dns_accounts ALTER COLUMN enabled DROP DEFAULT;
+       ALTER TABLE dns_accounts ALTER COLUMN enabled TYPE INTEGER USING enabled::integer;
+       ALTER TABLE dns_accounts ALTER COLUMN enabled SET DEFAULT 1;
+     END $$`,
     // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
