@@ -137,6 +137,8 @@
             "title": "E-Mail-Einrichtung",
             "selectProvider": "E-Mail-Anbieter auswählen",
             "chooseProvider": "Anbieter wählen...",
+            "hostname": "Hostname",
+            "hostnamePlaceholder": "@ für die Root-Domain lassen oder Subdomain-Präfix eingeben",
             "recordsAdded": "Hinzuzufügende Einträge",
             "conflicts": "Konflikt mit vorhandenen Einträgen",
             "conflictsDesc": "Die folgenden Eintragstypen existieren bereits: {types}. Diese müssen möglicherweise zuerst entfernt werden.",

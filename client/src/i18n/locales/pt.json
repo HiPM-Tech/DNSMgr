@@ -138,6 +138,8 @@
             "title": "Configuração de Email",
             "selectProvider": "Selecionar Provedor de Email",
             "chooseProvider": "Escolha um provedor...",
+            "hostname": "Nome do Host",
+            "hostnamePlaceholder": "Deixe @ para o domínio raiz, ou insira um prefixo de subdomínio",
             "recordsAdded": "Registros a serem adicionados",
             "conflicts": "Conflito de Registros Existentes",
             "conflictsDesc": "Os seguintes tipos de registro já existem: {types}. Eles podem precisar ser removidos primeiro.",

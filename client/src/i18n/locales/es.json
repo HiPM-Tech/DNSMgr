@@ -188,6 +188,8 @@
             "addSuccess": "Registros de correo agregados exitosamente",
             "cancel": "Cancelar",
             "chooseProvider": "Selecciona un proveedor...",
+            "hostname": "Nombre de host",
+            "hostnamePlaceholder": "Deje @ para el dominio raíz, o ingrese un prefijo de subdominio",
             "conflicts": "Conflicto de registros existentes",
             "conflictsDesc": "Los siguientes tipos de registros ya existen: {types}. Puede que necesites eliminarlos primero.",
             "recordsAdded": "Registros que se van a agregar",

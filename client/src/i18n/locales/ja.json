@@ -201,6 +201,8 @@
             "addSuccess": "メールレコードを追加しました",
             "cancel": "キャンセル",
             "chooseProvider": "プロバイダーを選択...",
+            "hostname": "ホスト名",
+            "hostnamePlaceholder": "ルートドメインの場合は @ のまま、サブドメイン接頭辞を入力してください",
             "conflicts": "既存のレコードとの競合",
             "conflictsDesc": "次のタイプのレコードが既に存在します：{types}。最初に削除する必要がある場合があります。",
             "recordsAdded": "追加されるレコード",

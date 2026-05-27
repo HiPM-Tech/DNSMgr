@@ -138,6 +138,8 @@
             "title": "Configuration email",
             "selectProvider": "Sélectionner le fournisseur email",
             "chooseProvider": "Choisir un fournisseur...",
+            "hostname": "Nom d'hôte",
+            "hostnamePlaceholder": "Laissez @ pour le domaine racine, ou entrez un préfixe de sous-domaine",
             "recordsAdded": "Enregistrements à ajouter",
             "conflicts": "Conflit d'enregistrements existants",
             "conflictsDesc": "Les types d'enregistrements suivants existent déjà : {types}. Ils doivent peut-être être supprimés d'abord.",

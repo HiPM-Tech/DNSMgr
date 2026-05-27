@@ -138,6 +138,8 @@
             "title": "이메일 설정",
             "selectProvider": "이메일 공급자 선택",
             "chooseProvider": "공급자 선택...",
+            "hostname": "호스트 이름",
+            "hostnamePlaceholder": "루트 도메인은 @로 두거나, 하위 도메인 접두사를 입력하세요",
             "recordsAdded": "추가할 레코드",
             "conflicts": "기존 레코드 충돌",
             "conflictsDesc": "다음 레코드 유형이 이미 존재합니다: {types}. 먼저 제거해야 할 수 있습니다.",

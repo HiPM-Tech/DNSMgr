@@ -12,6 +12,7 @@ export { authApi } from './auth';
 export { accountsApi, tunnelsApi } from './accounts';
 export { domainsApi, domainRenewalApi } from './domains';
 export { recordsApi } from './records';
+export type { EmailTemplate, EmailTemplateRecord } from './records';
 export { usersApi } from './users';
 export { teamsApi } from './teams';
 export { logsApi } from './logs';

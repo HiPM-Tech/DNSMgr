@@ -36,7 +36,8 @@ import settingsRouter from './routes/settings';
 import securityRouter from './routes/security';
 import securityPolicyRouter from './routes/securityPolicy';
 import auditRouter from './routes/audit';
-import emailTemplatesRouter from './routes/emailTemplates';
+// emailTemplatesRouter has been moved to records.ts under /api/domains/email-templates
+// import emailTemplatesRouter from './routes/emailTemplates';
 import tunnelsRouter from './routes/tunnels';
 import webauthnRouter from './routes/webauthn';
 import tokensRouter from './routes/tokens';
@@ -275,7 +276,8 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/security', securityRouter);
 app.use('/api/security', securityPolicyRouter);
 app.use('/api/audit', auditRouter);
-app.use('/api/email-templates', emailTemplatesRouter);
+// Email templates API moved to /api/domains/email-templates (see records.ts)
+// app.use('/api/email-templates', emailTemplatesRouter);
 app.use('/api/tunnels', tunnelsRouter);
 app.use('/api/auth/webauthn', webauthnRouter);
 app.use('/api/tokens', tokensRouter);

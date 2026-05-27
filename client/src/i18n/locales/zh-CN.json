@@ -513,6 +513,9 @@
       "chooseProvider": "请选择服务商...",
       "conflicts": "现有记录冲突",
       "conflictsDesc": "以下类型的记录已存在：{types}。你可能需要先删除它们。",
+      "hostname": "主机名",
+      "hostnamePlaceholder": "留空使用 @ 表示根域名，或输入子域名前缀",
+      "preview": "配置预览",
       "recordsAdded": "将要添加的记录",
       "selectProvider": "选择邮件服务商",
       "title": "邮件设置"

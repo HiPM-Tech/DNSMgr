@@ -11,6 +11,24 @@ export interface RecordListParams {
   pageSize?: number;
 }
 
+export interface EmailTemplateRecord {
+  name: string;
+  type: 'A' | 'AAAA' | 'MX' | 'TXT' | 'CNAME' | 'SPF' | 'DKIM' | 'DMARC';
+  value: string;
+  priority?: number;
+  ttl?: number;
+  remark?: string;
+}
+
+export interface EmailTemplate {
+  name: string;
+  provider: string;
+  description: string;
+  records: EmailTemplateRecord[];
+  documentation?: string;
+  notes?: string[];
+}
+
 export const recordsApi = {
   list: (domainId: number, params?: RecordListParams) =>
     api.get<ApiResponse<{ total: number; list: DnsRecord[] }>>(`/domains/${domainId}/records`, { params }),
@@ -24,4 +42,11 @@ export const recordsApi = {
     api.delete<ApiResponse<null>>(`/domains/${domainId}/records/${recordId}`),
   setStatus: (domainId: number, recordId: string, status: number) =>
     api.put<ApiResponse<null>>(`/domains/${domainId}/records/${recordId}/status`, { status }),
+  // Email template APIs
+  getEmailTemplates: () =>
+    api.get<ApiResponse<{ templates: Array<{ id: string; name: string; provider: string }> }>>('/domains/email-templates'),
+  getEmailTemplate: (templateId: string) =>
+    api.get<ApiResponse<{ template: EmailTemplate }>>(`/domains/email-templates/${templateId}`),
+  getEmailTemplatePreview: (templateId: string, domain: string) =>
+    api.get<ApiResponse<{ preview: string }>>(`/domains/email-templates/${templateId}/preview`, { params: { domain } }),
 };

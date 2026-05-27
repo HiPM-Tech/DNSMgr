@@ -270,6 +270,85 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
       'SendGrid requires domain authentication',
     ],
   },
+  aliyun: {
+    name: '阿里企业邮箱',
+    provider: 'Alibaba Cloud',
+    description: 'Alibaba Cloud Enterprise Mail',
+    records: [
+      {
+        name: '@',
+        type: 'MX',
+        value: 'mx1.qiye.aliyun.com',
+        priority: 5,
+        remark: 'Primary MX record',
+      },
+      {
+        name: '@',
+        type: 'MX',
+        value: 'mx2.qiye.aliyun.com',
+        priority: 10,
+        remark: 'Secondary MX record',
+      },
+      {
+        name: '@',
+        type: 'MX',
+        value: 'mx3.qiye.aliyun.com',
+        priority: 15,
+        remark: 'Tertiary MX record',
+      },
+      {
+        name: '@',
+        type: 'TXT',
+        value: 'v=spf1 include:spf.qiye.aliyun.com -all',
+        remark: 'SPF record',
+      },
+    ],
+    documentation: 'https://help.aliyun.com/product/36500.html',
+    notes: [
+      '确保域名已实名认证',
+      '等待 DNS 记录生效（通常 10 分钟内）',
+      '可在阿里云控制台验证配置',
+    ],
+  },
+  netease163: {
+    name: '163企业邮箱',
+    provider: 'NetEase',
+    description: 'NetEase 163 Enterprise Mail',
+    records: [
+      {
+        name: '@',
+        type: 'MX',
+        value: 'hzmx01.mxmail.netease.com',
+        priority: 5,
+        remark: 'Primary MX record',
+      },
+      {
+        name: '@',
+        type: 'MX',
+        value: 'hzmx02.mxmail.netease.com',
+        priority: 10,
+        remark: 'Secondary MX record',
+      },
+      {
+        name: '@',
+        type: 'TXT',
+        value: 'v=spf1 include:spf.163.com -all',
+        remark: 'SPF record',
+      },
+      {
+        name: '_dmarc',
+        type: 'TXT',
+        value: 'v=DMARC1; p=quarantine; fo=1; ruf=mailto:dmarc@qiye.163.com; rua=mailto:dmarc_report@qiye.163.com',
+        remark: 'DMARC record',
+      },
+    ],
+    documentation: 'https://qiye.163.com/help/setup-dns.html',
+    notes: [
+      '登录网易企业邮箱管理后台获取完整配置信息',
+      'DMARC 记录中的邮箱地址可根据实际情况修改',
+      '等待 DNS 记录生效（通常 10 分钟内）',
+    ],
+  },
 };
 
 /**

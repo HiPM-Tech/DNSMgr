@@ -12,6 +12,7 @@ import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, isValidHostname } from '../utils/domain';
+import { getAvailableTemplates, getEmailTemplate, generatePreview } from '../lib/dns/emailTemplate';
 
 const router = Router({ mergeParams: true });
 
@@ -251,6 +252,80 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
   }
+}));
+
+/**
+ * @swagger
+ * /api/domains/email-templates:
+ *   get:
+ *     summary: Get available email templates
+ *     tags: [Records]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/email-templates', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const templates = getAvailableTemplates();
+  sendSuccess(res, { templates });
+}));
+
+/**
+ * @swagger
+ * /api/domains/email-templates/{templateId}:
+ *   get:
+ *     summary: Get specific email template details
+ *     tags: [Records]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/email-templates/:templateId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const templateId = req.params.templateId;
+  
+  const template = getEmailTemplate(templateId);
+  if (!template) {
+    sendError(res, 'Template not found', 404);
+    return;
+  }
+  
+  sendSuccess(res, { template });
+}));
+
+/**
+ * @swagger
+ * /api/domains/email-templates/{templateId}/preview:
+ *   get:
+ *     summary: Get email template preview for a domain
+ *     tags: [Records]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: templateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ */
+router.get('/email-templates/:templateId/preview', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const templateId = req.params.templateId;
+  const { domain } = req.query;
+  
+  if (!domain || typeof domain !== 'string') {
+    sendError(res, 'Domain parameter is required', 400);
+    return;
+  }
+  
+  const template = getEmailTemplate(templateId);
+  if (!template) {
+    sendError(res, 'Template not found', 404);
+    return;
+  }
+  
+  const preview = generatePreview(templateId, domain);
+  sendSuccess(res, { preview });
 }));
 
 router.post('/batch', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {

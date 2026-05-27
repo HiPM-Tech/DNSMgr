@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Form, Select, Space, Tag } from 'tdesign-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Alert, Button, Form, Input, Select, Space, Tag, Loading, Tabs } from 'tdesign-react';
 import { MailIcon, RefreshIcon } from 'tdesign-icons-react';
 import { recordsApi } from '../api';
-import type { DnsRecord } from '../api';
+import type { DnsRecord, EmailTemplateRecord } from '../api';
 import { useToast } from '../hooks/useToast';
 import { Modal } from '../components/Modal';
 import { Table } from '../components/Table';
@@ -16,54 +16,49 @@ interface MailSetupModalProps {
   existingRecords: DnsRecord[];
 }
 
-const TEMPLATES = [
-  {
-    id: 'google',
-    name: 'Google Workspace (Gmail)',
-    records: [
-      { name: '@', type: 'MX', value: 'smtp.google.com', mx: 1, ttl: 3600 },
-      { name: '@', type: 'TXT', value: 'v=spf1 include:_spf.google.com ~all', ttl: 3600 },
-    ],
-  },
-  {
-    id: 'outlook',
-    name: 'Microsoft 365 (Outlook)',
-    records: [
-      { name: '@', type: 'MX', value: 'domain.mail.protection.outlook.com', mx: 0, ttl: 3600 },
-      { name: '@', type: 'TXT', value: 'v=spf1 include:spf.protection.outlook.com -all', ttl: 3600 },
-    ],
-  },
-  {
-    id: 'zoho',
-    name: 'Zoho Mail',
-    records: [
-      { name: '@', type: 'MX', value: 'mx.zoho.com', mx: 10, ttl: 3600 },
-      { name: '@', type: 'MX', value: 'mx2.zoho.com', mx: 20, ttl: 3600 },
-      { name: '@', type: 'MX', value: 'mx3.zoho.com', mx: 50, ttl: 3600 },
-      { name: '@', type: 'TXT', value: 'v=spf1 include:zoho.com ~all', ttl: 3600 },
-    ],
-  },
-  {
-    id: 'fastmail',
-    name: 'Fastmail',
-    records: [
-      { name: '@', type: 'MX', value: 'in1-smtp.messagingengine.com', mx: 10, ttl: 3600 },
-      { name: '@', type: 'MX', value: 'in2-smtp.messagingengine.com', mx: 20, ttl: 3600 },
-      { name: '@', type: 'TXT', value: 'v=spf1 include:spf.messagingengine.com ?all', ttl: 3600 },
-    ],
-  },
-];
-
-export function MailSetupModal({ domainId, onClose, existingRecords }: MailSetupModalProps) {
+export function MailSetupModal({ domainId, domainName, onClose, existingRecords }: MailSetupModalProps) {
   const { t } = useI18n();
   const toast = useToast();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<string>('');
+  const [hostname, setHostname] = useState<string>('@');
+  const [activeTab, setActiveTab] = useState<'records' | 'preview'>('records');
 
-  const template = TEMPLATES.find((item) => item.id === selected);
-  const conflicts = template?.records.filter((templateRecord) =>
-    existingRecords.some((existingRecord) => existingRecord.name === templateRecord.name && existingRecord.type === templateRecord.type),
-  ) || [];
+  // 从后端获取邮件模板列表
+  const { data: templateListData, isLoading: loadingTemplates } = useQuery({
+    queryKey: ['email-templates'],
+    queryFn: () => recordsApi.getEmailTemplates().then((r) => r.data.data?.templates ?? []),
+    staleTime: 5 * 60 * 1000, // 5分钟缓存
+  });
+
+  // 获取选中的模板详情
+  const { data: selectedTemplateData, isLoading: loadingTemplateDetail } = useQuery({
+    queryKey: ['email-template', selected],
+    queryFn: () => recordsApi.getEmailTemplate(selected).then((r) => r.data.data?.template ?? null),
+    enabled: !!selected,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // 获取模板预览（使用域名名称）
+  const { data: previewData, isLoading: loadingPreview } = useQuery({
+    queryKey: ['email-template-preview', selected, domainName],
+    queryFn: () => recordsApi.getEmailTemplatePreview(selected, domainName).then((r) => r.data.data?.preview ?? ''),
+    enabled: !!selected && !!domainName,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const template = selectedTemplateData ?? null;
+
+  const host = hostname.trim() || '@';
+  const resolvedRecords: Array<EmailTemplateRecord & { mx?: number }> = template?.records.map((r) => ({
+    ...r,
+    name: r.name === '@' ? host : r.name,
+    mx: r.priority, // MX 记录的 priority 字段映射为 mx
+  })) ?? [];
+
+  const conflicts = resolvedRecords.filter((record) =>
+    existingRecords.some((existingRecord) => existingRecord.name === record.name && existingRecord.type === record.type),
+  );
 
   const batchMutation = useMutation({
     mutationFn: (records: Partial<DnsRecord>[]) => recordsApi.createBatch(domainId, records),
@@ -81,10 +76,10 @@ export function MailSetupModal({ domainId, onClose, existingRecords }: MailSetup
 
   const handleAdd = () => {
     if (!template) return;
-    batchMutation.mutate(template.records);
+    batchMutation.mutate(resolvedRecords);
   };
 
-  const recordRows = template?.records.map((record, index) => ({ ...record, index })) ?? [];
+  const recordRows = resolvedRecords.map((record, index) => ({ ...record, index }));
   const columns = [
     { key: 'type', label: t('records.fields.type'), render: (row: typeof recordRows[number]) => <Tag theme="primary" variant="light">{row.type}</Tag> },
     { key: 'name', label: t('records.fields.host'), render: (row: typeof recordRows[number]) => <span className="record-mono record-mono--strong">{row.name}</span> },
@@ -97,26 +92,72 @@ export function MailSetupModal({ domainId, onClose, existingRecords }: MailSetup
       <div className="page-shell">
         <Form layout="vertical" colon={false} requiredMark={false}>
           <Form.FormItem label={t('mail.selectProvider')}>
-            <Select
-              clearable
-              value={selected}
-              placeholder={t('mail.chooseProvider')}
-              options={TEMPLATES.map((item) => ({ label: item.name, value: item.id }))}
-              onChange={(value) => setSelected(String(Array.isArray(value) ? value[0] ?? '' : value ?? ''))}
+            {loadingTemplates ? (
+              <Loading loading size="small" />
+            ) : (
+              <Select
+                clearable
+                value={selected}
+                placeholder={t('mail.chooseProvider')}
+                options={templateListData?.map((item) => ({ label: `${item.name} (${item.provider})`, value: item.id })) ?? []}
+                onChange={(value) => setSelected(String(Array.isArray(value) ? value[0] ?? '' : value ?? ''))}
+              />
+            )}
+          </Form.FormItem>
+          <Form.FormItem label={t('mail.hostname')}>
+            <Input
+              value={hostname}
+              placeholder={t('mail.hostnamePlaceholder')}
+              onChange={(value) => setHostname(String(value))}
             />
           </Form.FormItem>
         </Form>
 
-        {template && (
+        {loadingTemplateDetail ? (
+          <div className="page-state"><Loading loading /></div>
+        ) : template ? (
           <>
-            <Table columns={columns} data={recordRows} rowKey={(row) => row.index} emptyText={t('common.noData')} />
+            <Tabs
+              theme="card"
+              value={activeTab}
+              onChange={(value) => setActiveTab(value as 'records' | 'preview')}
+              list={[
+                { value: 'records', label: t('mail.recordsAdded') },
+                { value: 'preview', label: t('mail.preview') },
+              ]}
+            />
 
-            {conflicts.length > 0 && (
-              <Alert
-                theme="warning"
-                title={t('mail.conflicts')}
-                message={t('mail.conflictsDesc', { types: conflicts.map((conflict) => conflict.type).join(', ') })}
-              />
+            {activeTab === 'records' ? (
+              <>
+                <Table columns={columns} data={recordRows} rowKey={(row) => row.index} emptyText={t('common.noData')} />
+
+                {conflicts.length > 0 && (
+                  <Alert
+                    theme="warning"
+                    title={t('mail.conflicts')}
+                    message={t('mail.conflictsDesc', { types: conflicts.map((conflict) => conflict.type).join(', ') })}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="page-shell" style={{ maxHeight: '400px', overflow: 'auto' }}>
+                {loadingPreview ? (
+                  <div className="page-state"><Loading loading /></div>
+                ) : (
+                  <pre style={{ 
+                    whiteSpace: 'pre-wrap', 
+                    wordWrap: 'break-word',
+                    fontFamily: 'monospace',
+                    fontSize: '13px',
+                    lineHeight: '1.6',
+                    padding: '16px',
+                    background: '#f5f5f5',
+                    borderRadius: '4px'
+                  }}>
+                    {previewData || ''}
+                  </pre>
+                )}
+              </div>
             )}
 
             <Space className="record-form__actions">
@@ -131,7 +172,7 @@ export function MailSetupModal({ domainId, onClose, existingRecords }: MailSetup
               </Button>
             </Space>
           </>
-        )}
+        ) : null}
       </div>
     </Modal>
   );

@@ -511,6 +511,8 @@
             "addSuccess": "邮件记录加好咯，还挺能干嘛",
             "cancel": "不要了",
             "chooseProvider": "快选一个啦，笨蛋",
+            "hostname": "主机名",
+            "hostnamePlaceholder": "留空用 @ 表示根域名，或者输个子域名前缀啦，笨蛋！",
             "conflicts": "撞车啦！杂鱼",
             "conflictsDesc": "这些记录已经存在了：{types}。先把它们删掉啦，笨蛋！",
             "recordsAdded": "要加的记录，看清楚哦",
