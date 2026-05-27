@@ -521,6 +521,12 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS avatar_image TEXT`,
     // Migration: Convert schema_versions.success from BOOLEAN to INTEGER
     // PostgreSQL BOOLEAN != INTEGER, but queries use success = 1 (integer comparison)
-    `ALTER TABLE schema_versions ALTER COLUMN success TYPE INTEGER USING success::integer`,
+    // Must DROP DEFAULT first, as BOOLEAN default cannot auto-cast to INTEGER
+    `DO $$
+     BEGIN
+       ALTER TABLE schema_versions ALTER COLUMN success DROP DEFAULT;
+       ALTER TABLE schema_versions ALTER COLUMN success TYPE INTEGER USING success::integer;
+       ALTER TABLE schema_versions ALTER COLUMN success SET DEFAULT 1;
+     END $$`,
   ],
 };
