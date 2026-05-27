@@ -169,10 +169,10 @@ export function Records() {
   
 
   const columns = [
-    { key: 'name', label: t('common.host'), width: 180, minWidth: 120, render: (r: DnsRecord) => <span className="record-mono record-mono--strong">{r.name}</span> },
-    { key: 'type', label: t('common.type'), width: 80, minWidth: 70, render: (r: DnsRecord) => <Tag theme="primary" variant="light">{r.type}</Tag> },
+    { key: 'name', label: t('common.host'), width: 220, render: (r: DnsRecord) => <span className="record-mono record-mono--strong" title={r.name}>{r.name}</span> },
+    { key: 'type', label: t('common.type'), width: 80, render: (r: DnsRecord) => <Tag theme="primary" variant="light">{r.type}</Tag> },
     {
-      key: 'value', label: t('common.value'), minWidth: 200,
+      key: 'value', label: t('common.value'), width: 250,
       render: (r: DnsRecord) => (
         <Space size="small">
           <span className="record-mono record-mono--value" title={r.value}>{r.value}</span>
@@ -183,7 +183,7 @@ export function Records() {
       ),
     },
     {
-      key: 'line', label: hasProxyMode ? t('records.proxy') : t('common.line'), width: 100, minWidth: 80,
+      key: 'line', label: hasProxyMode ? t('records.proxy') : t('common.line'), width: 100,
       render: (r: DnsRecord) => {
         // Cloudflare & Aliyun ESA: 显示代理状态（是/否）
         if (hasProxyMode) {
@@ -203,9 +203,9 @@ export function Records() {
         return <Tag theme="primary" variant="light">{lineName ?? effectiveLine}</Tag>;
       },
     },
-    { key: 'ttl', label: t('common.ttl'), width: 80, minWidth: 60, render: (r: DnsRecord) => <span className="page-muted">{r.ttl ?? '-'}</span> },
+    { key: 'ttl', label: t('common.ttl'), width: 80, render: (r: DnsRecord) => <span className="page-muted">{r.ttl ?? '-'}</span> },
     {
-      key: 'status', label: t('common.status'), width: 90, minWidth: 70,
+      key: 'status', label: t('common.status'), width: 90,
       render: (r: DnsRecord) => (
         <Tag theme={r.status === 1 ? 'success' : 'danger'} variant="light">
           {r.status === 1 ? t('common.enabled') : t('common.disabled')}
@@ -213,7 +213,7 @@ export function Records() {
       ),
     },
     {
-      key: 'actions', label: t('common.actions'), width: 140, minWidth: 120,
+      key: 'actions', label: t('common.actions'), width: 140,
       render: (r: DnsRecord) => (
         <Space size="small">
           <Switch

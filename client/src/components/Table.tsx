@@ -51,7 +51,7 @@ export function Table<T extends object>({ columns, data, loading, emptyText, row
       loading={loading}
       hover
       size="medium"
-      tableLayout="auto"
+      tableLayout="fixed"
       empty={<Empty description={resolvedEmptyText} />}
     />
   );
