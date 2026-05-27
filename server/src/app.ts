@@ -269,6 +269,7 @@ app.use('/api/teams', teamsRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/domains', domainsRouter);
 app.use('/api/providers', providersRouter);
+app.use('/api/domains/email-templates', recordsRouter);
 app.use('/api/domains/:domainId/records', recordsRouter);
 app.use('/api/rdap', rdapRouter);
 app.use('/api/system', systemRouter);

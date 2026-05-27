@@ -8,6 +8,8 @@ interface Column<T> {
   label: string;
   render?: (row: T) => ReactNode;
   className?: string;
+  width?: number | string;
+  minWidth?: number | string;
 }
 
 interface TableProps<T> {
@@ -30,6 +32,8 @@ export function Table<T extends object>({ columns, data, loading, emptyText, row
     colKey: col.key,
     title: col.label,
     className: col.className,
+    width: col.width,
+    minWidth: col.minWidth,
     ellipsis: true,
     cell: ({ row }) => {
       const originalRow = row as T;
