@@ -147,14 +147,13 @@ async function updateDomainRecordCount(domainId: number, count: number): Promise
  *       200:
  *         description: List of DNS records
  */
-router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response, next) => {
   log.info('Records', '=== GET /records route entered ===', { domainId: req.params.domainId, path: req.path, originalUrl: req.originalUrl });
   
-  // 检查是否有 domainId 参数，如果没有则跳过（可能是其他路由如 email-templates）
+  // 检查是否有 domainId 参数，如果没有则交给下一个路由处理（如 email-templates）
   if (!req.params.domainId) {
-    log.info('Records', 'No domainId parameter, skipping to next route');
-    sendError(res, 'Not found', 404);
-    return;
+    log.info('Records', 'No domainId parameter, passing to next route');
+    return next();
   }
   
   const domainId = parseInteger(req.params.domainId) ?? 0;
