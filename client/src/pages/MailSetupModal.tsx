@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Form, Input, Select, Space, Tag, Loading, Tabs } from 'tdesign-react';
+import { Alert, Button, Input, Select, Space, Tag, Loading, Tabs } from 'tdesign-react';
 import { MailIcon, RefreshIcon } from 'tdesign-icons-react';
 import { recordsApi } from '../api';
 import type { DnsRecord, EmailTemplateRecord } from '../api';
@@ -28,7 +28,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
   const { data: templateListData, isLoading: loadingTemplates } = useQuery({
     queryKey: ['email-templates'],
     queryFn: () => recordsApi.getEmailTemplates().then((r) => r.data.data?.templates ?? []),
-    staleTime: 5 * 60 * 1000, // 5分钟缓存
+    staleTime: 0, // 不缓存，每次都获取最新数据
   });
 
   // 获取选中的模板详情
@@ -36,7 +36,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
     queryKey: ['email-template', selected],
     queryFn: () => recordsApi.getEmailTemplate(selected).then((r) => r.data.data?.template ?? null),
     enabled: !!selected,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0, // 不缓存，每次都获取最新数据
   });
 
   // 获取模板预览（使用域名名称）
@@ -44,7 +44,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
     queryKey: ['email-template-preview', selected, domainName],
     queryFn: () => recordsApi.getEmailTemplatePreview(selected, domainName).then((r) => r.data.data?.preview ?? ''),
     enabled: !!selected && !!domainName,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0, // 不缓存，每次都获取最新数据
   });
 
   const template = selectedTemplateData ?? null;
@@ -89,29 +89,30 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
 
   return (
     <Modal title={t('mail.title')} onClose={onClose} size="lg">
-      <div className="page-shell">
-        <Form layout="vertical" colon={false} requiredMark={false}>
-          <Form.FormItem label={t('mail.selectProvider')}>
-            {loadingTemplates ? (
-              <Loading loading size="small" />
-            ) : (
-              <Select
-                clearable
-                value={selected}
-                placeholder={t('mail.chooseProvider')}
-                options={templateListData?.map((item) => ({ label: `${item.name} (${item.provider})`, value: item.id })) ?? []}
-                onChange={(value) => setSelected(String(Array.isArray(value) ? value[0] ?? '' : value ?? ''))}
-              />
-            )}
-          </Form.FormItem>
-          <Form.FormItem label={t('mail.hostname')}>
-            <Input
-              value={hostname}
-              placeholder={t('mail.hostnamePlaceholder')}
-              onChange={(value) => setHostname(String(value))}
+      <div className="page-shell" style={{ padding: '16px' }}>
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '8px', fontWeight: 500 }}>{t('mail.selectProvider')}</div>
+          {loadingTemplates ? (
+            <Loading loading size="small" />
+          ) : (
+            <Select
+              clearable
+              value={selected}
+              placeholder={t('mail.chooseProvider')}
+              options={templateListData?.map((item) => ({ label: `${item.name} (${item.provider})`, value: item.id })) ?? []}
+              onChange={(value) => setSelected(String(Array.isArray(value) ? value[0] ?? '' : value ?? ''))}
             />
-          </Form.FormItem>
-        </Form>
+          )}
+        </div>
+        
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '8px', fontWeight: 500 }}>{t('mail.hostname')}</div>
+          <Input
+            value={hostname}
+            placeholder={t('mail.hostnamePlaceholder')}
+            onChange={(value) => setHostname(String(value))}
+          />
+        </div>
 
         {loadingTemplateDetail ? (
           <div className="page-state"><Loading loading /></div>
@@ -125,6 +126,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
                 { value: 'records', label: t('mail.recordsAdded') },
                 { value: 'preview', label: t('mail.preview') },
               ]}
+              style={{ marginBottom: '16px' }}
             />
 
             {activeTab === 'records' ? (
@@ -136,6 +138,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
                     theme="warning"
                     title={t('mail.conflicts')}
                     message={t('mail.conflictsDesc', { types: conflicts.map((conflict) => conflict.type).join(', ') })}
+                    style={{ marginTop: '16px' }}
                   />
                 )}
               </>
@@ -160,7 +163,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
               </div>
             )}
 
-            <Space className="record-form__actions">
+            <Space className="record-form__actions" style={{ marginTop: '16px' }}>
               <Button variant="outline" onClick={onClose}>{t('mail.cancel')}</Button>
               <Button
                 theme="primary"
