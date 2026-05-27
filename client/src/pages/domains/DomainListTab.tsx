@@ -177,7 +177,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
                     onChange={(checked) => toggleProvider(domain.third_id, Boolean(checked))}
                   />
                   <span className="page-list-item__main">
-                    <strong>{domain.name}</strong>
+                    <strong>{formatDomainName(domain.name)}</strong>
                     <span>{domain.third_id}</span>
                   </span>
                 </label>

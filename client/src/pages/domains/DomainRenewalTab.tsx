@@ -438,7 +438,7 @@ export function DomainRenewalTab() {
                         onChange={() => toggleDomainSelection(String(sub.id))}
                       />
                       <span className="page-list-item__main">
-                        <strong>{sub.full_domain}</strong>
+                        <strong>{formatDomainName(sub.full_domain)}</strong>
                         <span>
                           ID: {sub.id}
                           {sub.expires_at && ` | ${t('domainRenewal.expires')}: ${new Date(sub.expires_at).toLocaleDateString()}`}

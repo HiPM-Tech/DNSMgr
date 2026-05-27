@@ -568,7 +568,7 @@ export function NSMonitorTab() {
                           <label key={domain.id} className="token-domain-option">
                             <Radio value={domain.id} />
                             <span className="page-list-item__main">
-                              <strong>{domain.name}</strong>
+                              <strong>{formatDomainName(domain.name)}</strong>
                               <span>#{domain.id}</span>
                             </span>
                           </label>

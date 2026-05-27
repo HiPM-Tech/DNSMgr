@@ -356,7 +356,7 @@ export function Teams() {
         {permissions.map((perm) => (
           <div key={perm.id} className="page-list-item">
             <div className="page-list-item__main">
-              <strong>{perm.domain_name ?? `#${perm.domain_id}`}</strong>
+              <strong>{formatDomainName(perm.domain_name ?? `#${perm.domain_id}`)}</strong>
               <span>{perm.sub ? `${t('teams.subdomain')}: ${perm.sub}` : t('teams.allSubdomains')}</span>
             </div>
             <Space size="small">
