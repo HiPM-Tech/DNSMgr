@@ -1058,7 +1058,7 @@ html.dark input:-webkit-autofill:focus {
 
 .record-mono--value {
   display: block;
-  max-width: min(320px, 100%);
+  max-width: min(180px, 100%);
   overflow: hidden;
   color: var(--td-text-color-secondary);
   font-size: 12px;
