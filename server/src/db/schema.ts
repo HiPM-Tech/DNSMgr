@@ -1315,6 +1315,10 @@ export async function initSchemaAsync(
       }
     }
 
+    // Run SQLite migrations BEFORE creating indexes to ensure all columns exist
+    // (prevents "column does not exist" errors on databases upgraded from older versions)
+    await handleSQLiteMigrations(conn);
+
     for (const sql of sqliteSchema.createIndexes) {
       try {
         if (conn.execute) {
@@ -1328,9 +1332,7 @@ export async function initSchemaAsync(
       }
     }
 
-    // Execute SQLite-specific migrations (with column existence checks)
-    await handleSQLiteMigrations(conn);
-  } else if (dbType === 'mysql') {
+    } else if (dbType === 'mysql') {
     for (const sql of mysqlSchema.createTables) {
       try {
         if (conn.execute) {
