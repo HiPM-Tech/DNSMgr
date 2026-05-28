@@ -6,8 +6,17 @@
 import { log } from '../lib/logger';
 import { calculateSchemaHash, SchemaDefinition } from './schemas';
 
+export interface SchemaVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  hash: string;  // Schema hash for integrity check
+  description?: string;
+}
+
 export interface MigrationRecord {
-  version: string;  // Schema hash
+  version: string;  // Schema hash (for backward compatibility)
+  semanticVersion?: string;  // Semantic version (e.g., "1.5.0")
   description?: string;
   appliedAt: Date;
   success: boolean;
@@ -19,11 +28,21 @@ export class SchemaVersionManager {
   private conn: any;
   private schemaHash: string;
   private schema: SchemaDefinition;
+  private semanticVersion: SchemaVersion;
 
-  constructor(conn: any, schema: SchemaDefinition) {
+  constructor(conn: any, schema: SchemaDefinition, version?: Partial<SchemaVersion>) {
     this.conn = conn;
     this.schema = schema;
     this.schemaHash = calculateSchemaHash(schema);
+    
+    // 默认版本号，可以在调用时覆盖
+    this.semanticVersion = {
+      major: version?.major ?? 1,
+      minor: version?.minor ?? 5,
+      patch: version?.patch ?? 0,
+      hash: this.schemaHash,
+      description: version?.description,
+    };
   }
 
   /**
@@ -31,6 +50,20 @@ export class SchemaVersionManager {
    */
   getCurrentVersion(): string {
     return this.schemaHash;
+  }
+
+  /**
+   * Get semantic version string
+   */
+  getSemanticVersion(): string {
+    return `${this.semanticVersion.major}.${this.semanticVersion.minor}.${this.semanticVersion.patch}`;
+  }
+
+  /**
+   * Get full version info
+   */
+  getVersionInfo(): SchemaVersion {
+    return { ...this.semanticVersion };
   }
 
   /**
@@ -67,6 +100,7 @@ export class SchemaVersionManager {
           CREATE TABLE IF NOT EXISTS schema_versions (
             id INT AUTO_INCREMENT PRIMARY KEY,
             version VARCHAR(50) NOT NULL UNIQUE,
+            semantic_version VARCHAR(20),
             description TEXT,
             applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             success BOOLEAN NOT NULL DEFAULT TRUE,
@@ -74,6 +108,7 @@ export class SchemaVersionManager {
             execution_time_ms INT,
             system_type VARCHAR(50) DEFAULT 'hidns',
             INDEX idx_version (version),
+            INDEX idx_semantic_version (semantic_version),
             INDEX idx_applied_at (applied_at),
             INDEX idx_system_type (system_type)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -85,6 +120,7 @@ export class SchemaVersionManager {
           CREATE TABLE IF NOT EXISTS schema_versions (
             id SERIAL PRIMARY KEY,
             version VARCHAR(50) NOT NULL UNIQUE,
+            semantic_version VARCHAR(20),
             description TEXT,
             applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             success BOOLEAN NOT NULL DEFAULT TRUE,
@@ -101,6 +137,7 @@ export class SchemaVersionManager {
           CREATE TABLE IF NOT EXISTS schema_versions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             version TEXT NOT NULL UNIQUE,
+            semantic_version TEXT,
             description TEXT,
             applied_at TEXT NOT NULL DEFAULT (datetime('now')),
             success INTEGER NOT NULL DEFAULT 1,
@@ -265,11 +302,16 @@ export class SchemaVersionManager {
     description: string,
     executionTimeMs: number
   ): Promise<void> {
-    const sql = `INSERT INTO schema_versions (version, description, success, execution_time_ms, system_type) 
-                 VALUES (?, ?, 1, ?, 'hidns')`;
+    const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, execution_time_ms, system_type) 
+                 VALUES (?, ?, ?, 1, ?, 'hidns')`;
     
-    await this.conn.execute(sql, [this.schemaHash, description, executionTimeMs]);
-    log.info('SchemaVersion', `Schema version ${this.schemaHash} recorded as successful (HiDNS)`);
+    await this.conn.execute(sql, [
+      this.schemaHash, 
+      this.getSemanticVersion(),
+      description, 
+      executionTimeMs
+    ]);
+    log.info('SchemaVersion', `Schema version ${this.getSemanticVersion()} (${this.schemaHash}) recorded as successful (HiDNS)`);
   }
 
   /**
@@ -280,11 +322,17 @@ export class SchemaVersionManager {
     errorMessage: string,
     executionTimeMs: number
   ): Promise<void> {
-    const sql = `INSERT INTO schema_versions (version, description, success, error_message, execution_time_ms, system_type) 
-                 VALUES (?, ?, 0, ?, ?, 'hidns')`;
+    const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, error_message, execution_time_ms, system_type) 
+                 VALUES (?, ?, ?, 0, ?, ?, 'hidns')`;
     
-    await this.conn.execute(sql, [this.schemaHash, description, errorMessage, executionTimeMs]);
-    log.error('SchemaVersion', `Schema version ${this.schemaHash} recorded as failed (HiDNS): ${errorMessage}`);
+    await this.conn.execute(sql, [
+      this.schemaHash,
+      this.getSemanticVersion(),
+      description, 
+      errorMessage, 
+      executionTimeMs
+    ]);
+    log.error('SchemaVersion', `Schema version ${this.getSemanticVersion()} (${this.schemaHash}) recorded as failed (HiDNS): ${errorMessage}`);
   }
 
   /**
@@ -300,6 +348,7 @@ export class SchemaVersionManager {
 
     return result.map((row: any) => ({
       version: row.version,
+      semanticVersion: row.semantic_version,
       description: row.description,
       appliedAt: new Date(row.applied_at),
       success: row.success === 1 || row.success === true,

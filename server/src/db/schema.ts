@@ -15,6 +15,7 @@ import { getConnection } from './core/connection';
 import type { DatabaseConnection } from './core/types';
 import { log } from '../lib/logger';
 import { SchemaVersionManager } from './migration-manager';
+import { validateColumns, ColumnSpec, generateValidationReport } from './column-validator';
 
 /**
  * Execute a migration with version tracking
@@ -119,7 +120,12 @@ async function addColumnIfNotExists(
 async function handleMySQLMigrations(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<void>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> }
 ): Promise<void> {
-  const versionManager = new SchemaVersionManager(conn, mysqlSchema);
+  const versionManager = new SchemaVersionManager(conn, mysqlSchema, {
+    major: 1,
+    minor: 5,
+    patch: 0,
+    description: 'MySQL schema v1.5.0 - Added domains.enabled, ns_monitor improvements, whois_cache',
+  });
   
   try {
     log.info('Schema', 'Starting MySQL migrations...');
@@ -389,6 +395,47 @@ async function handleMySQLMigrations(
 
     // Migration: Update dns_accounts type from dnsmgr to hidns
     await migrateDnsAccountType(conn);
+    
+    // P1: 验证关键列的类型和约束
+    log.info('Schema', 'Validating critical column specifications...');
+    try {
+      const criticalColumns: ColumnSpec[] = [
+        {
+          tableName: 'dns_accounts',
+          columnName: 'enabled',
+          expectedType: 'TINYINT',
+          expectedNullable: false,
+          expectedDefault: '1',
+        },
+        {
+          tableName: 'domains',
+          columnName: 'enabled',
+          expectedType: 'INTEGER',
+          expectedNullable: false,
+          expectedDefault: '1',
+        },
+        {
+          tableName: 'domains',
+          columnName: 'name',
+          expectedType: 'VARCHAR',
+          expectedNullable: false,
+        },
+      ];
+      
+      const validationResults = await validateColumns(conn, criticalColumns, 'mysql');
+      const report = generateValidationReport(validationResults);
+      log.info('Schema', report);
+      
+      // 如果有失败的验证，记录警告但不阻止启动
+      const failedCount = validationResults.filter(r => !r.matchesExpected).length;
+      if (failedCount > 0) {
+        log.warn('Schema', `${failedCount} column(s) failed validation. Please review the report above.`);
+      }
+    } catch (validationError) {
+      log.warn('Schema', 'Column validation failed (non-critical)', { 
+        error: (validationError as Error).message 
+      });
+    }
     
     log.info('Schema', 'All MySQL migrations completed');
   } catch (error) {
@@ -1009,7 +1056,12 @@ async function migrateDnsAccountType(
 async function handleSQLiteMigrations(
   conn: { type: string; exec?: (sql: string) => void; execute?: (sql: string, params?: unknown[]) => Promise<unknown>; query?: (sql: string, params?: unknown[]) => Promise<unknown[]> }
 ): Promise<void> {
-  const versionManager = new SchemaVersionManager(conn, sqliteSchema);
+  const versionManager = new SchemaVersionManager(conn, sqliteSchema, {
+    major: 1,
+    minor: 5,
+    patch: 0,
+    description: 'SQLite schema v1.5.0 - Added domains.enabled, ns_monitor improvements, whois_cache',
+  });
   
   log.info('Schema', 'Starting SQLite migrations...');
 
@@ -1421,7 +1473,12 @@ export async function initSchemaAsync(
 
     // Record PostgreSQL schema version after migrations
     try {
-      const versionManager = new SchemaVersionManager(conn, postgresqlSchema);
+      const versionManager = new SchemaVersionManager(conn, postgresqlSchema, {
+        major: 1,
+        minor: 5,
+        patch: 0,
+        description: 'PostgreSQL schema v1.5.0 - Added domains.enabled, ns_monitor improvements, whois_cache',
+      });
       const isApplied = await versionManager.isCurrentVersionApplied();
       if (!isApplied) {
         await versionManager.recordSuccess('PostgreSQL initial migrations (including dns_accounts.enabled)', 0);
