@@ -26,6 +26,13 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
   const [hostname, setHostname] = useState<string>('@');
   const [activeTab, setActiveTab] = useState<'records' | 'preview'>('records');
 
+  // 获取该域名的所有记录用于冲突检测（不分页、不筛选）
+  const { data: allDomainRecords } = useQuery({
+    queryKey: ['all-records-for-conflict-detection', domainId],
+    queryFn: () => recordsApi.list(domainId, { page: 1, pageSize: 10000 }).then((r) => r.data.data?.list ?? []),
+    staleTime: 5 * 60 * 1000, // 缓存 5 分钟
+  });
+
   // 从后端获取邮件模板列表
   const { data: templateListData, isLoading: loadingTemplates } = useQuery({
     queryKey: ['email-templates'],
@@ -79,8 +86,12 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
     };
   }) ?? [];
 
+  // 使用所有域名记录进行冲突检测（而不是分页后的记录）
+  const recordsForConflictDetection = allDomainRecords ?? existingRecords;
   const conflicts = resolvedRecords.filter((record) =>
-    existingRecords.some((existingRecord) => existingRecord.name === record.name && existingRecord.type === record.type),
+    recordsForConflictDetection.some((existingRecord) => 
+      existingRecord.name === record.name && existingRecord.type === record.type
+    ),
   );
 
   const batchMutation = useMutation({
