@@ -29,7 +29,7 @@ import teamsRouter from './routes/teams';
 import accountsRouter from './routes/accounts';
 import domainsRouter from './routes/domains';
 import providersRouter from './routes/providers';
-import recordsRouter from './routes/records';
+import recordsRouter, { emailTemplatesRouter } from './routes/records';
 import initRouter from './routes/init';
 import systemRouter from './routes/system';
 import settingsRouter from './routes/settings';
@@ -267,7 +267,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/teams', teamsRouter);
 app.use('/api/accounts', accountsRouter);
-app.use('/api/domains/email-templates', recordsRouter);
+app.use('/api/domains/email-templates', emailTemplatesRouter); // Use separate router to avoid conflicts
 app.use('/api/domains', domainsRouter);
 app.use('/api/providers', providersRouter);
 app.use('/api/domains/:domainId/records', recordsRouter);

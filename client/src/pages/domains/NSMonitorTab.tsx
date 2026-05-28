@@ -327,8 +327,15 @@ export function NSMonitorTab() {
         const encryptedNS = parseNSField(row.encrypted_ns);
         const plainNS = parseNSField(row.plain_ns);
 
+        // Build full text for tooltip
+        const fullText = [
+          encryptedNS.length > 0 ? `${t('nsMonitor.encrypted')}: ${encryptedNS.join(', ')}` : '',
+          plainNS.length > 0 ? `${t('nsMonitor.plain')}: ${plainNS.join(', ')}` : '',
+          encryptedNS.length === 0 && plainNS.length === 0 && row.current_ns && String(row.current_ns) !== '0' ? String(row.current_ns) : '',
+        ].filter(Boolean).join('\n');
+
         return (
-          <div className="page-list">
+          <div className="page-list" title={fullText || undefined}>
             {encryptedNS.length > 0 && (
               <span className="record-mono record-mono--value">
                 {t('nsMonitor.encrypted')}: {encryptedNS.join(', ')}
@@ -356,7 +363,14 @@ export function NSMonitorTab() {
     {
       key: 'expected_ns',
       label: t('nsMonitor.expectedNS'),
-      render: (row: NSMonitorConfig) => <span className="record-mono record-mono--value">{row.expected_ns || t('nsMonitor.notSet')}</span>,
+      render: (row: NSMonitorConfig) => (
+        <span 
+          className="record-mono record-mono--value" 
+          title={row.expected_ns || undefined}
+        >
+          {row.expected_ns || t('nsMonitor.notSet')}
+        </span>
+      ),
     },
     {
       key: 'enabled',

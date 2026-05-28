@@ -16,6 +16,9 @@ import { getAvailableTemplates, getEmailTemplate, generatePreview } from '../lib
 
 const router = Router({ mergeParams: true });
 
+// Create a separate router for email templates to avoid route conflicts with /:domainId/records
+export const emailTemplatesRouter = Router();
+
 function toApiRecord(r: AdapterRecord) {
   const cloudflare = r.Cloudflare ?? (r.Proxiable !== undefined
     ? { proxied: r.Line === '1', proxiable: r.Proxiable }
@@ -270,7 +273,7 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
  *     security:
  *       - bearerAuth: []
  */
-router.get('/email-templates', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+emailTemplatesRouter.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const templates = getAvailableTemplates();
   sendSuccess(res, { templates });
 }));
@@ -284,7 +287,7 @@ router.get('/email-templates', authMiddleware, asyncHandler(async (req: Request,
  *     security:
  *       - bearerAuth: []
  */
-router.get('/email-templates/:templateId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+emailTemplatesRouter.get('/:templateId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const templateId = req.params.templateId;
   
   const template = getEmailTemplate(templateId);
@@ -316,7 +319,7 @@ router.get('/email-templates/:templateId', authMiddleware, asyncHandler(async (r
  *         schema:
  *           type: string
  */
-router.get('/email-templates/:templateId/preview', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+emailTemplatesRouter.get('/:templateId/preview', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const templateId = req.params.templateId;
   const { domain } = req.query;
   

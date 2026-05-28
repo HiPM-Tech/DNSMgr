@@ -9,6 +9,7 @@ import { createAdapter } from '../lib/dns/DnsHelper';
 import { taskManager } from './taskManager';
 import { logAuditOperation } from './audit';
 import { log } from '../lib/logger';
+import { normalizeDomain } from '../utils/dns';
 
 let syncInterval: NodeJS.Timeout | null = null;
 
@@ -33,8 +34,9 @@ async function syncRenewableDomains(account: any, providerDomainSet: Set<string>
     const disabledDomains: string[] = [];
     
     for (const renewableDomain of renewableDomains) {
-      const domainName = (renewableDomain as any).full_domain?.toLowerCase() || 
-                        (renewableDomain as any).domain_name?.toLowerCase();
+      // 使用 normalizeDomain 标准化续期域名，支持 IDN 域名
+      const rawDomainName = (renewableDomain as any).full_domain || (renewableDomain as any).domain_name;
+      const domainName = rawDomainName ? normalizeDomain(rawDomainName) : '';
       
       if (!domainName) {
         log.warn('DomainSyncJob', 'Renewable domain has no name, skipping', {
@@ -198,8 +200,9 @@ async function syncAccountDomains(account: any): Promise<void> {
     const dbDomains = await DomainOperations.getByAccountId(accountId);
     
     // 创建提供商域名集合（用于快速查找）
+    // 使用 normalizeDomain 将域名标准化为 Punycode，支持 IDN 域名
     const providerDomainSet = new Set(
-      providerDomains.map(d => d.Domain.toLowerCase())
+      providerDomains.map(d => normalizeDomain(d.Domain))
     );
     
     // 检查数据库中的域名是否在提供商列表中
@@ -207,7 +210,8 @@ async function syncAccountDomains(account: any): Promise<void> {
     const disabledDomains: string[] = [];
     
     for (const dbDomain of dbDomains) {
-      const domainName = (dbDomain as any).name.toLowerCase();
+      // 使用 normalizeDomain 标准化数据库中的域名（已经是 Punycode，但确保一致性）
+      const domainName = normalizeDomain((dbDomain as any).name);
       
       // 如果域名不在提供商列表中，且当前状态是启用，则禁用
       const isEnabled = Boolean((dbDomain as any).enabled);
