@@ -659,10 +659,12 @@ async function addNsMonitorColumns(
         const errorMsg = (dropError as Error).message || '';
         if (errorMsg.includes('Duplicate entry')) {
           // If there's a duplicate entry error, it means the unique index is causing issues
-          // Try to drop the column with CASCADE (MySQL doesn't support this, so we'll just log and continue)
           log.warn('Schema', 'Cannot drop domain_id due to unique constraint conflicts. Manual intervention may be required.');
           log.warn('Schema', 'Please manually execute: ALTER TABLE ns_monitor_domains DROP COLUMN domain_id;');
-          throw dropError; // Re-throw to indicate failure
+          throw dropError;
+        } else if (errorMsg.includes("CANT_DROP") || errorMsg.includes("check that column/key exists")) {
+          // Column already dropped
+          log.info('Schema', 'domain_id column already dropped');
         } else {
           throw dropError;
         }
