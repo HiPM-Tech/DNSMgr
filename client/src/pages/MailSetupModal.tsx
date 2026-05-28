@@ -8,6 +8,7 @@ import { useToast } from '../hooks/useToast';
 import { Modal } from '../components/Modal';
 import { Table } from '../components/Table';
 import { useI18n } from '../contexts/I18nContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface MailSetupModalProps {
   domainId: number;
@@ -18,6 +19,7 @@ interface MailSetupModalProps {
 
 export function MailSetupModal({ domainId, domainName, onClose, existingRecords }: MailSetupModalProps) {
   const { t } = useI18n();
+  const { isDark } = useTheme();
   const toast = useToast();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<string>('');
@@ -28,7 +30,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
   const { data: templateListData, isLoading: loadingTemplates } = useQuery({
     queryKey: ['email-templates'],
     queryFn: () => recordsApi.getEmailTemplates().then((r) => r.data.data?.templates ?? []),
-    staleTime: 0, // 不缓存，每次都获取最新数据
+    staleTime: 5 * 60 * 1000, // 缓存 5 分钟
   });
 
   // 获取选中的模板详情
@@ -36,7 +38,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
     queryKey: ['email-template', selected],
     queryFn: () => recordsApi.getEmailTemplate(selected).then((r) => r.data.data?.template ?? null),
     enabled: !!selected,
-    staleTime: 0, // 不缓存，每次都获取最新数据
+    staleTime: 5 * 60 * 1000, // 缓存 5 分钟
   });
 
   // 获取模板预览（使用域名名称）
@@ -44,7 +46,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
     queryKey: ['email-template-preview', selected, domainName],
     queryFn: () => recordsApi.getEmailTemplatePreview(selected, domainName).then((r) => r.data.data?.preview ?? ''),
     enabled: !!selected && !!domainName,
-    staleTime: 0, // 不缓存，每次都获取最新数据
+    staleTime: 5 * 60 * 1000, // 缓存 5 分钟
   });
 
   const template = selectedTemplateData ?? null;
@@ -83,7 +85,11 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
   const columns = [
     { key: 'type', label: t('records.fields.type'), render: (row: typeof recordRows[number]) => <Tag theme="primary" variant="light">{row.type}</Tag> },
     { key: 'name', label: t('records.fields.host'), render: (row: typeof recordRows[number]) => <span className="record-mono record-mono--strong">{row.name}</span> },
-    { key: 'value', label: t('records.fields.value'), render: (row: typeof recordRows[number]) => <span className="record-mono record-mono--value">{row.value}</span> },
+    { key: 'value', label: t('records.fields.value'), render: (row: typeof recordRows[number]) => (
+      <span className="record-mono record-mono--value" title={row.value}>
+        {row.value}
+      </span>
+    ) },
     { key: 'mx', label: t('records.fields.mx'), render: (row: typeof recordRows[number]) => <span className="page-muted">{row.mx ?? '-'}</span> },
   ];
 
@@ -154,8 +160,11 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
                     fontSize: '13px',
                     lineHeight: '1.6',
                     padding: '16px',
-                    background: '#f5f5f5',
-                    borderRadius: '4px'
+                    borderRadius: '4px',
+                    // 根据主题动态设置背景色和文字颜色
+                    background: isDark ? '#1a1a1a' : '#f5f5f5',
+                    color: isDark ? '#e0e0e0' : '#333333',
+                    border: isDark ? '1px solid #333' : '1px solid #e0e0e0'
                   }}>
                     {previewData || ''}
                   </pre>
