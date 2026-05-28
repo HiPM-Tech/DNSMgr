@@ -293,9 +293,18 @@ async function initSQLiteSchema(conn: DatabaseConnection): Promise<void> {
   // Migration: Ensure dns_accounts.enabled column exists before creating index
   // (for databases created by older versions without this column)
   try {
-    await conn.execute("ALTER TABLE dns_accounts ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1");
+    // 先检查列是否存在，避免不必要的 SQL 执行
+    const columns = await conn.query('PRAGMA table_info(dns_accounts)') as any[];
+    const hasEnabledColumn = columns.some((col: any) => col.name === 'enabled');
+    
+    if (!hasEnabledColumn) {
+      await conn.execute("ALTER TABLE dns_accounts ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1");
+      log.info('DB', 'Added enabled column to dns_accounts table');
+    } else {
+      log.debug('DB', 'enabled column already exists in dns_accounts table');
+    }
   } catch (e) {
-    // Ignore "duplicate column" errors - column already exists
+    // 如果 PRAGMA 查询失败，回退到旧的方式
     if (e instanceof Error && !e.message.toLowerCase().includes('duplicate column')) {
       throw e;
     }

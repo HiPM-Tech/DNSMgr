@@ -36,8 +36,10 @@ import { SchemaDefinition } from './index';
  *    - 写操作会锁定整个数据库
  *    - 不适合高并发写入场景
  *
- * 9. ALTER TABLE ADD COLUMN IF NOT EXISTS 支持良好
- *    - 从 3.2.0 版本开始支持
+ * 9. ALTER TABLE ADD COLUMN 不支持 IF NOT EXISTS
+ *    - SQLite 从未支持此语法（包括最新版本）
+ *    - 必须先使用 PRAGMA table_info() 检查列是否存在
+ *    - 或使用 try-catch 捕获 "duplicate column" 错误
  */
 
 export const sqliteSchema: SchemaDefinition = {

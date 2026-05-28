@@ -3125,21 +3125,26 @@ export const WhoisOperations = {
         
         // 迁移：为已存在的表添加 status 字段（如果不存在）
         try {
-          // SQLite 3.35.0+ 支持 ADD COLUMN IF NOT EXISTS
-          await executeInternal(
-            `ALTER TABLE whois_cache ADD COLUMN IF NOT EXISTS status TEXT`, 
-            [], 
-            { operation: 'Whois.migrateAddStatusColumn', table: 'whois_cache' }
-          );
-          log.info('BusinessAdapter', 'Added status column to whois_cache table');
-        } catch (e) {
-          // 兼容旧版 SQLite，捕获错误
-          const errorMsg = e instanceof Error ? e.message : String(e);
-          if (errorMsg.includes('duplicate column name')) {
-            log.debug('BusinessAdapter', 'status column already exists in whois_cache table');
+          // SQLite 不支持 ADD COLUMN IF NOT EXISTS，需要先检查
+          const columns = await queryInternal('PRAGMA table_info(whois_cache)', [], { 
+            operation: 'Whois.checkStatusColumn', 
+            table: 'whois_cache' 
+          }) as any[];
+          
+          const hasStatusColumn = columns.some((col: any) => col.name === 'status');
+          
+          if (!hasStatusColumn) {
+            await executeInternal(
+              `ALTER TABLE whois_cache ADD COLUMN status TEXT`, 
+              [], 
+              { operation: 'Whois.addStatusColumn', table: 'whois_cache' }
+            );
+            log.info('BusinessAdapter', 'Added status column to whois_cache table');
           } else {
-            log.warn('BusinessAdapter', 'Failed to add status column', { error: e });
+            log.debug('BusinessAdapter', 'status column already exists in whois_cache table');
           }
+        } catch (e) {
+          log.warn('BusinessAdapter', 'Failed to add/check status column', { error: e });
         }
       } else if (dbType === 'mysql') {
         // MySQL 语法
@@ -3207,12 +3212,24 @@ export const WhoisOperations = {
         
         // 迁移：为已存在的表添加 status 字段
         try {
-          await executeInternal(`ALTER TABLE whois_cache ADD COLUMN IF NOT EXISTS status TEXT`, [], { 
-            operation: 'Whois.migrateAddStatusColumn', 
+          // SQLite 不支持 ADD COLUMN IF NOT EXISTS，需要先检查
+          const columns = await queryInternal('PRAGMA table_info(whois_cache)', [], { 
+            operation: 'Whois.checkStatusColumn', 
             table: 'whois_cache' 
-          });
+          }) as any[];
+                  
+          const hasStatusColumn = columns.some((col: any) => col.name === 'status');
+                  
+          if (!hasStatusColumn) {
+            await executeInternal(
+              `ALTER TABLE whois_cache ADD COLUMN status TEXT`, 
+              [], 
+              { operation: 'Whois.addStatusColumn', table: 'whois_cache' }
+            );
+          }
         } catch (e) {
-          // 字段可能已存在，忽略错误
+          // 字段可能已存在或其他错误，忽略
+          log.debug('BusinessAdapter', 'Status column check completed', { error: (e as Error).message });
         }
         
         // 创建索引

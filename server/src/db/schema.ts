@@ -976,20 +976,34 @@ async function checkSQLiteColumnExists(
     let result: unknown[] | undefined;
 
     if (conn.query) {
+      // 异步连接 - 可以执行 PRAGMA 查询
       result = await conn.query(sql);
     } else if (conn.exec) {
-      // 对于同步连接，需要特殊处理
-      return false; // 默认返回 false，让迁移尝试执行
+      // 同步连接 - better-sqlite3 的 exec 不返回结果
+      // 需要通过其他方式检查，这里采用保守策略：
+      // 假设列不存在，让 addSQLiteColumn 尝试添加并捕获错误
+      log.debug('Schema', `Using sync connection for ${tableName}.${columnName}, will attempt migration`);
+      return false;
     }
 
     if (Array.isArray(result)) {
-      return result.some((row: unknown) => {
+      const exists = result.some((row: unknown) => {
         const col = row as Record<string, string>;
         return col.name === columnName;
       });
+      log.debug('Schema', `Column ${columnName} in ${tableName}: ${exists ? 'exists' : 'not found'}`);
+      return exists;
     }
+    
+    // 如果 result 不是数组，保守地返回 false
+    log.warn('Schema', `Unexpected result format for PRAGMA table_info(${tableName})`);
     return false;
-  } catch {
+  } catch (error) {
+    log.error('Schema', `Failed to check column existence`, {
+      table: tableName,
+      column: columnName,
+      error: (error as Error).message
+    });
     return false;
   }
 }
