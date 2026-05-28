@@ -228,7 +228,29 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
 }
 
 export async function sendSmtpEmail(to: string, subject: string, text: string): Promise<void> {
+  log.info('SMTP', 'Preparing to send email', { to, subject });
   const config = await getSmtpConfig();
-  if (!config.enabled) throw new Error('SMTP is not enabled');
-  await sendRawSmtpMail(config, to, subject, text);
+  log.debug('SMTP', 'SMTP config loaded', { 
+    host: config.host, 
+    port: config.port,
+    enabled: config.enabled,
+    secure: config.secure,
+    hasAuth: !!(config.username && config.password)
+  });
+  if (!config.enabled) {
+    log.error('SMTP', 'SMTP is not enabled in configuration');
+    throw new Error('SMTP is not enabled');
+  }
+  try {
+    await sendRawSmtpMail(config, to, subject, text);
+    log.info('SMTP', 'Email sent successfully', { to });
+  } catch (error) {
+    log.error('SMTP', 'Failed to send raw SMTP mail', { 
+      error: error instanceof Error ? error.message : String(error),
+      to,
+      host: config.host,
+      port: config.port
+    });
+    throw error;
+  }
 }
