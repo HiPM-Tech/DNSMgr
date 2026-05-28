@@ -52,11 +52,32 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
   const template = selectedTemplateData ?? null;
 
   const host = hostname.trim() || '@';
-  const resolvedRecords: Array<EmailTemplateRecord & { mx?: number }> = template?.records.map((r) => ({
-    ...r,
-    name: r.name === '@' ? host : r.name,
-    mx: r.priority, // MX 记录的 priority 字段映射为 mx
-  })) ?? [];
+  const resolvedRecords: Array<EmailTemplateRecord & { mx?: number }> = template?.records.map((r) => {
+    // 如果记录名是 @，直接替换为用户输入的主机名
+    if (r.name === '@') {
+      return {
+        ...r,
+        name: host,
+        mx: r.priority, // MX 记录的 priority 字段映射为 mx
+      };
+    }
+    
+    // 如果记录名不是 @ 且用户指定了非 @ 的主机名，则拼接为主机名.记录名
+    // 例如：_dmarc + mail -> _dmarc.mail
+    if (host !== '@' && r.name) {
+      return {
+        ...r,
+        name: `${r.name}.${host}`,
+        mx: r.priority,
+      };
+    }
+    
+    // 否则保持原样
+    return {
+      ...r,
+      mx: r.priority,
+    };
+  }) ?? [];
 
   const conflicts = resolvedRecords.filter((record) =>
     existingRecords.some((existingRecord) => existingRecord.name === record.name && existingRecord.type === record.type),
@@ -84,7 +105,15 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
   const recordRows = resolvedRecords.map((record, index) => ({ ...record, index }));
   const columns = [
     { key: 'type', label: t('records.fields.type'), render: (row: typeof recordRows[number]) => <Tag theme="primary" variant="light">{row.type}</Tag> },
-    { key: 'name', label: t('records.fields.host'), render: (row: typeof recordRows[number]) => <span className="record-mono record-mono--strong">{row.name}</span> },
+    { 
+      key: 'name', 
+      label: t('records.fields.host'), 
+      render: (row: typeof recordRows[number]) => (
+        <span className="record-mono record-mono--strong" title={row.name}>
+          {row.name}
+        </span>
+      ) 
+    },
     { key: 'value', label: t('records.fields.value'), render: (row: typeof recordRows[number]) => (
       <span className="record-mono record-mono--value" title={row.value}>
         {row.value}
