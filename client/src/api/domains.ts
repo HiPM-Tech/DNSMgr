@@ -6,7 +6,12 @@ import type { Domain, ProviderDomainOption, DnsLine, RenewalInfo, WhoisInfo } fr
 
 export const domainsApi = {
   list: (params?: { account_id?: number; keyword?: string; domain_type?: 'all' | 'apex' | 'subdomain'; page?: number; pageSize?: number }) =>
-    api.get<ApiResponse<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>>('/domains', { params }),
+    api.get<ApiResponse<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>>('/domains', { 
+      params: {
+        ...params,
+        include_disabled: 'true', // 前端默认显示所有域名（包括禁用的）
+      }
+    }),
   get: (id: number) => api.get<ApiResponse<Domain>>(`/domains/${id}`),
   listFromProvider: (accountId: number) =>
     api.get<ApiResponse<ProviderDomainOption[]>>(`/domains/provider-list/${accountId}`),

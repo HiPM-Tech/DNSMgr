@@ -7,7 +7,7 @@ import * as https from 'https';
 import * as http from 'http';
 import { URL } from 'url';
 import { BaseQueryMethod, QueryMethodType, WhoisResult } from './base';
-import { normalizeDomain } from '../../../utils/domain';
+import { normalizeDomain } from '../../../utils/dns';
 
 /**
  * RDAP 查询方式

@@ -1,4 +1,5 @@
 import { AuditExportOperations, getDbType } from '../db/business-adapter';
+import { getDisplayDomain } from '../utils/dns';
 
 /**
  * 审计日志导出服务
@@ -87,7 +88,7 @@ export async function getAuditLogs(
       username: log.username || 'Unknown',
       nickname: log.nickname || '',
       action: log.action,
-      domain: log.domain,
+      domain: log.domain ? getDisplayDomain(log.domain, true) : log.domain,
       data: typeof log.data === 'string' ? JSON.parse(log.data || '{}') : log.data || {},
       createdAt: log.created_at,
     })),

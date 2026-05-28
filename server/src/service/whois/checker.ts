@@ -8,7 +8,7 @@ import { WhoisOperations, DnsAccountOperations } from '../../db/business-adapter
 import { Domain, DnsAccount } from '../../types';
 import { log } from '../../lib/logger';
 import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatus, dnsProviderAdapter, WhoisResult } from './index';
-import { areDomainsEqual } from '../../utils/domain';
+import { areDomainsEqual } from '../../utils/dns';
 
 /**
  * WHOIS 检查结果

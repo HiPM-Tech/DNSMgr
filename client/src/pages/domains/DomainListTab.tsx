@@ -366,7 +366,7 @@ export function DomainListTab() {
         const displayName = formatDomainName(row.name);
         return (
           <Space size="small">
-            <Button className="domain-name-button" variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)} title={row.name}>
+            <Button className="domain-name-button" variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)} title={displayName}>
               {displayName}
             </Button>
             {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />}>{t('domains.subdomain')}</Tag>}

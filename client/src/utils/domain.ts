@@ -17,8 +17,11 @@ export function decodePunycode(domain: string): string {
     }
 
     // Use punycode.js library for reliable IDN decoding
-    return punycode.toUnicode(domain);
-  } catch {
+    const result = punycode.toUnicode(domain);
+    console.log('[IDN Debug] Punycode conversion:', domain, '->', result);
+    return result;
+  } catch (error) {
+    console.error('[IDN Debug] Failed to decode punycode:', domain, error);
     // If any error occurs, return original domain
     return domain;
   }

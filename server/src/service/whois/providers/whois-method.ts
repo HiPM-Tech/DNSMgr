@@ -5,7 +5,7 @@
 
 import * as net from 'net';
 import { BaseQueryMethod, QueryMethodType, WhoisResult } from './base';
-import { normalizeDomain } from '../../../utils/domain';
+import { normalizeDomain } from '../../../utils/dns';
 
 /**
  * WHOIS 查询方式

@@ -3,6 +3,8 @@
  * 域名查询构建器 - 用于组合不同的过滤条件
  */
 
+import { normalizeDomain } from '../../utils/dns';
+
 export interface DomainQueryOptions {
   select?: string;
   joins?: string[];
@@ -88,8 +90,10 @@ export class DomainQueryBuilder {
    * 按关键词搜索
    */
   whereKeyword(keyword: string): this {
+    // Normalize keyword to Punycode for database search (supports IDN domains)
+    const normalizedKeyword = normalizeDomain(keyword);
     this.wheres.push('d.name LIKE ?');
-    this.params.push(`%${keyword}%`);
+    this.params.push(`%${normalizedKeyword}%`);
     return this;
   }
 

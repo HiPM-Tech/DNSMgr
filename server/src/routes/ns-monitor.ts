@@ -12,7 +12,7 @@ import { normalizeRole, isSuper, isAdmin } from '../utils/roles';
 import { resolveNsRecords, NSLookupResult, validateNsRecords } from '../lib/dns/ns-lookup';
 import { getDomainAccess } from './domains';
 import { wsService } from '../service/websocket';
-import { normalizeDomain, isValidDomain, toUnicode } from '../utils/domain';
+import { normalizeDomain, isValidDomain, toUnicode, getDisplayDomain } from '../utils/dns';
 
 const router = Router();
 
@@ -241,6 +241,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 router.get('/available-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
+  const tokenPayload = (req as any).tokenPayload;
 
   // Level 1: Reuse DomainOperations.getAll() for super admin
   // For regular users, use dedicated function that filters by user's accounts
@@ -263,13 +264,16 @@ router.get('/available-domains', authMiddleware, asyncHandler(async (req: Reques
     !monitoredDomainNames.has(domain.name)
   );
 
+  // For Session auth, convert Punycode to Unicode; for Token auth, keep raw
+  const displayDomains = availableDomains.map((d: any) => ({
+    id: d.id,
+    name: tokenPayload ? d.name : getDisplayDomain(d.name, true),
+    account_id: d.account_id,
+  }));
+
   res.json({
     success: true,
-    data: availableDomains.map((d: any) => ({
-      id: d.id,
-      name: d.name,
-      account_id: d.account_id,
-    })),
+    data: displayDomains,
   });
 }));
 
@@ -317,8 +321,11 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     return;
   }
 
+  // Normalize domain name to Punycode for database storage/query
+  const normalizedDomainName = normalizeDomain(domain_name);
+
   // Verify domain exists in domains table
-  const domain = await DomainOperations.getByName(domain_name);
+  const domain = await DomainOperations.getByName(normalizedDomainName);
   if (!domain || !domain.name) {
     res.status(404).json({ success: false, error: 'Domain not found in domains table' });
     return;
@@ -573,7 +580,10 @@ router.post('/check', authMiddleware, asyncHandler(async (req: Request, res: Res
     return;
   }
 
-  const monitor = await NSMonitorOperations.getByDomainName(userId, domain_name);
+  // Normalize domain name to Punycode for database query
+  const normalizedDomainName = normalizeDomain(domain_name);
+
+  const monitor = await NSMonitorOperations.getByDomainName(userId, normalizedDomainName);
   if (!monitor) {
     res.status(404).json({ success: false, error: 'Configuration not found for this domain' });
     return;

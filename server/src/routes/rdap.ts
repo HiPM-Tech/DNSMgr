@@ -16,7 +16,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { whoisService, getRootDomain } from '../service/whois';
 import { log } from '../lib/logger';
-import { normalizeDomain, isValidDomain, toUnicode } from '../utils/domain';
+import { normalizeDomain, isValidDomain, toUnicode } from '../utils/dns';
 
 const router = Router();
 

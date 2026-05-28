@@ -14,14 +14,9 @@ import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, Tea
 import { syncDomainWhois } from '../service/whois';
 import { getRootDomain, queryWhois } from '../service/whois';
 import { wsService } from '../service/websocket';
-import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/domain';
+import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/dns';
 
 const router = Router();
-
-function normalizeDomainName(name: string): string {
-  // Use IDN-aware normalization (converts Unicode to Punycode)
-  return normalizeDomain(name);
-}
 
 async function getAccountForUser(accountId: number, userId: number, role: number): Promise<DnsAccount | null> {
   const account = await DnsAccountOperations.getById(accountId) as DnsAccount | undefined;
@@ -157,13 +152,14 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword, domain_type, page, pageSize, format } = req.query as { 
+  const { account_id, keyword, domain_type, page, pageSize, format, include_disabled } = req.query as { 
     account_id?: string; 
     keyword?: string; 
     domain_type?: string; 
     page?: string; 
     pageSize?: string;
     format?: string; // 'array' for direct array response (for external adapters)
+    include_disabled?: string; // 'true' to include disabled domains
   };
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
@@ -232,6 +228,17 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     }
   }
 
+  // 过滤禁用的域名（除非显式指定 include_disabled=true）
+  const shouldIncludeDisabled = include_disabled === 'true';
+  if (!shouldIncludeDisabled) {
+    domains = domains.filter((domain) => {
+      // 注意：domains 表中可能没有 enabled 字段，需要根据实际情况调整
+      // 如果域名有 enabled 字段且为 0，则过滤掉
+      const isEnabled = (domain as any).enabled !== 0;
+      return isEnabled;
+    });
+  }
+
   // 根据域名类型过滤
   if (domain_type && domain_type !== 'all') {
     domains = domains.filter((domain) => {
@@ -284,10 +291,22 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 
   // Return format based on query parameter or token usage
   // For external adapters (ddns-go, certd), return direct array when format=array
+  // For Token auth, return raw Punycode domains with display_name for IDN support
+  // For Session auth, convert Punycode to Unicode for display
   if (format === 'array' || tokenPayload) {
-    sendSuccess(res, paginatedDomains);
+    // Token auth or array format: return domains with both name and display_name
+    const domainsWithDisplay = paginatedDomains.map(domain => ({
+      ...domain,
+      display_name: getDisplayDomain(domain.name, true), // Add Unicode display name
+    }));
+    sendSuccess(res, domainsWithDisplay);
   } else {
-    sendSuccess(res, { list: paginatedDomains, total, page: currentPage, pageSize: size, totalPages });
+    // Session auth: convert Punycode to Unicode for display
+    const displayDomains = paginatedDomains.map(domain => ({
+      ...domain,
+      name: getDisplayDomain(domain.name, true), // Convert to Unicode
+    }));
+    sendSuccess(res, { list: displayDomains, total, page: currentPage, pageSize: size, totalPages });
   }
 }));
 
@@ -362,13 +381,15 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
     
     // Enrich with account information
     const enrichStartTime = Date.now();
+    const tokenPayload = (req as any).tokenPayload;
     const enrichedDomains = await Promise.all(
       renewableDomains.map(async (domain: any) => {
         const account = await DnsAccountOperations.getById(domain.account_id);
+        const domainName = tokenPayload ? domain.full_domain : getDisplayDomain(domain.full_domain, true);
         return {
           id: domain.id,
-          name: domain.full_domain,
-          full_domain: domain.full_domain,
+          name: domainName,
+          full_domain: domainName,
           account_id: domain.account_id,
           account_name: account?.name || 'Unknown',
           provider_type: domain.provider_type,
@@ -430,7 +451,19 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       sendError(res, 'Domain not found');
       return;
     }
-    sendSuccess(res, domain);
+    
+    // For Session auth, convert Punycode to Unicode for display
+    // For Token auth, return raw Punycode
+    const tokenPayload = (req as any).tokenPayload;
+    if (!tokenPayload) {
+      // Session auth: convert to Unicode
+      const domainObj = domain as any;
+      domainObj.name = getDisplayDomain(domainObj.name, true);
+      sendSuccess(res, domainObj);
+    } else {
+      // Token auth: return raw
+      sendSuccess(res, domain);
+    }
   } catch (error) {
     log.error('Domains', 'Failed to get domain', { error });
     sendError(res, error instanceof Error ? error.message : 'Failed to get domain');
@@ -466,7 +499,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
 
   const normalizedMap = new Map<string, { name: string; third_id?: string; record_count?: number }>();
   for (const item of items) {
-    const normalizedName = normalizeDomainName(item.name);
+    const normalizedName = normalizeDomain(item.name);
     if (!normalizedName) continue;
     normalizedMap.set(normalizedName, {
       name: normalizedName,
@@ -611,7 +644,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
 
     let added = 0;
     for (const d of allDomains) {
-      const normalizedName = normalizeDomainName(d.Domain);
+      const normalizedName = normalizeDomain(d.Domain);
       
       // 记录 IDN 域名转换信息
       if (normalizedName !== d.Domain.toLowerCase()) {
@@ -712,16 +745,27 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
 
     // 获取当前账号下已添加的域名列表
     const existingDomains = await DomainOperations.getByAccountId(accountId) as Array<{ name: string }>;
-    const existingDomainNames = new Set(existingDomains.map((d) => normalizeDomainName(d.name)));
+    const existingDomainNames = new Set(existingDomains.map((d) => normalizeDomain(d.name)));
 
     // 过滤掉已添加的域名（不限制数量，展示所有可同步的域名）
+    // 后端返回 Unicode 格式，前端显示时已经调用 formatDomainName
+    // 前端提交时后端会自动调用 normalizeDomainName 转换为 Punycode
+    const tokenPayload = (req as any).tokenPayload;
     const domains = allProviderDomains
-      .map((d) => ({
-        name: normalizeDomainName(d.Domain),
-        third_id: d.ThirdId,
-        record_count: d.RecordCount ?? 0,
-      }))
-      .filter((d) => !existingDomainNames.has(d.name));
+      .filter((d) => {
+        const normalizedName = normalizeDomain(d.Domain);
+        return !existingDomainNames.has(normalizedName); // 先过滤已添加的
+      })
+      .map((d) => {
+        const normalizedName = normalizeDomain(d.Domain);
+        // For Session auth, convert to Unicode; for Token auth, keep Punycode
+        const displayName = tokenPayload ? normalizedName : getDisplayDomain(normalizedName, true);
+        return {
+          name: displayName,
+          third_id: d.ThirdId,
+          record_count: d.RecordCount ?? 0,
+        };
+      });
 
     log.info('ProviderList', 'Filtered domains', { total: allProviderDomains.length, filtered: domains.length, existing: existingDomainNames.size });
     sendSuccess(res, domains);
@@ -1294,13 +1338,16 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     return;
   }
   
+  // Normalize domain name to Punycode for database query
+  const normalizedDomain = normalizeDomain(domain);
+  
   let dbDomain: Domain | undefined;
   
   if (accountId) {
     // 如果指定了 accountId，精确查询
     dbDomain = await DomainOperations.getByAccountIdAndName(
       Number(accountId),
-      domain
+      normalizedDomain
     ) as Domain | undefined;
     
     if (!dbDomain) {
@@ -1309,7 +1356,7 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     }
   } else {
     // 未指定 accountId，查询第一条记录
-    dbDomain = await DomainOperations.getByName(domain) as Domain | undefined;
+    dbDomain = await DomainOperations.getByName(normalizedDomain) as Domain | undefined;
     
     if (!dbDomain) {
       sendError(res, 'Domain not found');
@@ -1322,7 +1369,7 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     if (!access.domain || !access.canRead) {
       // 如果第一条记录无权限，尝试查找用户有权限的其他同名域名
       const userDomains = await DomainOperations.getAll() as unknown as Domain[];
-      const accessibleDomains = userDomains.filter((d: Domain) => d.name === domain);
+      const accessibleDomains = userDomains.filter((d: Domain) => d.name === normalizedDomain);
       
       let foundAccessible = false;
       for (const candidateDomain of accessibleDomains) {

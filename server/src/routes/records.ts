@@ -11,7 +11,7 @@ import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 import { wsService } from '../service/websocket';
-import { normalizeDomain, isValidDomain, isValidHostname } from '../utils/domain';
+import { normalizeDomain, isValidDomain, isValidHostname } from '../utils/dns';
 import { getAvailableTemplates, getEmailTemplate, generatePreview } from '../lib/dns/emailTemplate';
 
 const router = Router({ mergeParams: true });
