@@ -396,6 +396,36 @@ async function handleMySQLMigrations(
     // Migration: Update dns_accounts type from dnsmgr to hidns
     await migrateDnsAccountType(conn);
     
+    // Migration: Add semantic_version column to schema_versions table (if not exists)
+    log.info('Schema', 'Checking schema_versions.semantic_version column...');
+    try {
+      // Check if column exists
+      const checkResult = await conn.query!(
+        `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_NAME = 'schema_versions' AND COLUMN_NAME = 'semantic_version'`
+      ) as any[];
+      
+      const hasColumn = Array.isArray(checkResult) && checkResult.length > 0 && (checkResult[0] as any).cnt > 0;
+      
+      if (!hasColumn && conn.execute) {
+        await conn.execute('ALTER TABLE schema_versions ADD COLUMN semantic_version VARCHAR(20) NULL');
+        log.info('Schema', 'Added semantic_version column to schema_versions');
+        
+        // Create index for semantic_version
+        try {
+          await conn.execute('CREATE INDEX idx_semantic_version ON schema_versions(semantic_version)');
+          log.info('Schema', 'Created index on semantic_version');
+        } catch (indexError) {
+          // Index may already exist
+          log.debug('Schema', 'Index may already exist', { error: (indexError as Error).message });
+        }
+      } else {
+        log.debug('Schema', 'semantic_version column already exists');
+      }
+    } catch (error) {
+      log.warn('Schema', 'Failed to add/check semantic_version column', { error: (error as Error).message });
+    }
+    
     // P1: 验证关键列的类型和约束
     log.info('Schema', 'Validating critical column specifications...');
     try {
@@ -1187,6 +1217,15 @@ async function handleSQLiteMigrations(
 
   // Migration: Update dns_accounts type from dnsmgr to hidns
   await migrateDnsAccountType(conn);
+
+  // Migration: Add semantic_version column to schema_versions table (if not exists)
+  log.info('Schema', 'Checking schema_versions.semantic_version column (SQLite)...');
+  try {
+    await addSQLiteColumn(conn, 'schema_versions', 'semantic_version', 'TEXT');
+    log.info('Schema', 'schema_versions.semantic_version column check completed');
+  } catch (error) {
+    log.warn('Schema', 'Failed to add/check semantic_version column (SQLite)', { error: (error as Error).message });
+  }
 
   log.info('Schema', 'SQLite migrations completed');
 }

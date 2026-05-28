@@ -78,6 +78,7 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS schema_versions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       version TEXT NOT NULL UNIQUE,
+      semantic_version TEXT,
       description TEXT,
       applied_at TEXT NOT NULL DEFAULT (datetime('now')),
       success INTEGER NOT NULL DEFAULT 1,

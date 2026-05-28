@@ -90,6 +90,7 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS schema_versions (
       id SERIAL PRIMARY KEY,
       version VARCHAR(50) NOT NULL UNIQUE,
+      semantic_version VARCHAR(20),
       description TEXT,
       applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       success INTEGER NOT NULL DEFAULT 1,
@@ -537,5 +538,8 @@ export const postgresqlSchema: SchemaDefinition = {
        ALTER TABLE schema_versions ALTER COLUMN success TYPE INTEGER USING success::integer;
        ALTER TABLE schema_versions ALTER COLUMN success SET DEFAULT 1;
      END $$`,
+    // Migration: Add semantic_version column to schema_versions table for version tracking
+    `ALTER TABLE schema_versions ADD COLUMN IF NOT EXISTS semantic_version VARCHAR(20)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_semantic_version ON schema_versions(semantic_version)`,
   ],
 };

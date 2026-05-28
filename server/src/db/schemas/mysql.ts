@@ -62,6 +62,7 @@ export const mysqlSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS schema_versions (
       id INT AUTO_INCREMENT PRIMARY KEY,
       version VARCHAR(50) NOT NULL UNIQUE,
+      semantic_version VARCHAR(20),
       description TEXT,
       applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       success BOOLEAN NOT NULL DEFAULT TRUE,
@@ -69,6 +70,7 @@ export const mysqlSchema: SchemaDefinition = {
       execution_time_ms INT,
       system_type VARCHAR(50) DEFAULT 'hidns',
       INDEX idx_version (version),
+      INDEX idx_semantic_version (semantic_version),
       INDEX idx_applied_at (applied_at),
       INDEX idx_system_type (system_type)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
