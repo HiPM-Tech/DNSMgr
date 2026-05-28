@@ -302,6 +302,15 @@ export class SchemaVersionManager {
     description: string,
     executionTimeMs: number
   ): Promise<void> {
+    // Check if version already exists
+    const checkSql = 'SELECT COUNT(*) as cnt FROM schema_versions WHERE version = ?';
+    const result = await this.conn.get(checkSql, [this.schemaHash]) as { cnt: number } | undefined;
+    
+    if (result && result.cnt > 0) {
+      log.debug('SchemaVersion', `Schema version ${this.schemaHash} already recorded, skipping`);
+      return;
+    }
+    
     const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, execution_time_ms, system_type) 
                  VALUES (?, ?, ?, 1, ?, 'hidns')`;
     
@@ -322,6 +331,15 @@ export class SchemaVersionManager {
     errorMessage: string,
     executionTimeMs: number
   ): Promise<void> {
+    // Check if version already exists
+    const checkSql = 'SELECT COUNT(*) as cnt FROM schema_versions WHERE version = ?';
+    const result = await this.conn.get(checkSql, [this.schemaHash]) as { cnt: number } | undefined;
+    
+    if (result && result.cnt > 0) {
+      log.debug('SchemaVersion', `Schema version ${this.schemaHash} already recorded, skipping failure record`);
+      return;
+    }
+    
     const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, error_message, execution_time_ms, system_type) 
                  VALUES (?, ?, ?, 0, ?, ?, 'hidns')`;
     
