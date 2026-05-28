@@ -44,6 +44,13 @@ const dialogField = (label: string, control: ReactNode, tips?: ReactNode) => (
   </div>
 );
 
+const ControlField = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+    <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--td-text-color-primary)' }}>{label}</label>
+    {children}
+  </div>
+);
+
 function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -220,6 +227,8 @@ export function DomainListTab() {
   const [accountFilter, setAccountFilter] = useState('');
   const [keyword, setKeyword] = useState('');
   const [domainTypeFilter, setDomainTypeFilter] = useState<'all' | 'apex' | 'subdomain'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
 
@@ -237,14 +246,40 @@ export function DomainListTab() {
   const pinnedDomains = pinnedDomainsData ?? [];
 
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
-    queryKey: ['domains', accountFilter, keyword, domainTypeFilter, page, pageSize],
-    queryFn: () => domainsApi.list({
-      account_id: accountFilter ? Number(accountFilter) : undefined,
-      keyword: keyword || undefined,
-      domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
-      page,
-      pageSize,
-    }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 }),
+    queryKey: ['domains', accountFilter, keyword, domainTypeFilter, statusFilter, page, pageSize],
+    queryFn: async () => {
+      // 先获取所有域名（包括禁用的）
+      const res = await domainsApi.list({
+        account_id: accountFilter ? Number(accountFilter) : undefined,
+        keyword: keyword || undefined,
+        domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
+        include_disabled: 'true', // 始终获取所有
+        page: 1, // 先获取所有数据，前端过滤
+        pageSize: 1000,
+      });
+      
+      let allDomains = res.data.data?.list ?? [];
+      
+      // 根据状态筛选
+      if (statusFilter === 'enabled') {
+        allDomains = allDomains.filter((d) => d.enabled !== 0);
+      } else if (statusFilter === 'disabled') {
+        allDomains = allDomains.filter((d) => d.enabled === 0);
+      }
+      
+      // 分页处理
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize;
+      const paginatedDomains = allDomains.slice(start, end);
+      
+      return {
+        list: paginatedDomains,
+        total: allDomains.length,
+        page,
+        pageSize,
+        totalPages: Math.ceil(allDomains.length / pageSize),
+      };
+    },
     staleTime: 30 * 1000,
   });
 
@@ -534,32 +569,74 @@ export function DomainListTab() {
       </section>
 
       <Card bordered={false} shadow={false} className="page-card domain-list-card">
-        <div className="records-toolbar domain-filter-grid domain-list-card__toolbar">
-          <Input
-            clearable
-            type="search"
-            name="domain-list-search"
-            autocomplete="off"
-            value={keyword}
-            prefixIcon={<SearchIcon />}
-            placeholder={t('domains.searchPlaceholder')}
-            onChange={(value) => { setKeyword(String(value)); setPage(1); }}
-          />
-          <Select
-            value={accountFilter}
-            options={[{ label: t('domains.allAccounts'), value: '' }, ...accounts.map((account) => ({ label: account.name, value: String(account.id) }))]}
-            onChange={(value) => { setAccountFilter(selectValue(value)); setPage(1); }}
-          />
-          <Select
-            value={domainTypeFilter}
-            options={[
-              { label: t('domains.allDomains'), value: 'all' },
-              { label: t('domains.apexDomains'), value: 'apex' },
-              { label: t('domains.subdomains'), value: 'subdomain' },
-            ]}
-            onChange={(value) => { setDomainTypeFilter(selectValue(value) as 'all' | 'apex' | 'subdomain'); setPage(1); }}
-          />
+        <div className="records-toolbar domain-list-card__toolbar">
+          {/* 搜索框和高级筛选按钮 */}
+          <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
+            <Input
+              clearable
+              type="search"
+              name="domain-list-search"
+              autocomplete="off"
+              value={keyword}
+              prefixIcon={<SearchIcon />}
+              placeholder={t('domains.searchPlaceholder')}
+              onChange={(value) => { setKeyword(String(value)); setPage(1); }}
+              style={{ flex: 1, maxWidth: '400px' }}
+            />
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}
+            >
+              {showAdvancedFilter ? t('common.collapse') : t('common.expand')} {t('domains.advancedFilter')}
+            </Button>
+          </div>
         </div>
+
+        {/* 高级筛选面板 */}
+        {showAdvancedFilter && (
+          <div className="advanced-filter-panel" style={{ 
+            padding: '16px', 
+            marginBottom: '16px',
+            backgroundColor: 'var(--td-bg-color-container)',
+            borderRadius: '3px',
+            border: '1px solid var(--td-border-level-1-color)'
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              <ControlField label={t('domains.dnsAccount')}>
+                <Select
+                  value={accountFilter}
+                  options={[{ label: t('domains.allAccounts'), value: '' }, ...accounts.map((account) => ({ label: account.name, value: String(account.id) }))]}
+                  onChange={(value) => { setAccountFilter(selectValue(value)); setPage(1); }}
+                  style={{ width: '100%' }}
+                />
+              </ControlField>
+              <ControlField label={t('domains.domainType')}>
+                <Select
+                  value={domainTypeFilter}
+                  options={[
+                    { label: t('domains.allDomains'), value: 'all' },
+                    { label: t('domains.apexDomains'), value: 'apex' },
+                    { label: t('domains.subdomains'), value: 'subdomain' },
+                  ]}
+                  onChange={(value) => { setDomainTypeFilter(selectValue(value) as 'all' | 'apex' | 'subdomain'); setPage(1); }}
+                  style={{ width: '100%' }}
+                />
+              </ControlField>
+              <ControlField label={t('domains.domainStatus')}>
+                <Select
+                  value={statusFilter}
+                  options={[
+                    { label: t('domains.allStatus'), value: 'all' },
+                    { label: t('domains.enabled'), value: 'enabled' },
+                    { label: t('domains.disabled'), value: 'disabled' },
+                  ]}
+                  onChange={(value) => { setStatusFilter(selectValue(value) as 'all' | 'enabled' | 'disabled'); setPage(1); }}
+                  style={{ width: '100%' }}
+                />
+              </ControlField>
+            </div>
+          </div>
+        )}
         <Table columns={columns} data={sortedDomains} loading={isLoading} rowKey={(row) => row.id} emptyText={t('domains.noDomainsFound')} />
         <div className="records-pagination">
           <Pagination

@@ -220,12 +220,14 @@ export function requireTokenDomainPermission(paramName: string = 'id') {
       return;
     }
     
-    // 空数组表示拒绝所有域名
+    // 空数组表示允许所有域名（向后兼容 ddns-go 等外部工具）
+    // 如果需要限制权限，请显式配置 allowedDomains
     if (tokenPayload.allowedDomains.length === 0) {
-      res.status(403).json({
-        code: -1,
-        msg: 'API token has no domain permissions configured'
+      log.debug('Auth', 'Token has no domain restrictions, allowing all domains', { 
+        tokenId: tokenPayload.tokenId,
+        userId: tokenPayload.userId 
       });
+      next();
       return;
     }
 
