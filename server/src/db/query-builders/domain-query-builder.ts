@@ -206,8 +206,8 @@ export class DomainQueryBuilder {
    */
   static forSuperAdmin(options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
     const builder = new DomainQueryBuilder()
-      .joinAccounts();
-    // 注意：不过滤账号 enabled 状态，允许查看所有账号的域名
+      .joinAccounts()
+      .whereAccountEnabled();  // ← 恢复：过滤掉禁用账号的域名
     
     if (options?.accountId) {
       builder.whereAccountId(options.accountId);
@@ -257,7 +257,7 @@ export class DomainQueryBuilder {
     
     // Main permission check
     builder.wheres.push(`(d.account_id IN (
-      SELECT id FROM dns_accounts WHERE created_by = ? ${teamFilter}
+      SELECT id FROM dns_accounts WHERE created_by = ? AND enabled = 1 ${teamFilter}
     ) OR d.id IN (
       SELECT domain_id FROM domain_permissions WHERE user_id = ? ${teamPermFilter}
     ))`);

@@ -70,6 +70,13 @@ async function getUserPermissionRows(domainId: number, userId: number): Promise<
 }
 
 async function resolveDomainAccess(domain: Domain, userId: number, role: number): Promise<DomainAccess> {
+  // ← 新增：检查账号是否启用
+  const account = await DnsAccountOperations.getById(domain.account_id);
+  if (!account || (account as any).enabled === 0) {
+    // 账号不存在或已禁用，拒绝所有操作（除了 WHOIS）
+    return { domain, canRead: false, canWrite: false, writeSubs: [], hasRules: false };
+  }
+  
   const hasRules = await DomainPermissionOperations.hasRules(domain.id);
   if (isSuper(role)) {
     return { domain, canRead: true, canWrite: true, writeSubs: null, hasRules };
@@ -453,11 +460,14 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
 router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    const domain = await DomainOperations.getById(Number(id));
-    if (!domain) {
-      sendError(res, 'Domain not found');
+    // ← 新增：使用 getDomainAccess 检查权限（包括账号 enabled 状态）
+    const access = await getDomainAccess(Number(id), req.user!.userId, normalizeRole(req.user!.role));
+    if (!access.domain || !access.canRead) {
+      sendError(res, 'Domain not found or no permission');
       return;
     }
+    
+    const domain = access.domain;
     
     // For Session auth, convert Punycode to Unicode for display
     // For Token auth, return raw Punycode
