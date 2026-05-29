@@ -497,7 +497,7 @@ export function SecurityTab() {
               <span>{t('system.showDnsProviderSecretsDesc')}</span>
             </div>
             <Switch
-              value={securityConfig?.showDnsProviderSecrets ?? false}
+              value={Boolean(securityConfig?.showDnsProviderSecrets)}
               loading={updateSecurityConfigMutation.isPending}
               onChange={(checked: any) => updateSecurityConfigMutation.mutate({ showDnsProviderSecrets: Boolean(checked) })}
             />
