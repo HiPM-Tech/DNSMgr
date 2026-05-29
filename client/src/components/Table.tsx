@@ -59,9 +59,13 @@ export function Table<T extends object>({ columns, data, loading, emptyText, row
       // ← 新增：复选框配置
       {...(selectable && {
         rowSelection: {
-          type: 'multiple',
-          selectedRowKeys,
-          onChange: (keys: any) => onSelectChange?.(keys),
+          type: 'multiple' as const,
+          selectedRowKeys: selectedRowKeys || [],
+          onChange: (keys: (string | number)[]) => {
+            console.log('[Table] Selection changed:', keys);
+            onSelectChange?.(keys);
+          },
+          getCheckboxProps: () => ({ disabled: false }),
         },
       })}
     />
