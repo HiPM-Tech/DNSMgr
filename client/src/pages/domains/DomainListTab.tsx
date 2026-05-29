@@ -248,37 +248,17 @@ export function DomainListTab() {
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     queryKey: ['domains', accountFilter, keyword, domainTypeFilter, statusFilter, page, pageSize],
     queryFn: async () => {
-      // 先获取所有域名（包括禁用的）
+      // 使用后端分页和过滤
       const res = await domainsApi.list({
         account_id: accountFilter ? Number(accountFilter) : undefined,
         keyword: keyword || undefined,
         domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
-        include_disabled: 'true', // 始终获取所有
-        page: 1, // 先获取所有数据，前端过滤
-        pageSize: 1000,
-      });
-      
-      let allDomains = res.data.data?.list ?? [];
-      
-      // 根据状态筛选
-      if (statusFilter === 'enabled') {
-        allDomains = allDomains.filter((d) => d.enabled !== 0);
-      } else if (statusFilter === 'disabled') {
-        allDomains = allDomains.filter((d) => d.enabled === 0);
-      }
-      
-      // 分页处理
-      const start = (page - 1) * pageSize;
-      const end = start + pageSize;
-      const paginatedDomains = allDomains.slice(start, end);
-      
-      return {
-        list: paginatedDomains,
-        total: allDomains.length,
+        include_disabled: statusFilter === 'disabled' || statusFilter === 'all' ? 'true' : 'false',
         page,
         pageSize,
-        totalPages: Math.ceil(allDomains.length / pageSize),
-      };
+      });
+      
+      return res.data.data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 };
     },
     staleTime: 30 * 1000,
   });

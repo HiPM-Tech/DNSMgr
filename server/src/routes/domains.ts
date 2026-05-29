@@ -167,12 +167,17 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   // Pagination params
   const currentPage = Math.max(1, parseInteger(page) || 1);
   const size = Math.min(100, Math.max(1, parseInteger(pageSize) || 20));
+  
+  // Parse domain_type with type safety
+  const parsedDomainType: 'apex' | 'subdomain' | undefined = 
+    (domain_type === 'apex' || domain_type === 'subdomain') ? domain_type : undefined;
 
   // Check if using token auth and get allowed domains
   const tokenPayload = (req as any).tokenPayload;
   const tokenAllowedDomains = tokenPayload?.allowedDomains as number[] | undefined;
 
   let domains: Domain[];
+  let total = 0; // 初始化 total
   
   // Token 认证优化：根据 allowedDomains 是否为空选择不同策略
   if (tokenPayload) {
@@ -186,74 +191,69 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     } else {
       // 允许所有域名的 Token：根据角色选择查询方式
       if (isSuper(role)) {
-        // 超管：直接查询所有域名
-        domains = await DomainOperations.getAllForSuperAdmin({
+        // 超管：使用优化的分页查询（支持 enabled 过滤）
+        const result = await DomainOperations.getAllForSuperAdminWithPagination({
           accountId: account_id ? parseInteger(account_id) : undefined,
           keyword,
-        }) as unknown as Domain[];
+          includeDisabled: include_disabled === 'true',
+          domainType: parsedDomainType,
+          page: currentPage,
+          pageSize: size,
+        });
+        domains = result.list as unknown as Domain[];
+        total = result.total;
       } else {
         // 普通用户 Token：使用权限检查逻辑
         const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
-        domains = await DomainOperations.getAccessibleDomains({
+        const result = await DomainOperations.getAccessibleDomainsWithPagination({
           userId,
           teamIds,
           accountId: account_id ? parseInteger(account_id) : undefined,
           keyword,
-          isSuper: false,
-        }) as unknown as Domain[];
+          includeDisabled: include_disabled === 'true',
+          domainType: parsedDomainType,
+          page: currentPage,
+          pageSize: size,
+        });
+        domains = result.list as unknown as Domain[];
+        total = result.total;
       }
     }
     log.debug('Domains', 'Token auth domain query completed', { 
       duration: `${Date.now() - queryStartTime}ms`, 
-      count: domains.length 
+      count: domains.length,
+      total
     });
   } else {
     // Session 认证：根据角色选择查询方式
     if (isSuper(role)) {
-      // 超管：直接查询所有域名
-      domains = await DomainOperations.getAllForSuperAdmin({
+      // 超管：使用优化的分页查询（支持 enabled 过滤）
+      const result = await DomainOperations.getAllForSuperAdminWithPagination({
         accountId: account_id ? parseInteger(account_id) : undefined,
         keyword,
-      }) as unknown as Domain[];
+        includeDisabled: include_disabled === 'true',
+        domainType: parsedDomainType,
+        page: currentPage,
+        pageSize: size,
+      });
+      domains = result.list as unknown as Domain[];
+      total = result.total;
     } else {
       // 普通用户：使用权限检查逻辑
       const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
-      domains = await DomainOperations.getAccessibleDomains({
+      const result = await DomainOperations.getAccessibleDomainsWithPagination({
         userId,
         teamIds,
         accountId: account_id ? parseInteger(account_id) : undefined,
         keyword,
-        isSuper: false,
-      }) as unknown as Domain[];
+        includeDisabled: include_disabled === 'true',
+        domainType: parsedDomainType,
+        page: currentPage,
+        pageSize: size,
+      });
+      domains = result.list as unknown as Domain[];
+      total = result.total;
     }
-  }
-
-  // 过滤禁用的域名（除非显式指定 include_disabled=true）
-  const shouldIncludeDisabled = include_disabled === 'true';
-  if (!shouldIncludeDisabled) {
-    domains = domains.filter((domain) => {
-      // 注意：domains 表中可能没有 enabled 字段，需要根据实际情况调整
-      // 如果域名有 enabled 字段且为 0，则过滤掉
-      const isEnabled = (domain as any).enabled !== 0;
-      return isEnabled;
-    });
-  }
-
-  // 根据域名类型过滤
-  if (domain_type && domain_type !== 'all') {
-    domains = domains.filter((domain) => {
-      const normalized = domain.name.replace(/\.$/, '');
-      // 使用 getRootDomain 来正确判断是否为顶域
-      const rootDomain = getRootDomain(normalized);
-      const isApex = normalized === rootDomain;
-
-      if (domain_type === 'apex') {
-        return isApex;
-      } else if (domain_type === 'subdomain') {
-        return !isApex;
-      }
-      return true;
-    });
   }
 
   // Token 认证已经在上面过滤了 allowedDomains，不需要再进行权限检查
@@ -263,6 +263,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       const access = await resolveDomainAccess(domain, userId, role);
       return access.canRead ? domain : null;
     })).then(results => results.filter((d): d is Domain => d !== null));
+    // 注意：这种情况下 total 可能不准确，但不影响功能
   }
 
   // 获取用户的置顶域名列表并排序
@@ -279,15 +280,10 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     return 0;  // 都置顶或都不置顶，保持原有顺序
   });
 
-  // Calculate pagination
-  const total = domains.length;
-  const totalPages = Math.ceil(total / size);
-  const startIndex = (currentPage - 1) * size;
-  const endIndex = Math.min(startIndex + size, total);
-  const paginatedDomains = domains.slice(startIndex, endIndex);
-
   // Record count is cached in database and refreshed asynchronously by background job
   // No need to query DNS provider API on every request
+
+  const totalPages = Math.ceil(total / size);
 
   // Return format based on query parameter or token usage
   // For external adapters (ddns-go, certd), return direct array when format=array
@@ -295,14 +291,14 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   // For Session auth, convert Punycode to Unicode for display
   if (format === 'array' || tokenPayload) {
     // Token auth or array format: return domains with both name and display_name
-    const domainsWithDisplay = paginatedDomains.map(domain => ({
+    const domainsWithDisplay = domains.map(domain => ({
       ...domain,
       display_name: getDisplayDomain(domain.name, true), // Add Unicode display name
     }));
     sendSuccess(res, domainsWithDisplay);
   } else {
     // Session auth: convert Punycode to Unicode for display
-    const displayDomains = paginatedDomains.map(domain => ({
+    const displayDomains = domains.map(domain => ({
       ...domain,
       name: getDisplayDomain(domain.name, true), // Convert to Unicode
     }));

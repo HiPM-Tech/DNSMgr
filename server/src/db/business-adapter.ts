@@ -684,6 +684,60 @@ export const DomainOperations = {
     return queryInternal(sql, params, { operation: 'Domain.getAllForSuperAdmin', table: 'domains' });
   },
 
+  /** 获取所有域名（带分页和过滤，用于高性能场景） */
+  async getAllForSuperAdminWithPagination(options: {
+    accountId?: number;
+    keyword?: string;
+    includeDisabled?: boolean;
+    domainType?: 'apex' | 'subdomain';
+    page: number;
+    pageSize: number;
+  }): Promise<{ list: QueryResult[]; total: number }> {
+    const {
+      accountId,
+      keyword,
+      includeDisabled = true,
+      domainType,
+      page,
+      pageSize,
+    } = options;
+
+    // 构建查询
+    let builder = DomainQueryBuilder.forSuperAdmin({ accountId, keyword });
+    
+    // 添加 enabled 过滤
+    if (!includeDisabled) {
+      builder = builder.whereDomainEnabled(true);
+    }
+    
+    // 添加 domain_type 过滤
+    if (domainType) {
+      builder = builder.whereDomainType(domainType);
+    }
+    
+    const { sql: baseSql, params: baseParams } = builder.build();
+    
+    // 查询总数
+    const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
+    const countResult = await queryInternal(countSql, baseParams, { 
+      operation: 'Domain.getAllForSuperAdminWithPagination.count', 
+      table: 'domains' 
+    });
+    const total = Number((countResult[0] as any)?.count || 0);
+    
+    // 查询分页数据
+    const offset = (page - 1) * pageSize;
+    const paginatedSql = `${baseSql} LIMIT ? OFFSET ?`;
+    const paginatedParams = [...baseParams, pageSize, offset];
+    
+    const list = await queryInternal(paginatedSql, paginatedParams, { 
+      operation: 'Domain.getAllForSuperAdminWithPagination.list', 
+      table: 'domains' 
+    });
+    
+    return { list, total };
+  },
+
   /** 创建域名 */
   async create(data: { account_id: number; name: string; third_id?: string; record_count?: number }): Promise<number> {
     return insertInternal(
@@ -774,6 +828,64 @@ export const DomainOperations = {
         : 'Domain.getAccessibleDomains', 
       table: 'domains' 
     });
+  },
+
+  /** 获取用户可访问的域名列表（带分页和过滤，用于高性能场景） */
+  async getAccessibleDomainsWithPagination(params: {
+    userId: number;
+    teamIds: number[];
+    accountId?: number;
+    keyword?: string;
+    includeDisabled?: boolean;
+    domainType?: 'apex' | 'subdomain';
+    page: number;
+    pageSize: number;
+  }): Promise<{ list: QueryResult[]; total: number }> {
+    const {
+      userId,
+      teamIds,
+      accountId,
+      keyword,
+      includeDisabled = true,
+      domainType,
+      page,
+      pageSize,
+    } = params;
+
+    // 构建查询
+    let builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
+    
+    // 添加 enabled 过滤
+    if (!includeDisabled) {
+      builder = builder.whereDomainEnabled(true);
+    }
+    
+    // 添加 domain_type 过滤
+    if (domainType) {
+      builder = builder.whereDomainType(domainType);
+    }
+    
+    const { sql: baseSql, params: baseParams } = builder.build();
+    
+    // 查询总数
+    const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
+    const countResult = await queryInternal(countSql, baseParams, { 
+      operation: 'Domain.getAccessibleDomainsWithPagination.count', 
+      table: 'domains' 
+    });
+    const total = Number((countResult[0] as any)?.count || 0);
+    
+    // 查询分页数据
+    const offset = (page - 1) * pageSize;
+    const paginatedSql = `${baseSql} LIMIT ? OFFSET ?`;
+    const paginatedParams = [...baseParams, pageSize, offset];
+    
+    const list = await queryInternal(paginatedSql, paginatedParams, { 
+      operation: 'Domain.getAccessibleDomainsWithPagination.list', 
+      table: 'domains' 
+    });
+    
+    return { list, total };
   },
 
   /** 检查用户是否有权限访问特定域名（用于令牌权限验证） */

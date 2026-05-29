@@ -70,14 +70,6 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * 过滤启用的域名
-   */
-  whereDomainEnabled(): this {
-    this.wheres.push('d.enabled = 1');
-    return this;
-  }
-
-  /**
    * 按账号 ID 过滤
    */
   whereAccountId(accountId: number): this {
@@ -94,6 +86,30 @@ export class DomainQueryBuilder {
     const normalizedKeyword = normalizeDomain(keyword);
     this.wheres.push('d.name LIKE ?');
     this.params.push(`%${normalizedKeyword}%`);
+    return this;
+  }
+
+  /**
+   * 按域名状态过滤
+   */
+  whereDomainEnabled(enabled: boolean): this {
+    this.wheres.push('d.enabled = ?');
+    this.params.push(enabled ? 1 : 0);
+    return this;
+  }
+
+  /**
+   * 按域名类型过滤（顶域/子域）
+   */
+  whereDomainType(type: 'apex' | 'subdomain'): this {
+    if (type === 'apex') {
+      // 顶域：name 中不包含 . （或者 name = root_domain）
+      // 简化判断：name 不包含额外的点
+      this.wheres.push("d.name NOT LIKE '%.%.%'");
+    } else if (type === 'subdomain') {
+      // 子域：name 中包含多个点
+      this.wheres.push("d.name LIKE '%.%.%'");
+    }
     return this;
   }
 
