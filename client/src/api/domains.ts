@@ -9,7 +9,8 @@ export const domainsApi = {
     account_id?: number; 
     keyword?: string; 
     domain_type?: 'all' | 'apex' | 'subdomain'; 
-    include_disabled?: string;
+    domain_status?: 'enabled' | 'disabled' | 'all';
+    include_disabled?: string; // legacy parameter
     page?: number; 
     pageSize?: number 
   }) =>

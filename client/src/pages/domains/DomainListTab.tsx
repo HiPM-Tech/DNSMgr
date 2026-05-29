@@ -253,7 +253,7 @@ export function DomainListTab() {
         account_id: accountFilter ? Number(accountFilter) : undefined,
         keyword: keyword || undefined,
         domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
-        include_disabled: statusFilter === 'disabled' || statusFilter === 'all' ? 'true' : 'false',
+        domain_status: statusFilter,  // 'enabled' | 'disabled' | 'all'
         page,
         pageSize,
       });
@@ -585,7 +585,15 @@ export function DomainListTab() {
               <ControlField label={t('domains.dnsAccount')}>
                 <Select
                   value={accountFilter}
-                  options={[{ label: t('domains.allAccounts'), value: '' }, ...accounts.map((account) => ({ label: account.name, value: String(account.id) }))]}
+                  options={[
+                    { label: t('domains.allAccounts'), value: '' }, 
+                    ...accounts
+                      .filter((account) => account.enabled !== false)  // ← 只显示启用的账号（true 或 undefined 都视为启用）
+                      .map((account) => ({ 
+                        label: `${account.name} (${account.type})`,  // ← 显示账号名称和类型
+                        value: String(account.id) 
+                      }))
+                  ]}
                   onChange={(value) => { setAccountFilter(selectValue(value)); setPage(1); }}
                   style={{ width: '100%' }}
                 />

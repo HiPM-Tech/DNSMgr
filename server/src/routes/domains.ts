@@ -152,14 +152,15 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword, domain_type, page, pageSize, format, include_disabled } = req.query as { 
+  const { account_id, keyword, domain_type, page, pageSize, format, include_disabled, domain_status } = req.query as { 
     account_id?: string; 
     keyword?: string; 
     domain_type?: string; 
     page?: string; 
     pageSize?: string;
     format?: string; // 'array' for direct array response (for external adapters)
-    include_disabled?: string; // 'true' to include disabled domains
+    include_disabled?: string; // 'true' to include disabled domains (legacy)
+    domain_status?: 'enabled' | 'disabled' | 'all'; // new parameter for status filtering
   };
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
@@ -171,6 +172,16 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   // Parse domain_type with type safety
   const parsedDomainType: 'apex' | 'subdomain' | undefined = 
     (domain_type === 'apex' || domain_type === 'subdomain') ? domain_type : undefined;
+  
+  // Parse domain_status with fallback to legacy include_disabled parameter
+  let parsedDomainStatus: 'enabled' | 'disabled' | 'all' = 'all';
+  if (domain_status === 'enabled' || domain_status === 'disabled' || domain_status === 'all') {
+    parsedDomainStatus = domain_status;
+  } else if (include_disabled === 'false') {
+    // Legacy behavior: include_disabled=false means only enabled
+    parsedDomainStatus = 'enabled';
+  }
+  // If include_disabled=true or not specified, default to 'all'
 
   // Check if using token auth and get allowed domains
   const tokenPayload = (req as any).tokenPayload;
@@ -195,7 +206,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
         const result = await DomainOperations.getAllForSuperAdminWithPagination({
           accountId: account_id ? parseInteger(account_id) : undefined,
           keyword,
-          includeDisabled: include_disabled === 'true',
+          domainStatus: parsedDomainStatus,
           domainType: parsedDomainType,
           page: currentPage,
           pageSize: size,
@@ -210,7 +221,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
           teamIds,
           accountId: account_id ? parseInteger(account_id) : undefined,
           keyword,
-          includeDisabled: include_disabled === 'true',
+          domainStatus: parsedDomainStatus,
           domainType: parsedDomainType,
           page: currentPage,
           pageSize: size,
@@ -231,7 +242,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       const result = await DomainOperations.getAllForSuperAdminWithPagination({
         accountId: account_id ? parseInteger(account_id) : undefined,
         keyword,
-        includeDisabled: include_disabled === 'true',
+        domainStatus: parsedDomainStatus,
         domainType: parsedDomainType,
         page: currentPage,
         pageSize: size,
@@ -246,7 +257,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
         teamIds,
         accountId: account_id ? parseInteger(account_id) : undefined,
         keyword,
-        includeDisabled: include_disabled === 'true',
+        domainStatus: parsedDomainStatus,
         domainType: parsedDomainType,
         page: currentPage,
         pageSize: size,

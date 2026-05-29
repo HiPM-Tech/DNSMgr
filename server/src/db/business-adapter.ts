@@ -688,7 +688,7 @@ export const DomainOperations = {
   async getAllForSuperAdminWithPagination(options: {
     accountId?: number;
     keyword?: string;
-    includeDisabled?: boolean;
+    domainStatus?: 'enabled' | 'disabled' | 'all';
     domainType?: 'apex' | 'subdomain';
     page: number;
     pageSize: number;
@@ -696,7 +696,7 @@ export const DomainOperations = {
     const {
       accountId,
       keyword,
-      includeDisabled = true,
+      domainStatus = 'all',
       domainType,
       page,
       pageSize,
@@ -706,9 +706,12 @@ export const DomainOperations = {
     let builder = DomainQueryBuilder.forSuperAdmin({ accountId, keyword });
     
     // 添加 enabled 过滤
-    if (!includeDisabled) {
+    if (domainStatus === 'enabled') {
       builder = builder.whereDomainEnabled(true);
+    } else if (domainStatus === 'disabled') {
+      builder = builder.whereDomainEnabled(false);
     }
+    // domainStatus === 'all' 时不过滤
     
     // 添加 domain_type 过滤
     if (domainType) {
@@ -838,7 +841,7 @@ export const DomainOperations = {
     teamIds: number[];
     accountId?: number;
     keyword?: string;
-    includeDisabled?: boolean;
+    domainStatus?: 'enabled' | 'disabled' | 'all';
     domainType?: 'apex' | 'subdomain';
     page: number;
     pageSize: number;
@@ -848,7 +851,7 @@ export const DomainOperations = {
       teamIds,
       accountId,
       keyword,
-      includeDisabled = true,
+      domainStatus = 'all',
       domainType,
       page,
       pageSize,
@@ -858,9 +861,12 @@ export const DomainOperations = {
     let builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
     
     // 添加 enabled 过滤
-    if (!includeDisabled) {
+    if (domainStatus === 'enabled') {
       builder = builder.whereDomainEnabled(true);
+    } else if (domainStatus === 'disabled') {
+      builder = builder.whereDomainEnabled(false);
     }
+    // domainStatus === 'all' 时不过滤
     
     // 添加 domain_type 过滤
     if (domainType) {
