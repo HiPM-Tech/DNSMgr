@@ -607,8 +607,8 @@ export function DomainListTab() {
             </Button>
           </div>
           
-          {/* ← 新增：批量操作按钮 */}
-          {selectedRowKeys.length > 0 && (
+          {/* ← 新增：批量操作按钮（仅管理员可见） */}
+          {canManage && selectedRowKeys.length > 0 && (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <span style={{ fontSize: '14px', color: 'var(--td-text-color-secondary)' }}>
                 {t('domains.selectedCount', { count: selectedRowKeys.length })}
@@ -678,13 +678,13 @@ export function DomainListTab() {
             </div>
           </div>
         )}
-                <Table 
+                <Table
                   columns={columns} 
                   data={sortedDomains} 
                   loading={isLoading} 
                   rowKey={(row) => row.id} 
                   emptyText={t('domains.noDomainsFound')}
-                  selectable={canManage}  // ← 只有管理员可以批量操作
+                  selectable={true}  // ← 所有用户都可以看到复选框
                   selectedRowKeys={selectedRowKeys}
                   onSelectChange={setSelectedRowKeys}
                 />
