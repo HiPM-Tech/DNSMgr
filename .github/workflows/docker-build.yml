@@ -13,6 +13,11 @@ on:
         required: false
         default: false
         type: boolean
+      ci:
+        description: 'CI build (auto add -ci suffix to tag)'
+        required: false
+        default: false
+        type: boolean
       push:
         description: 'Push to registry'
         required: false
@@ -29,6 +34,11 @@ on:
         type: string
       beta:
         description: 'Beta release (auto add -beta suffix if not present, skip latest tag)'
+        required: false
+        default: false
+        type: boolean
+      ci:
+        description: 'CI build (auto add -ci suffix to tag)'
         required: false
         default: false
         type: boolean
@@ -52,6 +62,7 @@ jobs:
     outputs:
       processed_tag: ${{ steps.version.outputs.processed_tag }}
       is_beta: ${{ steps.version.outputs.is_beta }}
+      is_ci: ${{ steps.version.outputs.is_ci }}
       push_enabled: ${{ steps.version.outputs.push_enabled }}
       image_name: ${{ env.IMAGE_NAME }}
     steps:
@@ -63,10 +74,16 @@ jobs:
         run: |
           INPUT_TAG="${{ github.event.inputs.tag || inputs.tag }}"
           IS_BETA="${{ github.event.inputs.beta || inputs.beta }}"
+          IS_CI="${{ github.event.inputs.ci || inputs.ci }}"
           PUSH_ENABLED="${{ github.event.inputs.push || inputs.push }}"
 
           # Remove 'v' prefix if present
           TAG="${INPUT_TAG#v}"
+
+          # If CI build, add '-ci' suffix
+          if [ "$IS_CI" = "true" ] && [[ ! "$TAG" =~ -ci$ ]]; then
+            TAG="${TAG}-ci"
+          fi
 
           # If beta is checked and tag doesn't contain 'beta', add '-beta' suffix
           if [ "$IS_BETA" = "true" ] && [[ ! "$TAG" =~ beta ]]; then
@@ -75,10 +92,12 @@ jobs:
 
           echo "processed_tag=$TAG" >> $GITHUB_OUTPUT
           echo "is_beta=$IS_BETA" >> $GITHUB_OUTPUT
+          echo "is_ci=$IS_CI" >> $GITHUB_OUTPUT
           echo "push_enabled=$PUSH_ENABLED" >> $GITHUB_OUTPUT
           echo "Original tag: $INPUT_TAG"
           echo "Processed tag: $TAG"
           echo "Is beta: $IS_BETA"
+          echo "Is CI: $IS_CI"
           echo "Push enabled: $PUSH_ENABLED"
 
   # ============================================================================
@@ -128,6 +147,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
+          build-args: |
+            CI_BUILD=${{ needs.prepare.outputs.is_ci }}
 
       - name: Output image info
         run: |
@@ -179,6 +200,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
+          build-args: |
+            CI_BUILD=${{ needs.prepare.outputs.is_ci }}
 
       - name: Output image info
         run: |
@@ -215,6 +238,7 @@ jobs:
           IMAGE_BASE="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}"
           TAG="${{ needs.prepare.outputs.processed_tag }}"
           IS_BETA="${{ needs.prepare.outputs.is_beta }}"
+          IS_CI="${{ needs.prepare.outputs.is_ci }}"
 
           # 创建版本 tag 的 manifest
           docker buildx imagetools create \
@@ -222,8 +246,11 @@ jobs:
             "${IMAGE_BASE}:${TAG}-amd64" \
             "${IMAGE_BASE}:${TAG}-arm64"
 
-          # 如果不是 beta，创建 latest tag
-          if [ "$IS_BETA" != "true" ]; then
+          # CI 构建：不创建 latest/beta tag
+          if [ "$IS_CI" = "true" ]; then
+            echo "CI build detected, skipping latest/beta tag creation"
+          elif [ "$IS_BETA" != "true" ]; then
+            # 如果不是 beta，创建 latest tag
             docker buildx imagetools create \
               --tag "${IMAGE_BASE}:latest" \
               "${IMAGE_BASE}:${TAG}-amd64" \
@@ -243,6 +270,7 @@ jobs:
           echo "Image: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}"
           echo "Version Tag: ${{ needs.prepare.outputs.processed_tag }}"
           echo "Is Beta: ${{ needs.prepare.outputs.is_beta }}"
+          echo "Is CI: ${{ needs.prepare.outputs.is_ci }}"
           echo "Platforms: linux/amd64, linux/arm64"
 
   # ============================================================================

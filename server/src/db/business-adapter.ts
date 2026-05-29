@@ -727,10 +727,12 @@ export const DomainOperations = {
     
     // 查询分页数据
     const offset = (page - 1) * pageSize;
-    const paginatedSql = `${baseSql} LIMIT ? OFFSET ?`;
-    const paginatedParams = [...baseParams, pageSize, offset];
     
-    const list = await queryInternal(paginatedSql, paginatedParams, { 
+    // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
+    // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
+    const paginatedSql = `${baseSql} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    
+    const list = await queryInternal(paginatedSql, baseParams, { 
       operation: 'Domain.getAllForSuperAdminWithPagination.list', 
       table: 'domains' 
     });
@@ -877,10 +879,12 @@ export const DomainOperations = {
     
     // 查询分页数据
     const offset = (page - 1) * pageSize;
-    const paginatedSql = `${baseSql} LIMIT ? OFFSET ?`;
-    const paginatedParams = [...baseParams, pageSize, offset];
     
-    const list = await queryInternal(paginatedSql, paginatedParams, { 
+    // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
+    // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
+    const paginatedSql = `${baseSql} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    
+    const list = await queryInternal(paginatedSql, baseParams, { 
       operation: 'Domain.getAccessibleDomainsWithPagination.list', 
       table: 'domains' 
     });
