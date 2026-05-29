@@ -684,7 +684,7 @@ export function DomainListTab() {
                   loading={isLoading} 
                   rowKey={(row) => row.id} 
                   emptyText={t('domains.noDomainsFound')}
-                  selectable={canManage}  // ← 只有管理员可以看到复选框（普通用户只能管理解析）
+                  selectable={true}  // ← 临时测试：所有用户都显示复选框
                   selectedRowKeys={selectedRowKeys}
                   onSelectChange={setSelectedRowKeys}
                 />
