@@ -231,6 +231,10 @@ export function DomainListTab() {
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
+  
+  // ← 新增：批量操作相关状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<(string | number)[]>([]);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
   useRealtimeData({
     queryKey: ['domains'],
@@ -350,6 +354,38 @@ export function DomainListTab() {
     onError: (error) => {
       console.error('[DomainList] Toggle failed:', error);
       toast.error(t('domains.toggleStatusFailed'));
+    },
+  });
+
+  // ← 新增：批量删除 mutation
+  const batchDeleteMutation = useMutation({
+    mutationFn: (domainIds: number[]) => domainsApi.batchDelete(domainIds),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) {
+        toast.error(res.data.msg || t('domains.batchDeleteFailed'));
+        return;
+      }
+      const { deleted, failed, inaccessibleCount } = res.data.data;
+      
+      if (deleted > 0) {
+        qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
+        setSelectedRowKeys([]);  // 清空选择
+        
+        if (failed === 0 && !inaccessibleCount) {
+          toast.success(t('domains.batchDeleteSuccess', { count: deleted }));
+        } else {
+          let message = t('domains.batchDeletePartialSuccess', { deleted, failed });
+          if (inaccessibleCount) {
+            message += ` ${t('domains.batchDeleteSkipped', { count: inaccessibleCount })}`;
+          }
+          toast.info(message);
+        }
+      } else {
+        toast.error(t('domains.batchDeleteFailed'));
+      }
+    },
+    onError: () => {
+      toast.error(t('domains.batchDeleteFailed'));
     },
   });
 
@@ -570,6 +606,23 @@ export function DomainListTab() {
               {showAdvancedFilter ? t('common.collapse') : t('common.expand')} {t('domains.advancedFilter')}
             </Button>
           </div>
+          
+          {/* ← 新增：批量操作按钮 */}
+          {selectedRowKeys.length > 0 && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', color: 'var(--td-text-color-secondary)' }}>
+                {t('domains.selectedCount', { count: selectedRowKeys.length })}
+              </span>
+              <Button 
+                variant="outline" 
+                theme="danger"
+                icon={<DeleteIcon />}
+                onClick={() => setShowBatchDeleteConfirm(true)}
+              >
+                {t('domains.batchDelete')}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* 高级筛选面板 */}
@@ -625,7 +678,16 @@ export function DomainListTab() {
             </div>
           </div>
         )}
-        <Table columns={columns} data={sortedDomains} loading={isLoading} rowKey={(row) => row.id} emptyText={t('domains.noDomainsFound')} />
+                <Table 
+                  columns={columns} 
+                  data={sortedDomains} 
+                  loading={isLoading} 
+                  rowKey={(row) => row.id} 
+                  emptyText={t('domains.noDomainsFound')}
+                  selectable={canManage}  // ← 只有管理员可以批量操作
+                  selectedRowKeys={selectedRowKeys}
+                  onSelectChange={setSelectedRowKeys}
+                />
         <div className="records-pagination">
           <Pagination
             current={page}
@@ -706,6 +768,20 @@ export function DomainListTab() {
           onConfirm={() => deleteMutation.mutate(deleting.id)}
           onCancel={() => setDeleting(null)}
           isLoading={deleteMutation.isPending}
+        />
+      )}
+      
+      {/* ← 新增：批量删除确认对话框 */}
+      {showBatchDeleteConfirm && (
+        <ConfirmDialog
+          message={t('domains.batchDeleteConfirm', { count: selectedRowKeys.length })}
+          onConfirm={() => {
+            const ids = selectedRowKeys.map((key) => Number(key));
+            batchDeleteMutation.mutate(ids);
+            setShowBatchDeleteConfirm(false);
+          }}
+          onCancel={() => setShowBatchDeleteConfirm(false)}
+          isLoading={batchDeleteMutation.isPending}
         />
       )}
     </div>

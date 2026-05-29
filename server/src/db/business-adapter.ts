@@ -772,6 +772,30 @@ export const DomainOperations = {
     return executeInternal('DELETE FROM domains WHERE id = ?', [id], { operation: 'Domain.delete', table: 'domains' });
   },
 
+  /** 批量删除域名 */
+  async batchDelete(ids: number[]): Promise<{ deleted: number; failed: number; errors: Array<{ id: number; error: string }> }> {
+    const result = {
+      deleted: 0,
+      failed: 0,
+      errors: [] as Array<{ id: number; error: string }>,
+    };
+
+    for (const id of ids) {
+      try {
+        await executeInternal('DELETE FROM domains WHERE id = ?', [id], { operation: 'Domain.batchDelete', table: 'domains' });
+        result.deleted++;
+      } catch (error) {
+        result.failed++;
+        result.errors.push({
+          id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return result;
+  },
+
   /** 更新记录数量 */
   async updateRecordCount(id: number, count: number): Promise<void> {
     return executeInternal(

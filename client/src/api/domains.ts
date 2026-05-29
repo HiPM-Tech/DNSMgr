@@ -27,6 +27,8 @@ export const domainsApi = {
   update: (id: number, data: { remark?: string; enabled?: number }) =>
     api.put<ApiResponse<null>>(`/domains/${id}`, data),
   delete: (id: number) => api.delete<ApiResponse<null>>(`/domains/${id}`),
+  batchDelete: (domainIds: number[]) => 
+    api.post<ApiResponse<{ deleted: number; failed: number; errors: Array<{ id: number; error: string }>; inaccessibleCount?: number; inaccessibleIds?: number[] }>>('/domains/batch-delete', { domainIds }),
   lines: (id: number) => api.get<ApiResponse<DnsLine[]>>(`/domains/${id}/lines`),
   getFailover: (id: number) => api.get<ApiResponse<{ config: any, status: any } | null>>(`/domains/${id}/failover`),
   saveFailover: (id: number, data: any) => api.post<ApiResponse<any>>(`/domains/${id}/failover`, data),

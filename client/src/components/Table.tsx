@@ -18,9 +18,12 @@ interface TableProps<T> {
   loading?: boolean;
   emptyText?: string;
   rowKey: (row: T) => string | number;
+  selectable?: boolean;  // ← 新增：是否显示复选框
+  selectedRowKeys?: (string | number)[];  // ← 新增：已选中的行 key
+  onSelectChange?: (selectedRowKeys: (string | number)[]) => void;  // ← 新增：选择变化回调
 }
 
-export function Table<T extends object>({ columns, data, loading, emptyText, rowKey }: TableProps<T>) {
+export function Table<T extends object>({ columns, data, loading, emptyText, rowKey, selectable, selectedRowKeys = [], onSelectChange }: TableProps<T>) {
   const { t } = useI18n();
   const resolvedEmptyText = emptyText ?? t('common.noData');
   const tableData = data.map((row) => ({
@@ -53,6 +56,14 @@ export function Table<T extends object>({ columns, data, loading, emptyText, row
       size="medium"
       tableLayout="fixed"
       empty={<Empty description={resolvedEmptyText} />}
+      // ← 新增：复选框配置
+      {...(selectable && {
+        rowSelection: {
+          type: 'multiple',
+          selectedRowKeys,
+          onChange: (keys: any) => onSelectChange?.(keys),
+        },
+      })}
     />
   );
 }
