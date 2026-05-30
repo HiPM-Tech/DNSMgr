@@ -12,7 +12,7 @@ import { normalizeRole, isSuper, isAdmin } from '../utils/roles';
 import { resolveNsRecords, NSLookupResult, validateNsRecords } from '../lib/dns/ns-lookup';
 import { getDomainAccess } from './domains';
 import { wsService } from '../service/websocket';
-import { normalizeDomain, isValidDomain, toUnicode } from '../utils/domain';
+import { normalizeDomain, isValidDomain, toUnicode, getDisplayDomain } from '../utils/dns';
 
 const router = Router();
 
@@ -227,6 +227,58 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 
 /**
  * @swagger
+ * /api/ns-monitor/available-domains:
+ *   get:
+ *     summary: Get available domains for NS monitor (Level 1 - ALL, no enabled filters)
+ *     description: Returns all domains accessible to the user, regardless of account/domain enabled status. Used for NS monitor domain selection.
+ *     tags: [NS Monitor]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of available domains
+ */
+router.get('/available-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const role = normalizeRole(req.user!.role);
+  const tokenPayload = (req as any).tokenPayload;
+
+  // Level 1: Reuse DomainOperations.getAll() for super admin
+  // For regular users, use dedicated function that filters by user's accounts
+  let allDomains: any[];
+  
+  if (isSuper(role)) {
+    // Super admin: reuse existing getAll() function
+    allDomains = await DomainOperations.getAll() as any[];
+  } else {
+    // Regular user: use dedicated function (no enabled filter)
+    allDomains = await DomainOperations.getAvailableDomainsForNSMonitor(userId, false) as any[];
+  }
+
+  // Filter out domains that already have NS monitor configured
+  const monitoredDomainNames = new Set(
+    (await NSMonitorOperations.getUserMonitors(userId)).map((m: any) => m.domain_name)
+  );
+  
+  const availableDomains = allDomains.filter((domain: any) => 
+    !monitoredDomainNames.has(domain.name)
+  );
+
+  // For Session auth, convert Punycode to Unicode; for Token auth, keep raw
+  const displayDomains = availableDomains.map((d: any) => ({
+    id: d.id,
+    name: tokenPayload ? d.name : getDisplayDomain(d.name, true),
+    account_id: d.account_id,
+  }));
+
+  res.json({
+    success: true,
+    data: displayDomains,
+  });
+}));
+
+/**
+ * @swagger
  * /api/ns-monitor/{id}:
  *   get:
  *     summary: Get NS monitor configuration by ID
@@ -260,59 +312,71 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
  *       - bearerAuth: []
  */
 router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { domain_id, expected_ns, enabled } = req.body;
+  const { domain_name, expected_ns, enabled } = req.body;
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
 
-  if (!domain_id) {
-    res.status(400).json({ success: false, error: 'domain_id is required' });
+  if (!domain_name) {
+    res.status(400).json({ success: false, error: 'domain_name is required' });
     return;
   }
 
-  // Check permission
+  // Normalize domain name to Punycode for database storage/query
+  const normalizedDomainName = normalizeDomain(domain_name);
+
+  // Verify domain exists in domains table
+  const domain = await DomainOperations.getByName(normalizedDomainName);
+  if (!domain || !domain.name) {
+    res.status(404).json({ success: false, error: 'Domain not found in domains table' });
+    return;
+  }
+  const domainId = domain.id as number;
+  const domainName = domain.name as string;
+
+  // Check permission (optional, based on domain access)
   if (!isSuper(role)) {
-    const access = await getDomainAccess(domain_id, userId, role);
+    const access = await getDomainAccess(domainId, userId, role);
     if (!access.canWrite) {
       res.status(403).json({ success: false, error: 'Access denied' });
       return;
     }
   }
 
-  // Check if already exists
-  const existing = await NSMonitorOperations.getByDomain(userId, domain_id);
+  // Check if already exists for this domain name
+  const existing = await NSMonitorOperations.getByDomainName(userId, domainName);
   if (existing) {
-    res.status(409).json({ success: false, error: 'Monitor already exists for this domain' });
-    return;
+    // Delete old monitor config first
+    log.info('NSMonitor', 'Deleting old monitor config for same domain name', {
+      oldMonitorId: existing.id,
+      domainName,
+    });
+    await NSMonitorOperations.delete(existing.id as number, userId);
   }
 
   // Auto-fetch expected NS if not provided
   let finalExpectedNs = expected_ns || '';
   if (!finalExpectedNs) {
     try {
-      const domain = await DomainOperations.getById(domain_id);
-      if (domain && domain.name) {
-        const nsResult = await resolveNsRecords(domain.name as string);
-        if (nsResult.nsRecords.length > 0) {
-          finalExpectedNs = nsResult.nsRecords.join(', ');
-          log.info('NSMonitor', 'Auto-filled expected NS', {
-            domainId: domain_id,
-            domainName: domain.name,
-            nsRecords: nsResult.nsRecords,
-          });
-        }
+      const nsResult = await resolveNsRecords(domainName);
+      if (nsResult.nsRecords.length > 0) {
+        finalExpectedNs = nsResult.nsRecords.join(', ');
+        log.info('NSMonitor', 'Auto-filled expected NS', {
+          domainName,
+          nsRecords: nsResult.nsRecords,
+        });
       }
     } catch (error) {
-      log.warn('NSMonitor', 'Failed to auto-fetch NS records', { domainId: domain_id, error });
+      log.warn('NSMonitor', 'Failed to auto-fetch NS records', { domainName, error });
     }
   }
 
   const id = await NSMonitorOperations.create({
     user_id: userId,
-    domain_id,
+    domain_name: domainName,
     expected_ns: finalExpectedNs,
   });
 
-  log.info('NSMonitor', 'Monitor created', { domainId: domain_id, userId, monitorId: id });
+  log.info('NSMonitor', 'Monitor created', { domainName, userId, monitorId: id });
 
   // 获取完整的监测配置数据用于 WebSocket 推送
   const newMonitor = await NSMonitorOperations.getById(id, userId);
@@ -323,7 +387,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       type: 'ns_monitor_created',
       data: {
         monitorId: id,
-        domainId: domain_id,
+        domainName,
         userId,
         monitor: newMonitor,
       },
@@ -431,29 +495,15 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
   res.json({ success: true });
 }));
 
-/**
- * @swagger
- * /api/ns-monitor/{id}/check:
- *   post:
- *     summary: Manually trigger NS check
- *     tags: [NS Monitor]
- *     security:
- *       - bearerAuth: []
- */
-router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const userId = req.user!.userId;
-
-  const monitor = await NSMonitorOperations.getById(parseInt(id), userId);
-  if (!monitor) {
-    res.status(404).json({ success: false, error: 'Configuration not found' });
-    return;
-  }
-
-  const domain = await DomainOperations.getById(monitor.domain_id as number);
+/** 执行 NS 检查并返回结果 */
+async function performNsCheck(monitorId: number, monitor: any, userId: number): Promise<{
+  success: boolean;
+  statusCode?: number;
+  result?: any;
+}> {
+  const domain = await DomainOperations.getByName(monitor.domain_name as string);
   if (!domain) {
-    res.status(404).json({ success: false, error: 'Domain not found' });
-    return;
+    return { success: false, statusCode: 404, result: { success: false, error: 'Domain not found' } };
   }
 
   // Query current NS records with dual query (encrypted + plain)
@@ -475,14 +525,13 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
     status = 'poisoned';
   } else if (expectedNs) {
     const expectedList = expectedNs.split(',').map(s => s.trim()).filter(Boolean);
-    // 使用 validateNsRecords 进行标准化比较（忽略顺序和尾随点号）
     if (!validateNsRecords(currentNs, expectedList)) {
       status = 'mismatch';
     }
   }
 
   // Update status with encrypted and plain NS records
-  await NSMonitorOperations.updateStatus(parseInt(id), {
+  await NSMonitorOperations.updateStatus(monitorId, {
     current_ns: currentNsStr,
     encrypted_ns: encryptedNs.join(', '),
     plain_ns: plainNs.join(', '),
@@ -492,17 +541,17 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
   });
 
   log.info('NSMonitor', 'Manual check completed', {
-    monitorId: id,
-    domainId: monitor.domain_id,
+    monitorId,
+    domainName: monitor.domain_name,
     status,
     isPoisoned: nsResult.isPoisoned,
     encryptedCount: encryptedNs.length,
     plainCount: plainNs.length,
   });
 
-  res.json({
+  return {
     success: true,
-    data: {
+    result: {
       current_ns: currentNs,
       encrypted_ns: encryptedNs,
       plain_ns: plainNs,
@@ -510,7 +559,44 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
       expected_ns: expectedNs.split(',').map(s => s.trim()).filter(Boolean),
       status,
     },
-  });
+  };
+}
+
+/**
+ * @swagger
+ * /api/ns-monitor/check:
+ *   post:
+ *     summary: Manually trigger NS check by domain name
+ *     tags: [NS Monitor]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/check', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const { domain_name } = req.body;
+  const userId = req.user!.userId;
+
+  if (!domain_name) {
+    res.status(400).json({ success: false, error: 'domain_name is required' });
+    return;
+  }
+
+  // Normalize domain name to Punycode for database query
+  const normalizedDomainName = normalizeDomain(domain_name);
+
+  const monitor = await NSMonitorOperations.getByDomainName(userId, normalizedDomainName);
+  if (!monitor) {
+    res.status(404).json({ success: false, error: 'Configuration not found for this domain' });
+    return;
+  }
+
+  const monitorId = monitor.id as number;
+  const result = await performNsCheck(monitorId, monitor, userId);
+  if (!result.success) {
+    res.status(result.statusCode!).json(result.result);
+    return;
+  }
+
+  res.json({ success: true, data: result.result });
 }));
 
 export default router;

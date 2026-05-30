@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Empty, Form, Input, Pagination, Radio, Space, Switch, Tag, Textarea } from 'tdesign-react';
+import { Button, Card, Empty, Form, Input, Loading, Pagination, Radio, Space, Switch, Tag, Textarea } from 'tdesign-react';
 import {
   AddIcon,
   BrushIcon,
@@ -14,8 +14,7 @@ import {
   SearchIcon,
   ShieldErrorIcon,
 } from 'tdesign-icons-react';
-import { nsMonitorApi, domainsApi } from '../../api';
-import type { Domain } from '../../api';
+import { nsMonitorApi } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -25,6 +24,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { useFormSync } from '../../hooks/useFormSync';
 import { toBoolean } from '../../utils/typeConverters';
+import { formatDomainName } from '../../utils/domain';
 
 interface NSMonitorConfig {
   id: number;
@@ -97,21 +97,24 @@ export function NSMonitorTab() {
     queryFn: () => nsMonitorApi.getUserPrefs().then((r) => r.data.data),
   });
 
-  const { data: domainsData } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
-    queryKey: ['domains-for-ns-monitor'],
-    queryFn: () => domainsApi.list({ pageSize: 1000 }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }),
+  const { data: domainsData, isFetching: isDomainsFetching } = useQuery<{ list: Array<{ id: number; name: string; account_id: number }> }>({
+    queryKey: ['ns-monitor-available-domains'],
+    queryFn: () => nsMonitorApi.getAvailableDomains().then((r) => ({ list: r.data.data ?? [] })),
     enabled: isAddModalOpen,
+    placeholderData: { list: [] },
   });
 
-  const monitoredDomainIds = new Set((configs || []).map((config: NSMonitorConfig) => config.domain_id));
+  // Filter domains: exclude domains that already have NS monitor (based on domain_name, not domain_id)
+  const monitoredDomainNames = new Set((configs || []).map((config: NSMonitorConfig) => config.domain_name));
   const filteredDomains = (domainsData?.list ?? []).filter((domain) => (
     domain.name.toLowerCase().includes(domainSearchKeyword.toLowerCase()) &&
-    !monitoredDomainIds.has(domain.id)
+    !monitoredDomainNames.has(domain.name)
   ));
   const domainStartIndex = (domainPage - 1) * domainPageSize;
   const domainEndIndex = Math.min(domainStartIndex + domainPageSize, filteredDomains.length);
   const paginatedDomains = filteredDomains.slice(domainStartIndex, domainEndIndex);
   const domains = domainsData?.list ?? [];
+  const allDomains = domainsData?.list ?? [];
 
   const updateMutation = useMutation({
     mutationFn: (data: { id: number; expected_ns: string; enabled: boolean }) => nsMonitorApi.update(data.id, data),
@@ -137,7 +140,7 @@ export function NSMonitorTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { domain_id: number; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) => nsMonitorApi.create(data),
+    mutationFn: (data: { domain_name: string; expected_ns: string; enabled: boolean; notify_email: boolean; notify_channels: boolean }) => nsMonitorApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
       closeAddModal();
@@ -149,7 +152,7 @@ export function NSMonitorTab() {
   });
 
   const checkMutation = useMutation({
-    mutationFn: (id: number) => nsMonitorApi.check(id),
+    mutationFn: (domainName: string) => nsMonitorApi.check(domainName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ns-monitor'] });
       toast.success(t('nsMonitor.checkSuccess'));
@@ -289,13 +292,13 @@ export function NSMonitorTab() {
   };
 
   const handleAdd = () => {
-    if (!selectedDomainId) {
+    if (!selectedDomainId || !selectedDomain) {
       toast.error(t('nsMonitor.selectDomain'));
       return;
     }
 
     createMutation.mutate({
-      domain_id: selectedDomainId,
+      domain_name: selectedDomain.name,
       expected_ns: addExpectedNs,
       enabled: addEnabled,
       notify_email: addNotifyEmail,
@@ -309,7 +312,7 @@ export function NSMonitorTab() {
       label: t('nsMonitor.domainName'),
       render: (row: NSMonitorConfig) => (
         <Space size="small" breakLine>
-          <span className="page-strong">{row.domain_name}</span>
+          <span className="page-strong">{formatDomainName(row.domain_name)}</span>
           {row.status === 'poisoned' && <Tag theme="danger" variant="light" icon={<ShieldErrorIcon />}>{t('nsMonitor.poisoned')}</Tag>}
           {row.status === 'mismatch' && <Tag theme="warning" variant="light" icon={<ErrorTriangleIcon />}>{t('nsMonitor.mismatch')}</Tag>}
           {row.status === 'missing' && <Tag theme="danger" variant="light" icon={<ErrorTriangleIcon />}>{t('nsMonitor.missing')}</Tag>}
@@ -324,8 +327,15 @@ export function NSMonitorTab() {
         const encryptedNS = parseNSField(row.encrypted_ns);
         const plainNS = parseNSField(row.plain_ns);
 
+        // Build full text for tooltip
+        const fullText = [
+          encryptedNS.length > 0 ? `${t('nsMonitor.encrypted')}: ${encryptedNS.join(', ')}` : '',
+          plainNS.length > 0 ? `${t('nsMonitor.plain')}: ${plainNS.join(', ')}` : '',
+          encryptedNS.length === 0 && plainNS.length === 0 && row.current_ns && String(row.current_ns) !== '0' ? String(row.current_ns) : '',
+        ].filter(Boolean).join('\n');
+
         return (
-          <div className="page-list">
+          <div className="page-list" title={fullText || undefined}>
             {encryptedNS.length > 0 && (
               <span className="record-mono record-mono--value">
                 {t('nsMonitor.encrypted')}: {encryptedNS.join(', ')}
@@ -353,7 +363,14 @@ export function NSMonitorTab() {
     {
       key: 'expected_ns',
       label: t('nsMonitor.expectedNS'),
-      render: (row: NSMonitorConfig) => <span className="record-mono record-mono--value">{row.expected_ns || t('nsMonitor.notSet')}</span>,
+      render: (row: NSMonitorConfig) => (
+        <span 
+          className="record-mono record-mono--value" 
+          title={row.expected_ns || undefined}
+        >
+          {row.expected_ns || t('nsMonitor.notSet')}
+        </span>
+      ),
     },
     {
       key: 'enabled',
@@ -405,7 +422,7 @@ export function NSMonitorTab() {
             theme="primary"
             icon={<RefreshIcon />}
             loading={checkMutation.isPending}
-            onClick={() => checkMutation.mutate(row.id)}
+            onClick={() => checkMutation.mutate(row.domain_name)}
           />
           <Button
             shape="square"
@@ -427,7 +444,8 @@ export function NSMonitorTab() {
   ];
 
   const selectedDomain = paginatedDomains.find((domain) => domain.id === selectedDomainId)
-    ?? filteredDomains.find((domain) => domain.id === selectedDomainId);
+    ?? filteredDomains.find((domain) => domain.id === selectedDomainId)
+    ?? allDomains.find((domain) => domain.id === selectedDomainId);
 
   return (
     <div className="page-shell">
@@ -550,7 +568,9 @@ export function NSMonitorTab() {
               />
 
               <div className="ns-monitor-domain-picker">
-                {domains.length === 0 ? (
+                {isDomainsFetching ? (
+                  <div className="page-state"><Loading loading size="small" text={t('common.loading')} /></div>
+                ) : domains.length === 0 ? (
                   <Empty description={t('nsMonitor.noAvailableDomains')} />
                 ) : filteredDomains.length === 0 ? (
                   <Empty description={t('tokens.noMatchingDomains')} />
@@ -562,7 +582,7 @@ export function NSMonitorTab() {
                           <label key={domain.id} className="token-domain-option">
                             <Radio value={domain.id} />
                             <span className="page-list-item__main">
-                              <strong>{domain.name}</strong>
+                              <strong>{formatDomainName(domain.name)}</strong>
                               <span>#{domain.id}</span>
                             </span>
                           </label>

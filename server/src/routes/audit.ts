@@ -12,6 +12,7 @@ import {
   getActionTimeDistribution,
 } from '../service/auditExport';
 import { getString, parseInteger, parsePagination, sendSuccess } from '../utils/http';
+import { getDisplayDomain } from '../utils/dns';
 
 const router = Router();
 
@@ -32,7 +33,7 @@ function toLegacyAuditLog(log: AuditLogEntry) {
     username: log.username,
     nickname: log.nickname,
     action: log.action,
-    domain: log.domain,
+    domain: log.domain ? getDisplayDomain(log.domain, true) : log.domain,
     data: JSON.stringify(log.data),
     created_at: log.createdAt,
   };

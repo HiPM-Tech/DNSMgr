@@ -22,6 +22,7 @@ client/dist/
 *.db-wal
 *.sqlite
 *.sqlite3
+*.sql
 
 # AI-Censorship
 AI-Censorship-Reports/
@@ -37,3 +38,6 @@ Thumbs.db
 
 # PHP version (not part of this project)
 /dnsmgr/
+
+# Temp files
+tmp_*/

@@ -59,29 +59,30 @@ export function Header({ collapsed, avatarImage, onMenuClick, onToggleCollapse }
   const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
   const pageTitleMap: Record<string, string> = {
     '/': t('common.dashboard'),
-    '/accounts': t('common.dnsAccounts'),
-    '/domains': t('domains.tabs.list'),
-    '/domains/failover': t('domains.tabs.failover'),
-    '/domains/ns-monitor': t('domains.tabs.nsMonitor'),
-    '/domains/renewal': t('domains.tabs.renewal'),
-    '/tunnels': t('tunnels.title'),
-    '/tokens': t('common.tokens'),
-    '/teams': t('common.teams'),
-    '/settings': t('common.settings'),
-    '/security': t('common.security'),
-    '/about': t('common.about'),
-    '/users': t('common.users'),
-    '/audit': t('common.audit'),
-    '/system': t('system.tabs.overview'),
-    '/system/database': t('system.tabs.database'),
-    '/system/security': t('system.tabs.security'),
-    '/system/access': t('system.tabs.access'),
-    '/system/network': t('system.tabs.network'),
-    '/system/notifications': t('system.tabs.notifications'),
+    '/dash': t('common.dashboard'),
+    '/dash/accounts': t('common.dnsAccounts'),
+    '/dash/domains': t('domains.tabs.list'),
+    '/dash/domains/failover': t('domains.tabs.failover'),
+    '/dash/domains/ns-monitor': t('domains.tabs.nsMonitor'),
+    '/dash/domains/renewal': t('domains.tabs.renewal'),
+    '/dash/tunnels': t('tunnels.title'),
+    '/dash/tokens': t('common.tokens'),
+    '/dash/teams': t('common.teams'),
+    '/dash/settings': t('common.settings'),
+    '/dash/security': t('common.security'),
+    '/dash/about': t('common.about'),
+    '/dash/users': t('common.users'),
+    '/dash/audit': t('common.audit'),
+    '/dash/system': t('system.tabs.overview'),
+    '/dash/system/database': t('system.tabs.database'),
+    '/dash/system/security': t('system.tabs.security'),
+    '/dash/system/access': t('system.tabs.access'),
+    '/dash/system/network': t('system.tabs.network'),
+    '/dash/system/notifications': t('system.tabs.notifications'),
   };
   const pageKey = segments.length ? segments[segments.length - 1] : '';
   const pageTitle = pageTitleMap[normalizedPath]
-    ?? (/^\/domains\/[^/]+\/records$/.test(normalizedPath) ? t('common.records') : undefined)
+    ?? (/^\/dash\/domains\/[^/]+\/records$/.test(normalizedPath) ? t('common.records') : undefined)
     ?? pageKey
     ?? t('common.dashboard');
   const ThemeIcon = theme === 'light' ? ModeLightIcon : theme === 'dark' ? ModeDarkIcon : DesktopIcon;
@@ -90,37 +91,37 @@ export function Header({ collapsed, avatarImage, onMenuClick, onToggleCollapse }
 
   const searchItems = useMemo<HeaderSearchItem[]>(() => {
     const items: HeaderSearchItem[] = [
-      { title: t('common.dashboard'), group: t('common.dashboard'), path: '/', keywords: ['dashboard', 'home', '首页', '仪表盘', '看板', '总览'] },
-      { title: t('common.dnsAccounts'), group: t('common.dashboard'), path: '/accounts', keywords: ['dns', 'account', 'provider', '账号', '服务商', '凭据'] },
-      { title: t('domains.tabs.list'), group: t('common.domains'), path: '/domains', keywords: ['domain', 'list', '域名', '列表', '解析记录'] },
-      { title: t('domains.tabs.failover'), group: t('common.domains'), path: '/domains/failover', keywords: ['failover', 'fallback', '故障', '故障转移', '主备', '健康检查'] },
-      { title: t('domains.tabs.nsMonitor'), group: t('common.domains'), path: '/domains/ns-monitor', keywords: ['ns', 'monitor', 'nameserver', '监测', '污染', '劫持'] },
-      { title: t('domains.tabs.renewal'), group: t('common.domains'), path: '/domains/renewal', keywords: ['renewal', 'whois', '续期', '过期', '到期'] },
-      { title: t('common.teams'), group: t('common.dashboard'), path: '/teams', keywords: ['team', 'member', 'permission', '团队', '成员', '权限'] },
-      { title: t('common.tokens'), group: t('common.dashboard'), path: '/tokens', keywords: ['api', 'token', 'key', '令牌', '密钥'] },
-      { title: t('settings.profileTitle'), group: t('common.settings'), path: '/settings', keywords: ['profile', 'user', '个人资料', '昵称', '邮箱'] },
-      { title: t('settings.avatarImageUrl'), group: t('common.settings'), path: '/settings', keywords: ['avatar', '头像', '图片'] },
-      { title: t('settings.changePassword'), group: t('common.settings'), path: '/settings', keywords: ['password', '密码', '修改密码'] },
-      { title: t('settings.backgroundImage'), group: t('common.settings'), path: '/settings', keywords: ['background', 'wallpaper', '背景', '背景图'] },
-      { title: t('settings.oauthBindingTitle'), group: t('common.settings'), path: '/settings', keywords: ['oauth', 'logto', 'oidc', '绑定', '第三方登录'] },
-      { title: t('common.security'), group: t('common.account'), path: '/security', keywords: ['2fa', 'totp', 'webauthn', '安全', '双因素', '会话'] },
-      { title: t('common.about'), group: t('common.account'), path: '/about', keywords: ['about', 'version', 'license', '关于', '版本', '开源'] },
+      { title: t('common.dashboard'), group: t('common.dashboard'), path: '/dash', keywords: ['dashboard', 'home', '首页', '仪表盘', '看板', '总览'] },
+      { title: t('common.dnsAccounts'), group: t('common.dashboard'), path: '/dash/accounts', keywords: ['dns', 'account', 'provider', '账号', '服务商', '凭据'] },
+      { title: t('domains.tabs.list'), group: t('common.domains'), path: '/dash/domains', keywords: ['domain', 'list', '域名', '列表', '解析记录'] },
+      { title: t('domains.tabs.failover'), group: t('common.domains'), path: '/dash/domains/failover', keywords: ['failover', 'fallback', '故障', '故障转移', '主备', '健康检查'] },
+      { title: t('domains.tabs.nsMonitor'), group: t('common.domains'), path: '/dash/domains/ns-monitor', keywords: ['ns', 'monitor', 'nameserver', '监测', '污染', '劫持'] },
+      { title: t('domains.tabs.renewal'), group: t('common.domains'), path: '/dash/domains/renewal', keywords: ['renewal', 'whois', '续期', '过期', '到期'] },
+      { title: t('common.teams'), group: t('common.dashboard'), path: '/dash/teams', keywords: ['team', 'member', 'permission', '团队', '成员', '权限'] },
+      { title: t('common.tokens'), group: t('common.dashboard'), path: '/dash/tokens', keywords: ['api', 'token', 'key', '令牌', '密钥'] },
+      { title: t('settings.profileTitle'), group: t('common.settings'), path: '/dash/settings', keywords: ['profile', 'user', '个人资料', '昵称', '邮箱'] },
+      { title: t('settings.avatarImageUrl'), group: t('common.settings'), path: '/dash/settings', keywords: ['avatar', '头像', '图片'] },
+      { title: t('settings.changePassword'), group: t('common.settings'), path: '/dash/settings', keywords: ['password', '密码', '修改密码'] },
+      { title: t('settings.backgroundImage'), group: t('common.settings'), path: '/dash/settings', keywords: ['background', 'wallpaper', '背景', '背景图'] },
+      { title: t('settings.oauthBindingTitle'), group: t('common.settings'), path: '/dash/settings', keywords: ['oauth', 'logto', 'oidc', '绑定', '第三方登录'] },
+      { title: t('common.security'), group: t('common.account'), path: '/dash/security', keywords: ['2fa', 'totp', 'webauthn', '安全', '双因素', '会话'] },
+      { title: t('common.about'), group: t('common.account'), path: '/dash/about', keywords: ['about', 'version', 'license', '关于', '版本', '开源'] },
     ];
 
     if (showTunnels) {
-      items.push({ title: t('tunnels.title'), group: t('common.dashboard'), path: '/tunnels', keywords: ['tunnel', 'cloudflare', '隧道'] });
+      items.push({ title: t('tunnels.title'), group: t('common.dashboard'), path: '/dash/tunnels', keywords: ['tunnel', 'cloudflare', '隧道'] });
     }
 
     if (isAdmin) {
       items.push(
-        { title: t('common.users'), group: t('common.admin'), path: '/users', keywords: ['user', 'role', '用户', '角色', '管理员'] },
-        { title: t('common.audit'), group: t('common.admin'), path: '/audit', keywords: ['audit', 'log', '审计', '日志', '操作'] },
-        { title: t('system.tabs.overview'), group: t('common.system'), path: '/system', keywords: ['system', 'overview', '系统', '概览'] },
-        { title: t('system.tabs.database'), group: t('common.system'), path: '/system/database', keywords: ['database', 'sqlite', 'mysql', 'postgresql', '数据库'] },
-        { title: t('system.tabs.security'), group: t('common.system'), path: '/system/security', keywords: ['security policy', '2fa', 'login', '安全策略', '登录'] },
-        { title: t('system.tabs.access'), group: t('common.system'), path: '/system/access', keywords: ['access', 'oauth', 'logto', 'smtp', '访问', '登录方式'] },
-        { title: t('system.tabs.network'), group: t('common.system'), path: '/system/network', keywords: ['network', 'proxy', '网络', '代理'] },
-        { title: t('system.tabs.notifications'), group: t('common.system'), path: '/system/notifications', keywords: ['notification', 'smtp', 'email', '通知', '邮件'] },
+        { title: t('common.users'), group: t('common.admin'), path: '/dash/users', keywords: ['user', 'role', '用户', '角色', '管理员'] },
+        { title: t('common.audit'), group: t('common.admin'), path: '/dash/audit', keywords: ['audit', 'log', '审计', '日志', '操作'] },
+        { title: t('system.tabs.overview'), group: t('common.system'), path: '/dash/system', keywords: ['system', 'overview', '系统', '概览'] },
+        { title: t('system.tabs.database'), group: t('common.system'), path: '/dash/system/database', keywords: ['database', 'sqlite', 'mysql', 'postgresql', '数据库'] },
+        { title: t('system.tabs.security'), group: t('common.system'), path: '/dash/system/security', keywords: ['security policy', '2fa', 'login', '安全策略', '登录'] },
+        { title: t('system.tabs.access'), group: t('common.system'), path: '/dash/system/access', keywords: ['access', 'oauth', 'logto', 'smtp', '访问', '登录方式'] },
+        { title: t('system.tabs.network'), group: t('common.system'), path: '/dash/system/network', keywords: ['network', 'proxy', '网络', '代理'] },
+        { title: t('system.tabs.notifications'), group: t('common.system'), path: '/dash/system/notifications', keywords: ['notification', 'smtp', 'email', '通知', '邮件'] },
       );
     }
 
@@ -156,12 +157,12 @@ export function Header({ collapsed, avatarImage, onMenuClick, onToggleCollapse }
 
   const handleUserAction = (option: DropdownOption) => {
     if (option.value === 'settings') {
-      navigate('/settings');
+      navigate('/dash/settings');
       return;
     }
 
     if (option.value === 'security') {
-      navigate('/security');
+      navigate('/dash/security');
       return;
     }
 

@@ -36,8 +36,10 @@ import { SchemaDefinition } from './index';
  *    - 写操作会锁定整个数据库
  *    - 不适合高并发写入场景
  *
- * 9. ALTER TABLE ADD COLUMN IF NOT EXISTS 支持良好
- *    - 从 3.2.0 版本开始支持
+ * 9. ALTER TABLE ADD COLUMN 不支持 IF NOT EXISTS
+ *    - SQLite 从未支持此语法（包括最新版本）
+ *    - 必须先使用 PRAGMA table_info() 检查列是否存在
+ *    - 或使用 try-catch 捕获 "duplicate column" 错误
  */
 
 export const sqliteSchema: SchemaDefinition = {
@@ -72,6 +74,21 @@ export const sqliteSchema: SchemaDefinition = {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       UNIQUE(team_id, user_id)
     )`,
+    // Schema version tracking table
+    `CREATE TABLE IF NOT EXISTS schema_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version TEXT NOT NULL UNIQUE,
+      semantic_version TEXT,
+      description TEXT,
+      applied_at TEXT NOT NULL DEFAULT (datetime('now')),
+      success INTEGER NOT NULL DEFAULT 1,
+      error_message TEXT,
+      execution_time_ms INTEGER,
+      system_type TEXT DEFAULT 'hidns'
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_version ON schema_versions(version)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_applied_at ON schema_versions(applied_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_system_type ON schema_versions(system_type)`,
     `CREATE TABLE IF NOT EXISTS dns_accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL,
@@ -80,6 +97,7 @@ export const sqliteSchema: SchemaDefinition = {
       remark TEXT NOT NULL DEFAULT '',
       created_by INTEGER NOT NULL,
       team_id INTEGER,
+      enabled INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (created_by) REFERENCES users(id),
       FOREIGN KEY (team_id) REFERENCES teams(id)
@@ -91,9 +109,11 @@ export const sqliteSchema: SchemaDefinition = {
       third_id TEXT NOT NULL DEFAULT '',
       remark TEXT NOT NULL DEFAULT '',
       is_hidden INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
       record_count INTEGER NOT NULL DEFAULT 0,
       expires_at TEXT,
       apex_expires_at TEXT,
+      whois_status TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE
     )`,
@@ -186,6 +206,12 @@ export const sqliteSchema: SchemaDefinition = {
       attempt_count INTEGER NOT NULL DEFAULT 1,
       last_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
       locked_until TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS password_resets (
+      email TEXT PRIMARY KEY,
+      code TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS system_settings (
@@ -362,7 +388,7 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      domain_id INTEGER NOT NULL,
+      domain_name TEXT NOT NULL DEFAULT '',
       expected_ns TEXT NOT NULL DEFAULT '',
       current_ns TEXT NOT NULL DEFAULT '',
       encrypted_ns TEXT,
@@ -376,8 +402,7 @@ export const sqliteSchema: SchemaDefinition = {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
-      UNIQUE(user_id, domain_id)
+      UNIQUE(user_id, domain_name)
     )`,
     `CREATE TABLE IF NOT EXISTS rdap_server_cache (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -414,6 +439,14 @@ export const sqliteSchema: SchemaDefinition = {
     )`
   ],
   createIndexes: [
+    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_created_by ON dns_accounts(created_by)`,
+    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_team_id ON dns_accounts(team_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_type ON dns_accounts(type)`,
+    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_enabled ON dns_accounts(enabled)`,
+    `CREATE INDEX IF NOT EXISTS idx_domains_account_id ON domains(account_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_domains_name ON domains(name)`,
+    `CREATE INDEX IF NOT EXISTS idx_domains_is_hidden ON domains(is_hidden)`,
+    `CREATE INDEX IF NOT EXISTS idx_domains_enabled ON domains(enabled)`,
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_domains_account_name_unique ON domains(account_id, name)`,
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_domain_permissions_unique ON domain_permissions(domain_id, user_id, team_id, sub)`,
     `CREATE INDEX IF NOT EXISTS idx_user_tokens_user_id ON user_tokens(user_id)`,
@@ -428,8 +461,10 @@ export const sqliteSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_trusted_devices_fingerprint ON trusted_devices(device_fingerprint)`,
     `CREATE INDEX IF NOT EXISTS idx_user_ns_monitor_prefs_user_id ON user_ns_monitor_prefs(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_id ON ns_monitor_domains(domain_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_configs_domain_id ON ns_monitor_configs(domain_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_configs_enabled ON ns_monitor_configs(enabled)`,
     `CREATE INDEX IF NOT EXISTS idx_renewable_domains_account_id ON renewable_domains(account_id)`,
     `CREATE INDEX IF NOT EXISTS idx_renewable_domains_provider_type ON renewable_domains(provider_type)`,
     `CREATE INDEX IF NOT EXISTS idx_renewable_domains_expires_at ON renewable_domains(expires_at)`,

@@ -10,18 +10,13 @@ import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { log } from '../lib/logger';
-import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations } from '../db/business-adapter';
-import { syncDomainWhois } from '../service/whoisJob';
-import { getRootDomain } from '../service/whoisProvider';
+import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations } from '../db/business-adapter';
+import { syncDomainWhois } from '../service/whois';
+import { getRootDomain, queryWhois } from '../service/whois';
 import { wsService } from '../service/websocket';
-import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/domain';
+import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/dns';
 
 const router = Router();
-
-function normalizeDomainName(name: string): string {
-  // Use IDN-aware normalization (converts Unicode to Punycode)
-  return normalizeDomain(name);
-}
 
 async function getAccountForUser(accountId: number, userId: number, role: number): Promise<DnsAccount | null> {
   const account = await DnsAccountOperations.getById(accountId) as DnsAccount | undefined;
@@ -75,6 +70,13 @@ async function getUserPermissionRows(domainId: number, userId: number): Promise<
 }
 
 async function resolveDomainAccess(domain: Domain, userId: number, role: number): Promise<DomainAccess> {
+  // ← 新增：检查账号是否启用
+  const account = await DnsAccountOperations.getById(domain.account_id);
+  if (!account || (account as any).enabled === 0) {
+    // 账号不存在或已禁用，拒绝所有操作（除了 WHOIS）
+    return { domain, canRead: false, canWrite: false, writeSubs: [], hasRules: false };
+  }
+  
   const hasRules = await DomainPermissionOperations.hasRules(domain.id);
   if (isSuper(role)) {
     return { domain, canRead: true, canWrite: true, writeSubs: null, hasRules };
@@ -157,13 +159,15 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword, domain_type, page, pageSize, format } = req.query as { 
+  const { account_id, keyword, domain_type, page, pageSize, format, include_disabled, domain_status } = req.query as { 
     account_id?: string; 
     keyword?: string; 
     domain_type?: string; 
     page?: string; 
     pageSize?: string;
     format?: string; // 'array' for direct array response (for external adapters)
+    include_disabled?: string; // 'true' to include disabled domains (legacy)
+    domain_status?: 'enabled' | 'disabled' | 'all'; // new parameter for status filtering
   };
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
@@ -171,12 +175,27 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   // Pagination params
   const currentPage = Math.max(1, parseInteger(page) || 1);
   const size = Math.min(100, Math.max(1, parseInteger(pageSize) || 20));
+  
+  // Parse domain_type with type safety
+  const parsedDomainType: 'apex' | 'subdomain' | undefined = 
+    (domain_type === 'apex' || domain_type === 'subdomain') ? domain_type : undefined;
+  
+  // Parse domain_status with fallback to legacy include_disabled parameter
+  let parsedDomainStatus: 'enabled' | 'disabled' | 'all' = 'all';
+  if (domain_status === 'enabled' || domain_status === 'disabled' || domain_status === 'all') {
+    parsedDomainStatus = domain_status;
+  } else if (include_disabled === 'false') {
+    // Legacy behavior: include_disabled=false means only enabled
+    parsedDomainStatus = 'enabled';
+  }
+  // If include_disabled=true or not specified, default to 'all'
 
   // Check if using token auth and get allowed domains
   const tokenPayload = (req as any).tokenPayload;
   const tokenAllowedDomains = tokenPayload?.allowedDomains as number[] | undefined;
 
   let domains: Domain[];
+  let total = 0; // 初始化 total
   
   // Token 认证优化：根据 allowedDomains 是否为空选择不同策略
   if (tokenPayload) {
@@ -190,55 +209,69 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     } else {
       // 允许所有域名的 Token：根据角色选择查询方式
       if (isSuper(role)) {
-        // 超管：直接查询所有域名
-        domains = await DomainOperations.getAllForSuperAdmin({
+        // 超管：使用优化的分页查询（支持 enabled 过滤）
+        const result = await DomainOperations.getAllForSuperAdminWithPagination({
           accountId: account_id ? parseInteger(account_id) : undefined,
           keyword,
-        }) as unknown as Domain[];
+          domainStatus: parsedDomainStatus,
+          domainType: parsedDomainType,
+          page: currentPage,
+          pageSize: size,
+        });
+        domains = result.list as unknown as Domain[];
+        total = result.total;
       } else {
-        // 普通用户 Token：使用原有权限检查逻辑
+        // 普通用户 Token：使用权限检查逻辑
         const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
-        domains = await DomainOperations.getAccessibleDomains({
+        const result = await DomainOperations.getAccessibleDomainsWithPagination({
           userId,
           teamIds,
           accountId: account_id ? parseInteger(account_id) : undefined,
           keyword,
-          isSuper: false,
-        }) as unknown as Domain[];
+          domainStatus: parsedDomainStatus,
+          domainType: parsedDomainType,
+          page: currentPage,
+          pageSize: size,
+        });
+        domains = result.list as unknown as Domain[];
+        total = result.total;
       }
     }
     log.debug('Domains', 'Token auth domain query completed', { 
       duration: `${Date.now() - queryStartTime}ms`, 
-      count: domains.length 
+      count: domains.length,
+      total
     });
   } else {
-    // 非 Token 认证或允许所有域名的 Token，使用原有逻辑
-    const teamIds = isSuper(role) ? [] : await TeamOperations.getTeamIdsByUserId(userId);
-    
-    domains = await DomainOperations.getAccessibleDomains({
-      userId,
-      teamIds,
-      accountId: account_id ? parseInteger(account_id) : undefined,
-      keyword,
-      isSuper: isSuper(role),
-    }) as unknown as Domain[];
-  }
-
-  // 根据域名类型过滤
-  if (domain_type && domain_type !== 'all') {
-    domains = domains.filter((domain) => {
-      const normalized = domain.name.replace(/\.$/, '');
-      // 使用 getRootDomain 来正确判断是否为顶域
-      const rootDomain = getRootDomain(normalized);
-      const isApex = normalized === rootDomain;
-
-      if (domain_type === 'apex') {
-        return isApex;
-      } else if (domain_type === 'subdomain') {
-        return !isApex;
-      }
-      return true;
-    });
+    // Session 认证：根据角色选择查询方式
+    if (isSuper(role)) {
+      // 超管：使用优化的分页查询（支持 enabled 过滤）
+      const result = await DomainOperations.getAllForSuperAdminWithPagination({
+        accountId: account_id ? parseInteger(account_id) : undefined,
+        keyword,
+        domainStatus: parsedDomainStatus,
+        domainType: parsedDomainType,
+        page: currentPage,
+        pageSize: size,
+      });
+      domains = result.list as unknown as Domain[];
+      total = result.total;
+    } else {
+      // 普通用户：使用权限检查逻辑
+      const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
+      const result = await DomainOperations.getAccessibleDomainsWithPagination({
+        userId,
+        teamIds,
+        accountId: account_id ? parseInteger(account_id) : undefined,
+        keyword,
+        domainStatus: parsedDomainStatus,
+        domainType: parsedDomainType,
+        page: currentPage,
+        pageSize: size,
+      });
+      domains = result.list as unknown as Domain[];
+      total = result.total;
+    }
   }
 
   // Token 认证已经在上面过滤了 allowedDomains，不需要再进行权限检查
@@ -248,6 +281,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       const access = await resolveDomainAccess(domain, userId, role);
       return access.canRead ? domain : null;
     })).then(results => results.filter((d): d is Domain => d !== null));
+    // 注意：这种情况下 total 可能不准确，但不影响功能
   }
 
   // 获取用户的置顶域名列表并排序
@@ -264,22 +298,29 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     return 0;  // 都置顶或都不置顶，保持原有顺序
   });
 
-  // Calculate pagination
-  const total = domains.length;
-  const totalPages = Math.ceil(total / size);
-  const startIndex = (currentPage - 1) * size;
-  const endIndex = Math.min(startIndex + size, total);
-  const paginatedDomains = domains.slice(startIndex, endIndex);
-
   // Record count is cached in database and refreshed asynchronously by background job
   // No need to query DNS provider API on every request
 
+  const totalPages = Math.ceil(total / size);
+
   // Return format based on query parameter or token usage
   // For external adapters (ddns-go, certd), return direct array when format=array
+  // For Token auth, return raw Punycode domains with display_name for IDN support
+  // For Session auth, convert Punycode to Unicode for display
   if (format === 'array' || tokenPayload) {
-    sendSuccess(res, paginatedDomains);
+    // Token auth or array format: return domains with both name and display_name
+    const domainsWithDisplay = domains.map(domain => ({
+      ...domain,
+      display_name: getDisplayDomain(domain.name, true), // Add Unicode display name
+    }));
+    sendSuccess(res, domainsWithDisplay);
   } else {
-    sendSuccess(res, { list: paginatedDomains, total, page: currentPage, pageSize: size, totalPages });
+    // Session auth: convert Punycode to Unicode for display
+    const displayDomains = domains.map(domain => ({
+      ...domain,
+      name: getDisplayDomain(domain.name, true), // Convert to Unicode
+    }));
+    sendSuccess(res, { list: displayDomains, total, page: currentPage, pageSize: size, totalPages });
   }
 }));
 
@@ -341,10 +382,10 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
   log.info('Domains', 'Fetching renewable domains', { userId: req.user?.userId });
   
   try {
-    // Query from renewable_domains table
+    // Query from renewable_domains table (include both enabled and disabled)
     const startTime = Date.now();
-    log.debug('Domains', 'Calling RenewableDomainOperations.getAllEnabled()');
-    const renewableDomains = await RenewableDomainOperations.getAllEnabled();
+    log.debug('Domains', 'Calling RenewableDomainOperations.getAll()');
+    const renewableDomains = await RenewableDomainOperations.getAll();
     const queryDuration = Date.now() - startTime;
     
     log.info('Domains', 'Fetched renewable domains from database', { 
@@ -354,13 +395,15 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
     
     // Enrich with account information
     const enrichStartTime = Date.now();
+    const tokenPayload = (req as any).tokenPayload;
     const enrichedDomains = await Promise.all(
       renewableDomains.map(async (domain: any) => {
         const account = await DnsAccountOperations.getById(domain.account_id);
+        const domainName = tokenPayload ? domain.full_domain : getDisplayDomain(domain.full_domain, true);
         return {
           id: domain.id,
-          name: domain.full_domain,
-          full_domain: domain.full_domain,
+          name: domainName,
+          full_domain: domainName,
           account_id: domain.account_id,
           account_name: account?.name || 'Unknown',
           provider_type: domain.provider_type,
@@ -417,12 +460,27 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
 router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    const domain = await DomainOperations.getById(Number(id));
-    if (!domain) {
-      sendError(res, 'Domain not found');
+    // ← 新增：使用 getDomainAccess 检查权限（包括账号 enabled 状态）
+    const access = await getDomainAccess(Number(id), req.user!.userId, normalizeRole(req.user!.role));
+    if (!access.domain || !access.canRead) {
+      sendError(res, 'Domain not found or no permission');
       return;
     }
-    sendSuccess(res, domain);
+    
+    const domain = access.domain;
+    
+    // For Session auth, convert Punycode to Unicode for display
+    // For Token auth, return raw Punycode
+    const tokenPayload = (req as any).tokenPayload;
+    if (!tokenPayload) {
+      // Session auth: convert to Unicode
+      const domainObj = domain as any;
+      domainObj.name = getDisplayDomain(domainObj.name, true);
+      sendSuccess(res, domainObj);
+    } else {
+      // Token auth: return raw
+      sendSuccess(res, domain);
+    }
   } catch (error) {
     log.error('Domains', 'Failed to get domain', { error });
     sendError(res, error instanceof Error ? error.message : 'Failed to get domain');
@@ -458,7 +516,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
 
   const normalizedMap = new Map<string, { name: string; third_id?: string; record_count?: number }>();
   for (const item of items) {
-    const normalizedName = normalizeDomainName(item.name);
+    const normalizedName = normalizeDomain(item.name);
     if (!normalizedName) continue;
     normalizedMap.set(normalizedName, {
       name: normalizedName,
@@ -495,8 +553,8 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       added++;
       addedDomains.push(item.name);
       
-      // 异步获取 WHOIS 信息（不阻塞响应）
-      syncDomainWhois(id).catch(err => {
+      // 异步获取 WHOIS 信息（不阻塞响应），强制刷新以获取最新的多状态
+      syncDomainWhois(id, true).catch(err => {
         log.warn('Domains', `Failed to sync WHOIS for ${item.name}:`, { error: err });
       });
     } catch (error) {
@@ -513,7 +571,6 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     return;
   }
 
-  const duplicateMsg = duplicates.length > 0 ? `, skipped ${duplicates.length} duplicate(s)` : '';
   for (const domainName of addedDomains) {
     await logAuditOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id }, req);
   }
@@ -532,8 +589,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     log.error('Domains', 'Failed to broadcast domain_created event', { error });
   }
   
-  sendSuccess(res, { id: firstId, added, skipped: duplicates.length, duplicates },
-    added > 1 ? `Added ${added} domains${duplicateMsg}` : `Domain added successfully${duplicateMsg}`);
+  sendSuccess(res, { id: firstId, added, skipped: duplicates.length, duplicates });
 }));
 
 /**
@@ -605,7 +661,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
 
     let added = 0;
     for (const d of allDomains) {
-      const normalizedName = normalizeDomainName(d.Domain);
+      const normalizedName = normalizeDomain(d.Domain);
       
       // 记录 IDN 域名转换信息
       if (normalizedName !== d.Domain.toLowerCase()) {
@@ -706,16 +762,27 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
 
     // 获取当前账号下已添加的域名列表
     const existingDomains = await DomainOperations.getByAccountId(accountId) as Array<{ name: string }>;
-    const existingDomainNames = new Set(existingDomains.map((d) => normalizeDomainName(d.name)));
+    const existingDomainNames = new Set(existingDomains.map((d) => normalizeDomain(d.name)));
 
     // 过滤掉已添加的域名（不限制数量，展示所有可同步的域名）
+    // 后端返回 Unicode 格式，前端显示时已经调用 formatDomainName
+    // 前端提交时后端会自动调用 normalizeDomainName 转换为 Punycode
+    const tokenPayload = (req as any).tokenPayload;
     const domains = allProviderDomains
-      .map((d) => ({
-        name: normalizeDomainName(d.Domain),
-        third_id: d.ThirdId,
-        record_count: d.RecordCount ?? 0,
-      }))
-      .filter((d) => !existingDomainNames.has(d.name));
+      .filter((d) => {
+        const normalizedName = normalizeDomain(d.Domain);
+        return !existingDomainNames.has(normalizedName); // 先过滤已添加的
+      })
+      .map((d) => {
+        const normalizedName = normalizeDomain(d.Domain);
+        // For Session auth, convert to Unicode; for Token auth, keep Punycode
+        const displayName = tokenPayload ? normalizedName : getDisplayDomain(normalizedName, true);
+        return {
+          name: displayName,
+          third_id: d.ThirdId,
+          record_count: d.RecordCount ?? 0,
+        };
+      });
 
     log.info('ProviderList', 'Filtered domains', { total: allProviderDomains.length, filtered: domains.length, existing: existingDomainNames.size });
     sendSuccess(res, domains);
@@ -796,9 +863,18 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
     sendError(res, 'Permission denied');
     return;
   }
-  const { remark, is_hidden } = req.body as { remark?: string; is_hidden?: number };
+  const { remark, is_hidden, enabled } = req.body as { remark?: string; is_hidden?: number; enabled?: number };
   await DomainOperations.updateRemarkAndHidden(id, remark, is_hidden);
-  await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden }, req);
+  
+  // Update enabled status if provided
+  if (enabled !== undefined) {
+    await DomainOperations.setEnabled(id, enabled);
+  }
+  
+  await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden, enabled }, req);
+  
+  // 获取更新后的域名信息（包含到期时间）
+  const updatedDomain = await DomainOperations.getById(id);
   
   // 推送 WebSocket 消息
   try {
@@ -807,6 +883,10 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
       data: {
         domainId: id,
         name: access.domain.name,
+        enabled: enabled !== undefined ? enabled : access.domain.enabled,
+        expiresAt: updatedDomain?.expires_at || null,
+        apexExpiresAt: updatedDomain?.apex_expires_at || null,
+        whoisStatus: updatedDomain?.whois_status || null,
       },
     });
   } catch (error) {
@@ -846,6 +926,33 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
     return;
   }
   await DomainOperations.delete(id);
+  
+  // Check if there are any other domains with the same name
+  const domainName = access.domain.name as string;
+  const remainingDomains = await DomainOperations.getAll();
+  const hasSameNameDomain = remainingDomains.some((d: any) => d.name === domainName);
+  
+  // If no other domains with this name exist, delete NS monitor configs
+  if (!hasSameNameDomain) {
+    log.info('Domains', 'No remaining domains with this name, deleting NS monitors', { domainName });
+    // Find and delete NS monitor configs for this domain name
+    const userId = req.user!.userId;
+    try {
+      const monitors = await NSMonitorOperations.getUserMonitors(userId);
+      for (const monitor of monitors) {
+        if ((monitor as any).domain_name === domainName) {
+          await NSMonitorOperations.delete(monitor.id as number, userId);
+          log.info('Domains', 'Deleted NS monitor for removed domain', {
+            monitorId: monitor.id,
+            domainName,
+          });
+        }
+      }
+    } catch (error) {
+      log.error('Domains', 'Failed to cleanup NS monitors', { error });
+    }
+  }
+  
   await logAuditOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id }, req);
   
   // 推送 WebSocket 消息
@@ -862,6 +969,111 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
   }
   
   sendSuccess(res);
+}));
+
+/**
+ * @swagger
+ * /api/domains/batch-delete:
+ *   post:
+ *     summary: Batch delete domains
+ *     tags: [Domains]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - domainIds
+ *             properties:
+ *               domainIds:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 description: List of domain IDs to delete
+ *     responses:
+ *       200:
+ *         description: Batch deletion result
+ */
+router.post('/batch-delete', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const { domainIds } = req.body as { domainIds?: number[] };
+  
+  if (!domainIds || !Array.isArray(domainIds) || domainIds.length === 0) {
+    sendError(res, 'Invalid domain IDs');
+    return;
+  }
+
+  const userId = req.user!.userId;
+  const role = normalizeRole(req.user!.role);
+  
+  // Check permissions for each domain
+  const accessibleIds: number[] = [];
+  const inaccessibleIds: number[] = [];
+  
+  for (const id of domainIds) {
+    const access = await getDomainAccess(id, userId, role);
+    if (access.domain && access.canWrite) {
+      accessibleIds.push(id);
+    } else {
+      inaccessibleIds.push(id);
+    }
+  }
+  
+  // If no accessible domains, return error
+  if (accessibleIds.length === 0) {
+    sendError(res, 'No permission to delete any of the selected domains');
+    return;
+  }
+  
+  // Batch delete accessible domains
+  const result = await DomainOperations.batchDelete(accessibleIds);
+  
+  // Log audit operations
+  for (const id of accessibleIds) {
+    try {
+      const domain = await DomainOperations.getById(id);
+      if (domain) {
+        await logAuditOperation(userId, 'delete_domain', domain.name as string, { domainId: id }, req);
+      }
+    } catch (error) {
+      log.error('Domains', 'Failed to log audit for domain deletion', { domainId: id, error });
+    }
+  }
+  
+  // Broadcast WebSocket events for deleted domains
+  try {
+    for (const id of accessibleIds) {
+      wsService.broadcast({
+        type: 'domain_deleted',
+        data: {
+          domainId: id,
+        },
+      });
+    }
+  } catch (error) {
+    log.error('Domains', 'Failed to broadcast domain_deleted events', { error });
+  }
+  
+  // Return result with warnings about inaccessible domains
+  if (inaccessibleIds.length > 0) {
+    res.json({
+      code: 0,
+      data: {
+        ...result,
+        inaccessibleCount: inaccessibleIds.length,
+        inaccessibleIds,
+      },
+      msg: `Deleted ${result.deleted} domains. ${inaccessibleIds.length} domains were skipped due to insufficient permissions.`,
+    });
+  } else {
+    res.json({
+      code: 0,
+      data: result,
+      msg: `Successfully deleted ${result.deleted} domains`,
+    });
+  }
 }));
 
 /**
@@ -1113,6 +1325,17 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
     return;
   }
   
+  // Check if domain is enabled
+  if (!renewableDomain.enabled) {
+    log.warn('Domains', 'Cannot renew disabled domain', { 
+      renewableDomainId,
+      full_domain: renewableDomain.full_domain,
+      enabled: renewableDomain.enabled
+    });
+    sendError(res, 'Cannot renew disabled domain. Please enable it first.');
+    return;
+  }
+  
   log.info('Domains', 'Renewable domain retrieved', { 
     id: renewableDomain.id,
     full_domain: renewableDomain.full_domain,
@@ -1237,13 +1460,16 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     return;
   }
   
+  // Normalize domain name to Punycode for database query
+  const normalizedDomain = normalizeDomain(domain);
+  
   let dbDomain: Domain | undefined;
   
   if (accountId) {
     // 如果指定了 accountId，精确查询
     dbDomain = await DomainOperations.getByAccountIdAndName(
       Number(accountId),
-      domain
+      normalizedDomain
     ) as Domain | undefined;
     
     if (!dbDomain) {
@@ -1252,7 +1478,7 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     }
   } else {
     // 未指定 accountId，查询第一条记录
-    dbDomain = await DomainOperations.getByName(domain) as Domain | undefined;
+    dbDomain = await DomainOperations.getByName(normalizedDomain) as Domain | undefined;
     
     if (!dbDomain) {
       sendError(res, 'Domain not found');
@@ -1265,7 +1491,7 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     if (!access.domain || !access.canRead) {
       // 如果第一条记录无权限，尝试查找用户有权限的其他同名域名
       const userDomains = await DomainOperations.getAll() as unknown as Domain[];
-      const accessibleDomains = userDomains.filter((d: Domain) => d.name === domain);
+      const accessibleDomains = userDomains.filter((d: Domain) => d.name === normalizedDomain);
       
       let foundAccessible = false;
       for (const candidateDomain of accessibleDomains) {
@@ -1296,34 +1522,45 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
     return;
   }
   
-  // Only support DNSHE provider
-  if (account.type !== 'dnshe') {
-    sendError(res, 'WHOIS query only supported for DNSHE provider');
-    return;
-  }
-  
   try {
-    const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
-    const result = await dnsheGetWhois(
-      {
-        apiKey: config.apiKey,
-        apiSecret: config.apiSecret,
-        useProxy: !!config.useProxy,
-      },
-      domain
-    );
+    // 使用通用 WHOIS 查询服务（支持所有域名）
+    log.info('Domains', `Querying WHOIS for ${domain}`);
+    const whoisResult = await queryWhois(domain);
     
-    if (!result) {
-      sendError(res, 'WHOIS query failed');
+    if (!whoisResult) {
+      sendError(res, 'WHOIS query failed or no data available');
       return;
     }
     
-    sendSuccess(res, result);
+    // 转换为前端期望的格式
+    const response = {
+      domain: whoisResult.domain || domain,
+      status: whoisResult.raw ? extractWhoisStatus(whoisResult.raw) : null,
+      registrar: whoisResult.registrar || null,
+      expires_at: whoisResult.expiryDate ? whoisResult.expiryDate.toISOString() : null,
+      created_date: null,
+      updated_date: null,
+      name_servers: whoisResult.nameServers || [],
+      raw_data: whoisResult.raw || '',
+    };
+    
+    sendSuccess(res, response);
   } catch (error) {
     log.error('Domains', 'WHOIS query failed', { error });
     sendError(res, error instanceof Error ? error.message : 'WHOIS query failed');
   }
 }));
+
+/**
+ * 从 WHOIS 原始数据中提取状态
+ */
+function extractWhoisStatus(rawData: string): string | null {
+  const statusMatch = rawData.match(/status:\s*(.+)/i);
+  if (statusMatch && statusMatch[1]) {
+    return statusMatch[1].trim().split('\n')[0].trim();
+  }
+  return null;
+}
 
 /**
  * Add a domain to renewable list (admin only)
@@ -1429,6 +1666,75 @@ router.delete('/renewable-domains/:id', authMiddleware, asyncHandler(async (req:
 }));
 
 /**
+ * Toggle renewable domain enabled status
+ */
+router.patch('/renewable-domains/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  // Only allow admins and super admins
+  const role = normalizeRole(req.user?.role);
+  if (role < 2) {
+    log.warn('Domains', 'Unauthorized attempt to toggle renewable domain', { userId: req.user?.userId, role });
+    sendError(res, 'Permission denied');
+    return;
+  }
+  
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    log.error('Domains', 'Invalid renewable domain ID', { id: req.params.id });
+    sendError(res, 'Invalid ID');
+    return;
+  }
+  
+  const { enabled } = req.body;
+  if (typeof enabled !== 'boolean') {
+    log.error('Domains', 'Missing or invalid enabled field', { enabled });
+    sendError(res, 'Enabled field is required and must be boolean');
+    return;
+  }
+  
+  log.info('Domains', 'Toggle renewable domain enabled status', { 
+    id, 
+    enabled,
+    userId: req.user?.userId 
+  });
+  
+  try {
+    // Get current domain info for audit log
+    const domain = await RenewableDomainOperations.getById(id);
+    if (!domain) {
+      log.error('Domains', 'Renewable domain not found', { id });
+      sendError(res, 'Renewable domain not found');
+      return;
+    }
+    
+    await RenewableDomainOperations.toggleEnabled(id, enabled);
+    
+    // Log audit operation
+    await logAuditOperation(
+      req.user!.userId,
+      enabled ? 'enable_domain_renewal' : 'disable_domain_renewal',
+      domain.full_domain,
+      { enabled },
+      req
+    );
+    
+    log.info('Domains', 'Successfully toggled renewable domain enabled status', { 
+      id, 
+      enabled,
+      userId: req.user?.userId 
+    });
+    
+    sendSuccess(res, { enabled });
+  } catch (error) {
+    log.error('Domains', 'Failed to toggle renewable domain enabled status', { 
+      id,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    sendError(res, 'Failed to update enabled status');
+  }
+}));
+
+/**
  * Sync domains from provider to renewable list (admin only)
  */
 router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
@@ -1462,16 +1768,29 @@ router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: 
       return;
     }
     
-    // Add domains to renewable list
-    const domainsToAdd = domain_ids.map(d => ({
-      account_id,
-      provider_type: String(account.type),
-      domain_name: d.name || d.full_domain.split('.')[0],
-      third_id: String(d.id),
-      full_domain: d.full_domain,
-      expires_at: d.expires_at,
-      remark: `Synced from ${account.name}`,
-    }));
+    // Filter out disabled domains
+    const enabledDomainIds: Set<string> = new Set();
+    for (const d of domain_ids) {
+      const dbDomain = await DomainOperations.getByAccountIdAndName(account_id, d.name || d.full_domain.split('.')[0]);
+      if (dbDomain && dbDomain.enabled !== 0) {
+        enabledDomainIds.add(String(d.id));
+      } else if (dbDomain) {
+        log.info('Domains', `Skipping disabled domain for renewal sync: ${d.name || d.full_domain}`);
+      }
+    }
+    
+    // Add only enabled domains to renewable list
+    const domainsToAdd = domain_ids
+      .filter(d => enabledDomainIds.has(String(d.id)))
+      .map(d => ({
+        account_id,
+        provider_type: String(account.type),
+        domain_name: d.name || d.full_domain.split('.')[0],
+        third_id: String(d.id),
+        full_domain: d.full_domain,
+        expires_at: d.expires_at,
+        remark: `Synced from ${account.name}`,
+      }));
     
     const addedCount = await RenewableDomainOperations.addBatch(domainsToAdd);
     

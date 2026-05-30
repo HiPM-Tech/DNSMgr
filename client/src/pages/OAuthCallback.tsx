@@ -32,7 +32,7 @@ function cleanupOldOAuthEntries() {
 }
 
 export function OAuthCallback() {
-  const { loginWithToken } = useAuth();
+  const { updateUser } = useAuth();
   const { t } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ export function OAuthCallback() {
       if (status === 'success_bind' || status === 'success_login' || 
           status === 'redirected') {
         // 已经成功处理过，直接跳转
-        navigate('/settings');
+        navigate('/dash/settings');
         return;
       } else if (status === 'failed_permanent') {
         // 之前永久失败，显示错误
@@ -87,7 +87,7 @@ export function OAuthCallback() {
               // 状态已更新，根据新状态处理
               if (updatedStatusValue === 'success_bind' || updatedStatusValue === 'success_login' || 
                   updatedStatusValue === 'redirected') {
-                navigate('/settings');
+                navigate('/dash/settings');
               }
             }
           }
@@ -114,24 +114,25 @@ export function OAuthCallback() {
           }
 
           setSucceeded(true); // 标记为成功
-          const { token, user, mode } = res.data.data;
+          const { user, mode } = res.data.data;
           
           if (mode === 'bind') {
             localStorage.setItem(storageKey, `success_bind:timestamp:${Date.now()}`); // 标记为绑定成功
             toast.success(t('settings.oauthBindSuccess'));
-            navigate('/settings');
+            navigate('/dash/settings');
             return;
           }
 
-          if (token && user) {
+          if (user) {
             localStorage.setItem(storageKey, `success_login:timestamp:${Date.now()}`); // 标记为登录成功
-            loginWithToken(token, user);
-            navigate('/');
+            // Token is now in httpOnly cookie, just update user state
+            updateUser(user);
+            navigate('/dash');
             return;
           }
 
           localStorage.setItem(storageKey, `redirected:timestamp:${Date.now()}`); // 标记为重定向
-          navigate('/settings');
+          navigate('/dash/settings');
         })
         .catch((err: any) => {
           // 处理Axios错误，提取服务器返回的错误消息
@@ -188,7 +189,7 @@ export function OAuthCallback() {
     };
 
     processCallback();
-  }, [loginWithToken, navigate, searchParams, t, toast]);
+  }, [updateUser, navigate, searchParams, t, toast]);
 
   if (error && !succeeded) {
     return (

@@ -16,47 +16,65 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { whoisService, getRootDomain } from '../service/whois';
 import { log } from '../lib/logger';
-import { normalizeDomain, isValidDomain, toUnicode } from '../utils/domain';
+import { normalizeDomain, isValidDomain, toUnicode } from '../utils/dns';
 
 const router = Router();
 
 /**
- * 简化的 RDAP 查询函数（不使用内部分层查询）
+ * RDAP 查询函数（使用内部分层查询）
  * 
- * 查询策略：
- * - 顶域：顶域 > 第三方
- * - 子域：仅查询子域（如果无法在子域名提供商直接查到则放弃）
+ * 查询策略（分层并行竞速）：
+ * 1. 顶域RDAP 并行查询（所有匹配的RDAP提供商竞速）
+ * 2. 顶域WHOIS 并行查询（所有匹配的WHOIS提供商竞速）
+ * 3. 子域RDAP 并行查询（如果适用）
+ * 4. 子域WHOIS 并行查询（如果适用）
+ * 5. 子域RDAP 并行平级查询（试图查询其它子域提供商）
+ * 6. 子域WHOIS 并行平级查询（试图查询其它子域提供商）
+ * 7. 第三方RDAP 并行查询
+ * 8. 第三方WHOIS 并行查询
+ * 
+ * 注意：此函数不会查询 DNS 提供商，因为：
+ * - DNS 提供商查询需要数据库握手（获取账号配置）
+ * - 公开 RDAP 接口无需鉴权，无法传递账号信息
+ * - DNS 提供商查询仅在内部定时任务中执行（checker.ts）
+ * 
+ * @returns { type: 'RDAP' | 'WHOIS', raw: string, ... } 或 null
  */
-async function queryRdapSimple(domain: string): Promise<any | null> {
+async function queryRdapWithLayers(domain: string): Promise<any | null> {
   const rootDomain = getRootDomain(domain);
   const isSubdomain = domain !== rootDomain;
   
-  log.info('RDAP', `Simple RDAP query for ${domain} (isSubdomain: ${isSubdomain})`);
+  log.info('RDAP', `Layered RDAP query for ${domain} (isSubdomain: ${isSubdomain})`);
   
-  if (!isSubdomain) {
-    // 顶域查询：顶域 > 第三方
-    log.info('RDAP', 'Querying apex domain with third-party fallback');
-    
-    // 使用 whoisService.query() 但禁用缓存
-    const result = await whoisService.query(domain, { 
-      preferSubdomain: false,
-      useCache: false 
-    });
-    
-    return result;
-  } else {
-    // 子域查询：仅查询子域，不查询父域
-    log.info('RDAP', 'Querying subdomain only (skip parent fallback)');
-    
-    // 使用 skipParentFallback 选项禁用父域查询
-    const result = await whoisService.query(domain, {
-      preferSubdomain: true,
-      useCache: false,
-      skipParentFallback: true  // 关键：禁用父域查询
-    });
-    
-    return result;
+  // 使用完整的分层查询服务
+  const result = await whoisService.query(domain, {
+    preferSubdomain: true,
+    useCache: false,        // 公开 RDAP 不使用缓存，确保实时性
+    skipUplevel: true,      // 禁用平级查询，避免查询其他提供商
+  });
+  
+  if (!result) {
+    return null;
   }
+  
+  // 判断查询类型：检查 raw 是否为 JSON
+  let queryType: 'RDAP' | 'WHOIS' = 'WHOIS';
+  try {
+    JSON.parse(result.raw);
+    // 如果能解析为 JSON，检查是否为 RDAP 格式
+    if (result.raw.includes('"objectClassName"') || result.raw.includes('"rdapConformance"')) {
+      queryType = 'RDAP';
+    }
+    // 注：DNS 提供商数据不会在此出现（需要认证，公开 RDAP 不传递配置）
+  } catch (e) {
+    // 不能解析为 JSON，是 WHOIS 文本
+    queryType = 'WHOIS';
+  }
+  
+  return {
+    ...result,
+    queryType,  // 添加查询类型标记
+  };
 }
 
 /**
@@ -74,6 +92,9 @@ function convertToRdapFormat(domain: string, whoisResult: any): any {
     // 如果域名包含非 ASCII 字符，添加 unicodeName 字段
     ...(unicodeDomain !== domain.toLowerCase() && { unicodeName: unicodeDomain }),
     handle: domain.toUpperCase(),
+    
+    // 域名状态
+    status: whoisResult.status ? [whoisResult.status] : [],
     
     // 事件信息
     events: [],
@@ -201,10 +222,10 @@ router.get(
     try {
       log.info('RDAP', `Public RDAP query for domain: ${domain}`);
 
-      // 使用简化的 RDAP 查询（不使用内部分层查询）
-      const whoisResult = await queryRdapSimple(domain);
+      // 使用完整的分层 RDAP 查询
+      const queryResult = await queryRdapWithLayers(domain);
 
-      if (!whoisResult || !whoisResult.expiryDate) {
+      if (!queryResult || !queryResult.expiryDate) {
         res.status(404).json({
           errorCode: 404,
           title: 'Not Found',
@@ -213,8 +234,25 @@ router.get(
         return;
       }
 
-      // 转换为标准 RDAP 格式
-      const rdapResponse = convertToRdapFormat(domain, whoisResult);
+      let rdapResponse: any;
+      
+      // 根据查询类型决定处理方式
+      if (queryResult.queryType === 'RDAP') {
+        // RDAP 查询：直接返回原始 JSON（不转换）
+        log.info('RDAP', 'Returning raw RDAP response');
+        try {
+          rdapResponse = JSON.parse(queryResult.raw);
+        } catch (e) {
+          // 如果解析失败，降级为转换模式
+          log.warn('RDAP', 'Failed to parse RDAP JSON, falling back to conversion');
+          rdapResponse = convertToRdapFormat(domain, queryResult);
+        }
+      } else {
+        // WHOIS 查询：转换为 RDAP 格式
+        // 注：DNS 提供商查询不会在此触发（需要认证，公开 RDAP 不支持）
+        log.info('RDAP', 'Converting WHOIS data to RDAP format');
+        rdapResponse = convertToRdapFormat(domain, queryResult);
+      }
 
       // 设置正确的 Content-Type
       res.setHeader('Content-Type', 'application/rdap+json');

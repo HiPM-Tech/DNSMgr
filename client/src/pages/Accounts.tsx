@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
-import { AddIcon, DeleteIcon, EditIcon } from 'tdesign-icons-react';
+import { AddIcon, DeleteIcon, EditIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
 import { accountsApi } from '../api';
 import type { DnsAccount, Provider, ProviderField } from '../api';
 import { Table } from '../components/Table';
@@ -188,16 +188,23 @@ export function Accounts() {
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<DnsAccount | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [isMutating, setIsMutating] = useState(false);
 
+  // Disable WebSocket auto-refresh during mutation to avoid race condition
   useRealtimeData({
     queryKey: ['accounts'],
     websocketEventTypes: ['account_created', 'account_updated', 'account_deleted'],
-    pollingInterval: 60000,
+    pollingInterval: isMutating ? 0 : 60000, // Disable polling during mutation
+    enabled: !isMutating, // Disable WebSocket events during mutation
   });
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsApi.list().then((r) => r.data.data ?? []),
+    // Use realtime config for account status (high consistency requirement)
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   const { data: providers = [] } = useQuery({
@@ -252,9 +259,75 @@ export function Accounts() {
     onError: () => toast.error(t('accounts.deleteFailed')),
   });
 
+  const toggleEnabledMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => 
+      accountsApi.toggleEnabled(id, enabled),
+    onMutate: async ({ id, enabled }) => {
+      // Set mutating flag to disable WebSocket auto-refresh
+      setIsMutating(true);
+      
+      // Cancel any outgoing refetches
+      await qc.cancelQueries({ queryKey: ['accounts'] });
+      
+      // Snapshot the previous value
+      const previousAccounts = qc.getQueryData(['accounts']) as DnsAccount[] | undefined;
+      
+      // Optimistically update to the new value
+      if (previousAccounts) {
+        qc.setQueryData(['accounts'], previousAccounts.map(account => 
+          account.id === id ? { ...account, enabled } : account
+        ));
+      }
+      
+      // Return a context object with the snapshotted value
+      return { previousAccounts };
+    },
+    onError: (_err, _variables, context) => {
+      // Reset mutating flag
+      setIsMutating(false);
+      
+      // Rollback to the previous value
+      if (context?.previousAccounts) {
+        qc.setQueryData(['accounts'], context.previousAccounts);
+      }
+      toast.error(t('common.operationFailed'));
+    },
+    onSuccess: (_response, { id, enabled }) => {
+      // Update cache directly with the confirmed value from server response
+      // This avoids race condition with WebSocket event and refetch
+      qc.setQueryData(['accounts'], (old: DnsAccount[] | undefined) => {
+        if (!old) return old;
+        return old.map(account => 
+          account.id === id ? { ...account, enabled } : account
+        );
+      });
+      
+      // Reset mutating flag after a short delay to ensure cache is stable
+      setTimeout(() => {
+        setIsMutating(false);
+      }, 500);
+      
+      // Still invalidate to refresh other fields that might have changed
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
+      }, 100); // Small delay to avoid race condition
+      
+      toast.success(enabled ? t('common.enabled') : t('common.disabled'));
+    },
+  });
+
   const columns = [
     { key: 'name', label: t('common.name'), render: (row: DnsAccount) => <span className="page-strong">{row.name}</span> },
     { key: 'type', label: t('accounts.provider'), render: (row: DnsAccount) => <ProviderBadge type={row.type} /> },
+    { 
+      key: 'enabled', 
+      label: t('common.status'), 
+      render: (row: DnsAccount) => (
+        <span className={`page-status ${row.enabled !== false ? 'page-status--success' : 'page-status--default'}`}>
+          {row.enabled !== false ? t('common.enabled') : t('common.disabled')}
+        </span>
+      )
+    },
     { key: 'remark', label: t('common.remark'), render: (row: DnsAccount) => <span className="page-muted">{row.remark || '-'}</span> },
     { key: 'created_at', label: t('common.created'), render: (row: DnsAccount) => <span className="page-muted">{new Date(row.created_at).toLocaleDateString()}</span> },
     {
@@ -262,6 +335,18 @@ export function Accounts() {
       label: t('common.actions'),
       render: (row: DnsAccount) => (
         <Space size="small">
+          <Button
+            shape="square"
+            variant="text"
+            theme={row.enabled !== false ? 'warning' : 'success'}
+            icon={row.enabled !== false ? <StopCircleIcon /> : <PlayCircleIcon />}
+            disabled={!canManage || toggleEnabledMutation.isPending}
+            onClick={() => {
+              // Toggle enabled state (handle both boolean and number from database)
+              const currentEnabled = !!row.enabled;
+              toggleEnabledMutation.mutate({ id: row.id, enabled: !currentEnabled });
+            }}
+          />
           <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => setEditingId(row.id)} />
           <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(row)} />
         </Space>

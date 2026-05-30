@@ -15,15 +15,130 @@ import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, U
 import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, SecurityPolicy } from '../service/securityPolicy';
 import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/deviceTrust';
 import { getRequestIP } from '../middleware/clientIP';
+import db from '../db/business-adapter';
+
+/**
+ * RSA Key Pair for password encryption
+ * Generated once and cached for the lifetime of the server
+ */
+interface RSAKeyPair {
+  publicKey: string;
+  privateKey: string;
+}
+
+let rsaKeyPair: RSAKeyPair | null = null;
+const KEY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+let keyGeneratedAt = 0;
+
+function getOrGenerateRSAKeyPair(): RSAKeyPair {
+  const now = Date.now();
+  
+  // Regenerate keys if expired or not generated
+  if (!rsaKeyPair || (now - keyGeneratedAt) > KEY_CACHE_TTL) {
+    log.info('Auth', 'Generating new RSA key pair for password encryption');
+    
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: {
+        type: 'spki',
+        format: 'pem'
+      },
+      privateKeyEncoding: {
+        type: 'pkcs8',
+        format: 'pem'
+      }
+    });
+    
+    rsaKeyPair = { publicKey, privateKey };
+    keyGeneratedAt = now;
+  }
+  
+  return rsaKeyPair;
+}
+
+function decryptPassword(encryptedPassword: string): string {
+  try {
+    const keyPair = getOrGenerateRSAKeyPair();
+    
+    // Decode from base64
+    const buffer = Buffer.from(encryptedPassword, 'base64');
+    
+    // Decrypt using private key
+    const decrypted = crypto.privateDecrypt(
+      {
+        key: keyPair.privateKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: 'sha256'
+      },
+      buffer
+    );
+    
+    return decrypted.toString('utf-8');
+  } catch (error) {
+    log.error('Auth', 'Failed to decrypt password', { error: error instanceof Error ? error.message : String(error) });
+    throw new Error('Invalid encrypted password');
+  }
+}
+
+/**
+ * 从请求中解析客户端原始协议（支持多层反向代理）
+ *
+ * X-Forwarded-Proto 格式：
+ *   单层代理: https
+ *   多层代理: https, http, http  ← 取第一个值（最外层原始协议）
+ *   无代理: 直接从 req.protocol 获取
+ */
+function getClientProtocol(req: Request): string {
+  const forwardedProto = req.headers['x-forwarded-proto'];
+
+  if (Array.isArray(forwardedProto)) {
+    return forwardedProto[0].split(',')[0].trim();
+  }
+
+  if (forwardedProto) {
+    return forwardedProto.split(',')[0].trim();
+  }
+
+  return req.protocol || 'http';
+}
+
+/**
+ * Set secure httpOnly cookie for JWT token
+ *
+ * secure flag behavior:
+ * - COOKIE_SECURE=true  → force HTTPS-only (most secure)
+ * - COOKIE_SECURE=false → allow HTTP (least secure, but flexible)
+ * - COOKIE_SECURE unset → auto-detect from request protocol:
+ *     HTTPS → secure: true, HTTP → secure: false
+ *   This ensures both HTTP and HTTPS work in production behind a reverse proxy.
+ */
+function setAuthCookie(res: Response, token: string): void {
+  const cookieSecureEnv = process.env.COOKIE_SECURE;
+  let secureFlag: boolean;
+
+  if (cookieSecureEnv !== undefined && cookieSecureEnv !== '') {
+    secureFlag = cookieSecureEnv === 'true';
+  } else {
+    secureFlag = getClientProtocol(res.req!) === 'https';
+  }
+
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: secureFlag,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+}
 
 
 const router = Router();
-const resetStore = new Map<string, { code: string; expiresAt: number }>();
 // OAuth state 现在存储在数据库中，不再使用内存 Map
 // const oauthStateStore = new Map<string, { mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId?: number; expiresAt: number }>();
 const processingCallbacks = new Set<string>();
-// 记录已成功处理的code，避免重复处理（最多保留1000个，避免内存泄漏）
-const processedCodes = new Set<string>();
+// 记录已成功处理的code，使用 Map 带时间戳支持自动过期（最多保留1000个，避免内存泄漏）
+const processedCodes = new Map<string, number>(); // code -> timestamp
+const PROCESSED_CODES_TTL = 5 * 60 * 1000; // 5分钟TTL
 const MAX_PROCESSED_CODES = 1000;
 
 type OAuthConfig = {
@@ -78,15 +193,31 @@ function randomHex(size: number): string {
 }
 
 function addProcessedCode(code: string): void {
-  // 限制集合大小，避免内存泄漏
-  if (processedCodes.size >= MAX_PROCESSED_CODES) {
-    // 删除一些元素（Set没有顺序，所以转换为数组后删除前几个）
-    const codesArray = Array.from(processedCodes);
-    for (let i = 0; i < 10 && i < codesArray.length; i++) {
-      processedCodes.delete(codesArray[i]);
+  const now = Date.now();
+  
+  // 先清理过期条目
+  for (const [key, timestamp] of processedCodes.entries()) {
+    if (now - timestamp > PROCESSED_CODES_TTL) {
+      processedCodes.delete(key);
     }
   }
-  processedCodes.add(code);
+  
+  // 如果仍然超过限制，删除最旧的条目
+  if (processedCodes.size >= MAX_PROCESSED_CODES) {
+    let oldestKey: string | undefined;
+    let oldestTime = Infinity;
+    for (const [key, timestamp] of processedCodes.entries()) {
+      if (timestamp < oldestTime) {
+        oldestTime = timestamp;
+        oldestKey = key;
+      }
+    }
+    if (oldestKey) {
+      processedCodes.delete(oldestKey);
+    }
+  }
+  
+  processedCodes.set(code, now);
 }
 
 function sanitizeConfigValue(value: string): string {
@@ -316,6 +447,30 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
 
 /**
  * @swagger
+ * /api/auth/public-key:
+ *   get:
+ *     summary: Get RSA public key for password encryption
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: RSA public key in PEM format
+ */
+router.get('/public-key', (req: Request, res: Response) => {
+  try {
+    const keyPair = getOrGenerateRSAKeyPair();
+    res.json({
+      code: 0,
+      data: { publicKey: keyPair.publicKey },
+      msg: 'success'
+    });
+  } catch (error) {
+    log.error('Auth', 'Failed to generate public key', { error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ code: 500, msg: 'Failed to generate public key' });
+  }
+});
+
+/**
+ * @swagger
  * /api/auth/login:
  *   post:
  *     summary: Login with username/email and password
@@ -333,18 +488,23 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
  *                 description: Username or email address
  *               password:
  *                 type: string
+ *                 description: Password (can be encrypted with RSA public key)
+ *               encrypted:
+ *                 type: boolean
+ *                 description: Whether the password is encrypted
  *     responses:
  *       200:
  *         description: JWT token returned
  */
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
-  const { username, password, totpCode, backupCode, webauthnResponse, trustDevice } = req.body as { 
+  const { username, password, totpCode, backupCode, webauthnResponse, trustDevice, encrypted } = req.body as { 
     username: string; 
     password: string; 
     totpCode?: string; 
     backupCode?: string; 
     webauthnResponse?: any;
     trustDevice?: boolean;
+    encrypted?: boolean;
   };
   if (!username || !password) {
     res.json({ code: -1, msg: 'Username/email and password are required' });
@@ -352,6 +512,18 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   }
 
   try {
+    // Decrypt password if encrypted
+    let actualPassword = password;
+    if (encrypted) {
+      try {
+        actualPassword = decryptPassword(password);
+        log.debug('Auth', 'Password decrypted successfully');
+      } catch (decryptError) {
+        log.warn('Auth', 'Failed to decrypt password, using as-is', { error: decryptError instanceof Error ? decryptError.message : String(decryptError) });
+        // If decryption fails, continue with the original password (backward compatibility)
+      }
+    }
+
     // Check if input is an email (contains @)
     const isEmail = username.includes('@');
     
@@ -375,7 +547,13 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       user = await UserOperations.getByUsername(username) as User | undefined;
     }
 
-    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    // Timing attack prevention: always execute bcrypt to maintain constant response time
+    const fakeHash = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'; // Fixed dummy hash
+    const passwordMatch = user 
+      ? bcrypt.compareSync(actualPassword, user.password_hash)
+      : bcrypt.compareSync(actualPassword, fakeHash);
+
+    if (!passwordMatch || !user) {
       // Record failed attempt
       const failedResult = await recordFailedAttempt(loginIdentifier, ipAddress);
       if (failedResult.locked) {
@@ -385,7 +563,11 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       }
       return;
     }
-    if (user.status === 0) {
+    
+    // At this point, user is guaranteed to exist and password matches
+    // Use non-null assertion to satisfy TypeScript
+    const authenticatedUser = user!;
+    if (authenticatedUser.status === 0) {
       res.json({ code: -1, msg: 'Account is disabled' });
       return;
     }
@@ -394,14 +576,14 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     const twoFAValidationEnabled = Boolean(securityPolicy.require2FAGlobal);
 
     // Check 2FA
-    const totpStatus = await getTOTPStatus(user.id);
-    const isWebauthnEnabled = await TwoFAOperations.isWebAuthnEnabled(user.id);
+    const totpStatus = await getTOTPStatus(authenticatedUser.id);
+    const isWebauthnEnabled = await TwoFAOperations.isWebAuthnEnabled(authenticatedUser.id);
     const isTotpEnabled = totpStatus.enabled;
     const has2FA = isTotpEnabled || isWebauthnEnabled;
     
     // 检查是否需要强制 2FA
-    const force2FA = twoFAValidationEnabled && (await requires2FA(user.id));
-    const userHas2FA = await has2FAEnabled(user.id);
+    const force2FA = twoFAValidationEnabled && (await requires2FA(authenticatedUser.id));
+    const userHas2FA = await has2FAEnabled(authenticatedUser.id);
     
     // 如果强制 2FA 但用户未设置，要求先设置 2FA
     if (force2FA && !userHas2FA) {
@@ -415,20 +597,20 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
 
     if (twoFAValidationEnabled && has2FA) {
       if (backupCode) {
-        const isValid = await verifyBackupCode(user.id, backupCode);
+        const isValid = await verifyBackupCode(authenticatedUser.id, backupCode);
         if (!isValid) {
           res.json({ code: -1, msg: 'Invalid backup code' });
           return;
         }
       } else if (totpCode && isTotpEnabled) {
-        const secret = await TwoFAOperations.getTOTPSecret(user.id);
+        const secret = await TwoFAOperations.getTOTPSecret(authenticatedUser.id);
         if (!secret || !verifyTOTPToken(secret, totpCode)) {
           res.json({ code: -1, msg: 'Invalid 2FA code' });
           return;
         }
       } else if (webauthnResponse && isWebauthnEnabled) {
         // webauthnResponse verification is handled by another endpoint or we verify it here
-        const expectedChallenge = (global as any).loginChallengeStore?.get(user.id);
+        const expectedChallenge = (global as any).loginChallengeStore?.get(authenticatedUser.id);
         if (!expectedChallenge) {
           res.json({ code: -1, msg: 'WebAuthn challenge expired or missing' });
           return;
@@ -436,7 +618,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         
         const { verifyAuthenticationResponse } = require('@simplewebauthn/server');
         const { getUserWebAuthnCredentials, updateWebAuthnCredentialCounter } = require('../service/webauthn');
-        const userCreds = await getUserWebAuthnCredentials(user.id);
+        const userCreds = await getUserWebAuthnCredentials(authenticatedUser.id);
         const cred = userCreds.find((c: any) => c.id === webauthnResponse.id);
         if (!cred) {
           res.json({ code: -1, msg: 'Credential not found' });
@@ -462,7 +644,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
             return;
           }
           await updateWebAuthnCredentialCounter(cred.id, verification.authenticationInfo.newCounter);
-          (global as any).loginChallengeStore.delete(user.id);
+          (global as any).loginChallengeStore.delete(authenticatedUser.id);
         } catch (e: any) {
           res.json({ code: -1, msg: e.message });
           return;
@@ -487,15 +669,18 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         userAgent: req.headers['user-agent'] || '',
         ipAddress: getRequestIP(req),
       };
-      deviceId = await addTrustedDevice(user.id, deviceInfo);
+      deviceId = await addTrustedDevice(authenticatedUser.id, deviceInfo);
     }
     
-    const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
+    const token = await signToken({ userId: authenticatedUser.id, username: authenticatedUser.username, nickname: authenticatedUser.nickname, role: authenticatedUser.role });
+    
+    // Set httpOnly cookie (secure, XSS-proof)
+    setAuthCookie(res, token);
+    
     res.json({
       code: 0,
       data: { 
-        token, 
-        user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role },
+        user: { id: authenticatedUser.id, username: authenticatedUser.username, nickname: authenticatedUser.nickname, email: authenticatedUser.email, role: authenticatedUser.role },
         deviceId,
         require2FASetup: force2FA && !userHas2FA,
       },
@@ -749,7 +934,8 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
       log.warn('OAuth', 'State not found in store', { state: state.substring(0, 16) + '...', code: code?.substring(0, 16) + '...' });
       
       // 检查这个code是否已经被处理过
-      if (processedCodes.has(code)) {
+      const processedTimestamp = processedCodes.get(code);
+      if (processedTimestamp && Date.now() - processedTimestamp <= PROCESSED_CODES_TTL) {
         log.info('OAuth', 'Code already processed, returning success', { code: code?.substring(0, 16) + '...' });
         // 如果已经处理过，返回成功（幂等性）
         // 对于绑定模式，返回成功
@@ -766,7 +952,8 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // 再次检查是否已经被处理
-      if (processedCodes.has(code)) {
+      const processedTimestamp2 = processedCodes.get(code);
+      if (processedTimestamp2 && Date.now() - processedTimestamp2 <= PROCESSED_CODES_TTL) {
         log.info('OAuth', 'Code processed after waiting, returning success', { code: code?.substring(0, 16) + '...' });
         addProcessedCode(code);
         res.json({ code: 0, data: { mode: 'login' }, msg: 'OAuth flow completed after retry' });
@@ -854,11 +1041,15 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     }
 
     const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
+    
+    // Set httpOnly cookie (secure, XSS-proof)
+    setAuthCookie(res, token);
+    
     await logAuditOperation(user.id, 'oauth_login', 'system', { provider: providerKey });
     addProcessedCode(code);
     res.json({
       code: 0,
-      data: { mode: 'login', token, user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },
+      data: { mode: 'login', user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email, role: user.role } },
       msg: 'success',
     });
   } catch (error) {
@@ -945,28 +1136,48 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
  *         description: Password changed
  */
 router.put('/password', authMiddleware, async (req: Request, res: Response) => {
-  const { oldPassword, newPassword } = req.body as { oldPassword: string; newPassword: string };
+  const { oldPassword, newPassword, encrypted } = req.body as { 
+    oldPassword: string; 
+    newPassword: string;
+    encrypted?: boolean;
+  };
   if (!oldPassword || !newPassword) {
     res.json({ code: -1, msg: 'Old and new passwords are required' });
     return;
   }
 
   try {
+    // Decrypt passwords if encrypted
+    let actualOldPassword = oldPassword;
+    let actualNewPassword = newPassword;
+    
+    if (encrypted) {
+      try {
+        actualOldPassword = decryptPassword(oldPassword);
+        actualNewPassword = decryptPassword(newPassword);
+        log.debug('Auth', 'Passwords decrypted successfully for password change');
+      } catch (decryptError) {
+        log.warn('Auth', 'Failed to decrypt passwords, using as-is', { 
+          error: decryptError instanceof Error ? decryptError.message : String(decryptError) 
+        });
+      }
+    }
+    
     const user = await UserOperations.getById(req.user!.userId);
 
-    if (!user || !bcrypt.compareSync(oldPassword, user.password_hash as string)) {
+    if (!user || !bcrypt.compareSync(actualOldPassword, user.password_hash as string)) {
       res.json({ code: -1, msg: 'Old password is incorrect' });
       return;
     }
     
     // 验证新密码强度
-    const passwordCheck = await validatePassword(newPassword);
+    const passwordCheck = await validatePassword(actualNewPassword);
     if (!passwordCheck.valid) {
       res.json({ code: -1, msg: passwordCheck.message });
       return;
     }
     
-    const hash = bcrypt.hashSync(newPassword, 10);
+    const hash = bcrypt.hashSync(actualNewPassword, 10);
 
     await UserOperations.updatePassword(user.id as number, hash);
     
@@ -1080,8 +1291,9 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
     }
     const user = await UserOperations.getByEmail(normalized);
     if (user) {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      resetStore.set(normalized, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
+      // Use cryptographically secure random number for reset code
+      const code = String(crypto.randomInt(100000, 999999));
+      await db.PasswordReset.upsertCode(normalized, code, Date.now() + 10 * 60 * 1000);
       await sendSmtpEmail(normalized, 'HiDNS Password Reset Code', `Hi ${user.username},\n\nYour password reset code is: ${code}\nThis code will expire in 10 minutes.`);
       await logAuditOperation(user.id as number, 'send_password_reset_code', 'system', { email: normalized });
     }
@@ -1092,31 +1304,51 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
 });
 
 router.post('/password-reset/confirm', async (req: Request, res: Response) => {
-  const { email, code, newPassword } = req.body as { email?: string; code?: string; newPassword?: string };
+  const { email, code, newPassword, encrypted } = req.body as { 
+    email?: string; 
+    code?: string; 
+    newPassword?: string;
+    encrypted?: boolean;
+  };
   const normalized = (email || '').trim().toLowerCase();
   if (!normalized || !code || !newPassword) {
     res.status(400).json({ code: 400, msg: 'Email, code and newPassword are required' });
     return;
   }
-  if (newPassword.length < 6) {
+  
+  // Decrypt password if encrypted
+  let actualNewPassword = newPassword;
+  if (encrypted) {
+    try {
+      actualNewPassword = decryptPassword(newPassword);
+      log.debug('Auth', 'Password decrypted successfully for reset');
+    } catch (decryptError) {
+      log.warn('Auth', 'Failed to decrypt password, using as-is', { 
+        error: decryptError instanceof Error ? decryptError.message : String(decryptError) 
+      });
+    }
+  }
+  
+  if (actualNewPassword.length < 6) {
     res.status(400).json({ code: 400, msg: 'Password must be at least 6 characters' });
     return;
   }
-  const entry = resetStore.get(normalized);
+  const entry = await db.PasswordReset.getCode(normalized);
   if (!entry || entry.code !== code.trim() || Date.now() > entry.expiresAt) {
     res.status(400).json({ code: 400, msg: 'Invalid or expired reset code' });
     return;
   }
   try {
+    // Don't check user existence separately to avoid leaking information
+    // If the code is valid but user was deleted, just fail silently
     const user = await UserOperations.getByEmail(normalized);
-    if (!user) {
-      res.status(400).json({ code: 400, msg: 'Email not found' });
-      return;
+    if (user) {
+      const hash = bcrypt.hashSync(actualNewPassword, 10);
+      await UserOperations.updatePassword(user.id as number, hash);
+      await logAuditOperation(user.id as number, 'reset_password_by_email', 'system', { email: normalized });
     }
-    const hash = bcrypt.hashSync(newPassword, 10);
-    await UserOperations.updatePassword(user.id as number, hash);
-    resetStore.delete(normalized);
-    await logAuditOperation(user.id as number, 'reset_password_by_email', 'system', { email: normalized });
+    // Always delete the code regardless of whether user exists
+    await db.PasswordReset.deleteCode(normalized);
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to reset password' });
@@ -1238,6 +1470,29 @@ router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, r
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update pinned domains' });
   }
+});
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Logout and clear auth cookie
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully logged out
+ */
+router.post('/logout', authMiddleware, (req: Request, res: Response) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: getClientProtocol(req) === 'https',
+    sameSite: 'strict',
+    path: '/',
+  });
+
+  res.json({ code: 0, msg: 'Logged out successfully' });
 });
 
 export default router;

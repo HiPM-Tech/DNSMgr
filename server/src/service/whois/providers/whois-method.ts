@@ -5,7 +5,7 @@
 
 import * as net from 'net';
 import { BaseQueryMethod, QueryMethodType, WhoisResult } from './base';
-import { normalizeDomain } from '../../../utils/domain';
+import { normalizeDomain } from '../../../utils/dns';
 
 /**
  * WHOIS 查询方式
@@ -48,12 +48,14 @@ export class WhoisMethod extends BaseQueryMethod {
       const expiryDate = this.extractExpiryDate(raw);
       const registrar = this.extractRegistrar(raw);
       const nameServers = this.extractNameServers(raw);
+      const status = this.extractStatus(raw);
 
       if (expiryDate) {
         this.log('info', `Successfully extracted expiry for ${domain}`, {
           expiryDate: expiryDate.toISOString(),
           registrar,
           nameServerCount: nameServers.length,
+          status,
         });
       }
 
@@ -63,6 +65,7 @@ export class WhoisMethod extends BaseQueryMethod {
         registrar,
         nameServers,
         raw,
+        status,  // 添加 WHOIS 状态
       };
     } catch (error) {
       this.log('error', `WHOIS query error for ${domain}`, {
@@ -193,6 +196,50 @@ export class WhoisMethod extends BaseQueryMethod {
     }
 
     return [...new Set(ns)];
+  }
+
+  /**
+   * 提取 WHOIS 状态
+   * 支持格式：
+   * - Domain Status: ok https://icann.org/epp#OK
+   * - Domain Status: clientTransferProhibited https://icann.org/epp#clientTransferProhibited
+   * - status: ok
+   * - Status: clientTransferProhibited
+   * 支持多个状态行
+   */
+  private extractStatus(whoisText: string): string | null {
+    // 匹配所有 Domain Status 行
+    const domainStatusPattern = /Domain Status:\s*([\w]+)\s*/gi;
+    const domainStatuses: string[] = [];
+    let match;
+    
+    while ((match = domainStatusPattern.exec(whoisText)) !== null) {
+      if (match[1]) {
+        domainStatuses.push(match[1].trim());
+      }
+    }
+    
+    if (domainStatuses.length > 0) {
+      this.log('debug', `Extracted WHOIS status`, { statuses: domainStatuses });
+      return domainStatuses.join('\n');
+    }
+    
+    // 备选：匹配 status: 或 Status:
+    const statusPattern = /(?:^|\n)status:\s*([\w]+)\s*/gim;
+    const statuses: string[] = [];
+    
+    while ((match = statusPattern.exec(whoisText)) !== null) {
+      if (match[1]) {
+        statuses.push(match[1].trim());
+      }
+    }
+    
+    if (statuses.length > 0) {
+      this.log('debug', `Extracted WHOIS status`, { statuses });
+      return statuses.join('\n');
+    }
+
+    return null;
   }
 }
 

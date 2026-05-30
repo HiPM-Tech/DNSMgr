@@ -11,9 +11,13 @@ import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
 import { log } from '../lib/logger';
 import { wsService } from '../service/websocket';
-import { normalizeDomain, isValidDomain, isValidHostname } from '../utils/domain';
+import { normalizeDomain, isValidDomain, isValidHostname } from '../utils/dns';
+import { getAvailableTemplates, getEmailTemplate, generatePreview } from '../lib/dns/emailTemplate';
 
 const router = Router({ mergeParams: true });
+
+// Create a separate router for email templates to avoid route conflicts with /:domainId/records
+export const emailTemplatesRouter = Router();
 
 function toApiRecord(r: AdapterRecord) {
   const cloudflare = r.Cloudflare ?? (r.Proxiable !== undefined
@@ -146,8 +150,15 @@ async function updateDomainRecordCount(domainId: number, count: number): Promise
  *       200:
  *         description: List of DNS records
  */
-router.get('/', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {
+router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response, next) => {
   log.info('Records', '=== GET /records route entered ===', { domainId: req.params.domainId, path: req.path, originalUrl: req.originalUrl });
+  
+  // 检查是否有 domainId 参数，如果没有则交给下一个路由处理（如 email-templates）
+  if (!req.params.domainId) {
+    log.info('Records', 'No domainId parameter, passing to next route');
+    return next();
+  }
+  
   const domainId = parseInteger(req.params.domainId) ?? 0;
   log.info('Records', 'Parsed domainId', { domainId });
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
@@ -285,6 +296,80 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
   }
+}));
+
+/**
+ * @swagger
+ * /api/domains/email-templates:
+ *   get:
+ *     summary: Get available email templates
+ *     tags: [Records]
+ *     security:
+ *       - bearerAuth: []
+ */
+emailTemplatesRouter.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const templates = getAvailableTemplates();
+  sendSuccess(res, { templates });
+}));
+
+/**
+ * @swagger
+ * /api/domains/email-templates/{templateId}:
+ *   get:
+ *     summary: Get specific email template details
+ *     tags: [Records]
+ *     security:
+ *       - bearerAuth: []
+ */
+emailTemplatesRouter.get('/:templateId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const templateId = req.params.templateId;
+  
+  const template = getEmailTemplate(templateId);
+  if (!template) {
+    sendError(res, 'Template not found', 404);
+    return;
+  }
+  
+  sendSuccess(res, { template });
+}));
+
+/**
+ * @swagger
+ * /api/domains/email-templates/{templateId}/preview:
+ *   get:
+ *     summary: Get email template preview for a domain
+ *     tags: [Records]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: templateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ */
+emailTemplatesRouter.get('/:templateId/preview', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const templateId = req.params.templateId;
+  const { domain } = req.query;
+  
+  if (!domain || typeof domain !== 'string') {
+    sendError(res, 'Domain parameter is required', 400);
+    return;
+  }
+  
+  const template = getEmailTemplate(templateId);
+  if (!template) {
+    sendError(res, 'Template not found', 404);
+    return;
+  }
+  
+  const preview = generatePreview(templateId, domain);
+  sendSuccess(res, { preview });
 }));
 
 router.post('/batch', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {

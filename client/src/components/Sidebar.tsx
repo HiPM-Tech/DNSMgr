@@ -39,37 +39,37 @@ interface NavItem {
 }
 
 const primaryItems: NavItem[] = [
-  { to: '/', icon: <DashboardIcon />, key: 'common.dashboard', end: true },
-  { to: '/accounts', icon: <ServerIcon />, key: 'common.dnsAccounts' },
-  { to: '/teams', icon: <UsergroupIcon />, key: 'common.teams' },
-  { to: '/tokens', icon: <KeyIcon />, key: 'common.tokens' },
+  { to: '/dash', icon: <DashboardIcon />, key: 'common.dashboard', end: true },
+  { to: '/dash/accounts', icon: <ServerIcon />, key: 'common.dnsAccounts' },
+  { to: '/dash/teams', icon: <UsergroupIcon />, key: 'common.teams' },
+  { to: '/dash/tokens', icon: <KeyIcon />, key: 'common.tokens' },
 ];
 
 const domainItems: NavItem[] = [
-  { to: '/domains', icon: <RootListIcon />, key: 'domains.tabs.list' },
-  { to: '/domains/failover', icon: <ActivityIcon />, key: 'domains.tabs.failover' },
-  { to: '/domains/ns-monitor', icon: <SecuredIcon />, key: 'domains.tabs.nsMonitor' },
-  { to: '/domains/renewal', icon: <CalendarIcon />, key: 'domains.tabs.renewal' },
+  { to: '/dash/domains', icon: <RootListIcon />, key: 'domains.tabs.list' },
+  { to: '/dash/domains/failover', icon: <ActivityIcon />, key: 'domains.tabs.failover' },
+  { to: '/dash/domains/ns-monitor', icon: <SecuredIcon />, key: 'domains.tabs.nsMonitor' },
+  { to: '/dash/domains/renewal', icon: <CalendarIcon />, key: 'domains.tabs.renewal' },
 ];
 
 const adminItems: NavItem[] = [
-  { to: '/users', icon: <UserSettingIcon />, key: 'common.users' },
-  { to: '/audit', icon: <FileSearchIcon />, key: 'common.audit' },
+  { to: '/dash/users', icon: <UserSettingIcon />, key: 'common.users' },
+  { to: '/dash/audit', icon: <FileSearchIcon />, key: 'common.audit' },
 ];
 
 const systemItems: NavItem[] = [
-  { to: '/system', icon: <InfoCircleIcon />, key: 'system.tabs.overview' },
-  { to: '/system/database', icon: <DataBaseIcon />, key: 'system.tabs.database' },
-  { to: '/system/security', icon: <SecuredIcon />, key: 'system.tabs.security' },
-  { to: '/system/access', icon: <KeyIcon />, key: 'system.tabs.access' },
-  { to: '/system/network', icon: <InternetIcon />, key: 'system.tabs.network' },
-  { to: '/system/notifications', icon: <NotificationIcon />, key: 'system.tabs.notifications' },
+  { to: '/dash/system', icon: <InfoCircleIcon />, key: 'system.tabs.overview' },
+  { to: '/dash/system/database', icon: <DataBaseIcon />, key: 'system.tabs.database' },
+  { to: '/dash/system/security', icon: <SecuredIcon />, key: 'system.tabs.security' },
+  { to: '/dash/system/access', icon: <KeyIcon />, key: 'system.tabs.access' },
+  { to: '/dash/system/network', icon: <InternetIcon />, key: 'system.tabs.network' },
+  { to: '/dash/system/notifications', icon: <NotificationIcon />, key: 'system.tabs.notifications' },
 ];
 
 const accountItems: NavItem[] = [
-  { to: '/settings', icon: <SettingIcon />, key: 'common.settings' },
-  { to: '/security', icon: <LockOnIcon />, key: 'common.security' },
-  { to: '/about', icon: <InfoCircleIcon />, key: 'common.about' },
+  { to: '/dash/settings', icon: <SettingIcon />, key: 'common.settings' },
+  { to: '/dash/security', icon: <LockOnIcon />, key: 'common.security' },
+  { to: '/dash/about', icon: <InfoCircleIcon />, key: 'common.about' },
 ];
 
 function getActivePath(pathname: string, menuItems: NavItem[]) {
@@ -94,22 +94,22 @@ function AppMenu({ collapsed, onClose }: AppMenuProps) {
   const location = useLocation();
   const [expanded, setExpanded] = useState<MenuValue[]>(
     [
-      ...(location.pathname.startsWith('/domains') ? ['/domains-group'] : []),
-      ...(location.pathname.startsWith('/system') ? ['/system-group'] : []),
+      ...(location.pathname.startsWith('/dash/domains') ? ['/domains-group'] : []),
+      ...(location.pathname.startsWith('/dash/system') ? ['/system-group'] : []),
     ],
   );
 
   const menuItems = useMemo(() => {
     const items = [...primaryItems];
     if (showTunnels) {
-      items.push({ to: '/tunnels', icon: <LinkIcon />, key: 'tunnels.title' });
+      items.push({ to: '/dash/tunnels', icon: <LinkIcon />, key: 'tunnels.title' });
     }
     return [...items, ...domainItems, ...(isAdmin ? [...adminItems, ...systemItems] : []), ...accountItems];
   }, [isAdmin, showTunnels]);
 
   const activePath = getActivePath(location.pathname, menuItems);
-  const isDomainGroupActive = collapsed && location.pathname.startsWith('/domains');
-  const isSystemGroupActive = collapsed && location.pathname.startsWith('/system');
+  const isDomainGroupActive = collapsed && location.pathname.startsWith('/dash/domains');
+  const isSystemGroupActive = collapsed && location.pathname.startsWith('/dash/system');
   const menuValue = isDomainGroupActive
     ? '/domains-group'
     : isSystemGroupActive
@@ -117,10 +117,10 @@ function AppMenu({ collapsed, onClose }: AppMenuProps) {
       : activePath;
 
   useEffect(() => {
-    if (location.pathname.startsWith('/domains')) {
+    if (location.pathname.startsWith('/dash/domains')) {
       setExpanded((current) => (current.includes('/domains-group') ? current : [...current, '/domains-group']));
     }
-    if (location.pathname.startsWith('/system')) {
+    if (location.pathname.startsWith('/dash/system')) {
       setExpanded((current) => (current.includes('/system-group') ? current : [...current, '/system-group']));
     }
   }, [location.pathname]);

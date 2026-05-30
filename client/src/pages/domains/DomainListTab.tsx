@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Checkbox, Empty, Form, Input, Loading, Pagination, Radio, Select, Space, Tag } from 'tdesign-react';
 import {
@@ -9,12 +9,13 @@ import {
   JumpIcon,
   LayersIcon,
   PinIcon,
+  PoweroffIcon,
   RootListIcon,
   SearchIcon,
 } from 'tdesign-icons-react';
 import { useNavigate } from 'react-router-dom';
 import { domainsApi, accountsApi, authApi } from '../../api';
-import type { Domain, DnsAccount, ProviderDomainOption } from '../../api';
+import type { Domain, DnsAccount, ProviderDomainOption, WhoisInfo } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -22,9 +23,9 @@ import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { isApexDomain } from '../../utils/domain-utils';
+import { formatDomainName } from '../../utils/domain';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
-import { useFormSync } from '../../hooks/useFormSync';
 
 interface AddDomainFormProps {
   accounts: DnsAccount[];
@@ -43,32 +44,12 @@ const dialogField = (label: string, control: ReactNode, tips?: ReactNode) => (
   </div>
 );
 
-type DomainEditFormState = {
-  id: number;
-  name: string;
-  account_id: number;
-  third_id: string;
-  remark: string;
-};
-
-const DEFAULT_DOMAIN_EDIT_FORM: DomainEditFormState = {
-  id: 0,
-  name: '',
-  account_id: 0,
-  third_id: '',
-  remark: '',
-};
-
-function normalizeDomainEditForm(domain?: Partial<Domain> | null, fallback?: Partial<Domain> | null): DomainEditFormState {
-  const source = domain ?? fallback ?? {};
-  return {
-    id: Number(source.id ?? fallback?.id ?? 0),
-    name: String(source.name ?? fallback?.name ?? ''),
-    account_id: Number(source.account_id ?? fallback?.account_id ?? 0),
-    third_id: String(source.third_id ?? fallback?.third_id ?? ''),
-    remark: String(source.remark ?? fallback?.remark ?? ''),
-  };
-}
+const ControlField = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+    <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--td-text-color-primary)' }}>{label}</label>
+    {children}
+  </div>
+);
 
 function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
   const qc = useQueryClient();
@@ -203,7 +184,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
                     onChange={(checked) => toggleProvider(domain.third_id, Boolean(checked))}
                   />
                   <span className="page-list-item__main">
-                    <strong>{domain.name}</strong>
+                    <strong>{formatDomainName(domain.name)}</strong>
                     <span>{domain.third_id}</span>
                   </span>
                 </label>
@@ -240,17 +221,24 @@ export function DomainListTab() {
   const canManage = isActuallyAdmin;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Domain | null>(null);
-  const [editAutoReset, setEditAutoReset] = useState(true);
+  const [editRemark, setEditRemark] = useState('');
+  const [editRemarkDirty, setEditRemarkDirty] = useState(false);
   const [deleting, setDeleting] = useState<Domain | null>(null);
   const [accountFilter, setAccountFilter] = useState('');
   const [keyword, setKeyword] = useState('');
   const [domainTypeFilter, setDomainTypeFilter] = useState<'all' | 'apex' | 'subdomain'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
+  
+  // ← 新增：批量操作相关状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<(string | number)[]>([]);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
   useRealtimeData({
     queryKey: ['domains'],
-    websocketEventTypes: ['domain_created', 'domain_updated', 'domain_deleted'],
+    websocketEventTypes: ['domain_created', 'domain_updated', 'domain_deleted', 'domain_whois_updated'],
     pollingInterval: 60000,
   });
 
@@ -262,19 +250,34 @@ export function DomainListTab() {
   const pinnedDomains = pinnedDomainsData ?? [];
 
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
-    queryKey: ['domains', accountFilter, keyword, domainTypeFilter, page, pageSize],
-    queryFn: () => domainsApi.list({
-      account_id: accountFilter ? Number(accountFilter) : undefined,
-      keyword: keyword || undefined,
-      domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
-      page,
-      pageSize,
-    }).then((r) => r.data.data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 }),
+    queryKey: ['domains', accountFilter, keyword, domainTypeFilter, statusFilter, page, pageSize],
+    queryFn: async () => {
+      // 使用后端分页和过滤
+      const res = await domainsApi.list({
+        account_id: accountFilter ? Number(accountFilter) : undefined,
+        keyword: keyword || undefined,
+        domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
+        domain_status: statusFilter,  // 'enabled' | 'disabled' | 'all'
+        page,
+        pageSize,
+      });
+      
+      return res.data.data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 };
+    },
     staleTime: 30 * 1000,
   });
 
   const domains = domainsData?.list ?? [];
   const total = domainsData?.total ?? 0;
+  
+  // Debug log
+  console.log('[DomainListTab] Data state:', {
+    domainsLength: domains.length,
+    total,
+    isLoading,
+    hasDomainsData: !!domainsData
+  });
+  
   const sortedDomains = [...domains].sort((a, b) => {
     const aPinned = pinnedDomains.includes(a.id);
     const bPinned = pinnedDomains.includes(b.id);
@@ -289,32 +292,28 @@ export function DomainListTab() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const editingId = editing?.id ?? 0;
-  const { data: editingDomainDetail, dataUpdatedAt: editingDomainDetailUpdatedAt } = useQuery({
-    queryKey: ['domain', editingId],
-    queryFn: async () => {
-      const res = await domainsApi.get(editingId);
-      if (res.data.code === 0 && res.data.data) {
-        return res.data.data;
-      }
-      throw new Error(res.data.msg || t('domains.updateFailed'));
-    },
-    enabled: editingId > 0,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    gcTime: 0,
-  });
+  // 使用数据库中的WHOIS状态（由后端定时任务同步）
+  const apexDomains = domains.filter((d) => isApexDomain(d.name));
+  
+  // 构建WHOIS状态映射（直接从数据库读取）
+  const whoisMap: Record<string, WhoisInfo> = {};
+  for (const domain of apexDomains) {
+    if (domain.whois_status) {
+      whoisMap[domain.name] = {
+        domain: domain.name,
+        status: domain.whois_status,
+      };
+    }
+  }
 
   const updateMutation = useMutation({
     mutationFn: ({ id, remark }: { id: number; remark: string }) => domainsApi.update(id, { remark }),
-    onSuccess: (res, variables) => {
+    onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.setQueryData<Domain | undefined>(['domain', variables.id], (current) => (
-        current ? { ...current, remark: variables.remark } : current
-      ));
       qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
       setEditing(null);
-      setEditAutoReset(true);
+      setEditRemark('');
+      setEditRemarkDirty(false);
       toast.success(t('domains.updateSuccess'));
     },
     onError: () => toast.error(t('domains.updateFailed')),
@@ -341,63 +340,180 @@ export function DomainListTab() {
     },
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['pinnedDomains'] });
-      toast.success('操作成功');
+      qc.invalidateQueries({ queryKey: ['pinnedDomains'], refetchType: 'active' });
+      toast.success(t('domains.pinSuccess'));
     },
-    onError: () => toast.error('操作失败'),
+    onError: () => toast.error(t('domains.pinFailed')),
+  });
+
+  const toggleEnabledMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: number }) => {
+      console.log('[DomainList] Toggling enabled status:', { id, enabled });
+      return domainsApi.update(id, { enabled });
+    },
+    onSuccess: (res) => {
+      console.log('[DomainList] Toggle success:', res.data);
+      if (res.data.code !== 0) { 
+        toast.error(res.data.msg || t('domains.toggleStatusFailed')); 
+        return; 
+      }
+      qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
+      toast.success(t('domains.toggleStatusSuccess'));
+    },
+    onError: (error) => {
+      console.error('[DomainList] Toggle failed:', error);
+      toast.error(t('domains.toggleStatusFailed'));
+    },
+  });
+
+  // ← 新增：批量删除 mutation
+  const batchDeleteMutation = useMutation({
+    mutationFn: (domainIds: number[]) => domainsApi.batchDelete(domainIds),
+    onSuccess: (res) => {
+      if (res.data.code !== 0) {
+        toast.error(res.data.msg || t('domains.batchDeleteFailed'));
+        return;
+      }
+      const { deleted, failed, inaccessibleCount } = res.data.data;
+      
+      if (deleted > 0) {
+        qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
+        setSelectedRowKeys([]);  // 清空选择
+        
+        if (failed === 0 && !inaccessibleCount) {
+          toast.success(t('domains.batchDeleteSuccess', { count: deleted }));
+        } else {
+          let message = t('domains.batchDeletePartialSuccess', { deleted, failed });
+          if (inaccessibleCount) {
+            message += ` ${t('domains.batchDeleteSkipped', { count: inaccessibleCount })}`;
+          }
+          toast.info(message);
+        }
+      } else {
+        toast.error(t('domains.batchDeleteFailed'));
+      }
+    },
+    onError: () => {
+      toast.error(t('domains.batchDeleteFailed'));
+    },
   });
 
   const accountMap = Object.fromEntries(accounts.map((account) => [account.id, account]));
   const editingDomain = editing ? sortedDomains.find((domain) => domain.id === editing.id) ?? editing : null;
-  const editingFormSource = editingDomain
-    ? normalizeDomainEditForm(editingDomainDetail ?? editingDomain, editingDomain)
-    : undefined;
-  const {
-    formState: editForm,
-    updateField: updateEditField,
-    updateFields: updateEditFields,
-  } = useFormSync<DomainEditFormState>(
-    editingFormSource,
-    DEFAULT_DOMAIN_EDIT_FORM,
-    {
-      fields: ['id', 'name', 'account_id', 'third_id', 'remark'],
-      transformers: {
-        id: (value: unknown) => Number(value ?? 0),
-        name: (value: unknown) => String(value ?? ''),
-        account_id: (value: unknown) => Number(value ?? 0),
-        third_id: (value: unknown) => String(value ?? ''),
-        remark: (value: unknown) => String(value ?? ''),
-      },
-      autoReset: editAutoReset,
-    },
-  );
-
-  const openEdit = (domain: Domain) => {
-    const next = normalizeDomainEditForm(domain, domain);
-    setEditAutoReset(true);
-    updateEditFields(next);
-    setEditing(domain);
+  const getListedRemark = (domainId: number, fallback?: string | null) => {
+    const listedDomain = sortedDomains.find((item) => item.id === domainId);
+    return listedDomain?.remark ?? fallback ?? '';
   };
 
-  const closeEdit = () => {
-    setEditing(null);
-    setEditAutoReset(true);
+  useEffect(() => {
+    if (!editingDomain || editRemarkDirty) return;
+    setEditRemark(getListedRemark(editingDomain.id, editingDomain.remark));
+  }, [editingDomain, sortedDomains, editRemarkDirty]);
+
+  const openEdit = (domain: Domain) => {
+    setEditRemarkDirty(false);
+    setEditRemark(getListedRemark(domain.id, domain.remark));
+    setEditing(domain);
   };
 
   const columns = [
     {
       key: 'name',
       label: t('domains.domainName'),
+      width: 250,
       render: (row: Domain) => {
         const isApex = isApexDomain(row.name);
+        const displayName = formatDomainName(row.name);
         return (
           <Space size="small">
-            <Button variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/domains/${row.id}/records`)}>
-              {row.name}
+            <Button className="domain-name-button" variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)} title={displayName}>
+              {displayName}
             </Button>
             {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />}>{t('domains.subdomain')}</Tag>}
           </Space>
         );
+      },
+    },
+    {
+      key: 'local_status',
+      label: t('domains.localStatus'),
+      render: (row: Domain) => {
+        const isEnabled = row.enabled !== 0;
+        const localStatusText = isEnabled ? t('common.enabled') : t('common.disabled');
+        const localStatusTheme = isEnabled ? 'success' : 'default';
+        return (
+          <Tag theme={localStatusTheme} variant="light" size="small">
+            {localStatusText}
+          </Tag>
+        );
+      },
+    },
+    {
+      key: 'whois_status',
+      label: t('domains.domainStatus'),
+      render: (row: Domain) => {
+        const isApex = isApexDomain(row.name);
+        if (!isApex) {
+          return <span className="page-muted">-</span>;
+        }
+        
+        // WHOIS 状态
+        const whoisInfo = whoisMap[row.name];
+        
+        if (whoisInfo?.status) {
+          // 分割多个状态（用换行符分隔）
+          const statuses = whoisInfo.status.split('\n').filter(Boolean);
+          
+          // 调试日志
+          if (statuses.length > 1) {
+            console.log('[DomainList] Multiple WHOIS statuses for', row.name, ':', statuses);
+          }
+          
+          // 根据状态设置标签颜色
+          const getStatusTheme = (status: string) => {
+            const lowerStatus = status.toLowerCase();
+            if (lowerStatus === 'ok' || lowerStatus === 'active') return 'success';
+            if (lowerStatus.includes('hold') || lowerStatus.includes('prohibited')) return 'danger';
+            if (lowerStatus.includes('pending')) return 'warning';
+            return 'default';
+          };
+          
+          // 获取状态的翻译文本
+          const getStatusLabel = (status: string) => {
+            // 移除 URL 部分（如 https://icann.org/epp#clientTransferProhibited）
+            let cleanStatus = status.split(' ')[0].split('#').pop() || status;
+            
+            // 如果包含空格，转换为驼峰命名（如 "client transfer prohibited" -> "clientTransferProhibited"）
+            if (status.includes(' ')) {
+              cleanStatus = status
+                .toLowerCase()
+                .split(' ')
+                .map((word, index) => {
+                  if (index === 0) return word;
+                  return word.charAt(0).toUpperCase() + word.slice(1);
+                })
+                .join('');
+            }
+            
+            const camelCaseStatus = cleanStatus.charAt(0).toLowerCase() + cleanStatus.slice(1);
+            const translationKey = `domains.whoisStatus.${camelCaseStatus}`;
+            const translated = t(translationKey);
+            return translated === translationKey ? status : translated;
+          };
+          
+          // 渲染所有状态标签
+          return (
+            <Space direction="vertical" size="small">
+              {statuses.map((status, index) => (
+                <Tag key={index} theme={getStatusTheme(status)} variant="light" size="small">
+                  {getStatusLabel(status)}
+                </Tag>
+              ))}
+            </Space>
+          );
+        } else {
+          return <span className="page-muted">{t('domains.unknown')}</span>;
+        }
       },
     },
     {
@@ -434,8 +550,21 @@ export function DomainListTab() {
       label: t('domains.actions'),
       render: (row: Domain) => {
         const isPinned = pinnedDomains.includes(row.id);
+        const isEnabled = row.enabled !== 0;
         return (
           <Space size="small">
+            <Button
+              shape="square"
+              variant="text"
+              theme={isEnabled ? 'default' : 'success'}
+              icon={<PoweroffIcon />}
+              onClick={() => {
+                console.log('[DomainList] Button clicked:', { id: row.id, currentEnabled: isEnabled, canManage });
+                toggleEnabledMutation.mutate({ id: row.id, enabled: isEnabled ? 0 : 1 });
+              }}
+              disabled={!canManage}
+              title={!canManage ? t('common.permissionDenied') : (isEnabled ? t('domains.disable') : t('domains.enable'))}
+            />
             <Button
               shape="square"
               variant="text"
@@ -443,7 +572,7 @@ export function DomainListTab() {
               icon={<PinIcon />}
               onClick={() => pinMutation.mutate({ domainId: row.id, isPinned: !isPinned })}
             />
-            <Button shape="square" variant="text" icon={<RootListIcon />} onClick={() => navigate(`/domains/${row.id}/records`)} />
+            <Button shape="square" variant="text" icon={<RootListIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)} />
             <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => openEdit(row)} />
             <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(row)} />
           </Space>
@@ -465,33 +594,109 @@ export function DomainListTab() {
       </section>
 
       <Card bordered={false} shadow={false} className="page-card domain-list-card">
-        <div className="records-toolbar domain-filter-grid domain-list-card__toolbar">
-          <Input
-            clearable
-            type="search"
-            name="domain-list-search"
-            autocomplete="off"
-            value={keyword}
-            prefixIcon={<SearchIcon />}
-            placeholder={t('domains.searchPlaceholder')}
-            onChange={(value) => { setKeyword(String(value)); setPage(1); }}
-          />
-          <Select
-            value={accountFilter}
-            options={[{ label: t('domains.allAccounts'), value: '' }, ...accounts.map((account) => ({ label: account.name, value: String(account.id) }))]}
-            onChange={(value) => { setAccountFilter(selectValue(value)); setPage(1); }}
-          />
-          <Select
-            value={domainTypeFilter}
-            options={[
-              { label: t('domains.allDomains'), value: 'all' },
-              { label: t('domains.apexDomains'), value: 'apex' },
-              { label: t('domains.subdomains'), value: 'subdomain' },
-            ]}
-            onChange={(value) => { setDomainTypeFilter(selectValue(value) as 'all' | 'apex' | 'subdomain'); setPage(1); }}
-          />
+        <div className="records-toolbar domain-list-card__toolbar">
+          {/* 搜索框和高级筛选按钮 */}
+          <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
+            <Input
+              clearable
+              type="search"
+              name="domain-list-search"
+              autocomplete="off"
+              value={keyword}
+              prefixIcon={<SearchIcon />}
+              placeholder={t('domains.searchPlaceholder')}
+              onChange={(value) => { setKeyword(String(value)); setPage(1); }}
+              style={{ flex: 1, maxWidth: '400px' }}
+            />
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}
+            >
+              {showAdvancedFilter ? t('common.collapse') : t('common.expand')} {t('domains.advancedFilter')}
+            </Button>
+          </div>
+          
+          {/* ← 新增：批量操作按钮（仅管理员可见） */}
+          {canManage && selectedRowKeys.length > 0 && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', color: 'var(--td-text-color-secondary)' }}>
+                {t('domains.selectedCount', { count: selectedRowKeys.length })}
+              </span>
+              <Button 
+                variant="outline" 
+                theme="danger"
+                icon={<DeleteIcon />}
+                onClick={() => setShowBatchDeleteConfirm(true)}
+              >
+                {t('domains.batchDelete')}
+              </Button>
+            </div>
+          )}
         </div>
-        <Table columns={columns} data={sortedDomains} loading={isLoading} rowKey={(row) => row.id} emptyText={t('domains.noDomainsFound')} />
+
+        {/* 高级筛选面板 */}
+        {showAdvancedFilter && (
+          <div className="advanced-filter-panel" style={{ 
+            padding: '16px', 
+            marginBottom: '16px',
+            backgroundColor: 'var(--td-bg-color-container)',
+            borderRadius: '3px',
+            border: '1px solid var(--td-border-level-1-color)'
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              <ControlField label={t('domains.dnsAccount')}>
+                <Select
+                  value={accountFilter}
+                  options={[
+                    { label: t('domains.allAccounts'), value: '' }, 
+                    ...accounts
+                      .filter((account) => account.enabled !== false)  // ← 只显示启用的账号（true 或 undefined 都视为启用）
+                      .map((account) => ({ 
+                        label: `${account.name} (${account.type})`,  // ← 显示账号名称和类型
+                        value: String(account.id) 
+                      }))
+                  ]}
+                  onChange={(value) => { setAccountFilter(selectValue(value)); setPage(1); }}
+                  style={{ width: '100%' }}
+                />
+              </ControlField>
+              <ControlField label={t('domains.domainType')}>
+                <Select
+                  value={domainTypeFilter}
+                  options={[
+                    { label: t('domains.allDomains'), value: 'all' },
+                    { label: t('domains.apexDomains'), value: 'apex' },
+                    { label: t('domains.subdomains'), value: 'subdomain' },
+                  ]}
+                  onChange={(value) => { setDomainTypeFilter(selectValue(value) as 'all' | 'apex' | 'subdomain'); setPage(1); }}
+                  style={{ width: '100%' }}
+                />
+              </ControlField>
+              <ControlField label={t('domains.domainStatus')}>
+                <Select
+                  value={statusFilter}
+                  options={[
+                    { label: t('domains.allStatus'), value: 'all' },
+                    { label: t('domains.enabled'), value: 'enabled' },
+                    { label: t('domains.disabled'), value: 'disabled' },
+                  ]}
+                  onChange={(value) => { setStatusFilter(selectValue(value) as 'all' | 'enabled' | 'disabled'); setPage(1); }}
+                  style={{ width: '100%' }}
+                />
+              </ControlField>
+            </div>
+          </div>
+        )}
+                <Table
+                  columns={columns} 
+                  data={sortedDomains} 
+                  loading={isLoading} 
+                  rowKey={(row) => row.id} 
+                  emptyText={t('domains.noDomainsFound')}
+                  selectable={true}  // ← 临时测试：所有用户都显示复选框
+                  selectedRowKeys={selectedRowKeys}
+                  onSelectChange={setSelectedRowKeys}
+                />
         <div className="records-pagination">
           <Pagination
             current={page}
@@ -515,60 +720,54 @@ export function DomainListTab() {
 
       {editingDomain && canManage && (
         <Modal
-          key={`domain-edit-${editingDomain.id}-${editingDomainDetailUpdatedAt}`}
+          key={`domain-edit-${editingDomain.id}`}
           title={t('domains.editDomain')}
-          onClose={closeEdit}
+          onClose={() => {
+            setEditing(null);
+            setEditRemark('');
+            setEditRemarkDirty(false);
+          }}
           size="md"
         >
-          {(() => {
-            const editDomainId = Number(editForm.id ?? 0);
-            const editAccountId = Number(editForm.account_id ?? 0);
-            const editRemark = String(editForm.remark ?? '');
-            const editName = String(editForm.name ?? '');
-            const editThirdId = String(editForm.third_id ?? '');
-            const accountLabel = accountMap[editAccountId]
-              ? `${accountMap[editAccountId].name} (${accountMap[editAccountId].type})`
-              : editAccountId
-                ? `#${editAccountId}`
-                : '';
-
-            return (
-          <form
+          <Form
+            layout="vertical"
+            colon={false}
+            requiredMark={false}
             className="page-shell"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!editDomainId) return;
-              updateMutation.mutate({ id: editDomainId, remark: editRemark });
+            onSubmit={({ e }) => {
+              e?.preventDefault();
+              updateMutation.mutate({ id: editingDomain.id, remark: editRemark });
             }}
           >
-            {dialogField(t('domains.domain'), (
-              <Input readonly value={editName} />
-            ))}
-            {dialogField(t('domains.dnsAccount'), (
-              <Input readonly value={accountLabel} />
-            ))}
-            {dialogField(t('domains.providerDomainId'), (
-              <Input readonly value={editThirdId || '-'} />
-            ))}
-            {dialogField(
-              t('domains.remark'),
+            <Form.FormItem label={t('domains.domain')}>
+              <span className="page-strong">{editingDomain.name}</span>
+            </Form.FormItem>
+            <Form.FormItem label={t('domains.dnsAccount')}>
+              <span className="page-strong">
+                {accountMap[editingDomain.account_id]
+                  ? `${accountMap[editingDomain.account_id].name} (${accountMap[editingDomain.account_id].type})`
+                  : `#${editingDomain.account_id}`}
+              </span>
+            </Form.FormItem>
+            <Form.FormItem label={t('domains.providerDomainId')}>
+              <span className="page-muted">{editingDomain.third_id || '-'}</span>
+            </Form.FormItem>
+            {dialogField(t('domains.remark'),
               <Input
                 value={editRemark}
                 onChange={(value) => {
-                  setEditAutoReset(false);
-                  updateEditField('remark', String(value));
+                  setEditRemarkDirty(true);
+                  setEditRemark(String(value));
                 }}
                 placeholder={t('common.optionalRemark')}
-              />,
+              />
             )}
             <Space className="record-form__actions">
               <Button type="submit" theme="primary" loading={updateMutation.isPending}>
                 {t('common.save')}
               </Button>
             </Space>
-          </form>
-            );
-          })()}
+          </Form>
         </Modal>
       )}
 
@@ -578,6 +777,20 @@ export function DomainListTab() {
           onConfirm={() => deleteMutation.mutate(deleting.id)}
           onCancel={() => setDeleting(null)}
           isLoading={deleteMutation.isPending}
+        />
+      )}
+      
+      {/* ← 新增：批量删除确认对话框 */}
+      {showBatchDeleteConfirm && (
+        <ConfirmDialog
+          message={t('domains.batchDeleteConfirm', { count: selectedRowKeys.length })}
+          onConfirm={() => {
+            const ids = selectedRowKeys.map((key) => Number(key));
+            batchDeleteMutation.mutate(ids);
+            setShowBatchDeleteConfirm(false);
+          }}
+          onCancel={() => setShowBatchDeleteConfirm(false)}
+          isLoading={batchDeleteMutation.isPending}
         />
       )}
     </div>

@@ -67,12 +67,20 @@ async function getJwtSecret(): Promise<string> {
 }
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
+  // Try to get token from httpOnly cookie first, then fallback to Authorization header
+  let token = req.cookies?.token;
+  
+  if (!token) {
+    const header = req.headers.authorization;
+    if (header?.startsWith('Bearer ')) {
+      token = header.slice(7);
+    }
+  }
+  
+  if (!token) {
     res.status(401).json({ code: -1, msg: 'Unauthorized' });
     return;
   }
-  const token = header.slice(7);
   
   // First try to verify as JWT
   try {
@@ -205,8 +213,20 @@ export function requireTokenDomainPermission(paramName: string = 'id') {
       return;
     }
 
-    // 如果 allowed_domains 为空数组，表示允许所有域名
-    if (!tokenPayload.allowedDomains || tokenPayload.allowedDomains.length === 0) {
+    // 如果 allowed_domains 为 null/undefined，表示允许所有域名（向后兼容）
+    // 如果为空数组 []，表示不允许任何域名（白名单机制）
+    if (tokenPayload.allowedDomains === null || tokenPayload.allowedDomains === undefined) {
+      next();
+      return;
+    }
+    
+    // 空数组表示允许所有域名（向后兼容 ddns-go 等外部工具）
+    // 如果需要限制权限，请显式配置 allowedDomains
+    if (tokenPayload.allowedDomains.length === 0) {
+      log.debug('Auth', 'Token has no domain restrictions, allowing all domains', { 
+        tokenId: tokenPayload.tokenId,
+        userId: tokenPayload.userId 
+      });
       next();
       return;
     }

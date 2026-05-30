@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Checkbox, Empty, Loading, Select, Space, Tag } from 'tdesign-react';
-import { AddIcon, CalendarIcon, CheckCircleIcon, DeleteIcon, ErrorCircleIcon, RefreshIcon, TimeIcon } from 'tdesign-icons-react';
+import { AddIcon, CalendarIcon, CheckCircleIcon, DeleteIcon, ErrorCircleIcon, RefreshIcon, TimeIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
 import { domainRenewalApi, accountsApi, api } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
@@ -10,6 +10,7 @@ import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { formatDomainName } from '../../utils/domain';
 
 function selectValue(value: unknown) {
   return String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
@@ -93,6 +94,18 @@ export function DomainRenewalTab() {
     },
     onError: () => {
       toast.error(t('domainRenewal.deleteFailed'));
+    },
+  });
+
+  const toggleEnabledMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => 
+      domainRenewalApi.toggleEnabled(id, enabled),
+    onSuccess: (_, { enabled }) => {
+      queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
+      toast.success(enabled ? t('common.enabled') : t('common.disabled'));
+    },
+    onError: () => {
+      toast.error(t('common.operationFailed'));
     },
   });
 
@@ -183,12 +196,25 @@ export function DomainRenewalTab() {
     {
       key: 'name',
       label: t('common.name'),
-      render: (row: any) => <span className="page-strong">{row.name}</span>,
+      render: (row: any) => <span className="page-strong">{formatDomainName(row.full_domain || row.domain_name)}</span>,
     },
     {
       key: 'account_name',
       label: t('accounts.provider'),
-      render: (row: any) => <Tag theme="primary" variant="light">{row.account_name || 'DNSHE'}</Tag>,
+      render: (row: any) => (
+        <Tag theme="primary" variant="light">
+          {row.account_name || 'DNSHE'} ({row.provider_type})
+        </Tag>
+      ),
+    },
+    {
+      key: 'local_status',
+      label: t('domainRenewal.localStatus'),
+      render: (row: any) => (
+        <Tag theme={row.enabled ? 'success' : 'default'} variant="light">
+          {row.enabled ? t('common.enabled') : t('common.disabled')}
+        </Tag>
+      ),
     },
     {
       key: 'expires_at',
@@ -231,7 +257,7 @@ export function DomainRenewalTab() {
               variant="text"
               icon={<RefreshIcon />}
               loading={isRenewing}
-              disabled={!subdomainId}
+              disabled={!subdomainId || !row.enabled}
               onClick={() => {
                 if (subdomainId) {
                   setRenewing(Number(subdomainId));
@@ -241,6 +267,18 @@ export function DomainRenewalTab() {
             >
               {isRenewing ? t('domainRenewal.renewing') : t('domainRenewal.renew')}
             </Button>
+            <Button
+              shape="square"
+              variant="text"
+              theme={row.enabled ? 'warning' : 'success'}
+              icon={row.enabled ? <StopCircleIcon /> : <PlayCircleIcon />}
+              disabled={toggleEnabledMutation.isPending}
+              onClick={() => {
+                // Toggle enabled state (handle both boolean and number from database)
+                const currentEnabled = !!row.enabled;
+                toggleEnabledMutation.mutate({ id: row.id, enabled: !currentEnabled });
+              }}
+            />
             <Button
               shape="square"
               variant="text"
@@ -400,7 +438,7 @@ export function DomainRenewalTab() {
                         onChange={() => toggleDomainSelection(String(sub.id))}
                       />
                       <span className="page-list-item__main">
-                        <strong>{sub.full_domain}</strong>
+                        <strong>{formatDomainName(sub.full_domain)}</strong>
                         <span>
                           ID: {sub.id}
                           {sub.expires_at && ` | ${t('domainRenewal.expires')}: ${new Date(sub.expires_at).toLocaleDateString()}`}

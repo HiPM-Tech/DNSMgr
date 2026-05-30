@@ -10,7 +10,7 @@
  * - 日志必须包含详细操作信息（操作类型、操作对象、操作结果等）
  */
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
 interface LogEntry {
   timestamp: string;
@@ -39,15 +39,37 @@ interface ErrorDetails {
 class Logger {
   private static instance: Logger;
   private logLevel: LogLevel;
+  private useColors: boolean;
+
+  // ANSI 颜色代码
+  private readonly colors = {
+    reset: '\x1b[0m',
+    trace: '\x1b[90m',     // 深灰色（比 debug 更淡）
+    debug: '\x1b[36m',      // 青色
+    info: '\x1b[32m',       // 绿色
+    warn: '\x1b[33m',       // 黄色
+    error: '\x1b[31m',      // 红色
+    timestamp: '\x1b[90m',  // 灰色
+    module: '\x1b[35m',     // 紫色
+    context: '\x1b[34m',    // 蓝色
+  };
 
   private constructor() {
     // 从独立的环境变量 HIDNS_LOG_LEVEL 读取日志级别，默认为 'info'
     const envLevel = (typeof process !== 'undefined' && process.env?.HIDNS_LOG_LEVEL) as LogLevel | undefined;
-    const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+    const validLevels: LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error'];
     this.logLevel = envLevel && validLevels.includes(envLevel) ? envLevel : 'info';
     
+    // 检测是否支持彩色输出（默认启用，可通过 HIDNS_NO_COLOR=1 禁用）
+    const noColor = typeof process !== 'undefined' && (
+      process.env?.NO_COLOR === '1' || 
+      process.env?.HIDNS_NO_COLOR === '1'
+    );
+    const hasTTY = typeof process !== 'undefined' && process.stdout?.isTTY;
+    this.useColors = !noColor && (hasTTY || true); // 默认启用彩色
+    
     // 初始化时记录日志级别
-    console.info(`[Logger] Log level set to: ${this.logLevel}`);
+    console.info(`[Logger] Log level set to: ${this.logLevel}, Colors: ${this.useColors ? 'enabled' : 'disabled'}`);
   }
 
   static getInstance(): Logger {
@@ -62,7 +84,7 @@ class Logger {
   }
 
   private shouldLog(level: LogLevel): boolean {
-    const levels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+    const levels: LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error'];
     return levels.indexOf(level) >= levels.indexOf(this.logLevel);
   }
 
@@ -123,7 +145,22 @@ class Logger {
     const level = entry.level.toUpperCase().padStart(5);
     const module = `[${entry.module}]`;
     const context = entry.context?.function ? ` [${entry.context.function}]` : '';
-    return `${time} ${level} ${module}${context} ${entry.message}`;
+    
+    if (!this.useColors) {
+      return `${time} ${level} ${module}${context} ${entry.message}`;
+    }
+    
+    // 应用颜色
+    const coloredTime = `${this.colors.timestamp}${time}${this.colors.reset}`;
+    const coloredLevel = this.getColorForLevel(entry.level) + level + this.colors.reset;
+    const coloredModule = `${this.colors.module}${module}${this.colors.reset}`;
+    const coloredContext = context ? `${this.colors.context}${context}${this.colors.reset}` : '';
+    
+    return `${coloredTime} ${coloredLevel} ${coloredModule}${coloredContext} ${entry.message}`;
+  }
+
+  private getColorForLevel(level: LogLevel): string {
+    return this.colors[level] || this.colors.reset;
   }
 
   private log(level: LogLevel, module: string, message: string, data?: unknown): void {
@@ -162,6 +199,10 @@ class Logger {
         console.error(formatted, formattedData !== undefined ? formattedData : '');
         break;
     }
+  }
+
+  trace(module: string, message: string, data?: unknown): void {
+    this.log('trace', module, message, data);
   }
 
   debug(module: string, message: string, data?: unknown): void {
@@ -305,6 +346,7 @@ export const logger = Logger.getInstance();
 
 // 便捷导出
 export const log = {
+  trace: (module: string, message: string, data?: unknown) => logger.trace(module, message, data),
   debug: (module: string, message: string, data?: unknown) => logger.debug(module, message, data),
   info: (module: string, message: string, data?: unknown) => logger.info(module, message, data),
   warn: (module: string, message: string, data?: unknown) => logger.warn(module, message, data),

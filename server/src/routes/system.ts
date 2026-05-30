@@ -10,7 +10,15 @@ router.get('/info', async (req: Request, res: Response) => {
     const dbInfo = await SystemOperations.getDatabaseInfo();
     
     // Get server package version from root package.json
-    const serverVersion = require('../../package.json').version;
+    let serverVersion = require('../../package.json').version;
+    
+    // Check if this is a CI build and add -ci suffix
+    const isCIBuild = process.env.CI_BUILD === 'true' || 
+                      process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_REF?.includes('pull');
+    
+    if (isCIBuild && !serverVersion.includes('-ci')) {
+      serverVersion = `${serverVersion}-ci`;
+    }
     
     res.json({
       code: 0,
@@ -20,6 +28,7 @@ router.get('/info', async (req: Request, res: Response) => {
         database: dbInfo,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         language: req.headers['accept-language'] || 'en',
+        isCIBuild, // Add flag for frontend to display CI indicator
       },
       msg: 'success',
     });

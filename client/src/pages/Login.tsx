@@ -15,6 +15,7 @@ import { authApi, initApi } from '../api';
 import type { WebAuthnResponse } from '../api';
 import { useToast } from '../hooks/useToast';
 import { startAuthentication } from '@simplewebauthn/browser';
+import { encryptPassword } from '../utils/rsaEncrypt';
 import './Login.css';
 
 type ApiErrorPayload = {
@@ -33,7 +34,7 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 }
 
 export function Login() {
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const { t } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
@@ -57,6 +58,10 @@ export function Login() {
   const [backupCode, setBackupCode] = useState('');
 
   useEffect(() => {
+    if (user) {
+      navigate('/dash', { replace: true });
+      return;
+    }
     initApi.status()
       .then((res) => {
         if (!res.data.data.initialized) {
@@ -105,13 +110,24 @@ export function Login() {
     setError('');
     setLoading(true);
     try {
+      // Encrypt password before sending
+      let passwordToSend: string;
+      try {
+        passwordToSend = await encryptPassword(password);
+      } catch (encryptError) {
+        console.warn('Password encryption failed, falling back to plain text:', encryptError);
+        passwordToSend = password; // Fallback to plain text if encryption fails
+      }
+      
       await login(
         username,
-        password,
+        passwordToSend,
         require2FA && !useBackupCode ? totpCode : undefined,
         require2FA && useBackupCode ? backupCode : undefined,
+        undefined,
+        true, // encrypted flag
       );
-      navigate('/');
+      navigate('/dash');
     } catch (err: any) {
       if (err.message === '2FA_REQUIRED') {
         setRequire2FA(true);
@@ -134,8 +150,18 @@ export function Login() {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as any });
-      await login(username, password, undefined, undefined, attResp as unknown as WebAuthnResponse);
-      navigate('/');
+      
+      // Encrypt password for WebAuthn login too
+      let passwordToSend: string;
+      try {
+        passwordToSend = await encryptPassword(password);
+      } catch (encryptError) {
+        console.warn('Password encryption failed, falling back to plain text:', encryptError);
+        passwordToSend = password;
+      }
+      
+      await login(username, passwordToSend, undefined, undefined, attResp as unknown as WebAuthnResponse, true);
+      navigate('/dash');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t('login.failed'));
     } finally {
@@ -170,7 +196,16 @@ export function Login() {
     }
     setResetLoading(true);
     try {
-      const res = await authApi.confirmPasswordReset(resetEmail.trim(), resetCode.trim(), resetNewPassword);
+      // Encrypt password before sending
+      let encryptedPassword: string;
+      try {
+        encryptedPassword = await encryptPassword(resetNewPassword);
+      } catch (encryptError) {
+        console.warn('Password encryption failed, falling back to plain text:', encryptError);
+        encryptedPassword = resetNewPassword;
+      }
+      
+      const res = await authApi.confirmPasswordReset(resetEmail.trim(), resetCode.trim(), encryptedPassword, true);
       if (res.data.code !== 0) {
         toast.error(res.data.msg || t('login.resetConfirmFailed'));
         return;
@@ -369,20 +404,24 @@ export function Login() {
             <Button type="button" variant="text" theme="primary" className="login-footer-action" onClick={() => setShowReset(true)}>
               {t('login.forgotPassword')}
             </Button>
-            <Button
-              type="button"
-              variant="text"
-              theme="primary"
-              className="login-footer-action"
-              disabled={oauthLoading}
-              title={oauthEnabled && oauthProviders.some((provider) => provider.key === 'logto') ? undefined : t('login.logtoUnavailable')}
-              onClick={() => startOauthLogin('logto')}
-            >
-              <SecuredIcon />
-              <span>{t('login.logtoSignIn')}</span>
-            </Button>
+            
+            {/* 动态显示 Logto 登录（仅当后端配置了 Logto） */}
+            {oauthEnabled && oauthProviders.some((provider) => provider.key === 'logto') && (
+              <Button
+                type="button"
+                variant="text"
+                theme="primary"
+                className="login-footer-action"
+                disabled={oauthLoading}
+                onClick={() => startOauthLogin('logto')}
+              >
+                <SecuredIcon />
+                <span>{t('login.logtoSignIn')}</span>
+              </Button>
+            )}
           </div>
 
+          {/* 动态显示其他 OAuth 提供商 */}
           {oauthEnabled && oauthProviders.some((provider) => provider.key !== 'logto') && (
             <div className="login-external-providers" aria-label="OAuth">
               {oauthProviders.filter((provider) => provider.key !== 'logto').map((provider) => (

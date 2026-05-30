@@ -133,6 +133,8 @@ export interface QueryOptions {
   useCache?: boolean;
   /** 是否禁用父域查询（仅用于子域查询场景） */
   skipParentFallback?: boolean;
+  /** 是否禁用平级查询（公开RDAP不使用，避免查询其他提供商） */
+  skipUplevel?: boolean;
 }
 
 /**
@@ -174,9 +176,9 @@ class WhoisService {
    * 8. 第三方WHOIS 并行查询
    */
   async query(domain: string, options: QueryOptions = {}): Promise<WhoisResult | null> {
-    const { preferSubdomain = true, timeout = 30000, skipParentFallback = false } = options;
+    const { preferSubdomain = true, timeout = 30000, skipParentFallback = false, skipUplevel = false } = options;
 
-    log.info('WhoisService', `Querying ${domain}`, { preferSubdomain, skipParentFallback });
+    log.info('WhoisService', `Querying ${domain}`, { preferSubdomain, skipParentFallback, skipUplevel });
 
     // 检查缓存
     const cached = this.getCached(domain);
@@ -198,7 +200,7 @@ class WhoisService {
     if (skipParentFallback) {
       // 禁用父域查询模式：仅查询子域，不查询父域
       log.info('WhoisService', `[SKIP-PARENT] Querying subdomain only (no parent fallback) for ${domain}`);
-      return this.querySubdomainOnly(domain, timeout);
+      return this.querySubdomainOnly(domain, timeout, skipUplevel);
     }
 
     // 默认模式：顶域和子域并行查询
@@ -207,7 +209,7 @@ class WhoisService {
     // 并行启动顶域查询和子域查询
     const apexPromise = this.queryApexCombined(rootDomain, timeout);
     const subdomainPromise = preferSubdomain
-      ? this.querySubdomainCombined(domain, timeout)
+      ? this.querySubdomainCombined(domain, timeout, skipUplevel)
       : Promise.resolve(null);
 
     // 等待两个查询完成
@@ -316,8 +318,8 @@ class WhoisService {
    * 仅查询子域（不查询父域）
    * 用于 skipParentFallback 模式
    */
-  private async querySubdomainOnly(domain: string, timeout: number): Promise<WhoisResult | null> {
-    log.info('WhoisService', `[SUBDOMAIN-ONLY] Querying subdomain only (no parent) ${domain}`);
+  private async querySubdomainOnly(domain: string, timeout: number, skipUplevel: boolean = false): Promise<WhoisResult | null> {
+    log.info('WhoisService', `[SUBDOMAIN-ONLY] Querying subdomain only (no parent) ${domain}`, { skipUplevel });
 
     // 1. 尝试子域 RDAP/WHOIS
     let result = await this.querySubdomainRdapParallel(domain, timeout);
@@ -331,17 +333,21 @@ class WhoisService {
       return result;
     }
 
-    // 2. 尝试平级查询（uplevel）
-    log.info('WhoisService', `[SUBDOMAIN-ONLY] Trying uplevel queries for ${domain}`);
-    result = await this.queryUplevelRdapParallel(domain, timeout);
-    if (!result?.expiryDate) {
-      result = await this.queryUplevelWhoisParallel(domain, timeout);
-    }
+    // 2. 尝试平级查询（uplevel）- 如果允许
+    if (!skipUplevel) {
+      log.info('WhoisService', `[SUBDOMAIN-ONLY] Trying uplevel queries for ${domain}`);
+      result = await this.queryUplevelRdapParallel(domain, timeout);
+      if (!result?.expiryDate) {
+        result = await this.queryUplevelWhoisParallel(domain, timeout);
+      }
 
-    if (result?.expiryDate) {
-      this.setCached(domain, result);
-      log.info('WhoisService', `[SUCCESS] Uplevel query succeeded for ${domain}`);
-      return result;
+      if (result?.expiryDate) {
+        this.setCached(domain, result);
+        log.info('WhoisService', `[SUCCESS] Uplevel query succeeded for ${domain}`);
+        return result;
+      }
+    } else {
+      log.info('WhoisService', `[SUBDOMAIN-ONLY] Skipping uplevel queries for ${domain}`);
     }
 
     // 3. 尝试第三方查询（仅查询子域本身，不查询父域）
@@ -391,16 +397,24 @@ class WhoisService {
   /**
    * 组合查询子域（所有子域查询方式）
    */
-  private async querySubdomainCombined(domain: string, timeout: number): Promise<WhoisResult | null> {
-    log.info('WhoisService', `[SUBDOMAIN-COMBINED] Starting combined subdomain queries for ${domain}`);
+  private async querySubdomainCombined(domain: string, timeout: number, skipUplevel: boolean = false): Promise<WhoisResult | null> {
+    log.info('WhoisService', `[SUBDOMAIN-COMBINED] Starting combined subdomain queries for ${domain}`, { skipUplevel });
 
     // 并行启动所有子域查询
     const promises = [
       this.querySubdomainRdapParallel(domain, timeout),
       this.querySubdomainWhoisParallel(domain, timeout),
-      this.queryUplevelRdapParallel(domain, timeout),
-      this.queryUplevelWhoisParallel(domain, timeout),
     ];
+
+    // 如果不跳过平级查询，添加平级查询
+    if (!skipUplevel) {
+      promises.push(
+        this.queryUplevelRdapParallel(domain, timeout),
+        this.queryUplevelWhoisParallel(domain, timeout)
+      );
+    } else {
+      log.info('WhoisService', `[SUBDOMAIN-COMBINED] Skipping uplevel queries for ${domain}`);
+    }
 
     // 等待所有查询完成，取第一个成功的结果
     const results = await Promise.all(promises);
@@ -841,3 +855,42 @@ export async function queryWhois(domain: string): Promise<WhoisResult | null> {
 
 // 从 domain-utils 导出 getRootDomain 函数（保持向后兼容）
 export { getRootDomain } from './domain-utils';
+
+// 导出缓存管理模块
+export {
+  getCachedWhois,
+  setCachedWhois,
+  type WhoisResult as CachedWhoisResult,
+} from './cache';
+
+// 导出状态解析器（已升级为数据解析中心）
+export { 
+  extractStatus,
+  extractExpiryDate,
+  extractRegistrar,
+  parseWhoisData,
+  type QueryDataType,
+  type ParsedWhoisData,
+} from './data-parser';
+
+// 导出 DNS 提供商适配器
+export {
+  dnsProviderAdapter,
+  initDnsProviderAdapters,
+  type WhoisScheduler,
+  type WhoisSchedulerResult,
+} from './providers/adapter';
+
+// 导出调度器模块（只保留定时任务功能）
+export {
+  initWhoisSchedulers,
+  startWhoisJob,
+  syncAllDomainsWhois,
+} from './scheduler';
+
+// 导出检查器模块
+export {
+  checkWhoisForDomain,
+  syncDomainWhois,
+  type WhoisCheckResult,
+} from './checker';

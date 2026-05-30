@@ -1,5 +1,582 @@
 # 更新日志
 
+## [1.7.1] - 2026-05-28
+
+### 🚀 主要更新
+
+#### 域名管理增强
+- **账号禁用权限控制**：禁用 DNS 账号后，该账号下的所有域名操作被完全冻结
+  - 前端列表不显示禁用账号的域名
+  - API 查询自动过滤禁用账号的域名（包括 DDNS Go 等外部适配器）
+  - 单个域名查询、批量删除、编辑等操作全部拒绝
+  - DNS 记录管理（增删改查）全部拒绝
+  - WHOIS 查询不受影响（公共功能）
+- **批量删除功能**：支持批量选择和删除多个域名
+  - 表格组件新增复选框支持
+  - 批量删除确认对话框
+  - 部分失败容错处理
+  - 完整的审计日志和 WebSocket 事件广播
+- **账号筛选器优化**：只显示启用的账号，并显示账号类型
+
+#### DDNS Go 适配插件优化
+- **日志国际化**：所有日志从中文改为英文，便于国际用户使用
+- **分页查询支持**：
+  - 域名查询支持自动分页（最多 10 页/1000 个域名）
+  - 记录查询支持自动分页（最多 10 页/1000 条记录）
+  - 智能终止条件检测
+  - 安全限制防止过度查询
+- **错误处理改进**：更详细的错误信息和上下文
+
+#### 多语言支持完善
+- **批量删除翻译**：为所有 11 种语言添加批量删除相关的完整翻译
+  - zh-CN, en, de, es, fr, ja, ko, pt, ru, ar, zh-CN-Mesugaki
+  - 包含成功、失败、跳过等所有状态提示
+
+### 🐛 Bug 修复
+
+#### 已知问题
+- **SMTP 发件问题**：部分运行环境下 SMTP 无法发送邮件（待修复）
+- **系统 > 安全页前端回显异常**：安全配置页面部分字段回显不正确（待修复）
+- **SQLite 数据库迁移问题**：部分 SQLite 数据库可能出现迁移失败（建议使用 PostgreSQL）
+
+### 📝 技术细节
+
+#### 修改的文件
+- `server/src/routes/domains.ts` - 单个域名查询权限检查、批量删除 API
+- `server/src/db/query-builders/domain-query-builder.ts` - 账号 enabled 过滤
+- `server/src/db/business-adapter.ts` - 批量删除方法
+- `client/src/components/Table.tsx` - 复选框支持
+- `client/src/pages/domains/DomainListTab.tsx` - 批量删除 UI 和逻辑
+- `client/src/api/domains.ts` - 批量删除 API 方法
+- `client/src/i18n/locales/*.json` - 11 种语言的批量删除翻译
+- `tmp_ddns-go/dns/hipmdnsmgr.go` - HiPMDnsMgr 适配器优化
+
+---
+
+## [1.7.0] - 2026-05-28
+
+### ⚠️ 重要提示
+
+**1.6.0 系列版本为 Bug 版本，建议尽快升级到 1.7.0！**
+
+本版本继承了 1.6.0 系列的全部变更，并修复了多个关键问题。
+
+### 🚀 主要更新
+
+#### 邮件模板系统升级
+- **新增邮件模板管理功能**：支持 DMARC、SPF、DKIM 等邮件安全记录的快速配置
+- **配置预览功能**：添加邮件记录前可预览完整配置，避免误操作
+- **主题适配**：配置预览区域完美适配暗黑/明亮/跟随系统主题
+- **智能冲突检测**：自动检测域名下所有解析记录，避免记录冲突
+- **缓存优化**：邮件模板数据缓存 5 分钟，提升加载速度
+- **悬停预览**：长文本字段（主机记录、记录值）支持鼠标悬停预览
+
+#### 数据库迁移系统全面优化
+- **语义化版本管理**：引入 `semantic_version` 字段，支持更精细的版本追踪
+- **迁移幂等性增强**：所有迁移操作支持重复执行，不会因已存在而报错
+- **列验证工具**：新增自动化列验证机制，确保迁移后表结构正确
+- **多数据库一致性**：SQLite、MySQL、PostgreSQL 三数据库迁移逻辑完全对齐
+- **错误处理改进**：
+  - PostgreSQL：修复 `PRAGMA` 语法错误，改用 `INFORMATION_SCHEMA`
+  - MySQL：修复 `domain_id` 删除导致的事务回滚问题
+  - SQLite：修复 `ADD COLUMN IF NOT EXISTS` 不支持的语法错误
+- **迁移日志优化**：详细的迁移过程日志，便于问题诊断
+
+#### IDN 域名支持全面优化
+- **后端标准化**：统一使用 `normalizeDomain()` 函数处理国际化域名
+- **定时任务支持**：域名同步、续期检查等定时任务正确处理 IDN 域名
+- **前端显示优化**：IDN 域名在前端统一转换为 Unicode 显示，更易读
+- **API 返回策略**：根据认证方式区分 Punycode/Unicode 编码返回
+- **查询优化**：IDN 域名查询使用后端接口，支持 keyword 模糊搜索
+
+#### 前端展示优化
+- **表格组件改进**：DNS 记录表格采用 `tableLayout="fixed"`，列宽更稳定
+- **悬停预览功能**：NS 监测、邮件设置等页面的长文本字段支持悬停预览
+- **主题切换完善**：所有新组件完美适配暗黑/明亮主题
+- **缓存策略优化**：关键数据缓存 5 分钟，减少 API 请求次数
+- **用户体验提升**：
+  - 域名列表自动显示禁用域名（`include_disabled=true`）
+  - DMARC 记录主机名智能拼接（`_dmarc.mail` 格式）
+  - 冲突检测覆盖全部解析记录，不仅限于当前页
+
+### 🐛 已知问题
+
+#### SMTP 发件问题
+- **问题描述**：部分运行环境下 SMTP 无法发送邮件
+- **影响范围**：邮件通知、测试邮件功能
+- **临时方案**：检查 SMTP 配置，确认网络连接和认证信息正确
+- **计划修复**：1.7.1 版本将增强 SMTP 错误日志和兼容性
+
+#### 系统 > 安全页前端回显异常
+- **问题描述**：安全配置页面部分字段回显不正确
+- **影响范围**：`/dash/system/security` 页面
+- **临时方案**：手动重新保存配置即可
+- **计划修复**：1.7.1 版本将重构安全配置页面
+
+#### SQLite 数据库迁移问题
+- **问题描述**：部分 SQLite 数据库可能出现迁移失败或升级异常
+- **影响范围**：使用 SQLite 作为数据库的用户
+- **建议方案**：
+  1. **重建数据库**：备份数据后重新初始化
+  2. **切换到 PostgreSQL**（强烈推荐）：PostgreSQL 是本项目推荐的数据库
+- **原因说明**：SQLite 的 DDL 限制较多，迁移复杂度高于 PostgreSQL/MySQL
+
+### 💡 使用建议
+
+#### 数据库选择
+**PostgreSQL 是本项目的推荐数据库**，原因：
+- ✅ 迁移脚本更友好，支持 `ADD COLUMN IF NOT EXISTS`
+- ✅ 表定义更灵活，类型转换更方便
+- ✅ 并发性能更好，适合生产环境
+- ✅ 事务支持更完善，迁移更安全
+
+#### 升级路径
+- **从 1.6.x 升级**：直接升级到 1.7.0，会自动执行所有迁移
+- **从 <1.6.0 升级**：建议先升级到 1.6.3，再升级到 1.7.0
+- **SQLite 用户**：强烈建议迁移到 PostgreSQL
+
+### 📝 技术细节
+
+#### 修改的文件
+- `server/src/db/migration-manager.ts` - 语义化版本管理
+- `server/src/db/column-validator.ts` - 列验证工具（新增）
+- `server/src/db/schema.ts` - 迁移逻辑优化
+- `server/src/db/business-adapter.ts` - 多数据库元数据查询
+- `server/src/db/schemas/*.ts` - 表定义更新
+- `client/src/pages/MailSetupModal.tsx` - 邮件设置页面
+- `client/src/api/domains.ts` - 域名 API 参数优化
+
+#### 新增文档
+- `server/docs/database-migration-improvements.md` - 数据库迁移改进说明
+- `server/docs/database-enabled-migration-comparison.md` - 多数据库迁移对比
+- `server/docs/sqlite-enabled-migration-audit.md` - SQLite 迁移审计报告
+- `server/scripts/diagnose-sqlite.js` - SQLite 诊断工具
+
+---
+
+## [1.6.3] - 2026-05-27
+
+### 🐛 修复
+
+#### 数据库迁移完整性修复
+- **问题描述**：PostgreSQL `dns_accounts` 表 export-rebuild 迁移后索引丢失；PostgreSQL 旧表升级时 `COALESCE(enabled, TRUE)` 读取不存在列；SQLite `dns_accounts` 表缺失 `enabled` 列定义及相关索引
+- **原因分析**：PostgreSQL export-rebuild 采用 DROP+CREATE+RENAME 模式，原表索引不会自动迁移到新表；`dns_accounts` CREATE TABLE 未定义 `enabled` 列，旧版本直接建表时该列不存在
+- **修复方案**：
+  - PostgreSQL：export-rebuild 迁移步骤后重建 `idx_dns_accounts_created_by`、`idx_team_id`、`idx_type`、`idx_enabled` 四个索引
+  - PostgreSQL：迁移脚本中 `COALESCE(enabled, TRUE)` 改为 `TRUE as enabled`，避免读取不存在列
+  - PostgreSQL：`dns_accounts` CREATE TABLE 添加 `enabled BOOLEAN NOT NULL DEFAULT TRUE`
+  - SQLite：`dns_accounts` CREATE TABLE 添加 `enabled INTEGER NOT NULL DEFAULT 1`
+  - SQLite：`createIndexes` 补全 `idx_dns_accounts_created_by`、`idx_team_id`、`idx_type`、`idx_enabled` 索引
+- **关联检查**：以 MySQL 表结构为基准，逐表逐列逐索引对比 PostgreSQL 和 SQLite，确认三数据库完全对齐，无遗漏
+
+#### PostgreSQL `idx_domains_enabled` 索引创建顺序修复
+- **问题描述**：PostgreSQL 初始化时 `CREATE INDEX idx_domains_enabled ON domains(enabled)` 在 `ALTER TABLE ADD COLUMN enabled` 之前执行，旧表升级时列不存在导致崩溃
+- **修复方案**：将 `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled` 提前到 `CREATE INDEX` 之前执行
+
+#### 系统 > 安全页配置预填充回显修复
+- **问题描述**：`/dash/system/security` 页面审计告警模块配置值无法正确回显到表单
+- **原因分析**：后端 `PUT /api/settings/audit-rules` 接口未返回 `data` 字段；前端 `setAuditRules` 直接覆盖状态可能丢失未提交的本地修改
+- **修复方案**：
+  - 后端：PUT 接口补充返回 `data` 字段，与 GET 接口格式对齐
+  - 前端：改用函数式合并更新 `setAuditRules((prev) => ({ ...prev, ...res.data.data }))`
+
+### 🔧 改进与优化
+- 更新版本号至 1.6.3
+- 全数据库迁移完整性验证：34 张表、全部索引和迁移脚本已对齐
+
+## [1.6.2] - 2026-05-26
+
+### 🐛 修复
+
+#### PostgreSQL 初始化崩溃 - `idx_domains_enabled` 索引创建失败
+- **问题描述**：PostgreSQL 数据库中，`domains` 表升级迁移时 `enabled` 列尚未存在，但 `CREATE INDEX idx_domains_enabled ON domains(enabled)` 提前执行，导致 `column "enabled" does not exist` 错误，服务无法正常启动
+- **原因分析**：`createTables` 数组中的 `ALTER TABLE ADD COLUMN enabled` 放在 `migrate` 阶段，晚于 `CREATE INDEX` 执行
+- **修复方案**：将 `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled` 提前到 `CREATE INDEX` 之前执行，确保列存在后再建索引
+- **关联检查**：扫描全部 9 个迁移 ALTER TABLE + SQLite schema，确认仅此一处问题
+
+## [1.6.1] - 2026-05-26
+
+### 🐛 已知问题
+
+#### 系统设置 > 安全页配置回显失败
+- **影响范围**：`/dash/system/security` 页面的登录限制、审计告警、邮件服务三个模块
+- **问题描述**：页面加载时，已保存的配置值未能正确预填充到表单控件中，显示为默认值而非实际配置
+- **触发条件**：系统设置中存在已保存的安全相关配置时，进入该页面会触发
+- **修复计划**：下个版本修复前端数据回显逻辑和后端接口响应格式对齐
+
+### 🔧 改进与优化
+- 更新版本号至 1.6.1
+
+## [1.6.0] - 2026-05-26
+
+### ✨ 新增功能
+
+#### 首页展示页重构（Landing Page）
+- **基于 AI_Animation 模板全面重构**
+  - 全屏滚动 + 点击切换的交互效果（4 个 Section：Hero / Pipeline / Features / Footer）
+  - Canvas 粒子背景 + 呼吸光晕动画 + 粒子间连线
+  - 渐变模糊光晕 Blob 装饰（3 层浮动径向渐变）
+  - 动画网格背景 + 噪点纹理位移
+  - 导航圆点指示器（环形 + 内圆 + 发光）
+  - 滚动提示鼠标动画
+  - 键盘导航（↑↓←→ / Home / End）+ 触摸滑动支持
+  - 响应式适配（窄屏 / 短屏 / 移动端）
+
+- **核心组件工作流水线图**
+  - 新增 Pipeline Section 展示 HiDNS 全链路架构
+  - 5 层流水线：接入层 → 安全层 → 核心引擎 → 适配层 → 运维保障
+  - 每层 3 个子项卡片，带图标 + 名称 + 描述
+  - 动画箭头连接器 + 逐层入场动画
+  - 悬浮高亮 + 微动效反馈
+
+#### DNS 提供商日志系统
+- **集中式适配器日志包装器**
+  - 实现 `createLoggingAdapter`，使用 Proxy 统一拦截所有 DnsAdapter 方法调用
+  - 自动记录 providerRequest / providerResponse / providerError 日志
+  - 集中管理日志格式和行为，减少适配器重复代码
+
+### 🔧 改进与优化
+
+#### 安全与认证
+- **Cookie 协议自适应**
+  - Cookie `secure` 标志自动适配 HTTP/HTTPS 协议
+  - 生产环境 HTTP 下不设置 secure，HTTPS 下自动启用
+  - 保证 HTTP 和 HTTPS 可共同使用 Cookie
+
+- **反向代理信任增强**
+  - 生产环境 `trust proxy` 默认信任内网（10.x / 172.16-31.x / 192.168.x）
+  - `getClientIP()` 自动信任内网代理 IP
+  - 添加 `trustProxyIps` 白名单配置支持
+
+- **CORS 智能配置**
+  - 默认允许所有来源（`Access-Control-Allow-Origin: *`）
+  - 前端自动携带 `withCredentials`，后端按来源自适应
+  - 移除手动 CORS 配置需求，简化部署
+
+- **前端路由鉴权完善**
+  - 401 拦截跳转排除公开展示页 `/`
+  - 有有效 Cookie 时登录页自动跳转到 `/dash`
+  - 路由守卫（ProtectedRoute）覆盖所有仪表盘子路由
+
+- **环境配置样板**
+  - 完善 `.env.example` 配置样板，覆盖所有可选环境变量
+  - 添加 `TRUST_PROXY_IPS`、`COOKIE_DOMAIN`、`CORS_ORIGINS` 等新配置项
+  - 补充配置注释说明
+
+#### 表单系统重构（RecordForm）
+- **彻底修复编辑记录数据不回显问题**
+  - 移除 TDesign FormItem 组件（其会克隆子组件并覆盖 `value`/`onChange`）
+  - 改用独立 `useState` 管理每个字段 + 自定义 div 布局
+  - `useEffect` 完整依赖数组确保数据同步
+  - `formKey`（基于 `initial?.id`）作为依赖，编辑不同记录时状态正确重置
+  - `lineOptions` 的 `value` 改为 `String(line.id)` 确保类型匹配
+
+- **预填充默认值**
+  - 添加域名解析时预填充默认值（类型=A, TTL=600, 线路=默认）
+  - 编辑记录时主机记录、类型、记录值、TTL、线路、备注完整回显
+  - 修复安全设置（登录限制 & 审计告警）默认值预填充
+  - 修复 API 令牌编辑时域名勾选在前端显示
+
+#### Gcore DNS 提供商优化
+- **API 认证修复**
+  - 修正认证头格式：`apikey` → `APIKey`（Gcore API 区分大小写）
+  - 使用 `requestJson` 替代原生 `fetch`，支持代理和超时
+
+- **响应格式兼容**
+  - 支持 `zones` / `rrsets` / `total_amount` 字段解析
+  - 适配器 `check()` 正确调用 `/zones?limit=1`
+
+- **线路列表实现**
+  - `getRecordLines()` 调用 Locations API 获取真实地理线路
+  - 支持洲（continent）/ 国家（country）/ 地区（region）三级线路
+
+- **日志层级优化**
+  - 移除冗余的 providerResponse 日志（由 `createLoggingAdapter` 统一处理）
+  - 保持与其他适配器一致的日志行为
+
+#### NS 监测修复
+- **路由顺序修复**
+  - `/available-domains` 静态路由移到 `/:id` 动态路由之前，解决 404 错误
+  - 完善 `GET /:id` 处理函数实现并正确闭合
+
+- **字段统一**
+  - 使用 `domain_name` 替代 `domain_id` 作为标识符
+  - 修复前端监测配置域名列表展示问题
+  - 自动获取结果直接填充到编辑栏
+
+- **冗余路由清理**
+  - 移除 `/api/ns-monitor/:id/check` 路由
+  - 提取 `performNsCheck` 共享函数
+
+#### 前端页面优化
+- 系统 > 安全 Tab：登录限制 & 审计告警默认值预填充，移除未使用的 `loginLimitQuery` 变量
+- API 令牌编辑：域名列表正确显示已勾选状态
+- 域名解析列表：点击域名跳转到解析列表而非 `/`
+- 添加域名解析：默认值预填充（类型=A, TTL=600, 线路=默认）
+
+### 🐛 Bug 修复
+
+- **TDesign Alert 弃用警告**
+  - `close` → `closeBtn`，消除控制台弃用警告
+
+- **crypto.subtle 不可用错误**
+  - `rsaEncrypt.ts` 添加 `window.crypto?.subtle` 存在性检查
+  - HTTP 环境下抛出清晰错误而非静默失败
+
+- **TypeScript 编译错误**
+  - 修复 `weight` 变量隐式 `any` 类型和声明前使用问题
+  - 修复未使用的 `loginLimitQuery` 变量
+  - 修复 Docker 构建中的 TS 错误（`tsc -b` 阶段）
+
+- **Docker CI 超时**
+  - `docker-build.yml` 中 `build-amd64` 和 `build-arm64` 添加 `timeout-minutes: 15`
+
+### 📦 技术细节
+
+#### 修改文件统计
+- **后端核心**：DnsHelper.ts（日志包装器）、Gcore 适配器、ns-monitor 路由
+- **前端页面**：Landing.tsx / Landing.css（全屏滚动 + 流水线图）、RecordForm.tsx、SecurityTab.tsx
+- **安全认证**：Cookie 中间件、CORS 配置、trust proxy、路由守卫
+- **配置文档**：.env.example、CHANGELOG.md、root.ai.md
+- **CI/CD**：docker-build.yml（超时限制）
+
+#### 版本升级说明
+- 版本号：1.5.1 → **1.6.0**
+- 201 次提交（2 周开发周期）
+- 完全向后兼容
+
+### ⚠️ 注意事项
+- HTTP 与 HTTPS 混合部署时 Cookie 自动适配，无需手动配置
+- 反向代理场景建议检查 `TRUST_PROXY_IPS` 环境变量配置
+- 新 `.env.example` 为可选配置样板，现有部署无需修改
+
+---
+
+## [1.5.1] - 2026-05-17
+
+### ✨ 新增功能
+
+#### DNS 提供商图标系统
+- **动态图标加载**
+  - 实现从后端 API 动态加载提供商图标
+  - 支持多种图标格式优先级：SVG > PNG > ICO > JPG
+  - 添加详细的图标加载日志，便于调试
+  
+- **图标管理优化**
+  - 将所有提供商图标移动到各自的提供商文件夹
+  - 统一图标命名为 `icon.{ext}` 格式
+  - 添加构建时图标复制脚本
+  - 支持从 src 和 dist 目录加载图标
+
+#### 新增 DNS 提供商
+- **Gcore DNS 支持**
+  - 添加 Gcore DNS 提供商适配器
+  - 使用官方 favicon 作为图标
+  - 集成到提供商注册表
+
+### 🔧 改进与优化
+
+#### 文档完善
+- **README 更新**
+  - 更新许可证为 GPL-3.0
+  - 添加 Telegram 群组链接
+  - 完善项目介绍和社区信息
+
+#### 测试与工作流
+- **测试脚本优化**
+  - 更新测试脚本使用 vitest
+  - 改进工作流错误处理
+  - 提升 CI/CD 稳定性
+
+### 🐛 Bug 修复
+
+#### 图标相关问题
+- **图标格式修复**
+  - 修复 HiDNS 图标格式（使用正确的 favicon.ico）
+  - 移除错误的 favicon.svg，只保留 favicon.ico
+  - 替换 CaihongDNS 图标为官方 favicon.ico
+  - 替换 VPS8 图标为官方 favicon.ico (vps8.zz.cd)
+  - 更新 Gcore 图标为官方 favicon
+  
+- **类型错误修复**
+  - 修复 Gcore 适配器在注册表中的类型错误
+  - 确保所有提供商适配器类型一致
+
+#### 路由调试
+- **Provider 图标路由**
+  - 为 provider 图标路由添加调试日志
+  - 支持从 src 和 dist 目录加载图标
+  - 改进错误处理和日志输出
+
+### 📦 技术细节
+
+#### 修改文件统计
+- **后端**：提供商图标路由、Gcore 适配器、registry 注册表
+- **前端**：动态图标加载组件
+- **资源**：所有提供商图标文件重组
+- **文档**：README 更新、许可证信息
+- **CI/CD**：测试脚本优化、构建流程
+
+---
+
+## [1.5.0] - 2026-05-17
+
+### ✨ 重大功能
+
+#### 项目品牌升级
+- **项目名称变更**
+  - 项目从 DNSMgr 正式更名为 HiDNS
+  - 所有文档、配置文件和代码标识统一更新为 HiDNS
+  - Docker 镜像标签和发布文件名更新为 HiDNS
+  - CI/CD 工作流配置同步更新
+
+#### 前端架构重构
+- **TDesign 组件库迁移**
+  - 全面将 TailwindCSS 前端迁移到腾讯 TDesign 组件库
+  - 使用 TDesign 组件重构所有 UI 组件
+  - 提升 UI 一致性和用户体验
+  
+- **新增全局搜索功能**
+  - 添加全局搜索功能和 UI 缩放支持
+  - 优化用户操作体验
+  
+- **开源引用页面**
+  - 添加开源引用页面展示前端技术栈信息
+  - 透明化技术选型
+
+#### WHOIS/RDAP 架构重构
+- **集中化 WHOIS 架构**
+  - 完全集中化 WHOIS 架构，职责分明
+  - 删除分散的 whoisJob.ts，功能分散到 whois/模块
+  - providers 只返回原始数据，data-parser 升格为解析中心
+  - 只调用已注册 WHOIS 适配器的提供商
+  
+- **WHOIS 状态存储**
+  - 添加 WHOIS 状态数据库存储和多语言支持
+  - RDAP API 返回中添加 status 字段
+  - 首次查询时正确提取并保存 WHOIS 状态
+  - 改进缓存状态解析，支持 RDAP JSON 和 WHOIS 文本
+  - 使用专用函数解析 WHOIS 状态，避免正则滥用
+  
+- **查询策略优化**
+  - 公开 RDAP 路由根据查询类型智能处理
+  - 公开 RDAP 路由禁用平级查询
+  - 恢复完整的内部分层查询架构
+  - DNS 提供商查询优先于缓存
+  - DNS 提供商查询使用精确域名匹配
+  - 明确公开 RDAP 路由不查询 DNS 提供商的原因
+  
+- **缓存优化**
+  - WHOIS 缓存有效期改为 3 小时（从 1 小时调整）
+  - 添加 forceRefresh 参数支持强制刷新
+  - 优化数据库迁移逻辑，避免重复字段错误
+
+#### 国际化域名 (IDN) 支持
+- **全面 IDN 支持**
+  - 添加中文域名 (IDN) 支持
+  - 前端 CNAME 和记录表单支持国际化域名 (IDN)
+  - RDAP 支持国际化域名 (IDN)
+  - WHOIS/RDAP 域名续期查询支持国际化域名 (IDN)
+  - NS 监测支持国际化域名 (IDN) 和 Punycode
+  - 从提供商同步域名支持国际化域名 (IDN)
+  - 支持下划线开头的 DNS 记录名称和值
+  - 添加 xn-- 前缀边界情况测试
+  - 添加国际化域名 (IDN) 测试用例
+
+#### 安全增强
+- **安全问题修复**
+  - 修复明文安全问题
+  - 修复多个安全漏洞
+  - 进一步修复数据填充问题
+  - 安全解析 account.config，兼容字符串和对象类型
+
+### 🔧 核心优化
+
+#### 表单系统重构
+- **RecordForm 重写**
+  - 使用非受控模式重写 RecordForm，使用 defaultValue
+  - 修复 SRV 记录编辑时字段不回显问题
+  - 使用递增 key 确保 RecordForm 每次都重新挂载
+  - 简化编辑记录的 initial 传递逻辑
+  - 优化 RecordForm 默认值和回显逻辑
+  - 修复表单状态初始化和输入值更新问题
+  
+- **useFormSync Hook 优化**
+  - 优化 useFormSync Hook 的初始状态设置逻辑
+  - 优化表单同步 Hook 的日志记录和调试功能
+  - 修复表单同步 Hook 中的调试日志和加载状态问题
+  - 解决表单输入值类型不匹配问题
+  
+- **账户页面重构**
+  - 重构账户页面表单状态管理
+  - 优化账户管理页面的数据转换逻辑
+  - 修复前端编辑表单数据展示问题 (P0)
+
+#### 系统稳定性
+- **启动优化**
+  - 添加启动横幅显示项目信息
+  - 在启动横幅中添加 GitHub 仓库地址
+  - 添加彩色日志输出支持
+  - 关闭时跳过数据库健康检查，避免 ERROR 日志
+  
+- **WebSocket 优化**
+  - 优化 WebSocket 日志输出，减少噪音
+  
+- **登录页优化**
+  - 登录页动态显示 OAuth 提供商，移除硬编码 Logto 按钮
+
+#### 多语言支持
+- **国际化完善**
+  - 添加多语言支持并优化国际化功能
+  - 补全所有语言的翻译
+  - 修复 release.yml 乱码
+
+### 🐛 Bug 修复
+
+#### 关键 Bug 修复
+- **表单回显问题**
+  - 修复域名解析记录编辑无法正确回显的问题（持续调试中）
+  - 修复安全设置页面表单默认值回显问题
+  - 使用 placeholderData 确保表单默认值立即显示
+  
+- **主机名通配符支持**
+  - ✅ 新增 DNS 记录主机名通配符 (*) 支持
+  - 允许创建通配符 DNS 记录（如 `*.example.com`）
+  - 通配符只能作为独立值或第一个标签使用
+  - 拒绝无效的通配符位置（如 `sub.*.example.com`）
+  - 前后端验证逻辑保持一致
+  
+- **WHOIS 相关**
+  - 修复 DNSHE WHOIS 字段映射错误
+  - 修复 WHOIS 状态缓存问题
+  - 修复 WHOIS 查询和 TypeScript 类型错误
+  - 修复 WHOIS 缓存保存原始数据格式
+  
+- **数据库迁移**
+  - 优化 SQLite 迁移日志，避免重复列 ERROR
+  - 移除 IF NOT EXISTS from SQLite migration
+  - 从缓存的 raw_data 中解析 WHOIS 状态
+
+#### 其他修复
+- 移除未使用的 useEffect 导入
+- 移除未使用的 domainRenewalApi 导入
+- 修复 Settings.tsx 未使用导入
+- 删除快捷操作卡片（未实现功能）
+- 删除未实现的快捷操作翻译
+
+### 📦 修改文件统计
+- **后端核心**：WHOIS 架构重构、RDAP 路由优化、数据库迁移
+- **前端组件**：RecordForm 重写、TDesign 迁移、表单系统优化
+- **国际化**：IDN 支持、多语言补全
+- **安全**：多处安全问题修复
+- **CI/CD**：品牌更新、工作流优化
+
+### ⚠️ 已知问题
+- **域名解析记录编辑回显异常**：部分情况下编辑记录时字段无法正确回显，正在持续调试中
+- **系统安全子页部分模块回显异常**：安全设置页面部分表单字段回显存在问题
+
+---
+
 ## [1.4.3] - 2026-05-03
 
 ### 🐛 Bug修复

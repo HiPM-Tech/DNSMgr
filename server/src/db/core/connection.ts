@@ -172,6 +172,11 @@ export class ConnectionManager {
    * 检查连接健康状态
    */
   private async checkHealth(): Promise<boolean> {
+    // 如果正在关闭，跳过健康检查
+    if (this.isShuttingDown) {
+      return false;
+    }
+    
     if (!this.connection) return false;
 
     try {
@@ -179,7 +184,10 @@ export class ConnectionManager {
       await this.connection.get('SELECT 1');
       return true;
     } catch (error) {
-      log.warn('ConnectionManager', 'Health check failed', { error });
+      // 只在非关闭状态下记录警告
+      if (!this.isShuttingDown) {
+        log.warn('ConnectionManager', 'Health check failed', { error });
+      }
       return false;
     }
   }
@@ -190,6 +198,12 @@ export class ConnectionManager {
   private startHealthCheck(): void {
     // 每30秒检查一次连接健康
     this.healthCheckInterval = setInterval(async () => {
+      // 如果正在关闭，停止健康检查
+      if (this.isShuttingDown) {
+        this.stopHealthCheck();
+        return;
+      }
+      
       const isHealthy = await this.checkHealth();
       if (!isHealthy && !this.isShuttingDown) {
         log.warn('ConnectionManager', 'Health check detected unhealthy connection, attempting reconnect');

@@ -8,6 +8,8 @@ interface Column<T> {
   label: string;
   render?: (row: T) => ReactNode;
   className?: string;
+  width?: number | string;
+  minWidth?: number | string;
 }
 
 interface TableProps<T> {
@@ -16,11 +18,23 @@ interface TableProps<T> {
   loading?: boolean;
   emptyText?: string;
   rowKey: (row: T) => string | number;
+  selectable?: boolean;  // ← 新增：是否显示复选框
+  selectedRowKeys?: (string | number)[];  // ← 新增：已选中的行 key
+  onSelectChange?: (selectedRowKeys: (string | number)[]) => void;  // ← 新增：选择变化回调
 }
 
-export function Table<T extends object>({ columns, data, loading, emptyText, rowKey }: TableProps<T>) {
+export function Table<T extends object>({ columns, data, loading, emptyText, rowKey, selectable, selectedRowKeys = [], onSelectChange }: TableProps<T>) {
   const { t } = useI18n();
   const resolvedEmptyText = emptyText ?? t('common.noData');
+  
+  // Debug log
+  console.log('[Table Component] Props:', { 
+    selectable, 
+    selectedRowKeys, 
+    dataLength: data.length,
+    hasOnSelectChange: !!onSelectChange 
+  });
+  
   const tableData = data.map((row) => ({
     ...row,
     __rowKey: rowKey(row),
@@ -30,6 +44,8 @@ export function Table<T extends object>({ columns, data, loading, emptyText, row
     colKey: col.key,
     title: col.label,
     className: col.className,
+    width: col.width,
+    minWidth: col.minWidth,
     ellipsis: true,
     cell: ({ row }) => {
       const originalRow = row as T;
@@ -47,8 +63,20 @@ export function Table<T extends object>({ columns, data, loading, emptyText, row
       loading={loading}
       hover
       size="medium"
-      tableLayout="auto"
+      tableLayout="fixed"
       empty={<Empty description={resolvedEmptyText} />}
+      // ← 新增：复选框配置
+      {...(selectable && {
+        rowSelection: {
+          type: 'multiple' as const,
+          selectedRowKeys: selectedRowKeys || [],
+          onChange: (keys: (string | number)[]) => {
+            console.log('[Table] Selection changed:', keys);
+            onSelectChange?.(keys);
+          },
+          getCheckboxProps: () => ({ disabled: false }),
+        },
+      })}
     />
   );
 }

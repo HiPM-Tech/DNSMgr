@@ -34,6 +34,7 @@ export interface DnsAccount {
   name: string;
   config: string; // JSON string
   remark: string;
+  enabled?: number; // 0 = disabled, 1 = enabled (database stores as integer)
   created_by: number;
   team_id: number | null;
   created_at: string;
@@ -46,6 +47,7 @@ export interface Domain {
   third_id: string;
   remark: string;
   is_hidden: number;
+  enabled?: number; // 0 = disabled, 1 or undefined = enabled
   record_count: number;
   created_at: string;
 }

@@ -1054,11 +1054,16 @@ html.dark input:-webkit-autofill:focus {
 .record-mono--strong {
   color: var(--td-text-color-primary);
   font-weight: 600;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .record-mono--value {
   display: block;
-  max-width: min(320px, 100%);
+  max-width: 180px;
+  width: 100%;
   overflow: hidden;
   color: var(--td-text-color-secondary);
   font-size: 12px;
@@ -1844,6 +1849,18 @@ html.dark .settings-image-preview__mask {
 .setup-choice .t-button__text > span {
   display: grid;
   gap: 4px;
+}
+
+/* Domain name column button text truncation */
+.domain-name-button {
+  max-width: 200px;
+  display: inline-block;
+}
+
+.domain-name-button .t-button__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .setup-choice strong {

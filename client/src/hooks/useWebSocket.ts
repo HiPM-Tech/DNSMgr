@@ -22,7 +22,7 @@ interface UseWebSocketOptions {
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -39,8 +39,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   // 连接 WebSocket
   const connect = useCallback(() => {
-    if (!token) {
-      console.warn('[WebSocket] No token available, skipping connection');
+    if (!user) {
+      console.warn('[WebSocket] User not authenticated, skipping connection');
       return;
     }
 
@@ -52,11 +52,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     try {
       // 构建 WebSocket URL
+      // Token is now stored in httpOnly cookie, browser will send it automatically
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/ws?token=${token}`;
+      const wsUrl = `${protocol}//${host}/api/socket/ws`;
 
-      console.log('[WebSocket] Connecting...', wsUrl.replace(/token=[^&]+/, 'token=***'));
+      console.log('[WebSocket] Connecting...', wsUrl);
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -105,7 +106,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         scheduleReconnect();
       }
     }
-  }, [token, onMessage, onConnected, onDisconnected, onError, autoReconnect]);
+  }, [user, onMessage, onConnected, onDisconnected, onError, autoReconnect]);
 
   // 调度重连
   const scheduleReconnect = useCallback(() => {
@@ -151,14 +152,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   // 组件挂载时连接，卸载时断开
   useEffect(() => {
-    if (token) {
+    if (user) {
       connect();
     }
 
     return () => {
       disconnect();
     };
-  }, [token, connect, disconnect]);
+  }, [user, connect, disconnect]);
 
   return {
     isConnected: wsRef.current?.readyState === WebSocket.OPEN,

@@ -31,6 +31,44 @@ export function isStubProvider(type: string): boolean {
   return STUB_TYPES.has(type);
 }
 
+function sanitizeArgs(args: unknown[]): unknown[] {
+  return args.map((arg) => {
+    if (typeof arg === 'string' && arg.length > 500) return arg.substring(0, 500) + '...';
+    return arg;
+  });
+}
+
+const ADAPTER_METHODS = new Set([
+  'check', 'getDomainList', 'getDomainRecords', 'getDomainRecordInfo',
+  'addDomainRecord', 'updateDomainRecord', 'deleteDomainRecord',
+  'setDomainRecordStatus', 'getRecordLines', 'getMinTTL', 'addDomain',
+]);
+
+function createLoggingAdapter(adapter: DnsAdapter, providerType: string): DnsAdapter {
+  return new Proxy(adapter, {
+    get(target, prop, receiver) {
+      const original = Reflect.get(target, prop, receiver);
+      if (typeof original !== 'function' || !ADAPTER_METHODS.has(String(prop))) {
+        return original;
+      }
+
+      const methodName = String(prop);
+      return async (...args: unknown[]) => {
+        const start = Date.now();
+        log.providerRequest(providerType, methodName, '', sanitizeArgs(args));
+        try {
+          const result = await original.apply(target, args);
+          log.providerResponse(providerType, Date.now() - start, true, { method: methodName });
+          return result;
+        } catch (e) {
+          log.providerError(providerType, { method: methodName, error: e instanceof Error ? e.message : String(e) });
+          throw e;
+        }
+      };
+    },
+  });
+}
+
 export function createAdapter(type: string, config: Record<string, string>, domain?: string, zoneId?: string, domainId?: string): DnsAdapter {
   const definition = providerDefinitionMap.get(type);
   if (!definition) {
@@ -56,5 +94,5 @@ export function createAdapter(type: string, config: Record<string, string>, doma
     }
   }
 
-  return adapter;
+  return createLoggingAdapter(adapter, type);
 }

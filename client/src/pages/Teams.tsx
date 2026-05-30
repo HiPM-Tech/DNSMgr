@@ -18,6 +18,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import { Avatar } from '../components/Avatar';
+import { formatDomainName } from '../utils/domain';
 import { useI18n } from '../contexts/I18nContext';
 import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
@@ -111,7 +112,7 @@ export function Teams() {
     enabled: !!selectedTeamId,
   });
   const domains = domainsData?.list ?? [];
-  const domainOptions = domains.map((domain) => ({ label: domain.name, value: domain.id }));
+  const domainOptions = domains.map((domain) => ({ label: formatDomainName(domain.name), value: domain.id }));
 
   const { data: teamDomainPermissions = [], isLoading: teamDomainPermissionsLoading } = useQuery({
     queryKey: ['team-domain-permissions', selectedTeamId],
@@ -355,7 +356,7 @@ export function Teams() {
         {permissions.map((perm) => (
           <div key={perm.id} className="page-list-item">
             <div className="page-list-item__main">
-              <strong>{perm.domain_name ?? `#${perm.domain_id}`}</strong>
+              <strong>{formatDomainName(perm.domain_name ?? `#${perm.domain_id}`)}</strong>
               <span>{perm.sub ? `${t('teams.subdomain')}: ${perm.sub}` : t('teams.allSubdomains')}</span>
             </div>
             <Space size="small">

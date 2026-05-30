@@ -13,8 +13,10 @@ export const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
-    // 使用用户名或邮箱作为 key，而不是 IP
-    return (req.body?.username || req.body?.email || getRequestIP(req) || 'unknown').toLowerCase();
+    // 使用 username/IP 组合作为 key，防止用户名枚举绕过
+    const identifier = req.body?.username || req.body?.email || 'unknown';
+    const ip = getRequestIP(req) || 'unknown';
+    return `${identifier.toLowerCase()}:${ip}`;
   },
 });
 
@@ -48,11 +50,11 @@ export const apiLimiter = rateLimit({
 
 /**
  * 严格的 API 端点速率限制 - 用于敏感操作
- * 默认：1 分钟内最多 120 个请求
+ * 默认：1 分钟内最多 30 个请求（比 apiLimiter 更严格）
  */
 export const strictApiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 分钟
-  max: 120, // 限制请求数
+  max: 30, // 限制请求数（更严格）
   message: 'Too many requests to this endpoint, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,

@@ -146,43 +146,49 @@ export class SQLiteDriver extends BaseDriver {
   }
 
   async query<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
-    this._stats.queries++;
-    try {
-      const stmt = this.db.prepare(sql);
-      if (sql.trim().toLowerCase().startsWith('select')) {
-        return stmt.all(...serializeParams(params || [])) as T[];
+    return this.executeWithSlowQueryCheck('SQLite.query', sql, params, async () => {
+      this._stats.queries++;
+      try {
+        const stmt = this.db.prepare(sql);
+        if (sql.trim().toLowerCase().startsWith('select')) {
+          return stmt.all(...serializeParams(params || [])) as T[];
+        }
+        stmt.run(...serializeParams(params || []));
+        return [];
+      } catch (error) {
+        this._stats.errors++;
+        log.error('SQLite', 'Query error', { sql: sql.substring(0, 100), error });
+        throw error;
       }
-      stmt.run(...serializeParams(params || []));
-      return [];
-    } catch (error) {
-      this._stats.errors++;
-      log.error('SQLite', 'Query error', { sql: sql.substring(0, 100), error });
-      throw error;
-    }
+    });
   }
 
   async get<T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> {
-    this._stats.queries++;
-    try {
-      const stmt = this.db.prepare(sql);
-      return stmt.get(...serializeParams(params || [])) as T | undefined;
-    } catch (error) {
-      this._stats.errors++;
-      log.error('SQLite', 'Get error', { sql: sql.substring(0, 100), error });
-      throw error;
-    }
+    return this.executeWithSlowQueryCheck('SQLite.get', sql, params, async () => {
+      this._stats.queries++;
+      try {
+        const stmt = this.db.prepare(sql);
+        return stmt.get(...serializeParams(params || [])) as T | undefined;
+      } catch (error) {
+        this._stats.errors++;
+        log.error('SQLite', 'Get error', { sql: sql.substring(0, 100), error });
+        throw error;
+      }
+    });
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
-    this._stats.queries++;
-    try {
-      const stmt = this.db.prepare(sql);
-      stmt.run(...serializeParams(params || []));
-    } catch (error) {
-      this._stats.errors++;
-      log.error('SQLite', 'Execute error', { sql: sql.substring(0, 100), error });
-      throw error;
-    }
+    return this.executeWithSlowQueryCheck('SQLite.execute', sql, params, async () => {
+      this._stats.queries++;
+      try {
+        const stmt = this.db.prepare(sql);
+        stmt.run(...serializeParams(params || []));
+      } catch (error) {
+        this._stats.errors++;
+        log.error('SQLite', 'Execute error', { sql: sql.substring(0, 100), error });
+        throw error;
+      }
+    });
   }
 
   async insert(sql: string, params?: unknown[]): Promise<number> {

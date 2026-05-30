@@ -7,7 +7,7 @@ import * as https from 'https';
 import * as http from 'http';
 import { URL } from 'url';
 import { BaseQueryMethod, QueryMethodType, WhoisResult } from './base';
-import { normalizeDomain } from '../../../utils/domain';
+import { normalizeDomain } from '../../../utils/dns';
 
 /**
  * RDAP 查询方式
@@ -54,12 +54,14 @@ export class RdapMethod extends BaseQueryMethod {
       const expiryDate = this.extractExpiryDate(data);
       const registrar = this.extractRegistrar(data);
       const nameServers = this.extractNameServers(data);
+      const status = this.extractStatus(data);
 
       if (expiryDate) {
         this.log('info', `Successfully extracted expiry for ${domain}`, {
           expiryDate: expiryDate.toISOString(),
           registrar,
           nameServerCount: nameServers.length,
+          status,
         });
       }
 
@@ -69,6 +71,7 @@ export class RdapMethod extends BaseQueryMethod {
         registrar,
         nameServers,
         raw: JSON.stringify(data),
+        status,  // 添加 WHOIS 状态
       };
     } catch (error) {
       let errorDetails: Record<string, unknown>;
@@ -194,6 +197,20 @@ export class RdapMethod extends BaseQueryMethod {
     }
 
     return nameServers;
+  }
+
+  /**
+   * 提取 WHOIS 状态
+   * RDAP status 是一个数组，如 ["active"] 或 ["clientTransferProhibited", "serverTransferProhibited"]
+   */
+  private extractStatus(data: any): string | null {
+    if (data.status && Array.isArray(data.status) && data.status.length > 0) {
+      // 返回所有状态，用换行符连接
+      const status = data.status.join('\n');
+      this.log('debug', `Extracted RDAP status`, { status });
+      return status;
+    }
+    return null;
   }
 }
 

@@ -19,6 +19,10 @@ import type { DatabaseType } from '../core/types';
 import type { DatabaseConfig } from '../core/config';
 import type { DatabaseDriver, DriverConfig } from './types';
 import { getDriver } from './types';
+import { MySQLDriver } from './mysql';
+import { PostgreSQLDriver } from './postgresql';
+import { SQLiteDriver } from './sqlite';
+import { getDatabaseConfig } from '../core/config';
 
 /** 驱动工厂配置 */
 export interface DriverFactoryConfig {
@@ -45,7 +49,6 @@ export function createDriver(config: DriverFactoryConfig): DatabaseDriver {
       if (!databaseConfig.mysql) {
         throw new Error('MySQL configuration is required');
       }
-      const { MySQLDriver } = require('./mysql');
       return new MySQLDriver(databaseConfig.mysql, driverConfig);
     }
 
@@ -53,7 +56,6 @@ export function createDriver(config: DriverFactoryConfig): DatabaseDriver {
       if (!databaseConfig.postgresql) {
         throw new Error('PostgreSQL configuration is required');
       }
-      const { PostgreSQLDriver } = require('./postgresql');
       return new PostgreSQLDriver(databaseConfig.postgresql, driverConfig);
     }
 
@@ -62,7 +64,6 @@ export function createDriver(config: DriverFactoryConfig): DatabaseDriver {
       if (!databaseConfig.sqlite) {
         throw new Error('SQLite configuration is required');
       }
-      const { SQLiteDriver } = require('./sqlite');
       return new SQLiteDriver(databaseConfig.sqlite, driverConfig);
     }
   }
@@ -72,7 +73,6 @@ export function createDriver(config: DriverFactoryConfig): DatabaseDriver {
  * 根据环境变量创建驱动
  */
 export function createDriverFromEnv(): DatabaseDriver {
-  const { getDatabaseConfig } = require('../core/config');
   const dbConfig = getDatabaseConfig();
 
   return createDriver({

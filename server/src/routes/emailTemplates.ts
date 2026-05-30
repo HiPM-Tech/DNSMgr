@@ -7,7 +7,7 @@ import {
   getEmailTemplate,
   detectConflicts,
   generatePreview,
-} from '../service/emailTemplate';
+} from '../lib/dns/emailTemplate';
 
 const router = Router();
 

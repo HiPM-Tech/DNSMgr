@@ -1,15 +1,21 @@
+// Load environment variables FIRST, before any other imports
+// This ensures JWT_SECRET and other env vars are available during module initialization
+import { loadEnv } from './config/env';
+loadEnv();
+
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import http from 'http';
 import path from 'path';
-import { loadEnv } from './config/env';
 
 // Get the current file directory
 const APP_ROOT = path.resolve();
 import { createConnection, isDbInitialized, hasUsers, connect } from './db/connection';
-import { initSchema, initSchemaAsync } from './db/schema';
+import { initSchema } from './db/schema';
 import { initSchema as initSchemaWithMigration } from './db/init';
 import { disconnect } from './db/core/connection';
 import { authMiddleware, adminOnly } from './middleware/auth';
@@ -23,14 +29,15 @@ import teamsRouter from './routes/teams';
 import accountsRouter from './routes/accounts';
 import domainsRouter from './routes/domains';
 import providersRouter from './routes/providers';
-import recordsRouter from './routes/records';
+import recordsRouter, { emailTemplatesRouter } from './routes/records';
 import initRouter from './routes/init';
 import systemRouter from './routes/system';
 import settingsRouter from './routes/settings';
 import securityRouter from './routes/security';
 import securityPolicyRouter from './routes/securityPolicy';
 import auditRouter from './routes/audit';
-import emailTemplatesRouter from './routes/emailTemplates';
+// emailTemplatesRouter has been moved to records.ts under /api/domains/email-templates
+// import emailTemplatesRouter from './routes/emailTemplates';
 import tunnelsRouter from './routes/tunnels';
 import webauthnRouter from './routes/webauthn';
 import tokensRouter from './routes/tokens';
@@ -40,23 +47,59 @@ import rdapRouter from './routes/rdap';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
-// Load environment variables (data/.env has priority over root .env)
-loadEnv();
-
 import { startFailoverJob } from './service/failoverJob';
-import { startWhoisJob } from './service/whoisJob';
+import { startWhoisJob } from './service/whois';
 import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { startRecordCountCacheRefresh } from './service/recordCountCache';
+import { startDomainSyncJob } from './service/domainSyncJob';
+
+// 读取 package.json 获取版本信息
+import { readFileSync } from 'fs';
+let packageVersion = 'unknown';
+try {
+  const packageJson = JSON.parse(readFileSync(path.join(APP_ROOT, 'package.json'), 'utf-8'));
+  packageVersion = packageJson.version || 'unknown';
+} catch (error) {
+  // 忽略错误，使用默认版本
+}
+
+/**
+ * 打印启动横幅
+ */
+function printBanner(port: number): void {
+  // Use named constants for better maintainability
+  const CYAN = '\x1b[36m';
+  const MAGENTA = '\x1b[35m';
+  const GRAY = '\x1b[90m';
+  const RESET = '\x1b[0m';
+  const BOLD = '\x1b[1m';
+  
+  const banner = `
+${CYAN}╔═══════════════════════════════════════════════════════════╗${RESET}
+${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
+${CYAN}║${RESET}   ${BOLD}${MAGENTA}HiDNS Manager${RESET}                                    ${CYAN}║${RESET}
+${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
+${CYAN}║${RESET}   ${GRAY}Project:${RESET} HiDNS Manager                         ${CYAN}║${RESET}
+${CYAN}║${RESET}   ${GRAY}Version:${RESET} ${packageVersion.padEnd(42)}${CYAN}║${RESET}
+${CYAN}║${RESET}   ${GRAY}GitHub:${RESET}  https://github.com/HiPM-Tech/HiDNS    ${CYAN}║${RESET}
+${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
+${CYAN}╚═══════════════════════════════════════════════════════════╝${RESET}
+`;
+  console.log(banner);
+}
 import { initRenewalSchedulers } from './service/renewalInit';
 import { wsService } from './service/websocket';
-import { initWhoisSchedulers } from './service/whoisInit';
+import { initWhoisSchedulers } from './service/whois';
 import { initSecurityPolicyTable } from './service/securityPolicy';
 import { initTrustedDevicesTable } from './service/deviceTrust';
 import { log } from './lib/logger';
 import { OAuthOperations } from './db/business-adapter';
 
 const app = express();
+
+// Server instance for graceful shutdown
+let server: http.Server | null = null;
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
@@ -68,21 +111,73 @@ async function checkInitialization(): Promise<boolean> {
 }
 
 // Middlewares
-app.use(cors());
+// Trust proxy - enables correct req.protocol and req.ip behind reverse proxies
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy !== undefined && trustProxy !== '') {
+  app.set('trust proxy', trustProxy);
+} else if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', [
+    'loopback',
+    '10.0.0.0/8',
+    '172.16.0.0/12',
+    '192.168.0.0/16',
+    '169.254.0.0/16',
+  ]);
+}
+
+// Helmet - Security headers (must be before other middlewares)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Required for React/Vite
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      fontSrc: ["'self'"],
+      connectSrc: ["'self'", 'https:'],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow embedding resources
+}));
+
+// Parse cookies (for httpOnly JWT cookie)
+app.use(cookieParser());
+
+// CORS configuration - automatically allow requesting origin
+// In production, you can restrict by setting CORS_ORIGIN env var (comma-separated)
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // If no origin specified (same-origin request), allow it
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // If CORS_ORIGIN is set, only allow those origins
+    if (process.env.CORS_ORIGIN) {
+      const allowedOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    }
+    
+    // Default: allow all origins (development mode)
+    // This makes it work out of the box without configuration
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400, // 24 hours
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(requestIdMiddleware);
 app.use(clientIPMiddleware); // 必须在 requestLogger 之前，确保日志记录真实 IP
 app.use(requestLogger);
-
-// Content Security Policy
-app.use((req: Request, res: Response, next: NextFunction) => {
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';");
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  next();
-});
 
 // Swagger setup
 const swaggerOptions: swaggerJsdoc.Options = {
@@ -122,7 +217,12 @@ restricted to specific domains and time ranges.
 - Time restrictions: Tokens can have start/end time limits
 - All API endpoints support both JWT and API token authentication`,
     },
-    servers: [{ url: `http://localhost:${PORT}` }],
+    servers: [
+      {
+        url: process.env.API_BASE_URL || `http://localhost:${PORT}`,
+        description: process.env.API_BASE_URL ? 'Custom API URL' : 'Local development',
+      },
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -167,6 +267,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/teams', teamsRouter);
 app.use('/api/accounts', accountsRouter);
+app.use('/api/domains/email-templates', emailTemplatesRouter); // Use separate router to avoid conflicts
 app.use('/api/domains', domainsRouter);
 app.use('/api/providers', providersRouter);
 app.use('/api/domains/:domainId/records', recordsRouter);
@@ -176,7 +277,8 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/security', securityRouter);
 app.use('/api/security', securityPolicyRouter);
 app.use('/api/audit', auditRouter);
-app.use('/api/email-templates', emailTemplatesRouter);
+// Email templates API moved to /api/domains/email-templates (see records.ts)
+// app.use('/api/email-templates', emailTemplatesRouter);
 app.use('/api/tunnels', tunnelsRouter);
 app.use('/api/auth/webauthn', webauthnRouter);
 app.use('/api/tokens', tokensRouter);
@@ -305,19 +407,48 @@ if (clientBuildPath) {
 // Global error handler (must be last)
 app.use(errorHandler);
 
+/**
+ * Graceful shutdown handler
+ */
+async function gracefulShutdown(
+  signal: string,
+  initCheckInterval?: NodeJS.Timeout,
+  oauthStateCleanupInterval?: NodeJS.Timeout
+): Promise<void> {
+  if (initCheckInterval) clearInterval(initCheckInterval);
+  if (oauthStateCleanupInterval) clearInterval(oauthStateCleanupInterval);
+  
+  log.info('Server', `${signal} received, starting graceful shutdown...`);
+  
+  // Shutdown WebSocket service
+  wsService.shutdown();
+  
+  try {
+    await disconnect();
+    log.info('Server', 'Database disconnected gracefully');
+  } catch (err) {
+    log.error('Server', 'Error during database disconnect', { error: err });
+  }
+  
+  if (server) {
+    server.close(() => {
+      log.info('Server', 'Server closed');
+      process.exit(0);
+    });
+  } else {
+    log.info('Server', 'No server instance to close');
+    process.exit(0);
+  }
+}
+
 // Initialize database connection and check state
 async function initializeApp() {
   try {
-    // Try to create database connection (legacy system)
-    const conn = await createConnection();
-
-    // Initialize new database system (used by some routes like auth.ts)
+    // Initialize new database system (unified connection)
     await connect();
 
-    // Initialize schema if needed (use async version for all database types)
-    await initSchemaAsync(conn);
-
-    // Run column migration for existing tables (adds missing columns like background_image)
+    // Run unified schema initialization and migration checks
+    // This function internally calls initSchemaAsync() if needed
     await initSchemaWithMigration();
 
     // Check if system is initialized
@@ -338,16 +469,20 @@ async function initializeApp() {
       startNsMonitorJob();
       startDomainRenewalJob();
       startRecordCountCacheRefresh(30); // Refresh every 30 minutes
+      startDomainSyncJob(0.5); // Sync every 30 minutes
     } else {
       log.info('Server', 'System not initialized. Running in initialization mode.');
       log.info('Server', 'Please access the setup wizard to configure the system.');
     }
 
     // Start server with WebSocket support
-    const server = http.createServer(app);
+    server = http.createServer(app);
     
     // Initialize WebSocket service
     wsService.initialize(server);
+    
+    // 打印启动横幅
+    printBanner(PORT);
     
     server.listen(PORT, () => {
       log.info('Server', `HiDNS running on http://localhost:${PORT}`);
@@ -373,6 +508,7 @@ async function initializeApp() {
           startNsMonitorJob();
           startDomainRenewalJob();
           startRecordCountCacheRefresh(30); // Refresh every 30 minutes
+          startDomainSyncJob(0.5); // Sync every 30 minutes
         }
     }, 5000);
 
@@ -389,54 +525,20 @@ async function initializeApp() {
     }, 10 * 60 * 1000);
 
     // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      clearInterval(initCheckInterval);
-      clearInterval(oauthStateCleanupInterval);
-      log.info('Server', 'SIGTERM received, starting graceful shutdown...');
-      
-      // Shutdown WebSocket service
-      wsService.shutdown();
-      
-      try {
-        await disconnect();
-        log.info('Server', 'Database disconnected gracefully');
-      } catch (err) {
-        log.error('Server', 'Error during database disconnect', { error: err });
-      }
-      server.close(() => {
-        log.info('Server', 'Server closed');
-        process.exit(0);
-      });
-    });
-
-    process.on('SIGINT', async () => {
-      clearInterval(initCheckInterval);
-      clearInterval(oauthStateCleanupInterval);
-      log.info('Server', 'SIGINT received, starting graceful shutdown...');
-      
-      // Shutdown WebSocket service
-      wsService.shutdown();
-      
-      try {
-        await disconnect();
-        log.info('Server', 'Database disconnected gracefully');
-      } catch (err) {
-        log.error('Server', 'Error during database disconnect', { error: err });
-      }
-      server.close(() => {
-        log.info('Server', 'Server closed');
-        process.exit(0);
-      });
-    });
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM', initCheckInterval, oauthStateCleanupInterval));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT', initCheckInterval, oauthStateCleanupInterval));
 
   } catch (error) {
     log.info('Server', 'Database not configured. Running in initialization mode.');
     log.info('Server', 'Please access the setup wizard to configure the system.');
 
-    const server = http.createServer(app);
+    server = http.createServer(app);
     
     // Initialize WebSocket service
     wsService.initialize(server);
+    
+    // 打印启动横幅
+    printBanner(PORT);
     
     server.listen(PORT, () => {
       log.info('Server', `HiDNS running on http://localhost:${PORT}`);
@@ -447,9 +549,8 @@ async function initializeApp() {
     // Re-check initialization status periodically
     const initCheckInterval = setInterval(async () => {
       try {
-        const conn = await createConnection();
         await connect();
-        await initSchemaAsync(conn);
+        await initSchemaWithMigration();
         const newState = await checkInitialization();
         if (newState) {
           isInitialized = true;
@@ -462,6 +563,7 @@ async function initializeApp() {
           startNsMonitorJob();
           startDomainRenewalJob();
           startRecordCountCacheRefresh(30); // Refresh every 30 minutes
+          startDomainSyncJob(0.5); // Sync every 30 minutes
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');
           log.info('Server', 'You may need to refresh the page.');
         }
@@ -470,44 +572,10 @@ async function initializeApp() {
       }
     }, 5000);
 
-    // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      clearInterval(initCheckInterval);
-      log.info('Server', 'SIGTERM received, starting graceful shutdown...');
-      
-      // Shutdown WebSocket service
-      wsService.shutdown();
-      
-      try {
-        await disconnect();
-        log.info('Server', 'Database disconnected gracefully');
-      } catch (err) {
-        log.error('Server', 'Error during database disconnect', { error: err });
-      }
-      server.close(() => {
-        log.info('Server', 'Server closed');
-        process.exit(0);
-      });
-    });
-
-    process.on('SIGINT', async () => {
-      clearInterval(initCheckInterval);
-      log.info('Server', 'SIGINT received, starting graceful shutdown...');
-      
-      // Shutdown WebSocket service
-      wsService.shutdown();
-      
-      try {
-        await disconnect();
-        log.info('Server', 'Database disconnected gracefully');
-      } catch (err) {
-        log.error('Server', 'Error during database disconnect', { error: err });
-      }
-      server.close(() => {
-        log.info('Server', 'Server closed');
-        process.exit(0);
-      });
-    });
+    // Graceful shutdown - use the unified gracefulShutdown function
+    // Note: oauthStateCleanupInterval is not started in this branch, so pass undefined
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM', initCheckInterval));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT', initCheckInterval));
   }
 }
 

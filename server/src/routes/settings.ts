@@ -260,7 +260,14 @@ router.put('/audit-rules', authMiddleware, noTokenAuth('system settings'), admin
   if (!rules) return res.status(400).json({ code: -1, msg: 'Rules required' });
   
   await AuditRuleOperations.saveRules(JSON.stringify(rules));
-  res.json({ code: 0, msg: 'success' });
+  const defaultRules = {
+    enabled: true,
+    maxDeletionsPerHour: 10,
+    maxFailedLogins: 5,
+    offHoursStart: '22:00',
+    offHoursEnd: '06:00'
+  };
+  res.json({ code: 0, data: { ...defaultRules, ...rules }, msg: 'success' });
 });
 
 router.get('/security', authMiddleware, noTokenAuth('system settings'), adminOnly, async (_req: Request, res: Response) => {
@@ -361,11 +368,21 @@ router.post('/smtp/test', authMiddleware, adminOnly, async (req: Request, res: R
       res.status(400).json({ code: 400, msg: 'Target email is required' });
       return;
     }
+    log.info('SMTP', 'Sending test email', { to: target, fromUser: req.user!.userId });
     await sendSmtpEmail(target, 'HiDNS SMTP Test', 'This is a test email from HiDNS SMTP settings.');
     await logAuditOperation(req.user!.userId, 'smtp_test_email', 'system', { to: target }, req);
+    log.info('SMTP', 'Test email sent successfully', { to: target });
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to send test email' });
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    log.error('SMTP', 'Failed to send test email', { 
+      error: errorMsg,
+      stack: errorStack,
+      to: to || '(not provided)',
+      userId: req.user?.userId
+    });
+    res.status(500).json({ code: 500, msg: `Failed to send test email: ${errorMsg}` });
   }
 });
 

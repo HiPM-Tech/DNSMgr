@@ -10,6 +10,7 @@ import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { formatDomainName } from '../../utils/domain';
 import { toBoolean, toString, toNumber } from '../../utils/typeConverters';
 
 const dialogField = (label: string, control: ReactNode) => (
@@ -295,7 +296,7 @@ export function FailoverTab() {
   const paginatedDomains = filteredDomains.slice((page - 1) * pageSize, page * pageSize);
 
   const columns = [
-    { key: 'name', label: t('domains.domain'), render: (row: Domain) => <span className="page-strong">{row.name}</span> },
+    { key: 'name', label: t('domains.domain'), render: (row: Domain) => <span className="page-strong">{formatDomainName(row.name)}</span> },
     { key: 'account_id', label: t('domains.account'), render: (row: Domain) => <span className="page-muted">#{row.account_id}</span> },
     { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="page-muted">{row.remark || t('domains.emptyRemark')}</span> },
     {

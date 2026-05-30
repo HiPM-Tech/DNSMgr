@@ -17,6 +17,7 @@ import type { SQLCompiler } from './query/compiler';
 import { getDefaultCompiler } from './query/compiler';
 import { transaction, getConnection } from './core/connection';
 import { log } from '../lib/logger';
+import { DomainQueryBuilder, RenewableDomainQueryBuilder, AccountQueryBuilder, TeamQueryBuilder } from './query-builders';
 
 // 本地 db 对象，避免循环依赖
 const db = {
@@ -149,12 +150,6 @@ function createOperationLogger(context: OperationContext) {
 /** SQL处理器 */
 function processSql(sql: string, dbType: string): string {
   const originalSql = sql;
-  
-  // 转换 PostgreSQL 的 $1, $2... 占位符
-  if (dbType === 'postgresql') {
-    let index = 0;
-    sql = sql.replace(/\?/g, () => `$${++index}`);
-  }
 
   // MySQL 兼容性处理
   if (dbType === 'mysql') {
@@ -622,6 +617,15 @@ export const DnsAccountOperations = {
       { operation: 'DnsAccount.getByTypeAndUserOrTeams', table: 'dns_accounts' }
     );
   },
+
+  /** 更新账号启用状态 */
+  async updateEnabled(id: number, enabled: boolean): Promise<void> {
+    await executeInternal(
+      'UPDATE dns_accounts SET enabled = ? WHERE id = ?',
+      [enabled ? 1 : 0, id],
+      { operation: 'DnsAccount.updateEnabled', table: 'dns_accounts' }
+    );
+  },
 };
 
 // ============================================================================
@@ -666,39 +670,77 @@ export const DomainOperations = {
   async getByIds(ids: number[], options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
     if (ids.length === 0) return [];
 
-    const placeholders = ids.map(() => '?').join(',');
-    let sql = `SELECT * FROM domains WHERE id IN (${placeholders})`;
-    const params: unknown[] = [...ids];
-
-    if (options?.accountId) {
-      sql += ' AND account_id = ?';
-      params.push(options.accountId);
-    }
-    if (options?.keyword) {
-      sql += ' AND name LIKE ?';
-      params.push(`%${options.keyword}%`);
-    }
-    sql += ' ORDER BY id';
-
+    const builder = DomainQueryBuilder.forTokenAuth(ids, options);
+    const { sql, params } = builder.build();
+    
     return queryInternal(sql, params, { operation: 'Domain.getByIds', table: 'domains' });
   },
 
   /** 获取所有域名（用于超级管理员Token认证） */
   async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
-    let sql = 'SELECT * FROM domains WHERE 1=1';
-    const params: unknown[] = [];
-
-    if (options?.accountId) {
-      sql += ' AND account_id = ?';
-      params.push(options.accountId);
-    }
-    if (options?.keyword) {
-      sql += ' AND name LIKE ?';
-      params.push(`%${options.keyword}%`);
-    }
-    sql += ' ORDER BY id';
-
+    const builder = DomainQueryBuilder.forSuperAdmin(options);
+    const { sql, params } = builder.build();
+    
     return queryInternal(sql, params, { operation: 'Domain.getAllForSuperAdmin', table: 'domains' });
+  },
+
+  /** 获取所有域名（带分页和过滤，用于高性能场景） */
+  async getAllForSuperAdminWithPagination(options: {
+    accountId?: number;
+    keyword?: string;
+    domainStatus?: 'enabled' | 'disabled' | 'all';
+    domainType?: 'apex' | 'subdomain';
+    page: number;
+    pageSize: number;
+  }): Promise<{ list: QueryResult[]; total: number }> {
+    const {
+      accountId,
+      keyword,
+      domainStatus = 'all',
+      domainType,
+      page,
+      pageSize,
+    } = options;
+
+    // 构建查询
+    let builder = DomainQueryBuilder.forSuperAdmin({ accountId, keyword });
+    
+    // 添加 enabled 过滤
+    if (domainStatus === 'enabled') {
+      builder = builder.whereDomainEnabled(true);
+    } else if (domainStatus === 'disabled') {
+      builder = builder.whereDomainEnabled(false);
+    }
+    // domainStatus === 'all' 时不过滤
+    
+    // 添加 domain_type 过滤
+    if (domainType) {
+      builder = builder.whereDomainType(domainType);
+    }
+    
+    const { sql: baseSql, params: baseParams } = builder.build();
+    
+    // 查询总数
+    const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
+    const countResult = await queryInternal(countSql, baseParams, { 
+      operation: 'Domain.getAllForSuperAdminWithPagination.count', 
+      table: 'domains' 
+    });
+    const total = Number((countResult[0] as any)?.count || 0);
+    
+    // 查询分页数据
+    const offset = (page - 1) * pageSize;
+    
+    // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
+    // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
+    const paginatedSql = `${baseSql} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    
+    const list = await queryInternal(paginatedSql, baseParams, { 
+      operation: 'Domain.getAllForSuperAdminWithPagination.list', 
+      table: 'domains' 
+    });
+    
+    return { list, total };
   },
 
   /** 创建域名 */
@@ -728,6 +770,30 @@ export const DomainOperations = {
   /** 删除域名 */
   async delete(id: number): Promise<void> {
     return executeInternal('DELETE FROM domains WHERE id = ?', [id], { operation: 'Domain.delete', table: 'domains' });
+  },
+
+  /** 批量删除域名 */
+  async batchDelete(ids: number[]): Promise<{ deleted: number; failed: number; errors: Array<{ id: number; error: string }> }> {
+    const result = {
+      deleted: 0,
+      failed: 0,
+      errors: [] as Array<{ id: number; error: string }>,
+    };
+
+    for (const id of ids) {
+      try {
+        await executeInternal('DELETE FROM domains WHERE id = ?', [id], { operation: 'Domain.batchDelete', table: 'domains' });
+        result.deleted++;
+      } catch (error) {
+        result.failed++;
+        result.errors.push({
+          id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return result;
   },
 
   /** 更新记录数量 */
@@ -773,61 +839,148 @@ export const DomainOperations = {
   }): Promise<QueryResult[]> {
     const { userId, teamIds, accountId, keyword, isSuper } = params;
     
+    let builder: DomainQueryBuilder;
+    
     if (isSuper) {
-      let sql = 'SELECT * FROM domains WHERE 1=1';
-      const queryParams: unknown[] = [];
-      if (accountId) { sql += ' AND account_id = ?'; queryParams.push(accountId); }
-      if (keyword) { sql += ' AND name LIKE ?'; queryParams.push(`%${keyword}%`); }
-      sql += ' ORDER BY id';
-      return queryInternal(sql, queryParams, { operation: 'Domain.getAccessibleDomains.super', table: 'domains' });
+      // Super admin: use simplified query
+      builder = DomainQueryBuilder.accessibleForSuperAdmin({ accountId, keyword });
+    } else {
+      // Regular user: full permission check with teams
+      builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
     }
     
-    // 非超级管理员需要检查权限
-    const teamFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
-    const teamPermFilter = teamIds.length > 0 ? `OR team_id IN (${teamIds.map(() => '?').join(',')})` : '';
+    const { sql, params: queryParams } = builder.build();
     
-    let sql = `SELECT d.* FROM domains d WHERE (d.account_id IN (
-      SELECT id FROM dns_accounts WHERE created_by = ? ${teamFilter}
-    ) OR d.id IN (
-      SELECT domain_id FROM domain_permissions WHERE user_id = ? ${teamPermFilter}
-    ))`;
+    return queryInternal(sql, queryParams, { 
+      operation: isSuper 
+        ? 'Domain.getAccessibleDomains.super' 
+        : 'Domain.getAccessibleDomains', 
+      table: 'domains' 
+    });
+  },
+
+  /** 获取用户可访问的域名列表（带分页和过滤，用于高性能场景） */
+  async getAccessibleDomainsWithPagination(params: {
+    userId: number;
+    teamIds: number[];
+    accountId?: number;
+    keyword?: string;
+    domainStatus?: 'enabled' | 'disabled' | 'all';
+    domainType?: 'apex' | 'subdomain';
+    page: number;
+    pageSize: number;
+  }): Promise<{ list: QueryResult[]; total: number }> {
+    const {
+      userId,
+      teamIds,
+      accountId,
+      keyword,
+      domainStatus = 'all',
+      domainType,
+      page,
+      pageSize,
+    } = params;
+
+    // 构建查询
+    let builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
     
-    const queryParams: unknown[] = [userId, ...teamIds, userId, ...teamIds];
+    // 添加 enabled 过滤
+    if (domainStatus === 'enabled') {
+      builder = builder.whereDomainEnabled(true);
+    } else if (domainStatus === 'disabled') {
+      builder = builder.whereDomainEnabled(false);
+    }
+    // domainStatus === 'all' 时不过滤
     
-    if (accountId) { sql += ' AND d.account_id = ?'; queryParams.push(accountId); }
-    if (keyword) { sql += ' AND d.name LIKE ?'; queryParams.push(`%${keyword}%`); }
-    sql += ' ORDER BY d.id';
+    // 添加 domain_type 过滤
+    if (domainType) {
+      builder = builder.whereDomainType(domainType);
+    }
     
-    return queryInternal(sql, queryParams, { operation: 'Domain.getAccessibleDomains', table: 'domains' });
+    const { sql: baseSql, params: baseParams } = builder.build();
+    
+    // 查询总数
+    const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
+    const countResult = await queryInternal(countSql, baseParams, { 
+      operation: 'Domain.getAccessibleDomainsWithPagination.count', 
+      table: 'domains' 
+    });
+    const total = Number((countResult[0] as any)?.count || 0);
+    
+    // 查询分页数据
+    const offset = (page - 1) * pageSize;
+    
+    // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
+    // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
+    const paginatedSql = `${baseSql} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    
+    const list = await queryInternal(paginatedSql, baseParams, { 
+      operation: 'Domain.getAccessibleDomainsWithPagination.list', 
+      table: 'domains' 
+    });
+    
+    return { list, total };
   },
 
   /** 检查用户是否有权限访问特定域名（用于令牌权限验证） */
   async checkUserDomainAccess(domainId: number, userId: number): Promise<boolean> {
-    const result = await getInternal<{ id: number }>(
-      `SELECT d.id FROM domains d
-       JOIN dns_accounts da ON d.account_id = da.id
-       WHERE d.id = ? AND (da.created_by = ? OR d.id IN (
-         SELECT domain_id FROM domain_permissions WHERE user_id = ?
-       ))`,
-      [domainId, userId, userId],
-      { operation: 'Domain.checkUserDomainAccess', table: 'domains' }
-    );
+    const builder = DomainQueryBuilder.checkUserAccess(domainId, userId);
+    const { sql, params } = builder.build();
+    
+    const result = await getInternal<{ id: number }>(sql, params, { 
+      operation: 'Domain.checkUserDomainAccess', 
+      table: 'domains' 
+    });
+    
     return !!result;
   },
 
-  /** 获取用户可访问的域名列表（用于令牌创建） */
+  /** 设置域名的启用状态 */
+  async setEnabled(id: number, enabled: number): Promise<void> {
+    await executeInternal(
+      'UPDATE domains SET enabled = ? WHERE id = ?',
+      [enabled, id],
+      { operation: 'Domain.setEnabled', table: 'domains' }
+    );
+  },
+
+  /** 获取用户可访问的域名列表（用于令牌创建，只显示启用账号的域名） */
   async getUserAccessibleDomains(userId: number): Promise<QueryResult[]> {
     return queryInternal(
       `SELECT d.id, d.name, da.name as account_name
        FROM domains d
        JOIN dns_accounts da ON d.account_id = da.id
-       WHERE da.created_by = ? OR d.id IN (
-         SELECT domain_id FROM domain_permissions WHERE user_id = ?
-       )
+       WHERE da.enabled = 1
+         AND (da.created_by = ? OR d.id IN (
+           SELECT domain_id FROM domain_permissions WHERE user_id = ?
+         ))
        ORDER BY d.name`,
       [userId, userId],
       { operation: 'Domain.getUserAccessibleDomains', table: 'domains' }
     );
+  },
+
+  /** 获取 NS 监控可用的域名列表（Level 1 - ALL，不过滤 enabled 状态） */
+  async getAvailableDomainsForNSMonitor(userId: number, isSuperAdmin: boolean): Promise<QueryResult[]> {
+    let builder: DomainQueryBuilder;
+    
+    if (isSuperAdmin) {
+      // Super admin: reuse getAll() pattern but select specific columns
+      builder = DomainQueryBuilder.all().select('d.id, d.name, d.account_id').orderByColumn('d.name');
+    } else {
+      // Regular user: use dedicated builder
+      builder = DomainQueryBuilder.forNSMonitorUser(userId)
+        .select('d.id, d.name, d.account_id')
+        .orderByColumn('d.name');
+    }
+    
+    const { sql, params } = builder.build();
+    return queryInternal(sql, params, { 
+      operation: isSuperAdmin 
+        ? 'Domain.getAvailableDomainsForNSMonitor.super' 
+        : 'Domain.getAvailableDomainsForNSMonitor.user', 
+      table: 'domains' 
+    });
   },
 };
 
@@ -2736,10 +2889,17 @@ export const AuditExportOperations = {
   /** 获取审计日志列表 */
   async getLogs(where: string, params: unknown[], pageSize: number, offset: number): Promise<QueryResult[]> {
     const dbType = getDbType();
+    // Use CASE WHEN to display 'Root' for user_id = 0
     const listSql = dbType === 'postgresql'
-      ? `SELECT l.*, u.username, u.nickname FROM operation_logs l
+      ? `SELECT l.*, 
+          CASE WHEN l.user_id = 0 THEN 'Root' ELSE u.username END as username,
+          CASE WHEN l.user_id = 0 THEN '后端' ELSE u.nickname END as nickname
+         FROM operation_logs l
          LEFT JOIN users u ON u.id = l.user_id WHERE ${where} ORDER BY l.id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
-      : `SELECT l.*, u.username, u.nickname FROM operation_logs l
+      : `SELECT l.*, 
+          CASE WHEN l.user_id = 0 THEN 'Root' ELSE u.username END as username,
+          CASE WHEN l.user_id = 0 THEN '后端' ELSE u.nickname END as nickname
+         FROM operation_logs l
          LEFT JOIN users u ON u.id = l.user_id WHERE ${where} ORDER BY l.id DESC LIMIT ? OFFSET ?`;
     const finalSql = dbType === 'mysql'
       ? listSql.replace('LIMIT ? OFFSET ?', `LIMIT ${pageSize} OFFSET ${offset}`)
@@ -3026,18 +3186,30 @@ export const WhoisOperations = {
   /** 获取所有域名 */
   async getAllDomains(): Promise<QueryResult[]> {
     return queryInternal(
-      'SELECT id, name FROM domains',
+      'SELECT id, name, account_id FROM domains',
       [],
       { operation: 'Whois.getAllDomains', table: 'domains' }
     );
   },
 
   /** 更新域名过期时间 */
-  async updateExpiry(domainId: number, expiresAt: string, apexExpiresAt?: string | null): Promise<void> {
-    if (apexExpiresAt !== undefined) {
+  async updateExpiry(domainId: number, expiresAt: string, apexExpiresAt?: string | null, whoisStatus?: string | null): Promise<void> {
+    if (apexExpiresAt !== undefined && whoisStatus !== undefined) {
+      return executeInternal(
+        'UPDATE domains SET expires_at = ?, apex_expires_at = ?, whois_status = ? WHERE id = ?',
+        [expiresAt, apexExpiresAt, whoisStatus, domainId],
+        { operation: 'Whois.updateExpiry', table: 'domains' }
+      );
+    } else if (apexExpiresAt !== undefined) {
       return executeInternal(
         'UPDATE domains SET expires_at = ?, apex_expires_at = ? WHERE id = ?',
         [expiresAt, apexExpiresAt, domainId],
+        { operation: 'Whois.updateExpiry', table: 'domains' }
+      );
+    } else if (whoisStatus !== undefined) {
+      return executeInternal(
+        'UPDATE domains SET expires_at = ?, whois_status = ? WHERE id = ?',
+        [expiresAt, whoisStatus, domainId],
         { operation: 'Whois.updateExpiry', table: 'domains' }
       );
     }
@@ -3091,10 +3263,35 @@ export const WhoisOperations = {
             registrar VARCHAR(255),
             name_servers TEXT,
             raw_data TEXT,
+            status TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+        
+        // 迁移：为已存在的表添加 status 字段（如果不存在）
+        try {
+          // SQLite 不支持 ADD COLUMN IF NOT EXISTS，需要先检查
+          const columns = await queryInternal('PRAGMA table_info(whois_cache)', [], { 
+            operation: 'Whois.checkStatusColumn', 
+            table: 'whois_cache' 
+          }) as any[];
+          
+          const hasStatusColumn = columns.some((col: any) => col.name === 'status');
+          
+          if (!hasStatusColumn) {
+            await executeInternal(
+              `ALTER TABLE whois_cache ADD COLUMN status TEXT`, 
+              [], 
+              { operation: 'Whois.addStatusColumn', table: 'whois_cache' }
+            );
+            log.info('BusinessAdapter', 'Added status column to whois_cache table');
+          } else {
+            log.debug('BusinessAdapter', 'status column already exists in whois_cache table');
+          }
+        } catch (e) {
+          log.warn('BusinessAdapter', 'Failed to add/check status column', { error: e });
+        }
       } else if (dbType === 'mysql') {
         // MySQL 语法
         await executeInternal(`
@@ -3106,12 +3303,42 @@ export const WhoisOperations = {
             registrar VARCHAR(255),
             name_servers TEXT,
             raw_data TEXT,
+            status TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_domain (domain),
             INDEX idx_updated (updated_at)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+        
+        // 迁移：为已存在的表添加 status 字段（如果不存在）
+        try {
+          // 先检查字段是否存在
+          const columnCheck = await getInternal(
+            `SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.COLUMNS 
+             WHERE TABLE_SCHEMA = DATABASE() 
+             AND TABLE_NAME = 'whois_cache' 
+             AND COLUMN_NAME = 'status'`,
+            [],
+            { operation: 'Whois.checkStatusColumn', table: 'whois_cache' }
+          );
+          
+          const columnExists = (columnCheck as any)?.count > 0;
+          
+          if (!columnExists) {
+            // 字段不存在，添加它
+            await executeInternal(
+              `ALTER TABLE whois_cache ADD COLUMN status TEXT AFTER raw_data`, 
+              [], 
+              { operation: 'Whois.migrateAddStatusColumn', table: 'whois_cache' }
+            );
+            log.info('BusinessAdapter', 'Added status column to whois_cache table');
+          } else {
+            log.debug('BusinessAdapter', 'status column already exists in whois_cache table');
+          }
+        } catch (e) {
+          log.warn('BusinessAdapter', 'Failed to check/add status column', { error: e });
+        }
       } else if (dbType === 'postgresql') {
         // PostgreSQL 语法
         await executeInternal(`
@@ -3123,10 +3350,38 @@ export const WhoisOperations = {
             registrar VARCHAR(255),
             name_servers TEXT,
             raw_data TEXT,
+            status TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           )
         `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+        
+        // 迁移：为已存在的表添加 status 字段
+        try {
+          // PostgreSQL 使用 INFORMATION_SCHEMA 检查列是否存在
+          const columnCheck = await queryInternal(
+            `SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.COLUMNS 
+             WHERE table_name = 'whois_cache' 
+             AND column_name = 'status'`,
+            [],
+            { operation: 'Whois.checkStatusColumn', table: 'whois_cache' }
+          );
+          
+          const columnExists = (columnCheck as any)?.count > 0 || (columnCheck as any[])?.[0]?.count > 0;
+          
+          if (!columnExists) {
+            await executeInternal(
+              `ALTER TABLE whois_cache ADD COLUMN IF NOT EXISTS status TEXT`, 
+              [], 
+              { operation: 'Whois.addStatusColumn', table: 'whois_cache' }
+            );
+            log.info('BusinessAdapter', 'Added status column to whois_cache table');
+          } else {
+            log.debug('BusinessAdapter', 'status column already exists in whois_cache table');
+          }
+        } catch (e) {
+          log.warn('BusinessAdapter', 'Failed to check/add status column', { error: e });
+        }
         
         // 创建索引
         await executeInternal(`
@@ -3181,53 +3436,57 @@ export const WhoisOperations = {
     apexExpiryDate: string | null,
     registrar: string | null,
     nameServers: string,
-    rawData: string
+    rawData: string,
+    status: string | null = null
   ): Promise<void> {
     const dbType = getDbType();
     
     if (dbType === 'postgresql') {
       // PostgreSQL 语法
       await executeInternal(
-        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, status, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
          ON CONFLICT(domain) DO UPDATE SET
            expiry_date = EXCLUDED.expiry_date,
            apex_expiry_date = EXCLUDED.apex_expiry_date,
            registrar = EXCLUDED.registrar,
            name_servers = EXCLUDED.name_servers,
            raw_data = EXCLUDED.raw_data,
+           status = EXCLUDED.status,
            updated_at = NOW()`,
-        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData, status],
         { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
       );
     } else if (dbType === 'mysql') {
       // MySQL 语法
       await executeInternal(
-        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())
+        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, status, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
          ON DUPLICATE KEY UPDATE
            expiry_date = VALUES(expiry_date),
            apex_expiry_date = VALUES(apex_expiry_date),
            registrar = VALUES(registrar),
            name_servers = VALUES(name_servers),
            raw_data = VALUES(raw_data),
+           status = VALUES(status),
            updated_at = NOW()`,
-        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData, status],
         { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
       );
     } else {
       // SQLite 语法
       await executeInternal(
-        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `INSERT INTO whois_cache (domain, expiry_date, apex_expiry_date, registrar, name_servers, raw_data, status, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
          ON CONFLICT(domain) DO UPDATE SET
            expiry_date = excluded.expiry_date,
            apex_expiry_date = excluded.apex_expiry_date,
            registrar = excluded.registrar,
            name_servers = excluded.name_servers,
            raw_data = excluded.raw_data,
+           status = excluded.status,
            updated_at = CURRENT_TIMESTAMP`,
-        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData],
+        [domain, expiryDate, apexExpiryDate, registrar, nameServers, rawData, status],
         { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
       );
     }
@@ -3248,35 +3507,42 @@ export const RenewableDomainOperations = {
     );
   },
 
-  /** 获取所有启用的续期域名 */
+  /** 获取所有续期域名（包括启用和禁用，但过滤掉已禁用账号的域名） */
+  async getAll(): Promise<any[]> {
+    const builder = RenewableDomainQueryBuilder.all();
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getAll', table: 'renewable_domains' });
+  },
+
+  /** 获取所有启用的续期域名（过滤掉已禁用账号的域名） */
   async getAllEnabled(): Promise<any[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
-    return await queryInternal(
-      `SELECT * FROM renewable_domains WHERE enabled = ${enabledValue} ORDER BY expires_at ASC`,
-      [],
-      { operation: 'RenewableDomain.getAllEnabled', table: 'renewable_domains' }
-    );
+    
+    const builder = RenewableDomainQueryBuilder.allEnabled(enabledValue);
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getAllEnabled', table: 'renewable_domains' });
   },
 
   /** 根据账号 ID 获取续期域名列表 */
   async getByAccountId(accountId: number): Promise<any[]> {
-    return await queryInternal(
-      'SELECT * FROM renewable_domains WHERE account_id = ? ORDER BY expires_at ASC',
-      [accountId],
-      { operation: 'RenewableDomain.getByAccountId', table: 'renewable_domains' }
-    );
+    const builder = RenewableDomainQueryBuilder.byAccountId(accountId);
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getByAccountId', table: 'renewable_domains' });
   },
 
-  /** 根据提供商类型获取续期域名列表 */
+  /** 根据提供商类型获取续期域名列表（过滤掉已禁用账号的域名） */
   async getByProviderType(providerType: string): Promise<any[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
-    return await queryInternal(
-      `SELECT * FROM renewable_domains WHERE provider_type = ? AND enabled = ${enabledValue} ORDER BY expires_at ASC`,
-      [providerType],
-      { operation: 'RenewableDomain.getByProviderType', table: 'renewable_domains' }
-    );
+    
+    const builder = RenewableDomainQueryBuilder.byProviderType(providerType, enabledValue);
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getByProviderType', table: 'renewable_domains' });
   },
 
   /** 添加续期域名 */
@@ -3515,27 +3781,35 @@ export const NSMonitorOperations = {
   /** 获取用户所有的域名监测配置 */
   async getUserMonitors(userId: number): Promise<QueryResult[]> {
     return queryInternal(
-      `SELECT m.*, d.name as domain_name
-       FROM ns_monitor_domains m
-       JOIN domains d ON d.id = m.domain_id
-       WHERE m.user_id = ?
-       ORDER BY d.name`,
+      `SELECT * FROM ns_monitor_domains
+       WHERE user_id = ?
+       ORDER BY domain_name`,
       [userId],
       { operation: 'NSMonitor.getUserMonitors', table: 'ns_monitor_domains' }
     );
   },
 
-  /** 获取所有启用的域名监测（用于定时任务） */
+  /** 获取所有启用的域名监测（用于定时任务，Level 2 - 仅检查 NS 监控自身状态） */
   async getAllEnabled(): Promise<QueryResult[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'true' : '1';
     return queryInternal(
-      `SELECT m.*, d.name as domain_name, m.user_id as created_by
-       FROM ns_monitor_domains m
-       JOIN domains d ON d.id = m.domain_id
-       WHERE m.enabled = ${enabledValue}`,
+      `SELECT *, user_id as created_by
+       FROM ns_monitor_domains
+       WHERE enabled = ${enabledValue}`,
       [],
       { operation: 'NSMonitor.getAllEnabled', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 获取所有域名监测配置（Level 1 - ALL，无任何约束，用于调试/管理） */
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT *, user_id as created_by
+       FROM ns_monitor_domains
+       ORDER BY domain_name`,
+      [],
+      { operation: 'NSMonitor.getAll', table: 'ns_monitor_domains' }
     );
   },
 
@@ -3543,46 +3817,48 @@ export const NSMonitorOperations = {
   async getById(id: number, userId?: number): Promise<QueryResult | undefined> {
     if (userId) {
       return getInternal(
-        `SELECT m.*, d.name as domain_name
-         FROM ns_monitor_domains m
-         JOIN domains d ON d.id = m.domain_id
-         WHERE m.id = ? AND m.user_id = ?`,
+        `SELECT * FROM ns_monitor_domains
+         WHERE id = ? AND user_id = ?`,
         [id, userId],
         { operation: 'NSMonitor.getById', table: 'ns_monitor_domains' }
       );
     }
     return getInternal(
-      `SELECT m.*, d.name as domain_name
-       FROM ns_monitor_domains m
-       JOIN domains d ON d.id = m.domain_id
-       WHERE m.id = ?`,
+      `SELECT * FROM ns_monitor_domains
+       WHERE id = ?`,
       [id],
       { operation: 'NSMonitor.getById', table: 'ns_monitor_domains' }
     );
   },
 
-  /** 根据域名ID获取用户的监测配置 */
+  /** 根据域名ID获取用户的监测配置（已废弃，使用 getByDomainName） */
   async getByDomain(userId: number, domainId: number): Promise<QueryResult | undefined> {
+    // This method is deprecated - domain_id column has been removed
+    // Use getByDomainName instead
+    log.warn('BusinessAdapter', 'getByDomain is deprecated, use getByDomainName instead');
+    return undefined;
+  },
+
+  /** 根据域名名称获取用户的监测配置（支持重名场景） */
+  async getByDomainName(userId: number, domainName: string): Promise<QueryResult | undefined> {
     return getInternal(
-      `SELECT m.*, d.name as domain_name
-       FROM ns_monitor_domains m
-       JOIN domains d ON d.id = m.domain_id
-       WHERE m.user_id = ? AND m.domain_id = ?`,
-      [userId, domainId],
-      { operation: 'NSMonitor.getByDomain', table: 'ns_monitor_domains' }
+      `SELECT * FROM ns_monitor_domains
+       WHERE user_id = ? AND domain_name = ?`,
+      [userId, domainName],
+      { operation: 'NSMonitor.getByDomainName', table: 'ns_monitor_domains' }
     );
   },
 
   /** 创建域名监测配置 */
-  async create(data: { user_id: number; domain_id: number; expected_ns?: string }): Promise<number> {
+  async create(data: { user_id: number; domain_name: string; expected_ns?: string }): Promise<number> {
     const now = formatDateForDB(new Date());
     // PostgreSQL requires explicit boolean cast for enabled field
     const dbType = process.env.DB_TYPE || 'sqlite';
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
     return insertInternal(
-      `INSERT INTO ns_monitor_domains (user_id, domain_id, expected_ns, current_ns, status, enabled, created_at, updated_at)
+      `INSERT INTO ns_monitor_domains (user_id, domain_name, expected_ns, current_ns, status, enabled, created_at, updated_at)
        VALUES (?, ?, ?, '', 'ok', ${enabledValue}, ?, ?)`,
-      [data.user_id, data.domain_id, data.expected_ns || '', now, now],
+      [data.user_id, data.domain_name, data.expected_ns || '', now, now],
       { operation: 'NSMonitor.create', table: 'ns_monitor_domains' }
     );
   },
@@ -3787,6 +4063,67 @@ export const SystemCacheOperations = {
   },
 };
 
+/**
+ * Password Reset Operations
+ * 密码重置验证码操作（持久化存储）
+ */
+const PasswordResetOperations = {
+  /**
+   * 创建或更新密码重置验证码
+   */
+  async upsertCode(email: string, code: string, expiresAt: number): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    await executeInternal(
+      'INSERT INTO password_resets (email, code, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE code = ?, expires_at = ?',
+      [normalizedEmail, code, new Date(expiresAt), code, new Date(expiresAt)],
+      { operation: 'PasswordReset.upsertCode', table: 'password_resets' }
+    );
+  },
+
+  /**
+   * 获取密码重置验证码
+   */
+  async getCode(email: string): Promise<{ code: string; expiresAt: number } | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const row = await getInternal<{ code: string; expires_at: string }>(
+      'SELECT code, expires_at FROM password_resets WHERE email = ? AND expires_at > NOW()',
+      [normalizedEmail],
+      { operation: 'PasswordReset.getCode', table: 'password_resets' }
+    );
+    
+    if (!row) return null;
+    
+    return {
+      code: row.code,
+      expiresAt: new Date(row.expires_at).getTime(),
+    };
+  },
+
+  /**
+   * 删除密码重置验证码
+   */
+  async deleteCode(email: string): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    await executeInternal(
+      'DELETE FROM password_resets WHERE email = ?',
+      [normalizedEmail],
+      { operation: 'PasswordReset.deleteCode', table: 'password_resets' }
+    );
+  },
+
+  /**
+   * 清理过期的验证码
+   */
+  async cleanupExpired(): Promise<number> {
+    const result = await runInternal(
+      'DELETE FROM password_resets WHERE expires_at <= NOW()',
+      [],
+      { operation: 'PasswordReset.cleanupExpired', table: 'password_resets' }
+    );
+    return result.changes;
+  },
+};
+
 // ============================================================================
 // 导出默认对象（兼容旧代码）
 // ============================================================================
@@ -3839,4 +4176,8 @@ export default {
   RdapCache: RdapCacheOperations,
   SystemCache: SystemCacheOperations,
   RenewableDomain: RenewableDomainOperations,
+  PasswordReset: PasswordResetOperations,
 };
+
+// Export query builders module for advanced usage
+export * from './query-builders';

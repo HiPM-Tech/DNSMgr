@@ -94,6 +94,7 @@ jobs:
           build-args: |
             COMMIT_SHA=${{ github.sha }}
             BUILD_DATE=${{ needs.prepare.outputs.date_tag }}
+            CI_BUILD=true
 
       - name: Output build info
         run: |
@@ -138,6 +139,7 @@ jobs:
           build-args: |
             COMMIT_SHA=${{ github.sha }}
             BUILD_DATE=${{ needs.prepare.outputs.date_tag }}
+            CI_BUILD=true
 
       - name: Output build info
         run: |

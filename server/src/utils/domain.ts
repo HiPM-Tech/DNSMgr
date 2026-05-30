@@ -3,18 +3,18 @@
  * Supports Chinese and other Unicode domain names
  */
 
+import punycode from 'punycode.js';
+
 /**
  * Convert Unicode domain to Punycode (ASCII representation)
  * Example: "例子.测试" -> "xn--fsq092h.xn--0zwm56d"
  */
 export function toPunycode(domain: string): string {
   try {
-    // Use URL API for Punycode conversion
-    // The URL API automatically handles IDN to Punycode conversion
-    const url = new URL(`http://${domain.trim()}`);
-    return url.hostname;
+    // Use punycode.js library for reliable IDN encoding
+    return punycode.toASCII(domain.trim());
   } catch {
-    // If URL parsing fails, return the original domain
+    // If encoding fails, return the original domain
     return domain.trim().toLowerCase();
   }
 }
@@ -25,10 +25,8 @@ export function toPunycode(domain: string): string {
  */
 export function toUnicode(domain: string): string {
   try {
-    // Use URL API with unicode option for conversion
-    const url = new URL(`http://${domain.trim()}`);
-    // The hostname getter returns Unicode representation when possible
-    return url.hostname;
+    // Use punycode.js library for reliable IDN decoding
+    return punycode.toUnicode(domain.trim());
   } catch {
     return domain.trim();
   }
@@ -235,12 +233,23 @@ export function isValidHostname(hostname: string): boolean {
     return false;
   }
 
+  // Support wildcard DNS records - only as standalone or first label
+  if (trimmed === '*') return true;
+
   // Split by dot for validation
   const labels = trimmed.split('.');
 
-  for (const label of labels) {
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i];
+    
     if (label.length === 0 || label.length > 63) {
       return false;
+    }
+
+    // Wildcard can only be the first label
+    if (label === '*') {
+      if (i !== 0) return false; // Wildcard must be first label
+      continue;
     }
 
     // Check if label contains Unicode characters

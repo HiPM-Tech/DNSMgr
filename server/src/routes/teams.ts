@@ -8,6 +8,7 @@ import { sendError, sendSuccess } from '../utils/http';
 import { log } from '../lib/logger';
 import { TeamOperations, DomainPermissionOperations, UserOperations } from '../db/business-adapter';
 import { wsService } from '../service/websocket';
+import { getDisplayDomain } from '../utils/dns';
 
 const router = Router();
 
@@ -568,6 +569,7 @@ router.get('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: R
   const teamId = parseInt(req.params.id);
   const userId = req.user!.userId;
   const role = req.user!.role;
+  const tokenPayload = (req as any).tokenPayload;
   
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
@@ -583,7 +585,14 @@ router.get('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: R
   }
   
   const permissions = await DomainPermissionOperations.getByTeamId(teamId);
-  sendSuccess(res, permissions);
+  
+  // For Session auth, convert Punycode to Unicode; for Token auth, keep raw
+  const displayPermissions = tokenPayload ? permissions : permissions.map((p: any) => ({
+    ...p,
+    domain_name: p.domain_name ? getDisplayDomain(p.domain_name, true) : p.domain_name,
+  }));
+  
+  sendSuccess(res, displayPermissions);
 }));
 
 /**
@@ -792,6 +801,7 @@ router.get('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandl
   const targetUserId = parseInt(req.params.userId);
   const userId = req.user!.userId;
   const role = req.user!.role;
+  const tokenPayload = (req as any).tokenPayload;
   
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
@@ -814,7 +824,14 @@ router.get('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandl
   }
   
   const permissions = await DomainPermissionOperations.getByUserIdWithDomainName(targetUserId);
-  sendSuccess(res, permissions);
+  
+  // For Session auth, convert Punycode to Unicode; for Token auth, keep raw
+  const displayPermissions = tokenPayload ? permissions : permissions.map((p: any) => ({
+    ...p,
+    domain_name: p.domain_name ? getDisplayDomain(p.domain_name, true) : p.domain_name,
+  }));
+  
+  sendSuccess(res, displayPermissions);
 }));
 
 /**

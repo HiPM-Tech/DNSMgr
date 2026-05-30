@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 import { getAuditActionLabel, getAuditActionVariant, getAuditSummary } from '../utils/auditLogs';
+import { formatDomainName } from '../utils/domain';
 import './Dashboard.css';
 
 type StatTone = 'domains' | 'records' | 'accounts' | 'users';
@@ -224,7 +225,16 @@ export function Dashboard() {
 
   const { data: logs, isLoading: logsLoading } = useQuery({
     queryKey: ['logs'],
-    queryFn: () => logsApi.list({ pageSize: 10 }).then((r) => r.data.data?.list ?? []),
+    queryFn: async () => {
+      // 计算24小时前的时间
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      
+      const res = await logsApi.list({ pageSize: 50 });
+      const allLogs = res.data.data?.list ?? [];
+      
+      // 过滤出24小时内的日志
+      return allLogs.filter((log) => new Date(log.created_at) >= new Date(twentyFourHoursAgo));
+    },
   });
 
   const domains = domainsData?.list ?? [];
@@ -368,7 +378,7 @@ export function Dashboard() {
       ellipsis: true,
       cell: ({ row }) => (
         <div className="dashboard-domain-name">
-          <span>{row.name}</span>
+          <span>{formatDomainName(row.name)}</span>
           <small>{formatDate(row.createdAt)}</small>
         </div>
       ),

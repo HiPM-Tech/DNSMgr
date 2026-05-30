@@ -28,7 +28,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       <Alert
         theme={alertTheme[toast.type]}
         message={toast.message}
-        close={(
+        closeBtn={(
           <Button shape="square" variant="text" size="small" icon={<CloseIcon />} />
         )}
       />

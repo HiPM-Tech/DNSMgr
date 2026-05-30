@@ -86,6 +86,21 @@ export const postgresqlSchema: SchemaDefinition = {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id)`,
     `CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id)`,
+    // Schema version tracking table
+    `CREATE TABLE IF NOT EXISTS schema_versions (
+      id SERIAL PRIMARY KEY,
+      version VARCHAR(50) NOT NULL UNIQUE,
+      semantic_version VARCHAR(20),
+      description TEXT,
+      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      success INTEGER NOT NULL DEFAULT 1,
+      error_message TEXT,
+      execution_time_ms INTEGER,
+      system_type VARCHAR(50) DEFAULT 'hidns'
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_version ON schema_versions(version)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_applied_at ON schema_versions(applied_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_system_type ON schema_versions(system_type)`,
     `CREATE TABLE IF NOT EXISTS dns_accounts (
       id SERIAL PRIMARY KEY,
       type VARCHAR(100) NOT NULL,
@@ -94,11 +109,15 @@ export const postgresqlSchema: SchemaDefinition = {
       remark TEXT NOT NULL DEFAULT '',
       created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_created_by ON dns_accounts(created_by)`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_team_id ON dns_accounts(team_id)`,
     `CREATE INDEX IF NOT EXISTS idx_dns_accounts_type ON dns_accounts(type)`,
+    // Migration: Ensure enabled column exists before creating index (for upgraded schemas)
+    `ALTER TABLE dns_accounts ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
+    `CREATE INDEX IF NOT EXISTS idx_dns_accounts_enabled ON dns_accounts(enabled)`,
     `CREATE TABLE IF NOT EXISTS domains (
       id SERIAL PRIMARY KEY,
       account_id INTEGER NOT NULL REFERENCES dns_accounts(id) ON DELETE CASCADE,
@@ -106,15 +125,20 @@ export const postgresqlSchema: SchemaDefinition = {
       third_id VARCHAR(255) NOT NULL DEFAULT '',
       remark TEXT NOT NULL DEFAULT '',
       is_hidden SMALLINT NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
       record_count INTEGER NOT NULL DEFAULT 0,
       expires_at TIMESTAMP,
       apex_expires_at TIMESTAMP,
+      whois_status TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(account_id, name)
     )`,
+    // Migration: Ensure enabled column exists before creating index (for upgraded schemas)
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
     `CREATE INDEX IF NOT EXISTS idx_domains_account_id ON domains(account_id)`,
     `CREATE INDEX IF NOT EXISTS idx_domains_name ON domains(name)`,
     `CREATE INDEX IF NOT EXISTS idx_domains_is_hidden ON domains(is_hidden)`,
+    `CREATE INDEX IF NOT EXISTS idx_domains_enabled ON domains(enabled)`,
     `CREATE TABLE IF NOT EXISTS domain_permissions (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -211,6 +235,13 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE INDEX IF NOT EXISTS idx_login_attempts_identifier ON login_attempts(identifier)`,
     `CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address)`,
     `CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON login_attempts(locked_until)`,
+    `CREATE TABLE IF NOT EXISTS password_resets (
+      email VARCHAR(255) PRIMARY KEY,
+      code VARCHAR(6) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_password_resets_expires ON password_resets(expires_at)`,
     `CREATE TABLE IF NOT EXISTS system_settings (
       "key" VARCHAR(255) PRIMARY KEY,
       "value" TEXT NOT NULL,
@@ -385,7 +416,7 @@ export const postgresqlSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      domain_id INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+      domain_name VARCHAR(255) NOT NULL DEFAULT '',
       expected_ns TEXT NOT NULL DEFAULT '',
       current_ns TEXT NOT NULL DEFAULT '',
       encrypted_ns TEXT,
@@ -398,10 +429,9 @@ export const postgresqlSchema: SchemaDefinition = {
       alert_count INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_id, domain_id)
+      UNIQUE(user_id, domain_name)
     )`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_user_id ON ns_monitor_domains(user_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_id ON ns_monitor_domains(domain_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_enabled ON ns_monitor_domains(enabled)`,
     `CREATE TABLE IF NOT EXISTS rdap_server_cache (
       id SERIAL PRIMARY KEY,
@@ -453,15 +483,63 @@ export const postgresqlSchema: SchemaDefinition = {
     `ALTER TABLE team_members ADD CONSTRAINT team_members_role_check CHECK (role IN ('owner', 'admin', 'member'))`,
     // Migration: Add apex_expires_at column to domains table for subdomain expiry tracking
     `ALTER TABLE domains ADD COLUMN IF NOT EXISTS apex_expires_at TIMESTAMP`,
+    // Migration: Add whois_status column to domains table for WHOIS status tracking
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS whois_status TEXT`,
+    // Migration: Add enabled column to domains table for domain enable/disable tracking
+    `ALTER TABLE domains ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
+    // Clean up zombie table from previous failed export-rebuild migration (if any)
+    // Note: enabled column is now handled by ALTER TABLE ADD COLUMN IF NOT EXISTS in createTables
+    `DROP TABLE IF EXISTS dns_accounts_new`,
+    // Migration: Convert dns_accounts.enabled from BOOLEAN to INTEGER
+    // Column may already exist as BOOLEAN from older migrations. ADD COLUMN IF NOT EXISTS
+    // in createTables only applies to missing columns, so we need explicit type conversion.
+    `DO $$
+     BEGIN
+       ALTER TABLE dns_accounts ALTER COLUMN enabled DROP DEFAULT;
+       ALTER TABLE dns_accounts ALTER COLUMN enabled TYPE INTEGER USING enabled::integer;
+       ALTER TABLE dns_accounts ALTER COLUMN enabled SET DEFAULT 1;
+     END $$`,
     // Migration: Add encrypted_ns, plain_ns, is_poisoned columns to ns_monitor_domains for DNS pollution detection
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS encrypted_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS plain_ns TEXT`,
     `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS is_poisoned BOOLEAN NOT NULL DEFAULT false`,
+    // Migration: Add domain_name column and change unique constraint
+    `ALTER TABLE ns_monitor_domains ADD COLUMN IF NOT EXISTS domain_name VARCHAR(255) NOT NULL DEFAULT ''`,
+    `CREATE INDEX IF NOT EXISTS idx_ns_monitor_domains_domain_name ON ns_monitor_domains(domain_name)`,
+    // Migration: Sync domain_name from domains table for existing records (if domain_id still exists)
+    `DO $$
+     BEGIN
+       IF EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'ns_monitor_domains' AND column_name = 'domain_id'
+       ) THEN
+         UPDATE ns_monitor_domains n SET domain_name = d.name FROM domains d WHERE n.domain_id = d.id AND n.domain_name = '';
+       END IF;
+     END $$`,
+    // Migration: Drop domain_id column (for performance)
+    `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_domain_id_fkey`,
+    `ALTER TABLE ns_monitor_domains DROP COLUMN IF EXISTS domain_id`,
+    `DROP INDEX IF EXISTS idx_ns_monitor_domains_domain_id`,
+    // Migration: Recreate unique constraint on (user_id, domain_name)
+    `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_user_id_domain_name_key`,
+    `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_user_id_domain_name_key UNIQUE (user_id, domain_name)`,
     // Migration: Update status check constraint to include 'poisoned'
     `ALTER TABLE ns_monitor_domains DROP CONSTRAINT IF EXISTS ns_monitor_domains_status_check`,
     `ALTER TABLE ns_monitor_domains ADD CONSTRAINT ns_monitor_domains_status_check CHECK (status IN ('ok', 'mismatch', 'missing', 'poisoned'))`,
     // Migration: Add pinned_domains column to user_preferences table
     `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS pinned_domains JSONB DEFAULT '[]'::jsonb`,
-    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS avatar_image TEXT`
+    `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS avatar_image TEXT`,
+    // Migration: Convert schema_versions.success from BOOLEAN to INTEGER
+    // PostgreSQL BOOLEAN != INTEGER, but queries use success = 1 (integer comparison)
+    // Must DROP DEFAULT first, as BOOLEAN default cannot auto-cast to INTEGER
+    `DO $$
+     BEGIN
+       ALTER TABLE schema_versions ALTER COLUMN success DROP DEFAULT;
+       ALTER TABLE schema_versions ALTER COLUMN success TYPE INTEGER USING success::integer;
+       ALTER TABLE schema_versions ALTER COLUMN success SET DEFAULT 1;
+     END $$`,
+    // Migration: Add semantic_version column to schema_versions table for version tracking
+    `ALTER TABLE schema_versions ADD COLUMN IF NOT EXISTS semantic_version VARCHAR(20)`,
+    `CREATE INDEX IF NOT EXISTS idx_schema_versions_semantic_version ON schema_versions(semantic_version)`,
   ],
 };

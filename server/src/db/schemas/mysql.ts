@@ -58,12 +58,29 @@ export const mysqlSchema: SchemaDefinition = {
       INDEX idx_team_id (team_id),
       INDEX idx_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    // Schema version tracking table
+    `CREATE TABLE IF NOT EXISTS schema_versions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      version VARCHAR(50) NOT NULL UNIQUE,
+      semantic_version VARCHAR(20),
+      description TEXT,
+      applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      success BOOLEAN NOT NULL DEFAULT TRUE,
+      error_message TEXT,
+      execution_time_ms INT,
+      system_type VARCHAR(50) DEFAULT 'hidns',
+      INDEX idx_version (version),
+      INDEX idx_semantic_version (semantic_version),
+      INDEX idx_applied_at (applied_at),
+      INDEX idx_system_type (system_type)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS dns_accounts (
       id INT AUTO_INCREMENT PRIMARY KEY,
       type VARCHAR(100) NOT NULL,
       name VARCHAR(255) NOT NULL,
       config JSON,
       remark TEXT,
+      enabled TINYINT(1) NOT NULL DEFAULT 1,
       created_by INT NOT NULL,
       team_id INT DEFAULT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -71,7 +88,8 @@ export const mysqlSchema: SchemaDefinition = {
       FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
       INDEX idx_created_by (created_by),
       INDEX idx_team_id (team_id),
-      INDEX idx_type (type)
+      INDEX idx_type (type),
+      INDEX idx_enabled (enabled)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS domains (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -80,15 +98,18 @@ export const mysqlSchema: SchemaDefinition = {
       third_id VARCHAR(255) NOT NULL DEFAULT '',
       remark TEXT,
       is_hidden TINYINT NOT NULL DEFAULT 0,
+      enabled TINYINT NOT NULL DEFAULT 1,
       record_count INT NOT NULL DEFAULT 0,
       expires_at DATETIME,
       apex_expires_at DATETIME,
+      whois_status TEXT,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (account_id) REFERENCES dns_accounts(id) ON DELETE CASCADE,
       UNIQUE KEY unique_account_name (account_id, name),
       INDEX idx_account_id (account_id),
       INDEX idx_name (name),
-      INDEX idx_is_hidden (is_hidden)
+      INDEX idx_is_hidden (is_hidden),
+      INDEX idx_enabled (enabled)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS domain_permissions (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -107,12 +128,13 @@ export const mysqlSchema: SchemaDefinition = {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS operation_logs (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
+      user_id INT NOT NULL DEFAULT 0,
       action VARCHAR(255) NOT NULL,
       domain VARCHAR(255) NOT NULL DEFAULT '',
       data JSON,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      -- Note: Foreign key removed to allow system operations (user_id=0)
+      -- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       INDEX idx_user_id (user_id),
       INDEX idx_action (action),
       INDEX idx_domain (domain),
@@ -196,6 +218,13 @@ export const mysqlSchema: SchemaDefinition = {
       INDEX idx_identifier (identifier),
       INDEX idx_ip_address (ip_address),
       INDEX idx_locked_until (locked_until)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS password_resets (
+      email VARCHAR(255) PRIMARY KEY,
+      code VARCHAR(6) NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_expires_at (expires_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS system_settings (
       \`key\` VARCHAR(255) PRIMARY KEY,
@@ -386,7 +415,7 @@ export const mysqlSchema: SchemaDefinition = {
     `CREATE TABLE IF NOT EXISTS ns_monitor_domains (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
-      domain_id INT NOT NULL,
+      domain_name VARCHAR(255) NOT NULL DEFAULT '',
       expected_ns TEXT,
       current_ns TEXT,
       encrypted_ns TEXT,
@@ -400,10 +429,9 @@ export const mysqlSchema: SchemaDefinition = {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_user_domain (user_id, domain_id),
+      UNIQUE KEY unique_user_domain (user_id, domain_name),
       INDEX idx_user_id (user_id),
-      INDEX idx_domain_id (domain_id),
+      INDEX idx_domain_name (domain_name),
       INDEX idx_enabled (enabled)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS rdap_server_cache (
@@ -452,6 +480,8 @@ export const mysqlSchema: SchemaDefinition = {
     // Migration: Add 'admin' to team_members role enum
     // This modifies the existing ENUM to include 'admin' role
     `ALTER TABLE team_members MODIFY COLUMN role ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member'`,
+    // Migration: Remove foreign key constraint from operation_logs to allow system operations (user_id=0)
+    `ALTER TABLE operation_logs DROP FOREIGN KEY operation_logs_ibfk_1`,
     // Note: apex_expires_at column is added via handleMySQLMigrations() in schema.ts
     // (stored procedures are not supported in prepared statement protocol)
     // Note: encrypted_ns, plain_ns, is_poisoned columns are added via addNsMonitorColumns() in schema.ts

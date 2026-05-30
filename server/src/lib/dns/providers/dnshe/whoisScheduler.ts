@@ -2,7 +2,7 @@
  * DNSHE WHOIS 查询调度器实现
  */
 
-import { WhoisScheduler, WhoisResult } from '../../../../service/whoisScheduler';
+import { WhoisScheduler, WhoisSchedulerResult } from '../../../../service/whois';
 import { getWhois } from './whois';
 import { DnsheAuthConfig } from './auth';
 import { log } from '../internal';
@@ -13,7 +13,7 @@ export class DnsheWhoisScheduler implements WhoisScheduler {
   /**
    * 查询 DNSHE 域名的 WHOIS 信息
    */
-  async queryWhois(config: DnsheAuthConfig, domain: string): Promise<WhoisResult | null> {
+  async queryWhois(config: DnsheAuthConfig, domain: string): Promise<WhoisSchedulerResult | null> {
     try {
       const result = await getWhois(config, domain);
       
@@ -29,7 +29,8 @@ export class DnsheWhoisScheduler implements WhoisScheduler {
         registrar: result.registrar,
         registrant: result.registrant,
         creation_date: result.creation_date,
-        expiration_date: result.expiration_date,
+        // DNSHE API 返回 expires_at，需要映射为 expiration_date
+        expiration_date: result.expires_at || result.expiration_date,
         updated_date: result.updated_date,
         name_servers: result.name_servers,
         // DNSHE API 返回 status 为字符串，转换为数组以符合 WhoisResult 接口

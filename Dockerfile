@@ -1,6 +1,9 @@
 # Multi-stage build for DNSMgr (Frontend + Backend in one image)
 FROM node:20-alpine AS builder
 
+# Accept CI build flag
+ARG CI_BUILD=false
+
 # Install pnpm
 RUN npm install -g pnpm
 
@@ -30,6 +33,9 @@ RUN pnpm --filter dnsmgr-server build
 
 # Production stage
 FROM node:20-alpine AS production
+
+# Accept CI build flag from builder
+ARG CI_BUILD=false
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -64,6 +70,7 @@ EXPOSE 3001
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV CI_BUILD=${CI_BUILD}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

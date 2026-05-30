@@ -3,7 +3,7 @@
  * 支持国际化域名(IDN)，包括中文域名
  */
 
-import { normalizeDomain } from '../../utils/domain';
+import { normalizeDomain } from '../../utils/dns';
 
 /**
  * 特殊后缀列表

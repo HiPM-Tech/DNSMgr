@@ -16,6 +16,7 @@ export interface WhoisResult {
   raw: string;
   apexExpiryDate?: Date | null;
   apexRegistrar?: string | null;
+  status?: string | null;  // WHOIS 状态（如 OK、clientHold 等）
 }
 
 /**

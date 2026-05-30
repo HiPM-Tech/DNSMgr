@@ -56,6 +56,14 @@ const actionKeys: Record<string, string> = {
   add_dns_account: 'audit.actions.add_dns_account',
   update_dns_account: 'audit.actions.update_dns_account',
   delete_dns_account: 'audit.actions.delete_dns_account',
+  enable_dns_account: 'audit.actions.enable_dns_account',
+  disable_dns_account: 'audit.actions.disable_dns_account',
+  // Domain auto-disable actions
+  auto_disable_domain: 'audit.actions.auto_disable_domain',
+  auto_disable_renewable_domain: 'audit.actions.auto_disable_renewable_domain',
+  // Renewable domain actions
+  enable_domain_renewal: 'audit.actions.enable_domain_renewal',
+  disable_domain_renewal: 'audit.actions.disable_domain_renewal',
   // Team actions
   create_team: 'audit.actions.add_team',
   update_team: 'audit.actions.update_team',
@@ -129,6 +137,13 @@ export function getAuditActionVariant(log: LogEntry): 'green' | 'red' | 'yellow'
   if (log.action === 'add_dns_account') return 'green';
   if (log.action === 'delete_dns_account') return 'red';
   if (log.action === 'update_dns_account') return 'blue';
+  if (log.action === 'enable_dns_account') return 'green';
+  if (log.action === 'disable_dns_account') return 'yellow';
+  // Domain auto-disable actions
+  if (log.action === 'auto_disable_domain' || log.action === 'auto_disable_renewable_domain') return 'red';
+  // Renewable domain actions
+  if (log.action === 'enable_domain_renewal') return 'green';
+  if (log.action === 'disable_domain_renewal') return 'yellow';
   // WHOIS
   if (log.action === 'update_whois') return 'blue';
   return 'gray';

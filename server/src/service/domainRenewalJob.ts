@@ -76,6 +76,25 @@ export async function executeDomainRenewal(): Promise<void> {
               continue;
             }
 
+            // Check if domain is enabled in database
+            const dbDomain = await RenewableDomainOperations.getById(Number(domainId));
+            if (!dbDomain) {
+              log.warn('DomainRenewalJob', 'Domain not found in database, skipping', {
+                domainId,
+                domainName: domain.name || domain.full_domain,
+              });
+              continue;
+            }
+
+            if (!dbDomain.enabled) {
+              log.info('DomainRenewalJob', 'Skipping disabled domain', {
+                domainId,
+                domainName: dbDomain.full_domain,
+                enabled: dbDomain.enabled,
+              });
+              continue;
+            }
+
             log.info('DomainRenewalJob', 'Attempting domain renewal via scheduler', {
               domainName: domain.name || domain.full_domain,
               domainId,
@@ -101,16 +120,16 @@ export async function executeDomainRenewal(): Promise<void> {
                 remainingDays: result.remaining_days,
               });
 
-              // 更新 renewable_domains 表中的 expires_at
+              // ✅ 1. 更新 renewable_domains 表中的 expires_at（续期的职责）
               if (result.new_expires_at) {
                 try {
                   await RenewableDomainOperations.updateExpiresAt(Number(domainId), result.new_expires_at);
-                  log.debug('DomainRenewalJob', 'Updated expires_at in database', {
+                  log.debug('DomainRenewalJob', 'Updated expires_at in renewable_domains', {
                     domainId,
                     newExpiresAt: result.new_expires_at,
                   });
                 } catch (updateError) {
-                  log.error('DomainRenewalJob', 'Failed to update expires_at in database', {
+                  log.error('DomainRenewalJob', 'Failed to update expires_at in renewable_domains', {
                     domainId,
                     error: updateError instanceof Error ? updateError.message : String(updateError),
                   });

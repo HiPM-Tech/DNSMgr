@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
 import { Table } from '../components/Table';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+import { formatDomainName } from '../utils/domain';
 
 interface Token {
   id: number;
@@ -78,6 +79,7 @@ export function Tokens() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; tokenId: number | null }>({ show: false, tokenId: null });
   const [formData, setFormData] = useState<TokenFormState>(() => createDefaultTokenForm());
   const [formDirty, setFormDirty] = useState(false);
+  const [tokenEditKey, setTokenEditKey] = useState(0);
 
   useRealtimeData({
     queryKey: ['tokens'],
@@ -164,17 +166,9 @@ export function Tokens() {
     domain.account_name.toLowerCase().includes(domainSearch.toLowerCase())
   ));
   const paginatedDomains = filteredDomains.slice((domainPage - 1) * DOMAIN_PAGE_SIZE, domainPage * DOMAIN_PAGE_SIZE);
-  const currentEditingToken = editingToken ? tokens.find((token) => token.id === editingToken.id) ?? editingToken : null;
-  const editingAllowedDomainsSnapshot = (currentEditingToken?.allowed_domains ?? []).join('|');
+  const currentEditingToken = editingToken;
 
   useEffect(() => {
-    if (currentEditingToken) {
-      if (!formDirty) {
-        setFormData(normalizeTokenForm(currentEditingToken));
-      }
-      return;
-    }
-
     if (showCreateModal) {
       if (!formDirty) {
         setFormData(createDefaultTokenForm());
@@ -182,14 +176,11 @@ export function Tokens() {
       return;
     }
 
-    setFormData(createDefaultTokenForm());
-    setFormDirty(false);
+    if (!currentEditingToken) {
+      setFormData(createDefaultTokenForm());
+      setFormDirty(false);
+    }
   }, [
-    currentEditingToken?.id,
-    currentEditingToken?.name,
-    currentEditingToken?.start_time,
-    currentEditingToken?.end_time,
-    editingAllowedDomainsSnapshot,
     showCreateModal,
     formDirty,
   ]);
@@ -226,6 +217,7 @@ export function Tokens() {
     setFormData(normalizeTokenForm(token));
     setFormDirty(false);
     setEditingToken(token);
+    setTokenEditKey(prev => prev + 1);
   };
 
   const buildPayload = () => ({
@@ -395,7 +387,7 @@ export function Tokens() {
                   onChange={(checked: any) => toggleDomain(domain.id, Boolean(checked))}
                 />
                 <span className="page-list-item__main">
-                  <strong>{domain.name}</strong>
+                  <strong>{formatDomainName(domain.name)}</strong>
                   <span>{domain.account_name}</span>
                 </span>
               </label>
@@ -529,7 +521,7 @@ export function Tokens() {
       )}
 
       {editingToken && (
-        <Modal title={t('tokens.editToken')} onClose={closeEditModal} size="lg">
+        <Modal key={`edit-token-${editingToken.id}-${tokenEditKey}`} title={t('tokens.editToken')} onClose={closeEditModal} size="lg">
           {renderTokenForm('edit')}
         </Modal>
       )}
