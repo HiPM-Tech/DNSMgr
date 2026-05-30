@@ -181,18 +181,24 @@ export function Setup() {
   const initDatabase = async (reset = false) => {
     setLoading(true);
     setError('');
+    console.log('[Setup] Initializing database...', { reset, dbConfig });
     try {
       const res = await initApi.initDatabase(buildDbPayload(reset));
+      console.log('[Setup] Init database response:', res.data);
       if (res.data.code === 0) {
         if (res.data.data?.skipToComplete) {
+          console.log('[Setup] Skipping to complete step');
           setCurrentStep('complete');
         } else {
+          console.log('[Setup] Moving to admin step');
           setCurrentStep('admin');
         }
       } else {
+        console.error('[Setup] Init database failed:', res.data.msg);
         setError(res.data.msg || t('setup.dbInitFailed'));
       }
     } catch (err) {
+      console.error('[Setup] Init database error:', err);
       setError(err instanceof Error ? err.message : t('setup.dbInitFailed'));
     } finally {
       setLoading(false);
