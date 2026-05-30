@@ -269,6 +269,15 @@ export function DomainListTab() {
 
   const domains = domainsData?.list ?? [];
   const total = domainsData?.total ?? 0;
+  
+  // Debug log
+  console.log('[DomainListTab] Data state:', {
+    domainsLength: domains.length,
+    total,
+    isLoading,
+    hasDomainsData: !!domainsData
+  });
+  
   const sortedDomains = [...domains].sort((a, b) => {
     const aPinned = pinnedDomains.includes(a.id);
     const bPinned = pinnedDomains.includes(b.id);
