@@ -27,14 +27,6 @@ export function Table<T extends object>({ columns, data, loading, emptyText, row
   const { t } = useI18n();
   const resolvedEmptyText = emptyText ?? t('common.noData');
   
-  // Debug log
-  console.log('[Table Component] Props:', { 
-    selectable, 
-    selectedRowKeys, 
-    dataLength: data.length,
-    hasOnSelectChange: !!onSelectChange 
-  });
-  
   const tableData = data.map((row) => ({
     ...row,
     __rowKey: rowKey(row),

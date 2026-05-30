@@ -972,108 +972,21 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
 }));
 
 /**
+ * @deprecated 批量删除功能已禁用
  * @swagger
  * /api/domains/batch-delete:
  *   post:
- *     summary: Batch delete domains
+ *     summary: Batch delete domains (DISABLED)
  *     tags: [Domains]
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - domainIds
- *             properties:
- *               domainIds:
- *                 type: array
- *                 items:
- *                   type: integer
- *                 description: List of domain IDs to delete
  *     responses:
- *       200:
- *         description: Batch deletion result
+ *       403:
+ *         description: Feature disabled
  */
 router.post('/batch-delete', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { domainIds } = req.body as { domainIds?: number[] };
-  
-  if (!domainIds || !Array.isArray(domainIds) || domainIds.length === 0) {
-    sendError(res, 'Invalid domain IDs');
-    return;
-  }
-
-  const userId = req.user!.userId;
-  const role = normalizeRole(req.user!.role);
-  
-  // Check permissions for each domain
-  const accessibleIds: number[] = [];
-  const inaccessibleIds: number[] = [];
-  
-  for (const id of domainIds) {
-    const access = await getDomainAccess(id, userId, role);
-    if (access.domain && access.canWrite) {
-      accessibleIds.push(id);
-    } else {
-      inaccessibleIds.push(id);
-    }
-  }
-  
-  // If no accessible domains, return error
-  if (accessibleIds.length === 0) {
-    sendError(res, 'No permission to delete any of the selected domains');
-    return;
-  }
-  
-  // Batch delete accessible domains
-  const result = await DomainOperations.batchDelete(accessibleIds);
-  
-  // Log audit operations
-  for (const id of accessibleIds) {
-    try {
-      const domain = await DomainOperations.getById(id);
-      if (domain) {
-        await logAuditOperation(userId, 'delete_domain', domain.name as string, { domainId: id }, req);
-      }
-    } catch (error) {
-      log.error('Domains', 'Failed to log audit for domain deletion', { domainId: id, error });
-    }
-  }
-  
-  // Broadcast WebSocket events for deleted domains
-  try {
-    for (const id of accessibleIds) {
-      wsService.broadcast({
-        type: 'domain_deleted',
-        data: {
-          domainId: id,
-        },
-      });
-    }
-  } catch (error) {
-    log.error('Domains', 'Failed to broadcast domain_deleted events', { error });
-  }
-  
-  // Return result with warnings about inaccessible domains
-  if (inaccessibleIds.length > 0) {
-    res.json({
-      code: 0,
-      data: {
-        ...result,
-        inaccessibleCount: inaccessibleIds.length,
-        inaccessibleIds,
-      },
-      msg: `Deleted ${result.deleted} domains. ${inaccessibleIds.length} domains were skipped due to insufficient permissions.`,
-    });
-  } else {
-    res.json({
-      code: 0,
-      data: result,
-      msg: `Successfully deleted ${result.deleted} domains`,
-    });
-  }
+  // ← 功能已禁用
+  sendError(res, 'Batch delete feature is currently disabled', 403);
 }));
 
 /**

@@ -232,9 +232,9 @@ export function DomainListTab() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
   
-  // ← 新增：批量操作相关状态
-  const [selectedRowKeys, setSelectedRowKeys] = useState<(string | number)[]>([]);
-  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  // ← 批量操作功能已禁用
+  // const [selectedRowKeys, setSelectedRowKeys] = useState<(string | number)[]>([]);
+  // const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
   useRealtimeData({
     queryKey: ['domains'],
@@ -269,14 +269,6 @@ export function DomainListTab() {
 
   const domains = domainsData?.list ?? [];
   const total = domainsData?.total ?? 0;
-  
-  // Debug log
-  console.log('[DomainListTab] Data state:', {
-    domainsLength: domains.length,
-    total,
-    isLoading,
-    hasDomainsData: !!domainsData
-  });
   
   const sortedDomains = [...domains].sort((a, b) => {
     const aPinned = pinnedDomains.includes(a.id);
@@ -366,37 +358,37 @@ export function DomainListTab() {
     },
   });
 
-  // ← 新增：批量删除 mutation
-  const batchDeleteMutation = useMutation({
-    mutationFn: (domainIds: number[]) => domainsApi.batchDelete(domainIds),
-    onSuccess: (res) => {
-      if (res.data.code !== 0) {
-        toast.error(res.data.msg || t('domains.batchDeleteFailed'));
-        return;
-      }
-      const { deleted, failed, inaccessibleCount } = res.data.data;
-      
-      if (deleted > 0) {
-        qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
-        setSelectedRowKeys([]);  // 清空选择
-        
-        if (failed === 0 && !inaccessibleCount) {
-          toast.success(t('domains.batchDeleteSuccess', { count: deleted }));
-        } else {
-          let message = t('domains.batchDeletePartialSuccess', { deleted, failed });
-          if (inaccessibleCount) {
-            message += ` ${t('domains.batchDeleteSkipped', { count: inaccessibleCount })}`;
-          }
-          toast.info(message);
-        }
-      } else {
-        toast.error(t('domains.batchDeleteFailed'));
-      }
-    },
-    onError: () => {
-      toast.error(t('domains.batchDeleteFailed'));
-    },
-  });
+  // ← 批量删除 mutation 已禁用
+  // const batchDeleteMutation = useMutation({
+  //   mutationFn: (domainIds: number[]) => domainsApi.batchDelete(domainIds),
+  //   onSuccess: (res) => {
+  //     if (res.data.code !== 0) {
+  //       toast.error(res.data.msg || t('domains.batchDeleteFailed'));
+  //       return;
+  //     }
+  //     const { deleted, failed, inaccessibleCount } = res.data.data;
+  //     
+  //     if (deleted > 0) {
+  //       qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
+  //       setSelectedRowKeys([]);  // 清空选择
+  //       
+  //       if (failed === 0 && !inaccessibleCount) {
+  //         toast.success(t('domains.batchDeleteSuccess', { count: deleted }));
+  //       } else {
+  //         let message = t('domains.batchDeletePartialSuccess', { deleted, failed });
+  //         if (inaccessibleCount) {
+  //           message += ` ${t('domains.batchDeleteSkipped', { count: inaccessibleCount })}`;
+  //         }
+  //         toast.info(message);
+  //       }
+  //     } else {
+  //       toast.error(t('domains.batchDeleteFailed'));
+  //     }
+  //   },
+  //   onError: () => {
+  //     toast.error(t('domains.batchDeleteFailed'));
+  //   },
+  // });
 
   const accountMap = Object.fromEntries(accounts.map((account) => [account.id, account]));
   const editingDomain = editing ? sortedDomains.find((domain) => domain.id === editing.id) ?? editing : null;
@@ -616,22 +608,7 @@ export function DomainListTab() {
             </Button>
           </div>
           
-          {/* ← 新增：批量操作按钮（仅管理员可见） */}
-          {canManage && selectedRowKeys.length > 0 && (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', color: 'var(--td-text-color-secondary)' }}>
-                {t('domains.selectedCount', { count: selectedRowKeys.length })}
-              </span>
-              <Button 
-                variant="outline" 
-                theme="danger"
-                icon={<DeleteIcon />}
-                onClick={() => setShowBatchDeleteConfirm(true)}
-              >
-                {t('domains.batchDelete')}
-              </Button>
-            </div>
-          )}
+          {/* ← 批量操作按钮已禁用 */}
         </div>
 
         {/* 高级筛选面板 */}
@@ -693,9 +670,7 @@ export function DomainListTab() {
                   loading={isLoading} 
                   rowKey={(row) => row.id} 
                   emptyText={t('domains.noDomainsFound')}
-                  selectable={true}  // ← 临时测试：所有用户都显示复选框
-                  selectedRowKeys={selectedRowKeys}
-                  onSelectChange={setSelectedRowKeys}
+                  // ← 批量操作已禁用：selectable, selectedRowKeys, onSelectChange
                 />
         <div className="records-pagination">
           <Pagination
@@ -780,19 +755,7 @@ export function DomainListTab() {
         />
       )}
       
-      {/* ← 新增：批量删除确认对话框 */}
-      {showBatchDeleteConfirm && (
-        <ConfirmDialog
-          message={t('domains.batchDeleteConfirm', { count: selectedRowKeys.length })}
-          onConfirm={() => {
-            const ids = selectedRowKeys.map((key) => Number(key));
-            batchDeleteMutation.mutate(ids);
-            setShowBatchDeleteConfirm(false);
-          }}
-          onCancel={() => setShowBatchDeleteConfirm(false)}
-          isLoading={batchDeleteMutation.isPending}
-        />
-      )}
+      {/* ← 批量删除确认对话框已禁用 */}
     </div>
   );
 }
