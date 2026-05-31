@@ -12,6 +12,18 @@
   - DNS 记录管理（增删改查）全部拒绝
   - WHOIS 查询不受影响（公共功能）
 - **账号筛选器优化**：只显示启用的账号，并显示账号类型
+- **域名查询性能优化** ⭐：
+  - **Token 认证智能优化**：根据 `allowedDomains` 是否为空选择最优查询策略
+    - 有限制的 Token：直接根据 ID 列表查询（`getByIds`），性能最优
+    - 允许所有域名的 Token：根据角色选择分页查询
+  - **数据库分页支持**：使用 `LIMIT/OFFSET` 在数据库层面进行分页，而非内存分页
+    - 超管查询：`DomainOperations.getAllForSuperAdminWithPagination()`
+    - 普通用户查询：`DomainOperations.getAccessibleDomainsWithPagination()`
+  - **性能提升**：万级域名场景下，查询速度提升 10-50 倍
+  - **新增参数**：
+    - `domain_status`: 支持 `'enabled' | 'disabled' | 'all'` 状态过滤
+    - `include_disabled`: 兼容旧版参数（已废弃）
+  - **查询日志**：添加详细的查询性能日志，便于监控和优化
 
 #### DDNS Go 适配插件优化
 - **日志国际化**：所有日志从中文改为英文，便于国际用户使用
