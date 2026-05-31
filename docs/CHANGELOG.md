@@ -1,6 +1,6 @@
 # 更新日志
 
-## [1.7.1] - 2026-05-28
+## [1.7.1] - 2026-05-31
 
 ### 🚀 主要更新
 
@@ -8,14 +8,9 @@
 - **账号禁用权限控制**：禁用 DNS 账号后，该账号下的所有域名操作被完全冻结
   - 前端列表不显示禁用账号的域名
   - API 查询自动过滤禁用账号的域名（包括 DDNS Go 等外部适配器）
-  - 单个域名查询、批量删除、编辑等操作全部拒绝
+  - 单个域名查询、编辑等操作全部拒绝
   - DNS 记录管理（增删改查）全部拒绝
   - WHOIS 查询不受影响（公共功能）
-- **批量删除功能**：支持批量选择和删除多个域名
-  - 表格组件新增复选框支持
-  - 批量删除确认对话框
-  - 部分失败容错处理
-  - 完整的审计日志和 WebSocket 事件广播
 - **账号筛选器优化**：只显示启用的账号，并显示账号类型
 
 #### DDNS Go 适配插件优化
@@ -27,29 +22,51 @@
   - 安全限制防止过度查询
 - **错误处理改进**：更详细的错误信息和上下文
 
-#### 多语言支持完善
-- **批量删除翻译**：为所有 11 种语言添加批量删除相关的完整翻译
-  - zh-CN, en, de, es, fr, ja, ko, pt, ru, ar, zh-CN-Mesugaki
-  - 包含成功、失败、跳过等所有状态提示
+#### 安全配置页面全面重构
+- **数据回填问题修复**：彻底解决安全配置页面字段回显不正确的问题
+  - 引入 `formHelpers` 工具模块，统一数据类型转换
+  - 支持多种 API 响应格式（`data`、`config`、`rules` 包装）
+  - 兼容 snake_case 和 camelCase 字段命名
+  - Switch 组件正确显示布尔值状态
+- **新增辅助函数**：
+  - `toBoolean()` - 统一布尔值转换
+  - `toNumber()` - 统一数字转换
+  - `toString()` - 统一字符串转换
+  - `readValue()` - 支持多键名回退的属性读取
+  - `unwrapConfig()` - 解包不同格式的 API 响应
+- **代码质量提升**：
+  - 新增明确的 TypeScript 类型定义
+  - 减少重复的类型转换逻辑
+  - 提高代码可维护性
+
+#### DNS 记录管理增强
+- **新增记录详情 API**：`GET /api/domains/{domainId}/records/{recordId}`
+  - 获取单个 DNS 记录的详细信息
+  - 支持权限检查
+  - 用于前端编辑记录时获取完整信息
 
 ### 🐛 Bug 修复
 
+- **安全页回显问题**：✅ 已修复（通过 PR #30）
+  - Switch 组件现在能正确显示所有安全配置字段的状态
+  - 包括：登录限制、SMTP 配置、审计规则、安全策略等
+
 #### 已知问题
 - **SMTP 发件问题**：部分运行环境下 SMTP 无法发送邮件（待修复）
-- **系统 > 安全页前端回显异常**：安全配置页面部分字段回显不正确（待修复）
 - **SQLite 数据库迁移问题**：部分 SQLite 数据库可能出现迁移失败（建议使用 PostgreSQL）
 
 ### 📝 技术细节
 
 #### 修改的文件
-- `server/src/routes/domains.ts` - 单个域名查询权限检查、批量删除 API
+- `server/src/routes/domains.ts` - 单个域名查询权限检查
 - `server/src/db/query-builders/domain-query-builder.ts` - 账号 enabled 过滤
-- `server/src/db/business-adapter.ts` - 批量删除方法
-- `client/src/components/Table.tsx` - 复选框支持
-- `client/src/pages/domains/DomainListTab.tsx` - 批量删除 UI 和逻辑
-- `client/src/api/domains.ts` - 批量删除 API 方法
-- `client/src/i18n/locales/*.json` - 11 种语言的批量删除翻译
-- `tmp_ddns-go/dns/hipmdnsmgr.go` - HiPMDnsMgr 适配器优化
+- `server/src/routes/records.ts` - 新增记录详情 API
+- `client/src/pages/system/SecurityTab.tsx` - 全面重构，使用 formHelpers
+- `client/src/utils/formHelpers.ts` - 新增表单辅助工具模块
+- `client/vite.config.ts` - 构建配置优化（emptyOutDir）
+
+#### 贡献者
+- @zerosnowe - 安全页面回填问题修复（PR #30）
 
 ---
 
