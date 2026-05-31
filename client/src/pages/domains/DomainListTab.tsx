@@ -250,7 +250,8 @@ export function DomainListTab() {
   const pinnedDomains = pinnedDomainsData ?? [];
 
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
-    queryKey: ['domains', accountFilter, keyword, domainTypeFilter, statusFilter, page, pageSize],
+    // ← 将 pinnedDomains 加入 queryKey，确保置顶列表变化时重新查询
+    queryKey: ['domains', accountFilter, keyword, domainTypeFilter, statusFilter, page, pageSize, pinnedDomains],
     queryFn: async () => {
       // 使用后端分页和过滤
       const res = await domainsApi.list({
@@ -265,6 +266,8 @@ export function DomainListTab() {
       
       return res.data.data ?? { list: [], total: 0, page: 1, pageSize, totalPages: 1 };
     },
+    // ← 等待 pinnedDomains 加载完成后再查询（避免首次请求时传递空数组）
+    enabled: pinnedDomainsData !== undefined,
     staleTime: 30 * 1000,
   });
 

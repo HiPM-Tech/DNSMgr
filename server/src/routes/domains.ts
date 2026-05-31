@@ -196,6 +196,16 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     ? pinned_domains.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
     : [];
 
+  // Debug log
+  console.log('[Domains Route] Query params:', {
+    pinned_domains,
+    pinnedDomainIds,
+    page: currentPage,
+    pageSize: size,
+    userId,
+    role
+  });
+
   // Check if using token auth and get allowed domains
   const tokenPayload = (req as any).tokenPayload;
   const tokenAllowedDomains = tokenPayload?.allowedDomains as number[] | undefined;
