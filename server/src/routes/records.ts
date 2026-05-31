@@ -187,6 +187,40 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response,
 
 /**
  * @swagger
+ * /api/domains/{domainId}/records/{recordId}:
+ *   get:
+ *     summary: Get a DNS record detail
+ *     tags: [Records]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'), asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.domainId) ?? 0;
+  const recordId = req.params.recordId;
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
+    sendError(res, 'Domain not found');
+    return;
+  }
+  try {
+    const dnsAdapter = await getAdapterForDomain(access.domain);
+    let record = await dnsAdapter.getDomainRecordInfo(recordId);
+    if (!record) {
+      const result = await dnsAdapter.getDomainRecords(1, 1000);
+      record = result.list.find((item) => item.RecordId === recordId) ?? null;
+    }
+    if (!record) {
+      sendError(res, 'Record not found', 404);
+      return;
+    }
+    sendSuccess(res, toApiRecord(record));
+  } catch (e) {
+    sendError(res, e instanceof Error ? e.message : String(e));
+  }
+}));
+
+/**
+ * @swagger
  * /api/domains/{domainId}/records:
  *   post:
  *     summary: Add a DNS record
