@@ -328,7 +328,9 @@ export function DomainListTab() {
     },
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
+      // ← 同时刷新置顶列表和域名列表
       qc.invalidateQueries({ queryKey: ['pinnedDomains'], refetchType: 'active' });
+      qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
       toast.success(t('domains.pinSuccess'));
     },
     onError: () => toast.error(t('domains.pinFailed')),
