@@ -754,9 +754,21 @@ export const DomainOperations = {
     // 查询分页数据
     const offset = (page - 1) * pageSize;
     
+    // 移除原有的 ORDER BY，添加置顶排序
+    const baseSqlWithoutOrderBy = baseSql.replace(/\s+ORDER\s+BY\s+[^)]+$/i, '');
+    
     // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
     // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
-    const paginatedSql = `${baseSql.replace(/ORDER BY [^)]+$/, '')} ORDER BY ${orderByClause} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    const paginatedSql = `${baseSqlWithoutOrderBy} ORDER BY ${orderByClause} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    
+    // Debug log
+    console.log('[BusinessAdapter] getAllForSuperAdminWithPagination SQL:', {
+      page,
+      pageSize,
+      pinnedDomainIds: pinnedDomainIds.length,
+      orderByClause,
+      sql: paginatedSql.substring(0, 300)
+    });
     
     const list = await queryInternal(paginatedSql, baseParams, { 
       operation: 'Domain.getAllForSuperAdminWithPagination.list', 
