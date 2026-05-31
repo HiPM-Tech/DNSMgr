@@ -7,6 +7,7 @@ import { getSmtpConfig, updateSmtpConfig, sendSmtpEmail } from '../service/smtp'
 import { logAuditOperation } from '../service/audit';
 import { log } from '../lib/logger';
 import { wsService } from '../service/websocket';
+import { sendError } from '../utils/http';
 
 const router = Router();
 type SecurityConfig = { jwtViewEmailNotify: boolean; showDnsProviderSecrets: boolean };
@@ -228,7 +229,7 @@ router.get('/notifications', authMiddleware, noTokenAuth('system settings'), adm
 
 router.put('/notifications', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const channels = req.body.channels;
-  if (!Array.isArray(channels)) return res.status(400).json({ code: -1, msg: 'Invalid channels array' });
+  if (!Array.isArray(channels)) return sendError(res, 'Invalid channels array', 400);
   
   await NotificationOperations.saveChannels(JSON.stringify(channels));
   res.json({ code: 0, msg: 'success' });
@@ -257,7 +258,7 @@ router.get('/audit-rules', authMiddleware, noTokenAuth('system settings'), admin
 
 router.put('/audit-rules', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const rules = req.body.rules;
-  if (!rules) return res.status(400).json({ code: -1, msg: 'Rules required' });
+  if (!rules) return sendError(res, 'Rules required', 400);
   
   await AuditRuleOperations.saveRules(JSON.stringify(rules));
   const defaultRules = {
@@ -631,7 +632,7 @@ router.post('/login-attempts/unlock', authMiddleware, noTokenAuth('system settin
   const { identifier } = req.body;
   
   if (!identifier) {
-    res.json({ code: -1, msg: 'Identifier is required' });
+    sendError(res, 'Identifier is required', 400);
     return;
   }
   

@@ -4,6 +4,7 @@ import { authMiddleware } from '../middleware/auth';
 import { getUserWebAuthnCredentials, addWebAuthnCredential, deleteWebAuthnCredential, updateWebAuthnCredentialCounter } from '../service/webauthn';
 import { UserOperations } from '../db/business-adapter';
 import crypto from 'crypto';
+import { sendError } from '../utils/http';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ const origin = process.env.WEBAUTHN_ORIGIN || `http://${rpID}:3000`; // Modify a
 router.get('/registration-options', authMiddleware, async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   const user = await UserOperations.getById(userId) as { username: string } | undefined;
-  if (!user) return res.status(404).json({ code: -1, msg: 'User not found' });
+  if (!user) return sendError(res, 'User not found', 404);
 
   const userCredentials = await getUserWebAuthnCredentials(userId);
 
@@ -53,7 +54,7 @@ router.post('/registration-verify', authMiddleware, async (req: Request, res: Re
   const body = req.body;
   const expectedChallenge = userChallengeStore.get(userId);
 
-  if (!expectedChallenge) return res.status(400).json({ code: -1, msg: 'Challenge not found' });
+  if (!expectedChallenge) return sendError(res, 'Challenge not found', 400);
 
   try {
     const verification = await verifyRegistrationResponse({
@@ -80,10 +81,10 @@ router.post('/registration-verify', authMiddleware, async (req: Request, res: Re
       userChallengeStore.delete(userId);
       res.json({ code: 0, msg: 'success' });
     } else {
-      res.status(400).json({ code: -1, msg: 'Verification failed' });
+      res.status(400).json({ code: 400, msg: 'Verification failed' });
     }
   } catch (error: any) {
-    res.status(400).json({ code: -1, msg: error.message });
+    res.status(400).json({ code: 400, msg: error.message });
   }
 });
 
@@ -99,17 +100,17 @@ router.delete('/credentials/:id', authMiddleware, async (req: Request, res: Resp
 
 router.get('/login-options', async (req: Request, res: Response) => {
   const username = req.query.username as string;
-  if (!username) return res.status(400).json({ code: -1, msg: 'Username required' });
+  if (!username) return sendError(res, 'Username required', 400);
   
   const isEmail = username.includes('@');
   const user = isEmail 
     ? await UserOperations.getByEmail(username) as { id: number } | undefined
     : await UserOperations.getByUsername(username) as { id: number } | undefined;
   
-  if (!user) return res.status(404).json({ code: -1, msg: 'User not found' });
+  if (!user) return sendError(res, 'User not found', 404);
   
   const userCredentials = await getUserWebAuthnCredentials(user.id);
-  if (userCredentials.length === 0) return res.status(400).json({ code: -1, msg: 'No passkeys found' });
+  if (userCredentials.length === 0) return sendError(res, 'No passkeys found', 400);
   
   const options = await generateAuthenticationOptions({
     rpID,
