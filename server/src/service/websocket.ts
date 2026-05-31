@@ -349,6 +349,24 @@ class WSService {
   }
 
   /**
+   * 向指定用户发送消息
+   */
+  sendToUser(userId: number, message: any): void {
+    const client = this.clients.get(userId);
+    if (client && client.ws.readyState === WebSocket.OPEN) {
+      try {
+        const data = JSON.stringify(message);
+        client.ws.send(data);
+      } catch (error) {
+        log.error('WSService', 'Failed to send message to user', {
+          userId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+  }
+
+  /**
    * 停止 WebSocket 服务
    */
   shutdown(): void {

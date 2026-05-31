@@ -1499,6 +1499,15 @@ router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, r
     }
     
     await UserPreferencesOperations.updatePinnedDomains(req.user!.userId, domainIds);
+    
+    // ← 发送 WebSocket 通知，刷新前端域名列表
+    const wsService = require('../service/websocket').wsService;
+    wsService.sendToUser(req.user!.userId, {
+      type: 'pinned_domains_updated',
+      data: { domainIds },
+      timestamp: new Date().toISOString()
+    });
+    
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update pinned domains' });
