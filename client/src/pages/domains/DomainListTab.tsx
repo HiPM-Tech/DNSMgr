@@ -649,7 +649,7 @@ export function DomainListTab() {
                   style={{ width: '100%' }}
                 />
               </ControlField>
-              <ControlField label={t('domains.domainStatus')}>
+              <ControlField label={t('domains.localStatus')}>
                 <Select
                   value={statusFilter}
                   options={[
