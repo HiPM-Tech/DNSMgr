@@ -11,7 +11,7 @@ import { getUserPreferences, updateUserPreferences, UserPreferences } from '../s
 import { loginLimiter, emailLimiter } from '../middleware/rateLimit';
 import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/totp';
 import { log } from '../lib/logger';
-import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, UserPreferencesOperations } from '../db/business-adapter';
+import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, UserPreferencesOperations, DomainOperations } from '../db/business-adapter';
 import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, SecurityPolicy } from '../service/securityPolicy';
 import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/deviceTrust';
 import { getRequestIP } from '../middleware/clientIP';
@@ -1465,6 +1465,38 @@ router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, r
   }
   
   try {
+    // ← 新增：检查是否有同名域名已经置顶
+    if (domainIds.length > 0) {
+      // 获取所有要置顶的域名信息
+      const domainsToPin = await DomainOperations.getByIds(domainIds);
+      
+      // 构建域名名称到 ID 的映射
+      const nameToIdMap = new Map<string, number>();
+      const duplicateNames: string[] = [];
+      
+      for (const domain of domainsToPin) {
+        const domainName = (domain as any).name || (domain as any).full_domain;
+        const domainId = Number((domain as any).id);
+        if (!domainName || !domainId) continue;
+        
+        if (nameToIdMap.has(domainName)) {
+          // 发现同名域名
+          duplicateNames.push(domainName);
+        } else {
+          nameToIdMap.set(domainName, domainId);
+        }
+      }
+      
+      // 如果有重复的域名名称，返回错误
+      if (duplicateNames.length > 0) {
+        res.status(400).json({ 
+          code: 400, 
+          msg: `Duplicate domain names found: ${duplicateNames.join(', ')}. Cannot pin multiple domains with the same name.` 
+        });
+        return;
+      }
+    }
+    
     await UserPreferencesOperations.updatePinnedDomains(req.user!.userId, domainIds);
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
