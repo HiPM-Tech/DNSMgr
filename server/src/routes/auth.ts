@@ -16,6 +16,7 @@ import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, Securi
 import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/deviceTrust';
 import { getRequestIP } from '../middleware/clientIP';
 import db from '../db/business-adapter';
+import { sendError } from '../utils/http';
 
 /**
  * RSA Key Pair for password encryption
@@ -507,7 +508,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     encrypted?: boolean;
   };
   if (!username || !password) {
-    res.json({ code: -1, msg: 'Username/email and password are required' });
+    sendError(res, 'Username/email and password are required', 400);
     return;
   }
 
@@ -534,7 +535,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     const ipAddress = getRequestIP(req);
     const limitCheck = await checkLoginAllowed(loginIdentifier, ipAddress);
     if (!limitCheck.allowed) {
-      res.json({ code: -1, msg: limitCheck.message || 'Account is temporarily locked' });
+      sendError(res, limitCheck.message || 'Account is temporarily locked', 429);
       return;
     }
     
@@ -557,9 +558,9 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       // Record failed attempt
       const failedResult = await recordFailedAttempt(loginIdentifier, ipAddress);
       if (failedResult.locked) {
-        res.json({ code: -1, msg: failedResult.message || 'Account is temporarily locked' });
+        sendError(res, failedResult.message || 'Account is temporarily locked', 429);
       } else {
-        res.json({ code: -1, msg: `Invalid username/email or password. ${failedResult.message || ''}`.trim() });
+        sendError(res, `Invalid username/email or password. ${failedResult.message || ''}`.trim(), 401);
       }
       return;
     }
@@ -568,7 +569,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     // Use non-null assertion to satisfy TypeScript
     const authenticatedUser = user!;
     if (authenticatedUser.status === 0) {
-      res.json({ code: -1, msg: 'Account is disabled' });
+      sendError(res, 'Account is disabled', 403);
       return;
     }
 
@@ -599,20 +600,20 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       if (backupCode) {
         const isValid = await verifyBackupCode(authenticatedUser.id, backupCode);
         if (!isValid) {
-          res.json({ code: -1, msg: 'Invalid backup code' });
+          sendError(res, 'Invalid backup code', 401);
           return;
         }
       } else if (totpCode && isTotpEnabled) {
         const secret = await TwoFAOperations.getTOTPSecret(authenticatedUser.id);
         if (!secret || !verifyTOTPToken(secret, totpCode)) {
-          res.json({ code: -1, msg: 'Invalid 2FA code' });
+          sendError(res, 'Invalid 2FA code', 401);
           return;
         }
       } else if (webauthnResponse && isWebauthnEnabled) {
         // webauthnResponse verification is handled by another endpoint or we verify it here
         const expectedChallenge = (global as any).loginChallengeStore?.get(authenticatedUser.id);
         if (!expectedChallenge) {
-          res.json({ code: -1, msg: 'WebAuthn challenge expired or missing' });
+          sendError(res, 'WebAuthn challenge expired or missing', 400);
           return;
         }
         
@@ -621,7 +622,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         const userCreds = await getUserWebAuthnCredentials(authenticatedUser.id);
         const cred = userCreds.find((c: any) => c.id === webauthnResponse.id);
         if (!cred) {
-          res.json({ code: -1, msg: 'Credential not found' });
+          sendError(res, 'Credential not found', 404);
           return;
         }
         
@@ -640,13 +641,13 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
           });
           
           if (!verification.verified) {
-            res.json({ code: -1, msg: 'WebAuthn verification failed' });
+            sendError(res, 'WebAuthn verification failed', 401);
             return;
           }
           await updateWebAuthnCredentialCounter(cred.id, verification.authenticationInfo.newCounter);
           (global as any).loginChallengeStore.delete(authenticatedUser.id);
         } catch (e: any) {
-          res.json({ code: -1, msg: e.message });
+          sendError(res, e.message, 400);
           return;
         }
       } else {
@@ -1102,7 +1103,7 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
     const user = await UserOperations.getPublicById(req.user!.userId);
 
     if (!user) {
-      res.json({ code: -1, msg: 'User not found' });
+      sendError(res, 'User not found', 404);
       return;
     }
     res.json({ code: 0, data: user, msg: 'success' });
@@ -1142,7 +1143,7 @@ router.put('/password', authMiddleware, async (req: Request, res: Response) => {
     encrypted?: boolean;
   };
   if (!oldPassword || !newPassword) {
-    res.json({ code: -1, msg: 'Old and new passwords are required' });
+    sendError(res, 'Old and new passwords are required', 400);
     return;
   }
 
@@ -1166,14 +1167,14 @@ router.put('/password', authMiddleware, async (req: Request, res: Response) => {
     const user = await UserOperations.getById(req.user!.userId);
 
     if (!user || !bcrypt.compareSync(actualOldPassword, user.password_hash as string)) {
-      res.json({ code: -1, msg: 'Old password is incorrect' });
+      sendError(res, 'Old password is incorrect', 401);
       return;
     }
     
     // 验证新密码强度
     const passwordCheck = await validatePassword(actualNewPassword);
     if (!passwordCheck.valid) {
-      res.json({ code: -1, msg: passwordCheck.message });
+      sendError(res, passwordCheck.message!, 400);
       return;
     }
     
