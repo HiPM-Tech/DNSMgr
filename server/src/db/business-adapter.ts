@@ -690,6 +690,7 @@ export const DomainOperations = {
     keyword?: string;
     domainStatus?: 'enabled' | 'disabled' | 'all';
     domainType?: 'apex' | 'subdomain';
+    pinnedDomainIds?: number[];  // ← 新增：置顶域名 ID 列表
     page: number;
     pageSize: number;
   }): Promise<{ list: QueryResult[]; total: number }> {
@@ -698,6 +699,7 @@ export const DomainOperations = {
       keyword,
       domainStatus = 'all',
       domainType,
+      pinnedDomainIds = [],
       page,
       pageSize,
     } = options;
@@ -720,6 +722,27 @@ export const DomainOperations = {
     
     const { sql: baseSql, params: baseParams } = builder.build();
     
+    // 如果有置顶域名，添加置顶排序
+    let orderByClause = '';
+    if (pinnedDomainIds.length > 0) {
+      const dbType = process.env.DB_TYPE || 'sqlite';
+      if (dbType === 'mysql') {
+        // MySQL: 使用 FIELD() 函数
+        const idsList = pinnedDomainIds.join(',');
+        orderByClause = `FIELD(d.id, ${idsList}) DESC, d.id ASC`;
+      } else if (dbType === 'postgresql') {
+        // PostgreSQL: 使用 CASE WHEN
+        const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
+        orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
+      } else {
+        // SQLite: 使用 CASE WHEN（与 PostgreSQL 相同）
+        const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
+        orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
+      }
+    } else {
+      orderByClause = 'd.id ASC';
+    }
+    
     // 查询总数
     const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
     const countResult = await queryInternal(countSql, baseParams, { 
@@ -733,7 +756,7 @@ export const DomainOperations = {
     
     // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
     // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
-    const paginatedSql = `${baseSql} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    const paginatedSql = `${baseSql.replace(/ORDER BY [^)]+$/, '')} ORDER BY ${orderByClause} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
     
     const list = await queryInternal(paginatedSql, baseParams, { 
       operation: 'Domain.getAllForSuperAdminWithPagination.list', 
@@ -867,6 +890,7 @@ export const DomainOperations = {
     keyword?: string;
     domainStatus?: 'enabled' | 'disabled' | 'all';
     domainType?: 'apex' | 'subdomain';
+    pinnedDomainIds?: number[];  // ← 新增：置顶域名 ID 列表
     page: number;
     pageSize: number;
   }): Promise<{ list: QueryResult[]; total: number }> {
@@ -877,6 +901,7 @@ export const DomainOperations = {
       keyword,
       domainStatus = 'all',
       domainType,
+      pinnedDomainIds = [],
       page,
       pageSize,
     } = params;
@@ -899,6 +924,27 @@ export const DomainOperations = {
     
     const { sql: baseSql, params: baseParams } = builder.build();
     
+    // 如果有置顶域名，添加置顶排序
+    let orderByClause = '';
+    if (pinnedDomainIds.length > 0) {
+      const dbType = process.env.DB_TYPE || 'sqlite';
+      if (dbType === 'mysql') {
+        // MySQL: 使用 FIELD() 函数
+        const idsList = pinnedDomainIds.join(',');
+        orderByClause = `FIELD(d.id, ${idsList}) DESC, d.id ASC`;
+      } else if (dbType === 'postgresql') {
+        // PostgreSQL: 使用 CASE WHEN
+        const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
+        orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
+      } else {
+        // SQLite: 使用 CASE WHEN（与 PostgreSQL 相同）
+        const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
+        orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
+      }
+    } else {
+      orderByClause = 'd.id ASC';
+    }
+    
     // 查询总数
     const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
     const countResult = await queryInternal(countSql, baseParams, { 
@@ -912,7 +958,7 @@ export const DomainOperations = {
     
     // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
     // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
-    const paginatedSql = `${baseSql} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    const paginatedSql = `${baseSql.replace(/ORDER BY [^)]+$/, '')} ORDER BY ${orderByClause} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
     
     const list = await queryInternal(paginatedSql, baseParams, { 
       operation: 'Domain.getAccessibleDomainsWithPagination.list', 

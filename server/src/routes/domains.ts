@@ -159,7 +159,7 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword, domain_type, page, pageSize, format, include_disabled, domain_status } = req.query as { 
+  const { account_id, keyword, domain_type, page, pageSize, format, include_disabled, domain_status, pinned_domains } = req.query as { 
     account_id?: string; 
     keyword?: string; 
     domain_type?: string; 
@@ -168,6 +168,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     format?: string; // 'array' for direct array response (for external adapters)
     include_disabled?: string; // 'true' to include disabled domains (legacy)
     domain_status?: 'enabled' | 'disabled' | 'all'; // new parameter for status filtering
+    pinned_domains?: string; // comma-separated domain IDs for pinned sorting
   };
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
@@ -189,6 +190,11 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     parsedDomainStatus = 'enabled';
   }
   // If include_disabled=true or not specified, default to 'all'
+
+  // Parse pinned_domains (comma-separated string to number array)
+  const pinnedDomainIds: number[] = pinned_domains 
+    ? pinned_domains.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+    : [];
 
   // Check if using token auth and get allowed domains
   const tokenPayload = (req as any).tokenPayload;
@@ -215,6 +221,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
           keyword,
           domainStatus: parsedDomainStatus,
           domainType: parsedDomainType,
+          pinnedDomainIds,  // ← 传递置顶域名 ID 列表
           page: currentPage,
           pageSize: size,
         });
@@ -230,6 +237,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
           keyword,
           domainStatus: parsedDomainStatus,
           domainType: parsedDomainType,
+          pinnedDomainIds,  // ← 传递置顶域名 ID 列表
           page: currentPage,
           pageSize: size,
         });
@@ -251,6 +259,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
         keyword,
         domainStatus: parsedDomainStatus,
         domainType: parsedDomainType,
+        pinnedDomainIds,  // ← 传递置顶域名 ID 列表
         page: currentPage,
         pageSize: size,
       });
@@ -266,6 +275,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
         keyword,
         domainStatus: parsedDomainStatus,
         domainType: parsedDomainType,
+        pinnedDomainIds,  // ← 传递置顶域名 ID 列表
         page: currentPage,
         pageSize: size,
       });
@@ -284,19 +294,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     // 注意：这种情况下 total 可能不准确，但不影响功能
   }
 
-  // 获取用户的置顶域名列表并排序
-  const pinnedDomainIds = await UserPreferencesOperations.getPinnedDomains(userId);
-  const pinnedSet = new Set(pinnedDomainIds);
-  
-  // 排序：置顶域名在前，保持原有顺序；非置顶域名在后
-  domains.sort((a, b) => {
-    const aPinned = pinnedSet.has(a.id);
-    const bPinned = pinnedSet.has(b.id);
-    
-    if (aPinned && !bPinned) return -1;  // a 置顶，b 不置顶，a 在前
-    if (!aPinned && bPinned) return 1;   // a 不置顶，b 置顶，b 在前
-    return 0;  // 都置顶或都不置顶，保持原有顺序
-  });
+  // ← 后端已在数据库层面按置顶排序，前端不需要再排序
 
   // Record count is cached in database and refreshed asynchronously by background job
   // No need to query DNS provider API on every request

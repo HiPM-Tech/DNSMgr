@@ -258,6 +258,7 @@ export function DomainListTab() {
         keyword: keyword || undefined,
         domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
         domain_status: statusFilter,  // 'enabled' | 'disabled' | 'all'
+        pinned_domains: pinnedDomains.length > 0 ? pinnedDomains.join(',') : undefined,  // ← 传递置顶域名 ID 列表
         page,
         pageSize,
       });
@@ -270,13 +271,8 @@ export function DomainListTab() {
   const domains = domainsData?.list ?? [];
   const total = domainsData?.total ?? 0;
   
-  const sortedDomains = [...domains].sort((a, b) => {
-    const aPinned = pinnedDomains.includes(a.id);
-    const bPinned = pinnedDomains.includes(b.id);
-    if (aPinned && !bPinned) return -1;
-    if (!aPinned && bPinned) return 1;
-    return 0;
-  });
+  // ← 后端已经按置顶排序，前端不需要再排序
+  const sortedDomains = domains;
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts'],

@@ -11,6 +11,7 @@ export const domainsApi = {
     domain_type?: 'all' | 'apex' | 'subdomain'; 
     domain_status?: 'enabled' | 'disabled' | 'all';
     include_disabled?: string; // legacy parameter
+    pinned_domains?: string; // comma-separated domain IDs for pinned sorting
     page?: number; 
     pageSize?: number 
   }) =>
