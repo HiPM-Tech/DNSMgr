@@ -388,4 +388,40 @@ export class SchemaVersionManager {
     
     return null;
   }
+
+  /**
+   * 记录 DSM 版本（使用 COMPLETE_SCHEMA 的 version 字符串）
+   */
+  async recordDSMVersion(schemaVersion: string): Promise<void> {
+    // 检查是否已存在
+    const exists = await this.isDSMVersionRecorded(schemaVersion);
+    if (exists) {
+      log.debug('SchemaVersion', `DSM version ${schemaVersion} already recorded.`);
+      return;
+    }
+
+    // 插入新版本记录
+    await this.recordSuccess(
+      `Declarative Schema Management v${schemaVersion}`,
+      0 // execution time not tracked here
+    );
+    
+    // 更新语义版本字段
+    await this.conn.execute(
+      `UPDATE schema_versions SET semantic_version = ? WHERE version = ?`,
+      [schemaVersion, this.schemaHash]
+    );
+  }
+
+  /**
+   * 检查 DSM 版本是否已记录
+   */
+  async isDSMVersionRecorded(schemaVersion: string): Promise<boolean> {
+    const result = await this.conn.get(
+      `SELECT COUNT(*) as cnt FROM schema_versions 
+       WHERE semantic_version = ? AND version LIKE 'DSM-%'`,
+      [schemaVersion]
+    );
+    return (result as any)?.cnt > 0;
+  }
 }

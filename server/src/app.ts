@@ -15,8 +15,9 @@ import path from 'path';
 // Get the current file directory
 const APP_ROOT = path.resolve();
 import { createConnection, isDbInitialized, hasUsers, connect } from './db/connection';
-import { initSchema } from './db/schema';
-import { initSchema as initSchemaWithMigration } from './db/init';
+import { initializeDSM } from './db/init-dsm';
+// import { initSchema } from './db/schema'; // Deprecated: Replaced by DSM
+// import { initSchema as initSchemaWithMigration } from './db/init'; // Deprecated: Replaced by DSM
 import { disconnect } from './db/core/connection';
 import { authMiddleware, adminOnly } from './middleware/auth';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
@@ -91,8 +92,6 @@ ${CYAN}╚═══════════════════════�
 import { initRenewalSchedulers } from './service/renewalInit';
 import { wsService } from './service/websocket';
 import { initWhoisSchedulers } from './service/whois';
-import { initSecurityPolicyTable } from './service/securityPolicy';
-import { initTrustedDevicesTable } from './service/deviceTrust';
 import { log } from './lib/logger';
 import { OAuthOperations } from './db/business-adapter';
 
@@ -448,17 +447,14 @@ async function initializeApp() {
     await connect();
 
     // Run unified schema initialization and migration checks
-    // This function internally calls initSchemaAsync() if needed
-    await initSchemaWithMigration();
+    // Using new Declarative Schema Management (DSM)
+    await initializeDSM();
 
     // Check if system is initialized
     isInitialized = await checkInitialization();
 
     if (isInitialized) {
       log.info('Server', 'System initialized. Running in normal mode.');
-      // 初始化安全相关表
-      await initSecurityPolicyTable();
-      await initTrustedDevicesTable();
       
       // 初始化续期和 WHOIS 调度器
       initRenewalSchedulers();
@@ -500,9 +496,6 @@ async function initializeApp() {
           isInitialized = true;
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');
           log.info('Server', 'You may need to refresh the page.');
-          // 初始化安全相关表
-          await initSecurityPolicyTable();
-          await initTrustedDevicesTable();
           startFailoverJob();
           startWhoisJob();
           startNsMonitorJob();
@@ -550,14 +543,11 @@ async function initializeApp() {
     const initCheckInterval = setInterval(async () => {
       try {
         await connect();
-        await initSchemaWithMigration();
+        await initializeDSM(); // Use DSM for initialization
         const newState = await checkInitialization();
         if (newState) {
           isInitialized = true;
           clearInterval(initCheckInterval);
-          // 初始化安全相关表
-          await initSecurityPolicyTable();
-          await initTrustedDevicesTable();
           startFailoverJob();
           startWhoisJob();
           startNsMonitorJob();

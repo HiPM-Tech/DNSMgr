@@ -6,6 +6,7 @@ import { postgresqlSchema } from './schemas/postgresql';
 import { getDatabaseConfig } from './core/config';
 import fs from 'fs';
 import path from 'path';
+import { initializeDSM } from './init-dsm';
 import { log } from '../lib/logger';
 
 export async function initSchema(): Promise<void> {
@@ -80,15 +81,11 @@ export async function initSchema(): Promise<void> {
     // DO NOT return here! Continue to migration checks to handle legacy databases
   }
 
-  // Step 4: Run migrations for HiDNS systems (schema may have changed)
-  // Migrations will be skipped if already applied (version checking)
-  log.info('DB', 'Checking for pending migrations...');
+  // Step 4: Run DSM for HiDNS systems
+  log.info('DB', 'Running DSM reconciliation...');
+  await initializeDSM();
   
-  // Import and call initSchemaAsync to run migration checks
-  const { initSchemaAsync } = await import('./schema');
-  await initSchemaAsync(conn, false); // false = don't reset tables
-  
-  log.info('DB', 'Migration checks completed');
+  log.info('DB', 'DSM reconciliation completed');
 }
 
 /**

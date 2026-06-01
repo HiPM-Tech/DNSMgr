@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { initSchema, initSchemaAsync } from '../db/schema';
+import { initializeDSM } from '../db/init-dsm';
 import { saveEnvConfig } from '../config/env';
 import { createConnection, isDbInitialized, hasUsers } from '../db/connection';
 import { connect } from '../db/core/connection';
@@ -348,13 +348,13 @@ router.post('/database', async (req: Request, res: Response) => {
     log.info('Init', 'Creating new database connection', { type, reset });
     const conn = await connect(testConfig);
     
-    // Initialize schema
+    // Initialize schema using DSM
     if (reset) {
-      await initSchemaAsync(conn, true);
-      log.info('Init', 'Database schema reset successfully');
+      await initializeDSM();
+      log.info('Init', 'Database schema reset successfully via DSM');
     } else {
-      await initSchemaAsync(conn, false);
-      log.info('Init', 'Database schema initialized successfully');
+      await initializeDSM();
+      log.info('Init', 'Database schema initialized successfully via DSM');
     }
     
     return res.json({

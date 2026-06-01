@@ -11,7 +11,7 @@ import {
   SettingsOperations,
 } from './business-adapter';
 import { connect, disconnect, getConnection } from './core/connection';
-import { initSchemaAsync } from './schema';
+import { initializeDSM } from './init-dsm';
 
 // Test database configuration
 const TEST_DB_PATH = ':memory:';
@@ -23,7 +23,7 @@ describe('Business Adapter Layer', () => {
     process.env.DB_PATH = TEST_DB_PATH;
 
     const conn = await connect();
-    await initSchemaAsync(conn);
+    await initializeDSM();
   });
 
   after(async () => {

@@ -4,7 +4,7 @@
  */
 
 import { connect, getConnection, disconnect, isDbInitialized } from '../src/db/connection';
-import { initSchema } from '../src/db/init';
+import { initializeDSM } from '../src/db/init-dsm';
 import { log } from '../src/lib/logger';
 import fs from 'fs';
 import path from 'path';
@@ -51,7 +51,7 @@ async function testInitDetect() {
     // 测试3: 验证初始化流程
     log.info('TestInitDetect', 'Test 3: Testing initialization flow');
     try {
-      await initSchema();
+      await initializeDSM();
       log.info('TestInitDetect', '✓ Initialization completed');
     } catch (initError) {
       log.error('TestInitDetect', '✗ Initialization failed:', initError);

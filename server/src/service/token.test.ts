@@ -8,7 +8,7 @@ import {
 } from './token';
 import type { TokenPayload } from '../types/token';
 import { connect, disconnect } from '../db/core/connection';
-import { initSchemaAsync } from '../db/schema';
+import { initializeDSM } from '../db/init-dsm';
 
 describe('Token Service', () => {
   before(async () => {
@@ -17,7 +17,7 @@ describe('Token Service', () => {
     process.env.DB_PATH = ':memory:';
 
     const conn = await connect();
-    await initSchemaAsync(conn);
+    await initializeDSM();
   });
 
   after(async () => {

@@ -7,7 +7,7 @@
  */
 
 import { connect, getConnection, disconnect, isDbInitialized } from '../src/db/connection';
-import { initSchema } from '../src/db/init';
+import { initializeDSM } from '../src/db/init-dsm';
 import { log } from '../src/lib/logger';
 
 async function testInit() {
@@ -23,7 +23,7 @@ async function testInit() {
 
     // 测试2: 初始化数据库
     log.info('TestInit', 'Test 2: Initializing database');
-    await initSchema();
+    await initializeDSM();
     log.info('TestInit', '✓ Database initialized');
 
     // 测试3: 验证表结构

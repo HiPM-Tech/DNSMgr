@@ -1,0 +1,691 @@
+import { DatabaseSchema } from '../types/schema';
+
+/**
+ * HiDNS 完整数据库模式定义
+ * 
+ * 此文件定义了 HiDNS 的"目标状态"，包含所有业务表、系统表和 MCP 模块表。
+ * DSM (Declarative Schema Management) 将根据此定义自动同步数据库结构。
+ */
+export const COMPLETE_SCHEMA: DatabaseSchema = {
+  tables: [
+    // ==================== 用户与认证模块 ====================
+    {
+      name: 'users',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'username', type: 'string', length: 255, unique: true, nullable: false },
+        { name: 'nickname', type: 'string', length: 255, defaultValue: '' },
+        { name: 'email', type: 'string', length: 255, defaultValue: '' },
+        { name: 'password_hash', type: 'string', length: 255, nullable: false },
+        { name: 'role', type: 'string', length: 20, defaultValue: 'member' },
+        { name: 'role_level', type: 'number', defaultValue: 1 },
+        { name: 'status', type: 'number', defaultValue: 1 },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_users_username', columns: ['username'] },
+        { name: 'idx_users_role', columns: ['role'] },
+        { name: 'idx_users_status', columns: ['status'] }
+      ]
+    },
+    {
+      name: 'teams',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'name', type: 'string', length: 255, nullable: false },
+        { name: 'description', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'created_by', type: 'number', nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_teams_created_by', columns: ['created_by'] }
+      ],
+      foreignKeys: [
+        { column: 'created_by', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'team_members',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'team_id', type: 'number', nullable: false },
+        { name: 'user_id', type: 'number', nullable: false },
+        { name: 'role', type: 'string', length: 20, defaultValue: 'member' },
+        { name: 'joined_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_team_members_team_id', columns: ['team_id'] },
+        { name: 'idx_team_members_user_id', columns: ['user_id'] },
+        { name: 'uq_team_members', columns: ['team_id', 'user_id'], unique: true }
+      ],
+      foreignKeys: [
+        { column: 'team_id', refTable: 'teams', refColumn: 'id', onDelete: 'CASCADE' },
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+
+    // ==================== DNS 账户与域名模块 ====================
+    {
+      name: 'dns_accounts',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'type', type: 'string', length: 100, nullable: false },
+        { name: 'name', type: 'string', length: 255, nullable: false },
+        { name: 'config', type: 'json', nullable: false },
+        { name: 'remark', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'enabled', type: 'boolean', defaultValue: true },
+        { name: 'created_by', type: 'number', nullable: false },
+        { name: 'team_id', type: 'number', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_dns_accounts_created_by', columns: ['created_by'] },
+        { name: 'idx_dns_accounts_team_id', columns: ['team_id'] },
+        { name: 'idx_dns_accounts_type', columns: ['type'] },
+        { name: 'idx_dns_accounts_enabled', columns: ['enabled'] }
+      ],
+      foreignKeys: [
+        { column: 'created_by', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' },
+        { column: 'team_id', refTable: 'teams', refColumn: 'id', onDelete: 'SET NULL' }
+      ]
+    },
+    {
+      name: 'domains',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'account_id', type: 'number', nullable: false },
+        { name: 'name', type: 'string', length: 255, nullable: false },
+        { name: 'third_id', type: 'string', length: 255, defaultValue: '' },
+        { name: 'remark', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'is_hidden', type: 'boolean', defaultValue: false },
+        { name: 'enabled', type: 'boolean', defaultValue: true },
+        { name: 'record_count', type: 'number', defaultValue: 0 },
+        { name: 'expires_at', type: 'datetime', nullable: true },
+        { name: 'apex_expires_at', type: 'datetime', nullable: true },
+        { name: 'whois_status', type: 'string', length: 2048, nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_domains_account_id', columns: ['account_id'] },
+        { name: 'idx_domains_name', columns: ['name'] },
+        { name: 'idx_domains_is_hidden', columns: ['is_hidden'] },
+        { name: 'idx_domains_enabled', columns: ['enabled'] }
+      ],
+      foreignKeys: [
+        { column: 'account_id', refTable: 'dns_accounts', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'domain_permissions',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'number', nullable: true },
+        { name: 'team_id', type: 'number', nullable: true },
+        { name: 'domain_id', type: 'number', nullable: false },
+        { name: 'sub', type: 'string', length: 255, defaultValue: '' },
+        { name: 'permission', type: 'string', length: 20, defaultValue: 'write' },
+      ],
+      indexes: [
+        { name: 'idx_domain_permissions_user_id', columns: ['user_id'] },
+        { name: 'idx_domain_permissions_team_id', columns: ['team_id'] },
+        { name: 'idx_domain_permissions_domain_id', columns: ['domain_id'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' },
+        { column: 'team_id', refTable: 'teams', refColumn: 'id', onDelete: 'CASCADE' },
+        { column: 'domain_id', refTable: 'domains', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+
+    // ==================== DNS 记录模块 ====================
+    {
+      name: 'dns_records',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'domain_id', type: 'number', nullable: false },
+        { name: 'record_type', type: 'string', length: 20, nullable: false },
+        { name: 'name', type: 'string', length: 255, nullable: false },
+        { name: 'value', type: 'string', length: 2048, nullable: false },
+        { name: 'ttl', type: 'number', defaultValue: 600 },
+        { name: 'priority', type: 'number', nullable: true },
+        { name: 'weight', type: 'number', nullable: true },
+        { name: 'port', type: 'number', nullable: true },
+        { name: 'status', type: 'string', length: 50, defaultValue: 'active' },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_dns_records_domain_id', columns: ['domain_id'] }
+      ],
+      foreignKeys: [
+        { column: 'domain_id', refTable: 'domains', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+
+    // ==================== 操作日志模块 ====================
+    {
+      name: 'operation_logs',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'number', defaultValue: 0 },
+        { name: 'action', type: 'string', length: 255, nullable: false },
+        { name: 'domain', type: 'string', length: 255, defaultValue: '' },
+        { name: 'data', type: 'json', nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_operation_logs_user_id', columns: ['user_id'] },
+        { name: 'idx_operation_logs_action', columns: ['action'] },
+        { name: 'idx_operation_logs_domain', columns: ['domain'] },
+        { name: 'idx_operation_logs_created_at', columns: ['created_at'] }
+      ]
+    },
+
+    // ==================== OAuth 模块 ====================
+    {
+      name: 'oauth_user_links',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'number', nullable: false },
+        { name: 'provider', type: 'string', length: 100, nullable: false },
+        { name: 'subject', type: 'string', length: 255, nullable: false },
+        { name: 'email', type: 'string', length: 255, defaultValue: '' },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_oauth_user_links_user_id', columns: ['user_id'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'oauth_states',
+      columns: [
+        { name: 'state', type: 'string', length: 255, primaryKey: true },
+        { name: 'mode', type: 'string', length: 20, nullable: false },
+        { name: 'provider', type: 'string', length: 100, nullable: false },
+        { name: 'user_id', type: 'number', nullable: true },
+        { name: 'expires_at', type: 'datetime', nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_oauth_state_expires', columns: ['expires_at'] }
+      ]
+    },
+
+    // ==================== 会话与安全模块 ====================
+    {
+      name: 'runtime_secrets',
+      columns: [
+        { name: 'key', type: 'string', length: 255, primaryKey: true },
+        { name: 'value', type: 'string', length: 4096, nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ]
+    },
+    {
+      name: 'user_2fa',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'number', nullable: false },
+        { name: 'type', type: 'string', length: 50, defaultValue: 'totp' },
+        { name: 'secret', type: 'string', length: 255, nullable: false },
+        { name: 'backup_codes', type: 'json', nullable: false },
+        { name: 'enabled', type: 'boolean', defaultValue: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_user_2fa_user_id', columns: ['user_id'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'webauthn_credentials',
+      columns: [
+        { name: 'id', type: 'string', length: 255, primaryKey: true },
+        { name: 'user_id', type: 'number', nullable: false },
+        { name: 'public_key', type: 'string', length: 4096, nullable: false },
+        { name: 'counter', type: 'number', defaultValue: 0 },
+        { name: 'device_type', type: 'string', length: 50, defaultValue: '' },
+        { name: 'backed_up', type: 'boolean', defaultValue: false },
+        { name: 'transports', type: 'json', nullable: false },
+        { name: 'name', type: 'string', length: 255, defaultValue: 'Passkey' },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'last_used_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'user_sessions',
+      columns: [
+        { name: 'id', type: 'string', length: 255, primaryKey: true },
+        { name: 'user_id', type: 'number', nullable: false },
+        { name: 'token', type: 'string', length: 255, unique: true, nullable: false },
+        { name: 'user_agent', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'ip', type: 'string', length: 45, defaultValue: '' },
+        { name: 'last_active_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'expires_at', type: 'datetime', nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_user_sessions_token', columns: ['token'] },
+        { name: 'idx_user_sessions_user_id', columns: ['user_id'] },
+        { name: 'idx_user_sessions_expires_at', columns: ['expires_at'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'login_attempts',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'identifier', type: 'string', length: 255, nullable: false },
+        { name: 'ip_address', type: 'string', length: 255, defaultValue: '' },
+        { name: 'attempt_count', type: 'number', defaultValue: 1 },
+        { name: 'last_attempt_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'locked_until', type: 'datetime', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_login_attempts_identifier', columns: ['identifier'] },
+        { name: 'idx_login_attempts_ip', columns: ['ip_address'] },
+        { name: 'idx_login_attempts_locked', columns: ['locked_until'] }
+      ]
+    },
+    {
+      name: 'password_resets',
+      columns: [
+        { name: 'email', type: 'string', length: 255, primaryKey: true },
+        { name: 'code', type: 'string', length: 6, nullable: false },
+        { name: 'expires_at', type: 'datetime', nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_password_resets_expires', columns: ['expires_at'] }
+      ]
+    },
+    {
+      name: 'system_settings',
+      columns: [
+        { name: 'key', type: 'string', length: 255, primaryKey: true },
+        { name: 'value', type: 'string', length: 4096, nullable: false },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ]
+    },
+
+    // ==================== 用户偏好与 Token 模块 ====================
+    {
+      name: 'user_preferences',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'number', unique: true, nullable: false },
+        { name: 'theme', type: 'string', length: 50, defaultValue: 'auto' },
+        { name: 'language', type: 'string', length: 50, defaultValue: 'zh-CN' },
+        { name: 'notifications_enabled', type: 'boolean', defaultValue: true },
+        { name: 'email_notifications', type: 'boolean', defaultValue: true },
+        { name: 'background_image', type: 'string', length: 2048, nullable: true },
+        { name: 'avatar_image', type: 'string', length: 2048, nullable: true },
+        { name: 'pinned_domains', type: 'json', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_user_preferences_user_id', columns: ['user_id'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'user_tokens',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'number', nullable: false },
+        { name: 'name', type: 'string', length: 255, nullable: false },
+        { name: 'token_hash', type: 'string', length: 255, unique: true, nullable: false },
+        { name: 'allowed_domains', type: 'json', nullable: false },
+        { name: 'allowed_services', type: 'json', nullable: false },
+        { name: 'start_time', type: 'datetime', nullable: true },
+        { name: 'end_time', type: 'datetime', nullable: true },
+        { name: 'max_role', type: 'number', defaultValue: 1 },
+        { name: 'is_active', type: 'boolean', defaultValue: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'last_used_at', type: 'datetime', nullable: true },
+      ],
+      indexes: [
+        { name: 'idx_user_tokens_user_id', columns: ['user_id'] },
+        { name: 'idx_user_tokens_token_hash', columns: ['token_hash'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+
+    // ==================== 故障转移模块 ====================
+    {
+      name: 'failover_configs',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'domain_id', type: 'number', nullable: false },
+        { name: 'record_id', type: 'number', nullable: false },
+        { name: 'record_type', type: 'string', length: 50, nullable: false },
+        { name: 'record_name', type: 'string', length: 255, nullable: false },
+        { name: 'primary_value', type: 'string', length: 255, nullable: false },
+        { name: 'backup_value', type: 'string', length: 255, nullable: false },
+        { name: 'check_interval', type: 'number', defaultValue: 60 },
+        { name: 'check_timeout', type: 'number', defaultValue: 5 },
+        { name: 'check_method', type: 'string', length: 50, defaultValue: 'ping' },
+        { name: 'check_port', type: 'number', nullable: true },
+        { name: 'check_path', type: 'string', length: 255, nullable: true },
+        { name: 'check_expect', type: 'string', length: 255, nullable: true },
+        { name: 'enabled', type: 'boolean', defaultValue: true },
+        { name: 'created_by', type: 'number', nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_failover_configs_domain_id', columns: ['domain_id'] },
+        { name: 'idx_failover_configs_enabled', columns: ['enabled'] }
+      ],
+      foreignKeys: [
+        { column: 'domain_id', refTable: 'domains', refColumn: 'id', onDelete: 'CASCADE' },
+        { column: 'created_by', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'failover_status',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'config_id', type: 'number', unique: true, nullable: false },
+        { name: 'current_value', type: 'string', length: 255, nullable: false },
+        { name: 'status', type: 'string', length: 20, defaultValue: 'primary' },
+        { name: 'last_check_at', type: 'datetime', nullable: true },
+        { name: 'last_failover_at', type: 'datetime', nullable: true },
+        { name: 'fail_count', type: 'number', defaultValue: 0 },
+        { name: 'success_count', type: 'number', defaultValue: 0 },
+        { name: 'last_error', type: 'string', length: 2048, nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_failover_status_config_id', columns: ['config_id'] }
+      ],
+      foreignKeys: [
+        { column: 'config_id', refTable: 'failover_configs', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+
+    // ==================== 安全策略模块 ====================
+    {
+      name: 'security_policies',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'require_2fa_global', type: 'boolean', defaultValue: false },
+        { name: 'min_password_length', type: 'number', defaultValue: 8 },
+        { name: 'min_password_strength', type: 'number', defaultValue: 2 },
+        { name: 'session_timeout_hours', type: 'number', defaultValue: 24 },
+        { name: 'max_login_attempts', type: 'number', defaultValue: 5 },
+        { name: 'lockout_duration_minutes', type: 'number', defaultValue: 30 },
+        { name: 'allow_remember_device', type: 'boolean', defaultValue: true },
+        { name: 'trusted_device_days', type: 'number', defaultValue: 30 },
+        { name: 'require_password_change_on_first_login', type: 'boolean', defaultValue: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ]
+    },
+    {
+      name: 'user_security_settings',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'number', unique: true, nullable: false },
+        { name: 'require_2fa', type: 'boolean', defaultValue: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_user_security_settings_user_id', columns: ['user_id'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'trusted_devices',
+      columns: [
+        { name: 'id', type: 'string', length: 255, primaryKey: true },
+        { name: 'user_id', type: 'number', nullable: false },
+        { name: 'device_name', type: 'string', length: 255, nullable: false },
+        { name: 'device_fingerprint', type: 'string', length: 255, nullable: false },
+        { name: 'user_agent', type: 'string', length: 2048, nullable: true },
+        { name: 'ip_address', type: 'string', length: 255, nullable: true },
+        { name: 'last_used_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'expires_at', type: 'datetime', nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_trusted_devices_user_id', columns: ['user_id'] },
+        { name: 'idx_trusted_devices_fingerprint', columns: ['device_fingerprint'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+
+    // ==================== NS 监控模块 ====================
+    {
+      name: 'ns_monitor_configs',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'domain_id', type: 'number', nullable: false },
+        { name: 'expected_ns', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'enabled', type: 'boolean', defaultValue: false },
+        { name: 'notify_email', type: 'boolean', defaultValue: true },
+        { name: 'notify_channels', type: 'boolean', defaultValue: true },
+        { name: 'check_interval', type: 'number', defaultValue: 3600 },
+        { name: 'created_by', type: 'number', nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_ns_monitor_configs_domain_id', columns: ['domain_id'] },
+        { name: 'idx_ns_monitor_configs_enabled', columns: ['enabled'] }
+      ],
+      foreignKeys: [
+        { column: 'domain_id', refTable: 'domains', refColumn: 'id', onDelete: 'CASCADE' },
+        { column: 'created_by', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'ns_monitor_status',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'config_id', type: 'number', unique: true, nullable: false },
+        { name: 'current_ns', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'status', type: 'string', length: 20, defaultValue: 'ok' },
+        { name: 'last_check_at', type: 'datetime', nullable: true },
+        { name: 'last_alert_at', type: 'datetime', nullable: true },
+        { name: 'alert_count', type: 'number', defaultValue: 0 },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_ns_monitor_status_config_id', columns: ['config_id'] }
+      ],
+      foreignKeys: [
+        { column: 'config_id', refTable: 'ns_monitor_configs', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'ns_monitor_alerts',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'config_id', type: 'number', nullable: false },
+        { name: 'alert_type', type: 'string', length: 20, nullable: false },
+        { name: 'expected_ns', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'actual_ns', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'sent_email', type: 'boolean', defaultValue: false },
+        { name: 'sent_channels', type: 'boolean', defaultValue: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_ns_monitor_alerts_config_id', columns: ['config_id'] }
+      ],
+      foreignKeys: [
+        { column: 'config_id', refTable: 'ns_monitor_configs', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'user_ns_monitor_prefs',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'number', unique: true, nullable: false },
+        { name: 'notify_email', type: 'boolean', defaultValue: true },
+        { name: 'notify_channels', type: 'boolean', defaultValue: true },
+        { name: 'check_interval', type: 'number', defaultValue: 3600 },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_user_ns_monitor_prefs_user_id', columns: ['user_id'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'ns_monitor_domains',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'number', nullable: false },
+        { name: 'domain_name', type: 'string', length: 255, defaultValue: '' },
+        { name: 'expected_ns', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'current_ns', type: 'string', length: 2048, defaultValue: '' },
+        { name: 'encrypted_ns', type: 'string', length: 4096, nullable: true },
+        { name: 'plain_ns', type: 'string', length: 4096, nullable: true },
+        { name: 'is_poisoned', type: 'boolean', defaultValue: false },
+        { name: 'status', type: 'string', length: 20, defaultValue: 'ok' },
+        { name: 'enabled', type: 'boolean', defaultValue: true },
+        { name: 'last_check_at', type: 'datetime', nullable: true },
+        { name: 'last_alert_at', type: 'datetime', nullable: true },
+        { name: 'alert_count', type: 'number', defaultValue: 0 },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_ns_monitor_domains_user_id', columns: ['user_id'] },
+        { name: 'idx_ns_monitor_domains_domain_name', columns: ['domain_name'] },
+        { name: 'idx_ns_monitor_domains_enabled', columns: ['enabled'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+
+    // ==================== 缓存模块 ====================
+    {
+      name: 'rdap_server_cache',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'tld', type: 'string', length: 255, unique: true, nullable: false },
+        { name: 'servers', type: 'string', length: 4096, nullable: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_rdap_server_cache_tld', columns: ['tld'] }
+      ]
+    },
+    {
+      name: 'system_cache',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'cache_key', type: 'string', length: 255, unique: true, nullable: false },
+        { name: 'cache_value', type: 'string', length: 4096, nullable: false },
+        { name: 'expires_at', type: 'datetime', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_system_cache_key', columns: ['cache_key'] },
+        { name: 'idx_system_cache_expires', columns: ['expires_at'] }
+      ]
+    },
+
+    // ==================== 域名续期模块 ====================
+    {
+      name: 'renewable_domains',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'account_id', type: 'number', nullable: false },
+        { name: 'provider_type', type: 'string', length: 50, nullable: false },
+        { name: 'domain_name', type: 'string', length: 255, nullable: false },
+        { name: 'third_id', type: 'string', length: 255, defaultValue: '' },
+        { name: 'full_domain', type: 'string', length: 255, nullable: false },
+        { name: 'expires_at', type: 'datetime', nullable: true },
+        { name: 'never_expires', type: 'boolean', defaultValue: false },
+        { name: 'status', type: 'string', length: 20, defaultValue: 'active' },
+        { name: 'remark', type: 'string', length: 2048, nullable: true },
+        { name: 'enabled', type: 'boolean', defaultValue: true },
+        { name: 'last_renewed_at', type: 'datetime', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_renewable_domains_account_id', columns: ['account_id'] },
+        { name: 'idx_renewable_domains_provider_type', columns: ['provider_type'] },
+        { name: 'idx_renewable_domains_expires_at', columns: ['expires_at'] },
+        { name: 'idx_renewable_domains_enabled', columns: ['enabled'] }
+      ],
+      foreignKeys: [
+        { column: 'account_id', refTable: 'dns_accounts', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+
+    // ==================== WHOIS 缓存模块 ====================
+    {
+      name: 'whois_cache',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'domain_name', type: 'string', length: 255, unique: true, nullable: false },
+        { name: 'whois_data', type: 'json', nullable: true },
+        { name: 'status', type: 'string', length: 50, nullable: true },
+        { name: 'cached_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'expires_at', type: 'datetime', nullable: true },
+      ],
+      indexes: [
+        { name: 'idx_whois_cache_domain_name', columns: ['domain_name'] },
+        { name: 'idx_whois_cache_expires_at', columns: ['expires_at'] }
+      ]
+    },
+
+    // ==================== 系统版本追踪模块 ====================
+    {
+      name: 'schema_versions',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'version', type: 'string', length: 50, unique: true, nullable: false },
+        { name: 'semantic_version', type: 'string', length: 20, nullable: true },
+        { name: 'description', type: 'string', length: 2048, nullable: true },
+        { name: 'applied_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'success', type: 'boolean', defaultValue: true },
+        { name: 'error_message', type: 'string', length: 4096, nullable: true },
+        { name: 'execution_time_ms', type: 'number', nullable: true },
+        { name: 'system_type', type: 'string', length: 50, defaultValue: 'hidns' },
+      ],
+      indexes: [
+        { name: 'idx_schema_versions_version', columns: ['version'] },
+        { name: 'idx_schema_versions_applied_at', columns: ['applied_at'] },
+        { name: 'idx_schema_versions_system_type', columns: ['system_type'] },
+        { name: 'idx_schema_versions_semantic_version', columns: ['semantic_version'] }
+      ]
+    }
+  ]
+};

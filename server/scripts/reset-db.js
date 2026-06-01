@@ -6,7 +6,7 @@
  */
 
 const { createConnection, closeConnection } = require('../dist/db/database');
-const { initSchemaAsync } = require('../dist/db/schema');
+const { initializeDSM } = require('../dist/db/init-dsm');
 const { loadEnv } = require('../dist/config/env');
 
 // Load environment variables
@@ -24,7 +24,7 @@ async function resetDatabase() {
 
     // Reset schema (drop all tables and recreate)
     console.log('[ResetDB] Dropping all tables...');
-    await initSchemaAsync(conn, true);
+    await initializeDSM();
 
     console.log('[ResetDB] Database reset successfully!');
     console.log('[ResetDB] Please access the setup wizard to reinitialize:');

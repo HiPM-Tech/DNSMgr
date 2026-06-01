@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { connect, disconnect, getConnection } from '../src/db/connection';
-import { initSchemaAsync } from '../src/db/schema';
+import { initializeDSM } from '../src/db/init-dsm';
 
 describe('数据库迁移测试', () => {
   let conn: ReturnType<typeof getConnection>;
@@ -514,9 +514,9 @@ describe('数据库迁移测试', () => {
       expect((result as any).name).toBe('Test Item');
     });
 
-    it('应该支持使用 initSchemaAsync 初始化完整数据库', async () => {
-      // 使用 initSchemaAsync 初始化（带 reset）
-      await initSchemaAsync(conn, true);
+    it('应该支持使用 initializeDSM 初始化完整数据库', async () => {
+      // 使用 DSM 初始化
+      await initializeDSM();
 
       // 验证核心表存在
       const coreTables = [

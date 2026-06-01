@@ -53,13 +53,9 @@ export {
   type DriverConfig,
 } from './drivers/types';
 
-// ==================== Schema管理（仅初始化使用）====================
-export {
-  type Migration,
-  createMigration,
-} from './schema/migration';
-
-export { initSchema, initSchemaAsync } from './schema';
+// ==================== Schema管理（已迁移至 DSM）====================
+// 注意：旧版 initSchema/initSchemaAsync 已被 initializeDSM 取代
+// export { initSchema, initSchemaAsync } from './schema';
 
 // ==================== 业务适配器层（唯一业务入口）====================
 export {
