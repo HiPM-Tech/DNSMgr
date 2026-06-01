@@ -146,7 +146,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     condition: async () => {
       const conn = getConnection();
       const cols = await conn.query(`PRAGMA table_info(domains)`);
-      return !cols.some((c: any) => c.name === 'apex_expires_at');
+      return !cols.some((c: any) => c.name.replace(/["'`]/g, '') === 'apex_expires_at');
     },
     execute: async () => {
       const conn = getConnection();
@@ -163,7 +163,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     condition: async () => {
       const conn = getConnection();
       const cols = await conn.query(`PRAGMA table_info(domains)`);
-      return !cols.some((c: any) => c.name === 'enabled');
+      return !cols.some((c: any) => c.name.replace(/["'`]/g, '') === 'enabled');
     },
     execute: async () => {
       const conn = getConnection();
@@ -180,7 +180,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
       const conn = getConnection();
       if (conn.type === 'sqlite') {
         const cols = await conn.query(`PRAGMA table_info(dns_accounts)`);
-        return !cols.some((c: any) => c.name === 'enabled');
+        return !cols.some((c: any) => c.name.replace(/["'`]/g, '') === 'enabled');
       } else {
         const res = await conn.get("SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'");
         return (res as any)?.cnt === 0;
@@ -226,7 +226,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
       const conn = getConnection();
       if (conn.type === 'sqlite') {
         const cols = await conn.query(`PRAGMA table_info(ns_monitor_domains)`);
-        return cols.some((c: any) => c.name === 'domain_id');
+        return cols.some((c: any) => c.name.replace(/["'`]/g, '') === 'domain_id');
       } else {
         const res = await conn.get("SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ns_monitor_domains' AND COLUMN_NAME = 'domain_id'");
         return (res as any)?.cnt > 0;

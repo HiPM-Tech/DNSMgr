@@ -261,7 +261,7 @@ export class SchemaVersionManager {
       const result = await this.conn.execute(checkSql);
       
       if (Array.isArray(result)) {
-        const hasEnabledColumn = result.some((row: any) => row.name === 'enabled');
+        const hasEnabledColumn = result.some((row: any) => row.name.replace(/["'`]/g, '') === 'enabled');
         return hasEnabledColumn;
       }
       

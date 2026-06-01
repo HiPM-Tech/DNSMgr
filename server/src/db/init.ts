@@ -292,7 +292,7 @@ async function initSQLiteSchema(conn: DatabaseConnection): Promise<void> {
   try {
     // 先检查列是否存在，避免不必要的 SQL 执行
     const columns = await conn.query('PRAGMA table_info(dns_accounts)') as any[];
-    const hasEnabledColumn = columns.some((col: any) => col.name === 'enabled');
+    const hasEnabledColumn = columns.some((col: any) => col.name.replace(/["'`]/g, '') === 'enabled');
     
     if (!hasEnabledColumn) {
       await conn.execute("ALTER TABLE dns_accounts ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1");

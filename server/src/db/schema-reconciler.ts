@@ -62,7 +62,7 @@ export class SchemaReconciler {
       } else {
         // 2. 检查列覆盖率
         const dbCols = await this.getTableColumns(table.name);
-        const dbColNames = new Set(dbCols.map((c: any) => c.name));
+        const dbColNames = new Set(dbCols.map((c: any) => c.name.replace(/["'`]/g, '')));
         for (const col of table.columns) {
           if (!dbColNames.has(col.name)) {
             issues.push(`Column missing in ${table.name}: ${col.name}`);

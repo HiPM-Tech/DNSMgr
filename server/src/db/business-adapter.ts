@@ -3335,7 +3335,7 @@ export const WhoisOperations = {
             table: 'whois_cache' 
           }) as any[];
           
-          const hasStatusColumn = columns.some((col: any) => col.name === 'status');
+          const hasStatusColumn = columns.some((col: any) => col.name.replace(/["'`]/g, '') === 'status');
           
           if (!hasStatusColumn) {
             await executeInternal(

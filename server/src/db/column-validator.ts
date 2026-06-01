@@ -74,7 +74,7 @@ export async function validateColumn(
       const result = await conn.execute(sql);
       
       if (Array.isArray(result)) {
-        const column = result.find((row: any) => row.name === spec.columnName);
+        const column = result.find((row: any) => row.name.replace(/["'`]/g, '') === spec.columnName);
         if (column) {
           actualType = column.type || '';
           isNullable = column.notnull === 0;
