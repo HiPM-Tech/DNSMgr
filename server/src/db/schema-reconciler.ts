@@ -594,6 +594,8 @@ export class SchemaReconciler {
               log.warn('Schema', `Column ${tableDef.name}.${col.name} already exists, skipping.`);
             } else if (this.getDbType() === 'sqlite' && (msg.includes('unique column') || msg.includes('unique constraint'))) {
               log.warn('Schema', `Cannot add UNIQUE column ${tableDef.name}.${col.name} via ALTER in SQLite. Skipping add and relying on rebuild.`);
+            } else if (this.getDbType() === 'sqlite' && (msg.includes('non-constant default') || msg.includes('default value'))) {
+              log.warn('Schema', `Cannot add column ${tableDef.name}.${col.name} with non-constant default via ALTER in SQLite. Skipping add and relying on rebuild.`);
             } else {
               throw e;
             }

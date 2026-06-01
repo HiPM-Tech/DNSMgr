@@ -285,9 +285,14 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     dependsOn: ['migrate-ns-monitor-cleanup'],
     condition: async () => {
       const conn = getConnection();
-      const tables = await conn.query(
-        conn.type === 'sqlite' ? "SELECT name FROM sqlite_master WHERE type='table'" : "SHOW TABLES"
-      );
+      let tables: any[];
+      if (conn.type === 'sqlite') {
+        tables = await conn.query("SELECT name FROM sqlite_master WHERE type='table'");
+      } else if (conn.type === 'mysql') {
+        tables = await conn.query("SHOW TABLES");
+      } else {
+        tables = await conn.query("SELECT tablename as name FROM pg_catalog.pg_tables WHERE schemaname = 'public'");
+      }
       const names = tables.map((t: any) => t.name || Object.values(t)[0]);
       return names.some((n: string) => ['ns_monitor_configs', 'ns_monitor_status', 'ns_monitor_alerts'].includes(n));
     },
