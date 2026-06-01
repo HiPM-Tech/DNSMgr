@@ -37,8 +37,9 @@ FROM node:20-alpine AS production
 # Accept CI build flag from builder
 ARG CI_BUILD=false
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm and database client tools for DSM backups
+RUN npm install -g pnpm && \
+    apk add --no-cache mysql-client postgresql-client sqlite
 
 # Create app directory
 WORKDIR /app

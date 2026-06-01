@@ -8,11 +8,26 @@ const execAsync = promisify(exec);
 
 export class BackupManager {
   private backupDir: string;
+  private isBackupRequired: boolean;
 
   constructor() {
     this.backupDir = path.join(process.cwd(), 'data', 'backups');
+    // 默认开启强制备份，可通过环境变量 DSM_BACKUP_REQUIRED=false 关闭
+    this.isBackupRequired = process.env.DSM_BACKUP_REQUIRED !== 'false';
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
+    }
+  }
+
+  /**
+   * 检查备份工具是否存在
+   */
+  private async checkToolExists(toolName: string): Promise<boolean> {
+    try {
+      await execAsync(`which ${toolName}`);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -37,6 +52,12 @@ export class BackupManager {
         return `${backupPath}.db`;
       } 
       else if (dbType === 'mysql') {
+        if (!(await this.checkToolExists('mysqldump'))) {
+          const msg = 'mysqldump tool not found in PATH.';
+          if (this.isBackupRequired) throw new Error(msg);
+          log.warn('Backup', `${msg} Skipping backup due to configuration.`);
+          return '';
+        }
         const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
         const cmd = `mysqldump -h ${DB_HOST} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} > ${backupPath}.sql`;
         await execAsync(cmd);
@@ -44,6 +65,12 @@ export class BackupManager {
         return `${backupPath}.sql`;
       }
       else if (dbType === 'postgresql') {
+        if (!(await this.checkToolExists('pg_dump'))) {
+          const msg = 'pg_dump tool not found in PATH.';
+          if (this.isBackupRequired) throw new Error(msg);
+          log.warn('Backup', `${msg} Skipping backup due to configuration.`);
+          return '';
+        }
         const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
         // 注意：pg_dump 可能需要 PGPASSWORD 环境变量
         const cmd = `PGPASSWORD=${DB_PASSWORD} pg_dump -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} -f ${backupPath}.sql`;
