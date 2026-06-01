@@ -164,7 +164,15 @@ export class SchemaReconciler {
     }
     
     if (dbType === 'postgresql') {
-      await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`);
+      // PostgreSQL may need USING clause for incompatible type conversions
+      let sql = `ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`;
+      
+      // Add USING clause for specific type conversions that require explicit casting
+      if (newType === 'BOOLEAN' || newType === 'BIGINT' || newType === 'TIMESTAMPTZ') {
+        sql += ` USING ${this.escapeIdentifier(column)}::${newType}`;
+      }
+      
+      await this.conn.execute(sql);
     } else if (dbType === 'mysql') {
       await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${this.escapeIdentifier(column)} ${newType}`);
     }

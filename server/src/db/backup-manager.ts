@@ -60,7 +60,8 @@ export class BackupManager {
         }
         const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
         // Use --skip-ssl for compatibility with both MySQL and MariaDB
-        const cmd = `mysqldump --skip-ssl -h ${DB_HOST} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} > ${backupPath}.sql`;
+        // Use --default-auth=mysql_native_password for MariaDB compatibility
+        const cmd = `mysqldump --skip-ssl --default-auth=mysql_native_password -h ${DB_HOST} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} > ${backupPath}.sql`;
         await execAsync(cmd);
         log.info('Backup', `MySQL backup saved to ${backupPath}.sql`);
         return `${backupPath}.sql`;
