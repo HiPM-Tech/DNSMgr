@@ -150,37 +150,40 @@ export class SchemaReconciler {
     await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} DROP COLUMN ${this.escapeIdentifier(column)}`);
   }
 
-  private async modifyColumnType(table: string, column: string, newType: string): Promise<void> {
+  private async modifyColumnType(table: string, column: string, newType: string, originCol?: ColumnDef): Promise<void> {
     const dbType = this.getDbType();
     if (dbType === 'sqlite') {
-      // SQLite 不支持直接修改列类型，需要重建表
       log.warn('Schema', `Using table rebuild for SQLite type modification: ${table}.${column}`);
-      return; // 由 syncColumns 统一处理重建
+      return;
     }
     
-    // PostgreSQL: SERIAL is a pseudo-type, cannot be used in ALTER COLUMN
     if (dbType === 'postgresql' && newType === 'SERIAL') {
       log.warn('Schema', `Skipping type modification to SERIAL for ${table}.${column} (SERIAL is a pseudo-type)`);
       return;
     }
     
     if (dbType === 'postgresql') {
-      // PostgreSQL requires three steps for type conversion with default values:
-      // 1. DROP DEFAULT
-      // 2. ALTER TYPE with USING clause
-      // 3. SET DEFAULT (if needed)
       await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} DROP DEFAULT`);
       
       let sql = `ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`;
       
-      // Add USING clause for specific type conversions that require explicit casting
       if (newType === 'BOOLEAN' || newType === 'BIGINT' || newType === 'TIMESTAMPTZ') {
         sql += ` USING ${this.escapeIdentifier(column)}::${newType}`;
       }
       
       await this.conn.execute(sql);
+      
+      if (originCol?.defaultValue !== undefined) {
+        const defaultVal = this.formatDefaultValue(originCol.defaultValue, originCol.type, 'postgresql');
+        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} SET DEFAULT ${defaultVal}`);
+      }
     } else if (dbType === 'mysql') {
-      await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${this.escapeIdentifier(column)} ${newType}`);
+      if (originCol) {
+        const fullDef = this.getColumnDefinitionSQL(originCol);
+        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${fullDef}`);
+      } else {
+        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${this.escapeIdentifier(column)} ${newType}`);
+      }
     }
   }
 
@@ -519,8 +522,7 @@ export class SchemaReconciler {
 
   private async syncColumns(tableDef: TableDef, dryRun: boolean): Promise<void> {
     const existingCols = await this.getTableColumns(tableDef.name);
-    // Normalize column names to handle quoted identifiers (especially for SQLite)
-    const existingNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '')));
+    const existingNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '').trim()));
     const targetNames = new Set(tableDef.columns.map(c => c.name));
 
     // 1. 添加缺失的列
@@ -531,14 +533,22 @@ export class SchemaReconciler {
           log.info('Schema [DRY RUN]', `Would add column: ${tableDef.name}.${col.name}`);
         } else {
           log.info('Schema', `Adding missing column: ${tableDef.name}.${col.name}`);
-          await this.addColumn(tableDef.name, col.name, def);
+          try {
+            await this.addColumn(tableDef.name, col.name, def);
+          } catch (e: any) {
+            if (e.message?.toLowerCase().includes('duplicate column')) {
+              log.warn('Schema', `Column ${tableDef.name}.${col.name} already exists, skipping.`);
+            } else {
+              throw e;
+            }
+          }
         }
       }
     }
 
     // 2. 删除多余的列（在 Schema 定义中不存在的列）
     for (const existingCol of existingCols) {
-      const normalizedName = existingCol.name.replace(/["'`]/g, '');
+      const normalizedName = existingCol.name.replace(/["'`]/g, '').trim();
       if (!targetNames.has(normalizedName)) {
         if (dryRun) {
           log.warn('Schema [DRY RUN]', `Would drop column: ${tableDef.name}.${existingCol.name}`);
@@ -554,7 +564,7 @@ export class SchemaReconciler {
     const rebuildTargets: { name: string; type: string }[] = [];
 
     for (const col of tableDef.columns) {
-      const existingCol = existingCols.find((c: any) => c.name.replace(/["'`]/g, '') === col.name);
+      const existingCol = existingCols.find((c: any) => c.name.replace(/["'`]/g, '').trim() === col.name);
       if (existingCol) {
         const expectedType = this.mapTypeToSQL(col.type, this.getDbType(), col.length);
         const actualType = existingCol.type?.toUpperCase();
@@ -571,7 +581,7 @@ export class SchemaReconciler {
               log.warn('Schema [DRY RUN]', `Would modify column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
             } else {
               log.warn('Schema', `Modifying column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
-              await this.modifyColumnType(tableDef.name, col.name, expectedType);
+              await this.modifyColumnType(tableDef.name, col.name, expectedType, col);
             }
           }
         }
