@@ -150,7 +150,7 @@ export class SchemaReconciler {
     await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} DROP COLUMN ${this.escapeIdentifier(column)}`);
   }
 
-  private async modifyColumnType(table: string, column: string, newType: string, originCol?: ColumnDef): Promise<void> {
+  private async modifyColumnType(table: string, column: string, newType: string, originCol?: ColumnDef, actualDbType?: string): Promise<void> {
     const dbType = this.getDbType();
     if (dbType === 'sqlite') {
       log.warn('Schema', `Using table rebuild for SQLite type modification: ${table}.${column}`);
@@ -168,7 +168,13 @@ export class SchemaReconciler {
       let sql = `ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`;
       
       if (newType === 'BOOLEAN' || newType === 'BIGINT' || newType === 'TIMESTAMPTZ') {
-        sql += ` USING ${this.escapeIdentifier(column)}::${newType}`;
+        if (newType === 'BOOLEAN' && actualDbType && ['SMALLINT', 'INT', 'INTEGER', 'INT2', 'INT4', 'TINYINT'].includes(actualDbType.toUpperCase().replace(/\(.*?\)/g, '').trim())) {
+          sql += ` USING CASE WHEN ${this.escapeIdentifier(column)} != 0 THEN true ELSE false END`;
+        } else if (newType === 'TIMESTAMPTZ' && actualDbType && actualDbType.toUpperCase().includes('TIMESTAMP WITHOUT TIME ZONE')) {
+          sql += ` USING ${this.escapeIdentifier(column)}::TIMESTAMP WITHOUT TIME ZONE AT TIME ZONE 'UTC'`;
+        } else {
+          sql += ` USING ${this.escapeIdentifier(column)}::${newType}`;
+        }
       }
       
       await this.conn.execute(sql);
@@ -180,7 +186,12 @@ export class SchemaReconciler {
     } else if (dbType === 'mysql') {
       if (originCol) {
         const fullDef = this.getColumnDefinitionSQL(originCol);
-        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${fullDef}`);
+        const cleanedDef = fullDef
+          .replace(/\s+PRIMARY KEY\s*/i, ' ')
+          .replace(/\s+AUTO_INCREMENT\s*/i, ' ')
+          .replace(/\s+AUTOINCREMENT\s*/i, ' ')
+          .trim();
+        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${cleanedDef}`);
       } else {
         await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${this.escapeIdentifier(column)} ${newType}`);
       }
@@ -188,9 +199,38 @@ export class SchemaReconciler {
   }
 
   private isTypeCompatible(actual: string, expected: string): boolean {
-    // 简单类型兼容性检查
-    const normalize = (t: string) => t.toUpperCase().replace(/\(.*?\)/g, '');
-    return normalize(actual) === normalize(expected);
+    const normalize = (t: string) => t.toUpperCase().replace(/\(.*?\)/g, '').trim();
+    const normActual = normalize(actual);
+    const normExpected = normalize(expected);
+    if (normActual === normExpected) return true;
+
+    // 类型别名映射
+    const aliases: Record<string, string[]> = {
+      'VARCHAR': ['CHARACTER VARYING'],
+      'CHAR': ['CHARACTER', 'NCHAR'],
+      'BOOLEAN': ['BOOL'],
+      'INTEGER': ['INT', 'INT4'],
+      'BIGINT': ['INT8', 'INTEGER'],
+      'SMALLINT': ['INT2'],
+      'TIMESTAMPTZ': ['TIMESTAMP WITH TIME ZONE', 'TIMESTAMP(6) WITH TIME ZONE'],
+      'TIMESTAMP': ['TIMESTAMP WITHOUT TIME ZONE', 'DATETIME'],
+      'DOUBLE PRECISION': ['FLOAT8', 'FLOAT'],
+      'REAL': ['FLOAT4'],
+      'NUMERIC': ['DECIMAL', 'NUMBER'],
+      'TINYINT(1)': ['BOOLEAN', 'BOOL'],
+      'TEXT': ['CLOB'],
+    };
+
+    // 检查实际类型是否是期望类型的别名
+    const expectedAliases = aliases[normExpected];
+    if (expectedAliases && expectedAliases.includes(normActual)) return true;
+
+    // 反过来检查
+    for (const [canonical, aliasList] of Object.entries(aliases)) {
+      if (aliasList.includes(normActual) && canonical === normExpected) return true;
+    }
+
+    return false;
   }
 
   private async execute(sql: string): Promise<void> {
@@ -581,7 +621,7 @@ export class SchemaReconciler {
               log.warn('Schema [DRY RUN]', `Would modify column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
             } else {
               log.warn('Schema', `Modifying column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
-              await this.modifyColumnType(tableDef.name, col.name, expectedType, col);
+              await this.modifyColumnType(tableDef.name, col.name, expectedType, col, existingCol.type);
             }
           }
         }
@@ -603,11 +643,11 @@ export class SchemaReconciler {
     
     // 1. 获取现有列以保留数据
     const existingCols = await this.getTableColumns(tableName);
-    const existingColNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '')));
+    const existingColNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '').trim()));
     
     // 2. 确定要保留的列（目标列中存在于现有表中的）
     const keepCols = tableDef.columns.filter(c => {
-      const normalizedName = c.name.replace(/["'`]/g, '');
+      const normalizedName = c.name.replace(/["'`]/g, '').trim();
       return existingColNames.has(normalizedName);
     });
     const keepColNames = keepCols.map(c => this.escapeIdentifier(c.name));

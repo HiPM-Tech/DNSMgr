@@ -150,7 +150,8 @@ export class SQLiteDriver extends BaseDriver {
       this._stats.queries++;
       try {
         const stmt = this.db.prepare(sql);
-        if (sql.trim().toLowerCase().startsWith('select')) {
+        const sqlUpper = sql.trim().toLowerCase();
+        if (sqlUpper.startsWith('select') || sqlUpper.startsWith('pragma') || sqlUpper.startsWith('explain')) {
           return stmt.all(...serializeParams(params || [])) as T[];
         }
         stmt.run(...serializeParams(params || []));
