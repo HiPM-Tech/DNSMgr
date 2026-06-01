@@ -86,13 +86,13 @@ export class SchemaReconciler {
   private async getAllTables(): Promise<string[]> {
     const type = this.conn.type;
     if (type === 'sqlite') {
-      const rows = await this.conn.all(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`);
+      const rows = await this.conn.query(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`);
       return rows.map((r: any) => r.name);
     } else if (type === 'mysql') {
-      const rows = await this.conn.all("SELECT TABLE_NAME as name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
+      const rows = await this.conn.query("SELECT TABLE_NAME as name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
       return rows.map((r: any) => r.name);
     } else if (type === 'postgresql') {
-      const rows = await this.conn.all("SELECT tablename as name FROM pg_tables WHERE schemaname = 'public'");
+      const rows = await this.conn.query("SELECT tablename as name FROM pg_tables WHERE schemaname = 'public'");
       return rows.map((r: any) => r.name);
     }
     return [];
@@ -116,16 +116,16 @@ export class SchemaReconciler {
   private async getTableColumns(tableName: string): Promise<any[]> {
     const type = this.conn.type;
     if (type === 'sqlite') {
-      return this.conn.all(`PRAGMA table_info(${tableName})`);
+      return this.conn.query(`PRAGMA table_info(${tableName})`);
     } else if (type === 'mysql') {
-      return this.conn.all(
+      return this.conn.query(
         `SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE as nullable, COLUMN_DEFAULT as defaultValue 
          FROM INFORMATION_SCHEMA.COLUMNS 
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
         [tableName]
       );
     } else if (type === 'postgresql') {
-      return this.conn.all(
+      return this.conn.query(
         `SELECT column_name as name, data_type as type, is_nullable as nullable, column_default as defaultValue 
          FROM information_schema.columns 
          WHERE table_schema = 'public' AND table_name = $1`,
@@ -311,13 +311,13 @@ export class SchemaReconciler {
     // 获取数据库中所有表
     let existingTables: string[] = [];
     if (dbType === 'sqlite') {
-      const rows = await this.conn.all(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`);
+      const rows = await this.conn.query(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`);
       existingTables = rows.map((r: any) => r.name.toLowerCase());
     } else if (dbType === 'mysql') {
-      const rows = await this.conn.all("SELECT TABLE_NAME as name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
+      const rows = await this.conn.query("SELECT TABLE_NAME as name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
       existingTables = rows.map((r: any) => r.name.toLowerCase());
     } else if (dbType === 'postgresql') {
-      const rows = await this.conn.all("SELECT tablename as name FROM pg_tables WHERE schemaname = 'public'");
+      const rows = await this.conn.query("SELECT tablename as name FROM pg_tables WHERE schemaname = 'public'");
       existingTables = rows.map((r: any) => r.name.toLowerCase());
     }
 
@@ -418,7 +418,7 @@ export class SchemaReconciler {
   private async getTableForeignKeys(tableName: string): Promise<any[]> {
     const dbType = this.getDbType();
     if (dbType === 'mysql') {
-      return this.conn.all(
+      return this.conn.query(
         `SELECT CONSTRAINT_NAME as constraint_name, COLUMN_NAME as column_name, 
          REFERENCED_TABLE_NAME as ref_table, REFERENCED_COLUMN_NAME as ref_column,
          DELETE_RULE as delete_rule
@@ -427,7 +427,7 @@ export class SchemaReconciler {
         [tableName]
       );
     } else if (dbType === 'postgresql') {
-      return this.conn.all(
+      return this.conn.query(
         `SELECT tc.constraint_name, kcu.column_name, 
          ccu.table_name AS ref_table, ccu.column_name AS ref_column,
          rc.delete_rule
