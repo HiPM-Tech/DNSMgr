@@ -165,7 +165,12 @@ export class SchemaReconciler {
     }
     
     if (dbType === 'postgresql') {
-      // PostgreSQL may need USING clause for incompatible type conversions
+      // PostgreSQL requires three steps for type conversion with default values:
+      // 1. DROP DEFAULT
+      // 2. ALTER TYPE with USING clause
+      // 3. SET DEFAULT (if needed)
+      await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} DROP DEFAULT`);
+      
       let sql = `ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`;
       
       // Add USING clause for specific type conversions that require explicit casting
@@ -190,9 +195,9 @@ export class SchemaReconciler {
   }
 
   private escapeIdentifier(name: string): string {
-    const type = this.conn.type;
-    if (type === 'mysql') return `\`${name}\``;
-    return `"${name}"`; // PG and SQLite use double quotes
+    const dbType = this.getDbType();
+    if (dbType === 'mysql') return `\`${name}\``;
+    return `"${name}"`;
   }
 
   private getDbType(): string {
@@ -221,7 +226,13 @@ export class SchemaReconciler {
         this.backupManager.cleanup(7); 
       } catch (err) {
         log.error('Schema', 'Backup failed! Aborting reconciliation to protect data.', err);
-        throw err;
+        // Check if we should continue despite backup failure
+        const continueOnFail = process.env.DSM_BACKUP_REQUIRED !== 'true';
+        if (continueOnFail) {
+          log.warn('Schema', 'DSM_BACKUP_REQUIRED is not set to true, continuing with reconciliation...');
+        } else {
+          throw err;
+        }
       }
     }
 

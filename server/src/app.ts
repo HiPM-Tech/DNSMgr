@@ -540,6 +540,8 @@ async function initializeApp() {
     });
 
     // Re-check initialization status periodically
+    const MAX_RETRIES = 60; // Maximum 60 retries (5 minutes at 5s intervals)
+    let retryCount = 0;
     const initCheckInterval = setInterval(async () => {
       try {
         await connect();
@@ -557,7 +559,12 @@ async function initializeApp() {
           log.info('Server', 'System initialized detected. Normal routes are now enabled.');
           log.info('Server', 'You may need to refresh the page.');
         }
-      } catch {
+      } catch (err) {
+        retryCount++;
+        if (retryCount >= MAX_RETRIES) {
+          log.error('Server', `Failed to initialize after ${MAX_RETRIES} attempts. Stopping retry.`);
+          clearInterval(initCheckInterval);
+        }
         // Still not initialized
       }
     }, 5000);
