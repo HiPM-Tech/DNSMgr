@@ -37,7 +37,7 @@ export class SchemaReconciler {
 
     // 检查是否有 HiDNS DSM 的记录标记
     const result = await this.conn.get(
-      "SELECT COUNT(*) as cnt FROM schema_versions WHERE system_type = 'hidns-dsm' AND success = 1"
+      "SELECT COUNT(*) as cnt FROM schema_versions WHERE system_type = 'hidns-dsm' AND success = true"
     );
     const hasDSMRecord = (result as any)?.cnt > 0;
 
@@ -543,12 +543,16 @@ export class SchemaReconciler {
   private async syncIndexes(tableDef: TableDef, dryRun: boolean): Promise<void> {
     if (!tableDef.indexes) return;
 
+    const dbType = this.getDbType();
+
     for (const idx of tableDef.indexes) {
       const exists = await this.indexExists(idx.name);
       if (!exists) {
         const uniqueStr = idx.unique ? 'UNIQUE' : '';
         const cols = idx.columns.map(c => this.escapeIdentifier(c)).join(', ');
-        const sql = `CREATE ${uniqueStr} INDEX IF NOT EXISTS ${this.escapeIdentifier(idx.name)} ON ${this.escapeIdentifier(tableDef.name)} (${cols})`;
+        // MySQL 不支持 CREATE INDEX IF NOT EXISTS
+        const ifNotExists = dbType === 'mysql' ? '' : ' IF NOT EXISTS';
+        const sql = `CREATE ${uniqueStr} INDEX${ifNotExists} ${this.escapeIdentifier(idx.name)} ON ${this.escapeIdentifier(tableDef.name)} (${cols})`;
         if (dryRun) {
           log.info('Schema [DRY RUN]', `Would add index: ${idx.name}`);
           log.info('Schema [DRY RUN]', `SQL: ${sql}`);
@@ -675,8 +679,10 @@ export class SchemaReconciler {
       return;
     }
 
-    // 4. 执行重建（事务保护）
+    // 4. 执行重建（事务保护） - SQLite 需要临时关闭外键检查
     try {
+      await this.conn.execute('PRAGMA foreign_keys = OFF');
+      
       await this.conn.execute('BEGIN TRANSACTION');
       
       // 创建新表
@@ -702,9 +708,11 @@ export class SchemaReconciler {
       }
 
       await this.conn.execute('COMMIT');
+      await this.conn.execute('PRAGMA foreign_keys = ON');
       log.info('Schema', `Successfully rebuilt SQLite table: ${tableName}`);
     } catch (err) {
       await this.conn.execute('ROLLBACK');
+      await this.conn.execute('PRAGMA foreign_keys = ON');
       log.error('Schema', `Failed to rebuild SQLite table ${tableName}:`, err);
       throw err;
     }
