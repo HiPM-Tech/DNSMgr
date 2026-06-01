@@ -145,7 +145,14 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     dependsOn: ['migrate-ns-domain-name'],
     condition: async () => {
       const conn = getConnection();
-      const cols = await conn.query(`PRAGMA table_info(domains)`);
+      let cols: any[];
+      if (conn.type === 'sqlite') {
+        cols = await conn.query(`PRAGMA table_info(domains)`);
+      } else if (conn.type === 'mysql') {
+        cols = await conn.query("SELECT COLUMN_NAME as name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = (SELECT DATABASE()) AND TABLE_NAME = 'domains'");
+      } else {
+        cols = await conn.query("SELECT column_name as name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = current_schema() AND TABLE_NAME = 'domains'");
+      }
       return !cols.some((c: any) => c.name.replace(/["'`]/g, '') === 'apex_expires_at');
     },
     execute: async () => {
@@ -162,7 +169,14 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     dependsOn: ['migrate-domains-whois-fields'],
     condition: async () => {
       const conn = getConnection();
-      const cols = await conn.query(`PRAGMA table_info(domains)`);
+      let cols: any[];
+      if (conn.type === 'sqlite') {
+        cols = await conn.query(`PRAGMA table_info(domains)`);
+      } else if (conn.type === 'mysql') {
+        cols = await conn.query("SELECT COLUMN_NAME as name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = (SELECT DATABASE()) AND TABLE_NAME = 'domains'");
+      } else {
+        cols = await conn.query("SELECT column_name as name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = current_schema() AND TABLE_NAME = 'domains'");
+      }
       return !cols.some((c: any) => c.name.replace(/["'`]/g, '') === 'enabled');
     },
     execute: async () => {

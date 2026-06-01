@@ -184,16 +184,25 @@ export class SchemaReconciler {
         await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} SET DEFAULT ${defaultVal}`);
       }
     } else if (dbType === 'mysql') {
-      if (originCol) {
-        const fullDef = this.getColumnDefinitionSQL(originCol);
-        const cleanedDef = fullDef
-          .replace(/\s+PRIMARY KEY\s*/i, ' ')
-          .replace(/\s+AUTO_INCREMENT\s*/i, ' ')
-          .replace(/\s+AUTOINCREMENT\s*/i, ' ')
-          .trim();
-        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${cleanedDef}`);
-      } else {
-        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${this.escapeIdentifier(column)} ${newType}`);
+      try {
+        if (originCol) {
+          const fullDef = this.getColumnDefinitionSQL(originCol);
+          const cleanedDef = fullDef
+            .replace(/\s+PRIMARY KEY\s*/i, ' ')
+            .replace(/\s+AUTO_INCREMENT\s*/i, ' ')
+            .replace(/\s+AUTOINCREMENT\s*/i, ' ')
+            .trim();
+          await this.conn.execute('SET FOREIGN_KEY_CHECKS = 0');
+          await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${cleanedDef}`);
+          await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1');
+        } else {
+          await this.conn.execute('SET FOREIGN_KEY_CHECKS = 0');
+          await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${this.escapeIdentifier(column)} ${newType}`);
+          await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1');
+        }
+      } catch (e) {
+        try { await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1'); } catch {}
+        throw e;
       }
     }
   }
@@ -580,8 +589,11 @@ export class SchemaReconciler {
           try {
             await this.addColumn(tableDef.name, col.name, def);
           } catch (e: any) {
-            if (e.message?.toLowerCase().includes('duplicate column')) {
+            const msg = e.message?.toLowerCase() || '';
+            if (msg.includes('duplicate column')) {
               log.warn('Schema', `Column ${tableDef.name}.${col.name} already exists, skipping.`);
+            } else if (this.getDbType() === 'sqlite' && (msg.includes('unique column') || msg.includes('unique constraint'))) {
+              log.warn('Schema', `Cannot add UNIQUE column ${tableDef.name}.${col.name} via ALTER in SQLite. Skipping add and relying on rebuild.`);
             } else {
               throw e;
             }
