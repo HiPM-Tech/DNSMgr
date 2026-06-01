@@ -136,7 +136,8 @@ export class SchemaReconciler {
   }
 
   private async addColumn(table: string, column: string, definition: string): Promise<void> {
-    await this.conn.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    // definition should already include the escaped column name
+    await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ADD COLUMN ${definition}`);
   }
 
   private async dropColumn(table: string, column: string): Promise<void> {
