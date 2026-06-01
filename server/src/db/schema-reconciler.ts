@@ -157,6 +157,12 @@ export class SchemaReconciler {
       return; // 由 syncColumns 统一处理重建
     }
     
+    // PostgreSQL: SERIAL is a pseudo-type, cannot be used in ALTER COLUMN
+    if (dbType === 'postgresql' && newType === 'SERIAL') {
+      log.warn('Schema', `Skipping type modification to SERIAL for ${table}.${column} (SERIAL is a pseudo-type)`);
+      return;
+    }
+    
     if (dbType === 'postgresql') {
       await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`);
     } else if (dbType === 'mysql') {
@@ -256,7 +262,7 @@ export class SchemaReconciler {
       }
 
       const existingCols = await this.getTableColumns(tableDef.name);
-      const existingNames = new Set(existingCols.map((c: any) => c.name));
+      const existingNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '')));
       
       for (const col of tableDef.columns) {
         if (!existingNames.has(col.name)) {
@@ -493,7 +499,8 @@ export class SchemaReconciler {
 
   private async syncColumns(tableDef: TableDef, dryRun: boolean): Promise<void> {
     const existingCols = await this.getTableColumns(tableDef.name);
-    const existingNames = new Set(existingCols.map((c: any) => c.name));
+    // Normalize column names to handle quoted identifiers (especially for SQLite)
+    const existingNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '')));
     const targetNames = new Set(tableDef.columns.map(c => c.name));
 
     // 1. 添加缺失的列
@@ -511,7 +518,8 @@ export class SchemaReconciler {
 
     // 2. 删除多余的列（在 Schema 定义中不存在的列）
     for (const existingCol of existingCols) {
-      if (!targetNames.has(existingCol.name)) {
+      const normalizedName = existingCol.name.replace(/["'`]/g, '');
+      if (!targetNames.has(normalizedName)) {
         if (dryRun) {
           log.warn('Schema [DRY RUN]', `Would drop column: ${tableDef.name}.${existingCol.name}`);
         } else {
@@ -526,12 +534,15 @@ export class SchemaReconciler {
     const rebuildTargets: { name: string; type: string }[] = [];
 
     for (const col of tableDef.columns) {
-      const existingCol = existingCols.find((c: any) => c.name === col.name);
+      const existingCol = existingCols.find((c: any) => c.name.replace(/["'`]/g, '') === col.name);
       if (existingCol) {
         const expectedType = this.mapTypeToSQL(col.type, this.getDbType(), col.length);
         const actualType = existingCol.type?.toUpperCase();
         
-        if (actualType && !this.isTypeCompatible(actualType, expectedType)) {
+        // Skip type modification for PostgreSQL SERIAL columns (it's a pseudo-type)
+        const isPostgresSerial = this.getDbType() === 'postgresql' && expectedType === 'SERIAL';
+        
+        if (actualType && !isPostgresSerial && !this.isTypeCompatible(actualType, expectedType)) {
           if (this.getDbType() === 'sqlite') {
             needsRebuild = true;
             rebuildTargets.push({ name: col.name, type: expectedType });
@@ -562,10 +573,13 @@ export class SchemaReconciler {
     
     // 1. 获取现有列以保留数据
     const existingCols = await this.getTableColumns(tableName);
-    const existingColNames = new Set(existingCols.map((c: any) => c.name));
+    const existingColNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '')));
     
     // 2. 确定要保留的列（目标列中存在于现有表中的）
-    const keepCols = tableDef.columns.filter(c => existingColNames.has(c.name));
+    const keepCols = tableDef.columns.filter(c => {
+      const normalizedName = c.name.replace(/["'`]/g, '');
+      return existingColNames.has(normalizedName);
+    });
     const keepColNames = keepCols.map(c => this.escapeIdentifier(c.name));
     
     if (keepColNames.length === 0) {

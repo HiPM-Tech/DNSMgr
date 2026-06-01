@@ -59,8 +59,8 @@ export class BackupManager {
           return '';
         }
         const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
-        // Add --ssl-mode=DISABLED to handle self-signed certs in CI/Internal envs
-        const cmd = `mysqldump --ssl-mode=DISABLED -h ${DB_HOST} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} > ${backupPath}.sql`;
+        // Use --skip-ssl for compatibility with both MySQL and MariaDB
+        const cmd = `mysqldump --skip-ssl -h ${DB_HOST} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} > ${backupPath}.sql`;
         await execAsync(cmd);
         log.info('Backup', `MySQL backup saved to ${backupPath}.sql`);
         return `${backupPath}.sql`;
