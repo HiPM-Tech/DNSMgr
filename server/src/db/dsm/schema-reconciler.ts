@@ -809,7 +809,7 @@ export class SchemaReconciler {
 
   private mapTypeToSQL(type: string, dbType: string, length?: number): string {
     switch (type) {
-      case 'id': return dbType === 'postgresql' ? 'SERIAL' : (dbType === 'mysql' ? 'BIGINT' : 'INTEGER');
+      case 'id': return dbType === 'postgresql' ? 'SERIAL' : (dbType === 'mysql' ? 'INTEGER' : 'INTEGER');
       case 'number': return dbType === 'postgresql' ? 'BIGINT' : 'BIGINT';
       case 'integer': return 'INTEGER';
       case 'boolean': return dbType === 'postgresql' ? 'BOOLEAN' : (dbType === 'mysql' ? 'TINYINT(1)' : 'INTEGER');
