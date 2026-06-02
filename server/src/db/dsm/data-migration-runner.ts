@@ -153,7 +153,7 @@ export class DataMigrationRunner {
   private async getExecutedMigrationIds(): Promise<string[]> {
     const conn = getConnection();
     const rows = await conn.query(
-      "SELECT version FROM schema_versions WHERE system_type = 'hidns-migration' AND success = true"
+      "SELECT version FROM schema_versions WHERE system_type = 'hidns-migration' AND success = 1"
     );
     return rows.map((r: any) => r.version);
   }
@@ -162,7 +162,7 @@ export class DataMigrationRunner {
     const conn = getConnection();
     await conn.execute(
       `INSERT INTO schema_versions (version, semantic_version, description, success, system_type) 
-       VALUES (?, ?, ?, true, 'hidns-migration')`,
+       VALUES (?, ?, ?, 1, 'hidns-migration')`,
       [id, '1.0.0', description]
     );
   }

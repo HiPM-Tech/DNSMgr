@@ -259,7 +259,7 @@ export class SchemaVersionManager {
     }
     
     const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, execution_time_ms, system_type) 
-                 VALUES (?, ?, ?, true, ?, 'hidns')`;
+                 VALUES (?, ?, ?, 1, ?, 'hidns')`;
     
     await this.conn.execute(sql, [
       this.schemaHash, 
@@ -284,7 +284,7 @@ export class SchemaVersionManager {
     }
     
     const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, error_message, execution_time_ms, system_type) 
-                 VALUES (?, ?, ?, false, ?, ?, 'hidns')`;
+                 VALUES (?, ?, ?, 0, ?, ?, 'hidns')`;
     
     await this.conn.execute(sql, [
       this.schemaHash,
