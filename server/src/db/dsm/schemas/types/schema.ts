@@ -1,6 +1,7 @@
 export type PrimitiveType = 
   | 'id'
   | 'string'
+  | 'text'
   | 'number'
   | 'boolean'
   | 'datetime'

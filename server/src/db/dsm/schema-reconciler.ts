@@ -186,9 +186,15 @@ export class SchemaReconciler {
           await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${this.escapeIdentifier(column)} ${newType}`);
           await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1');
         }
-      } catch (e) {
+      } catch (e: any) {
         try { await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1'); } catch {}
-        throw e;
+        const msg = e.message?.toLowerCase() || '';
+        const isTruncation = e.code === 'WARN_DATA_TRUNCATED' || e.code === 'ER_DATA_TOO_LONG' || msg.includes('data truncated') || msg.includes('data too long');
+        if (isTruncation) {
+          log.warn('Schema', `Data truncation when modifying ${table}.${column}: ${e.message}. Skipping this column modification.`);
+        } else {
+          throw e;
+        }
       }
     }
   }
@@ -204,7 +210,7 @@ export class SchemaReconciler {
       'CHAR': ['CHARACTER', 'NCHAR'],
       'BOOLEAN': ['BOOL'],
       'INTEGER': ['INT', 'INT4'],
-      'BIGINT': ['INT8', 'INTEGER'],
+      'BIGINT': ['INT8'],
       'SMALLINT': ['INT2'],
       'TIMESTAMPTZ': ['TIMESTAMP WITH TIME ZONE', 'TIMESTAMP(6) WITH TIME ZONE'],
       'TIMESTAMP': ['TIMESTAMP WITHOUT TIME ZONE', 'DATETIME'],
@@ -754,6 +760,7 @@ export class SchemaReconciler {
       case 'datetime': return dbType === 'postgresql' ? 'TIMESTAMPTZ' : 'DATETIME';
       case 'json': return dbType === 'postgresql' ? 'JSONB' : (dbType === 'mysql' ? 'JSON' : 'TEXT');
       case 'string': return length ? `VARCHAR(${length})` : (dbType === 'postgresql' ? 'TEXT' : 'TEXT');
+      case 'text': return 'TEXT';
       default: return 'TEXT';
     }
   }
