@@ -153,11 +153,13 @@ export class SchemaReconciler {
       
       let sql = `ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`;
       
-      if (newType === 'BOOLEAN' || newType === 'BIGINT' || newType === 'TIMESTAMPTZ') {
+      if (newType === 'BOOLEAN' || newType === 'BIGINT' || newType === 'TIMESTAMPTZ' || newType === 'INTEGER') {
         if (newType === 'BOOLEAN' && actualDbType && ['SMALLINT', 'INT', 'INTEGER', 'INT2', 'INT4', 'TINYINT'].includes(actualDbType.toUpperCase().replace(/\(.*?\)/g, '').trim())) {
           sql += ` USING CASE WHEN ${this.escapeIdentifier(column)} != 0 THEN true ELSE false END`;
         } else if (newType === 'TIMESTAMPTZ' && actualDbType && actualDbType.toUpperCase().includes('TIMESTAMP WITHOUT TIME ZONE')) {
           sql += ` USING ${this.escapeIdentifier(column)}::TIMESTAMP WITHOUT TIME ZONE AT TIME ZONE 'UTC'`;
+        } else if (newType === 'INTEGER' && actualDbType && actualDbType.toUpperCase() === 'BOOLEAN') {
+          sql += ` USING CASE WHEN ${this.escapeIdentifier(column)} THEN 1 ELSE 0 END`;
         } else {
           sql += ` USING ${this.escapeIdentifier(column)}::${newType}`;
         }
