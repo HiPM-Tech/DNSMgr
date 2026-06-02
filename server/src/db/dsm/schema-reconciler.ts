@@ -281,6 +281,17 @@ export class SchemaReconciler {
       await this.syncTable(tableDef, options.dryRun || false);
     }
 
+    // Second pass: ensure all foreign key constraints are properly recreated.
+    // During syncTable, referring FKs from other tables may have been dropped
+    // to allow column type modifications (e.g., MySQL requires dropping FKs
+    // before altering columns they reference). This second pass guarantees
+    // all FKs are in place regardless of table processing order.
+    if (dbType === 'mysql' || dbType === 'postgresql') {
+      for (const tableDef of schema.tables) {
+        await this.syncForeignKeys(tableDef, options.dryRun || false);
+      }
+    }
+
     if (schema.triggers) {
       for (const trigger of schema.triggers) {
         await this.syncTrigger(trigger, options.dryRun || false);
@@ -501,10 +512,50 @@ export class SchemaReconciler {
     }
   }
 
+  private async getReferencingForeignKeys(tableName: string): Promise<any[]> {
+    const dbType = this.getDbType();
+    if (dbType === 'mysql') {
+      return this.conn.query(
+        `SELECT CONSTRAINT_NAME as constraint_name, TABLE_NAME as table_name, COLUMN_NAME as column_name
+         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+         WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME = ? AND REFERENCED_COLUMN_NAME IS NOT NULL`,
+        [tableName]
+      );
+    } else if (dbType === 'postgresql') {
+      return this.conn.query(
+        `SELECT tc.constraint_name, tc.table_name, kcu.column_name
+         FROM information_schema.table_constraints AS tc 
+         JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
+         JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name
+         WHERE tc.constraint_type = 'FOREIGN KEY' AND ccu.table_name = $1`,
+        [tableName]
+      );
+    }
+    return [];
+  }
+
   private async dropAllForeignKeys(tableName: string): Promise<void> {
+    const dbType = this.getDbType();
+    
+    // Drop FKs defined on this table
     const fks = await this.getTableForeignKeys(tableName);
     for (const fk of fks) {
       await this.dropForeignKey(tableName, fk.constraint_name || fk.constraintName);
+    }
+    
+    // Also drop FKs from other tables that reference this table
+    // This is necessary for MySQL column type changes, where existing FK constraints
+    // referencing the column being modified will block ALTER TABLE MODIFY COLUMN
+    if (dbType === 'mysql' || dbType === 'postgresql') {
+      const refFks = await this.getReferencingForeignKeys(tableName);
+      const seen = new Set<string>();
+      for (const fk of refFks) {
+        const name = fk.constraint_name || fk.constraintName;
+        if (!seen.has(name)) {
+          seen.add(name);
+          await this.dropForeignKey(fk.table_name, name);
+        }
+      }
     }
   }
 
@@ -772,7 +823,10 @@ export class SchemaReconciler {
 
   private formatDefaultValue(value: any, type: string, dbType: string): string {
     if (value === null) return 'NULL';
-    if (type === 'number' || type === 'integer') return value.toString();
+    if (type === 'number' || type === 'integer') {
+      if (typeof value === 'boolean') return value ? '1' : '0';
+      return value.toString();
+    }
     
     if (type === 'boolean') {
       if (dbType === 'postgresql') return value ? 'TRUE' : 'FALSE';
