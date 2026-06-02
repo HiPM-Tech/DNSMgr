@@ -55,7 +55,7 @@ export class RenewableDomainQueryBuilder {
    * 过滤启用的账号
    */
   whereAccountEnabled(): this {
-    this.wheres.push('da.enabled = true');
+    this.wheres.push('da.enabled = 1');
     return this;
   }
 

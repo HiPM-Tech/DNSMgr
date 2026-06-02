@@ -1008,7 +1008,7 @@ export const DomainOperations = {
       `SELECT d.id, d.name, da.name as account_name
        FROM domains d
        JOIN dns_accounts da ON d.account_id = da.id
-       WHERE da.enabled = true
+       WHERE da.enabled = 1
          AND (da.created_by = ? OR d.id IN (
            SELECT domain_id FROM domain_permissions WHERE user_id = ?
          ))
@@ -2373,7 +2373,7 @@ export const SecurityPolicyOperations = {
   async has2FA(userId: number): Promise<boolean> {
     const dbType = process.env.DB_TYPE || 'sqlite';
     const enabledValue = dbType === 'postgresql' ? '$4' : '?';
-    const enabledParam = dbType === 'postgresql' ? [userId, 'totp', 'webauthn', true] : [userId, 'totp', 'webauthn', 1];
+    const enabledParam = dbType === 'postgresql' ? [userId, 'totp', 'webauthn', 1] : [userId, 'totp', 'webauthn', 1];
     
     const sql = dbType === 'postgresql'
       ? 'SELECT COUNT(*) as count FROM user_2fa WHERE user_id = $1 AND type IN ($2, $3) AND enabled = $4'
@@ -2799,9 +2799,8 @@ export const LoginLimitOperations = {
 export const FailoverOperations = {
   /** 获取所有启用的容灾配置 */
   async getAllEnabled(): Promise<QueryResult[]> {
-    const dbType = getDbType();
-    // PostgreSQL 使用 true/false，SQLite/MySQL 使用 1/0
-    const enabledValue = dbType === 'postgresql' ? 'true' : '1';
+    // All databases use 1/0 for integer columns
+    const enabledValue = '1';
     return queryInternal(
       `SELECT * FROM failover_configs WHERE enabled = ${enabledValue}`,
       [],
@@ -3070,10 +3069,10 @@ export const TOTPOperations = {
   async enablePostgreSQL(userId: number, secret: string, encryptedCodes: string): Promise<void> {
     return executeInternal(
       `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
-       VALUES ($1, $2, $3, $4, true, NOW())
+       VALUES ($1, $2, $3, $4, 1, NOW())
        ON CONFLICT(user_id, type) DO UPDATE SET
        secret = EXCLUDED.secret, backup_codes = EXCLUDED.backup_codes,
-       enabled = true, updated_at = NOW()`,
+       enabled = 1, updated_at = NOW()`,
       [userId, 'totp', secret, encryptedCodes],
       { operation: 'TOTP.enablePostgreSQL', table: 'user_2fa' }
     );
@@ -3728,8 +3727,7 @@ export const NSMonitorOperations = {
 
   /** 获取所有启用的域名监测（用于定时任务，Level 2 - 仅检�?NS 监控自身状态） */
   async getAllEnabled(): Promise<QueryResult[]> {
-    const dbType = getDbType();
-    const enabledValue = dbType === 'postgresql' ? 'true' : '1';
+    const enabledValue = '1';
     return queryInternal(
       `SELECT *, user_id as created_by
        FROM ns_monitor_domains

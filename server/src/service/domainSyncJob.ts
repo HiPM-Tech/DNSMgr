@@ -222,7 +222,7 @@ async function syncAccountDomains(account: any): Promise<void> {
         });
         
         // 禁用域名
-        await DomainOperations.update((dbDomain as any).id, { enabled: false });
+        await DomainOperations.update((dbDomain as any).id, { enabled: 0 });
         
         // 记录审计日志（使用系统用户 ID 0）
         try {

@@ -32,7 +32,7 @@ export class SchemaReconciler {
     }
 
     const result = await this.conn.get(
-      "SELECT COUNT(*) as cnt FROM schema_versions WHERE system_type = 'hidns-dsm' AND success = true"
+      "SELECT COUNT(*) as cnt FROM schema_versions WHERE system_type = 'hidns-dsm' AND success = 1"
     );
     const hasDSMRecord = (result as any)?.cnt > 0;
 
@@ -619,6 +619,13 @@ export class SchemaReconciler {
               log.warn('Schema', `Cannot add UNIQUE column ${tableDef.name}.${col.name} via ALTER in SQLite. Skipping add and relying on rebuild.`);
             } else if (this.getDbType() === 'sqlite' && (msg.includes('non-constant default') || msg.includes('default value'))) {
               log.warn('Schema', `Cannot add column ${tableDef.name}.${col.name} with non-constant default via ALTER in SQLite. Skipping add and relying on rebuild.`);
+            } else if (col.unique && (e.code === 'ER_DUP_ENTRY' || msg.includes('duplicate entry'))) {
+              // Adding a UNIQUE NOT NULL column to an existing table with rows will fail
+              // because all rows get the same default value, violating UNIQUE.
+              // Retry without UNIQUE constraint to allow the migration to proceed.
+              log.warn('Schema', `Cannot add UNIQUE column ${tableDef.name}.${col.name} due to existing data. Retrying without UNIQUE constraint.`);
+              const defWithoutUnique = this.getColumnDefinitionSQL({ ...col, unique: false });
+              await this.addColumn(tableDef.name, col.name, defWithoutUnique);
             } else {
               throw e;
             }

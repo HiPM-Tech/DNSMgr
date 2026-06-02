@@ -1,6 +1,6 @@
 /**
  * Domain Query Builder
- * 域名查询构建�?- 用于组合不同的过滤条�?
+ * 域名查询构建�?- 用于组合不同的过滤条�?
  */
 
 import { normalizeDomain } from '../../../utils/dns';
@@ -21,7 +21,7 @@ export class DomainQueryBuilder {
   private orderBy: string = 'd.id';
 
   /**
-   * 设置查询�?
+   * 设置查询�?
    */
   select(columns: string): this {
     this.selectColumns = columns;
@@ -37,7 +37,7 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * 添加 WHERE 条件（带参数�?
+   * 添加 WHERE 条件（带参数�?
    */
   where(condition: string, ...params: unknown[]): this {
     this.wheres.push(condition);
@@ -54,7 +54,7 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * 关联 dns_accounts �?
+   * 关联 dns_accounts �?
    */
   joinAccounts(): this {
     this.joins.push('INNER JOIN dns_accounts a ON d.account_id = a.id');
@@ -62,15 +62,15 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * 过滤启用的账�?
+   * 过滤启用的账�?
    */
   whereAccountEnabled(): this {
-    this.wheres.push('a.enabled = true');
+    this.wheres.push('a.enabled = 1');
     return this;
   }
 
   /**
-   * 按账�?ID 过滤
+   * 按账�?ID 过滤
    */
   whereAccountId(accountId: number): this {
     this.wheres.push('d.account_id = ?');
@@ -90,21 +90,21 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * 按域名状态过�?
+   * 按域名状态过�?
    */
   whereDomainEnabled(enabled: boolean): this {
     this.wheres.push('d.enabled = ?');
-    this.params.push(enabled);
+    this.params.push(enabled ? 1 : 0);
     return this;
   }
 
   /**
-   * 按域名类型过滤（顶域/子域�?
+   * 按域名类型过滤（顶域/子域�?
    */
   whereDomainType(type: 'apex' | 'subdomain'): this {
     if (type === 'apex') {
-      // 顶域：name 中不包含 . （或�?name = root_domain�?
-      // 简化判断：name 不包含额外的�?
+      // 顶域：name 中不包含 . （或�?name = root_domain�?
+      // 简化判断：name 不包含额外的�?
       this.wheres.push("d.name NOT LIKE '%.%.%'");
     } else if (type === 'subdomain') {
       // 子域：name 中包含多个点
@@ -114,7 +114,7 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * 按域�?ID 列表过滤
+   * 按域�?ID 列表过滤
    */
   whereDomainIds(ids: number[]): this {
     if (ids.length === 0) {
@@ -136,7 +136,7 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * 重置所有条�?
+   * 重置所有条�?
    */
   reset(): this {
     this.selectColumns = 'd.*';
@@ -183,7 +183,7 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * Level 3: Token 认证 - �?ID 列表查询
+   * Level 3: Token 认证 - �?ID 列表查询
    */
   static forTokenAuth(domainIds: number[], options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
     const builder = new DomainQueryBuilder()
@@ -202,12 +202,12 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * Level 3: 超级管理员查�?
+   * Level 3: 超级管理员查�?
    */
   static forSuperAdmin(options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
     const builder = new DomainQueryBuilder()
       .joinAccounts()
-      .whereAccountEnabled();  // �?恢复：过滤掉禁用账号的域�?
+      .whereAccountEnabled();  // �?恢复：过滤掉禁用账号的域�?
     
     if (options?.accountId) {
       builder.whereAccountId(options.accountId);
@@ -220,7 +220,7 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * Level 1: NS 监控专用 - 普通用户查询（不过�?enabled�?
+   * Level 1: NS 监控专用 - 普通用户查询（不过�?enabled�?
    */
   static forNSMonitorUser(userId: number): DomainQueryBuilder {
     const builder = new DomainQueryBuilder();
@@ -230,7 +230,7 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * Level 3: 可访问域�?- 超级管理�?
+   * Level 3: 可访问域�?- 超级管理�?
    */
   static accessibleForSuperAdmin(options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
     const builder = DomainQueryBuilder.withAccountFilter();
@@ -246,7 +246,7 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * Level 3: 可访问域�?- 普通用户（带团队和权限检查）
+   * Level 3: 可访问域�?- 普通用户（带团队和权限检查）
    */
   static accessibleForUser(userId: number, teamIds: number[], options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
     const builder = new DomainQueryBuilder();
@@ -257,7 +257,7 @@ export class DomainQueryBuilder {
     
     // Main permission check
     builder.wheres.push(`(d.account_id IN (
-      SELECT id FROM dns_accounts WHERE created_by = ? AND enabled = true ${teamFilter}
+      SELECT id FROM dns_accounts WHERE created_by = ? AND enabled = 1 ${teamFilter}
     ) OR d.id IN (
       SELECT domain_id FROM domain_permissions WHERE user_id = ? ${teamPermFilter}
     ))`);
@@ -277,13 +277,13 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * Level 2: 用户域名访问检查（用于 Token 权限验证�?
+   * Level 2: 用户域名访问检查（用于 Token 权限验证�?
    */
   static checkUserAccess(domainId: number, userId: number): DomainQueryBuilder {
     const builder = new DomainQueryBuilder();
     builder.selectColumns = 'd.id';
     builder.joins.push('JOIN dns_accounts da ON d.account_id = da.id');
-    builder.wheres.push(`d.enabled = true AND d.id = ? AND (da.created_by = ? OR d.id IN (
+    builder.wheres.push(`d.enabled = 1 AND d.id = ? AND (da.created_by = ? OR d.id IN (
       SELECT domain_id FROM domain_permissions WHERE user_id = ?
     ))`);
     builder.params.push(domainId, userId, userId);
@@ -296,7 +296,7 @@ export class DomainQueryBuilder {
   static filterAccessibleDomains(domainIds: number[], userId: number): DomainQueryBuilder {
     if (domainIds.length === 0) {
       const builder = new DomainQueryBuilder();
-      builder.wheres.push('1=0'); // 永远返回�?
+      builder.wheres.push('1=0'); // 永远返回�?
       return builder;
     }
 
@@ -306,7 +306,7 @@ export class DomainQueryBuilder {
     
     const placeholders = domainIds.map(() => '?').join(',');
     builder.wheres.push(`d.id IN (${placeholders}) 
-      AND d.enabled = true
+      AND d.enabled = 1
       AND (da.created_by = ? OR d.id IN (
         SELECT domain_id FROM domain_permissions WHERE user_id = ?
       ))`);
@@ -316,7 +316,7 @@ export class DomainQueryBuilder {
   }
 
   /**
-   * Level 2: 检查域名所有�?
+   * Level 2: 检查域名所有�?
    */
   static checkDomainOwner(domainId: number, userId: number): DomainQueryBuilder {
     const builder = new DomainQueryBuilder();

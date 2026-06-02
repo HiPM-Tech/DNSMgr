@@ -65,7 +65,7 @@ export class AccountQueryBuilder {
    * 过滤启用的账号
    */
   whereEnabled(): this {
-    this.wheres.push('da.enabled = true');
+    this.wheres.push('da.enabled = 1');
     return this;
   }
 
