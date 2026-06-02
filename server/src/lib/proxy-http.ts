@@ -7,7 +7,7 @@ import https from 'https';
 import http from 'http';
 import { URL } from 'url';
 import { log } from './logger';
-import { SettingsOperations } from '../db/business-adapter';
+import { SettingsOperations } from '../db/bal/business-adapter';
 
 // Dynamic imports for proxy agents
 let SocksProxyAgent: any;

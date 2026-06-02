@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { TokenOperations, DomainOperations } from '../db/business-adapter';
+import { TokenOperations, DomainOperations } from '../db/bal/business-adapter';
 import { UserToken, UserTokenCreate, UserTokenResponse, TokenPayload } from '../types/token';
 import { isAdmin } from '../utils/roles';
 

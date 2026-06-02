@@ -1,6 +1,6 @@
-import { AuditRulesOperations } from '../db/business-adapter';
+import { AuditRulesOperations } from '../db/bal/business-adapter';
 import { sendNotification } from './notification';
-import { getDbType } from '../db/business-adapter';
+import { getDbType } from '../db/bal/business-adapter';
 
 interface AuditRuleConfig {
   enabled: boolean;

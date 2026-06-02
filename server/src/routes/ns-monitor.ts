@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { NSMonitorOperations, DomainOperations, getDbType, formatDateForDB } from '../db/business-adapter';
+import { NSMonitorOperations, DomainOperations, getDbType, formatDateForDB } from '../db/bal/business-adapter';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { log } from '../lib/logger';

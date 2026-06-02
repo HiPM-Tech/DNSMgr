@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { JwtPayload } from '../types';
 import { isAdmin, normalizeRole } from '../utils/roles';
-import { SecretOperations } from '../db/business-adapter';
+import { SecretOperations } from '../db/bal/business-adapter';
 import { verifyToken, hasServicePermission, hasDomainPermission } from '../service/token';
 import { TokenPayload } from '../types/token';
 import { log } from '../lib/logger';

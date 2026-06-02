@@ -8,7 +8,7 @@ import { getDomainAccess } from './domains';
 import { normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess } from '../utils/http';
-import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
+import { DomainOperations, DnsAccountOperations } from '../db/bal/business-adapter';
 import { log } from '../lib/logger';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, isValidHostname } from '../utils/dns';

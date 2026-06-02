@@ -28,8 +28,8 @@ export function initWhoisSchedulers(): void {
  * @param forceRefresh 是否强制刷新（无视缓存）
  */
 export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promise<void> {
-  const { WhoisOperations } = await import('../../db/business-adapter');
-  const { connect } = await import('../../db/core/connection');
+  const { WhoisOperations } = await import('../../db/bal/business-adapter');
+  const { connect } = await import('../../db/dal/connection');
   const { taskManager } = await import('../taskManager');
   const { log } = await import('../../lib/logger');
   const { checkWhoisForDomain } = await import('./checker');
@@ -152,7 +152,7 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
  * 启动 WHOIS 定时任务
  */
 export async function startWhoisJob(): Promise<void> {
-  const { WhoisOperations } = await import('../../db/business-adapter');
+  const { WhoisOperations } = await import('../../db/bal/business-adapter');
   const { taskManager } = await import('../taskManager');
   const { log } = await import('../../lib/logger');
   

@@ -1,75 +1,32 @@
 /**
  * 数据库模块主入口
  *
- * 架构：路由/Service/Middleware → 业务适配器函数 → 数据库抽象层 → 驱动 → 数据库
+ * 架构：路由/Service/Middleware → BAL (业务适配器层) → DAL (数据库抽象层) → DL (驱动层) → 数据库
+ *                        ↕ DSM (声明式模式管理)
+ *
+ * 分层说明：
+ * - bal/  : Business Adapter Layer  - 业务适配器层（唯一业务入口）
+ * - dal/  : Database Abstraction Layer - 数据库抽象层（连接管理 + 类型系统）
+ * - dl/   : Driver Layer             - 驱动层（SQLite/MySQL/PostgreSQL）
+ * - dsm/  : Declarative Schema Management - 声明式模式管理（初始化与迁移）
  *
  * 使用方式：
  * import { UserOperations, DnsAccountOperations, ... } from '../db';
  *
  * 注意：
- * 1. 禁止直接导入 query, get, execute, insert, run 等底层数据库操作函数
- * 2. 禁止直接导入驱动层 (BaseDriver, MySQLDriver, etc.)
- * 3. 禁止直接导入查询构建器 (QueryBuilder, SQLCompiler, etc.)
- * 4. 所有数据库操作必须通过业务适配器层的专用操作函数进行
+ * 1. 禁止直接导入底层数据库操作函数（query, get, execute 等）
+ * 2. 禁止直接导入驱动层 (BaseDriver, MySQLDriver 等)
+ * 3. 所有数据库操作必须通过 bal/ 层的业务操作函数进行
  */
 
-// ==================== 数据库抽象层（仅类型导出）====================
+// ==================== BAL - 业务适配器层（唯一业务入口）====================
 export {
-  // 核心类型 - 仅类型，不导出实现
-  type DatabaseConnection,
-  type Transaction,
-  type DatabaseType,
-  type Operator,
-  type OrderDirection,
-  type JoinType,
-  type ColumnType,
-  type ColumnDefinition,
-  type TableDefinition,
-  type CompiledSQL,
-} from './core/types';
-
-export {
-  // 配置类型和函数
-  type DatabaseConfig,
-  type MySQLConfig,
-  type PostgreSQLConfig,
-  type SQLiteConfig,
-  getDatabaseConfig,
-  validateConfig,
-  mergeConfig,
-} from './core/config';
-
-// ==================== 连接管理（仅应用初始化使用）====================
-export {
-  // 仅导出连接/断开函数，用于应用生命周期管理
-  connect,
-  disconnect,
-} from './core/connection';
-
-// ==================== 驱动层（仅类型导出）====================
-export {
-  // 仅导出类型，不导出具体驱动实现
-  type DatabaseDriver,
-  type DriverConfig,
-} from './drivers/types';
-
-// ==================== Schema管理（已迁移至 DSM）====================
-// 注意：旧版 initSchema/initSchemaAsync 已被 initializeDSM 取代
-// export { initSchema, initSchemaAsync } from './schema';
-
-// ==================== 业务适配器层（唯一业务入口）====================
-export {
-  // 类型
   type QueryResult,
   type TransactionOperations,
-
-  // 工具函数（业务适配器内部使用）
   now,
   getDbType,
   isDbConnected,
   withTransaction,
-
-  // 业务操作模块 - 所有数据库操作必须通过以下模块进行
   UserOperations,
   DnsAccountOperations,
   DomainOperations,
@@ -93,9 +50,50 @@ export {
   AuditLogOperations,
   OAuthOperations,
   TwoFAOperations,
-} from './business-adapter';
+  SystemOperations,
+  NotificationOperations,
+  DomainPermissionOperations,
+  RenewableDomainOperations,
+  NSMonitorOperations,
+  AuditRuleOperations,
+  DomainExpiryOperations,
+} from './bal/business-adapter';
 
-// ==================== 数据库实例（向后兼容，仅用于特殊场景）====================
-import { database } from './business-adapter';
+// ==================== DAL - 数据库抽象层（仅类型 + 连接管理）====================
+export {
+  type DatabaseConnection,
+  type Transaction,
+  type DatabaseType,
+  type Operator,
+  type OrderDirection,
+  type JoinType,
+  type ColumnType,
+  type ColumnDefinition,
+  type TableDefinition,
+  type CompiledSQL,
+  type DatabaseConfig,
+  type MySQLConfig,
+  type PostgreSQLConfig,
+  type SQLiteConfig,
+  connect,
+  disconnect,
+} from './dal';
+
+// ==================== DL - 驱动层（仅类型导出）====================
+export {
+  type DatabaseDriver,
+  type DriverConfig,
+} from './dl/types';
+
+// ==================== DSM - 声明式模式管理====================
+export {
+  initializeDSM,
+  SchemaReconciler,
+  DataMigrationRunner,
+  COMPLETE_SCHEMA,
+} from './dsm';
+
+// ==================== 遗留兼容（已弃用）====================
+import { database } from './bal/business-adapter';
 export const db = database;
 export default database;

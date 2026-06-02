@@ -1,4 +1,4 @@
-// Re-export from core/connection.ts - 新数据库连接系统
+// Re-export from dal/connection.ts - 新数据库连接系统
 export {
   connect,
   disconnect,
@@ -6,26 +6,26 @@ export {
   transaction,
   getConnectionManager,
   ConnectionManager,
-} from './core/connection';
+} from './dal/connection';
 
 // Re-export types
 export type {
   DatabaseConnection as DbConnection,
   DatabaseType as DbType,
   Transaction,
-} from './core/types';
+} from './dal/types';
 
 // Re-export from config.ts for types
 export {
   getDatabaseConfig,
   type DatabaseConfig,
-} from './core/config';
+} from './dal/config';
 
 // Re-export DatabaseType from types
-export type { DatabaseType } from './core/types';
+export type { DatabaseType } from './dal/types';
 
 // 向后兼容的辅助函数
-import { getConnection, connect as coreConnect, disconnect as coreDisconnect } from './core/connection';
+import { getConnection, connect as coreConnect, disconnect as coreDisconnect } from './dal/connection';
 
 /**
  * 获取当前连接（向后兼容）

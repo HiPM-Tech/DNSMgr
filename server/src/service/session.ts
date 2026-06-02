@@ -1,4 +1,4 @@
-import { SessionOperations, getDbType } from '../db/business-adapter';
+import { SessionOperations, getDbType } from '../db/bal/business-adapter';
 
 /**
  * 用户会话管理服务

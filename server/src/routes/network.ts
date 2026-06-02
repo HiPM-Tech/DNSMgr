@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { log } from '../lib/logger';
-import { SettingsOperations } from '../db/business-adapter';
+import { SettingsOperations } from '../db/bal/business-adapter';
 import { getProxyConfig, createProxyAgent } from '../lib/proxy-http';
 import https from 'https';
 import http from 'http';

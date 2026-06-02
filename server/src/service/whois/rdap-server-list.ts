@@ -6,7 +6,7 @@
 
 import * as https from 'https';
 import { log } from '../../lib/logger';
-import { RdapCacheOperations, SystemCacheOperations } from '../../db/business-adapter';
+import { RdapCacheOperations, SystemCacheOperations } from '../../db/bal/business-adapter';
 
 // IANA RDAP 服务器列表 URL
 const IANA_RDAP_URL = 'https://data.iana.org/rdap/dns.json';

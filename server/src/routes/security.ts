@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware, adminOnly, noTokenAuth } from '../middleware/auth';
-import { SecurityPolicyOperations, TrustedDeviceOperations, getDbType, UserOperations } from '../db/business-adapter';
+import { SecurityPolicyOperations, TrustedDeviceOperations, getDbType, UserOperations } from '../db/bal/business-adapter';
 import { getSecurityPolicy, updateSecurityPolicy, checkPasswordStrength, validatePassword, requires2FA, has2FAEnabled } from '../service/securityPolicy';
 import { generateTOTPSecret, enableTOTP, disableTOTP, getTOTPStatus, verifyTOTPToken } from '../service/totp';
 import { log } from '../lib/logger';

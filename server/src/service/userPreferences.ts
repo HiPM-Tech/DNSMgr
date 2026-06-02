@@ -1,4 +1,4 @@
-import { UserPreferencesOperations, getDbType } from '../db/business-adapter';
+import { UserPreferencesOperations, getDbType } from '../db/bal/business-adapter';
 
 /**
  * 用户偏好设置服务

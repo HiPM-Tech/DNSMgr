@@ -11,11 +11,11 @@ import { getUserPreferences, updateUserPreferences, UserPreferences } from '../s
 import { loginLimiter, emailLimiter } from '../middleware/rateLimit';
 import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/totp';
 import { log } from '../lib/logger';
-import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, UserPreferencesOperations, DomainOperations } from '../db/business-adapter';
+import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, UserPreferencesOperations, DomainOperations } from '../db/bal/business-adapter';
 import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, SecurityPolicy } from '../service/securityPolicy';
 import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/deviceTrust';
 import { getRequestIP } from '../middleware/clientIP';
-import db from '../db/business-adapter';
+import db from '../db/bal/business-adapter';
 import { sendError } from '../utils/http';
 
 /**

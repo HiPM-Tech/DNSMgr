@@ -21,10 +21,10 @@ export type {
   DatabaseConnection as DbConnection,
   DatabaseType as DbType,
   Transaction,
-} from './core/types';
+} from './dal/types';
 
 // 向后兼容：SQLiteConnection 类型
-import type { DatabaseConnection } from './core/types';
+import type { DatabaseConnection } from './dal/types';
 export type SQLiteConnection = DatabaseConnection;
 
 // 向后兼容：getDb 函数

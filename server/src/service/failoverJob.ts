@@ -1,7 +1,7 @@
-import { FailoverOperations, getDbType } from '../db/business-adapter';
+import { FailoverOperations, getDbType } from '../db/bal/business-adapter';
 import { getFailoverConfig, getFailoverStatus, performHealthCheck, performFailover, FailoverConfig } from './failover';
 import { taskManager } from './taskManager';
-import { connect } from '../db/core/connection';
+import { connect } from '../db/dal/connection';
 import { log } from '../lib/logger';
 
 export async function startFailoverJob() {

@@ -1,7 +1,7 @@
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
-import { TOTPOperations, getDbType } from '../db/business-adapter';
+import { TOTPOperations, getDbType } from '../db/bal/business-adapter';
 
 /**
  * TOTP (Time-based One-Time Password) 2FA 服务

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { DnsAccountOperations, TeamOperations, SettingsOperations } from '../db/business-adapter';
+import { DnsAccountOperations, TeamOperations, SettingsOperations } from '../db/bal/business-adapter';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter, getProvider, getProviders, isStubProvider } from '../lib/dns/DnsHelper';

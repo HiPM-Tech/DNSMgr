@@ -1,0 +1,864 @@
+import { getConnection } from '../dal/connection';
+import { DatabaseSchema, TableDef, ColumnDef, TriggerDef, ViewDef, ProcedureDef } from './schemas/types/schema';
+import { BackupManager } from './backup-manager';
+import { log } from '../../lib/logger';
+
+export type DropTablePolicy = 'never' | 'dry-run-only' | 'safe-only' | 'always';
+
+export interface ReconcileOptions {
+  dryRun?: boolean;
+  dropTablePolicy?: DropTablePolicy;
+  forceBackup?: boolean;
+}
+
+export class SchemaReconciler {
+  private conn: any;
+  private backupManager: BackupManager;
+
+  constructor() {
+    this.conn = getConnection();
+    this.backupManager = new BackupManager();
+  }
+
+  async detectLegacySystem(): Promise<{ isLegacy: boolean; reason?: string }> {
+    const versionTableExists = await this.tableExists('schema_versions');
+    if (!versionTableExists) {
+      const hasDomains = await this.tableExists('domains');
+      const hasUsers = await this.tableExists('users');
+      if (hasDomains || hasUsers) {
+        return { isLegacy: true, reason: 'No schema_versions table found, but core tables exist.' };
+      }
+      return { isLegacy: false };
+    }
+
+    const result = await this.conn.get(
+      "SELECT COUNT(*) as cnt FROM schema_versions WHERE system_type = 'hidns-dsm' AND success = true"
+    );
+    const hasDSMRecord = (result as any)?.cnt > 0;
+
+    if (!hasDSMRecord) {
+      return { isLegacy: true, reason: 'schema_versions exists but no HiDNS-DSM records found.' };
+    }
+
+    return { isLegacy: false };
+  }
+
+  async auditSchema(targetSchema: DatabaseSchema): Promise<{ valid: boolean; issues: string[] }> {
+    const issues: string[] = [];
+    const existingTables = await this.getAllTables();
+    
+    for (const table of targetSchema.tables) {
+      if (!existingTables.includes(table.name)) {
+        issues.push(`Table missing in database: ${table.name}`);
+      } else {
+        const dbCols = await this.getTableColumns(table.name);
+        const dbColNames = new Set(dbCols.map((c: any) => c.name.replace(/["'`]/g, '')));
+        for (const col of table.columns) {
+          if (!dbColNames.has(col.name)) {
+            issues.push(`Column missing in ${table.name}: ${col.name}`);
+          }
+        }
+      }
+    }
+
+    const targetTableNames = new Set(targetSchema.tables.map(t => t.name));
+    for (const tableName of existingTables) {
+      if (!tableName.startsWith('sqlite_') && !targetTableNames.has(tableName)) {
+        issues.push(`Ghost table found in database (not in schema): ${tableName}`);
+      }
+    }
+
+    return { valid: issues.length === 0, issues };
+  }
+
+  private async getAllTables(): Promise<string[]> {
+    const type = this.conn.type;
+    if (type === 'sqlite') {
+      const rows = await this.conn.query(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`);
+      return rows.map((r: any) => r.name);
+    } else if (type === 'mysql') {
+      const rows = await this.conn.query("SELECT TABLE_NAME as name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
+      return rows.map((r: any) => r.name);
+    } else if (type === 'postgresql') {
+      const rows = await this.conn.query("SELECT tablename as name FROM pg_tables WHERE schemaname = 'public'");
+      return rows.map((r: any) => r.name);
+    }
+    return [];
+  }
+
+  private async tableExists(tableName: string): Promise<boolean> {
+    const type = this.conn.type;
+    if (type === 'sqlite') {
+      const res = await this.conn.get(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [tableName]);
+      return !!res;
+    } else if (type === 'mysql') {
+      const res = await this.conn.get("SELECT TABLE_NAME as name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?", [tableName]);
+      return !!res;
+    } else if (type === 'postgresql') {
+      const res = await this.conn.get("SELECT tablename as name FROM pg_tables WHERE schemaname = 'public' AND tablename = ?", [tableName]);
+      return !!res;
+    }
+    return false;
+  }
+
+  private async getTableColumns(tableName: string): Promise<any[]> {
+    const type = this.conn.type;
+    if (type === 'sqlite') {
+      return this.conn.query(`PRAGMA table_info(${tableName})`);
+    } else if (type === 'mysql') {
+      return this.conn.query(
+        `SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE as nullable, COLUMN_DEFAULT as defaultValue 
+         FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+        [tableName]
+      );
+    } else if (type === 'postgresql') {
+      return this.conn.query(
+        `SELECT column_name as name, data_type as type, is_nullable as nullable, column_default as defaultValue 
+         FROM information_schema.columns 
+         WHERE table_schema = 'public' AND table_name = $1`,
+        [tableName]
+      );
+    }
+    return [];
+  }
+
+  private async addColumn(table: string, column: string, definition: string): Promise<void> {
+    await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ADD COLUMN ${definition}`);
+  }
+
+  private async dropColumn(table: string, column: string): Promise<void> {
+    const dbType = this.getDbType();
+    if (dbType === 'sqlite') {
+      log.warn('Schema', `Using table rebuild for SQLite DROP COLUMN: ${table}.${column}`);
+      return;
+    }
+    await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} DROP COLUMN ${this.escapeIdentifier(column)}`);
+  }
+
+  private async modifyColumnType(table: string, column: string, newType: string, originCol?: ColumnDef, actualDbType?: string): Promise<void> {
+    const dbType = this.getDbType();
+    if (dbType === 'sqlite') {
+      log.warn('Schema', `Using table rebuild for SQLite type modification: ${table}.${column}`);
+      return;
+    }
+    
+    if (dbType === 'postgresql' && newType === 'SERIAL') {
+      log.warn('Schema', `Skipping type modification to SERIAL for ${table}.${column} (SERIAL is a pseudo-type)`);
+      return;
+    }
+    
+    if (dbType === 'postgresql') {
+      await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} DROP DEFAULT`);
+      
+      let sql = `ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`;
+      
+      if (newType === 'BOOLEAN' || newType === 'BIGINT' || newType === 'TIMESTAMPTZ') {
+        if (newType === 'BOOLEAN' && actualDbType && ['SMALLINT', 'INT', 'INTEGER', 'INT2', 'INT4', 'TINYINT'].includes(actualDbType.toUpperCase().replace(/\(.*?\)/g, '').trim())) {
+          sql += ` USING CASE WHEN ${this.escapeIdentifier(column)} != 0 THEN true ELSE false END`;
+        } else if (newType === 'TIMESTAMPTZ' && actualDbType && actualDbType.toUpperCase().includes('TIMESTAMP WITHOUT TIME ZONE')) {
+          sql += ` USING ${this.escapeIdentifier(column)}::TIMESTAMP WITHOUT TIME ZONE AT TIME ZONE 'UTC'`;
+        } else {
+          sql += ` USING ${this.escapeIdentifier(column)}::${newType}`;
+        }
+      }
+      
+      await this.conn.execute(sql);
+      
+      if (originCol?.defaultValue !== undefined) {
+        const defaultVal = this.formatDefaultValue(originCol.defaultValue, originCol.type, 'postgresql');
+        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} SET DEFAULT ${defaultVal}`);
+      }
+    } else if (dbType === 'mysql') {
+      try {
+        if (originCol) {
+          const fullDef = this.getColumnDefinitionSQL(originCol);
+          const cleanedDef = fullDef
+            .replace(/\s+PRIMARY KEY\s*/i, ' ')
+            .replace(/\s+AUTO_INCREMENT\s*/i, ' ')
+            .replace(/\s+AUTOINCREMENT\s*/i, ' ')
+            .trim();
+          await this.conn.execute('SET FOREIGN_KEY_CHECKS = 0');
+          await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${cleanedDef}`);
+          await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1');
+        } else {
+          await this.conn.execute('SET FOREIGN_KEY_CHECKS = 0');
+          await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${this.escapeIdentifier(column)} ${newType}`);
+          await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1');
+        }
+      } catch (e) {
+        try { await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1'); } catch {}
+        throw e;
+      }
+    }
+  }
+
+  private isTypeCompatible(actual: string, expected: string): boolean {
+    const normalize = (t: string) => t.toUpperCase().replace(/\(.*?\)/g, '').trim();
+    const normActual = normalize(actual);
+    const normExpected = normalize(expected);
+    if (normActual === normExpected) return true;
+
+    const aliases: Record<string, string[]> = {
+      'VARCHAR': ['CHARACTER VARYING'],
+      'CHAR': ['CHARACTER', 'NCHAR'],
+      'BOOLEAN': ['BOOL'],
+      'INTEGER': ['INT', 'INT4'],
+      'BIGINT': ['INT8', 'INTEGER'],
+      'SMALLINT': ['INT2'],
+      'TIMESTAMPTZ': ['TIMESTAMP WITH TIME ZONE', 'TIMESTAMP(6) WITH TIME ZONE'],
+      'TIMESTAMP': ['TIMESTAMP WITHOUT TIME ZONE', 'DATETIME'],
+      'DOUBLE PRECISION': ['FLOAT8', 'FLOAT'],
+      'REAL': ['FLOAT4'],
+      'NUMERIC': ['DECIMAL', 'NUMBER'],
+      'TINYINT(1)': ['BOOLEAN', 'BOOL'],
+      'TEXT': ['CLOB'],
+    };
+
+    const expectedAliases = aliases[normExpected];
+    if (expectedAliases && expectedAliases.includes(normActual)) return true;
+
+    for (const [canonical, aliasList] of Object.entries(aliases)) {
+      if (aliasList.includes(normActual) && canonical === normExpected) return true;
+    }
+
+    return false;
+  }
+
+  private async execute(sql: string): Promise<void> {
+    await this.conn.execute(sql);
+  }
+
+  private escapeIdentifier(name: string): string {
+    const dbType = this.getDbType();
+    if (dbType === 'mysql') return `\`${name}\``;
+    return `"${name}"`;
+  }
+
+  private getDbType(): string {
+    return this.conn.type;
+  }
+
+  async reconcile(schema: DatabaseSchema, options: ReconcileOptions = {}): Promise<void> {
+    const { dryRun = false, dropTablePolicy = 'never', forceBackup = true } = options;
+    const dbType = this.getDbType();
+    log.info('Schema', `Starting reconciliation for ${dbType} (Version: ${schema.version})...`);
+
+    if (options.dryRun) {
+      log.warn('Schema', 'DRY RUN MODE: No changes will be applied to the database.');
+    }
+
+    if (!options.dryRun && options.forceBackup !== false) {
+      try {
+        await this.backupManager.createBackup(dbType);
+        this.backupManager.cleanup(7); 
+      } catch (err) {
+        log.error('Schema', 'Backup failed! Aborting reconciliation to protect data.', err);
+        const continueOnFail = process.env.DSM_BACKUP_REQUIRED !== 'true';
+        if (continueOnFail) {
+          log.warn('Schema', 'DSM_BACKUP_REQUIRED is not set to true, continuing with reconciliation...');
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    if (dropTablePolicy !== 'never') {
+      await this.syncTablesDeletion(schema.tables, dryRun, dropTablePolicy);
+    }
+
+    for (const tableDef of schema.tables) {
+      await this.syncTable(tableDef, options.dryRun || false);
+    }
+
+    if (schema.triggers) {
+      for (const trigger of schema.triggers) {
+        await this.syncTrigger(trigger, options.dryRun || false);
+      }
+    }
+
+    if (schema.views) {
+      for (const view of schema.views) {
+        await this.syncView(view, options.dryRun || false);
+      }
+    }
+
+    if (schema.procedures) {
+      for (const proc of schema.procedures) {
+        await this.syncProcedure(proc, options.dryRun || false);
+      }
+    }
+
+    log.info('Schema', 'Reconciliation completed successfully.');
+  }
+
+  async verify(schema: DatabaseSchema): Promise<{ valid: boolean; issues: string[] }> {
+    const issues: string[] = [];
+    
+    for (const tableDef of schema.tables) {
+      const exists = await this.tableExists(tableDef.name);
+      if (!exists) {
+        issues.push(`Missing table: ${tableDef.name}`);
+        continue;
+      }
+
+      const existingCols = await this.getTableColumns(tableDef.name);
+      const existingNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '')));
+      
+      for (const col of tableDef.columns) {
+        if (!existingNames.has(col.name)) {
+          issues.push(`Missing column: ${tableDef.name}.${col.name}`);
+        }
+      }
+
+      if (tableDef.indexes) {
+        for (const idx of tableDef.indexes) {
+          if (!(await this.indexExists(idx.name))) {
+            issues.push(`Missing index: ${idx.name}`);
+          }
+        }
+      }
+    }
+
+    return { valid: issues.length === 0, issues };
+  }
+
+  private async syncTable(tableDef: TableDef, dryRun: boolean): Promise<void> {
+    const exists = await this.tableExists(tableDef.name);
+
+    if (!exists) {
+      const sql = this.generateCreateTableSQL(tableDef);
+      if (dryRun) {
+        log.info('Schema [DRY RUN]', `Would create table: ${tableDef.name}`);
+        log.info('Schema [DRY RUN]', `SQL: ${sql}`);
+      } else {
+        log.info('Schema', `Creating new table: ${tableDef.name}`);
+        await this.execute(sql);
+      }
+    } else {
+      log.debug('Schema', `Table ${tableDef.name} exists, checking columns and indexes...`);
+      if (this.getDbType() === 'mysql') {
+        await this.dropAllForeignKeys(tableDef.name);
+      }
+      await this.syncColumns(tableDef, dryRun);
+      await this.syncIndexes(tableDef, dryRun);
+      if (this.getDbType() !== 'sqlite') {
+        await this.syncForeignKeys(tableDef, dryRun);
+      }
+    }
+  }
+
+  private async syncTablesDeletion(targetTables: TableDef[], dryRun: boolean, policy: DropTablePolicy): Promise<void> {
+    if (policy === 'never') return;
+
+    const dbType = this.getDbType();
+    const targetNames = new Set(targetTables.map(t => t.name.toLowerCase()));
+    
+    let existingTables: string[] = [];
+    if (dbType === 'sqlite') {
+      const rows = await this.conn.query(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`);
+      existingTables = rows.map((r: any) => r.name.toLowerCase());
+    } else if (dbType === 'mysql') {
+      const rows = await this.conn.query("SELECT TABLE_NAME as name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
+      existingTables = rows.map((r: any) => r.name.toLowerCase());
+    } else if (dbType === 'postgresql') {
+      const rows = await this.conn.query("SELECT tablename as name FROM pg_tables WHERE schemaname = 'public'");
+      existingTables = rows.map((r: any) => r.name.toLowerCase());
+    }
+
+    for (const tableName of existingTables) {
+      if (!targetNames.has(tableName)) {
+        if (tableName.startsWith('sqlite_') || tableName === 'schema_versions') {
+          continue;
+        }
+
+        if (policy === 'dry-run-only') {
+          log.warn('Schema [DRY RUN]', `Would drop table (policy: dry-run-only): ${tableName}`);
+          continue;
+        }
+
+        if (policy === 'safe-only') {
+          const countRes = await this.conn.get(`SELECT COUNT(*) as cnt FROM ${this.escapeIdentifier(tableName)}`);
+          const rowCount = (countRes as any)?.cnt || 0;
+          if (rowCount > 0) {
+            log.warn('Schema', `Skipping non-empty table (policy: safe-only): ${tableName} (${rowCount} rows)`);
+            continue;
+          }
+        }
+
+        if (dryRun) {
+          log.warn('Schema [DRY RUN]', `Would drop table: ${tableName}`);
+        } else {
+          log.warn('Schema', `Dropping obsolete table (policy: ${policy}): ${tableName}`);
+          await this.dropTable(tableName);
+        }
+      }
+    }
+  }
+
+  private async dropTable(tableName: string): Promise<void> {
+    await this.conn.execute(`DROP TABLE IF EXISTS ${this.escapeIdentifier(tableName)}`);
+  }
+
+  private async syncForeignKeys(tableDef: TableDef, dryRun: boolean): Promise<void> {
+    const dbType = this.getDbType();
+    if (!tableDef.foreignKeys || dbType === 'sqlite') return;
+    
+    const existingFKs = await this.getTableForeignKeys(tableDef.name);
+    const existingFKNames = new Set(existingFKs.map((fk: any) => fk.constraint_name));
+    
+    const targetFKNames = new Set<string>();
+
+    for (const fk of tableDef.foreignKeys) {
+      const constraintName = `fk_${tableDef.name}_${fk.column}`;
+      targetFKNames.add(constraintName);
+      
+      if (!existingFKNames.has(constraintName)) {
+        let sql = '';
+        if (dbType === 'mysql' || dbType === 'postgresql') {
+          sql = `ALTER TABLE ${this.escapeIdentifier(tableDef.name)} ADD CONSTRAINT ${constraintName} FOREIGN KEY (${fk.column}) REFERENCES ${fk.refTable}(${fk.refColumn}) ON DELETE ${fk.onDelete || 'NO ACTION'}`;
+        }
+
+        if (sql) {
+          if (dryRun) {
+            log.info('Schema [DRY RUN]', `Would add FK: ${constraintName}`);
+          } else {
+            try {
+              await this.execute(sql);
+              log.info('Schema', `Added foreign key constraint: ${constraintName}`);
+            } catch (e: any) {
+              if (e.message?.includes('Duplicate key') || e.message?.includes('already exists')) {
+                log.debug('Schema', `FK ${constraintName} already exists.`);
+              } else {
+                log.warn('Schema', `Failed to add FK ${constraintName}:`, e);
+              }
+            }
+          }
+        }
+      } else {
+        log.debug('Schema', `FK ${constraintName} already exists, skipping.`);
+      }
+    }
+
+    for (const existingFKName of existingFKNames) {
+      if (!targetFKNames.has(existingFKName)) {
+        if (dryRun) {
+          log.warn('Schema [DRY RUN]', `Would drop FK: ${existingFKName}`);
+        } else {
+          log.warn('Schema', `Dropping obsolete FK: ${existingFKName}`);
+          await this.dropForeignKey(tableDef.name, existingFKName);
+        }
+      }
+    }
+  }
+
+  private async getTableForeignKeys(tableName: string): Promise<any[]> {
+    const dbType = this.getDbType();
+    if (dbType === 'mysql') {
+      return this.conn.query(
+        `SELECT CONSTRAINT_NAME as constraint_name, COLUMN_NAME as column_name, 
+         REFERENCED_TABLE_NAME as ref_table, REFERENCED_COLUMN_NAME as ref_column
+         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL`,
+        [tableName]
+      );
+    } else if (dbType === 'postgresql') {
+      return this.conn.query(
+        `SELECT tc.constraint_name, kcu.column_name, 
+         ccu.table_name AS ref_table, ccu.column_name AS ref_column,
+         rc.delete_rule
+         FROM information_schema.table_constraints AS tc 
+         JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
+         JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name
+         JOIN information_schema.referential_constraints AS rc ON rc.constraint_name = tc.constraint_name
+         WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = $1`,
+        [tableName]
+      );
+    }
+    return [];
+  }
+
+  private async dropForeignKey(tableName: string, constraintName: string): Promise<void> {
+    const dbType = this.getDbType();
+    if (dbType === 'mysql') {
+      try {
+        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(tableName)} DROP FOREIGN KEY ${this.escapeIdentifier(constraintName)}`);
+      } catch (err) {
+        log.debug('Schema', `FK ${constraintName} not found or already dropped`);
+      }
+    } else if (dbType === 'postgresql') {
+      await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(tableName)} DROP CONSTRAINT IF EXISTS ${this.escapeIdentifier(constraintName)}`);
+    }
+  }
+
+  private async dropAllForeignKeys(tableName: string): Promise<void> {
+    const fks = await this.getTableForeignKeys(tableName);
+    for (const fk of fks) {
+      await this.dropForeignKey(tableName, fk.constraint_name || fk.constraintName);
+    }
+  }
+
+  private async indexExists(indexName: string): Promise<boolean> {
+    const type = this.conn.type;
+    if (type === 'sqlite') {
+      const res = await this.conn.get(`SELECT name FROM sqlite_master WHERE type='index' AND name=?`, [indexName]);
+      return !!res;
+    } else if (type === 'mysql') {
+      const res = await this.conn.get("SELECT INDEX_NAME as name FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND INDEX_NAME = ?", [indexName]);
+      return !!res;
+    } else if (type === 'postgresql') {
+      const res = await this.conn.get("SELECT indexname as name FROM pg_indexes WHERE schemaname = 'public' AND indexname = $1", [indexName]);
+      return !!res;
+    }
+    return false;
+  }
+
+  private async syncIndexes(tableDef: TableDef, dryRun: boolean): Promise<void> {
+    if (!tableDef.indexes) return;
+
+    const dbType = this.getDbType();
+
+    for (const idx of tableDef.indexes) {
+      const exists = await this.indexExists(idx.name);
+      if (!exists) {
+        const uniqueStr = idx.unique ? 'UNIQUE' : '';
+        const cols = idx.columns.map(c => this.escapeIdentifier(c)).join(', ');
+        const ifNotExists = dbType === 'mysql' ? '' : ' IF NOT EXISTS';
+        const sql = `CREATE ${uniqueStr} INDEX${ifNotExists} ${this.escapeIdentifier(idx.name)} ON ${this.escapeIdentifier(tableDef.name)} (${cols})`;
+        if (dryRun) {
+          log.info('Schema [DRY RUN]', `Would add index: ${idx.name}`);
+          log.info('Schema [DRY RUN]', `SQL: ${sql}`);
+        } else {
+          log.info('Schema', `Adding missing index: ${idx.name}`);
+          await this.execute(sql);
+        }
+      }
+    }
+  }
+
+  private async syncColumns(tableDef: TableDef, dryRun: boolean): Promise<void> {
+    const existingCols = await this.getTableColumns(tableDef.name);
+    const existingNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '').trim()));
+    const targetNames = new Set(tableDef.columns.map(c => c.name));
+
+    for (const col of tableDef.columns) {
+      if (!existingNames.has(col.name)) {
+        const def = this.getColumnDefinitionSQL(col);
+        if (dryRun) {
+          log.info('Schema [DRY RUN]', `Would add column: ${tableDef.name}.${col.name}`);
+        } else {
+          log.info('Schema', `Adding missing column: ${tableDef.name}.${col.name}`);
+          try {
+            await this.addColumn(tableDef.name, col.name, def);
+          } catch (e: any) {
+            const msg = e.message?.toLowerCase() || '';
+            if (msg.includes('duplicate column')) {
+              log.warn('Schema', `Column ${tableDef.name}.${col.name} already exists, skipping.`);
+            } else if (this.getDbType() === 'sqlite' && (msg.includes('unique column') || msg.includes('unique constraint'))) {
+              log.warn('Schema', `Cannot add UNIQUE column ${tableDef.name}.${col.name} via ALTER in SQLite. Skipping add and relying on rebuild.`);
+            } else if (this.getDbType() === 'sqlite' && (msg.includes('non-constant default') || msg.includes('default value'))) {
+              log.warn('Schema', `Cannot add column ${tableDef.name}.${col.name} with non-constant default via ALTER in SQLite. Skipping add and relying on rebuild.`);
+            } else {
+              throw e;
+            }
+          }
+        }
+      }
+    }
+
+    for (const existingCol of existingCols) {
+      const normalizedName = existingCol.name.replace(/["'`]/g, '').trim();
+      if (!targetNames.has(normalizedName)) {
+        if (dryRun) {
+          log.warn('Schema [DRY RUN]', `Would drop column: ${tableDef.name}.${existingCol.name}`);
+        } else {
+          log.warn('Schema', `Dropping obsolete column: ${tableDef.name}.${existingCol.name}`);
+          await this.dropColumn(tableDef.name, existingCol.name);
+        }
+      }
+    }
+
+    let needsRebuild = false;
+    const rebuildTargets: { name: string; type: string }[] = [];
+
+    for (const col of tableDef.columns) {
+      const existingCol = existingCols.find((c: any) => c.name.replace(/["'`]/g, '').trim() === col.name);
+      if (existingCol) {
+        const expectedType = this.mapTypeToSQL(col.type, this.getDbType(), col.length);
+        const actualType = existingCol.type?.toUpperCase();
+        
+        const isPostgresSerial = this.getDbType() === 'postgresql' && expectedType === 'SERIAL';
+        
+        if (actualType && !isPostgresSerial && !this.isTypeCompatible(actualType, expectedType)) {
+          if (this.getDbType() === 'sqlite') {
+            needsRebuild = true;
+            rebuildTargets.push({ name: col.name, type: expectedType });
+          } else {
+            if (dryRun) {
+              log.warn('Schema [DRY RUN]', `Would modify column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
+            } else {
+              log.warn('Schema', `Modifying column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
+              await this.modifyColumnType(tableDef.name, col.name, expectedType, col, existingCol.type);
+            }
+          }
+        }
+      }
+    }
+
+    if (this.getDbType() === 'sqlite' && (needsRebuild || Array.from(targetNames).length !== Array.from(existingNames).length)) {
+      await this.rebuildTableForSQLite(tableDef, dryRun);
+    }
+  }
+
+  private async rebuildTableForSQLite(tableDef: TableDef, dryRun: boolean): Promise<void> {
+    const tableName = tableDef.name;
+    const tempName = `${tableName}_dsm_rebuild_${Date.now()}`;
+    
+    const existingCols = await this.getTableColumns(tableName);
+    const existingColNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '').trim()));
+    
+    const keepCols = tableDef.columns.filter(c => {
+      const normalizedName = c.name.replace(/["'`]/g, '').trim();
+      return existingColNames.has(normalizedName);
+    });
+    const keepColNames = keepCols.map(c => this.escapeIdentifier(c.name));
+    
+    if (keepColNames.length === 0) {
+      log.error('Schema', `No columns to keep during rebuild for ${tableName}. Aborting.`);
+      return;
+    }
+
+    const newColDefs = tableDef.columns.map(c => {
+      const normalizedName = c.name.replace(/["'`]/g, '').trim();
+      if (existingColNames.has(normalizedName)) {
+        return this.getColumnDefinitionSQL(c);
+      }
+      const def = this.getColumnDefinitionSQL(c);
+      return def
+        .replace(/\s+NOT\s+NULL\s*/i, ' ')
+        .replace(/\s+UNIQUE\s*/i, ' ')
+        .replace(/\s+PRIMARY\s+KEY\s*/i, ' ')
+        .replace(/\s+AUTOINCREMENT\s*/i, ' ')
+        .trim();
+    }).join(', ');
+    
+    let fkClause = '';
+    if (tableDef.foreignKeys && tableDef.foreignKeys.length > 0) {
+      const fks = tableDef.foreignKeys
+        .filter(fk => keepColNames.includes(this.escapeIdentifier(fk.column)))
+        .map(fk => `FOREIGN KEY (${fk.column}) REFERENCES ${fk.refTable}(${fk.refColumn}) ON DELETE ${fk.onDelete || 'NO ACTION'}`)
+        .join(', ');
+      if (fks) fkClause = `, ${fks}`;
+    }
+
+    if (dryRun) {
+      log.info('Schema [DRY RUN]', `Would rebuild SQLite table: ${tableName}`);
+      return;
+    }
+
+    try {
+      await this.conn.execute('PRAGMA foreign_keys = OFF');
+      
+      await this.conn.execute('BEGIN TRANSACTION');
+      
+      await this.conn.execute(`CREATE TABLE ${this.escapeIdentifier(tempName)} (${newColDefs}${fkClause})`);
+      
+      await this.conn.execute(
+        `INSERT INTO ${this.escapeIdentifier(tempName)} (${keepColNames.join(', ')}) 
+         SELECT ${keepColNames.join(', ')} FROM ${this.escapeIdentifier(tableName)}`
+      );
+      
+      await this.conn.execute(`DROP TABLE ${this.escapeIdentifier(tableName)}`);
+      await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(tempName)} RENAME TO ${this.escapeIdentifier(tableName)}`);
+      
+      if (tableDef.indexes) {
+        const keptColumnNameSet = new Set(keepCols.map(c => c.name));
+        for (const idx of tableDef.indexes) {
+          const allColsExist = idx.columns.every(c => keptColumnNameSet.has(c));
+          if (!allColsExist) {
+            log.warn('Schema', `Skipping index ${idx.name} during rebuild: referenced columns not kept in new table`);
+            continue;
+          }
+          const cols = idx.columns.map(c => this.escapeIdentifier(c)).join(', ');
+          const unique = idx.unique ? 'UNIQUE ' : '';
+          await this.conn.execute(`CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${this.escapeIdentifier(tableName)}(${cols})`);
+        }
+      }
+
+      await this.conn.execute('COMMIT');
+      await this.conn.execute('PRAGMA foreign_keys = ON');
+      log.info('Schema', `Successfully rebuilt SQLite table: ${tableName}`);
+    } catch (err) {
+      await this.conn.execute('ROLLBACK');
+      await this.conn.execute('PRAGMA foreign_keys = ON');
+      log.error('Schema', `Failed to rebuild SQLite table ${tableName}:`, err);
+      throw err;
+    }
+  }
+
+  private generateCreateTableSQL(table: TableDef): string {
+    const dbType = this.getDbType();
+    const cols = table.columns.map(c => this.getColumnDefinitionSQL(c)).join(', ');
+    
+    let sql = `CREATE TABLE IF NOT EXISTS ${this.escapeIdentifier(table.name)} (${cols}`;
+    
+    if (table.foreignKeys && table.foreignKeys.length > 0) {
+      const fkClauses = table.foreignKeys.map(fk => {
+        return `FOREIGN KEY (${fk.column}) REFERENCES ${fk.refTable}(${fk.refColumn}) ON DELETE ${fk.onDelete || 'NO ACTION'}`;
+      }).join(', ');
+      sql += `, ${fkClauses}`;
+    }
+
+    sql += ')';
+
+    if (dbType === 'mysql') {
+      sql += ` ENGINE=${table.engine || 'InnoDB'} DEFAULT CHARSET=${table.charset || 'utf8mb4'}`;
+    }
+
+    return sql;
+  }
+
+  private getColumnDefinitionSQL(col: ColumnDef): string {
+    const dbType = this.getDbType();
+    let sqlType = this.mapTypeToSQL(col.type, dbType, col.length);
+
+    let def = `${this.escapeIdentifier(col.name)} ${sqlType}`;
+
+    if (col.primaryKey) {
+      def += ' PRIMARY KEY';
+      if (col.autoIncrement) {
+        if (dbType === 'sqlite') def += ' AUTOINCREMENT';
+        else if (dbType === 'mysql') def += ' AUTO_INCREMENT';
+        else if (dbType === 'postgresql') def = def.replace('INTEGER', 'SERIAL'); 
+      }
+    } else {
+      if (!col.nullable) def += ' NOT NULL';
+    }
+
+    if (col.defaultValue !== undefined) {
+      def += ` DEFAULT ${this.formatDefaultValue(col.defaultValue, col.type, dbType)}`;
+    }
+
+    if (col.unique) {
+      def += ' UNIQUE';
+    }
+
+    return def;
+  }
+
+  private mapTypeToSQL(type: string, dbType: string, length?: number): string {
+    switch (type) {
+      case 'id': return dbType === 'postgresql' ? 'SERIAL' : 'INTEGER';
+      case 'number': return dbType === 'postgresql' ? 'BIGINT' : 'BIGINT';
+      case 'boolean': return dbType === 'postgresql' ? 'BOOLEAN' : (dbType === 'mysql' ? 'TINYINT(1)' : 'INTEGER');
+      case 'datetime': return dbType === 'postgresql' ? 'TIMESTAMPTZ' : 'DATETIME';
+      case 'json': return dbType === 'postgresql' ? 'JSONB' : (dbType === 'mysql' ? 'JSON' : 'TEXT');
+      case 'string': return length ? `VARCHAR(${length})` : (dbType === 'postgresql' ? 'TEXT' : 'TEXT');
+      default: return 'TEXT';
+    }
+  }
+
+  private formatDefaultValue(value: any, type: string, dbType: string): string {
+    if (value === null) return 'NULL';
+    if (type === 'number') return value.toString();
+    
+    if (type === 'boolean') {
+      if (dbType === 'postgresql') return value ? 'TRUE' : 'FALSE';
+      if (dbType === 'mysql') return value ? '1' : '0';
+      return value ? '1' : '0';
+    }
+    
+    if (value === 'NOW()' || value === 'CURRENT_TIMESTAMP') {
+      return dbType === 'postgresql' ? 'CURRENT_TIMESTAMP' : 'CURRENT_TIMESTAMP';
+    }
+
+    if (type === 'json') {
+      return `'${JSON.stringify(value).replace(/'/g, "''")}'`; 
+    }
+    
+    return `'${String(value).replace(/'/g, "''")}'`;
+  }
+
+  private async syncTrigger(trigger: TriggerDef, dryRun: boolean): Promise<void> {
+    const dbType = this.getDbType();
+    const exists = await this.triggerExists(trigger.name);
+    
+    let sql = '';
+    if (dbType === 'mysql') {
+      sql = `CREATE OR REPLACE TRIGGER ${trigger.name} ${trigger.timing} ${trigger.event} ON ${trigger.table} FOR EACH ROW ${trigger.body}`;
+    } else if (dbType === 'postgresql') {
+      const funcName = `${trigger.name}_func`;
+      sql = `
+        CREATE OR REPLACE FUNCTION ${funcName}() RETURNS TRIGGER AS $$
+        BEGIN
+          ${trigger.body}
+        END;
+        $$ LANGUAGE plpgsql;
+        
+        DROP TRIGGER IF EXISTS ${trigger.name} ON ${trigger.table};
+        CREATE TRIGGER ${trigger.name} ${trigger.timing} ${trigger.event} ON ${trigger.table} FOR EACH ROW EXECUTE FUNCTION ${funcName}();
+      `;
+    } else if (dbType === 'sqlite') {
+      sql = `CREATE TRIGGER IF NOT EXISTS ${trigger.name} ${trigger.timing} ${trigger.event} ON ${trigger.table} BEGIN ${trigger.body} END`;
+    }
+
+    if (dryRun) {
+      log.info('Schema [DRY RUN]', `Would sync trigger: ${trigger.name}`);
+    } else {
+      if (!exists) {
+        log.info('Schema', `Creating trigger: ${trigger.name}`);
+      } else {
+        log.info('Schema', `Updating trigger: ${trigger.name}`);
+      }
+      await this.execute(sql);
+    }
+  }
+
+  private async triggerExists(triggerName: string): Promise<boolean> {
+    const dbType = this.getDbType();
+    if (dbType === 'sqlite') {
+      const res = await this.conn.get(`SELECT name FROM sqlite_master WHERE type='trigger' AND name=?`, [triggerName]);
+      return !!res;
+    } else if (dbType === 'mysql') {
+      const res = await this.conn.get("SELECT TRIGGER_NAME as name FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = ?", [triggerName]);
+      return !!res;
+    } else if (dbType === 'postgresql') {
+      const res = await this.conn.get("SELECT tgname as name FROM pg_trigger WHERE tgname = $1", [triggerName]);
+      return !!res;
+    }
+    return false;
+  }
+
+  private async syncView(view: ViewDef, dryRun: boolean): Promise<void> {
+    const sql = `CREATE OR REPLACE VIEW ${this.escapeIdentifier(view.name)} AS ${view.query}`;
+    
+    if (dryRun) {
+      log.info('Schema [DRY RUN]', `Would sync view: ${view.name}`);
+    } else {
+      log.info('Schema', `Syncing view: ${view.name}`);
+      await this.execute(sql);
+    }
+  }
+
+  private async syncProcedure(proc: ProcedureDef, dryRun: boolean): Promise<void> {
+    const dbType = this.getDbType();
+    const params = proc.parameters || '';
+    
+    let sql = '';
+    if (dbType === 'mysql') {
+      sql = `CREATE OR REPLACE PROCEDURE ${proc.name}${params} ${proc.body}`;
+    } else if (dbType === 'postgresql') {
+      sql = `CREATE OR REPLACE FUNCTION ${proc.name}${params} ${proc.body}`;
+    } else if (dbType === 'sqlite') {
+      log.warn('Schema', `SQLite does not support stored procedures. Skipping: ${proc.name}`);
+      return;
+    }
+
+    if (dryRun) {
+      log.info('Schema [DRY RUN]', `Would sync procedure: ${proc.name}`);
+    } else {
+      log.info('Schema', `Syncing procedure: ${proc.name}`);
+      await this.execute(sql);
+    }
+  }
+}

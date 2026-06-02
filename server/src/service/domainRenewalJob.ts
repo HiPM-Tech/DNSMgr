@@ -3,7 +3,7 @@
  * 域名续期定时任务服务 - 每天 UTC 0:00 自动续期 DNSHE 域名
  */
 
-import { DnsAccountOperations, RenewableDomainOperations } from '../db/business-adapter';
+import { DnsAccountOperations, RenewableDomainOperations } from '../db/bal/business-adapter';
 import { renewalRegistry } from './renewalScheduler';
 import { taskManager } from './taskManager';
 import { logAuditOperation } from './audit';

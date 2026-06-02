@@ -4,7 +4,7 @@
  * 如果域名在提供商 API 中不存在，则自动禁用该域名
  */
 
-import { DnsAccountOperations, DomainOperations, RenewableDomainOperations } from '../db/business-adapter';
+import { DnsAccountOperations, DomainOperations, RenewableDomainOperations } from '../db/bal/business-adapter';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { taskManager } from './taskManager';
 import { logAuditOperation } from './audit';

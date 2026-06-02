@@ -6,7 +6,7 @@ import { ROLE_ADMIN, isAdmin, isSuper } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { sendError, sendSuccess } from '../utils/http';
 import { log } from '../lib/logger';
-import { TeamOperations, DomainPermissionOperations, UserOperations } from '../db/business-adapter';
+import { TeamOperations, DomainPermissionOperations, UserOperations } from '../db/bal/business-adapter';
 import { wsService } from '../service/websocket';
 import { getDisplayDomain } from '../utils/dns';
 

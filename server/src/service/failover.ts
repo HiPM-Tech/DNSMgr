@@ -1,4 +1,4 @@
-import { FailoverOperations, DomainOperations, withTransaction, TransactionOperations } from '../db/business-adapter';
+import { FailoverOperations, DomainOperations, withTransaction, TransactionOperations } from '../db/bal/business-adapter';
 import { logAuditOperation } from './audit';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { sendNotification } from './notification';

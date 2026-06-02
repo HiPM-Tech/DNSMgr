@@ -15,10 +15,10 @@ import path from 'path';
 // Get the current file directory
 const APP_ROOT = path.resolve();
 import { createConnection, isDbInitialized, hasUsers, connect } from './db/connection';
-import { initializeDSM } from './db/init-dsm';
+import { initializeDSM } from './db/dsm/init-dsm';
 // import { initSchema } from './db/schema'; // Deprecated: Replaced by DSM
 // import { initSchema as initSchemaWithMigration } from './db/init'; // Deprecated: Replaced by DSM
-import { disconnect } from './db/core/connection';
+import { disconnect } from './db/dal/connection';
 import { authMiddleware, adminOnly } from './middleware/auth';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { requestLogger, requestIdMiddleware } from './middleware/requestLogger';
@@ -93,7 +93,7 @@ import { initRenewalSchedulers } from './service/renewalInit';
 import { wsService } from './service/websocket';
 import { initWhoisSchedulers } from './service/whois';
 import { log } from './lib/logger';
-import { OAuthOperations } from './db/business-adapter';
+import { OAuthOperations } from './db/bal/business-adapter';
 
 const app = express();
 

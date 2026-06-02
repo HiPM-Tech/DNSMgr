@@ -4,8 +4,8 @@
  * 提供管理命令：禁用2FA、重置数据库配置等
  */
 
-import { connect, disconnect, getConnection } from './db/core/connection';
-import { UserOperations, TOTPOperations } from './db/business-adapter';
+import { connect, disconnect, getConnection } from './db/dal/connection';
+import { UserOperations, TOTPOperations } from './db/bal/business-adapter';
 import { log } from './lib/logger';
 import fs from 'fs';
 import path from 'path';

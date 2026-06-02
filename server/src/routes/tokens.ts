@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware, noTokenAuth } from '../middleware/auth';
 import { createUserToken, getUserTokens, deleteUserToken, toggleTokenStatus, updateTokenPermissions } from '../service/token';
-import { DomainOperations } from '../db/business-adapter';
+import { DomainOperations } from '../db/bal/business-adapter';
 import { normalizeRole } from '../utils/roles';
 import { wsService } from '../service/websocket';
 import { log } from '../lib/logger';

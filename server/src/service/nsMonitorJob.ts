@@ -3,7 +3,7 @@
  * NS 监测定时任务服务 - 新架构（用户级）
  */
 
-import { NSMonitorOperations, DomainOperations, AuditOperations, UserOperations, formatDateForDB } from '../db/business-adapter';
+import { NSMonitorOperations, DomainOperations, AuditOperations, UserOperations, formatDateForDB } from '../db/bal/business-adapter';
 import { resolveNsRecords, getNsStatus, validateNsRecords } from '../lib/dns/ns-lookup';
 import { sendNotification, sendEmailToUser } from './notification';
 import { taskManager } from './taskManager';

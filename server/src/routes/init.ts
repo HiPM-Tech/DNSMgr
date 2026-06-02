@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { initializeDSM } from '../db/init-dsm';
+import { initializeDSM } from '../db/dsm/init-dsm';
 import { saveEnvConfig } from '../config/env';
 import { createConnection, isDbInitialized, hasUsers } from '../db/connection';
-import { connect } from '../db/core/connection';
-import type { DatabaseConfig } from '../db/core/config';
-import { UserOperations, SystemOperations, SecretOperations } from '../db/business-adapter';
+import { connect } from '../db/dal/connection';
+import type { DatabaseConfig } from '../db/dal/config';
+import { UserOperations, SystemOperations, SecretOperations } from '../db/bal/business-adapter';
 import { log } from '../lib/logger';
 
 // ============================================================================
@@ -273,7 +273,7 @@ router.post('/database', async (req: Request, res: Response) => {
       
       // Disconnect any existing connection
       try {
-        const { disconnect } = await import('../db/core/connection');
+        const { disconnect } = await import('../db/dal/connection');
         await disconnect();
       } catch { /* Ignore */ }
       
@@ -307,7 +307,7 @@ router.post('/database', async (req: Request, res: Response) => {
       
       // Disconnect any existing connection
       try {
-        const { disconnect } = await import('../db/core/connection');
+        const { disconnect } = await import('../db/dal/connection');
         await disconnect();
       } catch { /* Ignore */ }
       

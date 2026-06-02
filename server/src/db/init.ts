@@ -1,12 +1,12 @@
-import { getConnection } from './core/connection';
-import type { DatabaseConnection, DatabaseType } from './core/types';
-import { sqliteSchema } from './schemas/sqlite';
-import { mysqlSchema } from './schemas/mysql';
-import { postgresqlSchema } from './schemas/postgresql';
-import { getDatabaseConfig } from './core/config';
+import { getConnection } from './dal/connection';
+import type { DatabaseConnection, DatabaseType } from './dal/types';
+import { sqliteSchema } from './dsm/schemas/dialects/sqlite';
+import { mysqlSchema } from './dsm/schemas/dialects/mysql';
+import { postgresqlSchema } from './dsm/schemas/dialects/postgresql';
+import { getDatabaseConfig } from './dal/config';
 import fs from 'fs';
 import path from 'path';
-import { initializeDSM } from './init-dsm';
+import { initializeDSM } from './dsm/init-dsm';
 import { log } from '../lib/logger';
 
 export async function initSchema(): Promise<void> {

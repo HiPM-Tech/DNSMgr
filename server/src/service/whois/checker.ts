@@ -4,7 +4,7 @@
  * 负责单个域名的 WHOIS 查询、缓存管理和状态提取
  */
 
-import { WhoisOperations, DnsAccountOperations } from '../../db/business-adapter';
+import { WhoisOperations, DnsAccountOperations } from '../../db/bal/business-adapter';
 import { Domain, DnsAccount } from '../../types';
 import { log } from '../../lib/logger';
 import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatus, dnsProviderAdapter, WhoisResult } from './index';
@@ -40,7 +40,7 @@ function formatDateForMySQL(date: Date): string {
 async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
   try {
     // 直接查询指定域名的记录，而不是遍历所有域名
-    const { DomainOperations } = await import('../../db/business-adapter');
+    const { DomainOperations } = await import('../../db/bal/business-adapter');
     const domain = await DomainOperations.getByName(domainName) as Domain | undefined;
     
     if (!domain || !domain.account_id) {

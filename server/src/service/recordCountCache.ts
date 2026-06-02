@@ -1,5 +1,5 @@
 import { log } from '../lib/logger';
-import { DomainOperations, DnsAccountOperations } from '../db/business-adapter';
+import { DomainOperations, DnsAccountOperations } from '../db/bal/business-adapter';
 import { taskManager } from './taskManager';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { Domain, DnsAccount } from '../types';

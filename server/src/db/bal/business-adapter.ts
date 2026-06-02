@@ -1,0 +1,4120 @@
+/**
+ * 数据库业务适配器层 (Database Business Adapter Layer)
+ * 
+ * 架构层级�?
+ * 路由�?�?业务适配器（本文件）�?数据库抽象层 �?数据库驱�?�?数据�?
+ * 
+ * 设计原则�?
+ * 1. 函数式API - 路由层通过简单函数调用使用数据库
+ * 2. 单一职责 - 每个函数只处理一个业务操�?
+ * 3. 高扩展�?- 新增业务只需添加新函�?
+ * 4. 封装隔离 - 数据库变动不影响路由�?
+ * 5. 完整日志 - 所有操作都有详细日�?
+ */
+
+import crypto from 'crypto';
+import type { SQLCompiler } from '../dal/query/compiler';
+import { getDefaultCompiler } from '../dal/query/compiler';
+import { transaction, getConnection } from '../dal/connection';
+import { log } from '../../lib/logger';
+import { DomainQueryBuilder, RenewableDomainQueryBuilder, AccountQueryBuilder, TeamQueryBuilder } from './query-builders';
+
+// 本地 db 对象，避免循环依�?
+const db = {
+  get type() { return process.env.DB_TYPE || 'sqlite'; },
+  get isConnected() { 
+    try {
+      const conn = getConnection();
+      return !!conn;
+    } catch {
+      return false;
+    }
+  },
+  async query<T>(sql: string, params?: unknown[]): Promise<T[]> {
+    const conn = getConnection();
+    return conn.query<T>(sql, params);
+  },
+  async get<T>(sql: string, params?: unknown[]): Promise<T | undefined> {
+    const conn = getConnection();
+    return conn.get<T>(sql, params);
+  },
+  async execute(sql: string, params?: unknown[]): Promise<void> {
+    const conn = getConnection();
+    return conn.execute(sql, params);
+  },
+  async insert(sql: string, params?: unknown[]): Promise<number> {
+    const conn = getConnection();
+    return conn.insert(sql, params);
+  },
+  async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
+    const conn = getConnection();
+    return conn.run(sql, params);
+  },
+};
+
+// ============================================================================
+// 类型定义
+// ============================================================================
+
+/** 查询结果类型 */
+export type QueryResult = Record<string, unknown>;
+
+/** 业务操作上下�?*/
+interface OperationContext {
+  operation: string;
+  table?: string;
+  userId?: number;
+  requestId?: string;
+}
+
+// ============================================================================
+// SQL 兼容性辅助函�?
+// ============================================================================
+
+/**
+ * 生成 UPSERT SQL 语句（兼�?MySQL/PostgreSQL/SQLite�?
+ * @param table 表名
+ * @param columns 列名数组（不�?updated_at�?
+ * @param values 值数�?
+ * @param conflictKey 冲突�?
+ * @param updateColumns 需要更新的列（不含 updated_at�?
+ */
+function buildUpsertSql(
+  table: string,
+  columns: string[],
+  values: unknown[],
+  conflictKey: string,
+  updateColumns: string[]
+): { sql: string; params: unknown[] } {
+  const dbType = getDbType();
+  
+  // 添加 updated_at �?
+  const allColumns = [...columns, 'updated_at'];
+  
+  if (dbType === 'mysql') {
+    // MySQL: INSERT ... ON DUPLICATE KEY UPDATE
+    // updated_at 不在 INSERT 的列中，只在 UPDATE 部分使用 NOW()
+    const insertColumns = columns.map(col => col === 'key' || col === 'value' ? `\`${col}\`` : col).join(', ');
+    const placeholders = columns.map(() => '?').join(', ');
+    const updates = updateColumns.map(col => {
+      const escaped = col === 'key' || col === 'value' ? `\`${col}\`` : col;
+      return `${escaped} = VALUES(${escaped})`;
+    }).join(', ');
+    
+    const sql = `INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}, updated_at = NOW()`;
+    return { sql, params: values };
+  } else if (dbType === 'postgresql') {
+    // PostgreSQL: INSERT ... ON CONFLICT DO UPDATE
+    // updated_at 不在 INSERT 的列中，只在 UPDATE 部分使用 NOW()
+    const insertColumns = columns.join(', ');
+    const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
+    const updates = updateColumns.map(col => {
+      return `${col} = EXCLUDED.${col}`;
+    }).join(', ');
+    
+    const sql = `INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = NOW()`;
+    return { sql, params: values };
+  } else {
+    // SQLite: INSERT ... ON CONFLICT DO UPDATE
+    // updated_at 不在 INSERT 的列中，只在 UPDATE 部分使用 CURRENT_TIMESTAMP
+    const insertColumns = columns.join(', ');
+    const placeholders = columns.map(() => '?').join(', ');
+    const updates = updateColumns.map(col => {
+      return `${col} = excluded.${col}`;
+    }).join(', ');
+    
+    const sql = `INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = CURRENT_TIMESTAMP`;
+    return { sql, params: values };
+  }
+}
+
+// ============================================================================
+// 日志系统 - 使用统一日志模块
+// ============================================================================
+
+/** 创建操作日志上下�?*/
+function createOperationLogger(context: OperationContext) {
+  return {
+    start: () => log.debug('BusinessAdapter', `Starting ${context.operation}`, { table: context.table, userId: context.userId }),
+    success: (duration: number, meta?: Record<string, unknown>) => 
+      log.debug('BusinessAdapter', `${context.operation} completed`, { ...meta, duration: `${duration}ms`, table: context.table }),
+    error: (error: unknown, duration: number) => 
+      log.error('BusinessAdapter', `${context.operation} failed`, { error, duration: `${duration}ms`, table: context.table }),
+  };
+}
+
+// ============================================================================
+// 底层数据库操作（内部使用�?
+// ============================================================================
+
+/** SQL处理�?*/
+function processSql(sql: string, dbType: string): string {
+  const originalSql = sql;
+
+  // MySQL 兼容性处�?
+  if (dbType === 'mysql') {
+    // 1. 先处�?ON CONFLICT 转换（在关键字转义之前）
+    // 匹配: ON CONFLICT(...) DO UPDATE SET col = excluded.col, ...
+    sql = sql.replace(
+      /ON\s+CONFLICT\s*\([^)]+\)\s*DO\s+UPDATE\s+SET\s+(.+?)(?:\s*$|\s+(?=RETURNING|WHERE|ORDER|LIMIT|OFFSET))/i,
+      (match, updateClause) => {
+        // 转换 excluded.col �?VALUES(col)
+        const mysqlUpdateClause = updateClause.replace(
+          /excluded\.([a-zA-Z_][a-zA-Z0-9_]*)/gi,
+          'VALUES($1)'
+        );
+        return `ON DUPLICATE KEY UPDATE ${mysqlUpdateClause}`;
+      }
+    );
+
+    // 2. 转义保留关键字（仅转义作为标识符的关键字�?
+    // 注意：跳过已经转义的、在 ON DUPLICATE KEY UPDATE 中的、以�?SQL 关键字上下文中的
+    const keywords = ['key', 'value'];
+    keywords.forEach(keyword => {
+      // 匹配未转义的关键字：前面不是反引号，后面也不是反引号
+      // 使用 lookbehind �?lookahead 来确保关键字没有被反引号包围
+      const regex = new RegExp(`(?<!\x60)\\b${keyword}\\b(?!\x60)`, 'gi');
+      sql = sql.replace(regex, (match, offset) => {
+        const upperSql = sql.toUpperCase();
+        const beforeContext = sql.substring(Math.max(0, offset - 20), offset).toUpperCase();
+        const afterContext = sql.substring(offset + match.length, Math.min(sql.length, offset + match.length + 20)).toUpperCase();
+        
+        // 跳过 ON DUPLICATE KEY UPDATE 中的 KEY
+        if (beforeContext.includes('ON DUPLICATE') && keyword.toLowerCase() === 'key') {
+          return match;
+        }
+        
+        // 跳过 ORDER BY / GROUP BY 中的 BY
+        if (beforeContext.includes('ORDER') || beforeContext.includes('GROUP')) {
+          return match;
+        }
+        
+        // 跳过 FOREIGN KEY / PRIMARY KEY 中的 KEY
+        if (beforeContext.includes('FOREIGN') || beforeContext.includes('PRIMARY')) {
+          return match;
+        }
+        
+        return `\`${keyword}\``;
+      });
+    });
+  }
+
+  if (sql !== originalSql) {
+    log.debug('BusinessAdapter', 'SQL processed', { original: originalSql, processed: sql });
+  }
+
+  return sql;
+}
+
+/** 执行查询并返回多行（内部�?*/
+async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], context?: OperationContext): Promise<T[]> {
+  const startTime = Date.now();
+  const processedSql = processSql(sql, db.type);
+  
+  log.debug('BusinessAdapter', 'Executing query', { sql: processedSql, params, operation: context?.operation });
+  
+  try {
+    const results = await db.query<T>(processedSql, params);
+    const duration = Date.now() - startTime;
+    log.debug('BusinessAdapter', `Query executed`, { 
+      sql: processedSql.substring(0, 100), 
+      rowCount: results.length,
+      duration: `${duration}ms`,
+      operation: context?.operation
+    });
+    return results;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    log.error('BusinessAdapter', 'Query failed', { 
+      sql: processedSql, 
+      params, 
+      error,
+      duration: `${duration}ms`,
+      operation: context?.operation
+    });
+    throw error;
+  }
+}
+
+/** 执行查询并返回单行（内部�?*/
+async function getInternal<T = QueryResult>(sql: string, params?: unknown[], context?: OperationContext): Promise<T | undefined> {
+  const startTime = Date.now();
+  const processedSql = processSql(sql, db.type);
+  
+  log.debug('BusinessAdapter', 'Executing get', { sql: processedSql, params, operation: context?.operation });
+  
+  try {
+    const result = await db.get<T>(processedSql, params);
+    const duration = Date.now() - startTime;
+    log.debug('BusinessAdapter', `Get executed`, { 
+      sql: processedSql.substring(0, 100), 
+      found: result !== undefined,
+      duration: `${duration}ms`,
+      operation: context?.operation
+    });
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    log.error('BusinessAdapter', 'Get failed', { 
+      sql: processedSql, 
+      params, 
+      error,
+      duration: `${duration}ms`,
+      operation: context?.operation
+    });
+    throw error;
+  }
+}
+
+/** 执行INSERT/UPDATE/DELETE（内部） */
+async function executeInternal(sql: string, params?: unknown[], context?: OperationContext): Promise<void> {
+  const startTime = Date.now();
+  const processedSql = processSql(sql, db.type);
+  
+  log.debug('BusinessAdapter', 'Executing command', { sql: processedSql, params, operation: context?.operation });
+  
+  try {
+    await db.execute(processedSql, params);
+    const duration = Date.now() - startTime;
+    log.debug('BusinessAdapter', `Command executed`, { 
+      operation: context?.operation,
+      duration: `${duration}ms`
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    log.error('BusinessAdapter', 'Command failed', { 
+      sql: processedSql, 
+      params, 
+      error,
+      duration: `${duration}ms`,
+      operation: context?.operation
+    });
+    throw error;
+  }
+}
+
+/** 执行INSERT并返回ID（内部） */
+async function insertInternal(sql: string, params?: unknown[], context?: OperationContext): Promise<number> {
+  const startTime = Date.now();
+  const processedSql = processSql(sql, db.type);
+  
+  log.debug('BusinessAdapter', 'Executing insert', { sql: processedSql, params, operation: context?.operation });
+  
+  try {
+    const id = await db.insert(processedSql, params);
+    const duration = Date.now() - startTime;
+    log.debug('BusinessAdapter', `Insert executed`, { 
+      operation: context?.operation,
+      insertId: id,
+      duration: `${duration}ms`
+    });
+    return id;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    log.error('BusinessAdapter', 'Insert failed', { 
+      sql: processedSql, 
+      params, 
+      error,
+      duration: `${duration}ms`,
+      operation: context?.operation
+    });
+    throw error;
+  }
+}
+
+/** 执行UPDATE/DELETE并返回影响行数（内部�?*/
+async function runInternal(sql: string, params?: unknown[], context?: OperationContext): Promise<{ changes: number }> {
+  const startTime = Date.now();
+  const processedSql = processSql(sql, db.type);
+  
+  log.debug('BusinessAdapter', 'Executing run', { sql: processedSql, params, operation: context?.operation });
+  
+  try {
+    const result = await db.run(processedSql, params);
+    const duration = Date.now() - startTime;
+    log.debug('BusinessAdapter', `Run executed`, { 
+      operation: context?.operation,
+      changes: result.changes,
+      duration: `${duration}ms`
+    });
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    log.error('BusinessAdapter', 'Run failed', { 
+      sql: processedSql, 
+      params, 
+      error,
+      duration: `${duration}ms`,
+      operation: context?.operation
+    });
+    throw error;
+  }
+}
+
+// ============================================================================
+// 通用数据库操作（可直接使用）
+// ============================================================================
+
+/** 执行查询并返回多�?*/
+export async function query<T = QueryResult>(sql: string, params?: unknown[]): Promise<T[]> {
+  return queryInternal<T>(sql, params, { operation: 'query' });
+}
+
+/** 执行查询并返回单�?*/
+export async function get<T = QueryResult>(sql: string, params?: unknown[]): Promise<T | undefined> {
+  return getInternal<T>(sql, params, { operation: 'get' });
+}
+
+/** 执行INSERT/UPDATE/DELETE */
+export async function execute(sql: string, params?: unknown[]): Promise<void> {
+  return executeInternal(sql, params, { operation: 'execute' });
+}
+
+/** 执行INSERT并返回ID */
+export async function insert(sql: string, params?: unknown[]): Promise<number> {
+  return insertInternal(sql, params, { operation: 'insert' });
+}
+
+/** 执行UPDATE/DELETE并返回影响行�?*/
+export async function run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
+  return runInternal(sql, params, { operation: 'run' });
+}
+
+/** 获取当前时间函数 */
+export function now(): string {
+  const compiler = getDefaultCompiler();
+  return compiler.now();
+}
+
+/**
+ * 将日期格式化为数据库兼容的格�?(YYYY-MM-DD HH:mm:ss)
+ * 根据数据库类型自动转换格式：
+ * - MySQL: YYYY-MM-DD HH:mm:ss
+ * - SQLite: ISO 8601 格式
+ * - PostgreSQL: ISO 8601 格式
+ */
+export function formatDateForDB(date: Date): string {
+  const dbType = getDbType();
+  if (dbType === 'mysql') {
+    // MySQL 需�?YYYY-MM-DD HH:mm:ss 格式
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+  // SQLite �?PostgreSQL 支持 ISO 8601
+  return date.toISOString();
+}
+
+/** 获取数据库类�?*/
+export function getDbType(): string {
+  return db.type;
+}
+
+/** 检查数据库是否已连�?*/
+export function isDbConnected(): boolean {
+  return db.isConnected;
+}
+
+// ============================================================================
+// 用户相关业务操作
+// ============================================================================
+
+export const UserOperations = {
+  /** 根据ID获取用户完整信息 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id, username, nickname, email, password_hash, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users WHERE id = ?',
+      [id],
+      { operation: 'User.getById', table: 'users' }
+    );
+  },
+
+  /** 根据用户名获取用户完整信�?*/
+  async getByUsername(username: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id, username, nickname, email, password_hash, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users WHERE username = ?',
+      [username],
+      { operation: 'User.getByUsername', table: 'users' }
+    );
+  },
+
+  /** 根据邮箱获取用户完整信息 */
+  async getByEmail(email: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id, username, nickname, email, password_hash, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users WHERE email = ?',
+      [email],
+      { operation: 'User.getByEmail', table: 'users' }
+    );
+  },
+
+  /** 根据ID获取用户公开信息（不含密码） */
+  async getPublicById(id: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id, username, nickname, email, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users WHERE id = ?',
+      [id],
+      { operation: 'User.getPublicById', table: 'users' }
+    );
+  },
+
+  /** 获取所有用�?*/
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT id, username, nickname, email, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users ORDER BY id',
+      [],
+      { operation: 'User.getAll', table: 'users' }
+    );
+  },
+
+  /** 创建用户 */
+  async create(data: { username: string; nickname: string; email: string; password_hash: string; role: string; role_level: number }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO users (username, nickname, email, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)',
+      [data.username, data.nickname, data.email, data.password_hash, data.role, data.role_level],
+      { operation: 'User.create', table: 'users' }
+    );
+  },
+
+  /** 更新用户 */
+  async update(id: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    
+    return executeInternal(
+      `UPDATE users SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'User.update', table: 'users' }
+    );
+  },
+
+  /** 删除用户 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM users WHERE id = ?', [id], { operation: 'User.delete', table: 'users' });
+  },
+
+  /** 更新密码 */
+  async updatePassword(id: number, passwordHash: string): Promise<void> {
+    return executeInternal(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [passwordHash, id],
+      { operation: 'User.updatePassword', table: 'users' }
+    );
+  },
+
+  /** 获取用户数量 */
+  async getCount(): Promise<number> {
+    const result = await getInternal<{ cnt: number }>('SELECT COUNT(*) as cnt FROM users', [], { operation: 'User.getCount', table: 'users' });
+    return result?.cnt || 0;
+  },
+};
+
+// ============================================================================
+// DNS账号业务操作
+// ============================================================================
+
+export const DnsAccountOperations = {
+  /** 根据ID获取账号 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM dns_accounts WHERE id = ?', [id], { operation: 'DnsAccount.getById', table: 'dns_accounts' });
+  },
+
+  /** 获取所有账�?*/
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal('SELECT * FROM dns_accounts ORDER BY id', [], { operation: 'DnsAccount.getAll', table: 'dns_accounts' });
+  },
+
+  /** 获取用户可访问的账号 */
+  async getByUserId(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM dns_accounts WHERE created_by = ? ORDER BY id',
+      [userId],
+      { operation: 'DnsAccount.getByUserId', table: 'dns_accounts' }
+    );
+  },
+
+  /** 获取用户可访问的账号（包括团队共享） */
+  async getAccessibleByUserId(userId: number, teamIds: number[]): Promise<QueryResult[]> {
+    if (teamIds.length > 0) {
+      const placeholders = teamIds.map(() => '?').join(',');
+      return queryInternal(
+        `SELECT * FROM dns_accounts WHERE created_by = ? OR team_id IN (${placeholders}) ORDER BY id`,
+        [userId, ...teamIds],
+        { operation: 'DnsAccount.getAccessibleByUserId', table: 'dns_accounts' }
+      );
+    }
+    return this.getByUserId(userId);
+  },
+
+  /** 创建账号 */
+  async create(data: { type: string; name: string; config: string; remark: string; created_by: number; team_id?: number | null }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO dns_accounts (type, name, config, remark, created_by, team_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [data.type, data.name, data.config, data.remark, data.created_by, data.team_id ?? null],
+      { operation: 'DnsAccount.create', table: 'dns_accounts' }
+    );
+  },
+
+  /** 更新账号 */
+  async update(id: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    
+    return executeInternal(
+      `UPDATE dns_accounts SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'DnsAccount.update', table: 'dns_accounts' }
+    );
+  },
+
+  /** 删除账号 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM dns_accounts WHERE id = ?', [id], { operation: 'DnsAccount.delete', table: 'dns_accounts' });
+  },
+
+  /** 获取账号的创建�?*/
+  async getCreatedBy(id: number): Promise<number | undefined> {
+    const result = await getInternal<{ created_by: number }>(
+      'SELECT created_by FROM dns_accounts WHERE id = ?',
+      [id],
+      { operation: 'DnsAccount.getCreatedBy', table: 'dns_accounts' }
+    );
+    return result?.created_by;
+  },
+
+  /** 根据类型获取账号 */
+  async getByType(type: string): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM dns_accounts WHERE type = ?',
+      [type],
+      { operation: 'DnsAccount.getByType', table: 'dns_accounts' }
+    );
+  },
+
+  /** 根据类型和用户获取账�?*/
+  async getByTypeAndUser(type: string, userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM dns_accounts WHERE type = ? AND created_by = ?',
+      [type, userId],
+      { operation: 'DnsAccount.getByTypeAndUser', table: 'dns_accounts' }
+    );
+  },
+
+  /** 根据类型、用户或团队获取账号 */
+  async getByTypeAndUserOrTeams(type: string, userId: number, teamIds: number[]): Promise<QueryResult[]> {
+    const placeholders = teamIds.map(() => '?').join(',');
+    return queryInternal(
+      `SELECT * FROM dns_accounts WHERE type = ? AND (created_by = ? OR team_id IN (${placeholders}))`,
+      [type, userId, ...teamIds],
+      { operation: 'DnsAccount.getByTypeAndUserOrTeams', table: 'dns_accounts' }
+    );
+  },
+
+  /** 更新账号启用状�?*/
+  async updateEnabled(id: number, enabled: boolean): Promise<void> {
+    await executeInternal(
+      'UPDATE dns_accounts SET enabled = ? WHERE id = ?',
+      [enabled ? 1 : 0, id],
+      { operation: 'DnsAccount.updateEnabled', table: 'dns_accounts' }
+    );
+  },
+};
+
+// ============================================================================
+// 域名业务操作
+// ============================================================================
+
+export const DomainOperations = {
+  /** 根据ID获取域名 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM domains WHERE id = ?', [id], { operation: 'Domain.getById', table: 'domains' });
+  },
+
+  /** 根据名称获取域名 */
+  async getByName(name: string): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM domains WHERE name = ?', [name], { operation: 'Domain.getByName', table: 'domains' });
+  },
+
+  /** 根据名称和账号ID获取域名 */
+  async getByAccountIdAndName(accountId: number, name: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM domains WHERE account_id = ? AND name = ?',
+      [accountId, name],
+      { operation: 'Domain.getByAccountIdAndName', table: 'domains' }
+    );
+  },
+
+  /** 获取所有域�?*/
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal('SELECT * FROM domains ORDER BY id', [], { operation: 'Domain.getAll', table: 'domains' });
+  },
+
+  /** 获取账号下的域名 */
+  async getByAccountId(accountId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM domains WHERE account_id = ? ORDER BY id',
+      [accountId],
+      { operation: 'Domain.getByAccountId', table: 'domains' }
+    );
+  },
+
+  /** 根据ID列表获取域名（用于Token认证优化�?*/
+  async getByIds(ids: number[], options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
+    if (ids.length === 0) return [];
+
+    const builder = DomainQueryBuilder.forTokenAuth(ids, options);
+    const { sql, params } = builder.build();
+    
+    return queryInternal(sql, params, { operation: 'Domain.getByIds', table: 'domains' });
+  },
+
+  /** 获取所有域名（用于超级管理员Token认证�?*/
+  async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
+    const builder = DomainQueryBuilder.forSuperAdmin(options);
+    const { sql, params } = builder.build();
+    
+    return queryInternal(sql, params, { operation: 'Domain.getAllForSuperAdmin', table: 'domains' });
+  },
+
+  /** 获取所有域名（带分页和过滤，用于高性能场景�?*/
+  async getAllForSuperAdminWithPagination(options: {
+    accountId?: number;
+    keyword?: string;
+    domainStatus?: 'enabled' | 'disabled' | 'all';
+    domainType?: 'apex' | 'subdomain';
+    pinnedDomainIds?: number[];  // �?新增：置顶域�?ID 列表
+    page: number;
+    pageSize: number;
+  }): Promise<{ list: QueryResult[]; total: number }> {
+    const {
+      accountId,
+      keyword,
+      domainStatus = 'all',
+      domainType,
+      pinnedDomainIds = [],
+      page,
+      pageSize,
+    } = options;
+
+    // 构建查询
+    let builder = DomainQueryBuilder.forSuperAdmin({ accountId, keyword });
+    
+    // 添加 enabled 过滤
+    if (domainStatus === 'enabled') {
+      builder = builder.whereDomainEnabled(true);
+    } else if (domainStatus === 'disabled') {
+      builder = builder.whereDomainEnabled(false);
+    }
+    // domainStatus === 'all' 时不过滤
+    
+    // 添加 domain_type 过滤
+    if (domainType) {
+      builder = builder.whereDomainType(domainType);
+    }
+    
+    const { sql: baseSql, params: baseParams } = builder.build();
+    
+    // 如果有置顶域名，添加置顶排序
+    let orderByClause = '';
+    if (pinnedDomainIds.length > 0) {
+      const dbType = process.env.DB_TYPE || 'sqlite';
+      if (dbType === 'mysql') {
+        // MySQL: 使用 FIELD() 函数
+        const idsList = pinnedDomainIds.join(',');
+        orderByClause = `FIELD(d.id, ${idsList}) DESC, d.id ASC`;
+      } else if (dbType === 'postgresql') {
+        // PostgreSQL: 使用 CASE WHEN
+        const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
+        orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
+      } else {
+        // SQLite: 使用 CASE WHEN（与 PostgreSQL 相同�?
+        const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
+        orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
+      }
+    } else {
+      orderByClause = 'd.id ASC';
+    }
+    
+    // 查询总数
+    const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
+    const countResult = await queryInternal(countSql, baseParams, { 
+      operation: 'Domain.getAllForSuperAdminWithPagination.count', 
+      table: 'domains' 
+    });
+    const total = Number((countResult[0] as any)?.count || 0);
+    
+    // 查询分页数据
+    const offset = (page - 1) * pageSize;
+    
+    // 移除原有�?ORDER BY，添加置顶排�?
+    const baseSqlWithoutOrderBy = baseSql.replace(/\s+ORDER\s+BY\s+[^)]+$/i, '');
+    
+    // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
+    // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
+    const paginatedSql = `${baseSqlWithoutOrderBy} ORDER BY ${orderByClause} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    
+    // Debug log
+    console.log('[BusinessAdapter] getAllForSuperAdminWithPagination SQL:', {
+      page,
+      pageSize,
+      pinnedDomainIds: pinnedDomainIds.length,
+      orderByClause,
+      sql: paginatedSql.substring(0, 300)
+    });
+    
+    const list = await queryInternal(paginatedSql, baseParams, { 
+      operation: 'Domain.getAllForSuperAdminWithPagination.list', 
+      table: 'domains' 
+    });
+    
+    return { list, total };
+  },
+
+  /** 创建域名 */
+  async create(data: { account_id: number; name: string; third_id?: string; record_count?: number }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO domains (account_id, name, third_id, record_count) VALUES (?, ?, ?, ?)',
+      [data.account_id, data.name, data.third_id ?? null, data.record_count ?? 0],
+      { operation: 'Domain.create', table: 'domains' }
+    );
+  },
+
+  /** 更新域名 */
+  async update(id: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    
+    return executeInternal(
+      `UPDATE domains SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'Domain.update', table: 'domains' }
+    );
+  },
+
+  /** 删除域名 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM domains WHERE id = ?', [id], { operation: 'Domain.delete', table: 'domains' });
+  },
+
+  /** 批量删除域名 */
+  async batchDelete(ids: number[]): Promise<{ deleted: number; failed: number; errors: Array<{ id: number; error: string }> }> {
+    const result = {
+      deleted: 0,
+      failed: 0,
+      errors: [] as Array<{ id: number; error: string }>,
+    };
+
+    for (const id of ids) {
+      try {
+        await executeInternal('DELETE FROM domains WHERE id = ?', [id], { operation: 'Domain.batchDelete', table: 'domains' });
+        result.deleted++;
+      } catch (error) {
+        result.failed++;
+        result.errors.push({
+          id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return result;
+  },
+
+  /** 更新记录数量 */
+  async updateRecordCount(id: number, count: number): Promise<void> {
+    return executeInternal(
+      'UPDATE domains SET record_count = ? WHERE id = ?',
+      [count, id],
+      { operation: 'Domain.updateRecordCount', table: 'domains' }
+    );
+  },
+
+  /** 更新域名的第三方ID和记录数 */
+  async updateThirdIdAndRecordCount(id: number, thirdId: string, recordCount: number): Promise<void> {
+    return executeInternal(
+      'UPDATE domains SET third_id = ?, record_count = ? WHERE id = ?',
+      [thirdId, recordCount, id],
+      { operation: 'Domain.updateThirdIdAndRecordCount', table: 'domains' }
+    );
+  },
+
+  /** 更新域名的备注和隐藏状�?*/
+  async updateRemarkAndHidden(id: number, remark?: string, isHidden?: number): Promise<void> {
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    if (remark !== undefined) { updates.push('remark = ?'); params.push(remark); }
+    if (isHidden !== undefined) { updates.push('is_hidden = ?'); params.push(isHidden); }
+    if (updates.length === 0) return;
+    params.push(id);
+    return executeInternal(
+      `UPDATE domains SET ${updates.join(', ')} WHERE id = ?`,
+      params,
+      { operation: 'Domain.updateRemarkAndHidden', table: 'domains' }
+    );
+  },
+
+  /** 获取用户可访问的域名列表（带过滤�?*/
+  async getAccessibleDomains(params: {
+    userId: number;
+    teamIds: number[];
+    accountId?: number;
+    keyword?: string;
+    isSuper?: boolean;
+  }): Promise<QueryResult[]> {
+    const { userId, teamIds, accountId, keyword, isSuper } = params;
+    
+    let builder: DomainQueryBuilder;
+    
+    if (isSuper) {
+      // Super admin: use simplified query
+      builder = DomainQueryBuilder.accessibleForSuperAdmin({ accountId, keyword });
+    } else {
+      // Regular user: full permission check with teams
+      builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
+    }
+    
+    const { sql, params: queryParams } = builder.build();
+    
+    return queryInternal(sql, queryParams, { 
+      operation: isSuper 
+        ? 'Domain.getAccessibleDomains.super' 
+        : 'Domain.getAccessibleDomains', 
+      table: 'domains' 
+    });
+  },
+
+  /** 获取用户可访问的域名列表（带分页和过滤，用于高性能场景�?*/
+  async getAccessibleDomainsWithPagination(params: {
+    userId: number;
+    teamIds: number[];
+    accountId?: number;
+    keyword?: string;
+    domainStatus?: 'enabled' | 'disabled' | 'all';
+    domainType?: 'apex' | 'subdomain';
+    pinnedDomainIds?: number[];  // �?新增：置顶域�?ID 列表
+    page: number;
+    pageSize: number;
+  }): Promise<{ list: QueryResult[]; total: number }> {
+    const {
+      userId,
+      teamIds,
+      accountId,
+      keyword,
+      domainStatus = 'all',
+      domainType,
+      pinnedDomainIds = [],
+      page,
+      pageSize,
+    } = params;
+
+    // 构建查询
+    let builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
+    
+    // 添加 enabled 过滤
+    if (domainStatus === 'enabled') {
+      builder = builder.whereDomainEnabled(true);
+    } else if (domainStatus === 'disabled') {
+      builder = builder.whereDomainEnabled(false);
+    }
+    // domainStatus === 'all' 时不过滤
+    
+    // 添加 domain_type 过滤
+    if (domainType) {
+      builder = builder.whereDomainType(domainType);
+    }
+    
+    const { sql: baseSql, params: baseParams } = builder.build();
+    
+    // 如果有置顶域名，添加置顶排序
+    let orderByClause = '';
+    if (pinnedDomainIds.length > 0) {
+      const dbType = process.env.DB_TYPE || 'sqlite';
+      if (dbType === 'mysql') {
+        // MySQL: 使用 FIELD() 函数
+        const idsList = pinnedDomainIds.join(',');
+        orderByClause = `FIELD(d.id, ${idsList}) DESC, d.id ASC`;
+      } else if (dbType === 'postgresql') {
+        // PostgreSQL: 使用 CASE WHEN
+        const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
+        orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
+      } else {
+        // SQLite: 使用 CASE WHEN（与 PostgreSQL 相同�?
+        const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
+        orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
+      }
+    } else {
+      orderByClause = 'd.id ASC';
+    }
+    
+    // 查询总数
+    const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
+    const countResult = await queryInternal(countSql, baseParams, { 
+      operation: 'Domain.getAccessibleDomainsWithPagination.count', 
+      table: 'domains' 
+    });
+    const total = Number((countResult[0] as any)?.count || 0);
+    
+    // 查询分页数据
+    const offset = (page - 1) * pageSize;
+    
+    // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
+    // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
+    const paginatedSql = `${baseSql.replace(/ORDER BY [^)]+$/, '')} ORDER BY ${orderByClause} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
+    
+    const list = await queryInternal(paginatedSql, baseParams, { 
+      operation: 'Domain.getAccessibleDomainsWithPagination.list', 
+      table: 'domains' 
+    });
+    
+    return { list, total };
+  },
+
+  /** 检查用户是否有权限访问特定域名（用于令牌权限验证） */
+  async checkUserDomainAccess(domainId: number, userId: number): Promise<boolean> {
+    const builder = DomainQueryBuilder.checkUserAccess(domainId, userId);
+    const { sql, params } = builder.build();
+    
+    const result = await getInternal<{ id: number }>(sql, params, { 
+      operation: 'Domain.checkUserDomainAccess', 
+      table: 'domains' 
+    });
+    
+    return !!result;
+  },
+
+  /** 设置域名的启用状�?*/
+  async setEnabled(id: number, enabled: number): Promise<void> {
+    await executeInternal(
+      'UPDATE domains SET enabled = ? WHERE id = ?',
+      [enabled, id],
+      { operation: 'Domain.setEnabled', table: 'domains' }
+    );
+  },
+
+  /** 获取用户可访问的域名列表（用于令牌创建，只显示启用账号的域名�?*/
+  async getUserAccessibleDomains(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT d.id, d.name, da.name as account_name
+       FROM domains d
+       JOIN dns_accounts da ON d.account_id = da.id
+       WHERE da.enabled = true
+         AND (da.created_by = ? OR d.id IN (
+           SELECT domain_id FROM domain_permissions WHERE user_id = ?
+         ))
+       ORDER BY d.name`,
+      [userId, userId],
+      { operation: 'Domain.getUserAccessibleDomains', table: 'domains' }
+    );
+  },
+
+  /** 获取 NS 监控可用的域名列表（Level 1 - ALL，不过滤 enabled 状态） */
+  async getAvailableDomainsForNSMonitor(userId: number, isSuperAdmin: boolean): Promise<QueryResult[]> {
+    let builder: DomainQueryBuilder;
+    
+    if (isSuperAdmin) {
+      // Super admin: reuse getAll() pattern but select specific columns
+      builder = DomainQueryBuilder.all().select('d.id, d.name, d.account_id').orderByColumn('d.name');
+    } else {
+      // Regular user: use dedicated builder
+      builder = DomainQueryBuilder.forNSMonitorUser(userId)
+        .select('d.id, d.name, d.account_id')
+        .orderByColumn('d.name');
+    }
+    
+    const { sql, params } = builder.build();
+    return queryInternal(sql, params, { 
+      operation: isSuperAdmin 
+        ? 'Domain.getAvailableDomainsForNSMonitor.super' 
+        : 'Domain.getAvailableDomainsForNSMonitor.user', 
+      table: 'domains' 
+    });
+  },
+};
+
+// ============================================================================
+// 团队业务操作
+// ============================================================================
+
+export const TeamOperations = {
+  /** 根据ID获取团队 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM teams WHERE id = ?', [id], { operation: 'Team.getById', table: 'teams' });
+  },
+
+  /** 获取所有团�?*/
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal('SELECT * FROM teams ORDER BY id', [], { operation: 'Team.getAll', table: 'teams' });
+  },
+
+  /** 获取用户所属团�?*/
+  async getByUserId(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT t.* FROM teams t
+       INNER JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+       ORDER BY t.id`,
+      [userId],
+      { operation: 'Team.getByUserId', table: 'teams' }
+    );
+  },
+
+  /** 创建团队 */
+  async create(data: { name: string; description: string; created_by: number }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO teams (name, description, created_by) VALUES (?, ?, ?)',
+      [data.name, data.description, data.created_by],
+      { operation: 'Team.create', table: 'teams' }
+    );
+  },
+
+  /** 更新团队 */
+  async update(id: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    
+    return executeInternal(
+      `UPDATE teams SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'Team.update', table: 'teams' }
+    );
+  },
+
+  /** 删除团队 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM teams WHERE id = ?', [id], { operation: 'Team.delete', table: 'teams' });
+  },
+
+  /** 添加团队成员 */
+  async addMember(teamId: number, userId: number, role: string): Promise<void> {
+    return executeInternal(
+      'INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)',
+      [teamId, userId, role],
+      { operation: 'Team.addMember', table: 'team_members' }
+    );
+  },
+
+  /** 获取团队成员 */
+  async getMembers(teamId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT tm.*, u.username, u.nickname, u.email FROM team_members tm
+       INNER JOIN users u ON u.id = tm.user_id
+       WHERE tm.team_id = ?`,
+      [teamId],
+      { operation: 'Team.getMembers', table: 'team_members' }
+    );
+  },
+
+  /** 检查用户是否在团队�?*/
+  async isMember(teamId: number, userId: number): Promise<boolean> {
+    const result = await getInternal<{ id: number }>(
+      'SELECT id FROM team_members WHERE team_id = ? AND user_id = ?',
+      [teamId, userId],
+      { operation: 'Team.isMember', table: 'team_members' }
+    );
+    return !!result;
+  },
+
+  /** 移除团队成员 */
+  async removeMember(teamId: number, userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM team_members WHERE team_id = ? AND user_id = ?',
+      [teamId, userId],
+      { operation: 'Team.removeMember', table: 'team_members' }
+    );
+  },
+
+  /** 更新团队成员角色 */
+  async updateMemberRole(teamId: number, userId: number, role: string): Promise<void> {
+    return executeInternal(
+      'UPDATE team_members SET role = ? WHERE team_id = ? AND user_id = ?',
+      [role, teamId, userId],
+      { operation: 'Team.updateMemberRole', table: 'team_members' }
+    );
+  },
+
+  /** 获取用户的所有团队ID */
+  async getTeamIdsByUserId(userId: number): Promise<number[]> {
+    const results = await queryInternal<{ team_id: number }>(
+      'SELECT team_id FROM team_members WHERE user_id = ?',
+      [userId],
+      { operation: 'Team.getTeamIdsByUserId', table: 'team_members' }
+    );
+    return results.map(r => r.team_id);
+  },
+
+  /** 获取团队成员及其角色 */
+  async getMemberWithRole(teamId: number, userId: number): Promise<{ id: number; role: string } | undefined> {
+    return getInternal<{ id: number; role: string }>(
+      'SELECT id, role FROM team_members WHERE team_id = ? AND user_id = ?',
+      [teamId, userId],
+      { operation: 'Team.getMemberWithRole', table: 'team_members' }
+    );
+  },
+};
+
+// ============================================================================
+// 系统设置业务操作
+// ============================================================================
+
+export const SettingsOperations = {
+  /** 获取设置�?*/
+  async get(key: string): Promise<string | undefined> {
+    const result = await getInternal<{ value: string }>(
+      'SELECT value FROM system_settings WHERE key = ?',
+      [key],
+      { operation: 'Settings.get', table: 'system_settings' }
+    );
+    return result?.value;
+  },
+
+  /** 设置�?*/
+  async set(key: string, value: string): Promise<void> {
+    const { sql, params } = buildUpsertSql(
+      'system_settings',
+      ['key', 'value'],
+      [key, value],
+      'key',
+      ['value']
+    );
+    
+    return executeInternal(sql, params, { operation: 'Settings.set', table: 'system_settings' });
+  },
+
+  /** 获取JSON设置 */
+  async getJson<T>(key: string, defaultValue: T): Promise<T> {
+    const value = await this.get(key);
+    if (!value) return defaultValue;
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return defaultValue;
+    }
+  },
+
+  /** 设置JSON�?*/
+  async setJson(key: string, value: unknown): Promise<void> {
+    return this.set(key, JSON.stringify(value));
+  },
+};
+
+// ============================================================================
+// 审计日志业务操作
+// ============================================================================
+
+export const AuditOperations = {
+  /** 记录审计日志 */
+  async log(data: { user_id: number; action: string; target_type?: string; target_id?: string; details?: string }): Promise<void> {
+    return executeInternal(
+      'INSERT INTO operation_logs (user_id, action, domain, data, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
+      [data.user_id, data.action, data.target_type ?? '', data.details ?? null],
+      { operation: 'Audit.log', table: 'operation_logs' }
+    );
+  },
+
+  /** 获取审计日志 */
+  async getLogs(options: { userId?: number; action?: string; limit?: number; offset?: number } = {}): Promise<QueryResult[]> {
+    let sql = 'SELECT * FROM operation_logs WHERE 1=1';
+    const params: unknown[] = [];
+    
+    if (options.userId) {
+      sql += ' AND user_id = ?';
+      params.push(options.userId);
+    }
+    
+    if (options.action) {
+      sql += ' AND action = ?';
+      params.push(options.action);
+    }
+    
+    sql += ' ORDER BY created_at DESC';
+    
+    // MySQL �?LIMIT/OFFSET 需要直接嵌入数�?
+    const dbType = getDbType();
+    if (options.limit) {
+      if (dbType === 'mysql') {
+        sql += ` LIMIT ${Number(options.limit)}`;
+      } else {
+        sql += ' LIMIT ?';
+        params.push(Number(options.limit));
+      }
+    }
+    
+    if (options.offset) {
+      if (dbType === 'mysql') {
+        sql += ` OFFSET ${Number(options.offset)}`;
+      } else {
+        sql += ' OFFSET ?';
+        params.push(Number(options.offset));
+      }
+    }
+    
+    return queryInternal(sql, params, { operation: 'Audit.getLogs', table: 'audit_logs' });
+  },
+};
+
+// ============================================================================
+// 通知渠道业务操作
+// ============================================================================
+
+export const NotificationOperations = {
+  /** 获取通知渠道配置 */
+  async getChannels(): Promise<string | undefined> {
+    return SettingsOperations.get('notification_channels');
+  },
+
+  /** 保存通知渠道配置 */
+  async saveChannels(config: string): Promise<void> {
+    return SettingsOperations.set('notification_channels', config);
+  },
+};
+
+// ============================================================================
+// 审计规则业务操作
+// ============================================================================
+
+export const AuditRuleOperations = {
+  /** 获取审计规则 */
+  async getRules(): Promise<string | undefined> {
+    return SettingsOperations.get('audit_rules');
+  },
+
+  /** 保存审计规则 */
+  async saveRules(rules: string): Promise<void> {
+    return SettingsOperations.set('audit_rules', rules);
+  },
+};
+
+// ============================================================================
+// 域名过期通知业务操作
+// ============================================================================
+
+export const DomainExpiryOperations = {
+  /** 获取过期通知配置 */
+  async getNotification(): Promise<string | undefined> {
+    return SettingsOperations.get('domain_expiry_notification');
+  },
+
+  /** 保存过期通知配置 */
+  async saveNotification(config: string): Promise<void> {
+    return SettingsOperations.set('domain_expiry_notification', config);
+  },
+
+  /** 获取过期天数 */
+  async getDays(): Promise<string | undefined> {
+    return SettingsOperations.get('domain_expiry_days');
+  },
+
+  /** 保存过期天数 */
+  async saveDays(days: string): Promise<void> {
+    return SettingsOperations.set('domain_expiry_days', days);
+  },
+};
+
+// ============================================================================
+// 2FA 业务操作
+// ============================================================================
+
+export const TwoFAOperations = {
+  /** 获取用户�?2FA 配置 */
+  async getByUserIdAndType(userId: number, type: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, type],
+      { operation: 'TwoFA.getByUserIdAndType', table: 'user_2fa' }
+    );
+  },
+
+  /** 检查是否启用了 WebAuthn */
+  async isWebAuthnEnabled(userId: number): Promise<boolean> {
+    const result = await getInternal<{ enabled: number }>(
+      'SELECT enabled FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, 'webauthn'],
+      { operation: 'TwoFA.isWebAuthnEnabled', table: 'user_2fa' }
+    );
+    return Boolean(result?.enabled);
+  },
+
+  /** 获取 TOTP 密钥 */
+  async getTOTPSecret(userId: number): Promise<string | undefined> {
+    const result = await getInternal<{ secret: string }>(
+      'SELECT secret FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, 'totp'],
+      { operation: 'TwoFA.getTOTPSecret', table: 'user_2fa' }
+    );
+    return result?.secret;
+  },
+
+  /** 创建或更�?2FA 配置 */
+  async upsert(data: { user_id: number; type: string; secret?: string; enabled?: boolean }): Promise<void> {
+    const { sql, params } = buildUpsertSql(
+      'user_2fa',
+      ['user_id', 'type', 'secret', 'enabled', 'updated_at'],
+      [data.user_id, data.type, data.secret ?? null, data.enabled ? 1 : 0, 'NOW()'],
+      'user_id,type',
+      ['secret', 'enabled', 'updated_at']
+    );
+    return executeInternal(sql, params, { operation: 'TwoFA.upsert', table: 'user_2fa' });
+  },
+
+  /** 删除 2FA 配置 */
+  async delete(userId: number, type: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, type],
+      { operation: 'TwoFA.delete', table: 'user_2fa' }
+    );
+  },
+};
+
+// ============================================================================
+// OAuth 用户链接业务操作
+// ============================================================================
+
+export const OAuthOperations = {
+  /** 根据 provider �?subject 获取用户链接 */
+  async getByProviderSubject(provider: string, subject: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM oauth_user_links WHERE provider = ? AND subject = ?',
+      [provider, subject],
+      { operation: 'OAuth.getByProviderSubject', table: 'oauth_user_links' }
+    );
+  },
+
+  /** 根据 provider �?subject 获取用户完整信息（包�?JOIN users�?*/
+  async getUserByProviderSubject(provider: string, subject: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT l.user_id, u.id, u.username, u.nickname, u.email, u.role_level as role, u.role_level, u.role as role_name, u.status
+       FROM oauth_user_links l
+       INNER JOIN users u ON u.id = l.user_id
+       WHERE l.provider = ? AND l.subject = ?`,
+      [provider, subject],
+      { operation: 'OAuth.getUserByProviderSubject', table: 'oauth_user_links' }
+    );
+  },
+
+  /** 获取用户的所�?OAuth 绑定 */
+  async getByUserId(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT provider, subject, email, created_at FROM oauth_user_links WHERE user_id = ? ORDER BY id DESC',
+      [userId],
+      { operation: 'OAuth.getByUserId', table: 'oauth_user_links' }
+    );
+  },
+
+  /** 创建 OAuth 用户链接 */
+  async create(userId: number, provider: string, subject: string, email: string): Promise<void> {
+    return executeInternal(
+      'INSERT INTO oauth_user_links (user_id, provider, subject, email) VALUES (?, ?, ?, ?)',
+      [userId, provider, subject, email],
+      { operation: 'OAuth.create', table: 'oauth_user_links' }
+    );
+  },
+
+  /** 删除 OAuth 用户链接 */
+  async delete(userId: number, provider: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM oauth_user_links WHERE user_id = ? AND provider = ?',
+      [userId, provider],
+      { operation: 'OAuth.delete', table: 'oauth_user_links' }
+    );
+  },
+
+  // ============================================================================
+  // OAuth State 管理（用于回调验证）
+  // ============================================================================
+
+  /**
+   * 将日期格式化为数据库兼容的格�?(YYYY-MM-DD HH:mm:ss)
+   */
+  formatDateForDB(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  },
+
+  /** 创建 OAuth state */
+  async createState(state: string, mode: 'login' | 'bind', provider: string, userId: number | null, expiresAt: Date): Promise<void> {
+    // 使用数据库兼容的日期格式
+    const expiresStr = this.formatDateForDB(expiresAt);
+    log.debug('OAuth', 'Creating state', {
+      state: state.substring(0, 16) + '...',
+      mode,
+      provider,
+      userId,
+      expiresAt: expiresStr
+    });
+    return executeInternal(
+      'INSERT INTO oauth_states (state, mode, provider, user_id, expires_at) VALUES (?, ?, ?, ?, ?)',
+      [state, mode, provider, userId, expiresStr],
+      { operation: 'OAuth.createState', table: 'oauth_states' }
+    );
+  },
+
+  /** 获取并删�?OAuth state（一次性使用） */
+  async getAndDeleteState(state: string): Promise<{ mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId: number | null; expiresAt: Date } | undefined> {
+    const result = await getInternal<{ mode: string; provider: string; user_id: number | null; expires_at: string }>(
+      'SELECT mode, provider, user_id, expires_at FROM oauth_states WHERE state = ?',
+      [state],
+      { operation: 'OAuth.getState', table: 'oauth_states' }
+    );
+
+    log.debug('OAuth', 'Getting state', {
+      state: state.substring(0, 16) + '...',
+      found: !!result,
+      result
+    });
+
+    if (!result) return undefined;
+
+    // 删除已使用的 state
+    await executeInternal(
+      'DELETE FROM oauth_states WHERE state = ?',
+      [state],
+      { operation: 'OAuth.deleteState', table: 'oauth_states' }
+    );
+
+    return {
+      mode: result.mode as 'login' | 'bind',
+      provider: result.provider as 'custom' | 'logto',
+      userId: result.user_id,
+      expiresAt: new Date(result.expires_at),
+    };
+  },
+
+  /** 清理过期�?OAuth states */
+  async cleanupExpiredStates(): Promise<number> {
+    const expiresStr = this.formatDateForDB(new Date());
+    const result = await runInternal(
+      'DELETE FROM oauth_states WHERE expires_at < ?',
+      [expiresStr],
+      { operation: 'OAuth.cleanupExpiredStates', table: 'oauth_states' }
+    );
+    return result.changes || 0;
+  },
+};
+
+// ============================================================================
+// API 令牌业务操作
+// ============================================================================
+
+export const TokenOperations = {
+  /** 根据 ID 获取令牌 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM user_tokens WHERE id = ?', [id], { operation: 'Token.getById', table: 'user_tokens' });
+  },
+
+  /** 获取用户的所有令�?*/
+  async getByUserId(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM user_tokens WHERE user_id = ? ORDER BY created_at DESC',
+      [userId],
+      { operation: 'Token.getByUserId', table: 'user_tokens' }
+    );
+  },
+
+  /** 根据 token_hash 获取令牌 */
+  async getByTokenHash(tokenHash: string): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM user_tokens WHERE token_hash = ?', [tokenHash], { operation: 'Token.getByTokenHash', table: 'user_tokens' });
+  },
+
+  /** 创建令牌 */
+  async create(data: {
+    user_id: number;
+    name: string;
+    token_hash: string;
+    allowed_domains: string;
+    allowed_services: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    max_role: number;
+  }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO user_tokens (user_id, name, token_hash, allowed_domains, allowed_services, start_time, end_time, max_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [data.user_id, data.name, data.token_hash, data.allowed_domains, data.allowed_services, data.start_time ?? null, data.end_time ?? null, data.max_role],
+      { operation: 'Token.create', table: 'user_tokens' }
+    );
+  },
+
+  /** 更新令牌状�?*/
+  async updateStatus(id: number, isActive: boolean): Promise<void> {
+    return executeInternal(
+      'UPDATE user_tokens SET is_active = ? WHERE id = ?',
+      [isActive ? 1 : 0, id],
+      { operation: 'Token.updateStatus', table: 'user_tokens' }
+    );
+  },
+
+  /** 更新最后使用时�?*/
+  async updateLastUsed(id: number): Promise<void> {
+    return executeInternal(
+      'UPDATE user_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [id],
+      { operation: 'Token.updateLastUsed', table: 'user_tokens' }
+    );
+  },
+
+  /** 删除令牌 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM user_tokens WHERE id = ?', [id], { operation: 'Token.delete', table: 'user_tokens' });
+  },
+
+  /** 删除指定用户的令�?*/
+  async deleteByUser(tokenId: number, userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_tokens WHERE id = ? AND user_id = ?',
+      [tokenId, userId],
+      { operation: 'Token.deleteByUser', table: 'user_tokens' }
+    );
+  },
+
+  /** 切换令牌状态（带用户验证） */
+  async toggleStatusByUser(tokenId: number, userId: number, isActive: boolean): Promise<void> {
+    return executeInternal(
+      `UPDATE user_tokens SET is_active = ? WHERE id = ? AND user_id = ?`,
+      [isActive ? 1 : 0, tokenId, userId],
+      { operation: 'Token.toggleStatusByUser', table: 'user_tokens' }
+    );
+  },
+
+  /** 更新令牌权限（带用户验证�?*/
+  async updateByUser(
+    tokenId: number,
+    userId: number,
+    data: {
+      name?: string;
+      allowed_domains?: string;
+      allowed_services?: string;
+      start_time?: string | null;
+      end_time?: string | null;
+    }
+  ): Promise<void> {
+    const fields: string[] = [];
+    const values: (string | number | null)[] = [];
+
+    if (data.name !== undefined) {
+      fields.push('name = ?');
+      values.push(data.name);
+    }
+    if (data.allowed_domains !== undefined) {
+      fields.push('allowed_domains = ?');
+      values.push(data.allowed_domains);
+    }
+    if (data.allowed_services !== undefined) {
+      fields.push('allowed_services = ?');
+      values.push(data.allowed_services);
+    }
+    if (data.start_time !== undefined) {
+      fields.push('start_time = ?');
+      values.push(data.start_time);
+    }
+    if (data.end_time !== undefined) {
+      fields.push('end_time = ?');
+      values.push(data.end_time);
+    }
+
+    if (fields.length === 0) {
+      return;
+    }
+
+    values.push(tokenId, userId);
+
+    return executeInternal(
+      `UPDATE user_tokens SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+      values,
+      { operation: 'Token.updateByUser', table: 'user_tokens' }
+    );
+  },
+};
+
+// ============================================================================
+// 域名权限业务操作
+// ============================================================================
+
+export const DomainPermissionOperations = {
+  /** 获取域名的所有权限规�?*/
+  async getByDomainId(domainId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM domain_permissions WHERE domain_id = ?',
+      [domainId],
+      { operation: 'DomainPermission.getByDomainId', table: 'domain_permissions' }
+    );
+  },
+
+  /** 获取用户的域名权�?*/
+  async getByDomainAndUser(domainId: number, userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT permission, sub FROM domain_permissions WHERE domain_id = ? AND user_id = ?',
+      [domainId, userId],
+      { operation: 'DomainPermission.getByDomainAndUser', table: 'domain_permissions' }
+    );
+  },
+
+  /** 获取用户的团队域名权�?*/
+  async getByDomainAndTeamMember(domainId: number, userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT dp.permission, dp.sub
+       FROM domain_permissions dp
+       INNER JOIN team_members tm ON tm.team_id = dp.team_id
+       WHERE dp.domain_id = ? AND tm.user_id = ?`,
+      [domainId, userId],
+      { operation: 'DomainPermission.getByDomainAndTeamMember', table: 'domain_permissions' }
+    );
+  },
+
+  /** 检查域名是否有权限规则 */
+  async hasRules(domainId: number): Promise<boolean> {
+    const result = await getInternal<{ cnt: number }>(
+      'SELECT COUNT(*) as cnt FROM domain_permissions WHERE domain_id = ?',
+      [domainId],
+      { operation: 'DomainPermission.hasRules', table: 'domain_permissions' }
+    );
+    return (result?.cnt || 0) > 0;
+  },
+
+  /** 创建权限规则 */
+  async create(data: {
+    domain_id: number;
+    user_id?: number | null;
+    team_id?: number | null;
+    permission: 'read' | 'write';
+    sub?: string;
+  }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO domain_permissions (domain_id, user_id, team_id, permission, sub) VALUES (?, ?, ?, ?, ?)',
+      [data.domain_id, data.user_id ?? null, data.team_id ?? null, data.permission, data.sub ?? null],
+      { operation: 'DomainPermission.create', table: 'domain_permissions' }
+    );
+  },
+
+  /** 删除权限规则 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM domain_permissions WHERE id = ?', [id], { operation: 'DomainPermission.delete', table: 'domain_permissions' });
+  },
+
+  /** 删除域名的所有权�?*/
+  async deleteByDomainId(domainId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM domain_permissions WHERE domain_id = ?',
+      [domainId],
+      { operation: 'DomainPermission.deleteByDomainId', table: 'domain_permissions' }
+    );
+  },
+
+  /** 获取团队的域名权限列�?*/
+  async getByTeamId(teamId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT dp.*, d.name as domain_name
+       FROM domain_permissions dp
+       INNER JOIN domains d ON d.id = dp.domain_id
+       WHERE dp.team_id = ?
+       ORDER BY d.name`,
+      [teamId],
+      { operation: 'DomainPermission.getByTeamId', table: 'domain_permissions' }
+    );
+  },
+
+  /** 根据团队ID、域名ID和子域名获取权限 */
+  async getByTeamDomainAndSub(teamId: number, domainId: number, sub: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id FROM domain_permissions WHERE team_id = ? AND domain_id = ? AND sub = ?',
+      [teamId, domainId, sub],
+      { operation: 'DomainPermission.getByTeamDomainAndSub', table: 'domain_permissions' }
+    );
+  },
+
+  /** 更新权限 */
+  async updatePermission(id: number, permission: 'read' | 'write'): Promise<void> {
+    return executeInternal(
+      'UPDATE domain_permissions SET permission = ? WHERE id = ?',
+      [permission, id],
+      { operation: 'DomainPermission.updatePermission', table: 'domain_permissions' }
+    );
+  },
+
+  /** 删除团队权限 */
+  async deleteByTeamAndId(id: number, teamId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM domain_permissions WHERE id = ? AND team_id = ?',
+      [id, teamId],
+      { operation: 'DomainPermission.deleteByTeamAndId', table: 'domain_permissions' }
+    );
+  },
+
+  /** 获取用户的域名权限列表（带域名名称） */
+  async getByUserIdWithDomainName(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT dp.*, d.name as domain_name
+       FROM domain_permissions dp
+       INNER JOIN domains d ON d.id = dp.domain_id
+       WHERE dp.user_id = ?
+       ORDER BY d.name`,
+      [userId],
+      { operation: 'DomainPermission.getByUserIdWithDomainName', table: 'domain_permissions' }
+    );
+  },
+
+  /** 根据用户ID、域名ID和子域名获取权限 */
+  async getByUserDomainAndSub(userId: number, domainId: number, sub: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id FROM domain_permissions WHERE user_id = ? AND domain_id = ? AND sub = ?',
+      [userId, domainId, sub],
+      { operation: 'DomainPermission.getByUserDomainAndSub', table: 'domain_permissions' }
+    );
+  },
+
+  /** 删除用户权限 */
+  async deleteByUserAndId(id: number, userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM domain_permissions WHERE id = ? AND user_id = ?',
+      [id, userId],
+      { operation: 'DomainPermission.deleteByUserAndId', table: 'domain_permissions' }
+    );
+  },
+};
+
+// ============================================================================
+// DNS 记录业务操作
+// ============================================================================
+
+export const RecordOperations = {
+  /** 根据 ID 获取记录 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM records WHERE id = ?', [id], { operation: 'Record.getById', table: 'records' });
+  },
+
+  /** 获取域名的所有记�?*/
+  async getByDomainId(domainId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM records WHERE domain_id = ? ORDER BY id',
+      [domainId],
+      { operation: 'Record.getByDomainId', table: 'records' }
+    );
+  },
+
+  /** 创建记录 */
+  async create(data: {
+    domain_id: number;
+    name: string;
+    type: string;
+    content: string;
+    ttl?: number;
+    priority?: number;
+    third_id?: string;
+  }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO records (domain_id, name, type, content, ttl, priority, third_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [data.domain_id, data.name, data.type, data.content, data.ttl ?? 3600, data.priority ?? 0, data.third_id ?? null],
+      { operation: 'Record.create', table: 'records' }
+    );
+  },
+
+  /** 更新记录 */
+  async update(id: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+
+    return executeInternal(
+      `UPDATE records SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'Record.update', table: 'records' }
+    );
+  },
+
+  /** 删除记录 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM records WHERE id = ?', [id], { operation: 'Record.delete', table: 'records' });
+  },
+
+  /** 删除域名的所有记�?*/
+  async deleteByDomainId(domainId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM records WHERE domain_id = ?',
+      [domainId],
+      { operation: 'Record.deleteByDomainId', table: 'records' }
+    );
+  },
+};
+
+// ============================================================================
+// 邮件模板业务操作
+// ============================================================================
+
+export const EmailTemplateOperations = {
+  /** 获取所有模�?*/
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM email_templates ORDER BY id',
+      [],
+      { operation: 'EmailTemplate.getAll', table: 'email_templates' }
+    );
+  },
+
+  /** 根据 ID 获取模板 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM email_templates WHERE id = ?', [id], { operation: 'EmailTemplate.getById', table: 'email_templates' });
+  },
+
+  /** 根据类型获取模板 */
+  async getByType(type: string): Promise<QueryResult | undefined> {
+    return getInternal('SELECT * FROM email_templates WHERE type = ?', [type], { operation: 'EmailTemplate.getByType', table: 'email_templates' });
+  },
+
+  /** 创建模板 */
+  async create(data: { type: string; subject: string; body: string }): Promise<number> {
+    return insertInternal(
+      'INSERT INTO email_templates (type, subject, body) VALUES (?, ?, ?)',
+      [data.type, data.subject, data.body],
+      { operation: 'EmailTemplate.create', table: 'email_templates' }
+    );
+  },
+
+  /** 更新模板 */
+  async update(id: number, updates: { subject?: string; body?: string }): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+
+    return executeInternal(
+      `UPDATE email_templates SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'EmailTemplate.update', table: 'email_templates' }
+    );
+  },
+
+  /** 删除模板 */
+  async delete(id: number): Promise<void> {
+    return executeInternal('DELETE FROM email_templates WHERE id = ?', [id], { operation: 'EmailTemplate.delete', table: 'email_templates' });
+  },
+};
+
+// ============================================================================
+// 事务支持
+// ============================================================================
+
+/** 在事务中执行函数 */
+export async function withTransaction<T>(fn: (trx: TransactionOperations) => Promise<T>): Promise<T> {
+  log.info('BusinessAdapter', 'Starting transaction block');
+  const startTime = Date.now();
+  
+  try {
+    const result = await transaction(async (trx: {
+      query: <U>(sql: string, params?: unknown[]) => Promise<U[]>;
+      get: <U>(sql: string, params?: unknown[]) => Promise<U | undefined>;
+      execute: (sql: string, params?: unknown[]) => Promise<void>;
+      insert: (sql: string, params?: unknown[]) => Promise<number>;
+      run: (sql: string, params?: unknown[]) => Promise<{ changes: number }>;
+    }) => {
+      const trxOps = new TransactionOperations(trx);
+      return fn(trxOps);
+    });
+    
+    const duration = Date.now() - startTime;
+    log.info('BusinessAdapter', `Transaction block completed`, { duration: `${duration}ms` });
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    log.error('BusinessAdapter', 'Transaction block failed', { error, duration: `${duration}ms` });
+    throw error;
+  }
+}
+
+/** 事务操作�?*/
+export class TransactionOperations {
+  private trx: {
+    query: <T>(sql: string, params?: unknown[]) => Promise<T[]>;
+    get: <T>(sql: string, params?: unknown[]) => Promise<T | undefined>;
+    execute: (sql: string, params?: unknown[]) => Promise<void>;
+    insert: (sql: string, params?: unknown[]) => Promise<number>;
+    run: (sql: string, params?: unknown[]) => Promise<{ changes: number }>;
+  };
+
+  constructor(trx: TransactionOperations['trx']) {
+    this.trx = trx;
+  }
+
+  async query<T = QueryResult>(sql: string, params?: unknown[]): Promise<T[]> {
+    const processedSql = processSql(sql, db.type);
+    log.debug('BusinessAdapter', '[Transaction] Executing query', { sql: processedSql });
+    return this.trx.query<T>(processedSql, params);
+  }
+
+  async get<T = QueryResult>(sql: string, params?: unknown[]): Promise<T | undefined> {
+    const processedSql = processSql(sql, db.type);
+    log.debug('BusinessAdapter', '[Transaction] Executing get', { sql: processedSql });
+    return this.trx.get<T>(processedSql, params);
+  }
+
+  async execute(sql: string, params?: unknown[]): Promise<void> {
+    const processedSql = processSql(sql, db.type);
+    log.debug('BusinessAdapter', '[Transaction] Executing execute', { sql: processedSql });
+    return this.trx.execute(processedSql, params);
+  }
+
+  async insert(sql: string, params?: unknown[]): Promise<number> {
+    const processedSql = processSql(sql, db.type);
+    log.debug('BusinessAdapter', '[Transaction] Executing insert', { sql: processedSql });
+    return this.trx.insert(processedSql, params);
+  }
+
+  async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
+    const processedSql = processSql(sql, db.type);
+    log.debug('BusinessAdapter', '[Transaction] Executing run', { sql: processedSql });
+    return this.trx.run(processedSql, params);
+  }
+}
+
+// ============================================================================
+// 系统信息业务操作
+// ============================================================================
+
+export const SystemOperations = {
+  /** 获取数据库信息（版本、驱动等�?*/
+  async getDatabaseInfo(): Promise<{ type: string; version: string; driverVersion: string }> {
+    const conn = getConnection();
+
+    let dbInfo = {
+      type: conn.type,
+      version: 'unknown',
+      driverVersion: 'unknown',
+    };
+
+    if (conn.type === 'sqlite') {
+      // Get SQLite version
+      const result = await conn.get('SELECT sqlite_version() as version');
+      dbInfo.version = (result as { version: string })?.version || 'unknown';
+      dbInfo.driverVersion = require('better-sqlite3/package.json').version;
+    } else if (conn.type === 'mysql') {
+      // Get MySQL version
+      const result = await conn.get('SELECT VERSION() as version');
+      dbInfo.version = (result as { version: string })?.version || 'unknown';
+      dbInfo.driverVersion = require('mysql2/package.json').version;
+    } else if (conn.type === 'postgresql') {
+      // Get PostgreSQL version
+      const result = await conn.get('SELECT version() as version');
+      const fullVersion = (result as { version: string })?.version || 'unknown';
+      // Extract version number from string like "PostgreSQL 15.2 on ..."
+      const match = fullVersion.match(/PostgreSQL\s+(\d+\.?\d*)/);
+      dbInfo.version = match ? match[1] : fullVersion;
+      dbInfo.driverVersion = require('pg/package.json').version;
+    }
+
+    return dbInfo;
+  },
+
+  /** 
+   * 测试 SQLite 数据库连接并检查是否有现有数据
+   * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
+   */
+  async testSqliteConnection(sqlitePath: string): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
+    const Database = require('better-sqlite3');
+    const fs = require('fs');
+    const path = require('path');
+
+    // 统一使用正斜杠，避免 Windows 路径问题
+    const normalizedPath = sqlitePath.replace(/\\/g, '/');
+    const dir = path.dirname(normalizedPath);
+
+    // 确保目录存在
+    if (dir && dir !== '.' && !fs.existsSync(dir)) {
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch (err) {
+        log.warn('SystemOperations', 'Failed to create directory, may already exist', { dir, error: err });
+      }
+    }
+
+    let testDb;
+    try {
+      testDb = new Database(normalizedPath);
+    } catch (err) {
+      log.error('SystemOperations', 'Failed to open SQLite database', { path: normalizedPath, error: err });
+      throw err;
+    }
+    
+    // Check if tables exist
+    let hasData = false;
+    let hasUsers = false;
+    try {
+      const tables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
+      if (tables.length > 0) {
+        hasData = true;
+        // Check if users table exists and has data
+        const usersTable = tables.find(t => t.name === 'users');
+        if (usersTable) {
+          const userCount = testDb.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number };
+          hasUsers = userCount?.cnt > 0;
+        }
+      }
+    } catch {
+      // No tables yet
+    }
+    
+    testDb.close();
+    return { success: true, message: 'SQLite connection successful', hasExistingData: hasData, hasUsers };
+  },
+
+  /** 
+   * 测试 MySQL 数据库连接并检查是否有现有数据
+   * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
+   */
+  async testMysqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
+    const mysql = require('mysql2/promise');
+    
+    const pool = mysql.createPool({
+      host: config.host,
+      port: config.port || 3306,
+      user: config.user,
+      password: config.password,
+      database: config.database,
+      ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+      connectionLimit: 1,
+    });
+
+    // Verify the connection is actually reachable before proceeding
+    const conn = await pool.getConnection();
+    conn.release();
+
+    // Check if there's any data
+    let hasData = false;
+    let hasUsers = false;
+    try {
+      const [tables] = await pool.execute('SHOW TABLES') as [any[], any];
+      if (tables && tables.length > 0) {
+        hasData = true;
+        // Check if users table exists and has data
+        const usersTableExists = tables.some(t => Object.values(t)[0] === 'users');
+        if (usersTableExists) {
+          const [userCountResult] = await pool.execute('SELECT COUNT(*) as cnt FROM users') as [any[], any];
+          hasUsers = userCountResult[0]?.cnt > 0;
+        }
+      }
+    } catch {
+      // No tables yet
+    }
+    
+    await pool.end();
+    return { success: true, message: 'MySQL connection successful', hasExistingData: hasData, hasUsers };
+  },
+
+  /** 
+   * 测试 PostgreSQL 数据库连接并检查是否有现有数据
+   * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
+   */
+  async testPostgresqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
+    const { Pool } = require('pg');
+    
+    const pool = new Pool({
+      host: config.host,
+      port: config.port || 5432,
+      user: config.user,
+      password: config.password,
+      database: config.database,
+      ssl: config.ssl ? { rejectUnauthorized: false } : false,
+      max: 1,
+    });
+
+    // Verify the connection is actually reachable before proceeding
+    const client = await pool.connect();
+    client.release();
+
+    // Check if there's any data
+    let hasData = false;
+    let hasUsers = false;
+    try {
+      const tablesResult = await pool.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+      `);
+      const tables = tablesResult.rows as { table_name: string }[];
+      if (tables && tables.length > 0) {
+        hasData = true;
+        // Check if users table exists and has data
+        const usersTableExists = tables.some(t => t.table_name === 'users');
+        if (usersTableExists) {
+          const userCountResult = await pool.query('SELECT COUNT(*) as cnt FROM users');
+          hasUsers = userCountResult.rows[0]?.cnt > 0;
+        }
+      }
+    } catch {
+      // No tables yet
+    }
+    
+    await pool.end();
+    return { success: true, message: 'PostgreSQL connection successful', hasExistingData: hasData, hasUsers };
+  },
+
+  /**
+   * 统一测试数据库连接（根据类型自动选择�?
+   * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
+   */
+  async testConnection(config: { 
+    type: 'sqlite' | 'mysql' | 'postgresql'; 
+    sqlite?: { path: string }; 
+    mysql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }; 
+    postgresql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean } 
+  }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
+    if (config.type === 'sqlite') {
+      return this.testSqliteConnection(config.sqlite?.path || './data/dnsmgr.db');
+    } else if (config.type === 'mysql') {
+      if (!config.mysql) throw new Error('MySQL configuration required');
+      return this.testMysqlConnection(config.mysql);
+    } else if (config.type === 'postgresql') {
+      if (!config.postgresql) throw new Error('PostgreSQL configuration required');
+      return this.testPostgresqlConnection(config.postgresql);
+    }
+    throw new Error(`Unsupported database type: ${config.type}`);
+  },
+};
+
+// ============================================================================
+// 运行时密钥业务操�?
+// ============================================================================
+
+export const SecretOperations = {
+  /** 获取运行时密�?*/
+  async getRuntimeSecret(key: string): Promise<string | undefined> {
+    const dbType = getDbType();
+    const sql = dbType === 'mysql'
+      ? 'SELECT `value` FROM runtime_secrets WHERE `key` = ?'
+      : dbType === 'postgresql'
+        ? 'SELECT "value" FROM runtime_secrets WHERE "key" = $1'
+        : 'SELECT `value` FROM runtime_secrets WHERE `key` = ?';
+    const params = dbType === 'postgresql' ? [key] : [key];
+    const row = await getInternal<{ value: string }>(
+      sql,
+      params,
+      { operation: 'Secret.getRuntimeSecret', table: 'runtime_secrets' }
+    );
+    return row?.value;
+  },
+
+  /** 确保运行时密钥表存在 */
+  async ensureRuntimeSecretsTable(): Promise<void> {
+    const dbType = getDbType();
+    const sql = dbType === 'mysql'
+      ? `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        \`key\` VARCHAR(255) PRIMARY KEY,
+        \`value\` TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`
+      : dbType === 'postgresql'
+        ? `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        "key" VARCHAR(255) PRIMARY KEY,
+        "value" TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`
+        : `CREATE TABLE IF NOT EXISTS runtime_secrets (
+        \`key\` VARCHAR(255) PRIMARY KEY,
+        \`value\` TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`;
+    return executeInternal(
+      sql,
+      [],
+      { operation: 'Secret.ensureRuntimeSecretsTable', table: 'runtime_secrets' }
+    );
+  },
+
+  /** 设置运行时密�?*/
+  async setRuntimeSecret(key: string, value: string): Promise<void> {
+    const dbType = getDbType();
+    let sql: string;
+    let params: unknown[];
+
+    if (dbType === 'mysql') {
+      // MySQL: 使用 INSERT ... ON DUPLICATE KEY UPDATE
+      sql = 'INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)';
+      params = [key, value];
+    } else if (dbType === 'postgresql') {
+      // PostgreSQL: 使用 INSERT ... ON CONFLICT
+      sql = 'INSERT INTO runtime_secrets ("key", "value") VALUES ($1, $2) ON CONFLICT("key") DO UPDATE SET "value" = EXCLUDED."value"';
+      params = [key, value];
+    } else {
+      // SQLite: 使用 INSERT ... ON CONFLICT
+      sql = 'INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?) ON CONFLICT(`key`) DO UPDATE SET `value` = excluded.`value`';
+      params = [key, value];
+    }
+
+    return executeInternal(
+      sql,
+      params,
+      { operation: 'Secret.setRuntimeSecret', table: 'runtime_secrets' }
+    );
+  },
+
+  /** 轮换运行时密�?*/
+  async rotateRuntimeSecrets(): Promise<void> {
+    try {
+      const jwtRuntimeSecret = crypto.randomBytes(32).toString('hex');
+      const dbType = getDbType();
+
+      if (dbType === 'sqlite') {
+        // SQLite: 使用 executeInternal 执行 SQL
+        await executeInternal('DELETE FROM runtime_secrets', [], { operation: 'Secret.rotate.delete', table: 'runtime_secrets' });
+        await executeInternal(
+          'INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?)',
+          ['jwt_runtime', jwtRuntimeSecret],
+          { operation: 'Secret.rotate.insert', table: 'runtime_secrets' }
+        );
+      } else if (dbType === 'mysql') {
+        // MySQL: 使用 executeInternal 执行 SQL
+        await executeInternal('DELETE FROM runtime_secrets', [], { operation: 'Secret.rotate.delete', table: 'runtime_secrets' });
+        await executeInternal(
+          'INSERT INTO runtime_secrets (`key`, `value`) VALUES (?, ?)',
+          ['jwt_runtime', jwtRuntimeSecret],
+          { operation: 'Secret.rotate.insert', table: 'runtime_secrets' }
+        );
+      } else {
+        // PostgreSQL: 使用 executeInternal 执行 SQL
+        await executeInternal('DELETE FROM runtime_secrets', [], { operation: 'Secret.rotate.delete', table: 'runtime_secrets' });
+        await executeInternal(
+          'INSERT INTO runtime_secrets ("key", "value") VALUES ($1, $2)',
+          ['jwt_runtime', jwtRuntimeSecret],
+          { operation: 'Secret.rotate.insert', table: 'runtime_secrets' }
+        );
+      }
+
+      log.info('Secret', 'Runtime secrets rotated');
+    } catch (error) {
+      log.error('Secret', 'Error rotating runtime secrets', { error });
+      throw error;
+    }
+  },
+};
+
+// ============================================================================
+// 安全策略业务操作
+// ============================================================================
+
+export const SecurityPolicyOperations = {
+  /** 获取当前安全策略 */
+  async getPolicy(): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT id, require_2fa_global as require2FAGlobal, min_password_length as minPasswordLength,
+        min_password_strength as minPasswordStrength, session_timeout_hours as sessionTimeoutHours,
+        max_login_attempts as maxLoginAttempts, lockout_duration_minutes as lockoutDurationMinutes,
+        allow_remember_device as allowRememberDevice, trusted_device_days as trustedDeviceDays,
+        require_password_change_on_first_login as requirePasswordChangeOnFirstLogin,
+        created_at, updated_at
+      FROM security_policies LIMIT 1`,
+      [],
+      { operation: 'SecurityPolicy.getPolicy', table: 'security_policies' }
+    );
+  },
+
+  /** 更新安全策略 */
+  async updatePolicy(updates: Record<string, unknown>, policyId: number): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE security_policies SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [...values, policyId],
+      { operation: 'SecurityPolicy.updatePolicy', table: 'security_policies' }
+    );
+  },
+
+  /** 初始化默认安全策�?*/
+  async initPolicy(values: unknown[]): Promise<void> {
+    return executeInternal(
+      `INSERT INTO security_policies (
+        require_2fa_global, min_password_length, min_password_strength,
+        session_timeout_hours, max_login_attempts, lockout_duration_minutes,
+        allow_remember_device, trusted_device_days, require_password_change_on_first_login
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      values,
+      { operation: 'SecurityPolicy.initPolicy', table: 'security_policies' }
+    );
+  },
+
+  /** 检查策略是否存�?*/
+  async exists(): Promise<boolean> {
+    const result = await getInternal<{ cnt: number }>(
+      'SELECT COUNT(*) as cnt FROM security_policies',
+      [],
+      { operation: 'SecurityPolicy.exists', table: 'security_policies' }
+    );
+    return (result?.cnt || 0) > 0;
+  },
+
+  /** 获取用户安全设置 */
+  async getUserSecuritySetting(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT require_2fa FROM user_security_settings WHERE user_id = ?',
+      [userId],
+      { operation: 'SecurityPolicy.getUserSecuritySetting', table: 'user_security_settings' }
+    );
+  },
+
+  /** 检查用户是否有 2FA */
+  async has2FA(userId: number): Promise<boolean> {
+    const dbType = process.env.DB_TYPE || 'sqlite';
+    const enabledValue = dbType === 'postgresql' ? '$4' : '?';
+    const enabledParam = dbType === 'postgresql' ? [userId, 'totp', 'webauthn', true] : [userId, 'totp', 'webauthn', 1];
+    
+    const sql = dbType === 'postgresql'
+      ? 'SELECT COUNT(*) as count FROM user_2fa WHERE user_id = $1 AND type IN ($2, $3) AND enabled = $4'
+      : 'SELECT COUNT(*) as count FROM user_2fa WHERE user_id = ? AND type IN (?, ?) AND enabled = ?';
+    
+    const result = await getInternal<{ count: number }>(
+      sql,
+      enabledParam,
+      { operation: 'SecurityPolicy.has2FA', table: 'user_2fa' }
+    );
+    return (result?.count || 0) > 0;
+  },
+
+  /** 更新用户 2FA 要求设置 */
+  async updateUser2FARequirement(userId: number, require2FA: boolean): Promise<void> {
+    const existing = await getInternal<{ id: number }>(
+      'SELECT id FROM user_security_settings WHERE user_id = ?',
+      [userId],
+      { operation: 'SecurityPolicy.updateUser2FARequirement.check', table: 'user_security_settings' }
+    );
+    if (existing) {
+      return executeInternal(
+        'UPDATE user_security_settings SET require_2fa = ? WHERE user_id = ?',
+        [require2FA ? 1 : 0, userId],
+        { operation: 'SecurityPolicy.updateUser2FARequirement.update', table: 'user_security_settings' }
+      );
+    } else {
+      return executeInternal(
+        'INSERT INTO user_security_settings (user_id, require_2fa) VALUES (?, ?)',
+        [userId, require2FA ? 1 : 0],
+        { operation: 'SecurityPolicy.updateUser2FARequirement.insert', table: 'user_security_settings' }
+      );
+    }
+  },
+};
+
+// ============================================================================
+// 受信任设备业务操�?
+// ============================================================================
+
+export const TrustedDeviceOperations = {
+  /** 添加受信任设�?*/
+  async add(deviceId: string, userId: number, deviceName: string, fingerprint: string, userAgent: string, ipAddress: string, expiresAt: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO trusted_devices (id, user_id, device_name, device_fingerprint, user_agent, ip_address, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [deviceId, userId, deviceName, fingerprint, userAgent, ipAddress, expiresAt],
+      { operation: 'TrustedDevice.add', table: 'trusted_devices' }
+    );
+  },
+
+  /** 根据指纹获取设备 */
+  async getByFingerprint(userId: number, fingerprint: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id, expires_at FROM trusted_devices WHERE user_id = ? AND device_fingerprint = ?',
+      [userId, fingerprint],
+      { operation: 'TrustedDevice.getByFingerprint', table: 'trusted_devices' }
+    );
+  },
+
+  /** 更新最后使用时�?*/
+  async updateLastUsed(deviceId: string): Promise<void> {
+    return executeInternal(
+      'UPDATE trusted_devices SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [deviceId],
+      { operation: 'TrustedDevice.updateLastUsed', table: 'trusted_devices' }
+    );
+  },
+
+  /** 删除设备 */
+  async delete(deviceId: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM trusted_devices WHERE id = ?',
+      [deviceId],
+      { operation: 'TrustedDevice.delete', table: 'trusted_devices' }
+    );
+  },
+
+  /** 删除用户的所有设�?*/
+  async deleteByUser(userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM trusted_devices WHERE user_id = ?',
+      [userId],
+      { operation: 'TrustedDevice.deleteByUser', table: 'trusted_devices' }
+    );
+  },
+
+  /** 获取用户的所有设�?*/
+  async getByUser(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT id, user_id as userId, device_name as deviceName, device_fingerprint as deviceFingerprint,
+        user_agent as userAgent, ip_address as ipAddress, last_used_at as lastUsedAt,
+        expires_at as expiresAt, created_at as createdAt
+      FROM trusted_devices WHERE user_id = ? ORDER BY last_used_at DESC`,
+      [userId],
+      { operation: 'TrustedDevice.getByUser', table: 'trusted_devices' }
+    );
+  },
+
+  /** 删除过期设备 */
+  async cleanupExpired(): Promise<number> {
+    const result = await runInternal(
+      'DELETE FROM trusted_devices WHERE expires_at < CURRENT_TIMESTAMP',
+      [],
+      { operation: 'TrustedDevice.cleanupExpired', table: 'trusted_devices' }
+    );
+    return result.changes || 0;
+  },
+
+  /** 删除指定用户的设�?*/
+  async deleteByUserAndId(userId: number, deviceId: string): Promise<number> {
+    const result = await runInternal(
+      'DELETE FROM trusted_devices WHERE id = ? AND user_id = ?',
+      [deviceId, userId],
+      { operation: 'TrustedDevice.deleteByUserAndId', table: 'trusted_devices' }
+    );
+    return result.changes || 0;
+  },
+};
+
+// ============================================================================
+// 用户偏好设置业务操作
+// ============================================================================
+
+export const UserPreferencesOperations = {
+  /** 获取用户偏好设置 */
+  async get(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT user_id, theme, language, notifications_enabled, email_notifications, background_image, avatar_image FROM user_preferences WHERE user_id = ?',
+      [userId],
+      { operation: 'UserPreferences.get', table: 'user_preferences' }
+    );
+  },
+
+  /** 更新用户偏好设置 (SQLite) */
+  async upsertSQLite(userId: number, theme: string, language: string, notificationsEnabled: number, emailNotifications: number, backgroundImage: string | null, avatarImage: string | null): Promise<void> {
+    return executeInternal(
+      `INSERT INTO user_preferences (user_id, theme, language, notifications_enabled, email_notifications, background_image, avatar_image, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+       ON CONFLICT(user_id) DO UPDATE SET
+        theme = excluded.theme, language = excluded.language,
+        notifications_enabled = excluded.notifications_enabled, email_notifications = excluded.email_notifications,
+        background_image = excluded.background_image, avatar_image = excluded.avatar_image, updated_at = datetime('now')`,
+      [userId, theme, language, notificationsEnabled, emailNotifications, backgroundImage, avatarImage],
+      { operation: 'UserPreferences.upsertSQLite', table: 'user_preferences' }
+    );
+  },
+
+  /** 更新用户偏好设置 (MySQL) */
+  async upsertMySQL(userId: number, theme: string, language: string, notificationsEnabled: number, emailNotifications: number, backgroundImage: string | null, avatarImage: string | null): Promise<void> {
+    return executeInternal(
+      `INSERT INTO user_preferences (user_id, theme, language, notifications_enabled, email_notifications, background_image, avatar_image)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+        theme = VALUES(theme), language = VALUES(language),
+        notifications_enabled = VALUES(notifications_enabled), email_notifications = VALUES(email_notifications),
+        background_image = VALUES(background_image), avatar_image = VALUES(avatar_image)`,
+      [userId, theme, language, notificationsEnabled, emailNotifications, backgroundImage, avatarImage],
+      { operation: 'UserPreferences.upsertMySQL', table: 'user_preferences' }
+    );
+  },
+
+  /** 更新用户偏好设置 (PostgreSQL) */
+  async upsertPostgreSQL(userId: number, theme: string, language: string, notificationsEnabled: number, emailNotifications: number, backgroundImage: string | null, avatarImage: string | null): Promise<void> {
+    return executeInternal(
+      `INSERT INTO user_preferences (user_id, theme, language, notifications_enabled, email_notifications, background_image, avatar_image)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT(user_id) DO UPDATE SET
+        theme = EXCLUDED.theme, language = EXCLUDED.language,
+        notifications_enabled = EXCLUDED.notifications_enabled, email_notifications = EXCLUDED.email_notifications,
+        background_image = EXCLUDED.background_image, avatar_image = EXCLUDED.avatar_image`,
+      [userId, theme, language, notificationsEnabled, emailNotifications, backgroundImage, avatarImage],
+      { operation: 'UserPreferences.upsertPostgreSQL', table: 'user_preferences' }
+    );
+  },
+
+  /** 获取用户置顶的域名列�?*/
+  async getPinnedDomains(userId: number): Promise<number[]> {
+    try {
+      const result = await getInternal(
+        'SELECT pinned_domains FROM user_preferences WHERE user_id = ?',
+        [userId],
+        { operation: 'UserPreferences.getPinnedDomains', table: 'user_preferences' }
+      );
+
+      if (!result || !result.pinned_domains) {
+        return [];
+      }
+
+      // MySQL JSON 类型直接返回数组，SQLite/PostgreSQL 返回字符�?
+      const pinnedDomains = result.pinned_domains;
+      if (Array.isArray(pinnedDomains)) {
+        return pinnedDomains;
+      }
+      // 如果是字符串，解�?JSON
+      if (typeof pinnedDomains === 'string') {
+        const parsed = JSON.parse(pinnedDomains);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+      return [];
+    } catch (error) {
+      // 表或字段不存在时返回空数�?
+      log.warn('UserPreferences', 'Failed to get pinned domains, returning empty array', { userId, error });
+      return [];
+    }
+  },
+
+  /** 更新用户置顶的域名列�?*/
+  async updatePinnedDomains(userId: number, domainIds: number[]): Promise<void> {
+    const pinnedDomainsJson = JSON.stringify(domainIds);
+    
+    // SQLite
+    if (process.env.DB_TYPE === 'sqlite' || !process.env.DB_TYPE) {
+      await executeInternal(
+        `INSERT INTO user_preferences (user_id, pinned_domains, created_at, updated_at)
+         VALUES (?, ?, datetime('now'), datetime('now'))
+         ON CONFLICT(user_id) DO UPDATE SET
+          pinned_domains = excluded.pinned_domains, updated_at = datetime('now')`,
+        [userId, pinnedDomainsJson],
+        { operation: 'UserPreferences.updatePinnedDomains', table: 'user_preferences' }
+      );
+    } else if (process.env.DB_TYPE === 'mysql') {
+      // MySQL
+      await executeInternal(
+        `INSERT INTO user_preferences (user_id, pinned_domains)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE
+          pinned_domains = VALUES(pinned_domains)`,
+        [userId, pinnedDomainsJson],
+        { operation: 'UserPreferences.updatePinnedDomains', table: 'user_preferences' }
+      );
+    } else {
+      // PostgreSQL
+      await executeInternal(
+        `INSERT INTO user_preferences (user_id, pinned_domains)
+         VALUES ($1, $2::jsonb)
+         ON CONFLICT(user_id) DO UPDATE SET
+          pinned_domains = EXCLUDED.pinned_domains`,
+        [userId, pinnedDomainsJson],
+        { operation: 'UserPreferences.updatePinnedDomains', table: 'user_preferences' }
+      );
+    }
+  },
+};
+
+// ============================================================================
+// 会话管理业务操作
+// ============================================================================
+
+export const SessionOperations = {
+  /** 创建会话 */
+  async create(sessionId: string, userId: number, token: string, ipAddress: string, userAgent: string, expiresAt: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO user_sessions (id, user_id, token, ip_address, user_agent, created_at, last_activity_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ${now()}, ${now()}, ?)`,
+      [sessionId, userId, token, ipAddress, userAgent, expiresAt],
+      { operation: 'Session.create', table: 'user_sessions' }
+    );
+  },
+
+  /** 获取用户的活跃会�?*/
+  async getActiveByUser(userId: number, nowTime: string): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT id, user_id, token, ip_address, user_agent, created_at, last_activity_at, expires_at
+      FROM user_sessions WHERE user_id = ? AND expires_at > ? ORDER BY last_activity_at DESC`,
+      [userId, nowTime],
+      { operation: 'Session.getActiveByUser', table: 'user_sessions' }
+    );
+  },
+
+  /** 更新会话活动时间 */
+  async updateActivity(sessionId: string): Promise<void> {
+    return executeInternal(
+      `UPDATE user_sessions SET last_activity_at = ${now()} WHERE id = ?`,
+      [sessionId],
+      { operation: 'Session.updateActivity', table: 'user_sessions' }
+    );
+  },
+
+  /** 删除会话 */
+  async delete(sessionId: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_sessions WHERE id = ?',
+      [sessionId],
+      { operation: 'Session.delete', table: 'user_sessions' }
+    );
+  },
+
+  /** 删除用户的其他会�?*/
+  async deleteOthers(userId: number, currentSessionId: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_sessions WHERE user_id = ? AND id != ?',
+      [userId, currentSessionId],
+      { operation: 'Session.deleteOthers', table: 'user_sessions' }
+    );
+  },
+
+  /** 删除用户的所有会�?*/
+  async deleteByUser(userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_sessions WHERE user_id = ?',
+      [userId],
+      { operation: 'Session.deleteByUser', table: 'user_sessions' }
+    );
+  },
+
+  /** 清理过期会话 */
+  async cleanupExpired(nowTime: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_sessions WHERE expires_at < ?',
+      [nowTime],
+      { operation: 'Session.cleanupExpired', table: 'user_sessions' }
+    );
+  },
+
+  /** 根据 token 获取会话 */
+  async getByToken(token: string, nowTime: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT id, user_id, token, ip_address, user_agent, created_at, last_activity_at, expires_at
+      FROM user_sessions WHERE token = ? AND expires_at > ? LIMIT 1`,
+      [token, nowTime],
+      { operation: 'Session.getByToken', table: 'user_sessions' }
+    );
+  },
+};
+
+// ============================================================================
+// 登录限制业务操作
+// ============================================================================
+
+export const LoginLimitOperations = {
+  /** 获取登录限制配置 */
+  async getConfig(): Promise<QueryResult | undefined> {
+    return getInternal(
+      "SELECT value FROM system_settings WHERE key = 'login_limit_config'",
+      [],
+      { operation: 'LoginLimit.getConfig', table: 'system_settings' }
+    );
+  },
+
+  /** 更新登录限制配置 */
+  async updateConfig(configJson: string): Promise<void> {
+    const { sql, params } = buildUpsertSql(
+      'system_settings',
+      ['key', 'value'],
+      ['login_limit_config', configJson],
+      'key',
+      ['value']
+    );
+    return executeInternal(sql, params, { operation: 'LoginLimit.updateConfig', table: 'system_settings' });
+  },
+
+  /** 获取登录尝试记录 */
+  async getAttempt(identifier: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM login_attempts WHERE identifier = ? ORDER BY created_at DESC LIMIT 1',
+      [identifier.toLowerCase()],
+      { operation: 'LoginLimit.getAttempt', table: 'login_attempts' }
+    );
+  },
+
+  /** 更新登录尝试记录 */
+  async updateAttempt(id: number, count: number, lockedUntil: string | null): Promise<void> {
+    return executeInternal(
+      `UPDATE login_attempts SET attempt_count = ?, last_attempt_at = ${now()}, locked_until = ? WHERE id = ?`,
+      [count, lockedUntil, id],
+      { operation: 'LoginLimit.updateAttempt', table: 'login_attempts' }
+    );
+  },
+
+  /** 创建登录尝试记录 */
+  async createAttempt(identifier: string, ipAddress: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO login_attempts (identifier, ip_address, attempt_count, last_attempt_at) VALUES (?, ?, 1, ${now()})`,
+      [identifier.toLowerCase(), ipAddress],
+      { operation: 'LoginLimit.createAttempt', table: 'login_attempts' }
+    );
+  },
+
+  /** 清除登录尝试记录 */
+  async clearAttempts(identifier: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM login_attempts WHERE identifier = ?',
+      [identifier.toLowerCase()],
+      { operation: 'LoginLimit.clearAttempts', table: 'login_attempts' }
+    );
+  },
+
+  /** 获取锁定账户数量 */
+  async getLockedCount(nowExpr: string): Promise<number> {
+    const result = await getInternal<{ cnt: number }>(
+      `SELECT COUNT(*) as cnt FROM login_attempts WHERE locked_until > ${nowExpr}`,
+      [],
+      { operation: 'LoginLimit.getLockedCount', table: 'login_attempts' }
+    );
+    return result?.cnt || 0;
+  },
+
+  /** 获取最近尝试数�?*/
+  async getRecentCount(yesterdayExpr: string): Promise<number> {
+    const result = await getInternal<{ cnt: number }>(
+      `SELECT COUNT(*) as cnt FROM login_attempts WHERE last_attempt_at > ${yesterdayExpr}`,
+      [],
+      { operation: 'LoginLimit.getRecentCount', table: 'login_attempts' }
+    );
+    return result?.cnt || 0;
+  },
+
+  /** 获取尝试次数最多的标识�?*/
+  async getTopIdentifiers(): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT identifier, attempt_count as attempts FROM login_attempts ORDER BY attempt_count DESC LIMIT 10',
+      [],
+      { operation: 'LoginLimit.getTopIdentifiers', table: 'login_attempts' }
+    );
+  },
+};
+
+// ============================================================================
+// 容灾配置业务操作
+// ============================================================================
+
+export const FailoverOperations = {
+  /** 获取所有启用的容灾配置 */
+  async getAllEnabled(): Promise<QueryResult[]> {
+    const dbType = getDbType();
+    // PostgreSQL 使用 true/false，SQLite/MySQL 使用 1/0
+    const enabledValue = dbType === 'postgresql' ? 'true' : '1';
+    return queryInternal(
+      `SELECT * FROM failover_configs WHERE enabled = ${enabledValue}`,
+      [],
+      { operation: 'Failover.getAllEnabled', table: 'failover_configs' }
+    );
+  },
+
+  /** 根据域名ID获取容灾配置 */
+  async getByDomain(domainId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM failover_configs WHERE domain_id = ?',
+      [domainId],
+      { operation: 'Failover.getByDomain', table: 'failover_configs' }
+    );
+  },
+
+  /** 根据ID获取容灾配置 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM failover_configs WHERE id = ?',
+      [id],
+      { operation: 'Failover.getById', table: 'failover_configs' }
+    );
+  },
+
+  /** 创建容灾配置 */
+  async create(data: Record<string, unknown>): Promise<number> {
+    const fields = Object.keys(data);
+    const placeholders = fields.map(() => '?').join(', ');
+    return insertInternal(
+      `INSERT INTO failover_configs (${fields.join(', ')}) VALUES (${placeholders})`,
+      Object.values(data),
+      { operation: 'Failover.create', table: 'failover_configs' }
+    );
+  },
+
+  /** 更新容灾配置 */
+  async update(id: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE failover_configs SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'Failover.update', table: 'failover_configs' }
+    );
+  },
+
+  /** 删除容灾配置 */
+  async delete(id: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM failover_configs WHERE id = ?',
+      [id],
+      { operation: 'Failover.delete', table: 'failover_configs' }
+    );
+  },
+
+  /** 获取容灾状�?*/
+  async getStatus(configId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM failover_status WHERE config_id = ?',
+      [configId],
+      { operation: 'Failover.getStatus', table: 'failover_status' }
+    );
+  },
+
+  /** 更新容灾状�?*/
+  async updateStatus(configId: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE failover_status SET ${setClause} WHERE config_id = ?`,
+      [...values, configId],
+      { operation: 'Failover.updateStatus', table: 'failover_status' }
+    );
+  },
+
+  /** 初始化容灾状�?*/
+  async initStatus(configId: number, primaryIp: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, fail_count, switch_count)
+       VALUES (?, ?, 1, ${now()}, 1, 0, 0)`,
+      [configId, primaryIp],
+      { operation: 'Failover.initStatus', table: 'failover_status' }
+    );
+  },
+
+  /** 更新检查状�?(SQLite) */
+  async updateCheckStatusSQLite(configId: number, currentIp: string, isPrimary: number, isHealthy: number): Promise<void> {
+    return executeInternal(
+      `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, switch_count)
+       VALUES (?, ?, ?, datetime('now'), ?, 0)
+       ON CONFLICT(config_id) DO UPDATE SET
+        last_check_time = datetime('now'), last_check_result = excluded.last_check_result`,
+      [configId, currentIp, isPrimary, isHealthy],
+      { operation: 'Failover.updateCheckStatusSQLite', table: 'failover_status' }
+    );
+  },
+
+  /** 更新检查状�?(MySQL) */
+  async updateCheckStatusMySQL(configId: number, currentIp: string, isPrimary: number, isHealthy: number): Promise<void> {
+    return executeInternal(
+      `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, switch_count)
+       VALUES (?, ?, ?, NOW(), ?, 0)
+       ON DUPLICATE KEY UPDATE
+       last_check_time = NOW(), last_check_result = VALUES(last_check_result)`,
+      [configId, currentIp, isPrimary, isHealthy],
+      { operation: 'Failover.updateCheckStatusMySQL', table: 'failover_status' }
+    );
+  },
+
+  /** 更新检查状�?(PostgreSQL) */
+  async updateCheckStatusPostgreSQL(configId: number, currentIp: string, isPrimary: number, isHealthy: number): Promise<void> {
+    return executeInternal(
+      `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, switch_count)
+       VALUES ($1, $2, $3, NOW(), $4, 0)
+       ON CONFLICT(config_id) DO UPDATE SET
+       last_check_time = NOW(), last_check_result = EXCLUDED.last_check_result`,
+      [configId, currentIp, isPrimary, isHealthy],
+      { operation: 'Failover.updateCheckStatusPostgreSQL', table: 'failover_status' }
+    );
+  },
+};
+
+// ============================================================================
+// 审计日志导出业务操作
+// ============================================================================
+
+export const AuditExportOperations = {
+  /** 获取审计日志总数 */
+  async getCount(where: string, params: unknown[]): Promise<number> {
+    const result = await getInternal<{ cnt: number }>(
+      `SELECT COUNT(*) as cnt FROM operation_logs l WHERE ${where}`,
+      params,
+      { operation: 'AuditExport.getCount', table: 'operation_logs' }
+    );
+    return result?.cnt || 0;
+  },
+
+  /** 获取审计日志列表 */
+  async getLogs(where: string, params: unknown[], pageSize: number, offset: number): Promise<QueryResult[]> {
+    const dbType = getDbType();
+    // Use CASE WHEN to display 'Root' for user_id = 0
+    const listSql = dbType === 'postgresql'
+      ? `SELECT l.*, 
+          CASE WHEN l.user_id = 0 THEN 'Root' ELSE u.username END as username,
+          CASE WHEN l.user_id = 0 THEN '后端' ELSE u.nickname END as nickname
+         FROM operation_logs l
+         LEFT JOIN users u ON u.id = l.user_id WHERE ${where} ORDER BY l.id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
+      : `SELECT l.*, 
+          CASE WHEN l.user_id = 0 THEN 'Root' ELSE u.username END as username,
+          CASE WHEN l.user_id = 0 THEN '后端' ELSE u.nickname END as nickname
+         FROM operation_logs l
+         LEFT JOIN users u ON u.id = l.user_id WHERE ${where} ORDER BY l.id DESC LIMIT ? OFFSET ?`;
+    const finalSql = dbType === 'mysql'
+      ? listSql.replace('LIMIT ? OFFSET ?', `LIMIT ${pageSize} OFFSET ${offset}`)
+      : listSql;
+    const finalParams = dbType === 'mysql' ? params : [...params, pageSize, offset];
+    return queryInternal(finalSql, finalParams, { operation: 'AuditExport.getLogs', table: 'operation_logs' });
+  },
+
+  /** 检测异�?- 删除操作 */
+  async getDeleteCount(userId: number, timeWindow: string): Promise<number> {
+    const result = await getInternal<{ cnt: number }>(
+      'SELECT COUNT(*) as cnt FROM operation_logs WHERE user_id = ? AND action LIKE \'%delete%\' AND created_at > ?',
+      [userId, timeWindow],
+      { operation: 'AuditExport.getDeleteCount', table: 'operation_logs' }
+    );
+    return result?.cnt || 0;
+  },
+
+  /** 检测异�?- 创建操作 */
+  async getCreateCount(userId: number, timeWindow: string): Promise<number> {
+    const result = await getInternal<{ cnt: number }>(
+      'SELECT COUNT(*) as cnt FROM operation_logs WHERE user_id = ? AND action LIKE \'%create%\' AND created_at > ?',
+      [userId, timeWindow],
+      { operation: 'AuditExport.getCreateCount', table: 'operation_logs' }
+    );
+    return result?.cnt || 0;
+  },
+
+  /** 检测异�?- 域名数量 */
+  async getDomainCount(userId: number, timeWindow: string): Promise<number> {
+    const result = await getInternal<{ cnt: number }>(
+      'SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs WHERE user_id = ? AND created_at > ?',
+      [userId, timeWindow],
+      { operation: 'AuditExport.getDomainCount', table: 'operation_logs' }
+    );
+    return result?.cnt || 0;
+  },
+
+  /** 获取用户操作统计 */
+  async getUserActionStats(userId: number, startDate: string): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT action, COUNT(*) as count FROM operation_logs WHERE user_id = ? AND created_at > ? GROUP BY action ORDER BY count DESC',
+      [userId, startDate],
+      { operation: 'AuditExport.getUserActionStats', table: 'operation_logs' }
+    );
+  },
+
+  /** 获取操作时间分布 (SQLite) */
+  async getTimeDistributionSQLite(userId: number, startDate: string): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT STRFTIME('%H', created_at) as hour, COUNT(*) as count FROM operation_logs
+       WHERE user_id = ? AND created_at > ? GROUP BY STRFTIME('%H', created_at) ORDER BY hour`,
+      [userId, startDate],
+      { operation: 'AuditExport.getTimeDistributionSQLite', table: 'operation_logs' }
+    );
+  },
+
+  /** 获取操作时间分布 (PostgreSQL) */
+  async getTimeDistributionPostgreSQL(userId: number, startDate: string): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT EXTRACT(HOUR FROM created_at) as hour, COUNT(*) as count FROM operation_logs
+       WHERE user_id = $1 AND created_at > $2 GROUP BY EXTRACT(HOUR FROM created_at) ORDER BY hour`,
+      [userId, startDate],
+      { operation: 'AuditExport.getTimeDistributionPostgreSQL', table: 'operation_logs' }
+    );
+  },
+};
+
+// ============================================================================
+// TOTP 2FA 业务操作
+// ============================================================================
+
+export const TOTPOperations = {
+  /** 获取 TOTP 配置 */
+  async getByUser(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT enabled, backup_codes FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, 'totp'],
+      { operation: 'TOTP.getByUser', table: 'user_2fa' }
+    );
+  },
+
+  /** 启用 TOTP (SQLite) */
+  async enableSQLite(userId: number, secret: string, encryptedCodes: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
+       VALUES (?, ?, ?, ?, TRUE, datetime('now'))
+       ON CONFLICT(user_id, type) DO UPDATE SET
+        secret = excluded.secret, backup_codes = excluded.backup_codes,
+        enabled = TRUE, updated_at = datetime('now')`,
+      [userId, 'totp', secret, encryptedCodes],
+      { operation: 'TOTP.enableSQLite', table: 'user_2fa' }
+    );
+  },
+
+  /** 启用 TOTP (MySQL) */
+  async enableMySQL(userId: number, secret: string, encryptedCodes: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
+       VALUES (?, ?, ?, ?, TRUE, NOW())
+       ON DUPLICATE KEY UPDATE
+       secret = VALUES(secret), backup_codes = VALUES(backup_codes),
+       enabled = TRUE, updated_at = NOW()`,
+      [userId, 'totp', secret, encryptedCodes],
+      { operation: 'TOTP.enableMySQL', table: 'user_2fa' }
+    );
+  },
+
+  /** 启用 TOTP (PostgreSQL) */
+  async enablePostgreSQL(userId: number, secret: string, encryptedCodes: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO user_2fa (user_id, type, secret, backup_codes, enabled, created_at)
+       VALUES ($1, $2, $3, $4, true, NOW())
+       ON CONFLICT(user_id, type) DO UPDATE SET
+       secret = EXCLUDED.secret, backup_codes = EXCLUDED.backup_codes,
+       enabled = true, updated_at = NOW()`,
+      [userId, 'totp', secret, encryptedCodes],
+      { operation: 'TOTP.enablePostgreSQL', table: 'user_2fa' }
+    );
+  },
+
+  /** 禁用 TOTP */
+  async disable(userId: number, enabledValue: number | boolean): Promise<void> {
+    return executeInternal(
+      'UPDATE user_2fa SET enabled = ? WHERE user_id = ? AND type = ?',
+      [enabledValue, userId, 'totp'],
+      { operation: 'TOTP.disable', table: 'user_2fa' }
+    );
+  },
+
+  /** 验证备用�?*/
+  async verifyBackupCode(userId: number, enabledValue: number | boolean): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT backup_codes FROM user_2fa WHERE user_id = ? AND type = ? AND enabled = ?',
+      [userId, 'totp', enabledValue],
+      { operation: 'TOTP.verifyBackupCode', table: 'user_2fa' }
+    );
+  },
+
+  /** 更新备用�?*/
+  async updateBackupCodes(userId: number, codes: string): Promise<void> {
+    return executeInternal(
+      'UPDATE user_2fa SET backup_codes = ? WHERE user_id = ? AND type = ?',
+      [codes, userId, 'totp'],
+      { operation: 'TOTP.updateBackupCodes', table: 'user_2fa' }
+    );
+  },
+};
+
+// ============================================================================
+// WebAuthn 业务操作
+// ============================================================================
+
+export const WebAuthnOperations = {
+  /** 获取用户�?WebAuthn 凭证 */
+  async getByUser(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM webauthn_credentials WHERE user_id = ?',
+      [userId],
+      { operation: 'WebAuthn.getByUser', table: 'webauthn_credentials' }
+    );
+  },
+
+  /** 添加 WebAuthn 凭证 */
+  async add(cred: { id: string; user_id: number; public_key: string; counter: number; device_type: string; backed_up: number; transports: string; name: string }): Promise<void> {
+    return executeInternal(
+      'INSERT INTO webauthn_credentials (id, user_id, public_key, counter, device_type, backed_up, transports, name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [cred.id, cred.user_id, cred.public_key, cred.counter, cred.device_type, cred.backed_up, cred.transports, cred.name],
+      { operation: 'WebAuthn.add', table: 'webauthn_credentials' }
+    );
+  },
+
+  /** 检查用户是否有 WebAuthn 配置 */
+  async exists(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM user_2fa WHERE user_id = ? AND type = ?',
+      [userId, 'webauthn'],
+      { operation: 'WebAuthn.exists', table: 'user_2fa' }
+    );
+  },
+
+  /** 创建 WebAuthn 配置 */
+  async createConfig(userId: number): Promise<void> {
+    const dbType = getDbType();
+    // PostgreSQL 使用 true/false，SQLite/MySQL 使用 1/0
+    const enabledValue = dbType === 'postgresql' ? true : 1;
+    return executeInternal(
+      'INSERT INTO user_2fa (user_id, type, secret, enabled) VALUES (?, ?, ?, ?)',
+      [userId, 'webauthn', 'webauthn', enabledValue],
+      { operation: 'WebAuthn.createConfig', table: 'user_2fa' }
+    );
+  },
+
+  /** 启用 WebAuthn */
+  async enable(userId: number): Promise<void> {
+    const dbType = getDbType();
+    // PostgreSQL 使用 true/false，SQLite/MySQL 使用 1/0
+    const enabledValue = dbType === 'postgresql' ? true : 1;
+    return executeInternal(
+      'UPDATE user_2fa SET enabled = ? WHERE user_id = ? AND type = ?',
+      [enabledValue, userId, 'webauthn'],
+      { operation: 'WebAuthn.enable', table: 'user_2fa' }
+    );
+  },
+
+  /** 更新凭证计数�?*/
+  async updateCounter(id: string, counter: number): Promise<void> {
+    return executeInternal(
+      `UPDATE webauthn_credentials SET counter = ?, last_used_at = ${now()} WHERE id = ?`,
+      [counter, id],
+      { operation: 'WebAuthn.updateCounter', table: 'webauthn_credentials' }
+    );
+  },
+
+  /** 删除凭证 */
+  async delete(userId: number, id: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM webauthn_credentials WHERE user_id = ? AND id = ?',
+      [userId, id],
+      { operation: 'WebAuthn.delete', table: 'webauthn_credentials' }
+    );
+  },
+
+  /** 禁用 WebAuthn */
+  async disable(userId: number): Promise<void> {
+    return executeInternal(
+      'UPDATE user_2fa SET enabled = FALSE WHERE user_id = ? AND type = ?',
+      [userId, 'webauthn'],
+      { operation: 'WebAuthn.disable', table: 'user_2fa' }
+    );
+  },
+};
+
+// ============================================================================
+// SMTP 配置业务操作
+// ============================================================================
+
+export const SmtpOperations = {
+  /** 获取 SMTP 配置 */
+  async getConfig(): Promise<QueryResult | undefined> {
+    return getInternal(
+      "SELECT value FROM system_settings WHERE key = 'smtp_config'",
+      [],
+      { operation: 'Smtp.getConfig', table: 'system_settings' }
+    );
+  },
+
+  /** 更新 SMTP 配置 (MySQL) */
+  async updateConfigMySQL(configJson: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO system_settings (\`key\`, \`value\`, updated_at) VALUES (?, ?, ${now()})
+       ON DUPLICATE KEY UPDATE \`value\` = VALUES(\`value\`), updated_at = ${now()}`,
+      ['smtp_config', configJson],
+      { operation: 'Smtp.updateConfigMySQL', table: 'system_settings' }
+    );
+  },
+
+  /** 更新 SMTP 配置 (SQLite) */
+  async updateConfigSQLite(configJson: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ${now()})
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = ${now()}`,
+      ['smtp_config', configJson],
+      { operation: 'Smtp.updateConfigSQLite', table: 'system_settings' }
+    );
+  },
+
+  /** 更新 SMTP 配置 (PostgreSQL) */
+  async updateConfigPostgreSQL(configJson: string): Promise<void> {
+    return executeInternal(
+      `INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, ${now()})
+       ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = ${now()}`,
+      ['smtp_config', configJson],
+      { operation: 'Smtp.updateConfigPostgreSQL', table: 'system_settings' }
+    );
+  },
+};
+
+// ============================================================================
+// WHOIS 业务操作
+// ============================================================================
+
+export const WhoisOperations = {
+  /** 获取所有域�?*/
+  async getAllDomains(): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT id, name, account_id FROM domains',
+      [],
+      { operation: 'Whois.getAllDomains', table: 'domains' }
+    );
+  },
+
+  /** 更新域名过期时间 */
+  async updateExpiry(domainId: number, expiresAt: string, apexExpiresAt?: string | null, whoisStatus?: string | null): Promise<void> {
+    if (apexExpiresAt !== undefined && whoisStatus !== undefined) {
+      return executeInternal(
+        'UPDATE domains SET expires_at = ?, apex_expires_at = ?, whois_status = ? WHERE id = ?',
+        [expiresAt, apexExpiresAt, whoisStatus, domainId],
+        { operation: 'Whois.updateExpiry', table: 'domains' }
+      );
+    } else if (apexExpiresAt !== undefined) {
+      return executeInternal(
+        'UPDATE domains SET expires_at = ?, apex_expires_at = ? WHERE id = ?',
+        [expiresAt, apexExpiresAt, domainId],
+        { operation: 'Whois.updateExpiry', table: 'domains' }
+      );
+    } else if (whoisStatus !== undefined) {
+      return executeInternal(
+        'UPDATE domains SET expires_at = ?, whois_status = ? WHERE id = ?',
+        [expiresAt, whoisStatus, domainId],
+        { operation: 'Whois.updateExpiry', table: 'domains' }
+      );
+    }
+    return executeInternal(
+      'UPDATE domains SET expires_at = ? WHERE id = ?',
+      [expiresAt, domainId],
+      { operation: 'Whois.updateExpiry', table: 'domains' }
+    );
+  },
+
+  /** 获取域名过期通知设置 */
+  async getNotificationSetting(): Promise<QueryResult | undefined> {
+    return getInternal(
+      "SELECT value FROM system_settings WHERE key = 'domain_expiry_notification'",
+      [],
+      { operation: 'Whois.getNotificationSetting', table: 'system_settings' }
+    );
+  },
+
+  /** 获取域名过期阈�?*/
+  async getExpiryDays(): Promise<QueryResult | undefined> {
+    return getInternal(
+      "SELECT value FROM system_settings WHERE key = 'domain_expiry_days'",
+      [],
+      { operation: 'Whois.getExpiryDays', table: 'system_settings' }
+    );
+  },
+
+  /** 根据ID获取域名 */
+  async getDomainById(id: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT id, name, account_id FROM domains WHERE id = ?',
+      [id],
+      { operation: 'Whois.getDomainById', table: 'domains' }
+    );
+  },
+
+  /** 确保 whois_cache 表存�?*/
+  async ensureWhoisCacheTable(): Promise<void> {
+    const dbType = db.type;
+    
+    try {
+      if (dbType === 'sqlite') {
+        await executeInternal(`
+          CREATE TABLE IF NOT EXISTS whois_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            domain_name VARCHAR(255) NOT NULL UNIQUE,
+            whois_data TEXT,
+            status TEXT,
+            cached_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME
+          )
+        `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+      } else if (dbType === 'mysql') {
+        await executeInternal(`
+          CREATE TABLE IF NOT EXISTS whois_cache (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            domain_name VARCHAR(255) NOT NULL UNIQUE,
+            whois_data JSON,
+            status VARCHAR(50),
+            cached_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+      } else if (dbType === 'postgresql') {
+        await executeInternal(`
+          CREATE TABLE IF NOT EXISTS whois_cache (
+            id SERIAL PRIMARY KEY,
+            domain_name VARCHAR(255) NOT NULL UNIQUE,
+            whois_data JSONB,
+            status VARCHAR(50),
+            cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP
+          )
+        `, [], { operation: 'Whois.ensureWhoisCacheTable', table: 'whois_cache' });
+      }
+    } catch (error) {
+      const errorMsg = (error as Error).message || '';
+      if (!errorMsg.includes('already exists') && !errorMsg.includes('ER_TABLE_EXISTS_ERROR')) {
+        log.warn('BusinessAdapter', 'Failed to create whois_cache table', { error: errorMsg, dbType });
+      }
+    }
+  },
+
+  /** 从数据库获取缓存�?WHOIS 结果 */
+  async getCachedWhois(domain: string, cacheTtlSeconds: number): Promise<QueryResult | undefined> {
+    const dbType = getDbType();
+    
+    if (dbType === 'postgresql') {
+      return await getInternal(
+        `SELECT whois_data, status, cached_at, expires_at FROM whois_cache WHERE domain_name = $1 AND 
+         cached_at > NOW() - ($2 || ' seconds')::interval`,
+        [domain, cacheTtlSeconds],
+        { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
+      );
+    } else if (dbType === 'mysql') {
+      return await getInternal(
+        `SELECT whois_data, status, cached_at, expires_at FROM whois_cache WHERE domain_name = ? AND 
+         cached_at > DATE_SUB(NOW(), INTERVAL ? SECOND)`,
+        [domain, cacheTtlSeconds],
+        { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
+      );
+    } else {
+      return await getInternal(
+        `SELECT whois_data, status, cached_at, expires_at FROM whois_cache WHERE domain_name = ? AND 
+         cached_at > datetime('now', '-' || ? || ' seconds')`,
+        [domain, cacheTtlSeconds],
+        { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
+      );
+    }
+  },
+
+  /** �?WHOIS 结果缓存到数据库 */
+  async setCachedWhois(
+    domain: string,
+    expiryDate: string | null,
+    apexExpiryDate: string | null,
+    registrar: string | null,
+    nameServers: string,
+    rawData: string,
+    status: string | null = null
+  ): Promise<void> {
+    const whoisData = JSON.stringify({ expiryDate, apexExpiryDate, registrar, nameServers, raw: rawData });
+    const dbType = getDbType();
+    
+    if (dbType === 'postgresql') {
+      await executeInternal(
+        `INSERT INTO whois_cache (domain_name, whois_data, status, cached_at)
+         VALUES ($1, $2::jsonb, $3, NOW())
+         ON CONFLICT(domain_name) DO UPDATE SET
+           whois_data = EXCLUDED.whois_data,
+           status = EXCLUDED.status,
+           cached_at = NOW()`,
+        [domain, whoisData, status],
+        { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
+      );
+    } else if (dbType === 'mysql') {
+      await executeInternal(
+        `INSERT INTO whois_cache (domain_name, whois_data, status, cached_at)
+         VALUES (?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE
+           whois_data = VALUES(whois_data),
+           status = VALUES(status),
+           cached_at = NOW()`,
+        [domain, whoisData, status],
+        { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
+      );
+    } else {
+      await executeInternal(
+        `INSERT INTO whois_cache (domain_name, whois_data, status, cached_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(domain_name) DO UPDATE SET
+           whois_data = excluded.whois_data,
+           status = excluded.status,
+           cached_at = CURRENT_TIMESTAMP`,
+        [domain, whoisData, status],
+        { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
+      );
+    }
+  },
+};
+
+// ============================================================================
+// Renewable Domain Operations - 续期域名操作
+// ============================================================================
+
+export const RenewableDomainOperations = {
+  /** 根据 ID 获取续期域名 */
+  async getById(id: number): Promise<any | null> {
+    return await getInternal(
+      'SELECT * FROM renewable_domains WHERE id = ?',
+      [id],
+      { operation: 'RenewableDomain.getById', table: 'renewable_domains' }
+    );
+  },
+
+  /** 获取所有续期域名（包括启用和禁用，但过滤掉已禁用账号的域名�?*/
+  async getAll(): Promise<any[]> {
+    const builder = RenewableDomainQueryBuilder.all();
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getAll', table: 'renewable_domains' });
+  },
+
+  /** 获取所有启用的续期域名（过滤掉已禁用账号的域名�?*/
+  async getAllEnabled(): Promise<any[]> {
+    const dbType = getDbType();
+    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
+    
+    const builder = RenewableDomainQueryBuilder.allEnabled(enabledValue);
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getAllEnabled', table: 'renewable_domains' });
+  },
+
+  /** 根据账号 ID 获取续期域名列表 */
+  async getByAccountId(accountId: number): Promise<any[]> {
+    const builder = RenewableDomainQueryBuilder.byAccountId(accountId);
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getByAccountId', table: 'renewable_domains' });
+  },
+
+  /** 根据提供商类型获取续期域名列表（过滤掉已禁用账号的域名） */
+  async getByProviderType(providerType: string): Promise<any[]> {
+    const dbType = getDbType();
+    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
+    
+    const builder = RenewableDomainQueryBuilder.byProviderType(providerType, enabledValue);
+    const { sql, params } = builder.build();
+    
+    return await queryInternal(sql, params, { operation: 'RenewableDomain.getByProviderType', table: 'renewable_domains' });
+  },
+
+  /** 添加续期域名 */
+  async add(data: {
+    account_id: number;
+    provider_type: string;
+    domain_name: string;
+    third_id: string;
+    full_domain: string;
+    expires_at?: string;
+    never_expires?: boolean;
+    remark?: string;
+  }): Promise<number> {
+    const dbType = getDbType();
+    const enabledValue = dbType === 'postgresql' ? true : 1;
+    const neverExpiresValue = dbType === 'postgresql' ? (data.never_expires ? true : false) : (data.never_expires ? 1 : 0);
+    
+    const result = await insertInternal(
+      'INSERT INTO renewable_domains (account_id, provider_type, domain_name, third_id, full_domain, expires_at, never_expires, enabled, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        data.account_id,
+        data.provider_type,
+        data.domain_name,
+        data.third_id,
+        data.full_domain,
+        data.expires_at || null,
+        neverExpiresValue,
+        enabledValue,  // enabled (always enable new domains)
+        data.remark || '',
+      ],
+      { operation: 'RenewableDomain.add', table: 'renewable_domains' }
+    );
+    return result;
+  },
+
+  /** 批量添加续期域名 */
+  async addBatch(domains: Array<{
+    account_id: number;
+    provider_type: string;
+    domain_name: string;
+    third_id: string;
+    full_domain: string;
+    expires_at?: string;
+    never_expires?: boolean;
+    remark?: string;
+  }>): Promise<number> {
+    let addedCount = 0;
+    for (const domain of domains) {
+      try {
+        await this.add(domain);
+        addedCount++;
+      } catch (error) {
+        // 跳过重复的域名（UNIQUE 约束�?
+        log.warn('RenewableDomain', 'Skip duplicate domain', { 
+          domain: domain.full_domain,
+          error: (error as Error).message 
+        });
+      }
+    }
+    return addedCount;
+  },
+
+  /** 更新续期域名的到期时�?*/
+  async updateExpiry(id: number, expiresAt: string | null): Promise<void> {
+    await executeInternal(
+      'UPDATE renewable_domains SET expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [expiresAt, id],
+      { operation: 'RenewableDomain.updateExpiry', table: 'renewable_domains' }
+    );
+  },
+
+  /** 更新续期域名的到期时间（别名�?*/
+  async updateExpiresAt(id: number, expiresAt: string): Promise<void> {
+    await this.updateExpiry(id, expiresAt);
+  },
+
+  /** 标记为已续期 */
+  async markAsRenewed(id: number, newExpiresAt: string): Promise<void> {
+    await executeInternal(
+      'UPDATE renewable_domains SET expires_at = ?, last_renewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [newExpiresAt, id],
+      { operation: 'RenewableDomain.markAsRenewed', table: 'renewable_domains' }
+    );
+  },
+
+  /** 删除续期域名 */
+  async delete(id: number): Promise<void> {
+    await executeInternal(
+      'DELETE FROM renewable_domains WHERE id = ?',
+      [id],
+      { operation: 'RenewableDomain.delete', table: 'renewable_domains' }
+    );
+  },
+
+  /** 禁用/启用续期域名 */
+  async toggleEnabled(id: number, enabled: boolean): Promise<void> {
+    await executeInternal(
+      'UPDATE renewable_domains SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [enabled ? 1 : 0, id],
+      { operation: 'RenewableDomain.toggleEnabled', table: 'renewable_domains' }
+    );
+  },
+
+  /** 检查域名是否已添加 */
+  async exists(accountId: number, thirdId: string): Promise<boolean> {
+    const result = await getInternal(
+      'SELECT COUNT(*) as count FROM renewable_domains WHERE account_id = ? AND third_id = ?',
+      [accountId, thirdId],
+      { operation: 'RenewableDomain.exists', table: 'renewable_domains' }
+    );
+    return (result as any)?.count > 0;
+  },
+};
+
+// ============================================================================
+// 审计规则业务操作
+// ============================================================================
+
+export const AuditRulesOperations = {
+  /** 获取审计规则配置 */
+  async getConfig(): Promise<QueryResult | undefined> {
+    return getInternal(
+      "SELECT value FROM system_settings WHERE key = 'audit_rules'",
+      [],
+      { operation: 'AuditRules.getConfig', table: 'system_settings' }
+    );
+  },
+
+  /** 获取用户�?*/
+  async getUsername(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT username FROM users WHERE id = ?',
+      [userId],
+      { operation: 'AuditRules.getUsername', table: 'users' }
+    );
+  },
+
+  /** 获取最近删除操作数�?(SQLite) */
+  async getRecentDeletionsSQLite(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT COUNT(*) as count FROM operation_logs WHERE user_id = ? AND action IN ('delete_record', 'delete_domain')
+       AND created_at >= datetime('now', '-1 hour')`,
+      [userId],
+      { operation: 'AuditRules.getRecentDeletionsSQLite', table: 'operation_logs' }
+    );
+  },
+
+  /** 获取最近删除操作数�?(MySQL) */
+  async getRecentDeletionsMySQL(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT COUNT(*) as count FROM operation_logs WHERE user_id = ? AND action IN ('delete_record', 'delete_domain')
+       AND created_at >= NOW() - INTERVAL 1 HOUR`,
+      [userId],
+      { operation: 'AuditRules.getRecentDeletionsMySQL', table: 'operation_logs' }
+    );
+  },
+
+  /** 获取最近删除操作数�?(PostgreSQL) */
+  async getRecentDeletionsPostgreSQL(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT COUNT(*) as count FROM operation_logs WHERE user_id = $1 AND action IN ('delete_record', 'delete_domain')
+       AND created_at >= NOW() - INTERVAL '1 hour'`,
+      [userId],
+      { operation: 'AuditRules.getRecentDeletionsPostgreSQL', table: 'operation_logs' }
+    );
+  },
+};
+
+// ============================================================================
+// 审计日志记录业务操作
+// ============================================================================
+
+export const AuditLogOperations = {
+  /** 记录审计日志 */
+  async log(userId: number, action: string, domain: string, data: string): Promise<void> {
+    return executeInternal(
+      'INSERT INTO operation_logs (user_id, action, domain, data) VALUES (?, ?, ?, ?)',
+      [userId, action, domain, data],
+      { operation: 'AuditLog.log', table: 'operation_logs' }
+    );
+  },
+};
+
+// ============================================================================
+// NS 监测业务操作（新架构：用户级偏好 + 域名监测列表�?
+// ============================================================================
+
+export const NSMonitorOperations = {
+  // ========== 用户偏好设置 ==========
+
+  /** 获取用户�?NS 监测偏好设置 */
+  async getUserPrefs(userId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM user_ns_monitor_prefs WHERE user_id = ?',
+      [userId],
+      { operation: 'NSMonitor.getUserPrefs', table: 'user_ns_monitor_prefs' }
+    );
+  },
+
+  /** 创建用户�?NS 监测偏好设置 */
+  async createUserPrefs(userId: number, data: Record<string, unknown>): Promise<number> {
+    const fields = ['user_id', ...Object.keys(data)];
+    const placeholders = fields.map(() => '?').join(', ');
+    const values = [userId, ...Object.values(data)];
+    return insertInternal(
+      `INSERT INTO user_ns_monitor_prefs (${fields.join(', ')}) VALUES (${placeholders})`,
+      values,
+      { operation: 'NSMonitor.createUserPrefs', table: 'user_ns_monitor_prefs' }
+    );
+  },
+
+  /** 更新用户�?NS 监测偏好设置 */
+  async updateUserPrefs(userId: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE user_ns_monitor_prefs SET ${setClause} WHERE user_id = ?`,
+      [...values, userId],
+      { operation: 'NSMonitor.updateUserPrefs', table: 'user_ns_monitor_prefs' }
+    );
+  },
+
+  /** 删除用户�?NS 监测偏好设置 */
+  async deleteUserPrefs(userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM user_ns_monitor_prefs WHERE user_id = ?',
+      [userId],
+      { operation: 'NSMonitor.deleteUserPrefs', table: 'user_ns_monitor_prefs' }
+    );
+  },
+
+  // ========== 域名监测列表 ==========
+
+  /** 获取用户所有的域名监测配置 */
+  async getUserMonitors(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT * FROM ns_monitor_domains
+       WHERE user_id = ?
+       ORDER BY domain_name`,
+      [userId],
+      { operation: 'NSMonitor.getUserMonitors', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 获取所有启用的域名监测（用于定时任务，Level 2 - 仅检�?NS 监控自身状态） */
+  async getAllEnabled(): Promise<QueryResult[]> {
+    const dbType = getDbType();
+    const enabledValue = dbType === 'postgresql' ? 'true' : '1';
+    return queryInternal(
+      `SELECT *, user_id as created_by
+       FROM ns_monitor_domains
+       WHERE enabled = ${enabledValue}`,
+      [],
+      { operation: 'NSMonitor.getAllEnabled', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 获取所有域名监测配置（Level 1 - ALL，无任何约束，用于调�?管理�?*/
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal(
+      `SELECT *, user_id as created_by
+       FROM ns_monitor_domains
+       ORDER BY domain_name`,
+      [],
+      { operation: 'NSMonitor.getAll', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 根据ID获取域名监测配置 */
+  async getById(id: number, userId?: number): Promise<QueryResult | undefined> {
+    if (userId) {
+      return getInternal(
+        `SELECT * FROM ns_monitor_domains
+         WHERE id = ? AND user_id = ?`,
+        [id, userId],
+        { operation: 'NSMonitor.getById', table: 'ns_monitor_domains' }
+      );
+    }
+    return getInternal(
+      `SELECT * FROM ns_monitor_domains
+       WHERE id = ?`,
+      [id],
+      { operation: 'NSMonitor.getById', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 根据域名ID获取用户的监测配置（已废弃，使用 getByDomainName�?*/
+  async getByDomain(userId: number, domainId: number): Promise<QueryResult | undefined> {
+    // This method is deprecated - domain_id column has been removed
+    // Use getByDomainName instead
+    log.warn('BusinessAdapter', 'getByDomain is deprecated, use getByDomainName instead');
+    return undefined;
+  },
+
+  /** 根据域名名称获取用户的监测配置（支持重名场景�?*/
+  async getByDomainName(userId: number, domainName: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      `SELECT * FROM ns_monitor_domains
+       WHERE user_id = ? AND domain_name = ?`,
+      [userId, domainName],
+      { operation: 'NSMonitor.getByDomainName', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 创建域名监测配置 */
+  async create(data: { user_id: number; domain_name: string; expected_ns?: string }): Promise<number> {
+    const now = formatDateForDB(new Date());
+    // PostgreSQL requires explicit boolean cast for enabled field
+    const dbType = process.env.DB_TYPE || 'sqlite';
+    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
+    return insertInternal(
+      `INSERT INTO ns_monitor_domains (user_id, domain_name, expected_ns, current_ns, status, enabled, created_at, updated_at)
+       VALUES (?, ?, ?, '', 'ok', ${enabledValue}, ?, ?)`,
+      [data.user_id, data.domain_name, data.expected_ns || '', now, now],
+      { operation: 'NSMonitor.create', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 更新域名监测配置 */
+  async update(id: number, userId: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE ns_monitor_domains SET ${setClause} WHERE id = ? AND user_id = ?`,
+      [...values, id, userId],
+      { operation: 'NSMonitor.update', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 删除域名监测配置 */
+  async delete(id: number, userId: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM ns_monitor_domains WHERE id = ? AND user_id = ?',
+      [id, userId],
+      { operation: 'NSMonitor.delete', table: 'ns_monitor_domains' }
+    );
+  },
+
+  /** 更新监测状态（用于定时任务�?*/
+  async updateStatus(id: number, updates: {
+    current_ns?: string;
+    encrypted_ns?: string;
+    plain_ns?: string;
+    is_poisoned?: boolean | number;
+    status?: string;
+    last_check_at?: string;
+    last_alert_at?: string;
+    alert_count?: number;
+  }): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE ns_monitor_domains SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'NSMonitor.updateStatus', table: 'ns_monitor_domains' }
+    );
+  },
+};
+
+// ============================================================================
+// RDAP 服务器缓存操�?
+// ============================================================================
+
+export const RdapCacheOperations = {
+  /** 获取所�?RDAP 服务器缓�?*/
+  async getAll(): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM rdap_server_cache ORDER BY tld',
+      [],
+      { operation: 'RdapCache.getAll', table: 'rdap_server_cache' }
+    );
+  },
+
+  /** 根据 TLD 获取 RDAP 服务�?*/
+  async getByTld(tld: string): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM rdap_server_cache WHERE tld = ?',
+      [tld.toLowerCase()],
+      { operation: 'RdapCache.getByTld', table: 'rdap_server_cache' }
+    );
+  },
+
+  /** 批量保存 RDAP 服务器缓�?*/
+  async saveBatch(entries: Array<{ tld: string; servers: string[] }>): Promise<void> {
+    const dbType = getDbType();
+    const now = formatDateForDB(new Date());
+
+    for (const entry of entries) {
+      const serversJson = JSON.stringify(entry.servers);
+      
+      if (dbType === 'postgresql') {
+        // PostgreSQL 使用 ON CONFLICT
+        await executeInternal(
+          `INSERT INTO rdap_server_cache (tld, servers, created_at, updated_at) 
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (tld) DO UPDATE SET 
+           servers = EXCLUDED.servers, updated_at = EXCLUDED.updated_at`,
+          [entry.tld.toLowerCase(), serversJson, now, now],
+          { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
+        );
+      } else if (dbType === 'mysql') {
+        // MySQL 使用 ON DUPLICATE KEY UPDATE
+        await executeInternal(
+          `INSERT INTO rdap_server_cache (tld, servers, created_at, updated_at) 
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE 
+           servers = VALUES(servers), updated_at = VALUES(updated_at)`,
+          [entry.tld.toLowerCase(), serversJson, now, now],
+          { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
+        );
+      } else {
+        // SQLite 使用 REPLACE 或先删除后插�?
+        await executeInternal(
+          `INSERT OR REPLACE INTO rdap_server_cache (tld, servers, created_at, updated_at) 
+           VALUES (?, ?, COALESCE((SELECT created_at FROM rdap_server_cache WHERE tld = ?), ?), ?)`,
+          [entry.tld.toLowerCase(), serversJson, entry.tld.toLowerCase(), now, now],
+          { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
+        );
+      }
+    }
+  },
+
+  /** 清空所�?RDAP 服务器缓�?*/
+  async clearAll(): Promise<void> {
+    return executeInternal(
+      'DELETE FROM rdap_server_cache',
+      [],
+      { operation: 'RdapCache.clearAll', table: 'rdap_server_cache' }
+    );
+  },
+
+  /** 获取缓存统计信息 */
+  async getStats(): Promise<{ count: number; lastUpdated?: string }> {
+    const result = await getInternal<{ count: number; last_updated?: string }>(
+      'SELECT COUNT(*) as count, MAX(updated_at) as last_updated FROM rdap_server_cache',
+      [],
+      { operation: 'RdapCache.getStats', table: 'rdap_server_cache' }
+    );
+    return {
+      count: result?.count || 0,
+      lastUpdated: result?.last_updated,
+    };
+  },
+};
+
+// ============================================================================
+// 系统缓存操作（通用键值缓存）
+// ============================================================================
+
+export const SystemCacheOperations = {
+  /** 获取缓存�?*/
+  async get(key: string): Promise<string | null> {
+    const result = await getInternal<{ cache_value: string }>(
+      'SELECT cache_value FROM system_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > ?)',
+      [key, formatDateForDB(new Date())],
+      { operation: 'SystemCache.get', table: 'system_cache' }
+    );
+    return result?.cache_value || null;
+  },
+
+  /** 设置缓存�?*/
+  async set(key: string, value: string, expiresAt?: Date): Promise<void> {
+    const dbType = getDbType();
+    const now = formatDateForDB(new Date());
+    const expires = expiresAt ? formatDateForDB(expiresAt) : null;
+
+    if (dbType === 'postgresql') {
+      await executeInternal(
+        `INSERT INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at) 
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (cache_key) DO UPDATE SET 
+         cache_value = EXCLUDED.cache_value, expires_at = EXCLUDED.expires_at, updated_at = EXCLUDED.updated_at`,
+        [key, value, expires, now, now],
+        { operation: 'SystemCache.set', table: 'system_cache' }
+      );
+    } else if (dbType === 'mysql') {
+      await executeInternal(
+        `INSERT INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at) 
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+         cache_value = VALUES(cache_value), expires_at = VALUES(expires_at), updated_at = VALUES(updated_at)`,
+        [key, value, expires, now, now],
+        { operation: 'SystemCache.set', table: 'system_cache' }
+      );
+    } else {
+      await executeInternal(
+        `INSERT OR REPLACE INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at) 
+         VALUES (?, ?, ?, COALESCE((SELECT created_at FROM system_cache WHERE cache_key = ?), ?), ?)`,
+        [key, value, expires, key, now, now],
+        { operation: 'SystemCache.set', table: 'system_cache' }
+      );
+    }
+  },
+
+  /** 删除缓存 */
+  async delete(key: string): Promise<void> {
+    return executeInternal(
+      'DELETE FROM system_cache WHERE cache_key = ?',
+      [key],
+      { operation: 'SystemCache.delete', table: 'system_cache' }
+    );
+  },
+
+  /** 清理过期缓存 */
+  async cleanupExpired(): Promise<number> {
+    const result = await runInternal(
+      'DELETE FROM system_cache WHERE expires_at IS NOT NULL AND expires_at <= ?',
+      [formatDateForDB(new Date())],
+      { operation: 'SystemCache.cleanupExpired', table: 'system_cache' }
+    );
+    return result.changes || 0;
+  },
+};
+
+/**
+ * Password Reset Operations
+ * 密码重置验证码操作（持久化存储）
+ */
+const PasswordResetOperations = {
+  /**
+   * 创建或更新密码重置验证码
+   */
+  async upsertCode(email: string, code: string, expiresAt: number): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    await executeInternal(
+      'INSERT INTO password_resets (email, code, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE code = ?, expires_at = ?',
+      [normalizedEmail, code, new Date(expiresAt), code, new Date(expiresAt)],
+      { operation: 'PasswordReset.upsertCode', table: 'password_resets' }
+    );
+  },
+
+  /**
+   * 获取密码重置验证�?
+   */
+  async getCode(email: string): Promise<{ code: string; expiresAt: number } | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const row = await getInternal<{ code: string; expires_at: string }>(
+      'SELECT code, expires_at FROM password_resets WHERE email = ? AND expires_at > NOW()',
+      [normalizedEmail],
+      { operation: 'PasswordReset.getCode', table: 'password_resets' }
+    );
+    
+    if (!row) return null;
+    
+    return {
+      code: row.code,
+      expiresAt: new Date(row.expires_at).getTime(),
+    };
+  },
+
+  /**
+   * 删除密码重置验证�?
+   */
+  async deleteCode(email: string): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    await executeInternal(
+      'DELETE FROM password_resets WHERE email = ?',
+      [normalizedEmail],
+      { operation: 'PasswordReset.deleteCode', table: 'password_resets' }
+    );
+  },
+
+  /**
+   * 清理过期的验证码
+   */
+  async cleanupExpired(): Promise<number> {
+    const result = await runInternal(
+      'DELETE FROM password_resets WHERE expires_at <= NOW()',
+      [],
+      { operation: 'PasswordReset.cleanupExpired', table: 'password_resets' }
+    );
+    return result.changes;
+  },
+};
+
+// ============================================================================
+// 导出默认对象（兼容旧代码�?
+// ============================================================================
+
+// 导出 database 对象（向后兼容）
+export const database = {
+  query,
+  get,
+  execute,
+  insert,
+  run,
+  now,
+  get type() { return getDbType(); },
+  get isConnected() { return isDbConnected(); },
+  transaction: withTransaction,
+};
+
+export default {
+  query,
+  get,
+  execute,
+  insert,
+  run,
+  now,
+  getDbType,
+  isDbConnected,
+  withTransaction,
+  User: UserOperations,
+  DnsAccount: DnsAccountOperations,
+  Domain: DomainOperations,
+  Team: TeamOperations,
+  Settings: SettingsOperations,
+  Audit: AuditOperations,
+  Token: TokenOperations,
+  Secret: SecretOperations,
+  SecurityPolicy: SecurityPolicyOperations,
+  TrustedDevice: TrustedDeviceOperations,
+  UserPreferences: UserPreferencesOperations,
+  Session: SessionOperations,
+  LoginLimit: LoginLimitOperations,
+  Failover: FailoverOperations,
+  AuditExport: AuditExportOperations,
+  TOTP: TOTPOperations,
+  WebAuthn: WebAuthnOperations,
+  Smtp: SmtpOperations,
+  Whois: WhoisOperations,
+  AuditRules: AuditRulesOperations,
+  AuditLog: AuditLogOperations,
+  NSMonitor: NSMonitorOperations,
+  RdapCache: RdapCacheOperations,
+  SystemCache: SystemCacheOperations,
+  RenewableDomain: RenewableDomainOperations,
+  PasswordReset: PasswordResetOperations,
+};
+
+// Export query builders module for advanced usage
+export * from './query-builders';

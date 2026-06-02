@@ -1,4 +1,4 @@
-import { LoginLimitOperations, getDbType } from '../db/business-adapter';
+import { LoginLimitOperations, getDbType } from '../db/bal/business-adapter';
 import { checkAuditRules } from './auditRules';
 import { log } from '../lib/logger';
 

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware, adminOnly, noTokenAuth } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
 import { getLoginLimitConfig, updateLoginLimitConfig, getLoginAttemptStats, unlockAccount } from '../service/loginLimit';
-import { SettingsOperations, NotificationOperations, AuditRuleOperations, DomainExpiryOperations, UserOperations } from '../db/business-adapter';
+import { SettingsOperations, NotificationOperations, AuditRuleOperations, DomainExpiryOperations, UserOperations } from '../db/bal/business-adapter';
 import { getSmtpConfig, updateSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { logAuditOperation } from '../service/audit';
 import { log } from '../lib/logger';

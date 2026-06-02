@@ -4,7 +4,7 @@
  * 负责 WHOIS 结果的数据库缓存读写
  */
 
-import { WhoisOperations } from '../../db/business-adapter';
+import { WhoisOperations } from '../../db/bal/business-adapter';
 import { log } from '../../lib/logger';
 import { extractStatus } from './data-parser';
 
@@ -48,13 +48,25 @@ export async function getCachedWhois(domain: string): Promise<WhoisResult | null
     if (row) {
       log.debug('WhoisCache', `Cache hit for ${domain}`);
       
+      let whoisData: Record<string, unknown> = {};
+      try {
+        const rawWhoisData = (row as any).whois_data;
+        if (typeof rawWhoisData === 'string') {
+          whoisData = JSON.parse(rawWhoisData);
+        } else if (typeof rawWhoisData === 'object' && rawWhoisData !== null) {
+          whoisData = rawWhoisData;
+        }
+      } catch {
+        whoisData = {};
+      }
+      
       const cached: WhoisResult = {
-        domain: (row as any).domain || domain,
-        expiryDate: (row as any).expiry_date ? new Date((row as any).expiry_date) : null,
-        apexExpiryDate: (row as any).apex_expiry_date ? new Date((row as any).apex_expiry_date) : null,
-        registrar: (row as any).registrar || null,
-        nameServers: (row as any).name_servers ? JSON.parse((row as any).name_servers) : [],
-        raw: (row as any).raw_data || '',
+        domain: domain,
+        expiryDate: whoisData.expiryDate ? new Date(whoisData.expiryDate as string) : null,
+        apexExpiryDate: whoisData.apexExpiryDate ? new Date(whoisData.apexExpiryDate as string) : null,
+        registrar: (whoisData.registrar as string) || null,
+        nameServers: Array.isArray(whoisData.nameServers) ? whoisData.nameServers as string[] : [],
+        raw: (whoisData.raw as string) || '',
         status: (row as any).status || null,
       };
       

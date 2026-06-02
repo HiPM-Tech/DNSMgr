@@ -22,7 +22,7 @@ async function getRuntimeSecret(): Promise<string> {
   if (runtimeSecretCache) return runtimeSecretCache;
   
   try {
-    const { SecretOperations } = await import('../db/business-adapter');
+    const { SecretOperations } = await import('../db/bal/business-adapter');
     const value = await SecretOperations.getRuntimeSecret(RUNTIME_SECRET_KEY);
     if (value) {
       runtimeSecretCache = value;

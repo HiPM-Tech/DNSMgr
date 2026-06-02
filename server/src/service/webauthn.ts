@@ -1,4 +1,4 @@
-import { WebAuthnOperations, getDbType } from '../db/business-adapter';
+import { WebAuthnOperations, getDbType } from '../db/bal/business-adapter';
 
 export interface WebAuthnCredential {
   id: string;

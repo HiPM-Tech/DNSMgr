@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { SystemOperations } from '../db/business-adapter';
+import { SystemOperations } from '../db/bal/business-adapter';
 
 const router = Router();
 

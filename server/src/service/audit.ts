@@ -1,4 +1,4 @@
-import { AuditLogOperations, UserOperations } from '../db/business-adapter';
+import { AuditLogOperations, UserOperations } from '../db/bal/business-adapter';
 import { checkAuditRules } from './auditRules';
 import { log } from '../lib/logger';
 import { Request } from 'express';

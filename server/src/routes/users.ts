@@ -6,7 +6,7 @@ import { User } from '../types';
 import { ROLE_ADMIN, ROLE_SUPER, ROLE_USER, normalizeRole } from '../utils/roles';
 import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { isValidUsername } from '../utils/validation';
-import { UserOperations } from '../db/business-adapter';
+import { UserOperations } from '../db/bal/business-adapter';
 import { wsService } from '../service/websocket';
 import { log } from '../lib/logger';
 

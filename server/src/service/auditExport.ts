@@ -1,4 +1,4 @@
-import { AuditExportOperations, getDbType } from '../db/business-adapter';
+import { AuditExportOperations, getDbType } from '../db/bal/business-adapter';
 import { getDisplayDomain } from '../utils/dns';
 
 /**

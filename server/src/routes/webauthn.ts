@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { authMiddleware } from '../middleware/auth';
 import { getUserWebAuthnCredentials, addWebAuthnCredential, deleteWebAuthnCredential, updateWebAuthnCredentialCounter } from '../service/webauthn';
-import { UserOperations } from '../db/business-adapter';
+import { UserOperations } from '../db/bal/business-adapter';
 import crypto from 'crypto';
 import { sendError } from '../utils/http';
 

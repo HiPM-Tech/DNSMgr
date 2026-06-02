@@ -1,6 +1,6 @@
 import net from 'net';
 import tls from 'tls';
-import { SmtpOperations, getDbType } from '../db/business-adapter';
+import { SmtpOperations, getDbType } from '../db/bal/business-adapter';
 import { log } from '../lib/logger';
 
 export interface SmtpConfig {

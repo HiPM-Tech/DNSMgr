@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
-import { DnsAccountOperations, TeamOperations } from '../db/business-adapter';
+import { DnsAccountOperations, TeamOperations } from '../db/bal/business-adapter';
 import { CloudflareAdapter } from '../lib/dns/providers';
 import { DnsAccount } from '../types';
 import { isSuper, normalizeRole } from '../utils/roles';

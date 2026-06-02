@@ -4,7 +4,7 @@
  */
 
 import crypto from 'crypto';
-import { TrustedDeviceOperations, getDbType } from '../db/business-adapter';
+import { TrustedDeviceOperations, getDbType } from '../db/bal/business-adapter';
 import { log } from '../lib/logger';
 import { getSecurityPolicy } from './securityPolicy';
 

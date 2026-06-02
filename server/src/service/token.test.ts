@@ -7,8 +7,8 @@ import {
   hasDomainPermission,
 } from './token';
 import type { TokenPayload } from '../types/token';
-import { connect, disconnect } from '../db/core/connection';
-import { initializeDSM } from '../db/init-dsm';
+import { connect, disconnect } from '../db/dal/connection';
+import { initializeDSM } from '../db/dsm/init-dsm';
 
 describe('Token Service', () => {
   before(async () => {

@@ -4,7 +4,7 @@
  * 负责检查域名到期时间并发送通知
  */
 
-import { WhoisOperations } from '../../db/business-adapter';
+import { WhoisOperations } from '../../db/bal/business-adapter';
 import { Domain } from '../../types';
 import { sendNotification } from '../notification';
 import { log } from '../../lib/logger';

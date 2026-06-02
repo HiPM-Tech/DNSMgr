@@ -3,7 +3,7 @@
  * 管理系统级安全策略和用户级安全设置
  */
 
-import { SecurityPolicyOperations } from '../db/business-adapter';
+import { SecurityPolicyOperations } from '../db/bal/business-adapter';
 import { log } from '../lib/logger';
 
 // zxcvbn 是 CommonJS 模块，需要这样导入

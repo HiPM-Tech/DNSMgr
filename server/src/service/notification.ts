@@ -1,4 +1,4 @@
-import { SettingsOperations } from '../db/business-adapter';
+import { SettingsOperations } from '../db/bal/business-adapter';
 import { sendSmtpEmail } from './smtp';
 import { log } from '../lib/logger';
 import { fetchWithFallback } from '../lib/proxy-http';
