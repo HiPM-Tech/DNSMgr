@@ -3,6 +3,7 @@ export type PrimitiveType =
   | 'string'
   | 'text'
   | 'number'
+  | 'integer'
   | 'boolean'
   | 'datetime'
   | 'json';

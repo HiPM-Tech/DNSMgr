@@ -299,15 +299,40 @@ export function DomainListTab() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, remark }: { id: number; remark: string }) => domainsApi.update(id, { remark }),
+    onMutate: async ({ id, remark }) => {
+      await qc.cancelQueries({ queryKey: ['domains'] });
+      const previousQueries = qc.getQueriesData({ queryKey: ['domains'] });
+
+      qc.setQueriesData({ queryKey: ['domains'] }, (oldData: any) => {
+        if (!oldData?.list) return oldData;
+        return {
+          ...oldData,
+          list: oldData.list.map((d: Domain) =>
+            d.id === id ? { ...d, remark } : d
+          ),
+        };
+      });
+
+      return { previousQueries };
+    },
     onSuccess: (res) => {
       if (res.data.code !== 0) { toast.error(res.data.msg); return; }
-      qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
       setEditing(null);
       setEditRemark('');
       setEditRemarkDirty(false);
       toast.success(t('domains.updateSuccess'));
     },
-    onError: () => toast.error(t('domains.updateFailed')),
+    onError: (_error, _variables, context) => {
+      if (context?.previousQueries) {
+        for (const [queryKey, data] of context.previousQueries) {
+          qc.setQueryData(queryKey, data);
+        }
+      }
+      toast.error(t('domains.updateFailed'));
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['domains'] });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -339,23 +364,47 @@ export function DomainListTab() {
     onError: () => toast.error(t('domains.pinFailed')),
   });
 
-  const toggleEnabledMutation = useMutation({
+  // 域名状态更新逻辑（乐观更新）
+const toggleEnabledMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: number }) => {
       console.log('[DomainList] Toggling enabled status:', { id, enabled });
       return domainsApi.update(id, { enabled });
     },
+    onMutate: async ({ id, enabled }) => {
+      await qc.cancelQueries({ queryKey: ['domains'] });
+      const previousQueries = qc.getQueriesData({ queryKey: ['domains'] });
+
+      qc.setQueriesData({ queryKey: ['domains'] }, (oldData: any) => {
+        if (!oldData?.list) return oldData;
+        return {
+          ...oldData,
+          list: oldData.list.map((d: Domain) =>
+            d.id === id ? { ...d, enabled } : d
+          ),
+        };
+      });
+
+      return { previousQueries };
+    },
     onSuccess: (res) => {
       console.log('[DomainList] Toggle success:', res.data);
-      if (res.data.code !== 0) { 
-        toast.error(res.data.msg || t('domains.toggleStatusFailed')); 
-        return; 
+      if (res.data.code !== 0) {
+        toast.error(res.data.msg || t('domains.toggleStatusFailed'));
+        return;
       }
-      qc.invalidateQueries({ queryKey: ['domains'], refetchType: 'active' });
       toast.success(t('domains.toggleStatusSuccess'));
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.previousQueries) {
+        for (const [queryKey, data] of context.previousQueries) {
+          qc.setQueryData(queryKey, data);
+        }
+      }
       console.error('[DomainList] Toggle failed:', error);
       toast.error(t('domains.toggleStatusFailed'));
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['domains'] });
     },
   });
 

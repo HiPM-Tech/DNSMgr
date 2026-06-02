@@ -173,11 +173,13 @@ export class SchemaReconciler {
       try {
         if (originCol) {
           const fullDef = this.getColumnDefinitionSQL(originCol);
-          const cleanedDef = fullDef
-            .replace(/\s+PRIMARY KEY\s*/i, ' ')
-            .replace(/\s+AUTO_INCREMENT\s*/i, ' ')
-            .replace(/\s+AUTOINCREMENT\s*/i, ' ')
-            .trim();
+          const cleanedDef = originCol.primaryKey
+            ? fullDef.replace(/\s+PRIMARY KEY\s*/i, ' ').trim()
+            : fullDef
+                .replace(/\s+PRIMARY KEY\s*/i, ' ')
+                .replace(/\s+AUTO_INCREMENT\s*/i, ' ')
+                .replace(/\s+AUTOINCREMENT\s*/i, ' ')
+                .trim();
           await this.conn.execute('SET FOREIGN_KEY_CHECKS = 0');
           await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${cleanedDef}`);
           await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1');
@@ -754,8 +756,9 @@ export class SchemaReconciler {
 
   private mapTypeToSQL(type: string, dbType: string, length?: number): string {
     switch (type) {
-      case 'id': return dbType === 'postgresql' ? 'SERIAL' : 'INTEGER';
+      case 'id': return dbType === 'postgresql' ? 'SERIAL' : (dbType === 'mysql' ? 'BIGINT' : 'INTEGER');
       case 'number': return dbType === 'postgresql' ? 'BIGINT' : 'BIGINT';
+      case 'integer': return 'INTEGER';
       case 'boolean': return dbType === 'postgresql' ? 'BOOLEAN' : (dbType === 'mysql' ? 'TINYINT(1)' : 'INTEGER');
       case 'datetime': return dbType === 'postgresql' ? 'TIMESTAMPTZ' : 'DATETIME';
       case 'json': return dbType === 'postgresql' ? 'JSONB' : (dbType === 'mysql' ? 'JSON' : 'TEXT');
@@ -767,7 +770,7 @@ export class SchemaReconciler {
 
   private formatDefaultValue(value: any, type: string, dbType: string): string {
     if (value === null) return 'NULL';
-    if (type === 'number') return value.toString();
+    if (type === 'number' || type === 'integer') return value.toString();
     
     if (type === 'boolean') {
       if (dbType === 'postgresql') return value ? 'TRUE' : 'FALSE';
