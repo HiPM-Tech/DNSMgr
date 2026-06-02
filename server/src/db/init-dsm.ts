@@ -298,9 +298,9 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     },
     execute: async () => {
       const conn = getConnection();
-      await conn.execute('DROP TABLE IF EXISTS ns_monitor_configs');
-      await conn.execute('DROP TABLE IF EXISTS ns_monitor_status');
-      await conn.execute('DROP TABLE IF EXISTS ns_monitor_alerts');
+      await conn.execute('DROP TABLE IF EXISTS ns_monitor_configs CASCADE');
+      await conn.execute('DROP TABLE IF EXISTS ns_monitor_status CASCADE');
+      await conn.execute('DROP TABLE IF EXISTS ns_monitor_alerts CASCADE');
     }
   });
 }

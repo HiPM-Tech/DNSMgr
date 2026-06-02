@@ -368,6 +368,10 @@ export class SchemaReconciler {
       }
     } else {
       log.debug('Schema', `Table ${tableDef.name} exists, checking columns and indexes...`);
+      // MySQL 需要先删除外键约束以避免 MODIFY COLUMN 时的类型兼容性检查
+      if (this.getDbType() === 'mysql') {
+        await this.dropAllForeignKeys(tableDef.name);
+      }
       await this.syncColumns(tableDef, dryRun);
       await this.syncIndexes(tableDef, dryRun);
       // 注意：SQLite 对外键支持有限，通常在 CREATE TABLE 时定义
@@ -534,6 +538,13 @@ export class SchemaReconciler {
     }
   }
 
+  private async dropAllForeignKeys(tableName: string): Promise<void> {
+    const fks = await this.getTableForeignKeys(tableName);
+    for (const fk of fks) {
+      await this.dropForeignKey(tableName, fk.constraint_name || fk.constraintName);
+    }
+  }
+
   private async indexExists(indexName: string): Promise<boolean> {
     const type = this.conn.type;
     if (type === 'sqlite') {
@@ -675,8 +686,20 @@ export class SchemaReconciler {
       return;
     }
 
-    // 3. 生成新表的 DDL
-    const newColDefs = keepCols.map(c => this.getColumnDefinitionSQL(c)).join(', ');
+    // 3. 生成新表的 DDL（使用所有 schema 列，新列去掉 NOT NULL/UNIQUE 约束以允许 NULL 值）
+    const newColDefs = tableDef.columns.map(c => {
+      const normalizedName = c.name.replace(/["'`]/g, '').trim();
+      if (existingColNames.has(normalizedName)) {
+        return this.getColumnDefinitionSQL(c);
+      }
+      const def = this.getColumnDefinitionSQL(c);
+      return def
+        .replace(/\s+NOT\s+NULL\s*/i, ' ')
+        .replace(/\s+UNIQUE\s*/i, ' ')
+        .replace(/\s+PRIMARY\s+KEY\s*/i, ' ')
+        .replace(/\s+AUTOINCREMENT\s*/i, ' ')
+        .trim();
+    }).join(', ');
     
     // 处理外键约束
     let fkClause = '';
@@ -712,9 +735,15 @@ export class SchemaReconciler {
       await this.conn.execute(`DROP TABLE ${this.escapeIdentifier(tableName)}`);
       await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(tempName)} RENAME TO ${this.escapeIdentifier(tableName)}`);
       
-      // 5. 重建索引
+      // 5. 重建索引（只重建对应列存在于新表中的索引）
       if (tableDef.indexes) {
+        const keptColumnNameSet = new Set(keepCols.map(c => c.name));
         for (const idx of tableDef.indexes) {
+          const allColsExist = idx.columns.every(c => keptColumnNameSet.has(c));
+          if (!allColsExist) {
+            log.warn('Schema', `Skipping index ${idx.name} during rebuild: referenced columns not kept in new table`);
+            continue;
+          }
           const cols = idx.columns.map(c => this.escapeIdentifier(c)).join(', ');
           const unique = idx.unique ? 'UNIQUE ' : '';
           await this.conn.execute(`CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${this.escapeIdentifier(tableName)}(${cols})`);
