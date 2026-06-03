@@ -253,7 +253,7 @@ export class SchemaVersionManager {
     const checkSql = 'SELECT COUNT(*) as cnt FROM schema_versions WHERE version = ?';
     const result = await this.conn.get(checkSql, [this.schemaHash]) as { cnt: number } | undefined;
     
-    if (result && result.cnt > 0) {
+    if (result && Number(result.cnt || 0) > 0) {
       log.debug('SchemaVersion', `Schema version ${this.schemaHash} already recorded, skipping`);
       return;
     }
@@ -278,7 +278,7 @@ export class SchemaVersionManager {
     const checkSql = 'SELECT COUNT(*) as cnt FROM schema_versions WHERE version = ?';
     const result = await this.conn.get(checkSql, [this.schemaHash]) as { cnt: number } | undefined;
     
-    if (result && result.cnt > 0) {
+    if (result && Number(result.cnt || 0) > 0) {
       log.debug('SchemaVersion', `Schema version ${this.schemaHash} already recorded, skipping failure record`);
       return;
     }
@@ -350,6 +350,6 @@ export class SchemaVersionManager {
        WHERE semantic_version = ? AND version LIKE 'DSM-%'`,
       [schemaVersion]
     );
-    return (result as any)?.cnt > 0;
+    return Number((result as any)?.cnt || 0) > 0;
   }
 }

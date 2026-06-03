@@ -24,8 +24,9 @@ export class SchemaReconciler {
     const versionTableExists = await this.tableExists('schema_versions');
     if (!versionTableExists) {
       const hasDomains = await this.tableExists('domains');
-      const hasUsers = await this.tableExists('users');
-      if (hasDomains || hasUsers) {
+      const hasDnsAccounts = await this.tableExists('dns_accounts');
+      const hasSystemConfigs = await this.tableExists('system_configs');
+      if (hasDomains || hasDnsAccounts || hasSystemConfigs) {
         return { isLegacy: true, reason: 'No schema_versions table found, but core tables exist.' };
       }
       return { isLegacy: false };
@@ -34,7 +35,7 @@ export class SchemaReconciler {
     const result = await this.conn.get(
       "SELECT COUNT(*) as cnt FROM schema_versions WHERE system_type = 'hidns-dsm' AND success = 1"
     );
-    const hasDSMRecord = (result as any)?.cnt > 0;
+    const hasDSMRecord = Number((result as any)?.cnt || 0) > 0;
 
     if (!hasDSMRecord) {
       return { isLegacy: true, reason: 'schema_versions exists but no HiDNS-DSM records found.' };
@@ -340,24 +341,30 @@ export class SchemaReconciler {
     }
 
     // Only create backup if schema changes are actually needed
+    // Brand new databases (no schema_versions table) have no data to protect
     if (!options.dryRun && options.forceBackup !== false) {
-      const needsBackup = await this.detectChangesNeeded(schema);
-      if (needsBackup) {
-        log.info('Schema', 'Schema changes detected. Creating backup before applying changes...');
-        try {
-          await this.backupManager.createBackup(dbType);
-          this.backupManager.cleanup(7); // keep backups for 7 days
-        } catch (err) {
-          log.error('Schema', 'Backup failed! Aborting reconciliation to protect data.', err);
-          const continueOnFail = process.env.DSM_BACKUP_REQUIRED !== 'true';
-          if (continueOnFail) {
-            log.warn('Schema', 'DSM_BACKUP_REQUIRED is not set to true, continuing with reconciliation...');
-          } else {
-            throw err;
+      const isExistingDb = await this.tableExists('schema_versions');
+      if (isExistingDb) {
+        const needsBackup = await this.detectChangesNeeded(schema);
+        if (needsBackup) {
+          log.info('Schema', 'Schema changes detected. Creating backup before applying changes...');
+          try {
+            await this.backupManager.createBackup(dbType);
+            this.backupManager.cleanup(7); // keep backups for 7 days
+          } catch (err) {
+            log.error('Schema', 'Backup failed! Aborting reconciliation to protect data.', err);
+            const continueOnFail = process.env.DSM_BACKUP_REQUIRED !== 'true';
+            if (continueOnFail) {
+              log.warn('Schema', 'DSM_BACKUP_REQUIRED is not set to true, continuing with reconciliation...');
+            } else {
+              throw err;
+            }
           }
+        } else {
+          log.info('Schema', 'No schema changes detected. Skipping backup.');
         }
       } else {
-        log.info('Schema', 'No schema changes detected. Skipping backup.');
+        log.info('Schema', 'New database. Skipping backup pre-check.');
       }
     }
 
@@ -443,6 +450,11 @@ export class SchemaReconciler {
       } else {
         log.info('Schema', `Creating new table: ${tableDef.name}`);
         await this.execute(sql);
+      }
+      // Indexes are not included in CREATE TABLE; create them separately
+      await this.syncIndexes(tableDef, dryRun);
+      if (this.getDbType() !== 'sqlite') {
+        await this.syncForeignKeys(tableDef, dryRun);
       }
     } else {
       log.debug('Schema', `Table ${tableDef.name} exists, checking columns and indexes...`);

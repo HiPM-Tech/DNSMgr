@@ -13,7 +13,8 @@ export async function initializeDSM(dryRun = false): Promise<void> {
 
   try {
     const legacyCheck = await reconciler.detectLegacySystem();
-    if (legacyCheck.isLegacy) {
+    const isLegacy = legacyCheck.isLegacy;
+    if (isLegacy) {
       log.warn('DSM', `⚠️ Legacy system detected: ${legacyCheck.reason}`);
       log.info('DSM', 'Running in legacy upgrade mode. Performing full reconciliation...');
     } else {
@@ -25,13 +26,19 @@ export async function initializeDSM(dryRun = false): Promise<void> {
     await reconciler.reconcile(COMPLETE_SCHEMA, { dryRun });
     
     if (!dryRun) {
-      log.info('DSM', 'Running data migrations...');
-      const runner = new DataMigrationRunner();
-      registerDefaultMigrations(runner);
-      const result = await runner.run({ dryRun });
-      
-      if (result.failed.length > 0) {
-        log.error('DSM', 'Some migrations failed:', result.failed.map(f => f.id));
+      // Data migrations are only needed when upgrading from a legacy system.
+      // A brand new database already has the complete schema after reconciliation.
+      if (isLegacy) {
+        log.info('DSM', 'Running data migrations for legacy upgrade...');
+        const runner = new DataMigrationRunner();
+        registerDefaultMigrations(runner);
+        const result = await runner.run({ dryRun });
+        
+        if (result.failed.length > 0) {
+          log.error('DSM', 'Some migrations failed:', result.failed.map(f => f.id));
+        }
+      } else {
+        log.info('DSM', 'New database detected. Skipping data migrations.');
       }
 
       log.info('DSM', 'Running integrity check...');
@@ -74,7 +81,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     condition: async () => {
       const conn = getConnection();
       const res = await conn.get("SELECT COUNT(*) as cnt FROM dns_accounts WHERE type = 'dnsmgr'");
-      return (res as any)?.cnt > 0;
+      return Number((res as any)?.cnt || 0) > 0;
     },
     execute: async () => {
       const conn = getConnection();
@@ -88,7 +95,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     condition: async () => {
       const conn = getConnection();
       const res = await conn.get("SELECT COUNT(*) as cnt FROM security_policies");
-      return (res as any)?.cnt === 0;
+      return Number((res as any)?.cnt || 0) === 0;
     },
     execute: async () => {
       const conn = getConnection();
@@ -105,7 +112,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     condition: async () => {
       const conn = getConnection();
       const res = await conn.get("SELECT COUNT(*) as cnt FROM ns_monitor_domains WHERE domain_name IS NULL OR domain_name = ''");
-      return (res as any)?.cnt > 0;
+      return Number((res as any)?.cnt || 0) > 0;
     },
     execute: async () => {
       const conn = getConnection();
@@ -178,7 +185,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
         return !cols.some((c: any) => c.name.replace(/["'`]/g, '') === 'enabled');
       } else {
         const res = await conn.get("SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'");
-        return (res as any)?.cnt === 0;
+        return Number((res as any)?.cnt || 0) === 0;
       }
     },
     execute: async () => {
@@ -221,7 +228,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
         return cols.some((c: any) => c.name.replace(/["'`]/g, '') === 'domain_id');
       } else {
         const res = await conn.get("SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ns_monitor_domains' AND COLUMN_NAME = 'domain_id'");
-        return (res as any)?.cnt > 0;
+        return Number((res as any)?.cnt || 0) > 0;
       }
     },
     execute: async () => {
