@@ -71,6 +71,87 @@ export class SchemaReconciler {
     return { valid: issues.length === 0, issues };
   }
 
+  /**
+   * Pre-check if any schema changes are needed. Returns true if backup should be created.
+   * Checks: missing/extra tables, missing/extra columns, missing indexes, ghost tables.
+   */
+  private async detectChangesNeeded(schema: DatabaseSchema): Promise<boolean> {
+    const targetTableNames = new Set(schema.tables.map(t => t.name.toLowerCase()));
+
+    // Check missing tables/columns/indexes (via verify)
+    const check = await this.verify(schema);
+    if (check.issues.length > 0) return true;
+
+    // Check ghost tables (tables in DB but not in target schema)
+    const existingTables = await this.getAllTables();
+    const systemTables = new Set(['schema_versions', 'sqlite_sequence']);
+    for (const tableName of existingTables) {
+      const lower = tableName.toLowerCase();
+      if (systemTables.has(lower)) continue;
+      if (tableName.startsWith('sqlite_')) continue;
+      if (!targetTableNames.has(lower)) {
+        // Ghost table exists — may be dropped depending on policy, always trigger backup
+        return true;
+      }
+    }
+
+    // Check extra columns and column type mismatches
+    for (const tableDef of schema.tables) {
+      const exists = await this.tableExists(tableDef.name);
+      if (!exists) return true; // already caught by verify, but just in case
+
+      const dbCols = await this.getTableColumns(tableDef.name);
+      const dbColMap = new Map(dbCols.map((c: any) => [c.name.replace(/["'`]/g, ''), c]));
+      const targetColNames = new Set(tableDef.columns.map(c => c.name));
+
+      // Extra columns in DB not in target schema
+      for (const [colName, colInfo] of dbColMap) {
+        if (!targetColNames.has(colName)) {
+          return true; // extra column needs to be dropped
+        }
+      }
+
+      // Column type mismatches (compare actual DB types)
+      for (const col of tableDef.columns) {
+        const dbCol = dbColMap.get(col.name);
+        if (!dbCol) return true; // already caught by verify
+
+        if (col.type === 'id') {
+          // Skip id type checking — SERIAL/INTEGER mapping varies by DB
+          continue;
+        }
+
+        // Simple type mismatch check
+        const targetSqlType = this.mapTypeToSQL(col.type, this.getDbType(), col.length);
+        const actualDbType = (dbCol.type || dbCol.data_type || '').toUpperCase();
+        
+        // Normalize and compare
+        if (targetSqlType && actualDbType) {
+          const normalizedTarget = targetSqlType.replace(/\(.*?\)/g, '').trim().toUpperCase();
+          const normalizedActual = actualDbType.replace(/\(.*?\)/g, '').trim().toUpperCase();
+          
+          const compatibleTypes = new Map<string, string[]>([
+            ['INTEGER', ['INTEGER', 'INT', 'INT4', 'INT2', 'TINYINT', 'SMALLINT', 'BIGINT', 'SERIAL', 'BIGSERIAL']],
+            ['BIGINT', ['BIGINT', 'BIGSERIAL', 'INTEGER', 'INT', 'INT4', 'INT8']],
+            ['BOOLEAN', ['BOOLEAN', 'BOOL', 'TINYINT', 'BIT']],
+            ['TEXT', ['TEXT', 'VARCHAR', 'CHAR', 'CLOB', 'LONGTEXT', 'MEDIUMTEXT']],
+            ['TIMESTAMP', ['TIMESTAMP', 'TIMESTAMPTZ', 'DATETIME']],
+            ['DATETIME', ['DATETIME', 'TIMESTAMP', 'TIMESTAMPTZ']],
+          ]);
+
+          const isCompatible = compatibleTypes.get(normalizedTarget)?.includes(normalizedActual)
+            || normalizedTarget === normalizedActual;
+
+          if (!isCompatible) {
+            return true; // type mismatch detected
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
   private async getAllTables(): Promise<string[]> {
     const type = this.conn.type;
     if (type === 'sqlite') {
@@ -250,7 +331,7 @@ export class SchemaReconciler {
   }
 
   async reconcile(schema: DatabaseSchema, options: ReconcileOptions = {}): Promise<void> {
-    const { dryRun = false, dropTablePolicy = 'never', forceBackup = true } = options;
+    const { dryRun = false, dropTablePolicy = 'always', forceBackup = true } = options;
     const dbType = this.getDbType();
     log.info('Schema', `Starting reconciliation for ${dbType} (Version: ${schema.version})...`);
 
@@ -258,18 +339,25 @@ export class SchemaReconciler {
       log.warn('Schema', 'DRY RUN MODE: No changes will be applied to the database.');
     }
 
+    // Only create backup if schema changes are actually needed
     if (!options.dryRun && options.forceBackup !== false) {
-      try {
-        await this.backupManager.createBackup(dbType);
-        this.backupManager.cleanup(7); 
-      } catch (err) {
-        log.error('Schema', 'Backup failed! Aborting reconciliation to protect data.', err);
-        const continueOnFail = process.env.DSM_BACKUP_REQUIRED !== 'true';
-        if (continueOnFail) {
-          log.warn('Schema', 'DSM_BACKUP_REQUIRED is not set to true, continuing with reconciliation...');
-        } else {
-          throw err;
+      const needsBackup = await this.detectChangesNeeded(schema);
+      if (needsBackup) {
+        log.info('Schema', 'Schema changes detected. Creating backup before applying changes...');
+        try {
+          await this.backupManager.createBackup(dbType);
+          this.backupManager.cleanup(7); // keep backups for 7 days
+        } catch (err) {
+          log.error('Schema', 'Backup failed! Aborting reconciliation to protect data.', err);
+          const continueOnFail = process.env.DSM_BACKUP_REQUIRED !== 'true';
+          if (continueOnFail) {
+            log.warn('Schema', 'DSM_BACKUP_REQUIRED is not set to true, continuing with reconciliation...');
+          } else {
+            throw err;
+          }
         }
+      } else {
+        log.info('Schema', 'No schema changes detected. Skipping backup.');
       }
     }
 

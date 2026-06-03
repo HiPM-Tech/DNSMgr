@@ -82,14 +82,16 @@ export class BackupManager {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-    const files = fs.readdirSync(this.backupDir);
-    files.forEach(file => {
+    const files = fs.readdirSync(this.backupDir)
+      .filter(file => file.startsWith('backup_') && (file.endsWith('.db') || file.endsWith('.sql')));
+
+    for (const file of files) {
       const filePath = path.join(this.backupDir, file);
       const stats = fs.statSync(filePath);
       if (stats.mtime < cutoffDate) {
         fs.unlinkSync(filePath);
         log.info('Backup', `Deleted old backup: ${file}`);
       }
-    });
+    }
   }
 }
