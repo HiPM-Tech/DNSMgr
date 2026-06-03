@@ -6,11 +6,11 @@
 
 ## 功能特性
 
-- **多服务商支持**: 可管理 21+ DNS 服务商的解析记录：
+- **多服务商支持**: 可管理 22+ DNS 服务商的解析记录：
   - **国内**：阿里云 (Aliyun), DNSPod (腾讯云), 华为云 (Huawei Cloud), 百度云 (Baidu Cloud)
     火山引擎 (Volcengine), 京东云 (JD Cloud), 西部数码 (West Digital), 青云 (Qingcloud)
     宝塔面板 (BT Panel), 阿里云 ESA (Aliyun ESA), 腾讯 EdgeOne (Tencent EdgeOne), 雨云 (Rainyun), VPS8
-  - **国际**：Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, HiDns, 彩虹DNS聚合 (CaihongDNS)
+  - **国际**：Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, HiDNS, 彩虹DNS聚合 (CaihongDNS), Gcore
 
 - **高级功能**:
   - WHOIS 查询与智能缓存（支持注册商模式）
@@ -71,29 +71,39 @@ HiDNS/
         └── api/     # API 客户端
 ```
 
-### 数据库架构（三层设计）
+### 数据库架构（四层设计）
 
-HiDNS 实现了严格的三层数据库架构：
+HiDNS 实现了严格的多层数据库架构：
 
 ```
-路由/服务层 → 业务适配器层 → 核心层 → 驱动层 → 数据库
+路由/服务层 → 业务适配器层(BAL) → 抽象层(DAC) → 驱动层(DL) → 数据库
+                            ↕
+                   声明式模式管理层(DSM)
 ```
 
-**第一层：业务适配器层** (`db/business-adapter.ts`)
+**第一层：业务适配器层** (`server/src/db/bal/`)
 - 函数式 API：`query()`、`get()`、`execute()`、`insert()`、`run()`
-- 业务操作模块：`UserOperations`、`DnsAccountOperations` 等
+- 业务操作模块：`UserOperations`、`DnsAccountOperations` 等 24+ 个模块
 - 所有数据库操作必须通过此层
 - 自动日志记录和性能监控
 
-**第二层：数据库抽象层** (`db/core/`)
+**第二层：数据库抽象层** (`server/src/db/core/`)
 - 统一类型定义
 - 连接管理器（单例模式）
 - 数据库配置管理
+- 查询构建器与 SQL 编译器
 
-**第三层：驱动层** (`db/drivers/`)
+**第三层：驱动层** (`server/src/db/dl/`)
 - MySQL 驱动（连接池）
 - PostgreSQL 驱动（连接池）
 - SQLite 驱动（better-sqlite3）
+- 通用 SQL 编译逻辑在基类 `BaseDriver` 中统一实现
+
+**第四层：声明式模式管理层** (`server/src/db/dsm/`)
+- 声明式 Schema 定义（`complete-schema.ts`）
+- Schema 协调器（自动检测并同步表结构差异）
+- 数据迁移运行器（旧系统升级）
+- 版本管理
 
 ### 数据库 API 使用
 
@@ -311,6 +321,7 @@ interface DnsAdapter {
 | `Hidns` | `Hidns` |
 | `caihongdns` | `caihongdns` |
 | `vps8` | `vps8` |
+| `gcore` | `gcore` |
 
 ## 技术栈
 

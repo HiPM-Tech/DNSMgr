@@ -8,11 +8,11 @@
 
 ## Features
 
-- **Multi-provider Support**: Manage DNS records across 21+ providers:
+- **Multi-provider Support**: Manage DNS records across 22+ providers:
   - **Domestic (China)**: Aliyun (阿里云), DNSPod (腾讯云), Huawei Cloud (华为云), Baidu Cloud (百度云)
     Volcengine (火山引擎), JD Cloud (京东云), West Digital (西部数码), Qingcloud (青云)
     BT Panel (宝塔), Aliyun ESA (阿里云 ESA), Tencent EdgeOne (腾讯 EdgeOne), Rainyun (雨云), VPS8
-  - **International**: Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, HiDNS, CaihongDNS (彩虹DNS聚合)
+  - **International**: Cloudflare, NameSilo, Spaceship, PowerDNS, DNS.LA, DNSHE, HiDNS, CaihongDNS (彩虹DNS聚合), Gcore
 
 - **Advanced Features**:
   - WHOIS query with intelligent caching (registrar mode support)
@@ -61,6 +61,7 @@ When creating/updating DNS accounts, the API normalizes lego-style provider name
 | `HiDNS` | `HiDNS` |
 | `caihongdns` | `caihongdns` |
 | `vps8` | `vps8` |
+| `gcore` | `gcore` |
 
 ## Architecture
 
@@ -101,29 +102,39 @@ HiDNS/
         └── api/     # API client
 ```
 
-### Database Architecture (Three-Layer Design)
+### Database Architecture (Multi-Layer Design)
 
-HiDNS implements a strict three-layer database architecture:
+HiDNS implements a strict multi-layer database architecture:
 
 ```
-Routes/Service Layer → Business Adapter Layer → Core Layer → Driver Layer → Database
+Routes/Service Layer → Business Adapter Layer(BAL) → Core Layer(DAC) → Driver Layer(DL) → Database
+                                        ↕
+                           Declarative Schema Management(DSM)
 ```
 
-**Layer 1: Business Adapter Layer** (`db/business-adapter.ts`)
+**Layer 1: Business Adapter Layer** (`server/src/db/bal/`)
 - Functional API: `query()`, `get()`, `execute()`, `insert()`, `run()`
-- Business operation modules: `UserOperations`, `DnsAccountOperations`, etc.
+- Business operation modules: `UserOperations`, `DnsAccountOperations`, etc. (24+ modules)
 - All database operations MUST go through this layer
 - Automatic logging and performance monitoring
 
-**Layer 2: Database Abstraction Layer** (`db/core/`)
+**Layer 2: Database Abstraction Layer** (`server/src/db/core/`)
 - Unified type definitions
 - Connection manager (singleton pattern)
 - Database configuration management
+- Query builder & SQL compiler
 
-**Layer 3: Driver Layer** (`db/drivers/`)
+**Layer 3: Driver Layer** (`server/src/db/dl/`)
 - MySQL driver (connection pool)
 - PostgreSQL driver (connection pool)
 - SQLite driver (better-sqlite3)
+- Common SQL compilation logic unified in `BaseDriver` base class
+
+**Layer 4: Declarative Schema Management** (`server/src/db/dsm/`)
+- Declarative Schema definitions (`complete-schema.ts`)
+- Schema reconciler (auto-detect and sync table structure differences)
+- Data migration runner (legacy system upgrades)
+- Version management
 
 ### Database API Usage
 

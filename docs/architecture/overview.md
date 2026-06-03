@@ -11,8 +11,8 @@ HiDNS/
 ├── server/                    # 后端服务
 │   └── src/
 │       ├── config/           # 配置文件
-│       ├── db/               # 数据库层（三层架构）
-│       ├── lib/dns/          # DNS 核心逻辑
+│       ├── db/               # 数据库层（DSM 声明式架构 + BAL/DAL/DL 三层）
+│       ├── lib/dns/          # DNS 核心逻辑（适配器 + 解析器）
 │       ├── middleware/       # Express 中间件
 │       ├── routes/           # API 路由
 │       ├── service/          # 业务服务
@@ -36,7 +36,7 @@ HiDNS/
 
 ## 核心特性
 
-- **多 DNS 服务商支持**：支持 21+ 个 DNS 服务商（阿里云、腾讯云、华为云、Cloudflare 等）
+- **多 DNS 服务商支持**：支持 22+ 个 DNS 服务商（阿里云、腾讯云、华为云、Cloudflare、Gcore 等）
 - **多用户与团队管理**：基于角色的权限控制（RBAC）
 - **完整的 DNS 记录管理**：支持所有常见记录类型的 CRUD 操作
 - **WHOIS 查询系统**：智能缓存与注册商模式支持
@@ -47,7 +47,7 @@ HiDNS/
 - **安全认证**：OAuth2/OIDC、WebAuthn/Passkeys、TOTP 双因素认证
 - **通知系统**：邮件通知与模板管理
 - **现代化 UI**：React 18 + TailwindCSS 响应式设计
-- **多语言支持**：中/英/日/西四语言
+- **多语言支持**：11 种语言（中/英/日/西/法/德/韩/俄/葡/阿等）
 
 ## 技术栈
 
@@ -86,25 +86,24 @@ HiDNS/
 ## 高级功能架构
 
 ### WHOIS 查询系统
-- **whoisService.ts**: WHOIS 查询核心服务
-- **whoisScheduler.ts**: WHOIS 调度器接口
-- **providers/dnshe/whoisScheduler.ts**: DNSHE WHOIS 实现
-- **whoisJob.ts**: 后台定时刷新任务
-- **whois_cache 表**: 数据库化缓存存储
+- **service/whois/index.ts**: WHOIS 查询核心服务（分层并行竞速架构）
+- **service/whois/scheduler.ts**: WHOIS 调度器注册表与定时同步
+- **service/whois/cache.ts**: 数据库化缓存存储（whois_cache 表）
+- **lib/dns/providers/dnshe/whoisScheduler.ts**: DNSHE WHOIS 实现
 
 ### 域名续期系统
-- **renewalScheduler.ts**: 续期调度器接口
-- **domainRenewalJob.ts**: 自动续期任务
+- **service/renewalScheduler.ts**: 续期调度器接口
+- **service/domainRenewalJob.ts**: 自动续期任务
+- **service/renewalInit.ts**: 续期初始化
 - **renewable_domains 表**: 独立续期域名管理
-- **范式化架构**: 解耦核心域名表
 
 ### NS 监测与故障转移
-- **nsMonitorJob.ts**: NS 记录监测任务
-- **failover.ts**: 故障转移逻辑
-- **failoverJob.ts**: 故障转移执行任务
+- **service/nsMonitorJob.ts**: NS 记录监测任务
+- **service/failover.ts**: 故障转移逻辑
+- **service/failoverJob.ts**: 故障转移执行任务
 - **failover_configs 表**: 故障转移配置
 
 ### 任务管理器
-- **taskManager.ts**: 统一任务调度与并发控制
+- **service/taskManager.ts**: 统一任务调度与并发控制
 - 优先级插队机制
 - 防止大量并发请求超时

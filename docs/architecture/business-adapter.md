@@ -15,7 +15,7 @@
 ## 文件位置
 
 ```
-server/src/db/business-adapter.ts
+server/src/db/bal/business-adapter.ts
 ```
 
 ## 核心 API 函数
@@ -76,95 +76,32 @@ export async function withTransaction<T>(
 
 业务适配器层提供预定义的业务操作模块，封装了常见的业务逻辑：
 
-### UserOperations - 用户操作
-
-```typescript
-export const UserOperations = {
-  // 根据 ID 获取用户
-  async getById(id: number): Promise<User | undefined>,
-  
-  // 根据用户名获取用户
-  async getByUsername(username: string): Promise<User | undefined>,
-  
-  // 根据邮箱获取用户
-  async getByEmail(email: string): Promise<User | undefined>,
-  
-  // 创建用户
-  async create(user: Omit<User, 'id' | 'createdAt'>): Promise<number>,
-  
-  // 更新用户
-  async update(id: number, updates: Partial<User>): Promise<void>,
-  
-  // 删除用户
-  async delete(id: number): Promise<void>,
-  
-  // 获取用户列表（分页）
-  async list(options?: ListOptions): Promise<PaginatedResult<User>>,
-}
-```
-
-### DnsAccountOperations - DNS 账号操作
-
-```typescript
-export const DnsAccountOperations = {
-  async getById(id: number): Promise<DnsAccount | undefined>,
-  async create(account: Omit<DnsAccount, 'id'>): Promise<number>,
-  async update(id: number, updates: Partial<DnsAccount>): Promise<void>,
-  async delete(id: number): Promise<void>,
-  async list(options?: ListOptions): Promise<PaginatedResult<DnsAccount>>,
-  async getByProvider(provider: string): Promise<DnsAccount[]>,
-}
-```
-
-### DomainOperations - 域名操作
-
-```typescript
-export const DomainOperations = {
-  async getById(id: number): Promise<Domain | undefined>,
-  async getByName(name: string): Promise<Domain | undefined>,
-  async create(domain: Omit<Domain, 'id'>): Promise<number>,
-  async update(id: number, updates: Partial<Domain>): Promise<void>,
-  async delete(id: number): Promise<void>,
-  async listByAccount(accountId: number): Promise<Domain[]>,
-  async syncRecords(domainId: number): Promise<void>,
-}
-```
-
-### TeamOperations - 团队操作
-
-```typescript
-export const TeamOperations = {
-  async getById(id: number): Promise<Team | undefined>,
-  async create(team: Omit<Team, 'id'>): Promise<number>,
-  async update(id: number, updates: Partial<Team>): Promise<void>,
-  async delete(id: number): Promise<void>,
-  async addMember(teamId: number, userId: number, role: string): Promise<void>,
-  async removeMember(teamId: number, userId: number): Promise<void>,
-  async listMembers(teamId: number): Promise<TeamMember[]>,
-}
-```
-
-### SettingsOperations - 设置操作
-
-```typescript
-export const SettingsOperations = {
-  async get(key: string): Promise<string | undefined>,
-  async set(key: string, value: string): Promise<void>,
-  async getAll(): Promise<Record<string, string>>,
-  async getSMTPConfig(): Promise<SMTPConfig>,
-  async getOAuthConfig(): Promise<OAuthConfig>,
-}
-```
-
-### AuditOperations - 审计操作
-
-```typescript
-export const AuditOperations = {
-  async log(operation: AuditLog): Promise<void>,
-  async list(options?: ListOptions): Promise<PaginatedResult<AuditLog>>,
-  async export(startDate: Date, endDate: Date): Promise<string>,
-}
-```
+| 模块名 | 说明 |
+|---------|------|
+| `UserOperations` | 用户操作（CRUD、列表、按用户名/邮箱查询） |
+| `DnsAccountOperations` | DNS 账号操作（CRUD、按提供商查询） |
+| `DomainOperations` | 域名操作（CRUD、按名称查询、按账号列出、同步记录） |
+| `TeamOperations` | 团队操作（CRUD、成员管理） |
+| `SettingsOperations` | 系统设置操作（读取、写入、SMTP/OAuth 配置） |
+| `AuditOperations` | 审计操作（记录、列表、导出） |
+| `TokenOperations` | API Token 操作（CRUD、按用户列出） |
+| `SecretOperations` | 运行时密钥操作（CRUD、加密存储） |
+| `SecurityPolicyOperations` | 安全策略操作（CRUD） |
+| `TrustedDeviceOperations` | 设备信任操作（CRUD、验证） |
+| `UserPreferencesOperations` | 用户偏好操作（置顶域名、通知偏好） |
+| `SessionOperations` | 会话操作（CRUD、过期清理） |
+| `LoginLimitOperations` | 登录限制操作（尝试计数、锁定/解锁） |
+| `FailoverOperations` | 故障转移操作（配置、状态管理） |
+| `AuditExportOperations` | 审计导出操作（CSV/JSON 格式导出） |
+| `TOTPOperations` | TOTP 双因素认证操作（密钥管理、验证） |
+| `WebAuthnOperations` | WebAuthn 操作（注册、验证凭据） |
+| `SmtpOperations` | SMTP 操作（配置验证、测试发送） |
+| `WhoisOperations` | WHOIS 操作（查询、缓存） |
+| `AuditRulesOperations` | 审计规则操作（CRUD、规则匹配） |
+| `AuditLogOperations` | 审计日志操作（写入、查询、清理） |
+| `OAuthOperations` | OAuth 操作（绑定、解绑、令牌管理） |
+| `TwoFAOperations` | 双因素认证操作（启用、禁用、验证） |
+| `TransactionOperations` | 事务操作类（在 `withTransaction` 回调中使用，提供事务内执行的 query/get/execute/insert/run 方法） |
 
 ## 使用规范
 

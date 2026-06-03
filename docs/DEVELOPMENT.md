@@ -37,17 +37,18 @@ DNSMgr 是一个现代化的 DNS 聚合管理平台，采用前后端分离架�
 
 ## 数据库架构声明
 
-### 三层架构设计
+### 四层架构设计
 
-DNSMgr 采用严格的三层数据库架构：
+DNSMgr 采用严格的四层数据库架构，辅以声明式模式管理层：
 
 ```
-路由/Service层 → 业务适配器层 → 数据库抽象层 → 驱动层 → 数据库
+路由/Service层 → 业务适配器层(BAL) → 抽象层(DAC) → 驱动层(DL) → 数据库
+↕ 声明式模式管理层(DSM)
 ```
 
-### 第一层：业务适配器层 (Business Adapter Layer)
+### 第一层：业务适配器层 (Business Adapter Layer / BAL)
 
-**文件位置**: `server/src/db/business-adapter.ts`
+**文件位置**: `server/src/db/bal/business-adapter.ts`
 
 **核心原则**:
 1. **SQL 语句集中管理**: 所有 SQL 语句都定义在此层
@@ -74,23 +75,37 @@ import { getAdapter } from '../db/adapter';
 const db = getAdapter();
 ```
 
-### 第二层：数据库抽象层 (Database Abstraction Layer)
+### 第二层：抽象层 (Database Abstraction Layer / DAC)
 
-**文件位置**: `server/src/db/core/`
+**文件位置**: `server/src/db/dal/`
 
 **职责**:
 - 统一类型定义
 - 连接管理（单例模式）
 - 配置管理
+- 查询构建器 (Query Builder / Compiler)
 
-### 第三层：驱动层 (Driver Layer)
+### 第三层：驱动层 (Driver Layer / DL)
 
-**文件位置**: `server/src/db/drivers/`
+**文件位置**: `server/src/db/dl/`
 
 **支持的驱动**:
 - MySQL 驱动（连接池）
 - PostgreSQL 驱动（连接池）
 - SQLite 驱动（better-sqlite3）
+
+### 第四层：声明式模式管理层 (Declarative Schema Management / DSM)
+
+**文件位置**: `server/src/db/dsm/`
+
+**职责**:
+- **Schema 定义**: 统一的声明式数据库 schema 定义（`schemas/complete-schema.ts`）
+- **Schema Reconciler**: 自动比对 schema 定义与数据库实际结构，生成差异迁移
+- **迁移运行器**: 执行数据库迁移（`data-migration-runner.ts`）
+- **版本管理**: 跟踪和管理数据库 schema 版本（`schema/migration.ts`、`migration-manager.ts`）
+- **备份管理**: 迁移前自动备份（`backup-manager.ts`）
+- **列验证器**: 验证列定义一致性（`column-validator.ts`）
+- **SQL 兼容层**: 跨方言 SQL 兼容处理（`sql-compat.ts`）
 
 ## 开发规范声明
 
@@ -98,7 +113,7 @@ const db = getAdapter();
 
 #### 1. 数据库访问规范
 
-- **必须使用业务操作模块**: `UserOperations`, `DomainOperations`, `DnsAccountOperations`, `TeamOperations`, `SettingsOperations`, `AuditOperations`
+- **必须使用业务操作模块**: `UserOperations`, `DnsAccountOperations`, `DomainOperations`, `TeamOperations`, `SettingsOperations`, `AuditOperations`, `TokenOperations`, `SecretOperations`, `SecurityPolicyOperations`, `TrustedDeviceOperations`, `UserPreferencesOperations`, `SessionOperations`, `LoginLimitOperations`, `FailoverOperations`, `AuditExportOperations`, `TOTPOperations`, `WebAuthnOperations`, `SmtpOperations`, `WhoisOperations`, `AuditRulesOperations`, `AuditLogOperations`, `OAuthOperations`, `TwoFAOperations`, `SystemOperations`, `NotificationOperations`, `DomainPermissionOperations`, `RenewableDomainOperations`, `NSMonitorOperations`, `AuditRuleOperations`, `DomainExpiryOperations`
 - **禁止直接调用底层函数**: `query`, `get`, `execute`, `insert`, `run` 只能在业务适配器层内部使用
 - **禁止直接编写 SQL**: 所有 SQL 语句必须封装在业务适配器层
 

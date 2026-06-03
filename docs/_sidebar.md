@@ -20,6 +20,9 @@
   - [DNS 核心层](architecture/dns-core.md)
   - [认证与授权](architecture/authentication.md)
   - [API 路由设计](architecture/api-routes.md)
+  - [模块说明](architecture/modules.md)
+  - [模块交互](architecture/module-interaction.md)
+  - [DSM 完整分析](architecture/dsm-complete-analysis.md)
 
 - 🔄 **流程文档**
   - [用户认证流程](flow/authentication-flow.md)
@@ -27,18 +30,15 @@
   - [OAuth 绑定流程](flow/oauth-bind-flow.md)
   - [DNS 记录管理流程](flow/dns-record-flow.md)
   - [数据库初始化流程](flow/database-init-flow.md)
+  - [系统初始化流程](flow/system-init-flow.md)
+  - [定时任务流程](flow/scheduled-tasks-flow.md)
 
 - 🛠️ **开发指南**
-  - [开发规范](development/standards.md)
-  - [数据库迁移](development/database-migration.md)
-  - [测试指南](development/testing.md)
-  - [贡献指南](development/contributing.md)
+  - [开发规范](DEVELOPMENT.md)
+  - [数据库迁移](development/database-migration-improvements.md)
 
-- 🌐 **国际化**
-  - [i18n 指南](i18n/guide.md)
-  - [添加新语言](i18n/add-language.md)
+- 🧩 **提供商指南**
+  - [DNS 提供商迁移](providers/MIGRATION_GUIDE.md)
 
-- 📚 **其他**
-  - [常见问题](faq.md)
-  - [故障排查](troubleshooting.md)
-  - [安全建议](security.md)
+- 📐 **技术方案**
+  - [声明式 Schema 设计](DECLARATIVE_SCHEMA_DESIGN.md)

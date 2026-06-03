@@ -11,13 +11,45 @@
 ```typescript
 interface DnsAdapter {
   check(): Promise<boolean>
-  getDomainList(page: number, pageSize: number): Promise<PageResult<DomainInfo>>
-  getDomainRecords(domain: string, page: number, pageSize: number): Promise<PageResult<DnsRecord>>
-  addDomainRecord(domain: string, record: DnsRecord): Promise<string | null>
-  updateDomainRecord(domain: string, recordId: string, record: DnsRecord): Promise<boolean>
-  deleteDomainRecord(domain: string, recordId: string): Promise<boolean>
-  setDomainRecordStatus(domain: string, recordId: string, status: 'enable' | 'disable'): Promise<boolean>
   getError(): string
+  getDomainList(keyword?: string, page?: number, pageSize?: number): Promise<PageResult<DomainInfo>>
+  getDomainRecords(
+    page?: number,
+    pageSize?: number,
+    keyword?: string,
+    subdomain?: string,
+    value?: string,
+    type?: string,
+    line?: string,
+    status?: number
+  ): Promise<PageResult<DnsRecord>>
+  getDomainRecordInfo(recordId: string): Promise<DnsRecord | null>
+  addDomainRecord(
+    name: string,
+    type: string,
+    value: string,
+    line?: string,
+    ttl?: number,
+    mx?: number,
+    weight?: number,
+    remark?: string
+  ): Promise<string | null>
+  updateDomainRecord(
+    recordId: string,
+    name: string,
+    type: string,
+    value: string,
+    line?: string,
+    ttl?: number,
+    mx?: number,
+    weight?: number,
+    remark?: string
+  ): Promise<boolean>
+  deleteDomainRecord(recordId: string): Promise<boolean>
+  setDomainRecordStatus(recordId: string, status: number): Promise<boolean>
+  getRecordLines(): Promise<Array<{ id: string; name: string }>>
+  getMinTTL(): Promise<number>
+  addDomain(domain: string): Promise<boolean>
 }
 ```
 
@@ -25,11 +57,11 @@ interface DnsAdapter {
 
 **文件位置**: `server/src/lib/dns/DnsHelper.ts`
 
-**职责**: 根据服务商类型创建对应的适配器实例
+**职责**: 根据服务商类型创建对应的适配器实例，支持日志代理包装
 
 ```typescript
-// 创建适配器实例
-createAdapter(type: string, config: Record<string, string>, domain?: string, zoneId?: string): DnsAdapter
+// 创建适配器实例（domain/zoneId/domainId 会被注入到 config 中供需要它们的提供商使用）
+createAdapter(type: string, config: Record<string, string>, domain?: string, zoneId?: string, domainId?: string): DnsAdapter
 
 // 获取所有支持的服务商
 getProviders(includeStub?: boolean): ProviderInfo[]
@@ -94,8 +126,9 @@ export interface ProviderConfigField {
 | `dnshe` | DNSHE | line |
 | `rainyun` | 雨云 | line |
 | `vps8` | VPS8 | status, line |
-| `dnsmgr` | DnsMgr | remark, status, weight |
 | `caihongdns` | 彩虹DNS聚合 | remark, status, weight, line |
+| `gcore` | Gcore | status |
+| `hidns` | HiDNS | remark, status, weight |
 
 ## 服务商别名映射
 
@@ -123,12 +156,12 @@ export interface ProviderConfigField {
 
 ### 1. 创建适配器
 
-在 `server/src/lib/dns/providers/myprovider.ts` 中创建新的适配器：
+在 `server/src/lib/dns/providers/_example/adapter.ts` 中创建新的适配器（可参考示例模板）：
 
 ```typescript
-import { DnsAdapter, DomainInfo, DnsRecord, PageResult } from '../DnsInterface';
+import { DnsAdapter, DomainInfo, DnsRecord, PageResult, BaseAdapter } from '../internal';
 
-export class MyProviderAdapter implements DnsAdapter {
+export class MyProviderAdapter extends BaseAdapter implements DnsAdapter {
   private config: Record<string, string>;
   private error: string = '';
 
@@ -141,38 +174,86 @@ export class MyProviderAdapter implements DnsAdapter {
     return true;
   }
 
-  async getDomainList(page: number, pageSize: number): Promise<PageResult<DomainInfo>> {
+  async getDomainList(keyword?: string, page?: number, pageSize?: number): Promise<PageResult<DomainInfo>> {
     // 获取域名列表
     return { total: 0, list: [] };
   }
 
-  async getDomainRecords(domain: string, page: number, pageSize: number): Promise<PageResult<DnsRecord>> {
+  async getDomainRecords(
+    page?: number,
+    pageSize?: number,
+    keyword?: string,
+    subdomain?: string,
+    value?: string,
+    type?: string,
+    line?: string,
+    status?: number
+  ): Promise<PageResult<DnsRecord>> {
     // 获取解析记录列表
     return { total: 0, list: [] };
   }
 
-  async addDomainRecord(domain: string, record: DnsRecord): Promise<string | null> {
+  async getDomainRecordInfo(recordId: string): Promise<DnsRecord | null> {
+    // 获取单条记录详情
+    return null;
+  }
+
+  async addDomainRecord(
+    name: string,
+    type: string,
+    value: string,
+    line?: string,
+    ttl?: number,
+    mx?: number,
+    weight?: number,
+    remark?: string
+  ): Promise<string | null> {
     // 添加解析记录
     return null;
   }
 
-  async updateDomainRecord(domain: string, recordId: string, record: DnsRecord): Promise<boolean> {
+  async updateDomainRecord(
+    recordId: string,
+    name: string,
+    type: string,
+    value: string,
+    line?: string,
+    ttl?: number,
+    mx?: number,
+    weight?: number,
+    remark?: string
+  ): Promise<boolean> {
     // 更新解析记录
     return false;
   }
 
-  async deleteDomainRecord(domain: string, recordId: string): Promise<boolean> {
+  async deleteDomainRecord(recordId: string): Promise<boolean> {
     // 删除解析记录
     return false;
   }
 
-  async setDomainRecordStatus(domain: string, recordId: string, status: 'enable' | 'disable'): Promise<boolean> {
+  async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     // 设置记录状态
     return false;
   }
 
   getError(): string {
     return this.error;
+  }
+
+  async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
+    // 获取线路列表
+    return [];
+  }
+
+  async getMinTTL(): Promise<number> {
+    // 获取最小 TTL
+    return 600;
+  }
+
+  async addDomain(domain: string): Promise<boolean> {
+    // 添加域名
+    return false;
   }
 }
 ```
@@ -221,7 +302,7 @@ DNS 记录仍保留通用 `line` 字段以兼容历史逻辑。对于 Cloudflare
 
 ## WHOIS 查询调度器（v1.3.2+）
 
-**文件位置**: `server/src/service/whoisScheduler.ts`
+**文件位置**: `server/src/service/whois/scheduler.ts`
 
 **职责**: 统一管理 DNS 提供商的 WHOIS 查询能力，支持注册商模式
 
@@ -307,7 +388,7 @@ providers/
 ├── index.ts             # 统一导出
 ├── common.ts            # 公共工具函数
 ├── http.ts              # HTTP 请求封装
-├── internal.ts          # 内部适配器
+├── internal.ts          # 内部模块依赖集中管理（导入转发）
 ├── stubs.ts             # Stub 适配器
 ├── _example/            # 示例模板
 │   ├── adapter.ts       # 适配器实现示例
@@ -326,7 +407,7 @@ providers/
 - **adapterFactory**: 工厂函数创建适配器实例
 
 ### 添加新提供商步骤
-1. 在 `providers/myprovider/` 创建适配器
+1. 在 `providers/myprovider/` 创建适配器目录（参考 `_example/` 模板）
 2. 在 `registry.ts` 注册服务商定义
-3. 在 `index.ts` 导出适配器
+3. 在 `index.ts` 导出适配器（添加一行 `export { MyProviderAdapter } from './myprovider';`）
 4. （可选）实现 WHOIS/续期调度器

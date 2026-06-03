@@ -39,33 +39,44 @@
 
 ### 数据库
 1. 数据库架构
-    - 数据库采用三层架构，包括数据库驱动层、数据库抽象层、业务适配器。
-    - 数据库驱动层（`server/src/db/drivers/`）负责与数据库进行交互，提供数据库连接池、查询执行器等。
-    - 数据库抽象层（`server/src/db/core/`）负责定义数据库操作的接口，提供统一的数据库操作方法。
-    - 业务适配器（`server/src/db/business-adapter.ts`）负责将数据库操作方法与业务逻辑进行绑定，提供业务操作方法。
+    - 数据库采用四层架构，包括驱动层（DL）、抽象层（DAC）、业务适配器层（BAL）、声明式模式管理层（DSM）。
+    - 驱动层（`server/src/db/dl/`）负责与数据库进行交互，提供数据库连接池、查询执行器等，已提取公用的 SQL 编译逻辑到基类 `BaseDriver`。
+    - 抽象层（`server/src/db/core/`）负责定义数据库操作的接口，提供统一的数据库操作方法（config、connection、types）。
+    - 业务适配器层（`server/src/db/bal/`）负责将数据库操作方法与业务逻辑进行绑定，提供业务操作方法。
+    - 声明式模式管理层（`server/src/db/dsm/`）负责数据库表结构的声明式定义、版本管理和自动协调（Schema Reconciliation）。
 2. 数据库操作约束
-    - 项目中所有数据库操作必须通过业务适配器层（`server/src/db/business-adapter.ts`）的专用操作函数进行。
+    - 项目中所有数据库操作必须通过业务适配器层（`server/src/db/bal/business-adapter.ts`）的专用操作函数进行。
     - 严格禁止直接导入底层数据库操作函数（如 query, get, execute, insert, run 等）。
-    - 严格禁止直接导入驱动层（如 BaseDriver, MySQLDriver 等）。
+    - 严格禁止直接导入驱动层（如 BaseDriver, SqliteDriver 等）。
     - 严格禁止直接导入查询构建器（如 QueryBuilder, SQLCompiler 等）。
     - 调用链：路由/Service/Middleware → 业务适配器函数 → 数据库抽象层 → 驱动 → 数据库。
 3. 数据库驱动
     - 支持三种数据库类型：SQLite（默认）、MySQL、PostgreSQL。
-    - 驱动基类 `BaseDriver` 定义在 `server/src/db/drivers/base.ts`，所有数据库驱动必须继承该类。
-    - 驱动类型定义在 `server/src/db/drivers/types.ts`，具体驱动实现在 `drivers/sqlite.ts`、`drivers/mysql.ts`、`drivers/postgresql.ts`。
+    - 驱动基类 `BaseDriver` 定义在 `server/src/db/dl/base.ts`，所有数据库驱动必须继承该类。
+    - 驱动类型定义在 `server/src/db/dl/types.ts`，具体驱动实现在 `dl/sqlite.ts`、`dl/mysql.ts`、`dl/postgresql.ts`。
     - SQL 编译逻辑统一在 BaseDriver 中实现，各驱动只需实现 SQL 方言差异部分。
+    - 驱动入口统一在 `server/src/db/dl/index.ts` 导出。
 4. 数据库核心类型
     - 核心类型定义在 `server/src/db/core/types.ts`，包括 `DatabaseConnection`、`Transaction`、`DatabaseType`、`CompiledSQL` 等。
     - 核心配置定义在 `server/src/db/core/config.ts`，支持 SQLite、MySQL、PostgreSQL 三种数据库的配置。
     - 连接管理在 `server/src/db/core/connection.ts`，支持连接池管理、事务管理等。
-5. 数据库 Schema 管理
-    - Schema 定义在 `server/src/db/schemas/` 目录下，按数据库类型分文件（`sqlite.ts`、`mysql.ts`、`postgresql.ts`）。
-    - 数据库初始化逻辑在 `server/src/db/init.ts`，支持表创建、索引创建。
-    - 迁移系统在 `server/src/db/schema/` 目录下，支持 `migration.ts` 和 `registry.ts`。
+    - 查询构建器在 `server/src/db/core/query-builder.ts`，提供链式调用构建 SQL 查询。
+    - SQL 编译器在 `server/src/db/core/compiler.ts`，负责将抽象查询语法转换为具体数据库查询语句。
+    - 标识符处理在 `server/src/db/core/identifier.ts`，处理表名、列名的转义。
+5. 数据库 Schema 管理（DSM）
+    - DSM（Declarative Schema Management）定义在 `server/src/db/dsm/` 目录下。
+    - Schema 类型定义在 `server/src/db/dsm/schemas/types/schema.ts`，支持的基本类型：`id`、`string`、`text`、`number`、`integer`、`boolean`、`datetime`、`json`。
+    - 完整 Schema 定义在 `server/src/db/dsm/schemas/complete-schema.ts`，采用声明式方式描述所有表结构（列、索引、外键）。
+    - Schema 协调器（`schema-reconciler.ts`）自动检测数据库与实际 Schema 差异并同步（增删列、修改类型、维护索引和外键）。
+    - 版本管理器（`migration-manager.ts`）负责 Schema 版本记录和检查。
+    - 数据迁移运行器（`data-migration-runner.ts`）处理旧系统升级时的数据迁移。
+    - 备份管理器（`backup-manager.ts`）在协调前自动备份数据库。
+    - DSM 初始化入口（`init-dsm.ts`）负责完整流程：遗留系统检测 → 协调 → 迁移 → 完整性检查 → 版本记录。
+    - 旧系统（Legacy System）检测：检查 `domains`、`dns_accounts`、`system_configs` 三个核心表是否存在但没有 `schema_versions` 表。
 6. 查询构建
-    - 查询构建器（`server/src/db/query/builder.ts`）提供链式调用构建 SQL 查询的接口。
-    - SQL 编译器（`server/src/db/query/compiler.ts`）负责将抽象查询语法转换为具体数据库查询语句。
-    - 标识符处理（`server/src/db/query/identifier.ts`）处理表名、列名的转义。
+    - 查询构建器（`server/src/db/core/query-builder.ts`）提供链式调用构建 SQL 查询的接口。
+    - SQL 编译器（`server/src/db/core/compiler.ts`）负责将抽象查询语法转换为具体数据库查询语句。
+    - 标识符处理（`server/src/db/core/identifier.ts`）处理表名、列名的转义。
 7. 数据库操作模块列表
     - `UserOperations`：用户管理操作
     - `DnsAccountOperations`：DNS 账户操作
@@ -90,9 +101,10 @@
     - `AuditLogOperations`：审计日志查询操作
     - `OAuthOperations`：OAuth 认证操作
     - `TwoFAOperations`：双因素认证操作
+    - `TransactionOperations`：事务管理操作
 8. 数据库初衷
     - 数据库是用户实例数据存储的根本原因，需要确保数据的安全性和可靠性。
-    - 因此在设计初期使用三层数据库将数据库职责拆分，减少数据库驱动层的直接调用，提高数据库操作的可维护性和可扩展性。
+    - 因此在设计初期使用多层架构将数据库职责拆分，减少数据库驱动层的直接调用，提高数据库操作的可维护性和可扩展性。
 
 ### 日志相关
 1. 日志架构
@@ -124,7 +136,6 @@
     - DNS提供商使用类驱动方式接入，实现在 `server/src/lib/dns/providers/<provider>/` 目录下。
     - 所有提供商需在 `server/src/lib/dns/providers/index.ts` 中导出，键名为提供商类型，值为提供商适配器类。
     - 提供商注册信息（名称、能力、配置字段）在 `server/src/lib/dns/providers/registry.ts` 中定义。
-    - 提供商需要通过 `server/src/lib/dns/providers/internal.ts` 文件进行调用其它组件以扁平化依赖。
     - 提供商**必须**使用 `requestJson` / `requestXml`（定义在 `server/src/lib/dns/providers/http.ts`）进行 HTTP 请求，这些函数自动调用代理模块 `fetchWithFallback`（`server/src/lib/proxy-http.ts`），以适配特殊网络环境。
     - 禁止直接使用原生 `fetch` 发起请求，否则将导致代理环境下请求挂死或静默超时。
     - 提供商需要保持模块化，每个提供商目录下包含 `adapter.ts`（适配器主逻辑）、`auth.ts`（认证逻辑）、`index.ts`（导出入口）。
@@ -142,13 +153,17 @@
     - `http.ts` 提供：HTTP 请求工具函数（`requestJson`、`requestXml`、`buildCanonicalQuery`、`hmacSignSha1` 等）。
 5. 当前支持的DNS提供商（共22个）
     - 阿里云（aliyun）、阿里云ESA（aliyunesa）、百度云（baidu）、宝塔（bt）、彩虹DNS聚合（caihongdns）
-    - Cloudflare（cloudflare）、DNSHE（dnshe）、DNS.LA（dnsla）、腾讯云-DNSPod（dnspod）、HiDNS（hidns）
-    - 华为云（huawei）、火山引擎（huoshan）、京东云（jdcloud）、NameSilo（namesilo）、PowerDNS（powerdns）
-    - 青云（qingcloud）、雨云（rainyun）、Spaceship（spaceship）、腾讯EdgeOne（tencenteo）、VPS8（vps8）
-    - 西部数码（west）
+    - Cloudflare（cloudflare）、DNSHE（dnshe）、DNS.LA（dnsla）、腾讯云-DNSPod（dnspod）、Gcore（gcore）
+    - HiDNS（hidns）、华为云（huawei）、火山引擎（huoshan）、京东云（jdcloud）、NameSilo（namesilo）
+    - PowerDNS（powerdns）、青云（qingcloud）、雨云（rainyun）、Spaceship（spaceship）、腾讯EdgeOne（tencenteo）
+    - VPS8（vps8）、西部数码（west）
 6. 提供商能力模型
     - 每个提供商在 `registry.ts` 中定义 `ProviderCapabilities`，包含：remark（备注）、status（启用/禁用）、redirect（重定向）、log（操作日志）、weight（权重）、line（线路）、cnameFlattening（CNAME 展平）。
     - 每个提供商定义 `ProviderConfigField[]` 描述其配置字段（类型、是否必填、分组等）。
+7. Provider 类型与别名映射
+    - 创建/更新 DNS 账号时，API 会将 lego 风格 provider 名称归一化为内部 provider 类型。
+    - 别名映射定义在 `DnsHelper.ts` 的 `PROVIDER_ALIASES` 或各适配器的 `alias` 属性中。
+    - 内部类型与支持别名对应关系请参考完整的 `README.md`。
 
 ### 环境配置
 1. 配置文件
@@ -158,9 +173,11 @@
 2. 关键环境变量
     - `DB_TYPE`：数据库类型（sqlite | mysql | postgresql），默认 sqlite。
     - `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`：数据库连接配置。
+    - `DB_PATH`：SQLite 数据库文件路径，默认 `./HiDNS.db`。
     - `JWT_SECRET`：JWT 签名密钥，生产环境要求至少32个字符。
     - `PORT`：服务端口，默认 3001。
     - `HIDNS_LOG_LEVEL`：日志级别（debug | info | warn | error），默认 info。
+    - `DB_SSL`：MySQL/PostgreSQL 是否启用 SSL。
 3. 环境验证
     - 生产环境强制检查 JWT_SECRET 强度。
     - MySQL/PostgreSQL 配置验证必需的连接参数。
@@ -205,15 +222,18 @@
     - `/api/providers`：DNS 提供商管理。
     - `/api/system`：系统设置。
     - `/api/settings`：用户设置。
-    - `/api/security`：安全设置（安全策略）。
+    - `/api/security`：安全设置（安全策略、2FA）。
     - `/api/audit`：审计日志。
     - `/api/tokens`：API 令牌管理。
     - `/api/email-templates`：邮件模板。
     - `/api/tunnels`：Cloudflare Tunnel 管理。
     - `/api/ns-monitor`：NS 监控。
+    - `/api/failover`：故障转移配置。
     - `/api/network`：网络工具。
     - `/api/rdap`：RDAP 查询。
     - `/api/logs`：操作日志（管理员）。
+    - `/api/notification`：通知服务。
+    - `/api/notifications/channels`：通知渠道管理。
 3. Swagger 文档
     - API 文档地址：`/api/docs`。
     - 使用 swagger-jsdoc 自动生成 OpenAPI 3.0 规范文档。
@@ -224,8 +244,9 @@
     - 服务层是业务逻辑的核心，调用数据库业务适配器进行操作。
     - 禁止在路由中直接操作数据库，所有数据库操作必须通过服务层或业务适配器。
 2. 定时任务服务
-    - `failoverJob.ts`：DNS 故障转移定时任务。
+    - `domainSyncJob.ts`：域名同步定时任务。
     - `whoisJob.ts`：WHOIS 查询定时任务。
+    - `failoverJob.ts`：DNS 故障转移定时任务。
     - `nsMonitorJob.ts`：NS 监控定时任务。
     - `domainRenewalJob.ts`：域名续期检测定时任务。
     - `recordCountCache.ts`：记录计数缓存刷新（默认每30分钟）。
@@ -233,6 +254,7 @@
     - `renewalScheduler.ts` + `renewalInit.ts`：域名续期调度器。
     - `whoisScheduler.ts` + `whoisInit.ts`：WHOIS 查询调度器。
     - `taskManager.ts`：任务管理器。
+    - `whois/whoisScheduleManager.ts`：WHOIS 调度管理器。
 4. 核心服务
     - `audit.ts`、`auditExport.ts`、`auditRules.ts`：审计相关服务。
     - `token.ts`：API 令牌验证服务。
@@ -246,12 +268,19 @@
     - `cnameFlattening.ts`：CNAME 展平服务。
     - `multiLine.ts`：多线路支持。
     - `userPreferences.ts`：用户偏好服务。
-5. WHOIS 服务
-    - 主服务：`whoisService.ts`、`whoisProvider.ts`。
-    - WHOIS 查询提供者：`whois/providers/`（`base.ts`、`rdap-method.ts`、`whois-method.ts`）。
-    - WHOIS 解析器：`whois/resolvers/`（`apex-providers.ts`、`subdomain-providers.ts`、`third-party-providers.ts`）。
-    - RDAP 服务器列表：`whois/rdap-server-list.ts`。
+    - `whoisService.ts`：WHOIS 主服务。
+    - `whoisProvider.ts`：WHOIS 提供商管理。
+    - `dnsUpdateService.ts`：DNS 更新服务。
+    - `hostsService.ts`：Hosts 管理服务。
+5. WHOIS 服务子模块
+    - 查询提供者：`whois/providers/base.ts`、`whois/providers/rdap-method.ts`、`whois/providers/whois-method.ts`、`whois/providers/adapter.ts`。
+    - 域名解析器：`whois/resolvers/apex-providers.ts`、`whois/resolvers/subdomain-providers.ts`、`whois/resolvers/third-party-providers.ts`。
     - 域名工具：`whois/domain-utils.ts`。
+    - RDAP 服务器列表：`whois/rdap-server-list.ts`。
+    - 数据解析器：`whois/data-parser.ts`。
+    - 缓存管理：`whois/cache.ts`。
+    - 检查器：`whois/checker.ts`。
+    - 通知器：`whois/notifier.ts`。
 
 ### DNS 解析器
 1. 解析器架构（`server/src/lib/dns/resolver/`）
@@ -270,8 +299,8 @@
 
 ### 应用初始化与生命周期
 1. 启动流程（`server/src/app.ts`）
-    - 加载环境变量 → 创建数据库连接 → 初始化 Schema → 检查系统初始化状态。
-    - 已初始化模式：启动所有定时任务（续期、WHOIS、故障转移、NS 监控、缓存刷新）。
+    - 加载环境变量 → 创建数据库连接 → DSM 初始化（Schema协调/迁移） → 检查系统初始化状态。
+    - 已初始化模式：启动所有定时任务（域名同步、续期、WHOIS、故障转移、NS 监控、缓存刷新）。
     - 未初始化模式：仅开放初始化路由，每隔5秒检查初始化状态，初始化完成后自动启动所有服务。
     - WebSocket 服务随 HTTP 服务器一起初始化。
 2. 优雅关闭
@@ -292,42 +321,125 @@
     - React Router 前端路由。
     - React Query (@tanstack/react-query) 数据获取和缓存管理。
     - Context API 状态管理（AuthContext、ThemeContext、I18nContext、UiScaleContext）。
+    - i18next + react-i18next 国际化。
 2. **前端模块化架构（强制约束）**
     - **核心原则**：前端代码必须遵循模块化设计，禁止重复代码和自由发挥。
     - **目录结构约束**：
       ```
       client/src/
       ├── api/              # API 请求封装（按模块分组）
+      │   ├── accounts.ts   # DNS 账户相关 API
       │   ├── auth.ts       # 认证相关 API
+      │   ├── client.ts     # API 客户端基础配置
       │   ├── domains.ts    # 域名相关 API
-      │   └── ...
+      │   ├── init.ts       # 初始化相关 API
+      │   ├── logs.ts       # 日志相关 API
+      │   ├── network.ts    # 网络工具 API
+      │   ├── ns-monitor.ts # NS 监控 API
+      │   ├── records.ts    # DNS 记录 API
+      │   ├── settings.ts   # 设置相关 API
+      │   ├── teams.ts      # 团队管理 API
+      │   ├── tokens.ts     # API 令牌 API
+      │   ├── types.ts      # 请求类型定义
+      │   ├── users.ts      # 用户管理 API
+      │   └── index.ts      # 统一导出
       ├── components/       # 通用组件（可复用）
-      │   ├── RecordForm.tsx    # DNS 记录表单
-      │   ├── DomainTable.tsx   # 域名表格
-      │   └── ...
+      │   ├── AuditLogList.tsx
+      │   ├── Avatar.tsx
+      │   ├── Avatar.css
+      │   ├── ConfirmDialog.tsx
+      │   ├── ErrorBoundary.tsx
+      │   ├── Header.tsx / Header.css
+      │   ├── Layout.tsx / Layout.css
+      │   ├── Modal.tsx
+      │   ├── NotificationChannels.tsx
+      │   ├── PageTransition.tsx
+      │   ├── PaginatedSelect.tsx
+      │   ├── ProviderIcon.tsx
+      │   ├── ProtectedRoute.tsx
+      │   ├── RecordForm.tsx / RecordForm.css
+      │   ├── Sidebar.tsx / Sidebar.css
+      │   ├── Table.tsx
+      │   ├── ToastContainer.tsx / ToastContainer.css
+      │   └── TunnelList.tsx
       ├── hooks/            # 自定义 Hooks（业务逻辑抽象）
-      │   ├── useFormSync.ts    # 【新增】通用表单同步 Hook
-      │   ├── useWebSocket.ts   # WebSocket 连接
-      │   ├── useRealtimeData.ts # 实时数据
-      │   └── ...
+      │   ├── useDialogAutoHideScrollbar.ts
+      │   ├── useFormSync.ts    # 通用表单同步 Hook
+      │   ├── useLocalStorage.ts
+      │   ├── useQueryConfig.ts
+      │   ├── useRealtimeData.ts
+      │   ├── useRecords.ts
+      │   ├── useRenewableDomains.ts
+      │   ├── useTeams.ts
+      │   ├── useToast.ts
+      │   └── useWebSocket.ts
       ├── utils/            # 工具函数（纯函数，无副作用）
-      │   ├── formHelpers.ts    # 【新增】表单辅助函数
-      │   ├── validators.ts     # 验证函数
-      │   └── ...
+      │   ├── auditLogs.ts
+      │   ├── domain.ts
+      │   ├── domain-utils.ts
+      │   ├── formHelpers.ts    # 表单辅助函数
+      │   ├── gravatar.ts
+      │   ├── md5.ts
+      │   ├── roles.ts
+      │   ├── rsaEncrypt.ts
+      │   └── typeConverters.ts
       ├── contexts/         # React Context（全局状态）
       │   ├── AuthContext.tsx
+      │   ├── I18nContext.tsx
       │   ├── ThemeContext.tsx
-      │   └── ...
+      │   └── UiScaleContext.tsx
       ├── pages/            # 页面组件（路由级别）
-      │   ├── Dashboard.tsx
-      │   ├── Domains.tsx
+      │   ├── About.tsx
       │   ├── Accounts.tsx
-      │   └── ...
+      │   ├── Audit.tsx
+      │   ├── Dashboard.tsx / Dashboard.css
+      │   ├── Domains.tsx
+      │   ├── Landing.tsx / Landing.css
+      │   ├── Login.tsx / Login.css
+      │   ├── MailSetupModal.tsx
+      │   ├── OAuthCallback.tsx
+      │   ├── Records.tsx
+      │   ├── Security.tsx
+      │   ├── Settings.tsx
+      │   ├── Setup.tsx / Setup.css
+      │   ├── System.tsx
+      │   ├── Teams.tsx
+      │   ├── Tokens.tsx
+      │   ├── Tunnels.tsx
+      │   ├── Users.tsx
+      │   ├── domains/          # 域名相关子页面
+      │   │   ├── DomainListTab.tsx
+      │   │   ├── DomainRenewalTab.tsx
+      │   │   ├── FailoverTab.tsx
+      │   │   └── NSMonitorTab.tsx
+      │   └── system/           # 系统相关子页面
+      │       ├── AccessTab.tsx
+      │       ├── DatabaseTab.tsx
+      │       ├── NetworkTab.tsx
+      │       ├── OverviewTab.tsx
+      │       └── SecurityTab.tsx
       ├── i18n/             # 国际化
-      │   ├── locales/
-      │   └── index.ts
-      └── styles/           # 全局样式
-          └── ...
+      │   ├── index.ts
+      │   ├── types.ts
+      │   └── locales/      # 支持 11 种语言
+      │       ├── ar.json       # 阿拉伯语
+      │       ├── de.json       # 德语
+      │       ├── en.json       # 英语
+      │       ├── es.json       # 西班牙语
+      │       ├── fr.json       # 法语
+      │       ├── ja.json       # 日语
+      │       ├── ko.json       # 韩语
+      │       ├── pt.json       # 葡萄牙语
+      │       ├── ru.json       # 俄语
+      │       ├── zh-CN.json    # 简体中文
+      │       └── zh-CN-Mesugaki.json # 简体中文（萌娘体）
+      ├── styles/           # 全局样式
+      │   ├── globals.css
+      │   └── theme.ts
+      ├── types/            # TypeScript 类型定义
+      ├── config/           # 配置文件
+      └── assets/           # 静态资源
+          └── providers/    # 提供商图标（21个提供商图标）
       ```
     - **模块职责划分**：
       - `hooks/`：所有业务逻辑抽象必须放在这里，禁止在组件中直接编写复杂逻辑
@@ -365,7 +477,6 @@
     - **表单验证**：
       - 简单验证使用 HTML5 原生验证
       - 复杂验证使用 `utils/validators.ts` 中的验证函数
-      - 未来考虑引入 Zod + React Hook Form
 4. **API 调用规范**
     - **统一 API 封装**：
       ```typescript
@@ -429,10 +540,6 @@
       - 优先使用 Tailwind 实用类
       - 避免自定义 CSS
       - 复杂样式使用 @apply 提取为组件类
-    - **TDesign 组件库**：
-      - 优先使用 TDesign 组件
-      - 避免自定义 UI 组件
-      - 保持 UI 一致性
     - **响应式设计**：
       - 所有页面必须支持移动端
       - 使用 Tailwind 的响应式类
@@ -450,24 +557,15 @@
       - 使用 React.lazy 进行路由级别代码分割
       - 大型组件使用动态导入
       - 避免一次性加载所有代码
-9. **测试规范**
-    - **单元测试**：
-      - 工具函数必须有单元测试
-      - Hooks 必须有单元测试
-      - 使用 Vitest + React Testing Library
-    - **集成测试**：
-      - 关键业务流程必须有集成测试
-      - 使用 Playwright 进行 E2E 测试
-    - **测试覆盖率**：
-      - 目标覆盖率：80%+
-      - 核心模块必须 100% 覆盖
-3. 页面路由
+9. **页面路由**
+    - `/`：登陆页
+    - `/setup`：系统初始化
     - `/dashboard`：仪表盘
     - `/accounts`：DNS 账户管理
     - `/domains`：域名管理
     - `/domains/:id/records`：DNS 记录管理
     - `/settings`：设置
-    - `/system`：系统管理
+    - `/system`：系统管理（包含 概述/数据库/网络/安全/访问 选项卡）
     - `/security`：安全设置
     - `/audit`：审计日志
     - `/tokens`：API 令牌管理
@@ -478,10 +576,11 @@
 
 ### 安全规范
 1. 认证方式
-    - JWT Token（用户登录，有效期7天）。
+    - JWT Token（用户登录，有效期7天），签名密钥为 `JWT_SECRET + runtime_secret`。
     - API Token（程序化访问，支持域名/服务/时间范围限制）。
-    - WebAuthn 无密码认证。
-    - TOTP 双因素认证。
+    - WebAuthn 无密码认证（通过 @simplewebauthn/server）。
+    - TOTP 双因素认证（通过 speakeasy）。
+    - OAuth2/OIDC 单点登录。
 2. 权限模型
     - 三种角色：普通用户、管理员、超级管理员。
     - API Token 支持细粒度权限控制（服务权限、域名权限）。
@@ -489,5 +588,7 @@
     - 请求频率限制（rateLimit）。
     - 安全 HTTP 头（CSP、X-Frame-Options 等）。
     - 运行时密钥轮换（SecretOperations）。
+    - 安全策略管理（密码长度、会话超时、登录尝试限制）。
+    - 登录限制（IP/设备信任）。
 
 ## 待办

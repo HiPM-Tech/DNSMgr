@@ -1,16 +1,16 @@
 # 数据库层架构
 
-## 三层架构设计
+## 四层架构设计
 
-HiDNS 实现了严格的三层数据库架构：
+HiDNS 实现了严格的四层数据库架构：
 
 ```
-路由/Service层 → 业务适配器层 → 数据库抽象层 → 驱动层 → 数据库
+DSM层 → 业务适配器层 → 数据库抽象层 → 驱动层 → 数据库
 ```
 
 ## 第一层：业务适配器层
 
-**文件位置**: `server/src/db/business-adapter.ts`
+**文件位置**: `server/src/db/bal/business-adapter.ts`
 
 **职责**: 提供函数式 API，所有数据库操作必须通过此层
 
@@ -73,6 +73,60 @@ export const SettingsOperations = { ... }
 
 // 审计操作
 export const AuditOperations = { ... }
+
+// Token 操作
+export const TokenOperations = { ... }
+
+// 密钥操作
+export const SecretOperations = { ... }
+
+// 安全策略操作
+export const SecurityPolicyOperations = { ... }
+
+// 设备信任操作
+export const TrustedDeviceOperations = { ... }
+
+// 用户偏好操作
+export const UserPreferencesOperations = { ... }
+
+// 会话操作
+export const SessionOperations = { ... }
+
+// 登录限制操作
+export const LoginLimitOperations = { ... }
+
+// 故障转移操作
+export const FailoverOperations = { ... }
+
+// 审计导出操作
+export const AuditExportOperations = { ... }
+
+// TOTP 操作
+export const TOTPOperations = { ... }
+
+// WebAuthn 操作
+export const WebAuthnOperations = { ... }
+
+// SMTP 操作
+export const SmtpOperations = { ... }
+
+// WHOIS 操作
+export const WhoisOperations = { ... }
+
+// 审计规则操作
+export const AuditRulesOperations = { ... }
+
+// 审计日志操作
+export const AuditLogOperations = { ... }
+
+// OAuth 操作
+export const OAuthOperations = { ... }
+
+// 双因素认证操作
+export const TwoFAOperations = { ... }
+
+// 事务操作
+export class TransactionOperations { ... }
 ```
 
 ### 使用示例
@@ -135,14 +189,14 @@ interface DatabaseConnection {
 
 ## 第三层：驱动层
 
-**文件位置**: `server/src/db/drivers/`
+**文件位置**: `server/src/db/dl/`
 
 **职责**: 实现具体数据库的操作逻辑
 
 ### 文件结构
 
 ```
-db/drivers/
+db/dl/
 ├── base.ts        # 基础驱动类（模板方法模式）
 ├── mysql.ts       # MySQL 驱动（连接池）
 ├── postgresql.ts  # PostgreSQL 驱动（连接池）
@@ -154,6 +208,46 @@ db/drivers/
 - **MySQL**: 连接池管理、慢查询日志、连接池事件监控
 - **PostgreSQL**: 连接池管理、SSL 支持
 - **SQLite**: WAL 模式、外键约束、同步执行包装
+
+## 第四层：声明式模式管理层 (DSM)
+
+**文件位置**: `server/src/db/dsm/`
+
+**职责**: 管理数据库表结构的声明式定义、自动调谐（reconciliation）、数据迁移及版本管理
+
+### 文件结构
+
+```
+db/dsm/
+├── index.ts               # 统一入口
+├── init-dsm.ts            # DSM 初始化
+├── schema-reconciler.ts   # Schema 调谐器（自动同步表结构）
+├── migration-manager.ts   # 迁移管理器
+├── data-migration-runner.ts # 数据迁移运行器
+├── backup-manager.ts      # 备份管理器
+├── sql-compat.ts          # SQL 兼容性层
+├── column-validator.ts    # 列验证器
+├── schema/
+│   ├── registry.ts        # Schema 注册表
+│   └── migration.ts       # 迁移定义
+└── schemas/
+    ├── index.ts           # Schema 入口
+    ├── complete-schema.ts # 完整 Schema 定义
+    ├── types/
+    │   └── schema.ts      # Schema 类型定义
+    └── dialects/
+        ├── sqlite.ts      # SQLite 方言
+        ├── mysql.ts       # MySQL 方言
+        └── postgresql.ts  # PostgreSQL 方言
+```
+
+### 核心能力
+
+- **声明式 Schema 定义**: 用 TypeScript 定义表结构，自动生成对应数据库的 DDL
+- **自动调谐**: 启动时自动比对声明式 Schema 与实际数据库结构，自动增补缺失的表和字段
+- **版本管理**: 支持增量迁移和回滚操作
+- **多数据库方言**: 根据数据库类型自动适配 SQLite/MySQL/PostgreSQL 语法
+- **幂等性保证**: 重复执行不会产生副作用
 
 ## 数据库主入口
 
@@ -167,14 +261,22 @@ export {
   // 核心函数
   query, get, execute, insert, run, now,
   getDbType, isDbConnected, withTransaction,
-  
+
   // 业务操作模块
   UserOperations, DnsAccountOperations, DomainOperations,
   TeamOperations, SettingsOperations, AuditOperations,
-  
+  TokenOperations, SecretOperations,
+  SecurityPolicyOperations, TrustedDeviceOperations,
+  UserPreferencesOperations, SessionOperations,
+  LoginLimitOperations, FailoverOperations,
+  AuditExportOperations, TOTPOperations,
+  WebAuthnOperations, SmtpOperations, WhoisOperations,
+  AuditRulesOperations, AuditLogOperations,
+  OAuthOperations, TwoFAOperations,
+
   // 类型
   type QueryResult, TransactionOperations,
-} from './business-adapter';
+} from './bal/business-adapter';
 
 // ==================== 初始化函数 ====================
 export { initSchema, initSchemaAsync } from './schema';
