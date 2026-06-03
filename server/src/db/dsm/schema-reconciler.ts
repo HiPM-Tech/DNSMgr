@@ -518,6 +518,13 @@ export class SchemaReconciler {
   }
 
   private async dropTable(tableName: string): Promise<void> {
+    const dbType = this.getDbType();
+    // For MySQL and PostgreSQL, we need to drop FK constraints that reference
+    // this table before dropping it, otherwise the DROP TABLE will fail with
+    // ER_FK_CANNOT_DROP_PARENT (MySQL) or 2BP01 (PostgreSQL).
+    if (dbType === 'mysql' || dbType === 'postgresql') {
+      await this.dropAllForeignKeys(tableName);
+    }
     await this.conn.execute(`DROP TABLE IF EXISTS ${this.escapeIdentifier(tableName)}`);
   }
 
