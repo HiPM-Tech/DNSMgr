@@ -19,6 +19,7 @@ import { Settings } from './pages/Settings';
 import { Security } from './pages/Security';
 import { Tunnels } from './pages/Tunnels';
 import { Tokens } from './pages/Tokens';
+import { McpManagement } from './pages/McpManagement';
 
 import { About } from './pages/About';
 import { System } from './pages/System';
@@ -58,6 +59,7 @@ function App() {
                         <Route path="dash/domains/:id/records" element={<Records />} />
                         <Route path="dash/tunnels" element={<Tunnels />} />
                         <Route path="dash/tokens" element={<Tokens />} />
+                        <Route path="dash/mcp" element={<McpManagement />} />
                         <Route path="dash/teams" element={<Teams />} />
                         <Route path="dash/settings" element={<Settings />} />
                         <Route path="dash/security" element={<Security />} />

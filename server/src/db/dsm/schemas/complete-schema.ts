@@ -591,6 +591,107 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'idx_schema_versions_system_type', columns: ['system_type'] },
         { name: 'idx_schema_versions_semantic_version', columns: ['semantic_version'] }
       ]
+    },
+    // ========================================
+    // MCP (Model Context Protocol) Tables
+    // ========================================
+    {
+      name: 'mcp_global_config',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'enabled', type: 'boolean', defaultValue: false },
+        { name: 'updated_by', type: 'integer', nullable: true },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      foreignKeys: [
+        { column: 'updated_by', refTable: 'users', refColumn: 'id', onDelete: 'SET NULL' }
+      ]
+    },
+    {
+      name: 'mcp_user_api_keys',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'api_key', type: 'string', length: 512, unique: true, nullable: false },
+        { name: 'description', type: 'string', length: 255, defaultValue: '' },
+        { name: 'last_used_at', type: 'datetime', nullable: true },
+        { name: 'expires_at', type: 'datetime', nullable: true },
+        { name: 'revoked_at', type: 'datetime', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_mcp_api_keys_user_id', columns: ['user_id'] },
+        { name: 'idx_mcp_api_keys_revoked', columns: ['revoked_at'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'mcp_oauth_clients',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'client_id', type: 'string', length: 255, unique: true, nullable: false },
+        { name: 'client_secret', type: 'string', length: 512, nullable: false },
+        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'app_name', type: 'string', length: 255, nullable: false },
+        { name: 'redirect_uris', type: 'json', nullable: false },
+        { name: 'scope', type: 'json', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_mcp_oauth_clients_user_id', columns: ['user_id'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'mcp_oauth_access_tokens',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'access_token', type: 'string', length: 512, unique: true, nullable: false },
+        { name: 'refresh_token', type: 'string', length: 512, unique: true, nullable: false },
+        { name: 'client_id', type: 'string', length: 255, nullable: false },
+        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'scope', type: 'json', nullable: true },
+        { name: 'expires_at', type: 'datetime', nullable: false },
+        { name: 'revoked_at', type: 'datetime', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_mcp_tokens_user_id', columns: ['user_id'] },
+        { name: 'idx_mcp_tokens_expires', columns: ['expires_at'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
+      name: 'mcp_audit_logs',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'auth_type', type: 'string', length: 20, nullable: false },
+        { name: 'client_id', type: 'string', length: 255, nullable: true },
+        { name: 'module', type: 'string', length: 50, nullable: false },
+        { name: 'action', type: 'string', length: 50, nullable: false },
+        { name: 'resource_type', type: 'string', length: 50, nullable: true },
+        { name: 'resource_id', type: 'string', length: 255, nullable: true },
+        { name: 'request_params', type: 'json', nullable: true },
+        { name: 'response_status', type: 'string', length: 20, nullable: true },
+        { name: 'ip_address', type: 'string', length: 45, nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_mcp_audit_user_id', columns: ['user_id'] },
+        { name: 'idx_mcp_audit_module', columns: ['module'] },
+        { name: 'idx_mcp_audit_created_at', columns: ['created_at'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
     }
   ]
 };

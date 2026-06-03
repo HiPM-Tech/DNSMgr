@@ -43,6 +43,7 @@ const primaryItems: NavItem[] = [
   { to: '/dash/accounts', icon: <ServerIcon />, key: 'common.dnsAccounts' },
   { to: '/dash/teams', icon: <UsergroupIcon />, key: 'common.teams' },
   { to: '/dash/tokens', icon: <KeyIcon />, key: 'common.tokens' },
+  { to: '/dash/mcp', icon: <SystemSettingIcon />, key: 'common.mcp' },
 ];
 
 const domainItems: NavItem[] = [

@@ -45,6 +45,9 @@ import tokensRouter from './routes/tokens';
 import nsMonitorRouter from './routes/ns-monitor';
 import networkRouter from './routes/network';
 import rdapRouter from './routes/rdap';
+import mcpConfigRouter from './routes/mcp-config';
+import mcpApiKeysRouter from './routes/mcp-apikeys';
+import mcpOAuthRouter from './routes/mcp-oauth';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
@@ -256,7 +259,7 @@ function initCheckMiddleware(req: Request, res: Response, next: NextFunction) {
 }
 
 // Apply initialization check middleware to protected paths
-const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings', '/api/tokens'];
+const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings', '/api/tokens', '/api/mcp'];
 protectedPaths.forEach(path => {
   app.use(path, initCheckMiddleware);
 });
@@ -283,6 +286,12 @@ app.use('/api/auth/webauthn', webauthnRouter);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/ns-monitor', nsMonitorRouter);
 app.use('/api/network', networkRouter);
+
+// MCP routes
+app.use('/api/mcp/status', mcpConfigRouter); // Public endpoint
+app.use('/api/mcp/config', mcpConfigRouter); // Admin only
+app.use('/api/mcp/api-keys', mcpApiKeysRouter); // Authenticated
+app.use('/api/mcp/oauth', mcpOAuthRouter); // Mixed (some public, some authenticated)
 
 // Logs route
 /**

@@ -22,6 +22,8 @@ export { nsMonitorApi } from './ns-monitor';
 export { networkApi } from './network';
 export { initApi } from './init';
 export type { InitDbConfig, InitDatabaseType } from './init';
+export { mcpApi } from './mcp';
+export type { McpApiKey, McpGlobalConfig, McpAuditLog, McpAuditStats } from './mcp';
 
 // Legacy API exports (deprecated - will be removed after full migration)
 // These are kept for backward compatibility with existing imports

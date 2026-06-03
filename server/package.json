@@ -26,6 +26,7 @@
   },
   "scripts": {
     "dev": "ts-node --files src/app.ts",
+    "mcp": "ts-node --files src/mcp/start.ts",
     "build": "tsc && node scripts/copy-icons.js",
     "start": "node dist/app.js",
     "test": "vitest run",
@@ -48,6 +49,7 @@
     "pkg:all": "npm run pkg:win && npm run pkg:linux && npm run pkg:macos"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@simplewebauthn/server": "^13.3.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.9.0",
@@ -68,6 +70,7 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "ws": "^8.20.0",
+    "zod": "^4.4.3",
     "zxcvbn": "^4.4.2"
   },
   "devDependencies": {

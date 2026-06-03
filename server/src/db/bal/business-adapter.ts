@@ -1,15 +1,15 @@
 /**
  * 数据库业务适配器层 (Database Business Adapter Layer)
  * 
- * 架构层级�?
- * 路由�?�?业务适配器（本文件）�?数据库抽象层 �?数据库驱�?�?数据�?
+ * 架构层级：
+ * 路由 → 业务适配器（本文件）→ 数据库抽象层 → 数据库驱动层 → 数据库
  * 
- * 设计原则�?
+ * 设计原则：
  * 1. 函数式API - 路由层通过简单函数调用使用数据库
- * 2. 单一职责 - 每个函数只处理一个业务操�?
- * 3. 高扩展�?- 新增业务只需添加新函�?
- * 4. 封装隔离 - 数据库变动不影响路由�?
- * 5. 完整日志 - 所有操作都有详细日�?
+ * 2. 单一职责 - 每个函数只处理一个业务操作
+ * 3. 高扩展性 - 新增业务只需添加新函数
+ * 4. 封装隔离 - 数据库变动不影响路由层
+ * 5. 完整日志 - 所有操作都有详细日志
  */
 
 import crypto from 'crypto';
@@ -19,7 +19,7 @@ import { transaction, getConnection } from '../dal/connection';
 import { log } from '../../lib/logger';
 import { DomainQueryBuilder, RenewableDomainQueryBuilder, AccountQueryBuilder, TeamQueryBuilder } from './query-builders';
 
-// 本地 db 对象，避免循环依�?
+// 本地 db 对象，避免循环依赖
 const db = {
   get type() { return process.env.DB_TYPE || 'sqlite'; },
   get isConnected() { 
@@ -59,7 +59,7 @@ const db = {
 /** 查询结果类型 */
 export type QueryResult = Record<string, unknown>;
 
-/** 业务操作上下�?*/
+/** 业务操作上下*/
 interface OperationContext {
   operation: string;
   table?: string;
@@ -68,16 +68,16 @@ interface OperationContext {
 }
 
 // ============================================================================
-// SQL 兼容性辅助函�?
+// SQL 兼容性辅助函
 // ============================================================================
 
 /**
- * 生成 UPSERT SQL 语句（兼�?MySQL/PostgreSQL/SQLite�?
+ * 生成 UPSERT SQL 语句（兼MySQL/PostgreSQL/SQLite
  * @param table 表名
- * @param columns 列名数组（不�?updated_at�?
- * @param values 值数�?
- * @param conflictKey 冲突�?
- * @param updateColumns 需要更新的列（不含 updated_at�?
+ * @param columns 列名数组（不updated_at
+ * @param values 值数
+ * @param conflictKey 冲突
+ * @param updateColumns 需要更新的列（不含 updated_at
  */
 function buildUpsertSql(
   table: string,
@@ -88,7 +88,7 @@ function buildUpsertSql(
 ): { sql: string; params: unknown[] } {
   const dbType = getDbType();
   
-  // 添加 updated_at �?
+  // 添加 updated_at 
   const allColumns = [...columns, 'updated_at'];
   
   if (dbType === 'mysql') {
@@ -132,7 +132,7 @@ function buildUpsertSql(
 // 日志系统 - 使用统一日志模块
 // ============================================================================
 
-/** 创建操作日志上下�?*/
+/** 创建操作日志上下*/
 function createOperationLogger(context: OperationContext) {
   return {
     start: () => log.debug('BusinessAdapter', `Starting ${context.operation}`, { table: context.table, userId: context.userId }),
@@ -144,21 +144,21 @@ function createOperationLogger(context: OperationContext) {
 }
 
 // ============================================================================
-// 底层数据库操作（内部使用�?
+// 底层数据库操作（内部使用
 // ============================================================================
 
-/** SQL处理�?*/
+/** SQL处理*/
 function processSql(sql: string, dbType: string): string {
   const originalSql = sql;
 
-  // MySQL 兼容性处�?
+  // MySQL 兼容性处
   if (dbType === 'mysql') {
-    // 1. 先处�?ON CONFLICT 转换（在关键字转义之前）
+    // 1. 先处ON CONFLICT 转换（在关键字转义之前）
     // 匹配: ON CONFLICT(...) DO UPDATE SET col = excluded.col, ...
     sql = sql.replace(
       /ON\s+CONFLICT\s*\([^)]+\)\s*DO\s+UPDATE\s+SET\s+(.+?)(?:\s*$|\s+(?=RETURNING|WHERE|ORDER|LIMIT|OFFSET))/i,
       (match, updateClause) => {
-        // 转换 excluded.col �?VALUES(col)
+        // 转换 excluded.col VALUES(col)
         const mysqlUpdateClause = updateClause.replace(
           /excluded\.([a-zA-Z_][a-zA-Z0-9_]*)/gi,
           'VALUES($1)'
@@ -167,12 +167,12 @@ function processSql(sql: string, dbType: string): string {
       }
     );
 
-    // 2. 转义保留关键字（仅转义作为标识符的关键字�?
-    // 注意：跳过已经转义的、在 ON DUPLICATE KEY UPDATE 中的、以�?SQL 关键字上下文中的
+    // 2. 转义保留关键字（仅转义作为标识符的关键字
+    // 注意：跳过已经转义的、在 ON DUPLICATE KEY UPDATE 中的、以SQL 关键字上下文中的
     const keywords = ['key', 'value'];
     keywords.forEach(keyword => {
       // 匹配未转义的关键字：前面不是反引号，后面也不是反引号
-      // 使用 lookbehind �?lookahead 来确保关键字没有被反引号包围
+      // 使用 lookbehind lookahead 来确保关键字没有被反引号包围
       const regex = new RegExp(`(?<!\x60)\\b${keyword}\\b(?!\x60)`, 'gi');
       sql = sql.replace(regex, (match, offset) => {
         const upperSql = sql.toUpperCase();
@@ -206,7 +206,7 @@ function processSql(sql: string, dbType: string): string {
   return sql;
 }
 
-/** 执行查询并返回多行（内部�?*/
+/** 执行查询并返回多行（内部*/
 async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], context?: OperationContext): Promise<T[]> {
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
@@ -236,7 +236,7 @@ async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], c
   }
 }
 
-/** 执行查询并返回单行（内部�?*/
+/** 执行查询并返回单行（内部*/
 async function getInternal<T = QueryResult>(sql: string, params?: unknown[], context?: OperationContext): Promise<T | undefined> {
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
@@ -322,7 +322,7 @@ async function insertInternal(sql: string, params?: unknown[], context?: Operati
   }
 }
 
-/** 执行UPDATE/DELETE并返回影响行数（内部�?*/
+/** 执行UPDATE/DELETE并返回影响行数（内部*/
 async function runInternal(sql: string, params?: unknown[], context?: OperationContext): Promise<{ changes: number }> {
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
@@ -355,12 +355,12 @@ async function runInternal(sql: string, params?: unknown[], context?: OperationC
 // 通用数据库操作（可直接使用）
 // ============================================================================
 
-/** 执行查询并返回多�?*/
+/** 执行查询并返回多*/
 export async function query<T = QueryResult>(sql: string, params?: unknown[]): Promise<T[]> {
   return queryInternal<T>(sql, params, { operation: 'query' });
 }
 
-/** 执行查询并返回单�?*/
+/** 执行查询并返回单*/
 export async function get<T = QueryResult>(sql: string, params?: unknown[]): Promise<T | undefined> {
   return getInternal<T>(sql, params, { operation: 'get' });
 }
@@ -375,7 +375,7 @@ export async function insert(sql: string, params?: unknown[]): Promise<number> {
   return insertInternal(sql, params, { operation: 'insert' });
 }
 
-/** 执行UPDATE/DELETE并返回影响行�?*/
+/** 执行UPDATE/DELETE并返回影响行*/
 export async function run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
   return runInternal(sql, params, { operation: 'run' });
 }
@@ -387,7 +387,7 @@ export function now(): string {
 }
 
 /**
- * 将日期格式化为数据库兼容的格�?(YYYY-MM-DD HH:mm:ss)
+ * 将日期格式化为数据库兼容的格(YYYY-MM-DD HH:mm:ss)
  * 根据数据库类型自动转换格式：
  * - MySQL: YYYY-MM-DD HH:mm:ss
  * - SQLite: ISO 8601 格式
@@ -396,7 +396,7 @@ export function now(): string {
 export function formatDateForDB(date: Date): string {
   const dbType = getDbType();
   if (dbType === 'mysql') {
-    // MySQL 需�?YYYY-MM-DD HH:mm:ss 格式
+    // MySQL 需YYYY-MM-DD HH:mm:ss 格式
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -405,16 +405,16 @@ export function formatDateForDB(date: Date): string {
     const seconds = String(date.getSeconds()).padStart(2, '0');
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   }
-  // SQLite �?PostgreSQL 支持 ISO 8601
+  // SQLite PostgreSQL 支持 ISO 8601
   return date.toISOString();
 }
 
-/** 获取数据库类�?*/
+/** 获取数据库类*/
 export function getDbType(): string {
   return db.type;
 }
 
-/** 检查数据库是否已连�?*/
+/** 检查数据库是否已连*/
 export function isDbConnected(): boolean {
   return db.isConnected;
 }
@@ -433,7 +433,7 @@ export const UserOperations = {
     );
   },
 
-  /** 根据用户名获取用户完整信�?*/
+  /** 根据用户名获取用户完整信*/
   async getByUsername(username: string): Promise<QueryResult | undefined> {
     return getInternal(
       'SELECT id, username, nickname, email, password_hash, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users WHERE username = ?',
@@ -460,7 +460,7 @@ export const UserOperations = {
     );
   },
 
-  /** 获取所有用�?*/
+  /** 获取所有用*/
   async getAll(): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT id, username, nickname, email, role_level as role, role_level, role as role_name, status, created_at, updated_at FROM users ORDER BY id',
@@ -524,7 +524,7 @@ export const DnsAccountOperations = {
     return getInternal('SELECT * FROM dns_accounts WHERE id = ?', [id], { operation: 'DnsAccount.getById', table: 'dns_accounts' });
   },
 
-  /** 获取所有账�?*/
+  /** 获取所有账*/
   async getAll(): Promise<QueryResult[]> {
     return queryInternal('SELECT * FROM dns_accounts ORDER BY id', [], { operation: 'DnsAccount.getAll', table: 'dns_accounts' });
   },
@@ -580,7 +580,7 @@ export const DnsAccountOperations = {
     return executeInternal('DELETE FROM dns_accounts WHERE id = ?', [id], { operation: 'DnsAccount.delete', table: 'dns_accounts' });
   },
 
-  /** 获取账号的创建�?*/
+  /** 获取账号的创建*/
   async getCreatedBy(id: number): Promise<number | undefined> {
     const result = await getInternal<{ created_by: number }>(
       'SELECT created_by FROM dns_accounts WHERE id = ?',
@@ -599,7 +599,7 @@ export const DnsAccountOperations = {
     );
   },
 
-  /** 根据类型和用户获取账�?*/
+  /** 根据类型和用户获取账*/
   async getByTypeAndUser(type: string, userId: number): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT * FROM dns_accounts WHERE type = ? AND created_by = ?',
@@ -618,7 +618,7 @@ export const DnsAccountOperations = {
     );
   },
 
-  /** 更新账号启用状�?*/
+  /** 更新账号启用状*/
   async updateEnabled(id: number, enabled: boolean): Promise<void> {
     await executeInternal(
       'UPDATE dns_accounts SET enabled = ? WHERE id = ?',
@@ -652,7 +652,7 @@ export const DomainOperations = {
     );
   },
 
-  /** 获取所有域�?*/
+  /** 获取所有域*/
   async getAll(): Promise<QueryResult[]> {
     return queryInternal('SELECT * FROM domains ORDER BY id', [], { operation: 'Domain.getAll', table: 'domains' });
   },
@@ -666,7 +666,7 @@ export const DomainOperations = {
     );
   },
 
-  /** 根据ID列表获取域名（用于Token认证优化�?*/
+  /** 根据ID列表获取域名（用于Token认证优化*/
   async getByIds(ids: number[], options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
     if (ids.length === 0) return [];
 
@@ -676,7 +676,7 @@ export const DomainOperations = {
     return queryInternal(sql, params, { operation: 'Domain.getByIds', table: 'domains' });
   },
 
-  /** 获取所有域名（用于超级管理员Token认证�?*/
+  /** 获取所有域名（用于超级管理员Token认证*/
   async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
     const builder = DomainQueryBuilder.forSuperAdmin(options);
     const { sql, params } = builder.build();
@@ -684,13 +684,13 @@ export const DomainOperations = {
     return queryInternal(sql, params, { operation: 'Domain.getAllForSuperAdmin', table: 'domains' });
   },
 
-  /** 获取所有域名（带分页和过滤，用于高性能场景�?*/
+  /** 获取所有域名（带分页和过滤，用于高性能场景*/
   async getAllForSuperAdminWithPagination(options: {
     accountId?: number;
     keyword?: string;
     domainStatus?: 'enabled' | 'disabled' | 'all';
     domainType?: 'apex' | 'subdomain';
-    pinnedDomainIds?: number[];  // �?新增：置顶域�?ID 列表
+    pinnedDomainIds?: number[];  // 新增：置顶域ID 列表
     page: number;
     pageSize: number;
   }): Promise<{ list: QueryResult[]; total: number }> {
@@ -735,7 +735,7 @@ export const DomainOperations = {
         const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
         orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
       } else {
-        // SQLite: 使用 CASE WHEN（与 PostgreSQL 相同�?
+        // SQLite: 使用 CASE WHEN（与 PostgreSQL 相同
         const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
         orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
       }
@@ -754,7 +754,7 @@ export const DomainOperations = {
     // 查询分页数据
     const offset = (page - 1) * pageSize;
     
-    // 移除原有�?ORDER BY，添加置顶排�?
+    // 移除原有ORDER BY，添加置顶排
     const baseSqlWithoutOrderBy = baseSql.replace(/\s+ORDER\s+BY\s+[^)]+$/i, '');
     
     // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
@@ -849,7 +849,7 @@ export const DomainOperations = {
     );
   },
 
-  /** 更新域名的备注和隐藏状�?*/
+  /** 更新域名的备注和隐藏状*/
   async updateRemarkAndHidden(id: number, remark?: string, isHidden?: number): Promise<void> {
     const updates: string[] = [];
     const params: unknown[] = [];
@@ -864,7 +864,7 @@ export const DomainOperations = {
     );
   },
 
-  /** 获取用户可访问的域名列表（带过滤�?*/
+  /** 获取用户可访问的域名列表（带过滤*/
   async getAccessibleDomains(params: {
     userId: number;
     teamIds: number[];
@@ -894,7 +894,7 @@ export const DomainOperations = {
     });
   },
 
-  /** 获取用户可访问的域名列表（带分页和过滤，用于高性能场景�?*/
+  /** 获取用户可访问的域名列表（带分页和过滤，用于高性能场景*/
   async getAccessibleDomainsWithPagination(params: {
     userId: number;
     teamIds: number[];
@@ -902,7 +902,7 @@ export const DomainOperations = {
     keyword?: string;
     domainStatus?: 'enabled' | 'disabled' | 'all';
     domainType?: 'apex' | 'subdomain';
-    pinnedDomainIds?: number[];  // �?新增：置顶域�?ID 列表
+    pinnedDomainIds?: number[];  // 新增：置顶域ID 列表
     page: number;
     pageSize: number;
   }): Promise<{ list: QueryResult[]; total: number }> {
@@ -949,7 +949,7 @@ export const DomainOperations = {
         const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
         orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
       } else {
-        // SQLite: 使用 CASE WHEN（与 PostgreSQL 相同�?
+        // SQLite: 使用 CASE WHEN（与 PostgreSQL 相同
         const caseWhen = pinnedDomainIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ');
         orderByClause = `(CASE d.id ${caseWhen} ELSE ${pinnedDomainIds.length} END) ASC, d.id ASC`;
       }
@@ -993,7 +993,7 @@ export const DomainOperations = {
     return !!result;
   },
 
-  /** 设置域名的启用状�?*/
+  /** 设置域名的启用状*/
   async setEnabled(id: number, enabled: number): Promise<void> {
     await executeInternal(
       'UPDATE domains SET enabled = ? WHERE id = ?',
@@ -1002,7 +1002,7 @@ export const DomainOperations = {
     );
   },
 
-  /** 获取用户可访问的域名列表（用于令牌创建，只显示启用账号的域名�?*/
+  /** 获取用户可访问的域名列表（用于令牌创建，只显示启用账号的域名*/
   async getUserAccessibleDomains(userId: number): Promise<QueryResult[]> {
     return queryInternal(
       `SELECT d.id, d.name, da.name as account_name
@@ -1052,12 +1052,12 @@ export const TeamOperations = {
     return getInternal('SELECT * FROM teams WHERE id = ?', [id], { operation: 'Team.getById', table: 'teams' });
   },
 
-  /** 获取所有团�?*/
+  /** 获取所有团*/
   async getAll(): Promise<QueryResult[]> {
     return queryInternal('SELECT * FROM teams ORDER BY id', [], { operation: 'Team.getAll', table: 'teams' });
   },
 
-  /** 获取用户所属团�?*/
+  /** 获取用户所属团*/
   async getByUserId(userId: number): Promise<QueryResult[]> {
     return queryInternal(
       `SELECT t.* FROM teams t
@@ -1117,7 +1117,7 @@ export const TeamOperations = {
     );
   },
 
-  /** 检查用户是否在团队�?*/
+  /** 检查用户是否在团队*/
   async isMember(teamId: number, userId: number): Promise<boolean> {
     const result = await getInternal<{ id: number }>(
       'SELECT id FROM team_members WHERE team_id = ? AND user_id = ?',
@@ -1170,7 +1170,7 @@ export const TeamOperations = {
 // ============================================================================
 
 export const SettingsOperations = {
-  /** 获取设置�?*/
+  /** 获取设置*/
   async get(key: string): Promise<string | undefined> {
     const result = await getInternal<{ value: string }>(
       'SELECT value FROM system_settings WHERE key = ?',
@@ -1180,7 +1180,7 @@ export const SettingsOperations = {
     return result?.value;
   },
 
-  /** 设置�?*/
+  /** 设置*/
   async set(key: string, value: string): Promise<void> {
     const { sql, params } = buildUpsertSql(
       'system_settings',
@@ -1204,7 +1204,7 @@ export const SettingsOperations = {
     }
   },
 
-  /** 设置JSON�?*/
+  /** 设置JSON*/
   async setJson(key: string, value: unknown): Promise<void> {
     return this.set(key, JSON.stringify(value));
   },
@@ -1241,7 +1241,7 @@ export const AuditOperations = {
     
     sql += ' ORDER BY created_at DESC';
     
-    // MySQL �?LIMIT/OFFSET 需要直接嵌入数�?
+    // MySQL LIMIT/OFFSET 需要直接嵌入数
     const dbType = getDbType();
     if (options.limit) {
       if (dbType === 'mysql') {
@@ -1328,7 +1328,7 @@ export const DomainExpiryOperations = {
 // ============================================================================
 
 export const TwoFAOperations = {
-  /** 获取用户�?2FA 配置 */
+  /** 获取用户2FA 配置 */
   async getByUserIdAndType(userId: number, type: string): Promise<QueryResult | undefined> {
     return getInternal(
       'SELECT * FROM user_2fa WHERE user_id = ? AND type = ?',
@@ -1357,7 +1357,7 @@ export const TwoFAOperations = {
     return result?.secret;
   },
 
-  /** 创建或更�?2FA 配置 */
+  /** 创建或更2FA 配置 */
   async upsert(data: { user_id: number; type: string; secret?: string; enabled?: boolean }): Promise<void> {
     const { sql, params } = buildUpsertSql(
       'user_2fa',
@@ -1384,7 +1384,7 @@ export const TwoFAOperations = {
 // ============================================================================
 
 export const OAuthOperations = {
-  /** 根据 provider �?subject 获取用户链接 */
+  /** 根据 provider subject 获取用户链接 */
   async getByProviderSubject(provider: string, subject: string): Promise<QueryResult | undefined> {
     return getInternal(
       'SELECT * FROM oauth_user_links WHERE provider = ? AND subject = ?',
@@ -1393,7 +1393,7 @@ export const OAuthOperations = {
     );
   },
 
-  /** 根据 provider �?subject 获取用户完整信息（包�?JOIN users�?*/
+  /** 根据 provider subject 获取用户完整信息（包JOIN users*/
   async getUserByProviderSubject(provider: string, subject: string): Promise<QueryResult | undefined> {
     return getInternal(
       `SELECT l.user_id, u.id, u.username, u.nickname, u.email, u.role_level as role, u.role_level, u.role as role_name, u.status
@@ -1405,7 +1405,7 @@ export const OAuthOperations = {
     );
   },
 
-  /** 获取用户的所�?OAuth 绑定 */
+  /** 获取用户的所OAuth 绑定 */
   async getByUserId(userId: number): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT provider, subject, email, created_at FROM oauth_user_links WHERE user_id = ? ORDER BY id DESC',
@@ -1437,7 +1437,7 @@ export const OAuthOperations = {
   // ============================================================================
 
   /**
-   * 将日期格式化为数据库兼容的格�?(YYYY-MM-DD HH:mm:ss)
+   * 将日期格式化为数据库兼容的格(YYYY-MM-DD HH:mm:ss)
    */
   formatDateForDB(date: Date): string {
     const year = date.getFullYear();
@@ -1467,7 +1467,7 @@ export const OAuthOperations = {
     );
   },
 
-  /** 获取并删�?OAuth state（一次性使用） */
+  /** 获取并删OAuth state（一次性使用） */
   async getAndDeleteState(state: string): Promise<{ mode: 'login' | 'bind'; provider: 'custom' | 'logto'; userId: number | null; expiresAt: Date } | undefined> {
     const result = await getInternal<{ mode: string; provider: string; user_id: number | null; expires_at: string }>(
       'SELECT mode, provider, user_id, expires_at FROM oauth_states WHERE state = ?',
@@ -1498,7 +1498,7 @@ export const OAuthOperations = {
     };
   },
 
-  /** 清理过期�?OAuth states */
+  /** 清理过期OAuth states */
   async cleanupExpiredStates(): Promise<number> {
     const expiresStr = this.formatDateForDB(new Date());
     const result = await runInternal(
@@ -1520,7 +1520,7 @@ export const TokenOperations = {
     return getInternal('SELECT * FROM user_tokens WHERE id = ?', [id], { operation: 'Token.getById', table: 'user_tokens' });
   },
 
-  /** 获取用户的所有令�?*/
+  /** 获取用户的所有令*/
   async getByUserId(userId: number): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT * FROM user_tokens WHERE user_id = ? ORDER BY created_at DESC',
@@ -1552,7 +1552,7 @@ export const TokenOperations = {
     );
   },
 
-  /** 更新令牌状�?*/
+  /** 更新令牌状*/
   async updateStatus(id: number, isActive: boolean): Promise<void> {
     return executeInternal(
       'UPDATE user_tokens SET is_active = ? WHERE id = ?',
@@ -1561,7 +1561,7 @@ export const TokenOperations = {
     );
   },
 
-  /** 更新最后使用时�?*/
+  /** 更新最后使用时*/
   async updateLastUsed(id: number): Promise<void> {
     return executeInternal(
       'UPDATE user_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -1575,7 +1575,7 @@ export const TokenOperations = {
     return executeInternal('DELETE FROM user_tokens WHERE id = ?', [id], { operation: 'Token.delete', table: 'user_tokens' });
   },
 
-  /** 删除指定用户的令�?*/
+  /** 删除指定用户的令*/
   async deleteByUser(tokenId: number, userId: number): Promise<void> {
     return executeInternal(
       'DELETE FROM user_tokens WHERE id = ? AND user_id = ?',
@@ -1593,7 +1593,7 @@ export const TokenOperations = {
     );
   },
 
-  /** 更新令牌权限（带用户验证�?*/
+  /** 更新令牌权限（带用户验证*/
   async updateByUser(
     tokenId: number,
     userId: number,
@@ -1648,7 +1648,7 @@ export const TokenOperations = {
 // ============================================================================
 
 export const DomainPermissionOperations = {
-  /** 获取域名的所有权限规�?*/
+  /** 获取域名的所有权限规*/
   async getByDomainId(domainId: number): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT * FROM domain_permissions WHERE domain_id = ?',
@@ -1657,7 +1657,7 @@ export const DomainPermissionOperations = {
     );
   },
 
-  /** 获取用户的域名权�?*/
+  /** 获取用户的域名权*/
   async getByDomainAndUser(domainId: number, userId: number): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT permission, sub FROM domain_permissions WHERE domain_id = ? AND user_id = ?',
@@ -1666,7 +1666,7 @@ export const DomainPermissionOperations = {
     );
   },
 
-  /** 获取用户的团队域名权�?*/
+  /** 获取用户的团队域名权*/
   async getByDomainAndTeamMember(domainId: number, userId: number): Promise<QueryResult[]> {
     return queryInternal(
       `SELECT dp.permission, dp.sub
@@ -1708,7 +1708,7 @@ export const DomainPermissionOperations = {
     return executeInternal('DELETE FROM domain_permissions WHERE id = ?', [id], { operation: 'DomainPermission.delete', table: 'domain_permissions' });
   },
 
-  /** 删除域名的所有权�?*/
+  /** 删除域名的所有权*/
   async deleteByDomainId(domainId: number): Promise<void> {
     return executeInternal(
       'DELETE FROM domain_permissions WHERE domain_id = ?',
@@ -1717,7 +1717,7 @@ export const DomainPermissionOperations = {
     );
   },
 
-  /** 获取团队的域名权限列�?*/
+  /** 获取团队的域名权限列*/
   async getByTeamId(teamId: number): Promise<QueryResult[]> {
     return queryInternal(
       `SELECT dp.*, d.name as domain_name
@@ -1799,7 +1799,7 @@ export const RecordOperations = {
     return getInternal('SELECT * FROM records WHERE id = ?', [id], { operation: 'Record.getById', table: 'records' });
   },
 
-  /** 获取域名的所有记�?*/
+  /** 获取域名的所有记*/
   async getByDomainId(domainId: number): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT * FROM records WHERE domain_id = ? ORDER BY id',
@@ -1845,7 +1845,7 @@ export const RecordOperations = {
     return executeInternal('DELETE FROM records WHERE id = ?', [id], { operation: 'Record.delete', table: 'records' });
   },
 
-  /** 删除域名的所有记�?*/
+  /** 删除域名的所有记*/
   async deleteByDomainId(domainId: number): Promise<void> {
     return executeInternal(
       'DELETE FROM records WHERE domain_id = ?',
@@ -1860,7 +1860,7 @@ export const RecordOperations = {
 // ============================================================================
 
 export const EmailTemplateOperations = {
-  /** 获取所有模�?*/
+  /** 获取所有模*/
   async getAll(): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT * FROM email_templates ORDER BY id',
@@ -1940,7 +1940,7 @@ export async function withTransaction<T>(fn: (trx: TransactionOperations) => Pro
   }
 }
 
-/** 事务操作�?*/
+/** 事务操作*/
 export class TransactionOperations {
   private trx: {
     query: <T>(sql: string, params?: unknown[]) => Promise<T[]>;
@@ -1990,7 +1990,7 @@ export class TransactionOperations {
 // ============================================================================
 
 export const SystemOperations = {
-  /** 获取数据库信息（版本、驱动等�?*/
+  /** 获取数据库信息（版本、驱动等*/
   async getDatabaseInfo(): Promise<{ type: string; version: string; driverVersion: string }> {
     const conn = getConnection();
 
@@ -2166,7 +2166,7 @@ export const SystemOperations = {
   },
 
   /**
-   * 统一测试数据库连接（根据类型自动选择�?
+   * 统一测试数据库连接（根据类型自动选择
    * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
    */
   async testConnection(config: { 
@@ -2189,11 +2189,11 @@ export const SystemOperations = {
 };
 
 // ============================================================================
-// 运行时密钥业务操�?
+// 运行时密钥业务操
 // ============================================================================
 
 export const SecretOperations = {
-  /** 获取运行时密�?*/
+  /** 获取运行时密*/
   async getRuntimeSecret(key: string): Promise<string | undefined> {
     const dbType = getDbType();
     const sql = dbType === 'mysql'
@@ -2237,7 +2237,7 @@ export const SecretOperations = {
     );
   },
 
-  /** 设置运行时密�?*/
+  /** 设置运行时密*/
   async setRuntimeSecret(key: string, value: string): Promise<void> {
     const dbType = getDbType();
     let sql: string;
@@ -2264,7 +2264,7 @@ export const SecretOperations = {
     );
   },
 
-  /** 轮换运行时密�?*/
+  /** 轮换运行时密*/
   async rotateRuntimeSecrets(): Promise<void> {
     try {
       const jwtRuntimeSecret = crypto.randomBytes(32).toString('hex');
@@ -2337,7 +2337,7 @@ export const SecurityPolicyOperations = {
     );
   },
 
-  /** 初始化默认安全策�?*/
+  /** 初始化默认安全策*/
   async initPolicy(values: unknown[]): Promise<void> {
     return executeInternal(
       `INSERT INTO security_policies (
@@ -2350,7 +2350,7 @@ export const SecurityPolicyOperations = {
     );
   },
 
-  /** 检查策略是否存�?*/
+  /** 检查策略是否存*/
   async exists(): Promise<boolean> {
     const result = await getInternal<{ cnt: number }>(
       'SELECT COUNT(*) as cnt FROM security_policies',
@@ -2411,11 +2411,11 @@ export const SecurityPolicyOperations = {
 };
 
 // ============================================================================
-// 受信任设备业务操�?
+// 受信任设备业务操
 // ============================================================================
 
 export const TrustedDeviceOperations = {
-  /** 添加受信任设�?*/
+  /** 添加受信任设*/
   async add(deviceId: string, userId: number, deviceName: string, fingerprint: string, userAgent: string, ipAddress: string, expiresAt: string): Promise<void> {
     return executeInternal(
       `INSERT INTO trusted_devices (id, user_id, device_name, device_fingerprint, user_agent, ip_address, expires_at)
@@ -2434,7 +2434,7 @@ export const TrustedDeviceOperations = {
     );
   },
 
-  /** 更新最后使用时�?*/
+  /** 更新最后使用时*/
   async updateLastUsed(deviceId: string): Promise<void> {
     return executeInternal(
       'UPDATE trusted_devices SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -2452,7 +2452,7 @@ export const TrustedDeviceOperations = {
     );
   },
 
-  /** 删除用户的所有设�?*/
+  /** 删除用户的所有设*/
   async deleteByUser(userId: number): Promise<void> {
     return executeInternal(
       'DELETE FROM trusted_devices WHERE user_id = ?',
@@ -2461,7 +2461,7 @@ export const TrustedDeviceOperations = {
     );
   },
 
-  /** 获取用户的所有设�?*/
+  /** 获取用户的所有设*/
   async getByUser(userId: number): Promise<QueryResult[]> {
     return queryInternal(
       `SELECT id, user_id as userId, device_name as deviceName, device_fingerprint as deviceFingerprint,
@@ -2483,7 +2483,7 @@ export const TrustedDeviceOperations = {
     return result.changes || 0;
   },
 
-  /** 删除指定用户的设�?*/
+  /** 删除指定用户的设*/
   async deleteByUserAndId(userId: number, deviceId: string): Promise<number> {
     const result = await runInternal(
       'DELETE FROM trusted_devices WHERE id = ? AND user_id = ?',
@@ -2550,7 +2550,7 @@ export const UserPreferencesOperations = {
     );
   },
 
-  /** 获取用户置顶的域名列�?*/
+  /** 获取用户置顶的域名列*/
   async getPinnedDomains(userId: number): Promise<number[]> {
     try {
       const result = await getInternal(
@@ -2563,25 +2563,25 @@ export const UserPreferencesOperations = {
         return [];
       }
 
-      // MySQL JSON 类型直接返回数组，SQLite/PostgreSQL 返回字符�?
+      // MySQL JSON 类型直接返回数组，SQLite/PostgreSQL 返回字符
       const pinnedDomains = result.pinned_domains;
       if (Array.isArray(pinnedDomains)) {
         return pinnedDomains;
       }
-      // 如果是字符串，解�?JSON
+      // 如果是字符串，解JSON
       if (typeof pinnedDomains === 'string') {
         const parsed = JSON.parse(pinnedDomains);
         return Array.isArray(parsed) ? parsed : [];
       }
       return [];
     } catch (error) {
-      // 表或字段不存在时返回空数�?
+      // 表或字段不存在时返回空数
       log.warn('UserPreferences', 'Failed to get pinned domains, returning empty array', { userId, error });
       return [];
     }
   },
 
-  /** 更新用户置顶的域名列�?*/
+  /** 更新用户置顶的域名列*/
   async updatePinnedDomains(userId: number, domainIds: number[]): Promise<void> {
     const pinnedDomainsJson = JSON.stringify(domainIds);
     
@@ -2634,7 +2634,7 @@ export const SessionOperations = {
     );
   },
 
-  /** 获取用户的活跃会�?*/
+  /** 获取用户的活跃会*/
   async getActiveByUser(userId: number, nowTime: string): Promise<QueryResult[]> {
     return queryInternal(
       `SELECT id, user_id, token, ip_address, user_agent, created_at, last_activity_at, expires_at
@@ -2662,7 +2662,7 @@ export const SessionOperations = {
     );
   },
 
-  /** 删除用户的其他会�?*/
+  /** 删除用户的其他会*/
   async deleteOthers(userId: number, currentSessionId: string): Promise<void> {
     return executeInternal(
       'DELETE FROM user_sessions WHERE user_id = ? AND id != ?',
@@ -2671,7 +2671,7 @@ export const SessionOperations = {
     );
   },
 
-  /** 删除用户的所有会�?*/
+  /** 删除用户的所有会*/
   async deleteByUser(userId: number): Promise<void> {
     return executeInternal(
       'DELETE FROM user_sessions WHERE user_id = ?',
@@ -2772,7 +2772,7 @@ export const LoginLimitOperations = {
     return result?.cnt || 0;
   },
 
-  /** 获取最近尝试数�?*/
+  /** 获取最近尝试数*/
   async getRecentCount(yesterdayExpr: string): Promise<number> {
     const result = await getInternal<{ cnt: number }>(
       `SELECT COUNT(*) as cnt FROM login_attempts WHERE last_attempt_at > ${yesterdayExpr}`,
@@ -2782,7 +2782,7 @@ export const LoginLimitOperations = {
     return result?.cnt || 0;
   },
 
-  /** 获取尝试次数最多的标识�?*/
+  /** 获取尝试次数最多的标识*/
   async getTopIdentifiers(): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT identifier, attempt_count as attempts FROM login_attempts ORDER BY attempt_count DESC LIMIT 10',
@@ -2859,7 +2859,7 @@ export const FailoverOperations = {
     );
   },
 
-  /** 获取容灾状�?*/
+  /** 获取容灾状*/
   async getStatus(configId: number): Promise<QueryResult | undefined> {
     return getInternal(
       'SELECT * FROM failover_status WHERE config_id = ?',
@@ -2868,7 +2868,7 @@ export const FailoverOperations = {
     );
   },
 
-  /** 更新容灾状�?*/
+  /** 更新容灾状*/
   async updateStatus(configId: number, updates: Record<string, unknown>): Promise<void> {
     const fields = Object.keys(updates);
     if (fields.length === 0) return;
@@ -2881,7 +2881,7 @@ export const FailoverOperations = {
     );
   },
 
-  /** 初始化容灾状�?*/
+  /** 初始化容灾状*/
   async initStatus(configId: number, primaryIp: string): Promise<void> {
     return executeInternal(
       `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, fail_count, switch_count)
@@ -2891,7 +2891,7 @@ export const FailoverOperations = {
     );
   },
 
-  /** 更新检查状�?(SQLite) */
+  /** 更新检查状(SQLite) */
   async updateCheckStatusSQLite(configId: number, currentIp: string, isPrimary: number, isHealthy: number): Promise<void> {
     return executeInternal(
       `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, switch_count)
@@ -2903,7 +2903,7 @@ export const FailoverOperations = {
     );
   },
 
-  /** 更新检查状�?(MySQL) */
+  /** 更新检查状(MySQL) */
   async updateCheckStatusMySQL(configId: number, currentIp: string, isPrimary: number, isHealthy: number): Promise<void> {
     return executeInternal(
       `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, switch_count)
@@ -2915,7 +2915,7 @@ export const FailoverOperations = {
     );
   },
 
-  /** 更新检查状�?(PostgreSQL) */
+  /** 更新检查状(PostgreSQL) */
   async updateCheckStatusPostgreSQL(configId: number, currentIp: string, isPrimary: number, isHealthy: number): Promise<void> {
     return executeInternal(
       `INSERT INTO failover_status (config_id, current_ip, is_primary, last_check_time, last_check_result, switch_count)
@@ -2965,7 +2965,7 @@ export const AuditExportOperations = {
     return queryInternal(finalSql, finalParams, { operation: 'AuditExport.getLogs', table: 'operation_logs' });
   },
 
-  /** 检测异�?- 删除操作 */
+  /** 检测异- 删除操作 */
   async getDeleteCount(userId: number, timeWindow: string): Promise<number> {
     const result = await getInternal<{ cnt: number }>(
       'SELECT COUNT(*) as cnt FROM operation_logs WHERE user_id = ? AND action LIKE \'%delete%\' AND created_at > ?',
@@ -2975,7 +2975,7 @@ export const AuditExportOperations = {
     return result?.cnt || 0;
   },
 
-  /** 检测异�?- 创建操作 */
+  /** 检测异- 创建操作 */
   async getCreateCount(userId: number, timeWindow: string): Promise<number> {
     const result = await getInternal<{ cnt: number }>(
       'SELECT COUNT(*) as cnt FROM operation_logs WHERE user_id = ? AND action LIKE \'%create%\' AND created_at > ?',
@@ -2985,7 +2985,7 @@ export const AuditExportOperations = {
     return result?.cnt || 0;
   },
 
-  /** 检测异�?- 域名数量 */
+  /** 检测异- 域名数量 */
   async getDomainCount(userId: number, timeWindow: string): Promise<number> {
     const result = await getInternal<{ cnt: number }>(
       'SELECT COUNT(DISTINCT domain) as cnt FROM operation_logs WHERE user_id = ? AND created_at > ?',
@@ -3087,7 +3087,7 @@ export const TOTPOperations = {
     );
   },
 
-  /** 验证备用�?*/
+  /** 验证备用*/
   async verifyBackupCode(userId: number, enabledValue: number | boolean): Promise<QueryResult | undefined> {
     return getInternal(
       'SELECT backup_codes FROM user_2fa WHERE user_id = ? AND type = ? AND enabled = ?',
@@ -3096,7 +3096,7 @@ export const TOTPOperations = {
     );
   },
 
-  /** 更新备用�?*/
+  /** 更新备用*/
   async updateBackupCodes(userId: number, codes: string): Promise<void> {
     return executeInternal(
       'UPDATE user_2fa SET backup_codes = ? WHERE user_id = ? AND type = ?',
@@ -3111,7 +3111,7 @@ export const TOTPOperations = {
 // ============================================================================
 
 export const WebAuthnOperations = {
-  /** 获取用户�?WebAuthn 凭证 */
+  /** 获取用户WebAuthn 凭证 */
   async getByUser(userId: number): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT * FROM webauthn_credentials WHERE user_id = ?',
@@ -3162,7 +3162,7 @@ export const WebAuthnOperations = {
     );
   },
 
-  /** 更新凭证计数�?*/
+  /** 更新凭证计数*/
   async updateCounter(id: string, counter: number): Promise<void> {
     return executeInternal(
       `UPDATE webauthn_credentials SET counter = ?, last_used_at = ${now()} WHERE id = ?`,
@@ -3240,7 +3240,7 @@ export const SmtpOperations = {
 // ============================================================================
 
 export const WhoisOperations = {
-  /** 获取所有域�?*/
+  /** 获取所有域*/
   async getAllDomains(): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT id, name, account_id FROM domains',
@@ -3286,7 +3286,7 @@ export const WhoisOperations = {
     );
   },
 
-  /** 获取域名过期阈�?*/
+  /** 获取域名过期阈*/
   async getExpiryDays(): Promise<QueryResult | undefined> {
     return getInternal(
       "SELECT value FROM system_settings WHERE key = 'domain_expiry_days'",
@@ -3304,7 +3304,7 @@ export const WhoisOperations = {
     );
   },
 
-  /** 确保 whois_cache 表存�?*/
+  /** 确保 whois_cache 表存*/
   async ensureWhoisCacheTable(): Promise<void> {
     const dbType = db.type;
     
@@ -3351,7 +3351,7 @@ export const WhoisOperations = {
     }
   },
 
-  /** 从数据库获取缓存�?WHOIS 结果 */
+  /** 从数据库获取缓存WHOIS 结果 */
   async getCachedWhois(domain: string, cacheTtlSeconds: number): Promise<QueryResult | undefined> {
     const dbType = getDbType();
     
@@ -3379,7 +3379,7 @@ export const WhoisOperations = {
     }
   },
 
-  /** �?WHOIS 结果缓存到数据库 */
+  /** WHOIS 结果缓存到数据库 */
   async setCachedWhois(
     domain: string,
     expiryDate: string | null,
@@ -3443,7 +3443,7 @@ export const RenewableDomainOperations = {
     );
   },
 
-  /** 获取所有续期域名（包括启用和禁用，但过滤掉已禁用账号的域名�?*/
+  /** 获取所有续期域名（包括启用和禁用，但过滤掉已禁用账号的域名*/
   async getAll(): Promise<any[]> {
     const builder = RenewableDomainQueryBuilder.all();
     const { sql, params } = builder.build();
@@ -3451,7 +3451,7 @@ export const RenewableDomainOperations = {
     return await queryInternal(sql, params, { operation: 'RenewableDomain.getAll', table: 'renewable_domains' });
   },
 
-  /** 获取所有启用的续期域名（过滤掉已禁用账号的域名�?*/
+  /** 获取所有启用的续期域名（过滤掉已禁用账号的域名*/
   async getAllEnabled(): Promise<any[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
@@ -3531,7 +3531,7 @@ export const RenewableDomainOperations = {
         await this.add(domain);
         addedCount++;
       } catch (error) {
-        // 跳过重复的域名（UNIQUE 约束�?
+        // 跳过重复的域名（UNIQUE 约束
         log.warn('RenewableDomain', 'Skip duplicate domain', { 
           domain: domain.full_domain,
           error: (error as Error).message 
@@ -3541,7 +3541,7 @@ export const RenewableDomainOperations = {
     return addedCount;
   },
 
-  /** 更新续期域名的到期时�?*/
+  /** 更新续期域名的到期时*/
   async updateExpiry(id: number, expiresAt: string | null): Promise<void> {
     await executeInternal(
       'UPDATE renewable_domains SET expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -3550,7 +3550,7 @@ export const RenewableDomainOperations = {
     );
   },
 
-  /** 更新续期域名的到期时间（别名�?*/
+  /** 更新续期域名的到期时间（别名*/
   async updateExpiresAt(id: number, expiresAt: string): Promise<void> {
     await this.updateExpiry(id, expiresAt);
   },
@@ -3607,7 +3607,7 @@ export const AuditRulesOperations = {
     );
   },
 
-  /** 获取用户�?*/
+  /** 获取用户*/
   async getUsername(userId: number): Promise<QueryResult | undefined> {
     return getInternal(
       'SELECT username FROM users WHERE id = ?',
@@ -3616,7 +3616,7 @@ export const AuditRulesOperations = {
     );
   },
 
-  /** 获取最近删除操作数�?(SQLite) */
+  /** 获取最近删除操作数(SQLite) */
   async getRecentDeletionsSQLite(userId: number): Promise<QueryResult | undefined> {
     return getInternal(
       `SELECT COUNT(*) as count FROM operation_logs WHERE user_id = ? AND action IN ('delete_record', 'delete_domain')
@@ -3626,7 +3626,7 @@ export const AuditRulesOperations = {
     );
   },
 
-  /** 获取最近删除操作数�?(MySQL) */
+  /** 获取最近删除操作数(MySQL) */
   async getRecentDeletionsMySQL(userId: number): Promise<QueryResult | undefined> {
     return getInternal(
       `SELECT COUNT(*) as count FROM operation_logs WHERE user_id = ? AND action IN ('delete_record', 'delete_domain')
@@ -3636,7 +3636,7 @@ export const AuditRulesOperations = {
     );
   },
 
-  /** 获取最近删除操作数�?(PostgreSQL) */
+  /** 获取最近删除操作数(PostgreSQL) */
   async getRecentDeletionsPostgreSQL(userId: number): Promise<QueryResult | undefined> {
     return getInternal(
       `SELECT COUNT(*) as count FROM operation_logs WHERE user_id = $1 AND action IN ('delete_record', 'delete_domain')
@@ -3663,13 +3663,13 @@ export const AuditLogOperations = {
 };
 
 // ============================================================================
-// NS 监测业务操作（新架构：用户级偏好 + 域名监测列表�?
+// NS 监测业务操作（新架构：用户级偏好 + 域名监测列表
 // ============================================================================
 
 export const NSMonitorOperations = {
   // ========== 用户偏好设置 ==========
 
-  /** 获取用户�?NS 监测偏好设置 */
+  /** 获取用户NS 监测偏好设置 */
   async getUserPrefs(userId: number): Promise<QueryResult | undefined> {
     return getInternal(
       'SELECT * FROM user_ns_monitor_prefs WHERE user_id = ?',
@@ -3678,7 +3678,7 @@ export const NSMonitorOperations = {
     );
   },
 
-  /** 创建用户�?NS 监测偏好设置 */
+  /** 创建用户NS 监测偏好设置 */
   async createUserPrefs(userId: number, data: Record<string, unknown>): Promise<number> {
     const fields = ['user_id', ...Object.keys(data)];
     const placeholders = fields.map(() => '?').join(', ');
@@ -3690,7 +3690,7 @@ export const NSMonitorOperations = {
     );
   },
 
-  /** 更新用户�?NS 监测偏好设置 */
+  /** 更新用户NS 监测偏好设置 */
   async updateUserPrefs(userId: number, updates: Record<string, unknown>): Promise<void> {
     const fields = Object.keys(updates);
     if (fields.length === 0) return;
@@ -3703,7 +3703,7 @@ export const NSMonitorOperations = {
     );
   },
 
-  /** 删除用户�?NS 监测偏好设置 */
+  /** 删除用户NS 监测偏好设置 */
   async deleteUserPrefs(userId: number): Promise<void> {
     return executeInternal(
       'DELETE FROM user_ns_monitor_prefs WHERE user_id = ?',
@@ -3725,7 +3725,7 @@ export const NSMonitorOperations = {
     );
   },
 
-  /** 获取所有启用的域名监测（用于定时任务，Level 2 - 仅检�?NS 监控自身状态） */
+  /** 获取所有启用的域名监测（用于定时任务，Level 2 - 仅检NS 监控自身状态） */
   async getAllEnabled(): Promise<QueryResult[]> {
     const enabledValue = '1';
     return queryInternal(
@@ -3737,7 +3737,7 @@ export const NSMonitorOperations = {
     );
   },
 
-  /** 获取所有域名监测配置（Level 1 - ALL，无任何约束，用于调�?管理�?*/
+  /** 获取所有域名监测配置（Level 1 - ALL，无任何约束，用于调管理*/
   async getAll(): Promise<QueryResult[]> {
     return queryInternal(
       `SELECT *, user_id as created_by
@@ -3766,7 +3766,7 @@ export const NSMonitorOperations = {
     );
   },
 
-  /** 根据域名ID获取用户的监测配置（已废弃，使用 getByDomainName�?*/
+  /** 根据域名ID获取用户的监测配置（已废弃，使用 getByDomainName*/
   async getByDomain(userId: number, domainId: number): Promise<QueryResult | undefined> {
     // This method is deprecated - domain_id column has been removed
     // Use getByDomainName instead
@@ -3774,7 +3774,7 @@ export const NSMonitorOperations = {
     return undefined;
   },
 
-  /** 根据域名名称获取用户的监测配置（支持重名场景�?*/
+  /** 根据域名名称获取用户的监测配置（支持重名场景*/
   async getByDomainName(userId: number, domainName: string): Promise<QueryResult | undefined> {
     return getInternal(
       `SELECT * FROM ns_monitor_domains
@@ -3820,7 +3820,7 @@ export const NSMonitorOperations = {
     );
   },
 
-  /** 更新监测状态（用于定时任务�?*/
+  /** 更新监测状态（用于定时任务*/
   async updateStatus(id: number, updates: {
     current_ns?: string;
     encrypted_ns?: string;
@@ -3844,11 +3844,11 @@ export const NSMonitorOperations = {
 };
 
 // ============================================================================
-// RDAP 服务器缓存操�?
+// RDAP 服务器缓存操
 // ============================================================================
 
 export const RdapCacheOperations = {
-  /** 获取所�?RDAP 服务器缓�?*/
+  /** 获取所RDAP 服务器缓*/
   async getAll(): Promise<QueryResult[]> {
     return queryInternal(
       'SELECT * FROM rdap_server_cache ORDER BY tld',
@@ -3857,7 +3857,7 @@ export const RdapCacheOperations = {
     );
   },
 
-  /** 根据 TLD 获取 RDAP 服务�?*/
+  /** 根据 TLD 获取 RDAP 服务*/
   async getByTld(tld: string): Promise<QueryResult | undefined> {
     return getInternal(
       'SELECT * FROM rdap_server_cache WHERE tld = ?',
@@ -3866,7 +3866,7 @@ export const RdapCacheOperations = {
     );
   },
 
-  /** 批量保存 RDAP 服务器缓�?*/
+  /** 批量保存 RDAP 服务器缓*/
   async saveBatch(entries: Array<{ tld: string; servers: string[] }>): Promise<void> {
     const dbType = getDbType();
     const now = formatDateForDB(new Date());
@@ -3895,7 +3895,7 @@ export const RdapCacheOperations = {
           { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
         );
       } else {
-        // SQLite 使用 REPLACE 或先删除后插�?
+        // SQLite 使用 REPLACE 或先删除后插
         await executeInternal(
           `INSERT OR REPLACE INTO rdap_server_cache (tld, servers, created_at, updated_at) 
            VALUES (?, ?, COALESCE((SELECT created_at FROM rdap_server_cache WHERE tld = ?), ?), ?)`,
@@ -3906,7 +3906,7 @@ export const RdapCacheOperations = {
     }
   },
 
-  /** 清空所�?RDAP 服务器缓�?*/
+  /** 清空所RDAP 服务器缓*/
   async clearAll(): Promise<void> {
     return executeInternal(
       'DELETE FROM rdap_server_cache',
@@ -3934,7 +3934,7 @@ export const RdapCacheOperations = {
 // ============================================================================
 
 export const SystemCacheOperations = {
-  /** 获取缓存�?*/
+  /** 获取缓存*/
   async get(key: string): Promise<string | null> {
     const result = await getInternal<{ cache_value: string }>(
       'SELECT cache_value FROM system_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > ?)',
@@ -3944,7 +3944,7 @@ export const SystemCacheOperations = {
     return result?.cache_value || null;
   },
 
-  /** 设置缓存�?*/
+  /** 设置缓存*/
   async set(key: string, value: string, expiresAt?: Date): Promise<void> {
     const dbType = getDbType();
     const now = formatDateForDB(new Date());
@@ -4016,7 +4016,7 @@ const PasswordResetOperations = {
   },
 
   /**
-   * 获取密码重置验证�?
+   * 获取密码重置验证
    */
   async getCode(email: string): Promise<{ code: string; expiresAt: number } | null> {
     const normalizedEmail = email.toLowerCase().trim();
@@ -4035,7 +4035,7 @@ const PasswordResetOperations = {
   },
 
   /**
-   * 删除密码重置验证�?
+   * 删除密码重置验证
    */
   async deleteCode(email: string): Promise<void> {
     const normalizedEmail = email.toLowerCase().trim();
@@ -4060,7 +4060,380 @@ const PasswordResetOperations = {
 };
 
 // ============================================================================
-// 导出默认对象（兼容旧代码�?
+// MCP (Model Context Protocol) 业务操作
+// ============================================================================
+
+export const McpOperations = {
+  // ========================================
+  // 全局配置
+  // ========================================
+
+  /** 获取 MCP 全局配置 */
+  async getGlobalConfig(): Promise<{ id: number; enabled: boolean; updated_by?: number; updated_at: string } | null> {
+    const config = await getInternal<{
+      id: number;
+      enabled: boolean;
+      updated_by?: number;
+      updated_at: string;
+    }>(
+      'SELECT * FROM mcp_global_config ORDER BY id DESC LIMIT 1',
+      [],
+      { operation: 'Mcp.getGlobalConfig', table: 'mcp_global_config' }
+    );
+    return config || null;
+  },
+
+  /** 更新 MCP 全局配置 */
+  async updateGlobalConfig(enabled: boolean, userId?: number): Promise<void> {
+    const existing = await McpOperations.getGlobalConfig();
+    
+    if (existing) {
+      await executeInternal(
+        'UPDATE mcp_global_config SET enabled = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [enabled, userId || null, existing.id],
+        { operation: 'Mcp.updateGlobalConfig', table: 'mcp_global_config', userId }
+      );
+    } else {
+      await executeInternal(
+        'INSERT INTO mcp_global_config (enabled, updated_by, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+        [enabled, userId || null],
+        { operation: 'Mcp.updateGlobalConfig', table: 'mcp_global_config', userId }
+      );
+    }
+  },
+
+  // ========================================
+  // API Key 管理
+  // ========================================
+
+  /** 创建 API Key */
+  async createApiKey(userId: number, apiKey: string, description: string, expiresAt?: string): Promise<void> {
+    await executeInternal(
+      'INSERT INTO mcp_user_api_keys (user_id, api_key, description, expires_at, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
+      [userId, apiKey, description, expiresAt || null],
+      { operation: 'Mcp.createApiKey', table: 'mcp_user_api_keys', userId }
+    );
+  },
+
+  /** 验证 API Key */
+  async validateApiKey(apiKey: string): Promise<{ id: number; user_id: number; description: string; expires_at?: string; revoked_at?: string } | null> {
+    const key = await getInternal<{
+      id: number;
+      user_id: number;
+      description: string;
+      expires_at?: string;
+      revoked_at?: string;
+    }>(
+      'SELECT id, user_id, description, expires_at, revoked_at FROM mcp_user_api_keys WHERE api_key = ? AND revoked_at IS NULL',
+      [apiKey],
+      { operation: 'Mcp.validateApiKey', table: 'mcp_user_api_keys' }
+    );
+    
+    if (!key) return null;
+    
+    // 检查是否过期
+    if (key.expires_at && new Date(key.expires_at) < new Date()) {
+      return null;
+    }
+    
+    return key;
+  },
+
+  /** 更新 API Key 最后使用时间 */
+  async updateApiKeyLastUsed(keyId: number): Promise<void> {
+    await executeInternal(
+      'UPDATE mcp_user_api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [keyId],
+      { operation: 'Mcp.updateApiKeyLastUsed', table: 'mcp_user_api_keys' }
+    );
+  },
+
+  /** 获取用户的 API Keys */
+  async getUserApiKeys(userId: number): Promise<Array<{ id: number; api_key: string; description: string; last_used_at?: string; expires_at?: string; revoked_at?: string; created_at: string }>> {
+    return queryInternal<{
+      id: number;
+      api_key: string;
+      description: string;
+      last_used_at?: string;
+      expires_at?: string;
+      revoked_at?: string;
+      created_at: string;
+    }>(
+      'SELECT id, api_key, description, last_used_at, expires_at, revoked_at, created_at FROM mcp_user_api_keys WHERE user_id = ? ORDER BY created_at DESC',
+      [userId],
+      { operation: 'Mcp.getUserApiKeys', table: 'mcp_user_api_keys', userId }
+    );
+  },
+
+  /** 撤销 API Key */
+  async revokeApiKey(keyId: number, userId: number): Promise<void> {
+    await executeInternal(
+      'UPDATE mcp_user_api_keys SET revoked_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
+      [keyId, userId],
+      { operation: 'Mcp.revokeApiKey', table: 'mcp_user_api_keys', userId }
+    );
+  },
+
+  /** 删除 API Key */
+  async deleteApiKey(keyId: number, userId: number): Promise<void> {
+    await executeInternal(
+      'DELETE FROM mcp_user_api_keys WHERE id = ? AND user_id = ?',
+      [keyId, userId],
+      { operation: 'Mcp.deleteApiKey', table: 'mcp_user_api_keys', userId }
+    );
+  },
+
+  // ========================================
+  // OAuth2 客户端管理
+  // ========================================
+
+  /** 创建 OAuth2 客户端 */
+  async createOAuthClient(data: {
+    client_id: string;
+    client_secret: string;
+    user_id: number;
+    app_name: string;
+    redirect_uris: string;
+    scope?: string;
+  }): Promise<void> {
+    await executeInternal(
+      'INSERT INTO mcp_oauth_clients (client_id, client_secret, user_id, app_name, redirect_uris, scope, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      [data.client_id, data.client_secret, data.user_id, data.app_name, data.redirect_uris, data.scope || null],
+      { operation: 'Mcp.createOAuthClient', table: 'mcp_oauth_clients', userId: data.user_id }
+    );
+  },
+
+  /** 获取 OAuth2 客户端 */
+  async getOAuthClient(clientId: string): Promise<{
+    id: number;
+    client_id: string;
+    client_secret: string;
+    user_id: number;
+    app_name: string;
+    redirect_uris: string;
+    scope?: string;
+  } | null> {
+    const result = await getInternal<{
+      id: number;
+      client_id: string;
+      client_secret: string;
+      user_id: number;
+      app_name: string;
+      redirect_uris: string;
+      scope?: string;
+    }>(
+      'SELECT * FROM mcp_oauth_clients WHERE client_id = ?',
+      [clientId],
+      { operation: 'Mcp.getOAuthClient', table: 'mcp_oauth_clients' }
+    );
+    return result || null;
+  },
+
+  /** 获取用户的 OAuth2 客户端列表 */
+  async getUserOAuthClients(userId: number): Promise<Array<{
+    id: number;
+    client_id: string;
+    app_name: string;
+    redirect_uris: string;
+    scope?: string;
+    created_at: string;
+    updated_at: string;
+  }>> {
+    return queryInternal<{
+      id: number;
+      client_id: string;
+      app_name: string;
+      redirect_uris: string;
+      scope?: string;
+      created_at: string;
+      updated_at: string;
+    }>(
+      'SELECT id, client_id, app_name, redirect_uris, scope, created_at, updated_at FROM mcp_oauth_clients WHERE user_id = ? ORDER BY created_at DESC',
+      [userId],
+      { operation: 'Mcp.getUserOAuthClients', table: 'mcp_oauth_clients', userId }
+    );
+  },
+
+  /** 删除 OAuth2 客户端 */
+  async deleteOAuthClient(clientId: string, userId: number): Promise<void> {
+    await executeInternal(
+      'DELETE FROM mcp_oauth_clients WHERE client_id = ? AND user_id = ?',
+      [clientId, userId],
+      { operation: 'Mcp.deleteOAuthClient', table: 'mcp_oauth_clients', userId }
+    );
+  },
+
+  // ========================================
+  // OAuth2 Token 管理
+  // ========================================
+
+  /** 创建 Access Token */
+  async createAccessToken(data: {
+    access_token: string;
+    refresh_token: string;
+    client_id: string;
+    user_id: number;
+    scope?: string;
+    expires_at: string;
+  }): Promise<void> {
+    await executeInternal(
+      'INSERT INTO mcp_oauth_access_tokens (access_token, refresh_token, client_id, user_id, scope, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+      [data.access_token, data.refresh_token, data.client_id, data.user_id, data.scope || null, data.expires_at],
+      { operation: 'Mcp.createAccessToken', table: 'mcp_oauth_access_tokens', userId: data.user_id }
+    );
+  },
+
+  /** 验证 Access Token */
+  async validateAccessToken(accessToken: string): Promise<{
+    id: number;
+    access_token: string;
+    refresh_token: string;
+    client_id: string;
+    user_id: number;
+    scope?: string;
+    expires_at: string;
+  } | null> {
+    const token = await getInternal<{
+      id: number;
+      access_token: string;
+      refresh_token: string;
+      client_id: string;
+      user_id: number;
+      scope?: string;
+      expires_at: string;
+    }>(
+      'SELECT * FROM mcp_oauth_access_tokens WHERE access_token = ? AND revoked_at IS NULL',
+      [accessToken],
+      { operation: 'Mcp.validateAccessToken', table: 'mcp_oauth_access_tokens' }
+    );
+    
+    if (!token) return null;
+    
+    // 检查是否过期
+    if (new Date(token.expires_at) < new Date()) {
+      return null;
+    }
+    
+    return token;
+  },
+
+  /** 撤销 Access Token */
+  async revokeAccessToken(accessToken: string): Promise<void> {
+    await executeInternal(
+      'UPDATE mcp_oauth_access_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE access_token = ?',
+      [accessToken],
+      { operation: 'Mcp.revokeAccessToken', table: 'mcp_oauth_access_tokens' }
+    );
+  },
+
+  // ========================================
+  // 审计日志
+  // ========================================
+
+  /** 记录 MCP 审计日志 */
+  async logAudit(data: {
+    user_id: number;
+    auth_type: string;
+    client_id?: string;
+    module: string;
+    action: string;
+    resource_type?: string;
+    resource_id?: string;
+    request_params?: string;
+    response_status?: string;
+    ip_address?: string;
+  }): Promise<void> {
+    await executeInternal(
+      'INSERT INTO mcp_audit_logs (user_id, auth_type, client_id, module, action, resource_type, resource_id, request_params, response_status, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+      [
+        data.user_id,
+        data.auth_type,
+        data.client_id || null,
+        data.module,
+        data.action,
+        data.resource_type || null,
+        data.resource_id || null,
+        data.request_params || null,
+        data.response_status || null,
+        data.ip_address || null,
+      ],
+      { operation: 'Mcp.logAudit', table: 'mcp_audit_logs', userId: data.user_id }
+    );
+  },
+
+  /** 获取 MCP 审计日志 */
+  async getAuditLogs(options: {
+    userId?: number;
+    module?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<Array<{
+    id: number;
+    user_id: number;
+    auth_type: string;
+    client_id?: string;
+    module: string;
+    action: string;
+    resource_type?: string;
+    resource_id?: string;
+    request_params?: string;
+    response_status?: string;
+    ip_address?: string;
+    created_at: string;
+  }>> {
+    let sql = 'SELECT * FROM mcp_audit_logs WHERE 1=1';
+    const params: unknown[] = [];
+    
+    if (options.userId) {
+      sql += ' AND user_id = ?';
+      params.push(options.userId);
+    }
+    
+    if (options.module) {
+      sql += ' AND module = ?';
+      params.push(options.module);
+    }
+    
+    sql += ' ORDER BY created_at DESC';
+    
+    const dbType = getDbType();
+    if (options.limit) {
+      if (dbType === 'mysql') {
+        sql += ` LIMIT ${Number(options.limit)}`;
+      } else {
+        sql += ' LIMIT ?';
+        params.push(Number(options.limit));
+      }
+    }
+    
+    if (options.offset) {
+      if (dbType === 'mysql') {
+        sql += ` OFFSET ${Number(options.offset)}`;
+      } else {
+        sql += ' OFFSET ?';
+        params.push(Number(options.offset));
+      }
+    }
+    
+    return queryInternal<{
+      id: number;
+      user_id: number;
+      auth_type: string;
+      client_id?: string;
+      module: string;
+      action: string;
+      resource_type?: string;
+      resource_id?: string;
+      request_params?: string;
+      response_status?: string;
+      ip_address?: string;
+      created_at: string;
+    }>(sql, params, { operation: 'Mcp.getAuditLogs', table: 'mcp_audit_logs' });
+  },
+};
+
+// ============================================================================
+// 导出默认对象（兼容旧代码
 // ============================================================================
 
 // 导出 database 对象（向后兼容）
@@ -4112,6 +4485,7 @@ export default {
   SystemCache: SystemCacheOperations,
   RenewableDomain: RenewableDomainOperations,
   PasswordReset: PasswordResetOperations,
+  Mcp: McpOperations,
 };
 
 // Export query builders module for advanced usage
