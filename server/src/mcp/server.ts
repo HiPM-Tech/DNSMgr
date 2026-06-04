@@ -37,6 +37,13 @@ export class HidnsMcpServer {
   }
 
   /**
+   * 获取内部的 McpServer 实例，供 HTTP 传输层连接
+   */
+  getServer(): McpServer {
+    return this.server;
+  }
+
+  /**
    * 启动 MCP Server
    */
   async start(): Promise<void> {

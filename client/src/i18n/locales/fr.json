@@ -1325,7 +1325,26 @@
             "oauthExpiryEditTitle": "Modifier la date d'expiration de l'autorisation",
             "oauthExpiryEditDesc": "Définir quand cet enregistrement de client OAuth doit expirer",
             "oauthNoExpiry": "Aucune expiration",
-            "oauthClearExpiry": "Effacer la date d'expiration"
+            "oauthClearExpiry": "Effacer la date d'expiration",
+            "endpointTitle": "Points de terminaison publics MCP",
+            "protocolEndpoints": "Points de terminaison de protocole",
+            "oauthEndpoints": "Points de terminaison OAuth",
+            "endpoint": "Point de terminaison",
+            "method": "Méthode",
+            "streamableHttpDesc": "Streamable HTTP, prend en charge les flux requête-réponse et SSE",
+            "sseDesc": "Point de terminaison SSE dédié",
+            "oauthProtectedResourceDesc": "Métadonnées de ressource protégée OAuth (RFC 9728)",
+            "jwksDesc": "JWKS Clé publique",
+            "oauthAuthorizeDesc": "Point de terminaison d'autorisation OAuth (Authorization Code Flow)",
+            "oauthTokenDesc": "Point de terminaison de jeton OAuth (Token Exchange / Refresh)",
+            "oauthRegisterDesc": "Enregistrement dynamique de client (Dynamic Client Registration)",
+            "oauthIntrospectDesc": "Introspection de jeton (RFC 7662)",
+            "oauthRevokeDesc": "Révocation de jeton (RFC 7009)",
+            "configSamples": "Exemples de configuration client",
+            "configApiKey": "Streamable HTTP (Auth par clé API)",
+            "configOAuth": "Streamable HTTP (Auth OAuth)",
+            "configSSEApiKey": "SSE (Auth par clé API)",
+            "configSSEOAuth": "SSE (Auth OAuth)"
         }
     }
 }

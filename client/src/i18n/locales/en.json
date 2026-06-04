@@ -1387,7 +1387,26 @@
             "oauthExpiryEditTitle": "Edit Authorization Expiry Date",
             "oauthExpiryEditDesc": "Set when this OAuth client registration should expire",
             "oauthNoExpiry": "No expiration",
-            "oauthClearExpiry": "Clear expiry date"
+            "oauthClearExpiry": "Clear expiry date",
+            "endpointTitle": "MCP Public Endpoints",
+            "protocolEndpoints": "Protocol Endpoints",
+            "oauthEndpoints": "OAuth Endpoints",
+            "endpoint": "Endpoint",
+            "method": "Method",
+            "streamableHttpDesc": "Streamable HTTP, supports request-response and SSE streaming",
+            "sseDesc": "Dedicated SSE endpoint",
+            "oauthProtectedResourceDesc": "OAuth Protected Resource Metadata (RFC 9728)",
+            "jwksDesc": "JWKS Public Key",
+            "oauthAuthorizeDesc": "OAuth Authorization Endpoint (Authorization Code Flow)",
+            "oauthTokenDesc": "OAuth Token Endpoint (Token Exchange / Refresh)",
+            "oauthRegisterDesc": "Dynamic Client Registration",
+            "oauthIntrospectDesc": "Token Introspection (RFC 7662)",
+            "oauthRevokeDesc": "Token Revocation (RFC 7009)",
+            "configSamples": "Client Configuration Examples",
+            "configApiKey": "Streamable HTTP (API Key Auth)",
+            "configOAuth": "Streamable HTTP (OAuth Auth)",
+            "configSSEApiKey": "SSE (API Key Auth)",
+            "configSSEOAuth": "SSE (OAuth Auth)"
         }
     }
 }

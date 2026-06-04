@@ -1387,7 +1387,26 @@
             "oauthExpiryEditTitle": "编辑授权到期日期",
             "oauthExpiryEditDesc": "设置此OAuth客户端注册的到期时间",
             "oauthNoExpiry": "无到期限制",
-            "oauthClearExpiry": "清除到期日期"
+            "oauthClearExpiry": "清除到期日期",
+            "endpointTitle": "MCP 公共端点",
+            "protocolEndpoints": "协议端点",
+            "oauthEndpoints": "OAuth 端点",
+            "endpoint": "端点地址",
+            "method": "方法",
+            "streamableHttpDesc": "Streamable HTTP，支持请求-响应和 SSE 流",
+            "sseDesc": "专用 SSE 端点",
+            "oauthProtectedResourceDesc": "OAuth 受保护资源元数据 (RFC 9728)",
+            "jwksDesc": "JWKS 公钥",
+            "oauthAuthorizeDesc": "OAuth 授权端点 (Authorization Code Flow)",
+            "oauthTokenDesc": "OAuth 令牌端点 (Token Exchange / Refresh)",
+            "oauthRegisterDesc": "动态客户端注册 (Dynamic Client Registration)",
+            "oauthIntrospectDesc": "令牌内省 (Token Introspection, RFC 7662)",
+            "oauthRevokeDesc": "令牌撤销 (Token Revocation, RFC 7009)",
+            "configSamples": "客户端配置示例",
+            "configApiKey": "Streamable HTTP（API Key 认证）",
+            "configOAuth": "Streamable HTTP（OAuth 认证）",
+            "configSSEApiKey": "SSE（API Key 认证）",
+            "configSSEOAuth": "SSE（OAuth 认证）"
         }
     }
 }

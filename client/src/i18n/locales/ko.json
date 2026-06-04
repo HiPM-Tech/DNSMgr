@@ -1362,7 +1362,26 @@
             "oauthExpiryEditTitle": "권한 만료일 편집",
             "oauthExpiryEditDesc": "이 OAuth 클라이언트 등록이 만료되는 시점 설정",
             "oauthNoExpiry": "만료 없음",
-            "oauthClearExpiry": "만료일 지우기"
+            "oauthClearExpiry": "만료일 지우기",
+            "endpointTitle": "MCP 공개 엔드포인트",
+            "protocolEndpoints": "프로토콜 엔드포인트",
+            "oauthEndpoints": "OAuth 엔드포인트",
+            "endpoint": "엔드포인트",
+            "method": "메서드",
+            "streamableHttpDesc": "Streamable HTTP, 요청-응답 및 SSE 스트리밍 지원",
+            "sseDesc": "전용 SSE 엔드포인트",
+            "oauthProtectedResourceDesc": "OAuth 보호 리소스 메타데이터 (RFC 9728)",
+            "jwksDesc": "JWKS 공개 키",
+            "oauthAuthorizeDesc": "OAuth 인가 엔드포인트 (Authorization Code Flow)",
+            "oauthTokenDesc": "OAuth 토큰 엔드포인트 (Token Exchange / Refresh)",
+            "oauthRegisterDesc": "동적 클라이언트 등록 (Dynamic Client Registration)",
+            "oauthIntrospectDesc": "토큰 검사 (Token Introspection, RFC 7662)",
+            "oauthRevokeDesc": "토큰 폐기 (Token Revocation, RFC 7009)",
+            "configSamples": "클라이언트 구성 예시",
+            "configApiKey": "Streamable HTTP (API Key 인증)",
+            "configOAuth": "Streamable HTTP (OAuth 인증)",
+            "configSSEApiKey": "SSE (API Key 인증)",
+            "configSSEOAuth": "SSE (OAuth 인증)"
         }
     }
 }

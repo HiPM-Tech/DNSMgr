@@ -1324,7 +1324,26 @@
             "oauthExpiryEditTitle": "Autorisierungsablaufdatum bearbeiten",
             "oauthExpiryEditDesc": "Legen Sie fest, wann diese OAuth-Clientregistrierung ablaufen soll",
             "oauthNoExpiry": "Kein Ablauf",
-            "oauthClearExpiry": "Ablaufdatum löschen"
+            "oauthClearExpiry": "Ablaufdatum löschen",
+            "endpointTitle": "MCP Öffentliche Endpunkte",
+            "protocolEndpoints": "Protokoll-Endpunkte",
+            "oauthEndpoints": "OAuth-Endpunkte",
+            "endpoint": "Endpunkt",
+            "method": "Methode",
+            "streamableHttpDesc": "Streamable HTTP, unterstützt Request-Response und SSE-Streaming",
+            "sseDesc": "Dedizierter SSE-Endpunkt",
+            "oauthProtectedResourceDesc": "OAuth Protected Resource Metadata (RFC 9728)",
+            "jwksDesc": "JWKS Öffentlicher Schlüssel",
+            "oauthAuthorizeDesc": "OAuth Autorisierungsendpunkt (Authorization Code Flow)",
+            "oauthTokenDesc": "OAuth Tokenendpunkt (Token Exchange / Refresh)",
+            "oauthRegisterDesc": "Dynamische Client-Registrierung (Dynamic Client Registration)",
+            "oauthIntrospectDesc": "Token-Introspection (RFC 7662)",
+            "oauthRevokeDesc": "Token-Widerruf (RFC 7009)",
+            "configSamples": "Client-Konfigurationsbeispiele",
+            "configApiKey": "Streamable HTTP (API-Key-Auth)",
+            "configOAuth": "Streamable HTTP (OAuth-Auth)",
+            "configSSEApiKey": "SSE (API-Key-Auth)",
+            "configSSEOAuth": "SSE (OAuth-Auth)"
         }
     }
 }

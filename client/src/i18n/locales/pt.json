@@ -1287,7 +1287,26 @@
             "oauthExpiryEditTitle": "Editar data de expiração da autorização",
             "oauthExpiryEditDesc": "Definir quando este registro de cliente OAuth deve expirar",
             "oauthNoExpiry": "Sem expiração",
-            "oauthClearExpiry": "Limpar data de expiração"
+            "oauthClearExpiry": "Limpar data de expiração",
+            "endpointTitle": "Endpoints públicos do MCP",
+            "protocolEndpoints": "Endpoints de protocolo",
+            "oauthEndpoints": "Endpoints OAuth",
+            "endpoint": "Endpoint",
+            "method": "Método",
+            "streamableHttpDesc": "Streamable HTTP, suporta requisição-resposta e streaming SSE",
+            "sseDesc": "Endpoint SSE dedicado",
+            "oauthProtectedResourceDesc": "Metadados de recurso protegido OAuth (RFC 9728)",
+            "jwksDesc": "JWKS Chave pública",
+            "oauthAuthorizeDesc": "Endpoint de autorização OAuth (Authorization Code Flow)",
+            "oauthTokenDesc": "Endpoint de token OAuth (Token Exchange / Refresh)",
+            "oauthRegisterDesc": "Registro dinâmico de cliente (Dynamic Client Registration)",
+            "oauthIntrospectDesc": "Introspecção de token (RFC 7662)",
+            "oauthRevokeDesc": "Revogação de token (RFC 7009)",
+            "configSamples": "Exemplos de configuração do cliente",
+            "configApiKey": "Streamable HTTP (Auth por chave de API)",
+            "configOAuth": "Streamable HTTP (Auth OAuth)",
+            "configSSEApiKey": "SSE (Auth por chave de API)",
+            "configSSEOAuth": "SSE (Auth OAuth)"
         }
     }
 }

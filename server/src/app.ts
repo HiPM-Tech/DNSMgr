@@ -49,6 +49,7 @@ import mcpConfigRouter from './routes/mcp-config';
 import mcpApiKeysRouter from './routes/mcp-apikeys';
 import mcpOAuthRouter from './routes/mcp-oauth';
 import mcpAuditRouter from './routes/mcp-audit';
+import mcpProtocolRouter from './routes/mcp-protocol';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
@@ -288,12 +289,16 @@ app.use('/api/tokens', tokensRouter);
 app.use('/api/ns-monitor', nsMonitorRouter);
 app.use('/api/network', networkRouter);
 
-// MCP routes
-app.use('/api/mcp', mcpConfigRouter); // /config, /status
-app.use('/api/mcp/api-keys', mcpApiKeysRouter); // Authenticated
-app.use('/api/mcp/oauth', mcpOAuthRouter); // Mixed (some public, some authenticated)
-app.use('/api/mcp/audit-logs', mcpAuditRouter); // Authenticated
-app.use('/api/mcp/audit-stats', mcpAuditRouter); // Authenticated
+// MCP 路由 - 统一合并到父级路由器，避免重复注册 /api/mcp
+const mcpRouter = express.Router();
+mcpRouter.use('/', mcpConfigRouter); // /config, /status, /.well-known/*
+mcpRouter.use('/api-keys', mcpApiKeysRouter); // Authenticated
+mcpRouter.use('/oauth', mcpOAuthRouter); // Mixed（部分公开、部分需认证）
+mcpRouter.use('/audit-logs', mcpAuditRouter); // Authenticated
+mcpRouter.use('/audit-stats', mcpAuditRouter); // Authenticated
+// 协议路由放最后，确保更具体的管理路由优先匹配
+mcpRouter.use('/', mcpProtocolRouter); // /(Streamable HTTP), /sse(SSE)
+app.use('/api/mcp', mcpRouter);
 
 // Logs route
 /**

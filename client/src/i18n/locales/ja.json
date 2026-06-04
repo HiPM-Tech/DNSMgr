@@ -1418,7 +1418,26 @@
             "oauthExpiryEditTitle": "認可有効期限を編集",
             "oauthExpiryEditDesc": "この OAuth クライアント登録の有効期限を設定します",
             "oauthNoExpiry": "有効期限なし",
-            "oauthClearExpiry": "有効期限をクリア"
+            "oauthClearExpiry": "有効期限をクリア",
+            "endpointTitle": "MCP 公開エンドポイント",
+            "protocolEndpoints": "プロトコルエンドポイント",
+            "oauthEndpoints": "OAuth エンドポイント",
+            "endpoint": "エンドポイント",
+            "method": "メソッド",
+            "streamableHttpDesc": "Streamable HTTP - リクエスト/レスポンスとSSEストリーミングをサポート",
+            "sseDesc": "専用SSEエンドポイント",
+            "oauthProtectedResourceDesc": "OAuth保護リソースメタデータ (RFC 9728)",
+            "jwksDesc": "JWKS公開鍵",
+            "oauthAuthorizeDesc": "OAuth認可エンドポイント (Authorization Code Flow)",
+            "oauthTokenDesc": "OAuthトークンエンドポイント (Token Exchange / Refresh)",
+            "oauthRegisterDesc": "動的クライアント登録 (Dynamic Client Registration)",
+            "oauthIntrospectDesc": "トークンイントロスペクション (RFC 7662)",
+            "oauthRevokeDesc": "トークン失効 (RFC 7009)",
+            "configSamples": "クライアント設定例",
+            "configApiKey": "Streamable HTTP（API Key認証）",
+            "configOAuth": "Streamable HTTP（OAuth認証）",
+            "configSSEApiKey": "SSE（API Key認証）",
+            "configSSEOAuth": "SSE（OAuth認証）"
         }
     }
 }

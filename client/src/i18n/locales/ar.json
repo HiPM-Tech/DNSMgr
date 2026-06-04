@@ -1287,7 +1287,26 @@
             "oauthExpiryEditTitle": "تعديل تاريخ انتهاء الترخيص",
             "oauthExpiryEditDesc": "تعيين موعد انتهاء تسجيل عميل OAuth هذا",
             "oauthNoExpiry": "بدون انتهاء",
-            "oauthClearExpiry": "مسح تاريخ الانتهاء"
+            "oauthClearExpiry": "مسح تاريخ الانتهاء",
+            "endpointTitle": "نقاط النهاية العامة لـ MCP",
+            "protocolEndpoints": "نقاط نهاية البروتوكول",
+            "oauthEndpoints": "نقاط نهاية OAuth",
+            "endpoint": "نقطة النهاية",
+            "method": "الطريقة",
+            "streamableHttpDesc": "Streamable HTTP، يدعم الطلب-الاستجابة وتدفق SSE",
+            "sseDesc": "نقطة نهاية SSE مخصصة",
+            "oauthProtectedResourceDesc": "بيانات تعريف الموارد المحمية بـ OAuth (RFC 9728)",
+            "jwksDesc": "المفتاح العام JWKS",
+            "oauthAuthorizeDesc": "نقطة نهاية التفويض OAuth (Authorization Code Flow)",
+            "oauthTokenDesc": "نقطة نهاية الرمز OAuth (Token Exchange / Refresh)",
+            "oauthRegisterDesc": "تسجيل العميل الديناميكي (Dynamic Client Registration)",
+            "oauthIntrospectDesc": "فحص الرمز (Token Introspection, RFC 7662)",
+            "oauthRevokeDesc": "إلغاء الرمز (Token Revocation, RFC 7009)",
+            "configSamples": "أمثلة تكوين العميل",
+            "configApiKey": "Streamable HTTP (مصادقة مفتاح API)",
+            "configOAuth": "Streamable HTTP (مصادقة OAuth)",
+            "configSSEApiKey": "SSE (مصادقة مفتاح API)",
+            "configSSEOAuth": "SSE (مصادقة OAuth)"
         }
     }
 }

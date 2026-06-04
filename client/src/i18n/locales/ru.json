@@ -1287,7 +1287,26 @@
             "oauthExpiryEditTitle": "Редактировать дату истечения авторизации",
             "oauthExpiryEditDesc": "Установите, когда должна истечь регистрация этого клиента OAuth",
             "oauthNoExpiry": "Без срока действия",
-            "oauthClearExpiry": "Очистить дату истечения"
+            "oauthClearExpiry": "Очистить дату истечения",
+            "endpointTitle": "Публичные конечные точки MCP",
+            "protocolEndpoints": "Конечные точки протокола",
+            "oauthEndpoints": "Конечные точки OAuth",
+            "endpoint": "Конечная точка",
+            "method": "Метод",
+            "streamableHttpDesc": "Streamable HTTP, поддерживает запрос-ответ и SSE-потоки",
+            "sseDesc": "Выделенная SSE-конечная точка",
+            "oauthProtectedResourceDesc": "Метаданные защищенного ресурса OAuth (RFC 9728)",
+            "jwksDesc": "JWKS Открытый ключ",
+            "oauthAuthorizeDesc": "Конечная точка авторизации OAuth (Authorization Code Flow)",
+            "oauthTokenDesc": "Конечная точка токена OAuth (Token Exchange / Refresh)",
+            "oauthRegisterDesc": "Динамическая регистрация клиента (Dynamic Client Registration)",
+            "oauthIntrospectDesc": "Интроспекция токена (RFC 7662)",
+            "oauthRevokeDesc": "Отзыв токена (RFC 7009)",
+            "configSamples": "Примеры конфигурации клиента",
+            "configApiKey": "Streamable HTTP (Auth по ключу API)",
+            "configOAuth": "Streamable HTTP (Auth OAuth)",
+            "configSSEApiKey": "SSE (Auth по ключу API)",
+            "configSSEOAuth": "SSE (Auth OAuth)"
         }
     }
 }

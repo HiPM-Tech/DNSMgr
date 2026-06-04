@@ -36,6 +36,7 @@ function formatDate(dateString: string, locale: string): string {
 
 export function McpManagement() {
   const { t, locale } = useI18n();
+  const baseUrl = window.location.origin;
   const toast = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'keys' | 'oauth'>('keys');
@@ -320,6 +321,154 @@ export function McpManagement() {
           <p>{t('mcp.subtitle')}</p>
         </div>
       </div>
+
+      {/* 公共端点 & 配置信息 */}
+      <Card bordered={false} shadow={false} style={{ marginBottom: 24 }}>
+        <details>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: 15, userSelect: 'none', color: 'var(--td-text-color-primary)' }}>{t('mcp.endpointTitle')}</summary>
+          <div style={{ marginTop: 16 }}>
+            {/* 协议端点 */}
+            <h4 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--td-text-color-primary)' }}>{t('mcp.protocolEndpoints')}</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--td-text-color-secondary)', fontWeight: 500 }}>{t('mcp.endpoint')}</th>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--td-text-color-secondary)', fontWeight: 500 }}>{t('mcp.method')}</th>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--td-text-color-secondary)', fontWeight: 500 }}>{t('mcp.description')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp</code></td>
+                  <td style={{ padding: '8px' }}>GET / POST</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.streamableHttpDesc')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/sse</code></td>
+                  <td style={{ padding: '8px' }}>GET</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.sseDesc')}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* OAuth 端点 */}
+            <h4 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--td-text-color-primary)' }}>{t('mcp.oauthEndpoints')}</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--td-text-color-secondary)', fontWeight: 500 }}>{t('mcp.endpoint')}</th>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--td-text-color-secondary)', fontWeight: 500 }}>{t('mcp.method')}</th>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--td-text-color-secondary)', fontWeight: 500 }}>{t('mcp.description')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/.well-known/oauth-protected-resource</code></td>
+                  <td style={{ padding: '8px' }}>GET</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.oauthProtectedResourceDesc')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/.well-known/jwks.json</code></td>
+                  <td style={{ padding: '8px' }}>GET</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.jwksDesc')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/oauth/authorize</code></td>
+                  <td style={{ padding: '8px' }}>GET</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.oauthAuthorizeDesc')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/oauth/token</code></td>
+                  <td style={{ padding: '8px' }}>POST</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.oauthTokenDesc')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/oauth/register</code></td>
+                  <td style={{ padding: '8px' }}>POST</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.oauthRegisterDesc')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/oauth/introspect</code></td>
+                  <td style={{ padding: '8px' }}>POST</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.oauthIntrospectDesc')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/oauth/revoke</code></td>
+                  <td style={{ padding: '8px' }}>POST</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.oauthRevokeDesc')}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* JSON 配置展示 */}
+            <h4 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--td-text-color-primary)' }}>{t('mcp.configSamples')}</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 500, color: 'var(--td-text-color-primary)' }}>{t('mcp.configApiKey')}</p>
+                <div className="token-code-box" style={{ display: 'block', padding: 12 }}>
+                  <code style={{ whiteSpace: 'pre-wrap', fontSize: 11, lineHeight: 1.6 }}>{JSON.stringify({
+                    mcpServers: {
+                      hidns: {
+                        url: `${baseUrl}/api/mcp`,
+                        headers: {
+                          'API-Key': 'your-api-key-here'
+                        }
+                      }
+                    }
+                  }, null, 2)}</code>
+                </div>
+              </div>
+              <div>
+                <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 500, color: 'var(--td-text-color-primary)' }}>{t('mcp.configOAuth')}</p>
+                <div className="token-code-box" style={{ display: 'block', padding: 12 }}>
+                  <code style={{ whiteSpace: 'pre-wrap', fontSize: 11, lineHeight: 1.6 }}>{JSON.stringify({
+                    mcpServers: {
+                      hidns: {
+                        url: `${baseUrl}/api/mcp`,
+                        headers: {
+                          'Authorization': 'Bearer your-oauth-token'
+                        }
+                      }
+                    }
+                  }, null, 2)}</code>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 }}>
+              <div>
+                <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 500, color: 'var(--td-text-color-primary)' }}>{t('mcp.configSSEApiKey')}</p>
+                <div className="token-code-box" style={{ display: 'block', padding: 12 }}>
+                  <code style={{ whiteSpace: 'pre-wrap', fontSize: 11, lineHeight: 1.6 }}>{JSON.stringify({
+                    mcpServers: {
+                      hidns: {
+                        url: `${baseUrl}/api/mcp/sse`,
+                        headers: {
+                          'API-Key': 'your-api-key-here'
+                        }
+                      }
+                    }
+                  }, null, 2)}</code>
+                </div>
+              </div>
+              <div>
+                <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 500, color: 'var(--td-text-color-primary)' }}>{t('mcp.configSSEOAuth')}</p>
+                <div className="token-code-box" style={{ display: 'block', padding: 12 }}>
+                  <code style={{ whiteSpace: 'pre-wrap', fontSize: 11, lineHeight: 1.6 }}>{JSON.stringify({
+                    mcpServers: {
+                      hidns: {
+                        url: `${baseUrl}/api/mcp/sse`,
+                        headers: {
+                          'Authorization': 'Bearer your-oauth-token'
+                        }
+                      }
+                    }
+                  }, null, 2)}</code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </Card>
 
       {/* Tabs */}
       <Tabs
