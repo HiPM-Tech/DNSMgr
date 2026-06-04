@@ -4263,6 +4263,90 @@ export const McpOperations = {
     );
   },
 
+  /** 更新 OAuth 客户端授权范围 */
+  async updateOAuthClientScope(clientId: string, userId: number, scope: string): Promise<void> {
+    await executeInternal(
+      "UPDATE mcp_oauth_clients SET scope = ?, updated_at = CURRENT_TIMESTAMP WHERE client_id = ? AND user_id = ?",
+      [scope, clientId, userId],
+      { operation: 'Mcp.updateOAuthClientScope', table: 'mcp_oauth_clients', userId }
+    );
+  },
+
+  /** 更新 OAuth 客户端授权到期日期 */
+  async updateOAuthClientExpiry(clientId: string, userId: number, expiresAt: string | null): Promise<void> {
+    await executeInternal(
+      "UPDATE mcp_oauth_clients SET expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE client_id = ? AND user_id = ?",
+      [expiresAt, clientId, userId],
+      { operation: 'Mcp.updateOAuthClientExpiry', table: 'mcp_oauth_clients', userId }
+    );
+  },
+
+  /** 验证客户端凭证（client_credentials grant） */
+  async validateClientCredentials(clientId: string, clientSecret: string): Promise<{
+    id: number;
+    user_id: number;
+    app_name: string;
+    scope?: string;
+  } | null> {
+    const client = await getInternal<{
+      id: number;
+      user_id: number;
+      app_name: string;
+      scope?: string;
+      client_secret: string;
+    }>(
+      'SELECT id, user_id, app_name, scope, client_secret FROM mcp_oauth_clients WHERE client_id = ?',
+      [clientId],
+      { operation: 'Mcp.validateClientCredentials', table: 'mcp_oauth_clients' }
+    );
+    
+    if (!client) return null;
+    if (client.client_secret !== clientSecret) return null;
+    
+    return { id: client.id, user_id: client.user_id, app_name: client.app_name, scope: client.scope };
+  },
+
+  /** 获取所有访问令牌（含客户端名称） */
+  async getOAuthAccessTokens(userId: number): Promise<Array<{
+    id: number;
+    access_token: string;
+    client_id: string;
+    app_name: string;
+    scope?: string;
+    expires_at: string;
+    revoked_at?: string;
+    created_at: string;
+  }>> {
+    const tokens = await queryInternal<{
+      id: number;
+      access_token: string;
+      client_id: string;
+      app_name: string;
+      scope?: string;
+      expires_at: string;
+      revoked_at?: string;
+      created_at: string;
+    }>(
+      `SELECT t.id, t.access_token, t.client_id, c.app_name, t.scope, t.expires_at, t.revoked_at, t.created_at
+       FROM mcp_oauth_access_tokens t
+       JOIN mcp_oauth_clients c ON t.client_id = c.client_id
+       WHERE c.user_id = ?
+       ORDER BY t.created_at DESC`,
+      [userId],
+      { operation: 'Mcp.getOAuthAccessTokens', table: 'mcp_oauth_access_tokens', userId }
+    );
+    return tokens;
+  },
+
+  /** 按 ID 撤销访问令牌 */
+  async revokeOAuthTokenById(tokenId: number, userId: number): Promise<void> {
+    await executeInternal(
+      'UPDATE mcp_oauth_access_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = ? AND client_id IN (SELECT client_id FROM mcp_oauth_clients WHERE user_id = ?)',
+      [tokenId, userId],
+      { operation: 'Mcp.revokeOAuthTokenById', table: 'mcp_oauth_access_tokens', userId }
+    );
+  },
+
   // ========================================
   // OAuth2 Token 管理
   // ========================================

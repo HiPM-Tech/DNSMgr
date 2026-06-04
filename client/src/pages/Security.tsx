@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Empty, Form, Input, Space } from 'tdesign-react';
-import { AddIcon, CheckIcon, CopyIcon, DeleteIcon, DownloadIcon, KeyIcon, LogoutIcon, MobileIcon } from 'tdesign-icons-react';
+import { Alert, Button, Card, Empty, Form, Input, Space, Switch } from 'tdesign-react';
+import { AddIcon, CheckIcon, CopyIcon, DeleteIcon, DownloadIcon, KeyIcon, LockOnIcon, LogoutIcon, MobileIcon } from 'tdesign-icons-react';
 import { useToast } from '../hooks/useToast';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { startRegistration } from '@simplewebauthn/browser';
 import { authApi } from '../api';
+import { mcpApi } from '../api';
 import type { WebAuthnResponse } from '../api';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 import { useI18n } from '../contexts/I18nContext';
@@ -57,10 +58,15 @@ export function Security() {
   const [showDisable2FA, setShowDisable2FA] = useState(false);
   const [disable2FAToken, setDisable2FAToken] = useState('');
 
+  // MCP global config
+  const [mcpEnabled, setMcpEnabled] = useState(false);
+  const [mcpLoading, setMcpLoading] = useState(false);
+
   useEffect(() => {
     loadSessions();
     loadTotpStatus();
     loadPasskeys();
+    loadMcpConfig();
   }, []);
 
   const loadPasskeys = async () => {
@@ -69,6 +75,31 @@ export function Security() {
       if (res.data.code === 0) setPasskeys(res.data.data || []);
     } catch (e) {
       console.error('Failed to load passkeys', e);
+    }
+  };
+
+  const loadMcpConfig = async () => {
+    try {
+      const res = await mcpApi.getGlobalConfig();
+      if (res.data.code === 0) {
+        setMcpEnabled(res.data.data?.enabled || false);
+      }
+    } catch {
+      // MCP not configured yet, silently ignore
+    }
+  };
+
+  const handleMcpToggle = async (checked: boolean) => {
+    setMcpLoading(true);
+    try {
+      const res = await mcpApi.updateGlobalConfig(checked);
+      if (res.data.code === 0) {
+        setMcpEnabled(checked);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setMcpLoading(false);
     }
   };
 
@@ -381,6 +412,26 @@ export function Security() {
         ) : (
           <Empty description={t('passkeys.none')} />
         )}
+      </Card>
+
+      <Card bordered={false} shadow={false}>
+        <div className="security-card-header">
+          <div className="security-card-title">
+            <LockOnIcon />
+            <div>
+              <strong>{t('common.mcp')}</strong>
+              <span>{t('mcp.configDesc')}</span>
+            </div>
+          </div>
+          <Space>
+            <Switch
+              value={mcpEnabled}
+              onChange={handleMcpToggle}
+              loading={mcpLoading}
+            />
+            <span>{mcpEnabled ? t('mcp.enabled') : t('mcp.disabled')}</span>
+          </Space>
+        </div>
       </Card>
 
       <Card

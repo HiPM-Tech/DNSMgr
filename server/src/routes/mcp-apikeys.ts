@@ -74,7 +74,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  */
 router.post('/', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { description, expires_in_days } = req.body;
+    const { description, expires_in_days, expiresAt } = req.body;
 
     if (!description || typeof description !== 'string') {
       return res.status(400).json({ code: 400, msg: 'description is required' });
@@ -82,26 +82,68 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
 
     const apiKey = generateApiKey();
     
-    // Calculate expiration date
-    let expiresAt: string | undefined;
-    if (expires_in_days && typeof expires_in_days === 'number' && expires_in_days > 0) {
+    // Calculate expiration date - support both camelCase and snake_case
+    let expiresAtStr: string | undefined;
+    if (expiresAt) {
+      expiresAtStr = expiresAt;
+    } else if (expires_in_days && typeof expires_in_days === 'number' && expires_in_days > 0) {
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + expires_in_days);
-      expiresAt = expiryDate.toISOString();
+      expiresAtStr = expiryDate.toISOString();
     }
 
-    await McpOperations.createApiKey(req.user!.userId, apiKey, description, expiresAt);
+    await McpOperations.createApiKey(req.user!.userId, apiKey, description, expiresAtStr);
     
     log.info('MCP', `API key created for user ${req.user!.userId}`, { description });
     
-    // Return the full API key (only shown once)
+    // Return the full API key (only shown once) with both formats for compatibility
     sendSuccess(res, {
       api_key: apiKey,
+      apiKey,
       message: 'API key generated successfully. Please save it securely, it will not be shown again.',
     });
   } catch (error) {
     log.error('MCP', 'Failed to create API key', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to create API key' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/mcp/api-keys/{id}/revoke:
+ *   post:
+ *     summary: Revoke API key
+ *     tags: [MCP]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: number
+ *     responses:
+ *       200:
+ *         description: API key revoked
+ *       404:
+ *         description: API key not found
+ */
+router.post('/:id/revoke', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const keyId = parseInt(req.params.id);
+    
+    if (isNaN(keyId)) {
+      return res.status(400).json({ code: 400, msg: 'Invalid key ID' });
+    }
+
+    await McpOperations.revokeApiKey(keyId, req.user!.userId);
+    
+    log.info('MCP', `API key revoked by user ${req.user!.userId}`, { keyId });
+    
+    sendSuccess(res, { success: true, message: 'API key revoked' });
+  } catch (error) {
+    log.error('MCP', 'Failed to revoke API key', { error });
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to revoke API key' });
   }
 });
 

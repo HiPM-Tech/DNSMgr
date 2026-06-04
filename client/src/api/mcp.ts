@@ -48,6 +48,28 @@ export interface McpAuditStats {
   };
 }
 
+export interface McpOAuthClient {
+  id: number;
+  client_id: string;
+  app_name: string;
+  redirect_uris: string;
+  scope?: string;
+  expires_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpOAuthAccessToken {
+  id: number;
+  access_token: string;
+  client_id: string;
+  app_name: string;
+  scope?: string;
+  expires_at: string;
+  revoked_at?: string;
+  created_at: string;
+}
+
 // ─── MCP API ───────────────────────────────────────────────────────────────
 
 export const mcpApi = {
@@ -98,4 +120,20 @@ export const mcpApi = {
     record_count: number;
     data: string;
   }>>('/mcp/audit-logs/export', { params }),
+
+  // OAuth Clients
+  getOAuthClients: () => api.get<ApiResponse<McpOAuthClient[]>>('/mcp/oauth/clients'),
+  createOAuthClient: (data: { app_name: string; redirect_uris: string[]; scope?: string }) =>
+    api.post<ApiResponse<{ client_id: string; client_secret: string }>>('/mcp/oauth/clients', data),
+  deleteOAuthClient: (clientId: string) =>
+    api.delete<ApiResponse<null>>(`/mcp/oauth/clients/${clientId}`),
+  updateOAuthClientScope: (clientId: string, scope: string) =>
+    api.put<ApiResponse<null>>(`/mcp/oauth/clients/${clientId}/scope`, { scope }),
+  updateOAuthClientExpiry: (clientId: string, expires_at: string | null) =>
+    api.put<ApiResponse<null>>(`/mcp/oauth/clients/${clientId}/expiry`, { expires_at }),
+
+  // OAuth Tokens
+  getOAuthTokens: () => api.get<ApiResponse<McpOAuthAccessToken[]>>('/mcp/oauth/tokens'),
+  revokeOAuthToken: (tokenId: number) =>
+    api.post<ApiResponse<null>>(`/mcp/oauth/tokens/${tokenId}/revoke`),
 };

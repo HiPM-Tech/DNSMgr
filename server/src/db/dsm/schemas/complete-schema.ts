@@ -637,6 +637,7 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'app_name', type: 'string', length: 255, nullable: false },
         { name: 'redirect_uris', type: 'json', nullable: false },
         { name: 'scope', type: 'json', nullable: true },
+        { name: 'expires_at', type: 'datetime', nullable: true },
         { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
         { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
       ],

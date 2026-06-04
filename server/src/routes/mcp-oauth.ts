@@ -1,9 +1,9 @@
+import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { McpOperations } from '../db/bal/business-adapter';
 import { sendSuccess } from '../utils/http';
 import { log } from '../lib/logger';
-import crypto from 'crypto';
 
 const router = Router();
 
@@ -110,6 +110,94 @@ router.post('/clients', authMiddleware, async (req: Request, res: Response) => {
 
 /**
  * @swagger
+ * /api/mcp/oauth/clients/{id}/scope:
+ *   put:
+ *     summary: Update OAuth client scope
+ *     tags: [MCP]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - scope
+ *             properties:
+ *               scope:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Scope updated
+ */
+router.put('/clients/:id/scope', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { scope } = req.body;
+    if (typeof scope !== 'string') {
+      return res.status(400).json({ code: 400, msg: 'scope is required' });
+    }
+
+    await McpOperations.updateOAuthClientScope(req.params.id, req.user!.userId, scope);
+    log.info('MCP', `OAuth client scope updated by user ${req.user!.userId}`, { clientId: req.params.id, scope });
+    sendSuccess(res, { success: true });
+  } catch (error) {
+    log.error('MCP', 'Failed to update OAuth client scope', { error });
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update scope' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/mcp/oauth/clients/{id}/expiry:
+ *   put:
+ *     summary: Update OAuth client expiry date
+ *     tags: [MCP]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               expires_at:
+ *                 type: string
+ *                 format: date
+ *                 description: ISO datetime or null to clear
+ *     responses:
+ *       200:
+ *         description: Expiry updated
+ */
+router.put('/clients/:id/expiry', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { expires_at } = req.body;
+    const expiryValue = expires_at ? expires_at : null;
+
+    await McpOperations.updateOAuthClientExpiry(req.params.id, req.user!.userId, expiryValue);
+    log.info('MCP', `OAuth client expiry updated by user ${req.user!.userId}`, { clientId: req.params.id, expires_at: expiryValue });
+    sendSuccess(res, { success: true });
+  } catch (error) {
+    log.error('MCP', 'Failed to update OAuth client expiry', { error });
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update expiry' });
+  }
+});
+
+/**
+ * @swagger
  * /api/mcp/oauth/clients/{id}:
  *   delete:
  *     summary: Delete OAuth client
@@ -148,53 +236,176 @@ router.delete('/clients/:id', authMiddleware, async (req: Request, res: Response
  * @swagger
  * /api/mcp/oauth/token:
  *   post:
- *     summary: Exchange authorization code for access token
+ *     summary: Exchange client credentials for access token (Client Credentials Flow)
  *     tags: [MCP]
  *     requestBody:
  *       required: true
  *       content:
- *         application/x-www-form-urlencoded:
+ *         application/json:
  *           schema:
  *             type: object
  *             required:
  *               - grant_type
- *               - code
  *               - client_id
  *               - client_secret
  *             properties:
  *               grant_type:
  *                 type: string
- *                 enum: [authorization_code]
- *               code:
- *                 type: string
+ *                 enum: [client_credentials]
  *               client_id:
  *                 type: string
  *               client_secret:
  *                 type: string
+ *               scope:
+ *                 type: string
+ *                 description: Optional requested scope
  *     responses:
  *       200:
  *         description: Access token issued
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 access_token:
+ *                   type: string
+ *                 token_type:
+ *                   type: string
+ *                   example: Bearer
+ *                 expires_in:
+ *                   type: number
+ *                 scope:
+ *                   type: string
  *       400:
  *         description: Invalid request
+ *       401:
+ *         description: Invalid client credentials
  */
 router.post('/token', async (req: Request, res: Response) => {
   try {
-    const { grant_type, code, client_id, client_secret } = req.body;
+    const { grant_type, client_id, client_secret, scope } = req.body;
 
-    if (grant_type !== 'authorization_code') {
-      return res.status(400).json({ error: 'unsupported_grant_type' });
+    // Only client_credentials grant type is supported
+    if (grant_type !== 'client_credentials') {
+      return res.status(400).json({
+        error: 'unsupported_grant_type',
+        error_description: 'Only client_credentials grant type is supported',
+      });
     }
 
-    // TODO: Implement authorization code validation and token exchange
-    // This is a placeholder for the OAuth2 token endpoint
+    if (!client_id || !client_secret) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'client_id and client_secret are required',
+      });
+    }
+
+    // Validate client credentials
+    const client = await McpOperations.validateClientCredentials(client_id, client_secret);
+    if (!client) {
+      return res.status(401).json({
+        error: 'invalid_client',
+        error_description: 'Invalid client credentials',
+      });
+    }
+
+    // Generate access token and refresh token
+    const accessToken = 'hdt_' + crypto.randomBytes(32).toString('hex');
+    const refreshToken = 'hdr_' + crypto.randomBytes(32).toString('hex');
     
-    res.status(501).json({ 
-      error: 'not_implemented',
-      error_description: 'OAuth2 token exchange not yet implemented',
+    // Token expires in 1 hour (3600 seconds)
+    const expiresIn = 3600;
+    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+    // Determine scope - use the client's configured scope or the requested scope
+    let tokenScope: string | undefined;
+    if (scope) {
+      tokenScope = scope;
+    } else if (client.scope) {
+      tokenScope = client.scope;
+    }
+
+    // Store the access token
+    await McpOperations.createAccessToken({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      client_id,
+      user_id: client.user_id,
+      scope: tokenScope ? JSON.stringify(tokenScope) : undefined,
+      expires_at: expiresAt,
+    });
+
+    log.info('MCP OAuth', `Access token issued for client`, { client_id, user_id: client.user_id });
+
+    // Return OAuth 2.0 standard response
+    res.status(200).json({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      token_type: 'Bearer',
+      expires_in: expiresIn,
+      scope: tokenScope || '',
     });
   } catch (error) {
-    log.error('MCP', 'OAuth token exchange failed', { error });
-    res.status(500).json({ error: 'server_error' });
+    log.error('MCP OAuth', 'Token issuance failed', { error });
+    res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/mcp/oauth/tokens:
+ *   get:
+ *     summary: List OAuth access tokens
+ *     tags: [MCP]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of issued tokens
+ */
+router.get('/tokens', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const tokens = await McpOperations.getOAuthAccessTokens(req.user!.userId);
+    sendSuccess(res, tokens);
+  } catch (error) {
+    log.error('MCP OAuth', 'Failed to get tokens', { error });
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get tokens' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/mcp/oauth/tokens/{id}/revoke:
+ *   post:
+ *     summary: Revoke an access token
+ *     tags: [MCP]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: number
+ *     responses:
+ *       200:
+ *         description: Token revoked
+ */
+router.post('/tokens/:id/revoke', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const tokenId = parseInt(req.params.id);
+    if (isNaN(tokenId)) {
+      return res.status(400).json({ code: 400, msg: 'Invalid token ID' });
+    }
+
+    await McpOperations.revokeOAuthTokenById(tokenId, req.user!.userId);
+
+    log.info('MCP OAuth', `Token revoked by user ${req.user!.userId}`, { tokenId });
+
+    sendSuccess(res, { success: true, message: 'Token revoked' });
+  } catch (error) {
+    log.error('MCP OAuth', 'Failed to revoke token', { error });
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to revoke token' });
   }
 });
 

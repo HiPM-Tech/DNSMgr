@@ -48,6 +48,7 @@ import rdapRouter from './routes/rdap';
 import mcpConfigRouter from './routes/mcp-config';
 import mcpApiKeysRouter from './routes/mcp-apikeys';
 import mcpOAuthRouter from './routes/mcp-oauth';
+import mcpAuditRouter from './routes/mcp-audit';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
@@ -288,10 +289,11 @@ app.use('/api/ns-monitor', nsMonitorRouter);
 app.use('/api/network', networkRouter);
 
 // MCP routes
-app.use('/api/mcp/status', mcpConfigRouter); // Public endpoint
-app.use('/api/mcp/config', mcpConfigRouter); // Admin only
+app.use('/api/mcp', mcpConfigRouter); // /config, /status
 app.use('/api/mcp/api-keys', mcpApiKeysRouter); // Authenticated
 app.use('/api/mcp/oauth', mcpOAuthRouter); // Mixed (some public, some authenticated)
+app.use('/api/mcp/audit-logs', mcpAuditRouter); // Authenticated
+app.use('/api/mcp/audit-stats', mcpAuditRouter); // Authenticated
 
 // Logs route
 /**

@@ -23,39 +23,60 @@ async function authenticateRequest(apiKey?: string): Promise<{ userId: number; a
   }
   
   try {
-    // 调用 McpOperations.validateApiKey() 验证 API Key
+    // 先尝试作为 API Key 验证（保持向后兼容）
     const keyInfo = await McpOperations.validateApiKey(apiKey);
     
-    if (!keyInfo) {
-      log.warn('MCP Auth', 'Invalid or expired API key');
-      return null;
+    if (keyInfo) {
+      // 检查是否已撤销
+      if (keyInfo.revoked_at) {
+        log.warn('MCP Auth', 'API key has been revoked', { keyId: keyInfo.id });
+        return null;
+      }
+      
+      // 检查是否过期
+      if (keyInfo.expires_at && new Date(keyInfo.expires_at) < new Date()) {
+        log.warn('MCP Auth', 'API key has expired', { keyId: keyInfo.id, expiresAt: keyInfo.expires_at });
+        return null;
+      }
+      
+      log.info('MCP Auth', 'API key validated successfully', { 
+        userId: keyInfo.user_id, 
+        keyId: keyInfo.id,
+        description: keyInfo.description 
+      });
+      
+      return {
+        userId: keyInfo.user_id,
+        authType: 'api_key',
+        keyId: keyInfo.id,
+      };
     }
     
-    // 检查是否已撤销
-    if (keyInfo.revoked_at) {
-      log.warn('MCP Auth', 'API key has been revoked', { keyId: keyInfo.id });
-      return null;
+    // API Key 验证失败，尝试作为 OAuth2 Access Token 验证
+    const tokenInfo = await McpOperations.validateAccessToken(apiKey);
+    
+    if (tokenInfo) {
+      // 检查是否过期
+      if (new Date(tokenInfo.expires_at) < new Date()) {
+        log.warn('MCP Auth', 'OAuth token has expired');
+        return null;
+      }
+      
+      log.info('MCP Auth', 'OAuth token validated successfully', {
+        userId: tokenInfo.user_id,
+        clientId: tokenInfo.client_id,
+      });
+      
+      return {
+        userId: tokenInfo.user_id,
+        authType: 'oauth2',
+      };
     }
     
-    // 检查是否过期
-    if (keyInfo.expires_at && new Date(keyInfo.expires_at) < new Date()) {
-      log.warn('MCP Auth', 'API key has expired', { keyId: keyInfo.id, expiresAt: keyInfo.expires_at });
-      return null;
-    }
-    
-    log.info('MCP Auth', 'API key validated successfully', { 
-      userId: keyInfo.user_id, 
-      keyId: keyInfo.id,
-      description: keyInfo.description 
-    });
-    
-    return {
-      userId: keyInfo.user_id,
-      authType: 'api_key',
-      keyId: keyInfo.id,
-    };
+    log.warn('MCP Auth', 'Invalid API key or OAuth token');
+    return null;
   } catch (error) {
-    log.error('MCP Auth', 'Failed to validate API key', { error });
+    log.error('MCP Auth', 'Failed to validate API key or OAuth token', { error });
     return null;
   }
 }

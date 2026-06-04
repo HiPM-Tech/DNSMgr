@@ -109,4 +109,84 @@ router.post('/config', authMiddleware, adminOnly, async (req: Request, res: Resp
   }
 });
 
+// PUT alias for frontend compatibility
+router.put('/config', authMiddleware, adminOnly, async (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ code: 400, msg: 'enabled must be a boolean' });
+    }
+
+    await McpOperations.updateGlobalConfig(enabled, req.user!.userId);
+    
+    log.info('MCP', `MCP global config updated by user ${req.user!.userId}`, { enabled });
+    
+    sendSuccess(res, { success: true });
+  } catch (error) {
+    log.error('MCP', 'Failed to update MCP config', { error });
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update MCP config' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/mcp/.well-known/oauth-protected-resource:
+ *   get:
+ *     summary: OAuth 2.0 Protected Resource Metadata (RFC 9728)
+ *     tags: [MCP]
+ *     responses:
+ *       200:
+ *         description: OAuth protected resource metadata
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 resource:
+ *                   type: string
+ *                 authorization_servers:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                 scopes_supported:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                 bearer_methods_supported:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ */
+router.get('/.well-known/oauth-protected-resource', async (req: Request, res: Response) => {
+  try {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const baseUrl = `${protocol}://${host}`;
+
+    const metadata = {
+      resource: `${baseUrl}/api/mcp`,
+      authorization_servers: [baseUrl],
+      scopes_supported: [
+        'ns_monitor:read',
+        'ns_monitor:write',
+        'domain_management:read',
+        'domain_management:write',
+        'renewal_management:read',
+        'renewal_management:write',
+        'log_query:read',
+        'failover_management:read',
+        'failover_management:write',
+      ],
+      bearer_methods_supported: ['header'],
+      resource_name: 'HiDNS MCP API',
+    };
+
+    res.status(200).json(metadata);
+  } catch (error) {
+    log.error('MCP', 'Failed to serve OAuth protected resource metadata', { error });
+    res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
+  }
+});
+
 export default router;
