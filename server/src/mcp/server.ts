@@ -32,7 +32,7 @@ export class HidnsMcpServer {
 
     log.info('MCP Server', 'HiDNS MCP Server initialized', {
       capabilities: ['tools'],
-      toolCount: 15,
+      toolCount: 25,
     });
   }
 

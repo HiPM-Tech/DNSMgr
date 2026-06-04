@@ -4212,6 +4212,7 @@ export const McpOperations = {
     app_name: string;
     redirect_uris: string;
     scope?: string;
+    expires_at?: string;
   } | null> {
     const result = await getInternal<{
       id: number;
@@ -4221,6 +4222,7 @@ export const McpOperations = {
       app_name: string;
       redirect_uris: string;
       scope?: string;
+      expires_at?: string;
     }>(
       'SELECT * FROM mcp_oauth_clients WHERE client_id = ?',
       [clientId],
@@ -4408,6 +4410,235 @@ export const McpOperations = {
       [accessToken],
       { operation: 'Mcp.revokeAccessToken', table: 'mcp_oauth_access_tokens' }
     );
+  },
+
+  // ========================================
+  // OAuth2 Authorization Code Flow
+  // ========================================
+
+  /** 创建 Authorization Code */
+  async createAuthCode(data: {
+    code: string;
+    client_id: string;
+    user_id: number;
+    redirect_uri: string;
+    scope: string | null;
+    expires_at: string;
+  }): Promise<void> {
+    await executeInternal(
+      'INSERT INTO mcp_oauth_auth_codes (code, client_id, user_id, redirect_uri, scope, expires_at, used, created_at) VALUES (?, ?, ?, ?, ?, ?, false, CURRENT_TIMESTAMP)',
+      [data.code, data.client_id, data.user_id, data.redirect_uri, data.scope, data.expires_at],
+      { operation: 'Mcp.createAuthCode', table: 'mcp_oauth_auth_codes', userId: data.user_id }
+    );
+  },
+
+  /** 验证并消费 Authorization Code */
+  async consumeAuthCode(code: string): Promise<{
+    client_id: string;
+    user_id: number;
+    redirect_uri: string;
+    scope: string | null;
+  } | null> {
+    const row = await getInternal<{
+      id: number;
+      client_id: string;
+      user_id: number;
+      redirect_uri: string;
+      scope: string | null;
+      expires_at: string;
+      used: number;
+    }>(
+      'SELECT * FROM mcp_oauth_auth_codes WHERE code = ?',
+      [code],
+      { operation: 'Mcp.consumeAuthCode', table: 'mcp_oauth_auth_codes' }
+    );
+
+    if (!row) return null;
+    if (row.used) return null;
+    if (new Date(row.expires_at) < new Date()) return null;
+
+    // 标记为已使用
+    await executeInternal(
+      'UPDATE mcp_oauth_auth_codes SET used = true WHERE id = ?',
+      [row.id],
+      { operation: 'Mcp.consumeAuthCode.markUsed', table: 'mcp_oauth_auth_codes' }
+    );
+
+    return {
+      client_id: row.client_id,
+      user_id: row.user_id,
+      redirect_uri: row.redirect_uri,
+      scope: row.scope,
+    };
+  },
+
+  /** 验证 Refresh Token */
+  async validateRefreshToken(refreshToken: string): Promise<{
+    id: number;
+    client_id: string;
+    user_id: number;
+    scope: string | null;
+    expires_at: string;
+  } | null> {
+    const row = await getInternal<{
+      id: number;
+      client_id: string;
+      user_id: number;
+      scope: string | null;
+      expires_at: string;
+      revoked_at: string | null;
+    }>(
+      'SELECT * FROM mcp_oauth_refresh_tokens WHERE refresh_token = ?',
+      [refreshToken],
+      { operation: 'Mcp.validateRefreshToken', table: 'mcp_oauth_refresh_tokens' }
+    );
+
+    if (!row) return null;
+    if (row.revoked_at) return null;
+    if (new Date(row.expires_at) < new Date()) return null;
+
+    return {
+      id: row.id,
+      client_id: row.client_id,
+      user_id: row.user_id,
+      scope: row.scope,
+      expires_at: row.expires_at,
+    };
+  },
+
+  /** 创建 Refresh Token */
+  async createRefreshToken(data: {
+    refresh_token: string;
+    client_id: string;
+    user_id: number;
+    scope: string | null;
+    expires_at: string;
+  }): Promise<void> {
+    await executeInternal(
+      'INSERT INTO mcp_oauth_refresh_tokens (refresh_token, client_id, user_id, scope, expires_at, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+      [data.refresh_token, data.client_id, data.user_id, data.scope, data.expires_at],
+      { operation: 'Mcp.createRefreshToken', table: 'mcp_oauth_refresh_tokens', userId: data.user_id }
+    );
+  },
+
+  /** 撤销 Refresh Token（及其关联的 access tokens） */
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    const row = await getInternal<{ id: number; client_id: string; user_id: number }>(
+      'SELECT id, client_id, user_id FROM mcp_oauth_refresh_tokens WHERE refresh_token = ?',
+      [refreshToken],
+      { operation: 'Mcp.revokeRefreshToken.find', table: 'mcp_oauth_refresh_tokens' }
+    );
+
+    if (!row) return;
+
+    await executeInternal(
+      'UPDATE mcp_oauth_refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [row.id],
+      { operation: 'Mcp.revokeRefreshToken.revoke', table: 'mcp_oauth_refresh_tokens', userId: row.user_id }
+    );
+
+    // 同时撤销关联的 access tokens
+    await executeInternal(
+      'UPDATE mcp_oauth_access_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE client_id = ? AND user_id = ? AND revoked_at IS NULL',
+      [row.client_id, row.user_id],
+      { operation: 'Mcp.revokeRefreshToken.revokeAccess', table: 'mcp_oauth_access_tokens', userId: row.user_id }
+    );
+  },
+
+  /** 按 refresh_token 查找有效的 access token */
+  async getAccessTokenByRefreshToken(refreshToken: string): Promise<{
+    id: number;
+    access_token: string;
+    client_id: string;
+    user_id: number;
+  } | null> {
+    const row = await getInternal<{
+      id: number;
+      access_token: string;
+      client_id: string;
+      user_id: number;
+    }>(
+      'SELECT id, access_token, client_id, user_id FROM mcp_oauth_access_tokens WHERE refresh_token = ? AND revoked_at IS NULL',
+      [refreshToken],
+      { operation: 'Mcp.getAccessTokenByRefreshToken', table: 'mcp_oauth_access_tokens' }
+    );
+    return row || null;
+  },
+
+  /** 按 token 值查找 access token（用于 introspection） */
+  async getAccessTokenByValue(accessToken: string): Promise<{
+    id: number;
+    access_token: string;
+    refresh_token: string;
+    client_id: string;
+    user_id: number;
+    scope?: string;
+    expires_at: string;
+    revoked_at: string | null;
+    created_at: string;
+  } | null> {
+    const token = await getInternal<{
+      id: number;
+      access_token: string;
+      refresh_token: string;
+      client_id: string;
+      user_id: number;
+      scope?: string;
+      expires_at: string;
+      revoked_at: string | null;
+      created_at: string;
+    }>(
+      'SELECT * FROM mcp_oauth_access_tokens WHERE access_token = ?',
+      [accessToken],
+      { operation: 'Mcp.getAccessTokenByValue', table: 'mcp_oauth_access_tokens' }
+    );
+    return token || null;
+  },
+
+  /** 按值撤销 access token（用于 RFC 7009 revocation） */
+  async revokeAccessTokenByValue(accessToken: string): Promise<void> {
+    await executeInternal(
+      'UPDATE mcp_oauth_access_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE access_token = ? AND revoked_at IS NULL',
+      [accessToken],
+      { operation: 'Mcp.revokeAccessTokenByValue', table: 'mcp_oauth_access_tokens' }
+    );
+  },
+
+  /** 按值撤销 refresh token */
+  async revokeRefreshTokenByValue(refreshToken: string): Promise<void> {
+    await executeInternal(
+      'UPDATE mcp_oauth_refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE refresh_token = ? AND revoked_at IS NULL',
+      [refreshToken],
+      { operation: 'Mcp.revokeRefreshTokenByValue', table: 'mcp_oauth_refresh_tokens' }
+    );
+  },
+
+  /** 按值查找 refresh token */
+  async getRefreshTokenByValue(refreshToken: string): Promise<{
+    id: number;
+    refresh_token: string;
+    client_id: string;
+    user_id: number;
+    scope?: string;
+    expires_at: string;
+    revoked_at: string | null;
+    created_at: string;
+  } | null> {
+    const token = await getInternal<{
+      id: number;
+      refresh_token: string;
+      client_id: string;
+      user_id: number;
+      scope?: string;
+      expires_at: string;
+      revoked_at: string | null;
+      created_at: string;
+    }>(
+      'SELECT * FROM mcp_oauth_refresh_tokens WHERE refresh_token = ?',
+      [refreshToken],
+      { operation: 'Mcp.getRefreshTokenByValue', table: 'mcp_oauth_refresh_tokens' }
+    );
+    return token || null;
   },
 
   // ========================================

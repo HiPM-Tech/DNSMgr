@@ -693,6 +693,39 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
       foreignKeys: [
         { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' }
       ]
+    },
+    {
+      name: 'mcp_oauth_auth_codes',
+      columns: [
+        { name: 'code', type: 'string', length: 512, unique: true, nullable: false },
+        { name: 'client_id', type: 'string', length: 255, nullable: false },
+        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'redirect_uri', type: 'string', length: 1024, nullable: false },
+        { name: 'scope', type: 'string', length: 1024, nullable: true },
+        { name: 'expires_at', type: 'datetime', nullable: false },
+        { name: 'used', type: 'boolean', defaultValue: false },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_mcp_auth_codes_code', columns: ['code'] },
+        { name: 'idx_mcp_auth_codes_expires', columns: ['expires_at'] }
+      ]
+    },
+    {
+      name: 'mcp_oauth_refresh_tokens',
+      columns: [
+        { name: 'refresh_token', type: 'string', length: 512, unique: true, nullable: false },
+        { name: 'client_id', type: 'string', length: 255, nullable: false },
+        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'scope', type: 'string', length: 1024, nullable: true },
+        { name: 'expires_at', type: 'datetime', nullable: false },
+        { name: 'revoked_at', type: 'datetime', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_mcp_refresh_tokens_token', columns: ['refresh_token'] },
+        { name: 'idx_mcp_refresh_tokens_expires', columns: ['expires_at'] }
+      ]
     }
   ]
 };

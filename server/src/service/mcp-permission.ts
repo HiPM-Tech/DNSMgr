@@ -119,12 +119,41 @@ export async function getUserModulePermission(
 export async function validateToolPermission(
   userId: number,
   toolName: string,
-  requiredPermission: 'read' | 'write'
+  requiredPermission: 'read' | 'write',
+  authType?: string,
+  tokenScope?: string
 ): Promise<void> {
   const module = getModuleByToolName(toolName);
   
   if (!module) {
     throw new AppError(400, `Unknown MCP tool: ${toolName}`);
+  }
+
+  // OAuth token scope check
+  if (authType === 'oauth2') {
+    if (!tokenScope) {
+      throw new AppError(403, 'OAuth token has no scope assigned');
+    }
+
+    const scopes = tokenScope.split(',').map(s => s.trim());
+    const requiredScope = `${module}:${requiredPermission}`;
+    const writeScope = `${module}:write`;
+
+    if (requiredPermission === 'write') {
+      if (!scopes.includes(writeScope)) {
+        log.warn('MCP Permission', 'OAuth token scope insufficient for write', {
+          userId, module, toolName, tokenScope
+        });
+        throw new AppError(403, `Token does not have '${writeScope}' scope`);
+      }
+    } else {
+      if (!scopes.includes(requiredScope) && !scopes.includes(writeScope)) {
+        log.warn('MCP Permission', 'OAuth token scope insufficient for read', {
+          userId, module, toolName, tokenScope
+        });
+        throw new AppError(403, `Token does not have '${requiredScope}' scope`);
+      }
+    }
   }
 
   const userPermission = await getUserModulePermission(userId, module);

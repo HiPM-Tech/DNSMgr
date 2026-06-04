@@ -461,7 +461,7 @@ export function McpManagement() {
               <Tag theme="success">✅ DNS {t('mcp.action')} ({t('mcp.active').toLowerCase()})</Tag>
             </div>
             <p style={{ marginTop: 12, color: '#666' }}>
-              {t('mcp.toolsSummary', { available: 29, total: 32, percent: '91' })}
+              {t('mcp.toolsSummary', { available: 25, total: 25, percent: '100' })}
             </p>
           </Card>
         </Card>

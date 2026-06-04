@@ -6,18 +6,21 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateToolPermission, logMcpAction } from '../service/mcp-permission';
+import { validateToolPermission, logMcpAction, getModuleByToolName } from '../service/mcp-permission';
 import { McpOperations, DomainOperations, RenewableDomainOperations, FailoverOperations, NSMonitorOperations, RecordOperations, UserPreferencesOperations, AuditExportOperations } from '../db/bal/business-adapter';
 import { DnsProviderService } from '../service/dns-provider-service';
 import { checkWhoisForDomain } from '../service/whois/checker';
 import { resolveNsRecords, validateNsRecords } from '../lib/dns/ns-lookup';
 import { getFailoverConfig, getFailoverStatus, saveFailoverConfig, deleteFailoverConfig, performHealthCheck } from '../service/failover';
+import { AppError } from '../middleware/errorHandler';
 import { log } from '../lib/logger';
 
 /**
  * 认证请求 - 验证 API Key 或 OAuth2 Token
  */
-async function authenticateRequest(apiKey?: string): Promise<{ userId: number; authType: 'api_key' | 'oauth2'; keyId?: number } | null> {
+type AuthResult = { userId: number; authType: 'api_key' | 'oauth2'; keyId?: number; scope?: string } | null;
+
+async function authenticateRequest(apiKey?: string): Promise<AuthResult> {
   if (!apiKey) {
     return null;
   }
@@ -70,6 +73,7 @@ async function authenticateRequest(apiKey?: string): Promise<{ userId: number; a
       return {
         userId: tokenInfo.user_id,
         authType: 'oauth2',
+        scope: tokenInfo.scope || undefined,
       };
     }
     
@@ -78,6 +82,54 @@ async function authenticateRequest(apiKey?: string): Promise<{ userId: number; a
   } catch (error) {
     log.error('MCP Auth', 'Failed to validate API key or OAuth token', { error });
     return null;
+  }
+}
+
+/**
+ * 验证 OAuth token scope 是否包含指定模块+权限
+ * - API Key 没有 scope，跳过此项检查（由 validateToolPermission 兜底）
+ * - OAuth token 必须包含对应模块的读写权限
+ * @deprecated 已合并到 validateToolPermission 中
+ */
+async function requireTokenScope(auth: AuthResult, toolName: string, requiredPermission: 'read' | 'write'): Promise<void> {
+  if (!auth) throw new AppError(401, 'Authentication required');
+
+  // API Key 没有 scope 限制，跳过
+  if (auth.authType === 'api_key') return;
+
+  // OAuth token 必须包含 scope
+  if (!auth.scope) {
+    throw new AppError(403, 'OAuth token has no scope assigned');
+  }
+
+  const module = getModuleByToolName(toolName);
+  if (!module) {
+    throw new AppError(400, `Unknown MCP tool: ${toolName}`);
+  }
+
+  // 解析 token 的 scope（逗号分隔的 module:permission 列表）
+  const scopes = auth.scope.split(',').map(s => s.trim());
+
+  // 检查是否包含所需权限
+  const requiredScope = `${module}:${requiredPermission}`;
+  // 对于 write 操作，write 权限已经隐含了 read
+  const writeScope = `${module}:write`;
+
+  if (requiredPermission === 'write') {
+    if (!scopes.includes(writeScope)) {
+      log.warn('MCP Auth', 'OAuth token scope insufficient for write', {
+        module, requiredScope, tokenScope: auth.scope
+      });
+      throw new AppError(403, `Token does not have '${writeScope}' scope`);
+    }
+  } else {
+    // read 操作：需要 read 或 write 权限
+    if (!scopes.includes(requiredScope) && !scopes.includes(writeScope)) {
+      log.warn('MCP Auth', 'OAuth token scope insufficient for read', {
+        module, requiredScope, tokenScope: auth.scope
+      });
+      throw new AppError(403, `Token does not have '${requiredScope}' scope`);
+    }
   }
 }
 
@@ -799,7 +851,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'create_failover_config', 'write');
+        await validateToolPermission(auth.userId, 'create_failover_config', 'write', auth.authType, auth.scope);
 
         // 保存容灾配置
         const configId = await saveFailoverConfig(domainId, {
@@ -863,7 +915,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'delete_failover_config', 'write');
+        await validateToolPermission(auth.userId, 'delete_failover_config', 'write', auth.authType, auth.scope);
 
         // 删除容灾配置
         await deleteFailoverConfig(domainId);
@@ -917,7 +969,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'perform_health_check', 'write');
+        await validateToolPermission(auth.userId, 'perform_health_check', 'write', auth.authType, auth.scope);
 
         // 获取容灾配置
         const config = await getFailoverConfig(domainId);
@@ -1003,7 +1055,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'update_domain_status', 'write');
+        await validateToolPermission(auth.userId, 'update_domain_status', 'write', auth.authType, auth.scope);
 
         // 调用业务适配器更新域名状态
         await DomainOperations.setEnabled(domainId, enabled ? 1 : 0);
@@ -1168,7 +1220,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'create_dns_record', 'write');
+        await validateToolPermission(auth.userId, 'create_dns_record', 'write', auth.authType, auth.scope);
 
         // 调用 DNS 提供商 API 创建记录（支持线路）
         const recordId = await DnsProviderService.createRecord(domainId, name, type, content, {
@@ -1234,7 +1286,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'update_dns_record', 'write');
+        await validateToolPermission(auth.userId, 'update_dns_record', 'write', auth.authType, auth.scope);
 
         // 先获取当前记录信息
         const currentRecord = await DnsProviderService.getRecordInfo(recordId, domainId);
@@ -1309,7 +1361,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'delete_dns_record', 'write');
+        await validateToolPermission(auth.userId, 'delete_dns_record', 'write', auth.authType, auth.scope);
 
         // 调用 DNS 提供商 API 删除记录
         const success = await DnsProviderService.deleteRecord(recordId, domainId);
@@ -1567,7 +1619,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'manual_renew_domain', 'write');
+        await validateToolPermission(auth.userId, 'manual_renew_domain', 'write', auth.authType, auth.scope);
 
         // 标记为已续期
         await RenewableDomainOperations.markAsRenewed(renewableDomainId, newExpiresAt);
@@ -1616,7 +1668,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'disable_domain_renewal', 'write');
+        await validateToolPermission(auth.userId, 'disable_domain_renewal', 'write', auth.authType, auth.scope);
 
         // 禁用续期
         await RenewableDomainOperations.toggleEnabled(renewableDomainId, false);
@@ -1719,7 +1771,7 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'refresh_ns_monitor', 'write');
+        await validateToolPermission(auth.userId, 'refresh_ns_monitor', 'write', auth.authType, auth.scope);
 
         // 获取 NS 监控配置
         const monitorConfig = await NSMonitorOperations.getById(nsMonitorId) as any;
