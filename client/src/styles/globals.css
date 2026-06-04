@@ -271,6 +271,51 @@ html.dark input:-webkit-autofill:focus {
   max-width: 100%;
 }
 
+/* Tab navigation (e.g. MCP Management tabs) */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--td-component-stroke);
+  margin-bottom: 16px;
+}
+
+.tab-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--td-text-color-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s, background-color 0.2s;
+  outline: none;
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  color: var(--td-text-color-primary);
+  background: var(--td-bg-color-container-hover);
+}
+
+.tab-btn.active {
+  color: var(--td-brand-color);
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--td-brand-color);
+  border-radius: 1px 1px 0 0;
+}
+
 .t-space {
   max-width: 100%;
   flex-wrap: wrap;

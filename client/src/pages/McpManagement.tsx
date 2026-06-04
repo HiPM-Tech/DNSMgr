@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, DialogPlugin, Divider, Input, Loading, Space, Table, Tag, Tooltip } from 'tdesign-react';
+import { Alert, Button, Card, DialogPlugin, Divider, Input, Loading, Space, Table, Tag, Tabs, Tooltip } from 'tdesign-react';
 import { AddIcon, CopyIcon, DeleteIcon, EditIcon } from 'tdesign-icons-react';
 import { useToast } from '../hooks/useToast';
 import { mcpApi } from '../api';
@@ -313,27 +313,25 @@ export function McpManagement() {
   // ─── Render ──────────────────────────────────────────────
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h2>{t('common.mcp')}</h2>
-        <p className="page-description">{t('mcp.subtitle')}</p>
+    <div className="page-shell">
+      <div className="page-heading">
+        <div>
+          <h2>{t('common.mcp')}</h2>
+          <p>{t('mcp.subtitle')}</p>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="tab-nav" style={{ marginBottom: 16 }}>
-        <button
-          className={`tab-btn ${activeTab === 'keys' ? 'active' : ''}`}
-          onClick={() => setActiveTab('keys')}
-        >
-          {t('mcp.apiKeys')}
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'oauth' ? 'active' : ''}`}
-          onClick={() => setActiveTab('oauth')}
-        >
-          {t('mcp.oauth')}
-        </button>
-      </div>
+      <Tabs
+        className="page-tabs"
+        theme="card"
+        value={activeTab}
+        list={[
+          { value: 'keys', label: t('mcp.apiKeys') },
+          { value: 'oauth', label: t('mcp.oauth') },
+        ]}
+        onChange={(value) => setActiveTab(value as 'keys' | 'oauth')}
+      />
 
       {/* API Keys Tab */}
       {activeTab === 'keys' && (
@@ -538,7 +536,7 @@ export function McpManagement() {
         <Card style={{ marginTop: 24 }}>
           <div style={{ marginBottom: 16 }}>
             <h4>{t('mcp.oauthTokensSection')}</h4>
-            <p className="page-description" style={{ marginTop: 4 }}>{t('mcp.oauthTokensDesc')}</p>
+            <p style={{ marginTop: 4, color: 'var(--td-text-color-secondary)', fontSize: 14 }}>{t('mcp.oauthTokensDesc')}</p>
           </div>
 
           {tokensLoading ? (
@@ -817,7 +815,7 @@ export function McpManagement() {
       {showExpiryModal && editingClient && (
         <Modal title={t('mcp.oauthExpiryEditTitle')} onClose={() => setShowExpiryModal(false)}>
           <div style={{ padding: '16px 0' }}>
-            <p className="page-description">{t('mcp.oauthExpiryEditDesc')}</p>
+            <p style={{ margin: '0 0 12px', color: 'var(--td-text-color-secondary)', fontSize: 14 }}>{t('mcp.oauthExpiryEditDesc')}</p>
             <input
               type="date"
               value={editExpiry}
