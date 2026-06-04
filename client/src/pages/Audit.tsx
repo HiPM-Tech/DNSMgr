@@ -37,28 +37,30 @@ export function Audit() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['audit-logs', page, domain, action, startDate, endDate, source],
-    queryFn: () => {
+    queryFn: async () => {
       if (source === 'mcp') {
         const params: any = { page, pageSize: PAGE_SIZE };
         if (mcpUserId) params.userId = parseInt(mcpUserId);
         if (mcpAction) params.action = mcpAction;
         if (startDate) params.startDate = startDate;
         if (endDate) params.endDate = endDate;
-        return mcpApi.getAuditLogs(params).then(r => r.data.data);
+        const res = await mcpApi.getAuditLogs(params);
+        return { total: res.data.data.total, list: res.data.data.logs };
       }
-      return logsApi.list({
+      const res = await logsApi.list({
         page,
         pageSize: PAGE_SIZE,
         domain: domain.trim() || undefined,
         action: action || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-      }).then((r) => r.data.data);
+      });
+      return res.data.data;
     },
   });
 
   const total = data?.total ?? 0;
-  const logs = data?.list ?? data?.logs ?? [];
+  const logs = data?.list ?? [];
 
   const clearFilters = () => {
     setDomain('');
