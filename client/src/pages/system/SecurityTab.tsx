@@ -159,7 +159,6 @@ export function SecurityTab() {
 
   // MCP global config
   const [mcpEnabled, setMcpEnabled] = useState(false);
-  const [mcpLoading, setMcpLoading] = useState(false);
 
   const { data: mcpConfig } = useQuery({
     queryKey: ['mcp-config'],

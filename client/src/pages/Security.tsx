@@ -6,7 +6,6 @@ import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { startRegistration } from '@simplewebauthn/browser';
 import { authApi } from '../api';
-import { mcpApi } from '../api';
 import type { WebAuthnResponse } from '../api';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 import { useI18n } from '../contexts/I18nContext';
