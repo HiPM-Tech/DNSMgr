@@ -169,7 +169,10 @@
             },
             "title": "审计日志",
             "to": "至",
-            "totalCount": "共 {total} 条"
+            "totalCount": "共 {total} 条",
+            "source": "来源",
+            "sourceSystem": "系统日志",
+            "sourceMcp": "MCP 日志"
         },
         "common": {
             "about": "关于",

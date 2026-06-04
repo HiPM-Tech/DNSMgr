@@ -12,6 +12,7 @@ import {
   UsergroupIcon,
 } from 'tdesign-icons-react';
 import { settingsApi, securityApi } from '../../api';
+import { mcpApi } from '../../api';
 import type { LoginLimitConfig, SecurityConfig, SmtpConfig } from '../../api/types';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
@@ -155,6 +156,35 @@ export function SecurityTab() {
   const [loginLimitForm, setLoginLimitForm] = useState(DEFAULT_LOGIN_LIMIT_FORM);
   const [securityPolicyForm, setSecurityPolicyForm] = useState(DEFAULT_SECURITY_POLICY_FORM);
   const [securityConfigForm, setSecurityConfigForm] = useState(DEFAULT_SECURITY_CONFIG_FORM);
+
+  // MCP global config
+  const [mcpEnabled, setMcpEnabled] = useState(false);
+  const [mcpLoading, setMcpLoading] = useState(false);
+
+  const { data: mcpConfig } = useQuery({
+    queryKey: ['mcp-config'],
+    queryFn: async () => {
+      const res = await mcpApi.getGlobalConfig();
+      if (res.data.code === 0) return res.data.data;
+      return null;
+    },
+    staleTime: 0,
+    refetchOnMount: 'always',
+    gcTime: 0,
+  });
+
+  useEffect(() => {
+    if (mcpConfig) setMcpEnabled(!!mcpConfig.enabled);
+  }, [mcpConfig]);
+
+  const updateMcpMutation = useMutation({
+    mutationFn: (enabled: boolean) => mcpApi.updateGlobalConfig(enabled),
+    onSuccess: () => {
+      setMcpEnabled((prev) => !prev);
+      toast.success(t('system.configUpdated'));
+    },
+    onError: () => toast.error(t('system.configUpdateFailed')),
+  });
 
   const { data: smtpConfig, dataUpdatedAt: smtpUpdatedAt } = useQuery({
     queryKey: ['smtp-config'],
@@ -609,6 +639,21 @@ export function SecurityTab() {
                 setSecurityConfigForm(nextConfig);
                 queryClient.setQueryData(['security-config'], nextConfig);
                 updateSecurityConfigMutation.mutate(nextConfig);
+              }}
+            />
+          </div>
+          <div className="settings-switch-row">
+            <div>
+              <strong>{t('mcp.enableMCP')}</strong>
+              <span>{t('mcp.configDesc')}</span>
+            </div>
+            <Switch
+              value={mcpEnabled}
+              loading={updateMcpMutation.isPending}
+              onChange={(checked: any) => {
+                const next = Boolean(checked);
+                setMcpEnabled(next);
+                updateMcpMutation.mutate(next);
               }}
             />
           </div>

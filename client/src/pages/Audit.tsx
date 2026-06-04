@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, DateRangePicker, Empty, Input, Loading, Pagination, Select, Space } from 'tdesign-react';
+import { Button, Card, DateRangePicker, Empty, Input, Loading, Pagination, Select, Space, Table, Tag } from 'tdesign-react';
 import type { DateRangeValue } from 'tdesign-react/es/date-picker';
 import type { SelectValue } from 'tdesign-react/es/select';
 import { FileSearchIcon, SearchIcon } from 'tdesign-icons-react';
-import { logsApi } from '../api';
+import { logsApi, mcpApi } from '../api';
 import { AuditLogList } from '../components/AuditLogList';
 import { getAuditActionOptions } from '../utils/auditLogs';
 import { useI18n } from '../contexts/I18nContext';
@@ -19,11 +19,15 @@ function selectToString(value: SelectValue) {
 export function Audit() {
   const { t } = useI18n();
   const actionOptions = useMemo(() => getAuditActionOptions(t), [t]);
+  const [source, setSource] = useState<'system' | 'mcp'>('system');
   const [domain, setDomain] = useState('');
   const [action, setAction] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [page, setPage] = useState(1);
+  // MCP audit filters
+  const [mcpUserId, setMcpUserId] = useState('');
+  const [mcpAction, setMcpAction] = useState('');
 
   useRealtimeData({
     queryKey: ['audit-logs'],
@@ -32,27 +36,43 @@ export function Audit() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['audit-logs', page, domain, action, startDate, endDate],
-    queryFn: () =>
-      logsApi.list({
+    queryKey: ['audit-logs', page, domain, action, startDate, endDate, source],
+    queryFn: () => {
+      if (source === 'mcp') {
+        const params: any = { page, pageSize: PAGE_SIZE };
+        if (mcpUserId) params.userId = parseInt(mcpUserId);
+        if (mcpAction) params.action = mcpAction;
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
+        return mcpApi.getAuditLogs(params).then(r => r.data.data);
+      }
+      return logsApi.list({
         page,
         pageSize: PAGE_SIZE,
         domain: domain.trim() || undefined,
         action: action || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-      }).then((r) => r.data.data),
+      }).then((r) => r.data.data);
+    },
   });
 
   const total = data?.total ?? 0;
-  const logs = data?.list ?? [];
+  const logs = data?.list ?? data?.logs ?? [];
 
   const clearFilters = () => {
     setDomain('');
     setAction('');
+    setMcpUserId('');
+    setMcpAction('');
     setStartDate('');
     setEndDate('');
     setPage(1);
+  };
+
+  const handleSourceChange = (value: SelectValue) => {
+    setSource(selectToString(value) as 'system' | 'mcp');
+    clearFilters();
   };
 
   const handleDateChange = (value: DateRangeValue) => {
@@ -72,32 +92,68 @@ export function Audit() {
         </section>
 
         <div className="audit-filter-grid">
-          <Input
-            clearable
-            type="search"
-            name="audit-domain-search"
-            autocomplete="off"
-            value={domain}
-            prefixIcon={<SearchIcon />}
-            placeholder={t('audit.domainPlaceholder')}
-            label={t('audit.filterDomain')}
-            onChange={(value) => {
-              setDomain(String(value));
-              setPage(1);
-            }}
-          />
           <Select
-            value={action}
+            value={source}
             options={[
-              { label: t('audit.allActions'), value: '' },
-              ...actionOptions.map((item) => ({ label: item.label, value: item.value })),
+              { label: t('audit.sourceSystem'), value: 'system' },
+              { label: t('audit.sourceMcp'), value: 'mcp' },
             ]}
-            label={t('audit.actionType')}
-            onChange={(value) => {
-              setAction(selectToString(value));
-              setPage(1);
-            }}
+            label={t('audit.source')}
+            onChange={handleSourceChange}
+            style={{ width: 150 }}
           />
+          {source === 'system' ? (
+            <Input
+              clearable
+              type="search"
+              name="audit-domain-search"
+              autocomplete="off"
+              value={domain}
+              prefixIcon={<SearchIcon />}
+              placeholder={t('audit.domainPlaceholder')}
+              label={t('audit.filterDomain')}
+              onChange={(value) => {
+                setDomain(String(value));
+                setPage(1);
+              }}
+            />
+          ) : (
+            <Input
+              clearable
+              value={mcpUserId}
+              placeholder={t('mcp.userId')}
+              label={t('mcp.userId')}
+              onChange={(value) => {
+                setMcpUserId(String(value));
+                setPage(1);
+              }}
+            />
+          )}
+          {source === 'system' ? (
+            <Select
+              value={action}
+              options={[
+                { label: t('audit.allActions'), value: '' },
+                ...actionOptions.map((item) => ({ label: item.label, value: item.value })),
+              ]}
+              label={t('audit.actionType')}
+              onChange={(value) => {
+                setAction(selectToString(value));
+                setPage(1);
+              }}
+            />
+          ) : (
+            <Input
+              clearable
+              value={mcpAction}
+              placeholder={t('mcp.action')}
+              label={t('mcp.action')}
+              onChange={(value) => {
+                setMcpAction(String(value));
+                setPage(1);
+              }}
+            />
+          )}
           <DateRangePicker
             className="audit-date-range"
             clearable
@@ -127,6 +183,57 @@ export function Audit() {
       >
         {isLoading ? (
           <div className="page-state"><Loading loading text={t('common.loading')} /></div>
+        ) : source === 'mcp' ? (
+          logs.length === 0 ? (
+            <Empty description={t('audit.noLogs')} />
+          ) : (
+            <>
+              <Table
+                rowKey="id"
+                data={logs}
+                columns={[
+                  { colKey: 'id', title: 'ID', width: 80 },
+                  { colKey: 'user_id', title: t('mcp.userId'), width: 100 },
+                  { colKey: 'auth_type', title: t('mcp.authType'), width: 100 },
+                  { colKey: 'module', title: t('mcp.module'), width: 120 },
+                  {
+                    colKey: 'action',
+                    title: t('mcp.action'),
+                    width: 200,
+                    cell: (row: any) => (
+                      <Tag>{row.action}</Tag>
+                    ),
+                  },
+                  {
+                    colKey: 'response_status',
+                    title: t('mcp.status'),
+                    width: 100,
+                    cell: (row: any) => (
+                      <Tag theme={row.response_status === 'success' ? 'success' : 'danger'}>
+                        {row.response_status}
+                      </Tag>
+                    ),
+                  },
+                  {
+                    colKey: 'created_at',
+                    title: t('mcp.time'),
+                    width: 180,
+                    cell: (row: any) => new Date(row.created_at).toLocaleString(),
+                  },
+                ]}
+              />
+              <div className="audit-pagination">
+                <Pagination
+                  current={page}
+                  pageSize={PAGE_SIZE}
+                  total={total}
+                  showPageSize={false}
+                  showJumper={false}
+                  onCurrentChange={(current) => setPage(current)}
+                />
+              </div>
+            </>
+          )
         ) : logs.length === 0 ? (
           <Empty description={t('audit.noLogs')} />
         ) : (

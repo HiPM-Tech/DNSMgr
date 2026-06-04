@@ -4072,7 +4072,7 @@ export const McpOperations = {
   async getGlobalConfig(): Promise<{ id: number; enabled: boolean; updated_by?: number; updated_at: string } | null> {
     const config = await getInternal<{
       id: number;
-      enabled: boolean;
+      enabled: number | boolean;
       updated_by?: number;
       updated_at: string;
     }>(
@@ -4080,7 +4080,9 @@ export const McpOperations = {
       [],
       { operation: 'Mcp.getGlobalConfig', table: 'mcp_global_config' }
     );
-    return config || null;
+    if (!config) return null;
+    // Convert stored integer (0/1) to proper boolean
+    return { ...config, enabled: !!config.enabled };
   },
 
   /** 更新 MCP 全局配置 */

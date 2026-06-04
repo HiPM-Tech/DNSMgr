@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, DialogPlugin, Divider, Input, Loading, Pagination, Space, Switch, Table, Tag, Tooltip } from 'tdesign-react';
-import { AddIcon, CopyIcon, DeleteIcon, DownloadIcon, EditIcon, RefreshIcon } from 'tdesign-icons-react';
+import { Alert, Button, Card, DialogPlugin, Divider, Input, Loading, Space, Table, Tag, Tooltip } from 'tdesign-react';
+import { AddIcon, CopyIcon, DeleteIcon, EditIcon } from 'tdesign-icons-react';
 import { useToast } from '../hooks/useToast';
 import { mcpApi } from '../api';
 import { useI18n } from '../contexts/I18nContext';
 import { Modal } from '../components/Modal';
-import type { McpApiKey, McpGlobalConfig, McpOAuthClient } from '../api/mcp';
+import type { McpApiKey, McpOAuthClient } from '../api/mcp';
 
 function formatDate(dateString: string, locale: string): string {
   if (!dateString) return '-';
@@ -60,39 +60,7 @@ export function McpManagement() {
   const [editScope, setEditScope] = useState('');
   const [editExpiry, setEditExpiry] = useState('');
 
-  // Audit log filters
-  const [auditFilters, setAuditFilters] = useState({
-    userId: '',
-    action: '',
-    startDate: '',
-    endDate: '',
-    page: 1,
-    pageSize: 20,
-  });
-
-  // ─── Global Config ──────────────────────────────────────────────
-
-  const { data: config, isLoading: configLoading } = useQuery({
-    queryKey: ['mcp-config'],
-    queryFn: async () => {
-      const res = await mcpApi.getGlobalConfig();
-      if (res.data.code === 0) return res.data.data as McpGlobalConfig;
-      throw new Error(res.data.msg);
-    },
-  });
-
-  const updateConfigMutation = useMutation({
-    mutationFn: (enabled: boolean) => mcpApi.updateGlobalConfig(enabled),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mcp-config'] });
-      toast.success(t('common.success'));
-    },
-    onError: (_error: unknown) => {
-      toast.error(t('common.error'));
-    },
-  });
-
-  // ─── API Keys ──────────────────────────────────────────────
+  // ─── OAuth Clients ──────────────────────────────────────────
 
   const { data: apiKeys = [], isLoading: keysLoading } = useQuery({
     queryKey: ['mcp-api-keys'],
@@ -139,55 +107,6 @@ export function McpManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mcp-api-keys'] });
       toast.success(t('common.success'));
-    },
-    onError: (_error: unknown) => {
-      toast.error(t('common.error'));
-    },
-  });
-
-  // ─── Audit Logs ──────────────────────────────────────────────
-
-  const { data: auditLogs, isLoading: auditLoading } = useQuery({
-    queryKey: ['mcp-audit-logs', auditFilters],
-    queryFn: async () => {
-      const params: any = {
-        page: auditFilters.page,
-        pageSize: auditFilters.pageSize,
-      };
-      if (auditFilters.userId) params.userId = parseInt(auditFilters.userId);
-      if (auditFilters.action) params.action = auditFilters.action;
-      if (auditFilters.startDate) params.startDate = auditFilters.startDate;
-      if (auditFilters.endDate) params.endDate = auditFilters.endDate;
-
-      const res = await mcpApi.getAuditLogs(params);
-      if (res.data.code === 0) return res.data.data;
-      throw new Error(res.data.msg);
-    },
-  });
-
-  const exportLogsMutation = useMutation({
-    mutationFn: (format: 'csv' | 'json') => {
-      const params: any = {
-        format,
-        startDate: auditFilters.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        endDate: auditFilters.endDate || new Date().toISOString().split('T')[0],
-      };
-      if (auditFilters.userId) params.userId = parseInt(auditFilters.userId);
-      if (auditFilters.action) params.action = auditFilters.action;
-      return mcpApi.exportAuditLogs(params);
-    },
-    onSuccess: (res) => {
-      if (res.data.code === 0) {
-        const { data, content_type } = res.data.data;
-        const blob = new Blob([data], { type: content_type });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `mcp-audit-logs.${res.data.data.format === 'csv' ? 'csv' : 'json'}`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-        toast.success(t('common.success'));
-      }
     },
     onError: (_error: unknown) => {
       toast.error(t('common.error'));
@@ -393,10 +312,6 @@ export function McpManagement() {
 
   // ─── Render ──────────────────────────────────────────────
 
-  if (configLoading) {
-    return <Loading />;
-  }
-
   return (
     <div className="page-container">
       <div className="page-header">
@@ -406,12 +321,6 @@ export function McpManagement() {
 
       {/* Tabs */}
       <div className="tab-nav" style={{ marginBottom: 16 }}>
-        <button
-          className={`tab-btn ${activeTab === 'config' ? 'active' : ''}`}
-          onClick={() => setActiveTab('config')}
-        >
-          {t('mcp.config')}
-        </button>
         <button
           className={`tab-btn ${activeTab === 'keys' ? 'active' : ''}`}
           onClick={() => setActiveTab('keys')}
@@ -424,48 +333,7 @@ export function McpManagement() {
         >
           {t('mcp.oauth')}
         </button>
-        <button
-          className={`tab-btn ${activeTab === 'audit' ? 'active' : ''}`}
-          onClick={() => setActiveTab('audit')}
-        >
-          {t('mcp.audit')}
-        </button>
       </div>
-
-      {/* Config Tab */}
-      {activeTab === 'config' && (
-        <Card title={t('mcp.configTitle')}>
-          <Alert theme="info" message={t('mcp.configDesc')} style={{ marginBottom: 16 }} />
-          
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>{t('mcp.enableMCP')}</label>
-            <Space>
-              <Switch
-                value={config?.enabled || false}
-                onChange={(checked) => updateConfigMutation.mutate(checked)}
-                loading={updateConfigMutation.isPending}
-              />
-              <span>{config?.enabled ? t('mcp.enabled') : t('mcp.disabled')}</span>
-            </Space>
-          </div>
-          
-          {config?.updated_at && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>{t('mcp.lastUpdated')}</label>
-              <span>{formatDate(config.updated_at, locale)}</span>
-            </div>
-          )}
-
-          <Card title={t('mcp.toolsOverview')} style={{ marginTop: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-              <Tag theme="success">✅ DNS {t('mcp.action')} ({t('mcp.active').toLowerCase()})</Tag>
-            </div>
-            <p style={{ marginTop: 12, color: '#666' }}>
-              {t('mcp.toolsSummary', { available: 25, total: 25, percent: '100' })}
-            </p>
-          </Card>
-        </Card>
-      )}
 
       {/* API Keys Tab */}
       {activeTab === 'keys' && (
@@ -766,132 +634,6 @@ export function McpManagement() {
         </Card>
       </>
     )}
-
-      {/* Audit Logs Tab */}
-      {activeTab === 'audit' && (
-        <>
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>{t('mcp.audit')}</h3>
-            <Space>
-              <Button
-                icon={<DownloadIcon />}
-                onClick={() => exportLogsMutation.mutate('csv')}
-                loading={exportLogsMutation.isPending}
-              >
-                {t('mcp.exportCsv')}
-              </Button>
-              <Button
-                icon={<RefreshIcon />}
-                onClick={() => queryClient.invalidateQueries({ queryKey: ['mcp-audit-logs'] })}
-              >
-                {t('mcp.refresh')}
-              </Button>
-            </Space>
-          </div>
-
-          {/* Filters */}
-          <Card style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>{t('mcp.userId')}</label>
-                <Input
-                  placeholder={t('common.optional')}
-                  value={auditFilters.userId}
-                  onChange={(val) => setAuditFilters({ ...auditFilters, userId: val })}
-                  style={{ width: 120 }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>{t('mcp.action')}</label>
-                <Input
-                  placeholder="domain_create"
-                  value={auditFilters.action}
-                  onChange={(val) => setAuditFilters({ ...auditFilters, action: val })}
-                  style={{ width: 180 }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>{t('mcp.startDate')}</label>
-                <input
-                  type="date"
-                  value={auditFilters.startDate}
-                  onChange={(e) => setAuditFilters({ ...auditFilters, startDate: e.target.value })}
-                  style={{ width: 160, padding: '8px 12px', border: '1px solid #dcdcdc', borderRadius: 3 }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>{t('mcp.endDate')}</label>
-                <input
-                  type="date"
-                  value={auditFilters.endDate}
-                  onChange={(e) => setAuditFilters({ ...auditFilters, endDate: e.target.value })}
-                  style={{ width: 160, padding: '8px 12px', border: '1px solid #dcdcdc', borderRadius: 3 }}
-                />
-              </div>
-              <div>
-                <Button
-                  onClick={() => queryClient.invalidateQueries({ queryKey: ['mcp-audit-logs'] })}
-                >
-                  {t('mcp.search')}
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          {/* Logs Table */}
-          {auditLoading ? (
-            <Loading />
-          ) : (
-            <>
-              <Table
-                rowKey="id"
-                data={auditLogs?.logs || []}
-                columns={[
-                  { colKey: 'id', title: 'ID', width: 80 },
-                  { colKey: 'user_id', title: t('mcp.userId'), width: 100 },
-                  { colKey: 'auth_type', title: t('mcp.authType'), width: 100 },
-                  { colKey: 'module', title: t('mcp.module'), width: 120 },
-                  { colKey: 'action', title: t('mcp.action'), width: 180 },
-                  {
-                    colKey: 'response_status',
-                    title: t('mcp.status'),
-                    width: 100,
-                    cell: (row: any) => (
-                      <Tag theme={row.response_status === 'success' ? 'success' : 'danger'}>
-                        {row.response_status}
-                      </Tag>
-                    ),
-                  },
-                  {
-                    colKey: 'created_at',
-                    title: t('mcp.time'),
-                    width: 180,
-                    cell: (row: any) => formatDate(row.created_at, locale),
-                  },
-                  {
-                    colKey: 'request_params',
-                    title: t('mcp.requestParams'),
-                    ellipsis: true,
-                    cell: (row: any) => row.request_params ? JSON.parse(row.request_params) : '-',
-                  },
-                ]}
-              />
-
-              {/* Pagination */}
-              {auditLogs && auditLogs.totalPages > 1 && (
-                <div style={{ marginTop: 16, textAlign: 'right' }}>
-                  <Pagination
-                    current={auditFilters.page}
-                    pageSize={auditFilters.pageSize}
-                    total={auditLogs.total}
-                    onCurrentChange={(current) => setAuditFilters({ ...auditFilters, page: current })}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
 
       {/* Create API Key Modal */}
       {showCreateKeyModal && (

@@ -68,6 +68,7 @@ const systemItems: NavItem[] = [
 ];
 
 const accountItems: NavItem[] = [
+  { to: '/dash/mcp', icon: <SystemSettingIcon />, key: 'common.mcp' },
   { to: '/dash/settings', icon: <SettingIcon />, key: 'common.settings' },
   { to: '/dash/security', icon: <LockOnIcon />, key: 'common.security' },
   { to: '/dash/about', icon: <InfoCircleIcon />, key: 'common.about' },
