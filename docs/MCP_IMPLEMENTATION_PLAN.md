@@ -865,8 +865,8 @@ services:
    - 配置 Token 有效期
 
 4. **用户生成凭证**
-   - 用户进入「个人中心」→「MCP 凭证」
-   - 生成 API Key 或创建 OAuth2 应用
+   - 用户进入→「MCP 管理」
+   - 生成 API Key 或创建/管理 OAuth2 应用
 
 5. **配置 Claude Desktop**
    - 编辑 Claude Desktop 配置文件

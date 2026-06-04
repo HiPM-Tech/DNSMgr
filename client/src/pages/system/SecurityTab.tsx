@@ -178,8 +178,9 @@ export function SecurityTab() {
 
   const updateMcpMutation = useMutation({
     mutationFn: (enabled: boolean) => mcpApi.updateGlobalConfig(enabled),
-    onSuccess: () => {
-      setMcpEnabled((prev) => !prev);
+    onSuccess: (_res, enabled) => {
+      queryClient.setQueryData(['mcp-config'], (old: any) => old ? { ...old, enabled } : { enabled });
+      queryClient.invalidateQueries({ queryKey: ['mcp-config'] });
       toast.success(t('system.configUpdated'));
     },
     onError: () => toast.error(t('system.configUpdateFailed')),
@@ -652,6 +653,7 @@ export function SecurityTab() {
               onChange={(checked: any) => {
                 const next = Boolean(checked);
                 setMcpEnabled(next);
+                queryClient.setQueryData(['mcp-config'], (old: any) => old ? { ...old, enabled: next } : { enabled: next });
                 updateMcpMutation.mutate(next);
               }}
             />

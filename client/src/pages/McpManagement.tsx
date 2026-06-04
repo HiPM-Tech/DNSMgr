@@ -38,7 +38,7 @@ export function McpManagement() {
   const { t, locale } = useI18n();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'config' | 'keys' | 'oauth' | 'audit'>('config');
+  const [activeTab, setActiveTab] = useState<'keys' | 'oauth'>('keys');
   const [showCreateKeyModal, setShowCreateKeyModal] = useState(false);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [keyDescription, setKeyDescription] = useState('');
