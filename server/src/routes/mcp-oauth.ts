@@ -234,6 +234,157 @@ router.delete('/clients/:id', authMiddleware, async (req: Request, res: Response
 
 /**
  * @swagger
+ * /api/mcp/oauth/authorize:
+ *   get:
+ *     summary: OAuth 2.0 Authorization endpoint (not supported — client_credentials only)
+ *     tags: [MCP]
+ *     parameters:
+ *       - in: query
+ *         name: response_type
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: client_id
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: redirect_uri
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: scope
+ *         schema:
+ *           type: string
+ *     responses:
+ *       400:
+ *         description: Only client_credentials grant type is supported
+ */
+router.get('/authorize', async (req: Request, res: Response) => {
+  log.warn('MCP OAuth', 'Authorization endpoint called — not supported', {
+    response_type: req.query.response_type,
+    client_id: req.query.client_id,
+  });
+  res.status(400).json({
+    error: 'unsupported_response_type',
+    error_description: 'This server only supports the client_credentials grant type. Use POST /api/mcp/oauth/token instead.',
+  });
+});
+
+/**
+ * @swagger
+ * /api/mcp/oauth/register:
+ *   post:
+ *     summary: Dynamic Client Registration (RFC 7591)
+ *     tags: [MCP]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - client_name
+ *               - redirect_uris
+ *             properties:
+ *               client_name:
+ *                 type: string
+ *                 description: Human-readable client name
+ *               redirect_uris:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: List of redirect URIs
+ *               scope:
+ *                 type: string
+ *                 description: Requested permission scopes (comma-separated)
+ *               token_endpoint_auth_method:
+ *                 type: string
+ *                 enum: [client_secret_basic, client_secret_post, none]
+ *                 default: client_secret_post
+ *     responses:
+ *       201:
+ *         description: Client registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 client_id:
+ *                   type: string
+ *                 client_secret:
+ *                   type: string
+ *                 client_id_issued_at:
+ *                   type: number
+ *                 client_secret_expires_at:
+ *                   type: number
+ *                 client_name:
+ *                   type: string
+ *                 redirect_uris:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                 token_endpoint_auth_method:
+ *                   type: string
+ */
+router.post('/register', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { client_name, redirect_uris, scope, token_endpoint_auth_method } = req.body;
+
+    if (!client_name || typeof client_name !== 'string') {
+      return res.status(400).json({
+        error: 'invalid_client_metadata',
+        error_description: 'client_name is required',
+      });
+    }
+
+    if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
+      return res.status(400).json({
+        error: 'invalid_client_metadata',
+        error_description: 'redirect_uris is required and must be a non-empty array',
+      });
+    }
+
+    const { clientId, clientSecret } = generateOAuthCredentials();
+
+    await McpOperations.createOAuthClient({
+      client_id: clientId,
+      client_secret: clientSecret,
+      user_id: req.user!.userId,
+      app_name: client_name,
+      redirect_uris: JSON.stringify(redirect_uris),
+      scope: scope || undefined,
+    });
+
+    const now = Math.floor(Date.now() / 1000);
+
+    log.info('MCP OAuth', 'Dynamic client registered', {
+      client_id: clientId,
+      client_name,
+      user_id: req.user!.userId,
+    });
+
+    res.status(201).json({
+      client_id: clientId,
+      client_secret: clientSecret,
+      client_id_issued_at: now,
+      client_secret_expires_at: 0, // 0 = never expires
+      client_name,
+      redirect_uris,
+      token_endpoint_auth_method: token_endpoint_auth_method || 'client_secret_post',
+    });
+  } catch (error) {
+    log.error('MCP OAuth', 'Dynamic client registration failed', { error });
+    res.status(500).json({
+      error: 'server_error',
+      error_description: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/mcp/oauth/token:
  *   post:
  *     summary: Exchange client credentials for access token (Client Credentials Flow)

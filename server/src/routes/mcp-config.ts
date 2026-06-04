@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { McpOperations } from '../db/bal/business-adapter';
@@ -5,6 +6,69 @@ import { sendSuccess } from '../utils/http';
 import { log } from '../lib/logger';
 
 const router = Router();
+
+// ─── MCP OAuth JWKS Key Pair ──────────────────────────────────────
+interface McpJwksKey {
+  kid: string;
+  jwk: crypto.JsonWebKey;
+}
+
+let jwksKeyCache: McpJwksKey | null = null;
+let jwksKeyGeneratedAt = 0;
+const JWKS_KEY_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function getOrGenerateMcpJwksKey(): McpJwksKey {
+  const now = Date.now();
+
+  if (!jwksKeyCache || (now - jwksKeyGeneratedAt) > JWKS_KEY_TTL) {
+    log.info('MCP', 'Generating new EC P-256 key pair for MCP OAuth JWKS');
+
+    const { publicKey } = crypto.generateKeyPairSync('ec', {
+      namedCurve: 'P-256',
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+
+    const pubKeyObj = crypto.createPublicKey(publicKey);
+    const jwk = pubKeyObj.export({ format: 'jwk' }) as crypto.JsonWebKey;
+    // Generate a stable kid from the x-coordinate fingerprint
+    const kid = crypto.createHash('sha256').update(Buffer.from(jwk.x || '', 'base64url')).digest('hex').slice(0, 16);
+
+    jwksKeyCache = { kid, jwk: { ...jwk, alg: 'ES256', kid, use: 'sig' } };
+    jwksKeyGeneratedAt = now;
+  }
+
+  return jwksKeyCache;
+}
+
+/**
+ * @swagger
+ * /api/mcp/.well-known/jwks.json:
+ *   get:
+ *     summary: MCP OAuth JWKS endpoint — EC P-256 public key in JWK Set format
+ *     tags: [MCP]
+ *     responses:
+ *       200:
+ *         description: JWK Set containing the MCP OAuth public key
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 keys:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ */
+router.get('/.well-known/jwks.json', async (req: Request, res: Response) => {
+  try {
+    const { jwk } = getOrGenerateMcpJwksKey();
+    res.status(200).json({ keys: [jwk] });
+  } catch (error) {
+    log.error('MCP', 'Failed to serve JWKS', { error });
+    res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
+  }
+});
 
 /**
  * @swagger
@@ -157,6 +221,21 @@ router.put('/config', authMiddleware, adminOnly, async (req: Request, res: Respo
  *                   type: array
  *                   items:
  *                     type: string
+ *                 jwks_uri:
+ *                   type: string
+ *                   description: OPTIONAL. URL of the JWK Set containing public keys
+ *                 authorization_endpoint:
+ *                   type: string
+ *                   description: OPTIONAL. URL of the authorization endpoint
+ *                 token_endpoint:
+ *                   type: string
+ *                   description: OPTIONAL. URL of the token endpoint
+ *                 registration_endpoint:
+ *                   type: string
+ *                   description: OPTIONAL. URL of the dynamic client registration endpoint
+ *                 resource_name:
+ *                   type: string
+ *                   description: RECOMMENDED. Human-readable resource name
  */
 router.get('/.well-known/oauth-protected-resource', async (req: Request, res: Response) => {
   try {
@@ -179,6 +258,10 @@ router.get('/.well-known/oauth-protected-resource', async (req: Request, res: Re
         'failover_management:write',
       ],
       bearer_methods_supported: ['header'],
+      jwks_uri: `${baseUrl}/api/mcp/.well-known/jwks.json`,
+      authorization_endpoint: `${baseUrl}/api/mcp/oauth/authorize`,
+      token_endpoint: `${baseUrl}/api/mcp/oauth/token`,
+      registration_endpoint: `${baseUrl}/api/mcp/oauth/register`,
       resource_name: 'HiDNS MCP API',
     };
 
