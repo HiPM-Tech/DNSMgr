@@ -746,6 +746,8 @@
             "dbPassword": "密码",
             "dbPath": "数据库路径",
             "dbPort": "端口",
+            "dbSsl": "SSL",
+            "dbSslHint": "启用 SSL 连接（如 Render、Aiven 等托管服务需要）",
             "dbSubtitle": "选择数据库类型并配置连接信息",
             "dbTestFailed": "数据库连接测试失败",
             "dbTested": "连接成功",

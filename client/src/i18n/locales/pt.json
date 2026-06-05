@@ -1073,6 +1073,8 @@
             "dbPath": "Caminho do Banco de Dados",
             "dbHost": "Host",
             "dbPort": "Porta",
+            "dbSsl": "SSL",
+            "dbSslHint": "Ativar conexão SSL (necessário para Render, Aiven, etc.)",
             "dbName": "Nome do Banco de Dados",
             "dbUser": "Nome de Usuário",
             "dbPassword": "Senha",

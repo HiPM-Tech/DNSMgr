@@ -1073,6 +1073,8 @@
             "dbPath": "Путь к базе данных",
             "dbHost": "Хост",
             "dbPort": "Порт",
+            "dbSsl": "SSL",
+            "dbSslHint": "Включить SSL-подключение (требуется Render, Aiven и др.)",
             "dbName": "Имя базы данных",
             "dbUser": "Имя пользователя",
             "dbPassword": "Пароль",

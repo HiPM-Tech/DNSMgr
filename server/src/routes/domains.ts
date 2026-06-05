@@ -507,7 +507,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     name?: string;
     third_id?: string;
     remark?: string;
-    domains?: Array<{ name: string; third_id?: string; record_count?: number }>;
+    domains?: Array<{ name: string; third_id?: string; record_count?: number; remark?: string }>;
   };
   if (!account_id || (!name && (!domains || domains.length === 0))) {
     sendError(res, 'account_id and domain name are required');
@@ -519,10 +519,10 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     return;
   }
   const items = (domains && domains.length > 0)
-    ? domains
-    : [{ name: name!, third_id, record_count: 0 }];
+    ? domains.map(d => ({ ...d, remark: d.remark ?? remark }))
+    : [{ name: name!, third_id, remark, record_count: 0 }];
 
-  const normalizedMap = new Map<string, { name: string; third_id?: string; record_count?: number }>();
+  const normalizedMap = new Map<string, { name: string; third_id?: string; record_count?: number; remark?: string }>();
   for (const item of items) {
     const normalizedName = normalizeDomain(item.name);
     if (!normalizedName) continue;
@@ -530,6 +530,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       name: normalizedName,
       third_id: item.third_id?.trim() || '',
       record_count: item.record_count ?? 0,
+      remark: item.remark ?? '',
     });
   }
 
@@ -556,6 +557,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
         name: item.name,
         third_id: item.third_id || '',
         record_count: item.record_count ?? 0,
+        remark: item.remark,
       });
       if (firstId === null) firstId = id;
       added++;

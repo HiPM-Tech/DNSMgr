@@ -704,6 +704,8 @@
             "dbPassword": "パスワード",
             "dbPath": "データベースパス",
             "dbPort": "ポート",
+            "dbSsl": "SSL",
+            "dbSslHint": "SSL接続を有効にする（Render、Aivenなどのホスティングサービスで必要）",
             "dbSubtitle": "データベースの種類を選択して接続を設定します",
             "dbTestFailed": "データベース接続のテストに失敗しました",
             "dbTested": "接続成功",

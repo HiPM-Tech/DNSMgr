@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, DialogPlugin, Divider, Input, Loading, Space, Table, Tag, Tabs, Tooltip } from 'tdesign-react';
 import { AddIcon, CopyIcon, DeleteIcon, EditIcon } from 'tdesign-icons-react';
-import { useToast } from '../hooks/useToast';
+import { addToast } from '../hooks/useToast';
 import { mcpApi } from '../api';
 import { useI18n } from '../contexts/I18nContext';
 import { Modal } from '../components/Modal';
@@ -34,10 +34,13 @@ function formatDate(dateString: string, locale: string): string {
   }).replace(/\//g, '-');
 }
 
+/** Helper: show toast without component-scoped hooks (safe for dialog callbacks) */
+function toastSuccess(msg: string) { addToast(msg, 'success'); }
+function toastError(msg: string) { addToast(msg, 'error'); }
+
 export function McpManagement() {
   const { t, locale } = useI18n();
   const baseUrl = window.location.origin;
-  const toast = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'keys' | 'oauth'>('keys');
   const [showCreateKeyModal, setShowCreateKeyModal] = useState(false);
@@ -82,13 +85,13 @@ export function McpManagement() {
         setKeyDescription('');
         setKeyExpiry('');
         queryClient.invalidateQueries({ queryKey: ['mcp-api-keys'] });
-        toast.success(t('common.success'));
+        toastSuccess(t('common.success'));
       } else {
-        toast.error(res.data.msg || t('common.error'));
+        toastError(res.data.msg || t('common.error'));
       }
     },
     onError: (_error: unknown) => {
-      toast.error(t('common.error'));
+      toastError(t('common.error'));
     },
   });
 
@@ -96,10 +99,10 @@ export function McpManagement() {
     mutationFn: (keyId: number) => mcpApi.revokeApiKey(keyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mcp-api-keys'] });
-      toast.success(t('common.success'));
+      toastSuccess(t('common.success'));
     },
     onError: (_error: unknown) => {
-      toast.error(t('common.error'));
+      toastError(t('common.error'));
     },
   });
 
@@ -107,10 +110,10 @@ export function McpManagement() {
     mutationFn: (keyId: number) => mcpApi.deleteApiKey(keyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mcp-api-keys'] });
-      toast.success(t('common.success'));
+      toastSuccess(t('common.success'));
     },
     onError: (_error: unknown) => {
-      toast.error(t('common.error'));
+      toastError(t('common.error'));
     },
   });
 
@@ -136,13 +139,13 @@ export function McpManagement() {
         setRedirectUris([]);
         setOAuthScope('');
         queryClient.invalidateQueries({ queryKey: ['mcp-oauth-clients'] });
-        toast.success(t('common.success'));
+        toastSuccess(t('common.success'));
       } else {
-        toast.error(res.data.msg || t('common.error'));
+        toastError(res.data.msg || t('common.error'));
       }
     },
     onError: (_error: unknown) => {
-      toast.error(t('common.error'));
+      toastError(t('common.error'));
     },
   });
 
@@ -150,10 +153,10 @@ export function McpManagement() {
     mutationFn: (clientId: string) => mcpApi.deleteOAuthClient(clientId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mcp-oauth-clients'] });
-      toast.success(t('common.success'));
+      toastSuccess(t('common.success'));
     },
     onError: (_error: unknown) => {
-      toast.error(t('common.error'));
+      toastError(t('common.error'));
     },
   });
 
@@ -172,10 +175,10 @@ export function McpManagement() {
     mutationFn: (tokenId: number) => mcpApi.revokeOAuthToken(tokenId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mcp-oauth-tokens'] });
-      toast.success(t('common.success'));
+      toastSuccess(t('common.success'));
     },
     onError: (_error: unknown) => {
-      toast.error(t('common.error'));
+      toastError(t('common.error'));
     },
   });
 
@@ -186,10 +189,10 @@ export function McpManagement() {
       queryClient.invalidateQueries({ queryKey: ['mcp-oauth-clients'] });
       setShowScopeModal(false);
       setEditingClient(null);
-      toast.success(t('common.success'));
+      toastSuccess(t('common.success'));
     },
     onError: (_error: unknown) => {
-      toast.error(t('common.error'));
+      toastError(t('common.error'));
     },
   });
 
@@ -200,10 +203,10 @@ export function McpManagement() {
       queryClient.invalidateQueries({ queryKey: ['mcp-oauth-clients'] });
       setShowExpiryModal(false);
       setEditingClient(null);
-      toast.success(t('common.success'));
+      toastSuccess(t('common.success'));
     },
     onError: (_error: unknown) => {
-      toast.error(t('common.error'));
+      toastError(t('common.error'));
     },
   });
 
@@ -212,7 +215,7 @@ export function McpManagement() {
   // OAuth handlers
   const handleCreateOAuth = async () => {
     if (!oauthAppName.trim()) {
-      toast.error(t('mcp.oauthAppNameRequired'));
+      toastError(t('mcp.oauthAppNameRequired'));
       return;
     }
     createOAuthMutation.mutate({
@@ -261,12 +264,12 @@ export function McpManagement() {
     navigator.clipboard.writeText(key);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast.success(t('mcp.copied'));
+    toastSuccess(t('mcp.copied'));
   };
 
   const handleCreateKey = () => {
     if (!keyDescription.trim()) {
-      toast.error(t('mcp.descriptionRequired'));
+      toastError(t('mcp.descriptionRequired'));
       return;
     }
     createKeyMutation.mutate({
@@ -560,7 +563,8 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                 { 
                   colKey: 'description', 
                   title: t('mcp.description'),
-                  cell: (row: any) => row.description || '-'
+                  width: 200,
+                  ellipsis: true,
                 },
                 {
                   colKey: 'api_key',
@@ -675,7 +679,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
             <Loading />
           ) : oauthClients.length === 0 ? (
             <Card>
-              <div style={{ textAlign: 'center', padding: '32px 0', color: '#999' }}>
+              <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--td-text-color-secondary)' }}>
                 {t('mcp.oauthNoClients')}
               </div>
             </Card>
@@ -692,7 +696,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                           <Tag theme="danger" variant="light" size="small">Expired</Tag>
                         )}
                       </div>
-                      <div style={{ fontSize: 12, color: '#999', fontFamily: 'monospace' }}>
+                      <div style={{ fontSize: 12, color: 'var(--td-text-color-secondary)', fontFamily: 'monospace' }}>
                         {client.client_id}
                       </div>
                       <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
@@ -737,7 +741,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                       </Button>
                     </Space>
                   </div>
-                  <div style={{ fontSize: 12, color: '#999' }}>
+                  <div style={{ fontSize: 12, color: 'var(--td-text-color-secondary)' }}>
                     {t('mcp.oauthRedirectUris')}: {(() => { try { return JSON.parse(client.redirect_uris).join(', '); } catch { return client.redirect_uris; } })()}
                   </div>
                 </div>
@@ -755,7 +759,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
           {tokensLoading ? (
             <Loading />
           ) : oauthTokens.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: '#999' }}>
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--td-text-color-secondary)' }}>
               {t('mcp.oauthNoTokens')}
             </div>
           ) : (
@@ -815,7 +819,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                   width: 120,
                   fixed: 'right',
                   cell: (row: any) => {
-                    if (row.revoked_at || new Date(row.expires_at) < new Date()) return <span style={{ color: '#999', fontSize: 12 }}>-</span>;
+                    if (row.revoked_at || new Date(row.expires_at) < new Date()) return <span style={{ color: 'var(--td-text-color-secondary)', fontSize: 12 }}>-</span>;
                     return (
                       <Button
                         size="small"
@@ -864,9 +868,9 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                 type="date"
                 value={keyExpiry}
                 onChange={(e) => setKeyExpiry(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #dcdcdc', borderRadius: 3 }}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--td-component-stroke)', borderRadius: 3 }}
               />
-              <small style={{ color: '#999', display: 'block', marginTop: 4 }}>{t('mcp.expiryHint')}</small>
+              <small style={{ color: 'var(--td-text-color-secondary)', display: 'block', marginTop: 4 }}>{t('mcp.expiryHint')}</small>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
@@ -883,7 +887,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
           <code style={{ 
             display: 'block', 
             padding: 12, 
-            background: '#f5f5f5', 
+            background: 'var(--td-bg-color-secondary)', 
             borderRadius: 4,
             wordBreak: 'break-all',
             fontSize: 13,
@@ -943,7 +947,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                 value={oauthScope}
                 onChange={(val) => setOAuthScope(val)}
               />
-              <small style={{ color: '#999', display: 'block', marginTop: 4 }}>{t('mcp.oauthScopeDesc')}</small>
+              <small style={{ color: 'var(--td-text-color-secondary)', display: 'block', marginTop: 4 }}>{t('mcp.oauthScopeDesc')}</small>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
@@ -962,7 +966,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
             <code style={{
               display: 'block',
               padding: 12,
-              background: '#f5f5f5',
+              background: 'var(--td-bg-color-secondary)',
               borderRadius: 4,
               wordBreak: 'break-all',
               fontSize: 13,
@@ -975,7 +979,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
             <code style={{
               display: 'block',
               padding: 12,
-              background: '#f5f5f5',
+              background: 'var(--td-bg-color-secondary)',
               borderRadius: 4,
               wordBreak: 'break-all',
               fontSize: 13,
@@ -989,7 +993,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
               onClick={() => {
                 const text = `Client ID: ${newOAuthClient.client_id}\nClient Secret: ${newOAuthClient.client_secret}`;
                 navigator.clipboard.writeText(text);
-                toast.success(t('mcp.copied'));
+                toastSuccess(t('mcp.copied'));
               }}
               theme="primary"
             >
@@ -1033,7 +1037,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
               type="date"
               value={editExpiry}
               onChange={(e) => setEditExpiry(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid #dcdcdc', borderRadius: 3, marginTop: 16 }}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--td-component-stroke)', borderRadius: 3, marginTop: 16 }}
             />
             <div style={{ display: 'flex', alignItems: 'center', marginTop: 8 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#666', fontSize: 13 }}>

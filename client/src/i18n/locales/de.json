@@ -1110,6 +1110,8 @@
             "dbPath": "Datenbankpfad",
             "dbHost": "Host",
             "dbPort": "Port",
+            "dbSsl": "SSL",
+            "dbSslHint": "SSL-Verbindung aktivieren (erforderlich für Render, Aiven, etc.)",
             "dbName": "Datenbankname",
             "dbUser": "Benutzername",
             "dbPassword": "Passwort",

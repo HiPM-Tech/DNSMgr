@@ -1148,6 +1148,8 @@
             "dbPath": "데이터베이스 경로",
             "dbHost": "호스트",
             "dbPort": "포트",
+            "dbSsl": "SSL",
+            "dbSslHint": "SSL 연결 활성화 (Render, Aiven 등 호스팅 서비스 필요)",
             "dbName": "데이터베이스 이름",
             "dbUser": "사용자 이름",
             "dbPassword": "비밀번호",

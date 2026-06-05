@@ -653,6 +653,8 @@
             "dbPassword": "Contraseña",
             "dbPath": "Ruta de la base de datos",
             "dbPort": "Puerto",
+            "dbSsl": "SSL",
+            "dbSslHint": "Habilitar conexión SSL (requerido por Render, Aiven, etc.)",
             "dbSubtitle": "Selecciona el tipo de base de datos y configura la conexión",
             "dbTestFailed": "Error al probar la conexión de la base de datos",
             "dbTested": "Conectado",

@@ -779,10 +779,10 @@ export const DomainOperations = {
   },
 
   /** 创建域名 */
-  async create(data: { account_id: number; name: string; third_id?: string; record_count?: number }): Promise<number> {
+  async create(data: { account_id: number; name: string; third_id?: string; record_count?: number; remark?: string }): Promise<number> {
     return insertInternal(
-      'INSERT INTO domains (account_id, name, third_id, record_count) VALUES (?, ?, ?, ?)',
-      [data.account_id, data.name, data.third_id ?? null, data.record_count ?? 0],
+      'INSERT INTO domains (account_id, name, third_id, record_count, remark) VALUES (?, ?, ?, ?, ?)',
+      [data.account_id, data.name, data.third_id ?? null, data.record_count ?? 0, data.remark ?? ''],
       { operation: 'Domain.create', table: 'domains' }
     );
   },

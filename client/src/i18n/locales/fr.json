@@ -1111,6 +1111,8 @@
             "dbPath": "Chemin de la base de données",
             "dbHost": "Hôte",
             "dbPort": "Port",
+            "dbSsl": "SSL",
+            "dbSslHint": "Activer la connexion SSL (requis pour Render, Aiven, etc.)",
             "dbName": "Nom de la base de données",
             "dbUser": "Nom d'utilisateur",
             "dbPassword": "Mot de passe",

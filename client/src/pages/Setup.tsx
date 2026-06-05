@@ -292,6 +292,17 @@ export function Setup() {
             onChange={(value) => resetDbTest({ ...dbConfig, [key]: { ...config, password: String(value) } })}
           />
         ))}
+        {setupField(t('setup.dbSsl'), (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={config.ssl}
+              onChange={(e) => resetDbTest({ ...dbConfig, [key]: { ...config, ssl: e.target.checked } })}
+              style={{ width: 16, height: 16, cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: 13, color: 'var(--td-text-color-secondary)' }}>{t('setup.dbSslHint')}</span>
+          </label>
+        ))}
       </div>
     );
   };

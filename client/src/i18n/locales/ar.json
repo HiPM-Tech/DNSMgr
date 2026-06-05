@@ -1073,6 +1073,8 @@
             "dbPath": "مسار قاعدة البيانات",
             "dbHost": "المضيف",
             "dbPort": "المنفذ",
+            "dbSsl": "SSL",
+            "dbSslHint": "تمكين اتصال SSL (مطلوب من قبل Render, Aiven، إلخ)",
             "dbName": "اسم قاعدة البيانات",
             "dbUser": "اسم المستخدم",
             "dbPassword": "كلمة المرور",

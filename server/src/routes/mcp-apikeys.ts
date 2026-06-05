@@ -151,7 +151,7 @@ router.post('/:id/revoke', authMiddleware, async (req: Request, res: Response) =
  * @swagger
  * /api/mcp/api-keys/{id}:
  *   delete:
- *     summary: Revoke API key
+ *     summary: Delete API key (permanently remove)
  *     tags: [MCP]
  *     security:
  *       - bearerAuth: []
@@ -163,7 +163,7 @@ router.post('/:id/revoke', authMiddleware, async (req: Request, res: Response) =
  *           type: number
  *     responses:
  *       200:
- *         description: API key revoked
+ *         description: API key deleted
  *       404:
  *         description: API key not found
  */
@@ -175,14 +175,14 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
       return res.status(400).json({ code: 400, msg: 'Invalid key ID' });
     }
 
-    await McpOperations.revokeApiKey(keyId, req.user!.userId);
+    await McpOperations.deleteApiKey(keyId, req.user!.userId);
     
-    log.info('MCP', `API key revoked by user ${req.user!.userId}`, { keyId });
+    log.info('MCP', `API key deleted by user ${req.user!.userId}`, { keyId });
     
-    sendSuccess(res, { success: true, message: 'API key revoked' });
+    sendSuccess(res, { success: true, message: 'API key deleted' });
   } catch (error) {
-    log.error('MCP', 'Failed to revoke API key', { error });
-    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to revoke API key' });
+    log.error('MCP', 'Failed to delete API key', { error });
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to delete API key' });
   }
 });
 

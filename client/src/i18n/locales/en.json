@@ -1173,6 +1173,8 @@
             "dbPath": "Database Path",
             "dbHost": "Host",
             "dbPort": "Port",
+            "dbSsl": "SSL",
+            "dbSslHint": "Enable SSL connection (required by Render, Aiven, etc.)",
             "dbName": "Database Name",
             "dbUser": "Username",
             "dbPassword": "Password",

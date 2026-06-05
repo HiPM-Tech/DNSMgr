@@ -109,13 +109,24 @@ const router = Router();
 
 type PublicInitDbConfig = {
   type: 'sqlite' | 'mysql' | 'postgresql';
+  mysql?: { ssl: boolean };
+  postgresql?: { ssl: boolean };
 };
 
 function getPublicInitDbConfig(): PublicInitDbConfig {
   const type = process.env.DB_TYPE;
-  return {
-    type: type === 'mysql' || type === 'postgresql' ? type : 'sqlite',
-  };
+  const dbType = type === 'mysql' || type === 'postgresql' ? type : 'sqlite';
+  const ssl = process.env.DB_SSL === 'true';
+
+  const result: PublicInitDbConfig = { type: dbType };
+
+  if (dbType === 'mysql') {
+    result.mysql = { ssl };
+  } else if (dbType === 'postgresql') {
+    result.postgresql = { ssl };
+  }
+
+  return result;
 }
 
 // Get database configuration for the setup form.
