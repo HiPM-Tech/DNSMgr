@@ -1306,7 +1306,15 @@
             "configApiKey": "Streamable HTTP (مصادقة مفتاح API)",
             "configOAuth": "Streamable HTTP (مصادقة OAuth)",
             "configSSEApiKey": "SSE (مصادقة مفتاح API)",
-            "configSSEOAuth": "SSE (مصادقة OAuth)"
+            "configSSEOAuth": "SSE (مصادقة OAuth)",
+            "configOAuthDiscovery": "مثال تكوين: الاكتشاف التلقائي OAuth",
+            "oauthDiscoveryTitle": "تدفق الاكتشاف التلقائي OAuth (لا حاجة لرمز مميز يدوي)",
+            "oauthDiscoveryStep1": "عند توصيل عميل MCP قياسي (Cursor, Claude Desktop, إلخ)، استخدم عنوان URL أدناه — لا حاجة لتقديم رمز مميز يدويًا.",
+            "oauthDiscoveryStep2": "يعيد الخادم 401 + عنوان URL لبيانات الموارد المحمية OAuth، لتوجيه العميل إلى الاكتشاف التلقائي OAuth.",
+            "oauthDiscoveryStep3": "يقوم العميل تلقائيًا باستدعاء /api/mcp/oauth/register لتسجيل نفسه والحصول على client_id / client_secret.",
+            "oauthDiscoveryStep4": "يكمل العميل تلقائيًا تدفق رمز التفويض OAuth للحصول على Access Token واستخدامه.",
+            "oauthDiscoveryEndpointDesc": "بيانات الموارد المحمية OAuth (RFC 9728)، يكتشفها العميل تلقائيًا",
+            "oauthRegisterEndpointDesc": "تسجيل العميل الديناميكي (RFC 7591)، تسجيل بدون مصادقة"
         }
     }
 }

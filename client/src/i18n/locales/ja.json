@@ -1437,7 +1437,15 @@
             "configApiKey": "Streamable HTTP（API Key認証）",
             "configOAuth": "Streamable HTTP（OAuth認証）",
             "configSSEApiKey": "SSE（API Key認証）",
-            "configSSEOAuth": "SSE（OAuth認証）"
+            "configSSEOAuth": "SSE（OAuth認証）",
+            "configOAuthDiscovery": "構成例: OAuth自動検出",
+            "oauthDiscoveryTitle": "OAuth自動検出フロー（手動トークン不要）",
+            "oauthDiscoveryStep1": "標準MCPクライアント（Cursor、Claude Desktop等）が接続する際は、以下のURL設定を使用してください——手動でのトークン提供は不要です。",
+            "oauthDiscoveryStep2": "サーバーが401 + OAuth保護リソースメタデータURLを返し、クライアントをOAuth自動検出に導きます。",
+            "oauthDiscoveryStep3": "クライアントが自動的に /api/mcp/oauth/register を呼び出して登録し、client_id / client_secret を取得します。",
+            "oauthDiscoveryStep4": "クライアントが自動的にOAuth認可コードフローを完了し、Access Tokenを取得して使用します。",
+            "oauthDiscoveryEndpointDesc": "OAuth保護リソースメタデータ（RFC 9728）、クライアントが自動検出",
+            "oauthRegisterEndpointDesc": "動的クライアント登録（RFC 7591）、登録に認証不要"
         }
     }
 }

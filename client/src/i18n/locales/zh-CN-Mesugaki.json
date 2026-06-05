@@ -1406,7 +1406,15 @@
             "configApiKey": "Streamable HTTP（API Key 认证）",
             "configOAuth": "Streamable HTTP（OAuth 认证）",
             "configSSEApiKey": "SSE（API Key 认证）",
-            "configSSEOAuth": "SSE（OAuth 认证）"
+            "configSSEOAuth": "SSE（OAuth 认证）",
+            "configOAuthDiscovery": "配置示例：OAuth 自动发现",
+            "oauthDiscoveryTitle": "OAuth 自动发现流程（无需手动提供 Token）",
+            "oauthDiscoveryStep1": "标准 MCP 客户端（Cursor、Claude Desktop 等）连接此 MCP 服务时，直接使用下方 URL 配置即可——无需手动提供 Token。",
+            "oauthDiscoveryStep2": "服务端返回 401 + OAuth 受保护资源元数据 URL，引导客户端完成 OAuth 自动发现。",
+            "oauthDiscoveryStep3": "客户端自动调用 /api/mcp/oauth/register 注册自己，获取 client_id / client_secret。",
+            "oauthDiscoveryStep4": "客户端自动完成 OAuth 授权码流程，获取 Access Token 并使用。",
+            "oauthDiscoveryEndpointDesc": "OAuth 受保护资源元数据（RFC 9728），客户端自动发现",
+            "oauthRegisterEndpointDesc": "动态客户端注册（RFC 7591），客户端无需认证即可注册"
         }
     }
 }

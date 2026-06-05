@@ -1344,7 +1344,15 @@
             "configApiKey": "Streamable HTTP (Auth par clé API)",
             "configOAuth": "Streamable HTTP (Auth OAuth)",
             "configSSEApiKey": "SSE (Auth par clé API)",
-            "configSSEOAuth": "SSE (Auth OAuth)"
+            "configSSEOAuth": "SSE (Auth OAuth)",
+            "configOAuthDiscovery": "Exemple de configuration : découverte automatique OAuth",
+            "oauthDiscoveryTitle": "Flux de découverte automatique OAuth (aucun jeton manuel requis)",
+            "oauthDiscoveryStep1": "Lors de la connexion d'un client MCP standard (Cursor, Claude Desktop, etc.), utilisez l'URL ci-dessous — aucun jeton manuel n'est nécessaire.",
+            "oauthDiscoveryStep2": "Le serveur renvoie 401 + l'URL des métadonnées de la ressource protégée OAuth, guidant le client vers la découverte automatique OAuth.",
+            "oauthDiscoveryStep3": "Le client appelle automatiquement /api/mcp/oauth/register pour s'enregistrer et obtenir client_id / client_secret.",
+            "oauthDiscoveryStep4": "Le client termine automatiquement le flux de code d'autorisation OAuth pour obtenir et utiliser un jeton d'accès.",
+            "oauthDiscoveryEndpointDesc": "Métadonnées de la ressource protégée OAuth (RFC 9728), découverte automatique par le client",
+            "oauthRegisterEndpointDesc": "Enregistrement dynamique de client (RFC 7591), enregistrement sans authentification"
         }
     }
 }

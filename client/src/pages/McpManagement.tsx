@@ -365,7 +365,7 @@ export function McpManagement() {
                 <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/.well-known/oauth-protected-resource</code></td>
                   <td style={{ padding: '8px' }}>GET</td>
-                  <td style={{ padding: '8px' }}>{t('mcp.oauthProtectedResourceDesc')}</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.oauthDiscoveryEndpointDesc')}</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/.well-known/jwks.json</code></td>
@@ -385,7 +385,7 @@ export function McpManagement() {
                 <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/oauth/register</code></td>
                   <td style={{ padding: '8px' }}>POST</td>
-                  <td style={{ padding: '8px' }}>{t('mcp.oauthRegisterDesc')}</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.oauthRegisterEndpointDesc')}</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/oauth/introspect</code></td>
@@ -400,6 +400,26 @@ export function McpManagement() {
               </tbody>
             </table>
 
+            {/* OAuth 自动发现说明 */}
+            <div style={{
+              background: 'var(--td-bg-color-secondary)',
+              border: '1px solid var(--td-component-stroke)',
+              borderRadius: 6,
+              padding: '12px 16px',
+              marginBottom: 20,
+              fontSize: 13,
+              lineHeight: 1.6,
+              color: 'var(--td-text-color-secondary)',
+            }}>
+              <strong style={{ color: 'var(--td-text-color-primary)' }}>{t('mcp.oauthDiscoveryTitle')}</strong>
+              <ol style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+                <li>{t('mcp.oauthDiscoveryStep1')}</li>
+                <li>{t('mcp.oauthDiscoveryStep2')}</li>
+                <li>{t('mcp.oauthDiscoveryStep3')}</li>
+                <li>{t('mcp.oauthDiscoveryStep4')}</li>
+              </ol>
+            </div>
+
             {/* JSON 配置展示 */}
             <h4 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--td-text-color-primary)' }}>{t('mcp.configSamples')}</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -410,6 +430,7 @@ export function McpManagement() {
                     mcpServers: {
                       hidns: {
                         url: `${baseUrl}/api/mcp`,
+                        transport: 'streamable-http',
                         headers: {
                           'API-Key': 'your-api-key-here'
                         }
@@ -425,13 +446,14 @@ export function McpManagement() {
                     mcpServers: {
                       hidns: {
                         url: `${baseUrl}/api/mcp`,
-                        headers: {
-                          'Authorization': 'Bearer your-oauth-token'
-                        }
+                        transport: 'streamable-http',
                       }
                     }
                   }, null, 2)}</code>
                 </div>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--td-text-color-secondary)' }}>
+                  {t('mcp.oauthDiscoveryStep1')}
+                </p>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 }}>
@@ -442,6 +464,7 @@ export function McpManagement() {
                     mcpServers: {
                       hidns: {
                         url: `${baseUrl}/api/mcp/sse`,
+                        transport: 'sse',
                         headers: {
                           'API-Key': 'your-api-key-here'
                         }
@@ -457,14 +480,48 @@ export function McpManagement() {
                     mcpServers: {
                       hidns: {
                         url: `${baseUrl}/api/mcp/sse`,
-                        headers: {
-                          'Authorization': 'Bearer your-oauth-token'
-                        }
+                        transport: 'sse',
                       }
                     }
                   }, null, 2)}</code>
                 </div>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--td-text-color-secondary)' }}>
+                  {t('mcp.oauthDiscoveryStep1')}
+                </p>
               </div>
+            </div>
+            {/* 动态注册脚本示例 */}
+            <div style={{ marginTop: 16 }}>
+              <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 500, color: 'var(--td-text-color-primary)' }}>{t('mcp.configOAuthDiscovery')}</p>
+              <div style={{
+                background: '#1e1e1e',
+                borderRadius: 6,
+                padding: 12,
+                marginBottom: 8,
+              }}>
+                <code style={{ whiteSpace: 'pre-wrap', fontSize: 11, lineHeight: 1.6, color: '#d4d4d4' }}>{`# 客户端自动注册（无需管理员操作）
+curl -X POST ${baseUrl}/api/mcp/oauth/register \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "client_name": "my-mcp-client",
+    "redirect_uris": ["http://localhost:3000/callback"],
+    "scope": "dns:read dns:write"
+  }'
+
+# 返回示例：
+# {
+#   "client_id": "hidns_mcp_xxx",
+#   "client_secret": "xxx",
+#   "client_id_issued_at": 1700000000,
+#   "client_secret_expires_at": 0,
+#   "client_name": "my-mcp-client",
+#   "redirect_uris": ["http://localhost:3000/callback"],
+#   "token_endpoint_auth_method": "client_secret_post"
+# }`}</code>
+              </div>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--td-text-color-secondary)' }}>
+                注册后使用 <code style={{ fontSize: 12 }}>client_credentials</code> 或 <code style={{ fontSize: 12 }}>authorization_code</code> 获取 Access Token，然后以 <code style={{ fontSize: 12 }}>Bearer</code> 方式调用 MCP 接口。
+              </p>
             </div>
           </div>
         </details>

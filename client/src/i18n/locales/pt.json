@@ -1306,7 +1306,15 @@
             "configApiKey": "Streamable HTTP (Auth por chave de API)",
             "configOAuth": "Streamable HTTP (Auth OAuth)",
             "configSSEApiKey": "SSE (Auth por chave de API)",
-            "configSSEOAuth": "SSE (Auth OAuth)"
+            "configSSEOAuth": "SSE (Auth OAuth)",
+            "configOAuthDiscovery": "Exemplo de configuração: descoberta automática OAuth",
+            "oauthDiscoveryTitle": "Fluxo de descoberta automática OAuth (nenhum token manual necessário)",
+            "oauthDiscoveryStep1": "Ao conectar um cliente MCP padrão (Cursor, Claude Desktop, etc.), use a URL abaixo — nenhum token manual é necessário.",
+            "oauthDiscoveryStep2": "O servidor retorna 401 + URL de metadados do recurso protegido OAuth, guiando o cliente para a descoberta automática OAuth.",
+            "oauthDiscoveryStep3": "O cliente chama automaticamente /api/mcp/oauth/register para se registrar e obter client_id / client_secret.",
+            "oauthDiscoveryStep4": "O cliente conclui automaticamente o fluxo de código de autorização OAuth para obter e usar um Access Token.",
+            "oauthDiscoveryEndpointDesc": "Metadados do recurso protegido OAuth (RFC 9728), descoberta automática pelo cliente",
+            "oauthRegisterEndpointDesc": "Registro dinâmico de cliente (RFC 7591), registro sem autenticação"
         }
     }
 }

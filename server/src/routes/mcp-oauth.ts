@@ -433,7 +433,6 @@ router.post('/register', async (req: Request, res: Response) => {
     log.info('MCP OAuth', 'Dynamic client registered', {
       client_id: clientId,
       client_name,
-      user_id: req.user!.userId,
     });
 
     res.status(201).json({

@@ -1381,7 +1381,15 @@
             "configApiKey": "Streamable HTTP (API Key 인증)",
             "configOAuth": "Streamable HTTP (OAuth 인증)",
             "configSSEApiKey": "SSE (API Key 인증)",
-            "configSSEOAuth": "SSE (OAuth 인증)"
+            "configSSEOAuth": "SSE (OAuth 인증)",
+            "configOAuthDiscovery": "설정 예: OAuth 자동 검색",
+            "oauthDiscoveryTitle": "OAuth 자동 검색 흐름 (수동 토큰 불필요)",
+            "oauthDiscoveryStep1": "표준 MCP 클라이언트(Cursor, Claude Desktop 등)가 연결할 때 아래 URL 설정을 사용하세요——수동으로 토큰을 제공할 필요가 없습니다.",
+            "oauthDiscoveryStep2": "서버가 401 + OAuth 보호 리소스 메타데이터 URL을 반환하여 클라이언트를 OAuth 자동 검색으로 안내합니다.",
+            "oauthDiscoveryStep3": "클라이언트가 자동으로 /api/mcp/oauth/register를 호출하여 등록하고 client_id / client_secret을 획득합니다.",
+            "oauthDiscoveryStep4": "클라이언트가 자동으로 OAuth 인증 코드 흐름을 완료하여 Access Token을 획득하고 사용합니다.",
+            "oauthDiscoveryEndpointDesc": "OAuth 보호 리소스 메타데이터 (RFC 9728), 클라이언트가 자동 검색",
+            "oauthRegisterEndpointDesc": "동적 클라이언트 등록 (RFC 7591), 등록에 인증 불필요"
         }
     }
 }
