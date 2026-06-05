@@ -1257,43 +1257,43 @@
         },
         "landing": {
             "header": {
-                "console": "Console"
+                "console": "控制台啦"
             },
             "cta": {
-                "title": "Ready to Get Started?",
-                "description": "Join thousands of users who trust HiDNS for their DNS management needs.",
-                "button": "Start Now"
+                "title": "准备好开始了吗？杂鱼～",
+                "description": "和成千上万的用户一起，让 HiDNS 帮你管好域名吧❤",
+                "button": "现在就开始！"
             },
             "hero": {
-                "description": "Manage your DNS records, monitor NS changes, and ensure domain security with our comprehensive DNS management solution.",
-                "subtitle": "Professional DNS Management Platform"
+                "description": "管理你的 DNS 记录、监控 NS 变化、保证域名安全，交给 HiDNS 就对了，笨蛋也能看懂哦～",
+                "subtitle": "专业的 DNS 管理平台，哼～"
             },
             "actions": {
-                "learnMore": "Learn More",
-                "login": "Sign In"
+                "learnMore": "了解更多",
+                "login": "登录啦"
             },
             "features": {
-                "title": "Key Features",
+                "title": "核心功能，杂鱼学着点",
                 "security": {
-                    "description": "Multi-factor authentication, API token management, and audit logging for maximum security.",
-                    "title": "Enterprise Security"
+                    "description": "多因素认证、API 令牌管理、审计日志，安全拉满了呢❤",
+                    "title": "企业级安全"
                 },
                 "nsMonitoring": {
-                    "description": "Real-time NS record monitoring with instant alerts when changes are detected.",
-                    "title": "NS Monitoring"
+                    "description": "实时 NS 记录监控，一有变化就告诉你，厉害吧～",
+                    "title": "NS 监控"
                 },
                 "dnsManagement": {
-                    "description": "Comprehensive DNS record management with support for multiple providers and automatic failover.",
-                    "title": "DNS Management"
+                    "description": "全面的 DNS 记录管理，支持多家服务商和自动故障切换哦",
+                    "title": "DNS 管理"
                 },
                 "multiProvider": {
-                    "description": "Support for Cloudflare, AWS Route53, Aliyun, Tencent Cloud, and more.",
-                    "title": "Multi-Provider Support"
+                    "description": "支持 Cloudflare、AWS Route53、阿里云、腾讯云……反正很多啦！",
+                    "title": "多服务商支持"
                 }
             },
             "footer": {
-                "copyright": " 2026 HiDNS. All rights reserved.",
-                "about": "About"
+                "copyright": "© 2026 HiDNS. 版权归我们所有，杂鱼没份哦❤",
+                "about": "关于我们"
             }
         },
         "mcp": {
@@ -1350,36 +1350,36 @@
             "confirmDelete": "确认删除",
             "confirmDeleteBody": "删了就没了哦，确定吗？笨蛋❤",
             "oauth": "OAuth Apps",
-            "oauthDesc": "Manage OAuth2 client applications and their permissions",
-            "createOAuthClient": "Create OAuth App",
-            "oauthAppName": "App Name",
-            "oauthAppNameRequired": "App Name *",
-            "oauthAppNamePlaceholder": "e.g. Claude Desktop",
-            "oauthClientId": "Client ID",
-            "oauthClientSecret": "Client Secret",
-            "oauthRedirectUris": "Redirect URIs",
-            "oauthRedirectUrisPlaceholder": "Enter a redirect URI and press Enter",
-            "oauthScope": "Access Scope",
-            "oauthScopePlaceholder": "e.g. domain:read,domain:write",
-            "oauthScopeDesc": "Comma-separated list of permission scopes",
-            "oauthCreatedAt": "Created At",
-            "oauthNoClients": "No OAuth applications yet",
-            "oauthCreateSuccess": "OAuth App Created Successfully",
-            "oauthCreateWarning": "Please save the Client Secret securely. It will not be shown again!",
-            "oauthDelete": "Delete App",
-            "oauthDeleteConfirm": "Are you sure you want to delete this OAuth application?",
-            "oauthDeleteWarning": "All access tokens issued to this application will be revoked.",
-            "oauthTokensSection": "Access Tokens",
-            "oauthTokensDesc": "Short-lived access tokens issued via client_credentials grant for machine-to-machine communication",
-            "oauthTokenStatus": "Status",
-            "oauthTokenExpiresAt": "Expires At",
-            "oauthTokenCreatedAt": "Issued At",
-            "oauthTokenRevoke": "Revoke Token",
-            "oauthTokenConfirmRevoke": "Are you sure you want to revoke this access token?",
-            "oauthTokenActive": "Active",
-            "oauthTokenExpired": "Expired",
-            "oauthTokenRevoked": "Revoked",
-            "oauthNoTokens": "No access tokens have been issued yet",
+            "oauthDesc": "管理 OAuth2 客户端应用和它们的权限啦，杂鱼看得懂吗❤",
+            "createOAuthClient": "创建 OAuth App 呗",
+            "oauthAppName": "应用名字",
+            "oauthAppNameRequired": "应用名字 *",
+            "oauthAppNamePlaceholder": "比如：Claude Desktop 啦",
+            "oauthClientId": "客户端 ID",
+            "oauthClientSecret": "客户端密钥",
+            "oauthRedirectUris": "重定向 URI",
+            "oauthRedirectUrisPlaceholder": "输入重定向 URI 然后按回车啦，笨蛋",
+            "oauthScope": "访问范围",
+            "oauthScopePlaceholder": "比如：domain:read,domain:write",
+            "oauthScopeDesc": "逗号分隔的权限范围列表，很简单的～",
+            "oauthCreatedAt": "创建时间",
+            "oauthNoClients": "还没有 OAuth 应用呢，建一个呗",
+            "oauthCreateSuccess": "OAuth App 建好啦～",
+            "oauthCreateWarning": "赶紧把客户端密钥藏好！关了就看不到了！",
+            "oauthDelete": "删掉应用",
+            "oauthDeleteConfirm": "确定要删了这个 OAuth 应用吗？想清楚哦笨蛋",
+            "oauthDeleteWarning": "这个应用发的所有访问令牌都会被撤销掉哦",
+            "oauthTokensSection": "访问令牌",
+            "oauthTokensDesc": "用 client_credentials 发的短期访问令牌，机器和机器聊天用的",
+            "oauthTokenStatus": "状态",
+            "oauthTokenExpiresAt": "过期时间",
+            "oauthTokenCreatedAt": "签发时间",
+            "oauthTokenRevoke": "撤销令牌",
+            "oauthTokenConfirmRevoke": "确定要撤销这个访问令牌吗？",
+            "oauthTokenActive": "还能用呢",
+            "oauthTokenExpired": "过期啦笨蛋",
+            "oauthTokenRevoked": "已经撤销了",
+            "oauthNoTokens": "还没有发过访问令牌呢，杂鱼～",
             "oauthModifyScope": "修改授权范围",
             "oauthModifyExpiry": "修改授权到期",
             "oauthExpiresAt": "注册到期",

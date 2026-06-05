@@ -133,7 +133,12 @@
             "submit": "Soumettre",
             "saved": "Enregistré",
             "remove": "Supprimer",
-            "mcp": "Gestion MCP"
+            "mcp": "Gestion MCP",
+            "no": "Non",
+            "yes": "Oui"
+        },
+        "nav": {
+            "settings": "Paramètres"
         },
         "mail": {
             "title": "Configuration email",
@@ -229,7 +234,9 @@
             "metricAccountsDesc": "Fournisseurs connectés",
             "metricRecordsDesc": "Total des enregistrements DNS",
             "recordShare": "Part d'enregistrements",
-            "eventsLogged": "{count} événements récents"
+            "eventsLogged": "{count} événements récents",
+            "title": "Tableau de bord",
+            "subtitle": "Aperçu du système"
         },
         "accounts": {
             "title": "Comptes DNS",
@@ -349,7 +356,8 @@
             "require2FA": "2FA obligatoire",
             "require2FADesc": "Lorsqu'activé, cet utilisateur doit configurer l'authentification à deux facteurs pour se connecter",
             "user2FAUpdated": "Paramètre 2FA de l'utilisateur mis à jour",
-            "user2FAUpdateFailed": "Échec de la mise à jour du paramètre 2FA de l'utilisateur"
+            "user2FAUpdateFailed": "Échec de la mise à jour du paramètre 2FA de l'utilisateur",
+            "require2FASystemDisabled": "Désactivé par le système"
         },
         "settings": {
             "profile": "Profil",
@@ -404,7 +412,19 @@
             "backgroundEffectNone": "Aucun",
             "backgroundImageUpdated": "Image de fond mise à jour",
             "backgroundImageUpdateFailed": "Échec de la mise à jour de l'image de fond",
-            "updateBackgroundImage": "Mettre à jour l'image de fond"
+            "updateBackgroundImage": "Mettre à jour l'image de fond",
+            "profileTitle": "Paramètres du profil",
+            "profileSubtitle": "Gérer le surnom, l'email et les informations d'affichage du compte",
+            "avatarImageUrl": "URL de l'avatar",
+            "avatarImagePlaceholder": "Entrez l'URL de l'image d'avatar",
+            "avatarImageHint": "Prend en charge toute URL d'image. Laissez vide pour utiliser Gravatar",
+            "avatarImageUpdated": "Avatar mis à jour",
+            "avatarImageUpdateFailed": "Échec de la mise à jour de l'avatar",
+            "updateAvatarImage": "Mettre à jour l'avatar",
+            "displayScale": "Échelle d'affichage",
+            "displayScaleDesc": "Contrôle la taille d'affichage de la console. Petite échelle = 90%",
+            "scaleLarge": "Grande échelle",
+            "scaleSmall": "Petite échelle"
         },
         "about": {
             "title": "À propos",
@@ -429,7 +449,18 @@
                 "mysql": "MySQL",
                 "postgresql": "PostgreSQL",
                 "unknown": "Inconnu"
-            }
+            },
+            "opensource": "Références open source",
+            "opensourceSubtitle": "Principaux frameworks et bibliothèques de composants utilisés par ce projet",
+            "opensourceCategories": {
+                "framework": "Framework frontend",
+                "componentLibrary": "Bibliothèque de composants",
+                "icons": "Bibliothèque d'icônes",
+                "buildTool": "Outil de construction",
+                "stateData": "État des données",
+                "routing": "Framework de routage"
+            },
+            "noContributors": "Aucune donnée de contributeur"
         },
         "security": {
             "title": "Paramètres de sécurité",
@@ -458,7 +489,16 @@
             "sessionLoggedOut": "Session déconnectée",
             "logoutFailed": "Échec de la déconnexion de la session",
             "othersLoggedOut": "Autres sessions déconnectées",
-            "logoutOthersFailed": "Échec de la déconnexion des autres sessions"
+            "logoutOthersFailed": "Échec de la déconnexion des autres sessions",
+            "backupCodesDownloaded": "Codes de sauvegarde téléchargés",
+            "disable2fa": "Désactiver 2FA",
+            "disable2faFailed": "Échec de la désactivation de l'authentification à deux facteurs",
+            "disable2faSuccess": "Authentification à deux facteurs désactivée",
+            "disable2faWarning": "Attention : désactiver 2FA réduit la sécurité du compte.",
+            "disabling": "Désactivation...",
+            "downloadBackupCodes": "Télécharger les codes de sauvegarde",
+            "noBackupCodes": "Aucun code de sauvegarde disponible",
+            "twoFactorSystemDisabled": "Désactivé par le système"
         },
         "passkeys": {
             "title": "Passkeys",
@@ -480,7 +520,9 @@
                 "overview": "Aperçu",
                 "database": "Base de données",
                 "security": "Sécurité",
-                "notifications": "Notifications"
+                "notifications": "Notifications",
+                "access": "Accès",
+                "network": "Réseau"
             },
             "notifications": {
                 "title": "Canaux de notification",
@@ -634,7 +676,9 @@
             "require2FAGlobal": "2FA obligatoire globalement",
             "require2FAGlobalDesc": "Lorsqu'activé, tous les utilisateurs doivent configurer l'authentification à deux facteurs pour se connecter",
             "securityPolicy": "Politique de sécurité",
-            "securityPolicyDesc": "Configurer les paramètres de politique de sécurité au niveau du système"
+            "securityPolicyDesc": "Configurer les paramètres de politique de sécurité au niveau du système",
+            "twoFADisabledStatus": "Désactivé",
+            "twoFAEnabledStatus": "Activé"
         },
         "domains": {
             "title": "Domaines",
@@ -753,7 +797,16 @@
                 "failover": "Basculement",
                 "nsMonitor": "Surveillance NS",
                 "renewal": "Renouvellement de domaine"
-            }
+            },
+            "failoverSubtitle": "Configurez des IP principales/de secours et des contrôles de santé pour basculer automatiquement en cas de panne.",
+            "whoisInfo": "Infos WHOIS",
+            "whoisUpdate": "Mettre à jour WHOIS",
+            "whoisUpdating": "Mise à jour...",
+            "whoisUpdated": "WHOIS mis à jour",
+            "whoisUpdateFailed": "Échec de la mise à jour WHOIS",
+            "expiryAlert": "Alerte d'expiration",
+            "expiryAlertDesc": "Envoyer une notification avant l'expiration du domaine",
+            "daysBefore": "Jours avant"
         },
         "tokens": {
             "title": "Gestion des jetons API",
@@ -796,7 +849,9 @@
             "status": "Statut",
             "actions": "Actions",
             "domainCount": "{count} domaines",
-            "allDomainsAllowed": "Tous les domaines"
+            "allDomainsAllowed": "Tous les domaines",
+            "tokenUpdated": "Jeton mis à jour",
+            "editToken": "Modifier le jeton"
         },
         "nsMonitor": {
             "title": "Surveillance NS",
@@ -983,7 +1038,14 @@
                 "value": "Valeur",
                 "mx": "Priorité MX",
                 "type": "Type"
-            }
+            },
+            "batchAdd": "Ajout groupé",
+            "batchAddTitle": "Ajout groupé d'enregistrements - {name}",
+            "batchAddSuccess": "Ajout groupé réussi, {success} enregistrement(s)",
+            "batchAddFailed": "Échec de l'ajout groupé",
+            "batchParseError": "Erreur d'analyse, vérifiez le format",
+            "batchPlaceholder": "Un enregistrement par ligne. Format: hôte type valeur [TTL] [priorité MX]",
+            "batchHelp": "Prend en charge les enregistrements A, AAAA, CNAME, MX, TXT, SRV"
         },
         "audit": {
             "title": "Journaux d'audit",

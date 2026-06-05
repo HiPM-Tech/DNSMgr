@@ -133,7 +133,12 @@
             "submit": "Enviar",
             "saved": "Salvo",
             "remove": "Remover",
-            "mcp": "Gerenciamento MCP"
+            "mcp": "Gerenciamento MCP",
+            "no": "Não",
+            "yes": "Sim"
+        },
+        "nav": {
+            "settings": "Configurações"
         },
         "mail": {
             "title": "Configuração de Email",
@@ -182,7 +187,20 @@
             "enterBackupCode": "Digite o código de backup",
             "useAuthCode": "Usar código de verificação",
             "backupCode": "Código de backup",
-            "authCode": "Código de verificação"
+            "authCode": "Código de verificação",
+            "accountHint": "Faça login para usar o HiDNS Manager",
+            "consoleTitle": "Entre no seu HiDNS",
+            "title": "Entre na sua HiDNS",
+            "consoleSubtitle": "Faça login para usar o HiDNS Manager",
+            "authCodeRequired": "Por favor, insira o código de verificação",
+            "backupCodeRequired": "Por favor, insira o código de backup",
+            "logtoSignIn": "Entrar com Logto",
+            "logtoUnavailable": "Login Logto não ativado ou configurado incompletamente",
+            "oauthUnavailable": "Login OAuth não ativado ou configurado incompletamente",
+            "rememberMe": "Lembrar de mim",
+            "trustDevice": "Confiar neste dispositivo",
+            "trustDeviceDays": "Sem login por {days} dias",
+            "twoFactorHint": "Continue para concluir a verificação"
         },
         "dashboard": {
             "totalDomains": "Total de Domínios",
@@ -191,7 +209,34 @@
             "activeUsers": "Usuários Ativos",
             "recentOperations": "Operações Recentes",
             "recentItems": "Mais recentes {count}",
-            "noRecentActivity": "Nenhuma atividade recente"
+            "noRecentActivity": "Nenhuma atividade recente",
+            "accountCoverage": "Contas com domínios",
+            "activeUserRatio": "Proporção de usuários ativos",
+            "activityMix": "Distribuição de tipos de operação",
+            "activityMixDesc": "Tipos de operação mais frequentes nos logs de auditoria recentes",
+            "domainsPerAccount": "Domínios por conta",
+            "eventsLogged": "Últimos {count} eventos",
+            "metricAccountsDesc": "Contas de provedores integradas",
+            "metricDomainsDesc": "Inventário de domínios",
+            "metricRecordsDesc": "Total de registros de resolução",
+            "metricUsersDesc": "Membros disponíveis",
+            "noDomains": "Nenhum dado de domínio",
+            "noProviders": "Nenhuma conta de provedor",
+            "panelSubtitle": "Visão geral em tempo real com base nas contas DNS, domínios, registros de resolução e logs de auditoria.",
+            "panelTitle": "Painel de Recursos DNS",
+            "providerDistribution": "Distribuição de provedores",
+            "providerDistributionDesc": "Contas DNS por tipo de provedor",
+            "rankByRecords": "Ordenar por número de registros",
+            "recordedDomains": "Domínios com registros",
+            "recordShare": "Participação de registros",
+            "recordsPerDomain": "Registros por domínio",
+            "resourceOverview": "Visão geral de recursos",
+            "resourceOverviewDesc": "Cobertura e densidade dos recursos DNS atuais",
+            "topDomains": "Ranking de registros de domínio",
+            "topDomainsDesc": "Domínios com mais registros de resolução",
+            "recentOperationsDesc": "Eventos de auditoria mais recentes na plataforma",
+            "subtitle": "Visão geral do sistema",
+            "title": "Painel de controle"
         },
         "accounts": {
             "title": "Contas DNS",
@@ -311,7 +356,8 @@
             "require2FA": "2FA obrigatório",
             "require2FADesc": "Quando habilitado, este usuário deve configurar a autenticação de dois fatores para fazer login",
             "user2FAUpdated": "Configuração 2FA do usuário atualizada",
-            "user2FAUpdateFailed": "Falha ao atualizar a configuração 2FA do usuário"
+            "user2FAUpdateFailed": "Falha ao atualizar a configuração 2FA do usuário",
+            "require2FASystemDisabled": "Sistema desabilitado"
         },
         "settings": {
             "profile": "Perfil",
@@ -366,7 +412,19 @@
             "backgroundEffectNone": "Nenhum",
             "backgroundImageUpdated": "Imagem de fundo atualizada",
             "backgroundImageUpdateFailed": "Falha ao atualizar a imagem de fundo",
-            "updateBackgroundImage": "Atualizar imagem de fundo"
+            "updateBackgroundImage": "Atualizar imagem de fundo",
+            "profileTitle": "Configurações do Perfil",
+            "profileSubtitle": "Gerenciar apelido, email e informações de exibição da conta",
+            "avatarImageUrl": "URL da imagem do avatar",
+            "avatarImagePlaceholder": "Digite a URL da imagem do avatar",
+            "avatarImageHint": "Suporta qualquer URL de imagem, deixe vazio para usar o Gravatar do email",
+            "avatarImageUpdated": "Imagem do avatar atualizada",
+            "avatarImageUpdateFailed": "Falha ao atualizar a imagem do avatar",
+            "updateAvatarImage": "Atualizar imagem do avatar",
+            "displayScale": "Escala de Exibição",
+            "displayScaleDesc": "Controlar o tamanho de exibição do console. Escala pequena 90%.",
+            "scaleLarge": "Escala grande",
+            "scaleSmall": "Escala pequena"
         },
         "about": {
             "title": "Sobre",
@@ -391,6 +449,17 @@
                 "mysql": "MySQL",
                 "postgresql": "PostgreSQL",
                 "unknown": "Desconhecido"
+            },
+            "noContributors": "Nenhum dado de contribuidores",
+            "opensource": "Referências de Open Source",
+            "opensourceSubtitle": "Principais frameworks e bibliotecas front-end usados neste projeto",
+            "opensourceCategories": {
+                "framework": "Framework Front-end",
+                "componentLibrary": "Biblioteca de Componentes",
+                "icons": "Biblioteca de Ícones",
+                "buildTool": "Ferramenta de Build",
+                "stateData": "Estado de Dados",
+                "routing": "Framework de Roteamento"
             }
         },
         "security": {
@@ -420,7 +489,16 @@
             "sessionLoggedOut": "Sessão desconectada",
             "logoutFailed": "Falha ao desconectar sessão",
             "othersLoggedOut": "Outras sessões desconectadas",
-            "logoutOthersFailed": "Falha ao desconectar outras sessões"
+            "logoutOthersFailed": "Falha ao desconectar outras sessões",
+            "backupCodesDownloaded": "Códigos de backup baixados",
+            "disable2fa": "Desabilitar 2FA",
+            "disable2faFailed": "Falha ao desabilitar autenticação de dois fatores",
+            "disable2faSuccess": "Autenticação de dois fatores desabilitada",
+            "disable2faWarning": "Aviso: Desabilitar a autenticação de dois fatores reduzirá a segurança da conta.",
+            "disabling": "Desabilitando...",
+            "downloadBackupCodes": "Baixar códigos de backup",
+            "noBackupCodes": "Nenhum código de backup disponível para download",
+            "twoFactorSystemDisabled": "Sistema desabilitado"
         },
         "passkeys": {
             "title": "Passkeys",
@@ -442,7 +520,9 @@
                 "overview": "Visão Geral",
                 "database": "Banco de Dados",
                 "security": "Segurança",
-                "notifications": "Notificações"
+                "notifications": "Notificações",
+                "access": "Acesso",
+                "network": "Rede"
             },
             "notifications": {
                 "title": "Canais de Notificação",
@@ -596,7 +676,9 @@
             "require2FAGlobal": "2FA global obrigatório",
             "require2FAGlobalDesc": "Quando habilitado, todos os usuários devem configurar a autenticação de dois fatores para fazer login",
             "securityPolicy": "Política de segurança",
-            "securityPolicyDesc": "Configurar as configurações de política de segurança em nível de sistema"
+            "securityPolicyDesc": "Configurar as configurações de política de segurança em nível de sistema",
+            "twoFADisabledStatus": "Desativado",
+            "twoFAEnabledStatus": "Ativado"
         },
         "domains": {
             "title": "Domínios",
@@ -709,6 +791,15 @@
             "enable": "Habilitar Domínio",
             "disable": "Desabilitar Domínio",
             "domainDisabled": "Este domínio está desabilitado e não pode acessar registros DNS",
+            "failoverSubtitle": "Configure IPs primário e de backup e estratégias de verificação de saúde para o domínio. O alvo de resolução será alternado automaticamente em caso de anomalia.",
+            "whoisInfo": "Informações WHOIS",
+            "whoisUpdate": "Atualizar WHOIS",
+            "whoisUpdating": "Atualizando...",
+            "whoisUpdated": "WHOIS atualizado",
+            "whoisUpdateFailed": "Falha ao atualizar WHOIS",
+            "expiryAlert": "Alerta de expiração",
+            "expiryAlertDesc": "Enviar notificação antes da expiração do domínio",
+            "daysBefore": "Dias de antecedência",
             "tabs": {
                 "list": "Lista de Domínios",
                 "listSubtitle": "Gerenciamento unificado de registros de resolução DNS de vários provedores DNS",
@@ -758,7 +849,9 @@
             "status": "Status",
             "actions": "Ações",
             "domainCount": "{count} domínios",
-            "allDomainsAllowed": "Todos os domínios"
+            "allDomainsAllowed": "Todos os domínios",
+            "tokenUpdated": "Token atualizado",
+            "editToken": "Editar Token"
         },
         "nsMonitor": {
             "title": "Monitoramento NS",
@@ -945,7 +1038,14 @@
                 "value": "Valor",
                 "mx": "Prioridade MX",
                 "type": "Tipo"
-            }
+            },
+            "batchAdd": "Adição em massa",
+            "batchAddTitle": "Adição em massa de registros - {name}",
+            "batchAddSuccess": "Adição em massa bem-sucedida, total de {success} registros",
+            "batchAddFailed": "Falha na adição em massa",
+            "batchParseError": "Falha na análise, verifique o formato",
+            "batchPlaceholder": "Um registro por linha, formato: host tipo valor [TTL] [Prioridade MX]",
+            "batchHelp": "Suporta registros A, AAAA, CNAME, MX, TXT, SRV"
         },
         "audit": {
             "title": "Logs de Auditoria",

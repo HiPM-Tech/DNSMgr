@@ -578,7 +578,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                   colKey: 'api_key',
                   title: 'API Key',
                   width: 200,
-                  cell: (row: any) => {
+                  cell: ({ row }: any) => {
                     const maskedKey = row.api_key
                       ? `${row.api_key.substring(0, 20)}...`
                       : '••••••••••••••••••••';
@@ -603,19 +603,19 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                   colKey: 'created_at',
                   title: t('mcp.createdAt'),
                   width: 180,
-                  cell: (row: any) => formatDate(row.created_at, locale),
+                  cell: ({ row }: any) => formatDate(row.created_at, locale),
                 },
                 {
                   colKey: 'last_used_at',
                   title: t('mcp.lastUsed'),
                   width: 180,
-                  cell: (row: any) => formatDate(row.last_used_at, locale),
+                  cell: ({ row }: any) => formatDate(row.last_used_at, locale),
                 },
                 {
                   colKey: 'expires_at',
                   title: t('mcp.expiresAt'),
                   width: 180,
-                  cell: (row: any) => 
+                  cell: ({ row }: any) => 
                     row.expires_at 
                       ? formatDate(row.expires_at, locale)
                       : t('mcp.neverExpires'),
@@ -624,7 +624,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                   colKey: 'status',
                   title: t('mcp.status'),
                   width: 100,
-                  cell: (row: any) => {
+                  cell: ({ row }: any) => {
                     if (row.revoked_at) {
                       return <Tag theme="danger">{t('mcp.revoked')}</Tag>;
                     }
@@ -639,7 +639,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                   title: t('mcp.actions'),
                   width: 150,
                   fixed: 'right',
-                  cell: (row: any) => (
+                  cell: ({ row }: any) => (
                     <Space>
                       {!row.revoked_at && (
                         <Button
@@ -780,13 +780,13 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                   colKey: 'app_name',
                   title: t('mcp.oauthAppName'),
                   width: 160,
-                  cell: (row: any) => row.app_name || '-',
+                  cell: ({ row }: any) => row.app_name || '-',
                 },
                 {
                   colKey: 'access_token',
                   title: t('mcp.oauthClientId'),
                   width: 250,
-                  cell: (row: any) => (
+                  cell: ({ row }: any) => (
                     <code style={{ fontSize: 12 }}>{row.access_token.substring(0, 20)}...{row.access_token.slice(-8)}</code>
                   ),
                 },
@@ -794,7 +794,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                   colKey: 'scope',
                   title: t('mcp.oauthScope'),
                   width: 160,
-                  cell: (row: any) => {
+                  cell: ({ row }: any) => {
                     if (!row.scope) return '*';
                     try { return JSON.parse(row.scope).join(', '); } catch { return row.scope; }
                   },
@@ -803,7 +803,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                   colKey: 'status',
                   title: t('mcp.oauthTokenStatus'),
                   width: 100,
-                  cell: (row: any) => {
+                  cell: ({ row }: any) => {
                     if (row.revoked_at) return <Tag theme="danger" variant="light">{t('mcp.oauthTokenRevoked')}</Tag>;
                     if (new Date(row.expires_at) < new Date()) return <Tag theme="warning" variant="light">{t('mcp.oauthTokenExpired')}</Tag>;
                     return <Tag theme="success" variant="light">{t('mcp.oauthTokenActive')}</Tag>;
@@ -813,20 +813,20 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                   colKey: 'created_at',
                   title: t('mcp.oauthTokenCreatedAt'),
                   width: 160,
-                  cell: (row: any) => formatDate(row.created_at, locale),
+                  cell: ({ row }: any) => formatDate(row.created_at, locale),
                 },
                 {
                   colKey: 'expires_at',
                   title: t('mcp.oauthTokenExpiresAt'),
                   width: 160,
-                  cell: (row: any) => row.revoked_at ? '-' : formatDate(row.expires_at, locale),
+                  cell: ({ row }: any) => row.revoked_at ? '-' : formatDate(row.expires_at, locale),
                 },
                 {
                   colKey: 'actions',
                   title: t('mcp.actions'),
                   width: 120,
                   fixed: 'right',
-                  cell: (row: any) => {
+                  cell: ({ row }: any) => {
                     if (row.revoked_at || new Date(row.expires_at) < new Date()) return <span style={{ color: 'var(--td-text-color-secondary)', fontSize: 12 }}>-</span>;
                     return (
                       <Button

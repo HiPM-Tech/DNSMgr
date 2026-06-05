@@ -133,7 +133,9 @@
             "submit": "제출",
             "saved": "저장됨",
             "remove": "제거",
-            "mcp": "MCP 관리"
+            "mcp": "MCP 관리",
+            "no": "아니오",
+            "yes": "예"
         },
         "mail": {
             "title": "이메일 설정",
@@ -198,6 +200,8 @@
             "consoleTitle": "HiDNS에 로그인"
         },
         "dashboard": {
+            "title": "대시보드",
+            "subtitle": "시스템 개요",
             "totalDomains": "총 도메인",
             "totalRecords": "총 레코드",
             "dnsAccounts": "DNS 계정",
@@ -349,7 +353,8 @@
             "require2FA": "2FA 필수",
             "require2FADesc": "활성화하면 이 사용자는 로그인하기 위해 이단계 인증을 설정해야 합니다",
             "user2FAUpdated": "사용자 2FA 설정이 업데이트되었습니다",
-            "user2FAUpdateFailed": "사용자 2FA 설정 업데이트 실패"
+            "user2FAUpdateFailed": "사용자 2FA 설정 업데이트 실패",
+            "require2FASystemDisabled": "시스템에서 비활성화됨"
         },
         "settings": {
             "profile": "프로필",
@@ -436,6 +441,17 @@
             "communitySubtitle": "토론 그룹에 참여하세요",
             "contributors": "기여자",
             "contributorsSubtitle": "다음 기여자들에게 감사드립니다",
+            "opensource": "오픈소스 참조",
+            "opensourceSubtitle": "이 프로젝트에서 사용하는 주요 프론트엔드 프레임워크 및 컴포넌트 라이브러리",
+            "opensourceCategories": {
+                "framework": "프론트엔드 프레임워크",
+                "componentLibrary": "컴포넌트 라이브러리",
+                "icons": "아이콘 라이브러리",
+                "buildTool": "빌드 도구",
+                "stateData": "데이터 상태",
+                "routing": "라우팅 프레임워크"
+            },
+            "noContributors": "기여자 데이터가 없습니다",
             "db": {
                 "sqlite": "SQLite",
                 "mysql": "MySQL",
@@ -503,7 +519,9 @@
                 "overview": "개요",
                 "database": "데이터베이스",
                 "security": "보안",
-                "notifications": "알림"
+                "notifications": "알림",
+                "access": "액세스",
+                "network": "네트워크"
             },
             "notifications": {
                 "title": "알림 채널",
@@ -658,7 +676,9 @@
             "require2FAGlobalDesc": "활성화하면 모든 사용자는 로그인하기 위해 이단계 인증을 설정해야 합니다",
             "securityPolicy": "보안 정책",
             "securityPolicyDesc": "시스템 수준 보안 정책 설정 구성",
-            "require2FASystemDisabled": "시스템에 의해 비활성화됨"
+            "require2FASystemDisabled": "시스템에 의해 비활성화됨",
+            "twoFADisabledStatus": "비활성화됨",
+            "twoFAEnabledStatus": "활성화됨"
         },
         "nav": {
             "settings": "설정"
@@ -775,6 +795,14 @@
             "disable": "도메인 비활성화",
             "domainDisabled": "이 도메인은 비활성화되어 있어 DNS 레코드에 액세스할 수 없습니다",
             "failoverSubtitle": "기본/백업 IP 및 상태 확인을 구성하고 장애 발생 시 DNS 대상을 자동으로 전환합니다.",
+            "whoisInfo": "WHOIS 정보",
+            "whoisUpdate": "WHOIS 업데이트",
+            "whoisUpdating": "업데이트 중...",
+            "whoisUpdated": "WHOIS 업데이트 완료",
+            "whoisUpdateFailed": "WHOIS 업데이트 실패",
+            "expiryAlert": "만료 알림",
+            "expiryAlertDesc": "도메인 만료 전 알림 보내기",
+            "daysBefore": "사전 알림 일수",
             "tabs": {
                 "list": "도메인 목록",
                 "listSubtitle": "다양한 DNS 제공업체의 DNS 해결 기록 통합 관리",

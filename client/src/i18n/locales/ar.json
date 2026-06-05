@@ -133,7 +133,12 @@
             "submit": "إرسال",
             "saved": "تم الحفظ",
             "remove": "إزالة",
-            "mcp": "إدارة MCP"
+            "mcp": "إدارة MCP",
+            "no": "لا",
+            "yes": "نعم"
+        },
+        "nav": {
+            "settings": "الإعدادات"
         },
         "mail": {
             "title": "إعداد البريد الإلكتروني",
@@ -190,8 +195,33 @@
             "dnsAccounts": "حسابات DNS",
             "activeUsers": "المستخدمون النشطون",
             "recentOperations": "العمليات الأخيرة",
+            "recentOperationsDesc": "أحدث أحداث التدقيق على المنصة",
             "recentItems": "الأخيرة {count}",
-            "noRecentActivity": "لا يوجد نشاط حديث"
+            "noRecentActivity": "لا يوجد نشاط حديث",
+            "accountCoverage": "الحسابات التي تحمل نطاقات",
+            "activeUserRatio": "نسبة المستخدمين النشطين",
+            "activityMix": "توزيع أنواع العمليات",
+            "activityMixDesc": "أنواع العمليات الأكثر ظهوراً في سجلات التدقيق الأخيرة",
+            "domainsPerAccount": "النطاقات لكل حساب",
+            "eventsLogged": "آخر {count} حدث",
+            "metricAccountsDesc": "حسابات المزودين المتصلة",
+            "metricDomainsDesc": "مخزون النطاقات",
+            "metricRecordsDesc": "إجمالي سجلات الحل",
+            "metricUsersDesc": "الأعضاء المتاحون",
+            "noDomains": "لا توجد بيانات نطاقات",
+            "noProviders": "لا توجد حسابات مزودين",
+            "panelSubtitle": "نظرة عامة فورية تستند إلى حسابات DNS والنطاقات وسجلات الحل وسجلات التدقيق.",
+            "panelTitle": "لوحة موارد DNS",
+            "providerDistribution": "توزيع المزودين",
+            "providerDistributionDesc": "حسابات DNS حسب نوع المزود",
+            "rankByRecords": "الترتيب بعدد السجلات",
+            "recordedDomains": "النطاقات ذات السجلات",
+            "recordShare": "نسبة السجلات",
+            "recordsPerDomain": "السجلات لكل نطاق",
+            "resourceOverview": "نظرة عامة على الموارد",
+            "resourceOverviewDesc": "تغطية وكثافة موارد DNS الحالية",
+            "topDomains": "ترتيب سجلات النطاقات",
+            "topDomainsDesc": "النطاقات التي تحتوي على أكبر عدد من سجلات الحل"
         },
         "accounts": {
             "title": "حسابات DNS",
@@ -311,7 +341,8 @@
             "require2FA": "تفعيل 2FA",
             "require2FADesc": "عند التفعيل، يجب على هذا المستخدم إعداد المصادقة ثنائية العامل لتسجيل الدخول",
             "user2FAUpdated": "تم تحديث إعداد 2FA للمستخدم",
-            "user2FAUpdateFailed": "فشل في تحديث إعداد 2FA للمستخدم"
+            "user2FAUpdateFailed": "فشل في تحديث إعداد 2FA للمستخدم",
+            "require2FASystemDisabled": "النظام معطل"
         },
         "settings": {
             "profile": "الملف الشخصي",
@@ -366,7 +397,19 @@
             "backgroundEffectNone": "بدون",
             "backgroundImageUpdated": "تم تحديث صورة الخلفية",
             "backgroundImageUpdateFailed": "فشل في تحديث صورة الخلفية",
-            "updateBackgroundImage": "تحديث صورة الخلفية"
+            "updateBackgroundImage": "تحديث صورة الخلفية",
+            "profileTitle": "إعدادات الملف الشخصي",
+            "profileSubtitle": "إدارة اللقب والبريد الإلكتروني ومعلومات عرض الحساب",
+            "avatarImageUrl": "رابط الصورة الرمزية",
+            "avatarImagePlaceholder": "أدخل رابط الصورة الرمزية",
+            "avatarImageHint": "يدعم أي رابط صورة، اتركه فارغاً لاستخدام Gravatar للبريد الإلكتروني",
+            "avatarImageUpdated": "تم تحديث الصورة الرمزية",
+            "avatarImageUpdateFailed": "فشل في تحديث الصورة الرمزية",
+            "updateAvatarImage": "تحديث الصورة الرمزية",
+            "displayScale": "مقياس العرض",
+            "displayScaleDesc": "التحكم في حجم عرض لوحة التحكم. المقياس الصغير 90%.",
+            "scaleLarge": "مقياس كبير",
+            "scaleSmall": "مقياس صغير"
         },
         "about": {
             "title": "حول",
@@ -420,7 +463,16 @@
             "sessionLoggedOut": "تم تسجيل الخروج من الجلسة",
             "logoutFailed": "فشل في تسجيل الخروج من الجلسة",
             "othersLoggedOut": "تم تسجيل الخروج من الجلسات الأخرى",
-            "logoutOthersFailed": "فشل في تسجيل الخروج من الجلسات الأخرى"
+            "logoutOthersFailed": "فشل في تسجيل الخروج من الجلسات الأخرى",
+            "backupCodesDownloaded": "تم تنزيل رموز النسخ الاحتياطي",
+            "disable2fa": "تعطيل 2FA",
+            "disable2faFailed": "فشل في تعطيل المصادقة ثنائية العامل",
+            "disable2faSuccess": "تم تعطيل المصادقة ثنائية العامل",
+            "disable2faWarning": "تحذير: تعطيل المصادقة ثنائية العامل سيقلل من أمان الحساب.",
+            "disabling": "جارٍ التعطيل...",
+            "downloadBackupCodes": "تنزيل رموز النسخ الاحتياطي",
+            "noBackupCodes": "لا توجد رموز نسخ احتياطي متاحة للتنزيل",
+            "twoFactorSystemDisabled": "النظام معطل"
         },
         "passkeys": {
             "title": "مفاتيح المرور",
@@ -442,7 +494,9 @@
                 "overview": "نظرة عامة",
                 "database": "قاعدة البيانات",
                 "security": "الأمان",
-                "notifications": "الإشعارات"
+                "notifications": "الإشعارات",
+                "access": "الوصول",
+                "network": "الشبكة"
             },
             "notifications": {
                 "title": "قنوات الإشعارات",
@@ -596,7 +650,9 @@
             "require2FAGlobal": "تفعيل 2FA عالمياً",
             "require2FAGlobalDesc": "عند التفعيل، يجب على جميع المستخدمين إعداد المصادقة ثنائية العامل لتسجيل الدخول",
             "securityPolicy": "سياسة الأمان",
-            "securityPolicyDesc": "تكوين إعدادات سياسة الأمان على مستوى النظام"
+            "securityPolicyDesc": "تكوين إعدادات سياسة الأمان على مستوى النظام",
+            "twoFADisabledStatus": "معطل",
+            "twoFAEnabledStatus": "مفعل"
         },
         "domains": {
             "title": "النطاقات",
@@ -709,6 +765,15 @@
             "enable": "تمكين النطاق",
             "disable": "تعطيل النطاق",
             "domainDisabled": "هذا النطاق معطل ولا يمكن الوصول إلى سجلات DNS",
+            "failoverSubtitle": "قم بتكوين عناوين IP الأساسية والاحتياطية واستراتيجيات فحص الصحة للنطاق، مع التبديل التلقائي لهدف الحل عند حدوث خلل.",
+            "whoisInfo": "معلومات WHOIS",
+            "whoisUpdate": "تحديث WHOIS",
+            "whoisUpdating": "جارٍ التحديث...",
+            "whoisUpdated": "تم تحديث WHOIS",
+            "whoisUpdateFailed": "فشل تحديث WHOIS",
+            "expiryAlert": "تنبيه انتهاء الصلاحية",
+            "expiryAlertDesc": "إرسال إشعار قبل انتهاء صلاحية النطاق",
+            "daysBefore": "أيام قبل الانتهاء",
             "tabs": {
                 "list": "قائمة النطاقات",
                 "listSubtitle": "الإدارة الموحدة لسجلات حل DNS من مختلف موفري DNS",
@@ -758,7 +823,9 @@
             "status": "الحالة",
             "actions": "الإجراءات",
             "domainCount": "{count} نطاقات",
-            "allDomainsAllowed": "جميع النطاقات"
+            "allDomainsAllowed": "جميع النطاقات",
+            "tokenUpdated": "تم تحديث الرمز",
+            "editToken": "تعديل الرمز"
         },
         "nsMonitor": {
             "title": "مراقبة NS",
@@ -945,7 +1012,14 @@
                 "value": "القيمة",
                 "mx": "أولوية MX",
                 "type": "النوع"
-            }
+            },
+            "batchAdd": "إضافة جماعية",
+            "batchAddTitle": "إضافة جماعية للسجلات - {name}",
+            "batchAddSuccess": "تمت الإضافة الجماعية بنجاح، إجمالي {success} سجل",
+            "batchAddFailed": "فشلت الإضافة الجماعية",
+            "batchParseError": "فشل التحليل، يرجى التحقق من التنسيق",
+            "batchPlaceholder": "سجل واحد في كل سطر، التنسيق: المضيف النوع القيمة [TTL] [أولوية MX]",
+            "batchHelp": "يدعم سجلات A وAAAA وCNAME وMX وTXT وSRV"
         },
         "audit": {
             "title": "سجلات التدقيق",

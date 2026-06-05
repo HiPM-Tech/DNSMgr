@@ -38,6 +38,7 @@
             "name": "Name",
             "type": "Typ",
             "status": "Status",
+            "success": "Erfolg",
             "value": "Wert",
             "line": "Linie",
             "host": "Host",
@@ -348,7 +349,8 @@
             "require2FA": "2FA erforderlich",
             "require2FADesc": "Wenn aktiviert, muss dieser Benutzer die Zwei-Faktor-Authentifizierung einrichten, um sich anzumelden",
             "user2FAUpdated": "Benutzer-2FA-Einstellung aktualisiert",
-            "user2FAUpdateFailed": "Fehler beim Aktualisieren der Benutzer-2FA-Einstellung"
+            "user2FAUpdateFailed": "Fehler beim Aktualisieren der Benutzer-2FA-Einstellung",
+            "require2FASystemDisabled": "Vom System deaktiviert"
         },
         "settings": {
             "profile": "Profil",
@@ -403,7 +405,19 @@
             "backgroundEffectNone": "Keine",
             "backgroundImageUpdated": "Hintergrundbild aktualisiert",
             "backgroundImageUpdateFailed": "Fehler beim Aktualisieren des Hintergrundbilds",
-            "updateBackgroundImage": "Hintergrundbild aktualisieren"
+            "updateBackgroundImage": "Hintergrundbild aktualisieren",
+            "profileTitle": "Profileinstellungen",
+            "profileSubtitle": "Spitzname, E-Mail und Kontoinformationen verwalten",
+            "avatarImageUrl": "Avatar-URL",
+            "avatarImagePlaceholder": "Avatar-Bild-URL eingeben",
+            "avatarImageHint": "Unterstützt jede Bild-URL. Leer lassen, um Gravatar zu verwenden",
+            "avatarImageUpdated": "Avatar aktualisiert",
+            "avatarImageUpdateFailed": "Avatar-Aktualisierung fehlgeschlagen",
+            "updateAvatarImage": "Avatar aktualisieren",
+            "displayScale": "Anzeigemaßstab",
+            "displayScaleDesc": "Steuert die Gesamtgröße der Konsole. Kleiner Maßstab = 90%",
+            "scaleLarge": "Großer Maßstab",
+            "scaleSmall": "Kleiner Maßstab"
         },
         "about": {
             "title": "Über",
@@ -428,7 +442,18 @@
                 "mysql": "MySQL",
                 "postgresql": "PostgreSQL",
                 "unknown": "Unbekannt"
-            }
+            },
+            "opensource": "Open-Source-Referenzen",
+            "opensourceSubtitle": "Wichtige Frontend-Frameworks und Komponentenbibliotheken, die in diesem Projekt verwendet werden",
+            "opensourceCategories": {
+                "framework": "Frontend-Framework",
+                "componentLibrary": "Komponentenbibliothek",
+                "icons": "Symbolbibliothek",
+                "buildTool": "Build-Tool",
+                "stateData": "Datenstatus",
+                "routing": "Routing-Framework"
+            },
+            "noContributors": "Keine Mitwirkendendaten"
         },
         "security": {
             "title": "Sicherheitseinstellungen",
@@ -457,7 +482,16 @@
             "sessionLoggedOut": "Sitzung abgemeldet",
             "logoutFailed": "Fehler beim Abmelden der Sitzung",
             "othersLoggedOut": "Andere Sitzungen abgemeldet",
-            "logoutOthersFailed": "Fehler beim Abmelden anderer Sitzungen"
+            "logoutOthersFailed": "Fehler beim Abmelden anderer Sitzungen",
+            "backupCodesDownloaded": "Backup-Codes heruntergeladen",
+            "disable2fa": "2FA deaktivieren",
+            "disable2faFailed": "Fehler beim Deaktivieren der Zwei-Faktor-Authentifizierung",
+            "disable2faSuccess": "Zwei-Faktor-Authentifizierung deaktiviert",
+            "disable2faWarning": "Achtung: Das Deaktivieren der 2FA reduziert die Kontosicherheit.",
+            "disabling": "Deaktivieren...",
+            "downloadBackupCodes": "Backup-Codes herunterladen",
+            "noBackupCodes": "Keine Backup-Codes verfügbar",
+            "twoFactorSystemDisabled": "Vom System deaktiviert"
         },
         "passkeys": {
             "title": "Passkeys",
@@ -479,7 +513,9 @@
                 "overview": "Übersicht",
                 "database": "Datenbank",
                 "security": "Sicherheit",
-                "notifications": "Benachrichtigungen"
+                "notifications": "Benachrichtigungen",
+                "access": "Zugriff",
+                "network": "Netzwerk"
             },
             "notifications": {
                 "title": "Benachrichtigungskanäle",
@@ -633,7 +669,9 @@
             "require2FAGlobal": "Globale 2FA erforderlich",
             "require2FAGlobalDesc": "Wenn aktiviert, müssen alle Benutzer die Zwei-Faktor-Authentifizierung einrichten, um sich anzumelden",
             "securityPolicy": "Sicherheitsrichtlinie",
-            "securityPolicyDesc": "Systemweite Sicherheitsrichtlinieneinstellungen konfigurieren"
+            "securityPolicyDesc": "Systemweite Sicherheitsrichtlinieneinstellungen konfigurieren",
+            "twoFADisabledStatus": "Deaktiviert",
+            "twoFAEnabledStatus": "Aktiviert"
         },
         "domains": {
             "title": "Domains",
@@ -752,7 +790,16 @@
                 "failover": "Failover",
                 "nsMonitor": "NS-Monitor",
                 "renewal": "Domain-Erneuerung"
-            }
+            },
+            "failoverSubtitle": "Konfigurieren Sie primäre/Backup-IPs und Gesundheitschecks für automatisches Failover bei Ausfällen.",
+            "whoisInfo": "WHOIS-Informationen",
+            "whoisUpdate": "WHOIS aktualisieren",
+            "whoisUpdating": "Aktualisieren...",
+            "whoisUpdated": "WHOIS aktualisiert",
+            "whoisUpdateFailed": "WHOIS-Aktualisierung fehlgeschlagen",
+            "expiryAlert": "Ablaufbenachrichtigung",
+            "expiryAlertDesc": "Vor Ablauf der Domain eine Benachrichtigung senden",
+            "daysBefore": "Tage vorher"
         },
         "tokens": {
             "title": "API-Token-Verwaltung",
@@ -982,7 +1029,14 @@
                 "value": "Wert",
                 "mx": "MX-Priorität",
                 "type": "Typ"
-            }
+            },
+            "batchAdd": "Massenhinzufügung",
+            "batchAddTitle": "Massenhinzufügung von Einträgen - {name}",
+            "batchAddSuccess": "Massenhinzufügung erfolgreich, {success} Eintrag/Einträge",
+            "batchAddFailed": "Massenhinzufügung fehlgeschlagen",
+            "batchParseError": "Analysefehler, überprüfen Sie das Format",
+            "batchPlaceholder": "Ein Eintrag pro Zeile. Format: Host Typ Wert [TTL] [MX-Priorität]",
+            "batchHelp": "Unterstützt A-, AAAA-, CNAME-, MX-, TXT-, SRV-Einträge"
         },
         "audit": {
             "title": "Prüfungsprotokolle",

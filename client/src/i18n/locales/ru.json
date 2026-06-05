@@ -133,7 +133,12 @@
             "submit": "Отправить",
             "saved": "Сохранено",
             "remove": "Удалить",
-            "mcp": "Управление MCP"
+            "mcp": "Управление MCP",
+            "no": "Нет",
+            "yes": "Да"
+        },
+        "nav": {
+            "settings": "Настройки"
         },
         "mail": {
             "title": "Настройка почты",
@@ -152,6 +157,7 @@
         },
         "login": {
             "subtitle": "DNS агрегационная платформа",
+            "title": "Войдите в свою HiDNS",
             "username": "Имя пользователя",
             "usernameOrEmail": "Имя пользователя/Email",
             "usernameOrEmailPlaceholder": "Введите имя пользователя или email",
@@ -182,16 +188,54 @@
             "enterBackupCode": "Введите резервный код",
             "useAuthCode": "Использовать код подтверждения",
             "backupCode": "Резервный код",
-            "authCode": "Код подтверждения"
+            "authCode": "Код подтверждения",
+            "accountHint": "Войдите, чтобы использовать HiDNS Manager",
+            "consoleTitle": "Войдите в свой HiDNS",
+            "consoleSubtitle": "Войдите, чтобы использовать HiDNS Manager",
+            "authCodeRequired": "Пожалуйста, введите код проверки",
+            "backupCodeRequired": "Пожалуйста, введите резервный код",
+            "logtoSignIn": "Войти через Logto",
+            "logtoUnavailable": "Вход через Logto не включён или настроен не полностью",
+            "oauthUnavailable": "Вход через OAuth не включён или настроен не полностью",
+            "rememberMe": "Запомнить меня",
+            "trustDevice": "Доверять этому устройству",
+            "trustDeviceDays": "Без входа в течение {days} дней",
+            "twoFactorHint": "Продолжите для завершения проверки"
         },
         "dashboard": {
+            "title": "Панель управления",
+            "subtitle": "Обзор системы",
             "totalDomains": "Всего доменов",
             "totalRecords": "Всего записей",
             "dnsAccounts": "DNS-аккаунты",
             "activeUsers": "Активные пользователи",
             "recentOperations": "Последние операции",
             "recentItems": "Последние {count}",
-            "noRecentActivity": "Нет недавней активности"
+            "noRecentActivity": "Нет недавней активности",
+            "accountCoverage": "Аккаунты с доменами",
+            "activeUserRatio": "Доля активных пользователей",
+            "activityMix": "Распределение типов операций",
+            "activityMixDesc": "Наиболее частые типы операций в последних журналах аудита",
+            "domainsPerAccount": "Доменов на аккаунт",
+            "eventsLogged": "Последние {count} событий",
+            "metricAccountsDesc": "Подключённые аккаунты провайдеров",
+            "metricDomainsDesc": "Инвентарь доменов",
+            "metricRecordsDesc": "Всего записей разрешения",
+            "metricUsersDesc": "Доступные участники",
+            "noDomains": "Нет данных о доменах",
+            "noProviders": "Нет аккаунтов провайдеров",
+            "panelSubtitle": "Обзор в реальном времени на основе DNS-аккаунтов, доменов, записей разрешения и журналов аудита.",
+            "panelTitle": "Панель ресурсов DNS",
+            "providerDistribution": "Распределение провайдеров",
+            "providerDistributionDesc": "DNS-аккаунты по типу провайдера",
+            "rankByRecords": "Сортировать по количеству записей",
+            "recordedDomains": "Домены с записями",
+            "recordShare": "Доля записей",
+            "recordsPerDomain": "Записей на домен",
+            "resourceOverview": "Обзор ресурсов",
+            "resourceOverviewDesc": "Покрытие и плотность текущих DNS-ресурсов",
+            "topDomains": "Рейтинг доменов по записям",
+            "topDomainsDesc": "Домены с наибольшим количеством записей разрешения"
         },
         "accounts": {
             "title": "DNS-аккаунты",
@@ -311,7 +355,8 @@
             "require2FA": "Требовать 2FA",
             "require2FADesc": "Когда включено, этот пользователь должен настроить двухфакторную аутентификацию для входа",
             "user2FAUpdated": "Настройка 2FA пользователя обновлена",
-            "user2FAUpdateFailed": "Не удалось обновить настройку 2FA пользователя"
+            "user2FAUpdateFailed": "Не удалось обновить настройку 2FA пользователя",
+            "require2FASystemDisabled": "Система отключена"
         },
         "settings": {
             "profile": "Профиль",
@@ -366,7 +411,19 @@
             "backgroundEffectNone": "Нет",
             "backgroundImageUpdated": "Фоновое изображение обновлено",
             "backgroundImageUpdateFailed": "Не удалось обновить фоновое изображение",
-            "updateBackgroundImage": "Обновить фоновое изображение"
+            "updateBackgroundImage": "Обновить фоновое изображение",
+            "profileTitle": "Настройки профиля",
+            "profileSubtitle": "Управление ником, email и отображаемой информацией",
+            "avatarImageUrl": "URL аватара",
+            "avatarImagePlaceholder": "Введите URL изображения аватара",
+            "avatarImageHint": "Поддерживает любой URL изображения. Оставьте пустым для использования Gravatar",
+            "avatarImageUpdated": "Аватар обновлён",
+            "avatarImageUpdateFailed": "Не удалось обновить аватар",
+            "updateAvatarImage": "Обновить аватар",
+            "displayScale": "Масштаб интерфейса",
+            "displayScaleDesc": "Управление масштабом отображения консоли. Малый масштаб = 90%",
+            "scaleLarge": "Крупный масштаб",
+            "scaleSmall": "Мелкий масштаб"
         },
         "about": {
             "title": "О системе",
@@ -391,6 +448,17 @@
                 "mysql": "MySQL",
                 "postgresql": "PostgreSQL",
                 "unknown": "Неизвестно"
+            },
+            "noContributors": "Нет данных об участниках",
+            "opensource": "Ссылки на открытый код",
+            "opensourceSubtitle": "Основные фреймворки и библиотеки, используемые в этом проекте",
+            "opensourceCategories": {
+                "framework": "Фронтенд-фреймворк",
+                "componentLibrary": "Библиотека компонентов",
+                "icons": "Библиотека иконок",
+                "buildTool": "Инструмент сборки",
+                "stateData": "Состояние данных",
+                "routing": "Фреймворк маршрутизации"
             }
         },
         "security": {
@@ -420,7 +488,16 @@
             "sessionLoggedOut": "Сессия завершена",
             "logoutFailed": "Не удалось завершить сессию",
             "othersLoggedOut": "Другие сессии завершены",
-            "logoutOthersFailed": "Не удалось завершить другие сессии"
+            "logoutOthersFailed": "Не удалось завершить другие сессии",
+            "backupCodesDownloaded": "Резервные коды загружены",
+            "disable2fa": "Отключить 2FA",
+            "disable2faFailed": "Не удалось отключить двухфакторную аутентификацию",
+            "disable2faSuccess": "Двухфакторная аутентификация отключена",
+            "disable2faWarning": "Предупреждение: Отключение двухфакторной аутентификации снизит безопасность аккаунта.",
+            "disabling": "Отключение...",
+            "downloadBackupCodes": "Скачать резервные коды",
+            "noBackupCodes": "Нет доступных резервных кодов для скачивания",
+            "twoFactorSystemDisabled": "Система отключена"
         },
         "passkeys": {
             "title": "Passkeys",
@@ -442,7 +519,9 @@
                 "overview": "Обзор",
                 "database": "База данных",
                 "security": "Безопасность",
-                "notifications": "Уведомления"
+                "notifications": "Уведомления",
+                "access": "Доступ",
+                "network": "Сеть"
             },
             "notifications": {
                 "title": "Каналы уведомлений",
@@ -596,7 +675,9 @@
             "require2FAGlobal": "Требовать 2FA глобально",
             "require2FAGlobalDesc": "Когда включено, все пользователи должны настроить двухфакторную аутентификацию для входа",
             "securityPolicy": "Политика безопасности",
-            "securityPolicyDesc": "Настроить параметры политики безопасности на уровне системы"
+            "securityPolicyDesc": "Настроить параметры политики безопасности на уровне системы",
+            "twoFADisabledStatus": "Отключено",
+            "twoFAEnabledStatus": "Включено"
         },
         "domains": {
             "title": "Домены",
@@ -709,6 +790,15 @@
             "enable": "Включить домен",
             "disable": "Отключить домен",
             "domainDisabled": "Этот домен отключен и не может получить доступ к DNS записям",
+            "failoverSubtitle": "Настройте основной и резервный IP-адреса и стратегии проверки работоспособности для домена. Целевой адрес разрешения будет автоматически переключаться при обнаружении неисправности.",
+            "whoisInfo": "Информация WHOIS",
+            "whoisUpdate": "Обновить WHOIS",
+            "whoisUpdating": "Обновление...",
+            "whoisUpdated": "WHOIS обновлён",
+            "whoisUpdateFailed": "Не удалось обновить WHOIS",
+            "expiryAlert": "Уведомление об истечении",
+            "expiryAlertDesc": "Отправлять уведомление до истечения домена",
+            "daysBefore": "Дней до истечения",
             "tabs": {
                 "list": "Список доменов",
                 "listSubtitle": "Единое управление записями разрешения DNS от различных провайдеров DNS",
@@ -758,7 +848,9 @@
             "status": "Статус",
             "actions": "Действия",
             "domainCount": "{count} доменов",
-            "allDomainsAllowed": "Все домены"
+            "allDomainsAllowed": "Все домены",
+            "tokenUpdated": "Токен обновлён",
+            "editToken": "Редактировать токен"
         },
         "nsMonitor": {
             "title": "NS Мониторинг",
@@ -945,7 +1037,14 @@
                 "value": "Значение",
                 "mx": "MX приоритет",
                 "type": "Тип"
-            }
+            },
+            "batchAdd": "Массовое добавление",
+            "batchAddTitle": "Массовое добавление записей - {name}",
+            "batchAddSuccess": "Массовое добавление выполнено, всего {success} записей",
+            "batchAddFailed": "Массовое добавление не удалось",
+            "batchParseError": "Ошибка разбора, проверьте формат",
+            "batchPlaceholder": "Одна запись на строку, формат: host тип значение [TTL] [MX приоритет]",
+            "batchHelp": "Поддерживает записи A, AAAA, CNAME, MX, TXT, SRV"
         },
         "audit": {
             "title": "Журналы аудита",

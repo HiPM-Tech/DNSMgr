@@ -7,6 +7,17 @@
             "communitySubtitle": "Únete a nuestro grupo de discusión",
             "contributors": "Contribuidores",
             "contributorsSubtitle": "Gracias a los siguientes contribuidores",
+            "opensource": "Referencias de código abierto",
+            "opensourceSubtitle": "Principales frameworks frontend y bibliotecas de componentes utilizados por este proyecto",
+            "opensourceCategories": {
+                "framework": "Framework frontend",
+                "componentLibrary": "Biblioteca de componentes",
+                "icons": "Biblioteca de iconos",
+                "buildTool": "Herramienta de compilación",
+                "stateData": "Estado de datos",
+                "routing": "Framework de enrutamiento"
+            },
+            "noContributors": "Sin datos de colaboradores",
             "currentTime": "Hora actual",
             "databaseType": "Tipo de base de datos",
             "databaseVersion": "Versión de base de datos",
@@ -46,7 +57,9 @@
             "subtitle": "Gestiona tus credenciales de proveedores DNS",
             "title": "Cuentas DNS",
             "updateFailed": "Error al actualizar cuenta",
-            "updateSuccess": "Cuenta actualizada exitosamente"
+            "updateSuccess": "Cuenta actualizada exitosamente",
+            "useProxy": "Usar proxy",
+            "useProxyHint": "Acceder a la API del proveedor DNS a través del proxy del sistema"
         },
         "common": {
             "about": "Acerca de",
@@ -181,7 +194,9 @@
             "submit": "Enviar",
             "saved": "Guardado",
             "remove": "Eliminar",
-            "mcp": "Gestión de MCP"
+            "mcp": "Gestión de MCP",
+            "no": "No",
+            "yes": "Sí"
         },
         "mail": {
             "add": "Agregar registros",
@@ -293,7 +308,8 @@
             "require2FA": "2FA requerido",
             "require2FADesc": "Cuando está habilitado, este usuario debe configurar la autenticación de dos factores para iniciar sesión",
             "user2FAUpdated": "Configuración 2FA del usuario actualizada",
-            "user2FAUpdateFailed": "Error al actualizar la configuración 2FA del usuario"
+            "user2FAUpdateFailed": "Error al actualizar la configuración 2FA del usuario",
+            "require2FASystemDisabled": "Deshabilitado por el sistema"
         },
         "security": {
             "activeSessions": "Sesiones activas",
@@ -493,6 +509,8 @@
             "tabs": {
                 "database": "Base de datos",
                 "notifications": "Notificaciones",
+                "access": "Acceso",
+                "network": "Red",
                 "overview": "Información general",
                 "security": "Seguridad"
             },
@@ -510,7 +528,9 @@
             "require2FAGlobalDesc": "Cuando está habilitado, todos los usuarios deben configurar la autenticación de dos factores para iniciar sesión",
             "securityPolicy": "Política de seguridad",
             "securityPolicyDesc": "Configurar los ajustes de política de seguridad a nivel del sistema",
-            "require2FASystemDisabled": "Deshabilitado por el sistema"
+            "require2FASystemDisabled": "Deshabilitado por el sistema",
+            "twoFADisabledStatus": "Desactivado",
+            "twoFAEnabledStatus": "Activado"
         },
         "nav": {
             "settings": "Configuración"
@@ -633,7 +653,15 @@
             "enable": "Habilitar dominio",
             "disable": "Deshabilitar dominio",
             "domainDisabled": "Este dominio está deshabilitado y no puede acceder a los registros DNS",
-            "failoverSubtitle": "Configura IPs primarias/secundarias y verificaciones de salud, luego cambia automáticamente los objetivos DNS cuando ocurran fallas."
+            "failoverSubtitle": "Configura IPs primarias/secundarias y verificaciones de salud, luego cambia automáticamente los objetivos DNS cuando ocurran fallas.",
+            "whoisInfo": "Información WHOIS",
+            "whoisUpdate": "Actualizar WHOIS",
+            "whoisUpdating": "Actualizando...",
+            "whoisUpdated": "WHOIS actualizado",
+            "whoisUpdateFailed": "Error al actualizar WHOIS",
+            "expiryAlert": "Alerta de vencimiento",
+            "expiryAlertDesc": "Enviar notificación antes del vencimiento del dominio",
+            "daysBefore": "Días antes"
         },
         "setup": {
             "adminCreateFailed": "Error al crear admin",
@@ -794,6 +822,13 @@
             "aaaaHelp": "Los registros AAAA solo aceptan direcciones IPv6.",
             "hostnameHelp": "Los registros {type} deben apuntar a un nombre de host en lugar de una IP.",
             "txtHelp": "Los registros TXT aceptan valores de texto plano.",
+            "batchAdd": "Añadir por lote",
+            "batchAddTitle": "Añadir registros por lote - {name}",
+            "batchAddSuccess": "Añadido por lote exitoso, {success} registro(s)",
+            "batchAddFailed": "Error al añadir por lote",
+            "batchParseError": "Error de análisis, verifique el formato",
+            "batchPlaceholder": "Un registro por línea. Formato: host tipo valor [TTL] [prioridad MX]",
+            "batchHelp": "Soporta registros A, AAAA, CNAME, MX, TXT, SRV",
             "fields": {
                 "host": "Host",
                 "value": "Valor",
@@ -963,6 +998,8 @@
             "tokenUpdated": "Token actualizado"
         },
         "dashboard": {
+            "title": "Panel de control",
+            "subtitle": "Resumen del sistema",
             "totalDomains": "Total de dominios",
             "totalRecords": "Total de registros",
             "dnsAccounts": "Cuentas DNS",
