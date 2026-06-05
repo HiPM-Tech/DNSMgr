@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, DialogPlugin, Divider, Input, Loading, Space, Table, Tag, Tabs, Tooltip } from 'tdesign-react';
+import { Alert, Button, Card, Dialog, Divider, Input, Loading, Space, Table, Tag, Tabs, Tooltip } from 'tdesign-react';
 import { AddIcon, CopyIcon, DeleteIcon, EditIcon } from 'tdesign-icons-react';
 import { addToast } from '../hooks/useToast';
 import { mcpApi } from '../api';
@@ -48,6 +48,23 @@ export function McpManagement() {
   const [keyDescription, setKeyDescription] = useState('');
   const [keyExpiry, setKeyExpiry] = useState('');
   const [copied, setCopied] = useState(false);
+
+  // ─── Confirm dialog state (replaces DialogPlugin.confirm) ────
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [confirmBody, setConfirmBody] = useState('');
+  const [confirmLabel, setConfirmLabel] = useState('');
+  const [confirmTheme, setConfirmTheme] = useState<'warning' | 'danger'>('danger');
+  const confirmActionRef = useRef<() => void>(() => {});
+
+  const openConfirm = (title: string, body: string, label: string, theme: 'warning' | 'danger', action: () => void) => {
+    setConfirmTitle(title);
+    setConfirmBody(body);
+    setConfirmLabel(label);
+    setConfirmTheme(theme);
+    confirmActionRef.current = action;
+    setConfirmOpen(true);
+  };
 
   // OAuth clients
   const [showCreateOAuthModal, setShowCreateOAuthModal] = useState(false);
@@ -240,16 +257,13 @@ export function McpManagement() {
   };
 
   const handleDeleteOAuthClient = (client: McpOAuthClient) => {
-    DialogPlugin.confirm({
-      header: t('mcp.oauthDelete'),
-      body: t('mcp.oauthDeleteConfirm'),
-      confirmBtn: t('common.delete'),
-      cancelBtn: t('mcp.cancel'),
-      theme: 'danger',
-      onConfirm: () => {
-        deleteOAuthMutation.mutate(client.client_id);
-      },
-    });
+    openConfirm(
+      t('mcp.oauthDelete'),
+      t('mcp.oauthDeleteConfirm'),
+      t('common.delete'),
+      'danger',
+      () => deleteOAuthMutation.mutate(client.client_id),
+    );
   };
 
   const handleCloseOAuthModal = () => {
@@ -279,29 +293,23 @@ export function McpManagement() {
   };
 
   const handleRevokeKey = (keyId: number) => {
-    DialogPlugin.confirm({
-      header: t('mcp.confirmRevoke'),
-      body: t('mcp.confirmRevokeBody'),
-      confirmBtn: t('mcp.revoke'),
-      cancelBtn: t('mcp.cancel'),
-      theme: 'warning',
-      onConfirm: () => {
-        revokeKeyMutation.mutate(keyId);
-      },
-    });
+    openConfirm(
+      t('mcp.confirmRevoke'),
+      t('mcp.confirmRevokeBody'),
+      t('mcp.revoke'),
+      'warning',
+      () => revokeKeyMutation.mutate(keyId),
+    );
   };
 
   const handleDeleteKey = (keyId: number) => {
-    DialogPlugin.confirm({
-      header: t('mcp.confirmDelete'),
-      body: t('mcp.confirmDeleteBody'),
-      confirmBtn: t('common.delete'),
-      cancelBtn: t('mcp.cancel'),
-      theme: 'danger',
-      onConfirm: () => {
-        deleteKeyMutation.mutate(keyId);
-      },
-    });
+    openConfirm(
+      t('mcp.confirmDelete'),
+      t('mcp.confirmDeleteBody'),
+      t('common.delete'),
+      'danger',
+      () => deleteKeyMutation.mutate(keyId),
+    );
   };
 
   const handleShowCreateModal = () => {
@@ -827,14 +835,13 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                         theme="danger"
                         icon={<DeleteIcon />}
                         onClick={() => {
-                          DialogPlugin.confirm({
-                            header: t('mcp.oauthTokenRevoke'),
-                            body: t('mcp.oauthTokenConfirmRevoke'),
-                            confirmBtn: t('common.delete'),
-                            cancelBtn: t('mcp.cancel'),
-                            theme: 'danger',
-                            onConfirm: () => revokeTokenMutation.mutate(row.id),
-                          });
+                          openConfirm(
+                            t('mcp.oauthTokenRevoke'),
+                            t('mcp.oauthTokenConfirmRevoke'),
+                            t('common.delete'),
+                            'danger',
+                            () => revokeTokenMutation.mutate(row.id),
+                          );
                         }}
                         loading={revokeTokenMutation.isPending}
                       >
@@ -1070,6 +1077,30 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
           </div>
         </Modal>
       )}
+
+      {/* ─── Confirm Dialog (replaces DialogPlugin.confirm) ──── */}
+      <Dialog
+        visible={confirmOpen}
+        destroyOnClose
+        placement="center"
+        theme={confirmTheme}
+        header={confirmTitle}
+        width={420}
+        confirmBtn={{ content: confirmLabel, theme: confirmTheme }}
+        cancelBtn={{ content: t('mcp.cancel') }}
+        onConfirm={() => {
+          confirmActionRef.current();
+          setConfirmOpen(false);
+        }}
+        onCancel={() => setConfirmOpen(false)}
+        onClose={() => setConfirmOpen(false)}
+        onClosed={() => {
+          // clean up ref to avoid stale closures persisting across opens
+          confirmActionRef.current = () => {};
+        }}
+      >
+        <p>{confirmBody}</p>
+      </Dialog>
     </div>
   );
 }
