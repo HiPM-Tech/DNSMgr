@@ -509,19 +509,26 @@ export function McpManagement() {
                   colKey: 'api_key',
                   title: 'API Key',
                   width: 200,
-                  cell: (row: any) => (
-                    <Space>
-                      <code style={{ fontSize: 12 }}>{row.api_key.substring(0, 20)}...</code>
-                      <Tooltip content={t('mcp.copy')}>
-                        <Button
-                          size="small"
-                          variant="text"
-                          icon={<CopyIcon />}
-                          onClick={() => handleCopyKey(row.api_key)}
-                        />
-                      </Tooltip>
-                    </Space>
-                  ),
+                  cell: (row: any) => {
+                    const maskedKey = row.api_key
+                      ? `${row.api_key.substring(0, 20)}...`
+                      : '••••••••••••••••••••';
+                    return (
+                      <Space>
+                        <code style={{ fontSize: 12 }}>{maskedKey}</code>
+                        {row.api_key && (
+                          <Tooltip content={t('mcp.copy')}>
+                            <Button
+                              size="small"
+                              variant="text"
+                              icon={<CopyIcon />}
+                              onClick={() => handleCopyKey(row.api_key)}
+                            />
+                          </Tooltip>
+                        )}
+                      </Space>
+                    );
+                  },
                 },
                 {
                   colKey: 'created_at',
