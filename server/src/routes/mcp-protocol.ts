@@ -7,19 +7,23 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import crypto from 'crypto';
 import { mcpServer } from '../mcp/server';
 import { McpOperations } from '../db/bal/business-adapter';
 import { log } from '../lib/logger';
 
 const router = Router();
 
-// 有状态的 Streamable HTTP 传输层单例
+// 无状态的 Streamable HTTP 传输层（支持多客户端同时连接）
 const httpTransport = new StreamableHTTPServerTransport({
-  sessionIdGenerator: () => crypto.randomUUID(),
+  sessionIdGenerator: undefined,
 });
 
-let transportConnected = false;
+// 模块加载时立即连接传输层
+mcpServer.getServer().connect(httpTransport).then(() => {
+  log.info('MCP Protocol', 'Streamable HTTP transport connected to McpServer');
+}).catch((err) => {
+  log.error('MCP Protocol', 'Failed to connect Streamable HTTP transport', { error: err });
+});
 
 /**
  * MCP 启用检查中间件
@@ -67,15 +71,11 @@ function buildOAuthMetadataUrl(req: Request): string {
 }
 
 /**
- * 连接传输层并处理 MCP 协议请求
- * 首次请求时自动连接 McpServer 与 Streamable HTTP 传输层
+ * 处理 MCP 协议请求
  */
 async function handleMcpRequest(req: Request, res: Response): Promise<void> {
   try {
     // ── OAuth 发现：POST 请求未携带认证头时返回 401 ──
-    // 标准 MCP 客户端（Cursor、Claude Desktop 等）收到 401 后，
-    // 会读取 WWW-Authenticate 头并通过 oauth_metadata_uri 发现 OAuth 端点，
-    // 自动完成动态注册 → 授权码流程 → 获取 token → 重试请求。
     if (req.method === 'POST') {
       const authValue = extractAuthValue(req);
 
@@ -92,8 +92,7 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      // 已认证：从请求头提取的 API Key / Bearer Token 注入到
-      // JSON-RPC tools/call 参数中（兼容现有工具处理器的 apiKey 参数约定）
+      // 已认证：API Key / Bearer Token 注入到 tools/call 参数
       if (req.body && typeof req.body === 'object') {
         const injectApiKey = (msg: any) => {
           if (msg?.method === 'tools/call' && msg?.params && !msg.params.apiKey) {
@@ -106,12 +105,6 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
           injectApiKey(req.body);
         }
       }
-    }
-
-    if (!transportConnected) {
-      await mcpServer.getServer().connect(httpTransport);
-      transportConnected = true;
-      log.info('MCP Protocol', 'Streamable HTTP transport connected to McpServer');
     }
 
     await httpTransport.handleRequest(req, res, req.body);
