@@ -4,6 +4,9 @@
  */
 
 import { DNSServerType } from './types';
+import { createLogger } from '../../../lib/logger';
+
+const log = createLogger('DNS').sub('Servers');
 
 /**
  * DNS 服务器配置
@@ -365,12 +368,12 @@ export function getPlainServers(): DNSServerConfig[] {
 export function addEncryptedServer(config: DNSServerConfig): void {
   const exists = ENCRYPTED_DNS_SERVERS.some(s => s.name === config.name);
   if (exists) {
-    console.warn(`[DNSServers] Encrypted server ${config.name} already exists, skipping`);
+    log.warn(`Encrypted server ${config.name} already exists, skipping`);
     return;
   }
 
   ENCRYPTED_DNS_SERVERS.push(config);
-  console.log(`[DNSServers] Added encrypted server: ${config.name}`, {
+  log.info(`Added encrypted server: ${config.name}`, {
     type: config.type,
     address: config.address,
   });
@@ -382,12 +385,12 @@ export function addEncryptedServer(config: DNSServerConfig): void {
 export function addPlainServer(config: DNSServerConfig): void {
   const exists = PLAIN_DNS_SERVERS.some(s => s.name === config.name);
   if (exists) {
-    console.warn(`[DNSServers] Plain server ${config.name} already exists, skipping`);
+    log.warn(`Plain server ${config.name} already exists, skipping`);
     return;
   }
 
   PLAIN_DNS_SERVERS.push(config);
-  console.log(`[DNSServers] Added plain server: ${config.name}`, {
+  log.info(`Added plain server: ${config.name}`, {
     type: config.type,
     address: config.address,
   });
@@ -403,14 +406,14 @@ export function removeServer(name: string): boolean {
   if (encryptedIndex !== -1) {
     ENCRYPTED_DNS_SERVERS.splice(encryptedIndex, 1);
     removed = true;
-    console.log(`[DNSServers] Removed encrypted server: ${name}`);
+    log.info(`Removed encrypted server: ${name}`);
   }
 
   const plainIndex = PLAIN_DNS_SERVERS.findIndex(s => s.name === name);
   if (plainIndex !== -1) {
     PLAIN_DNS_SERVERS.splice(plainIndex, 1);
     removed = true;
-    console.log(`[DNSServers] Removed plain server: ${name}`);
+    log.info(`Removed plain server: ${name}`);
   }
 
   return removed;

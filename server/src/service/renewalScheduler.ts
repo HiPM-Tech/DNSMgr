@@ -3,6 +3,10 @@
  * 所有支持续期的 DNS 提供商需要实现此接口并向核心注册
  */
 
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('Service').sub('Renewal');
+
 export interface RenewalScheduler {
   /**
    * 提供商类型标识
@@ -65,10 +69,10 @@ class RenewalSchedulerRegistry {
    */
   register(scheduler: RenewalScheduler): void {
     if (this.schedulers.has(scheduler.type)) {
-      console.warn(`[RenewalRegistry] Scheduler for type "${scheduler.type}" already registered, overwriting`);
+      log.warn(`Scheduler for type "${scheduler.type}" already registered, overwriting`);
     }
     this.schedulers.set(scheduler.type, scheduler);
-    console.log(`[RenewalRegistry] Registered renewal scheduler for type: ${scheduler.type}`);
+    log.info(`Registered renewal scheduler for type: ${scheduler.type}`);
   }
 
   /**

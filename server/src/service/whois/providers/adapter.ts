@@ -5,6 +5,9 @@
  */
 
 import { dnsheWhoisScheduler } from '../../../lib/dns/providers';
+import { createLogger } from '../../../lib/logger';
+
+const log = createLogger('WhoisService').sub('DnsProviderAdapter');
 
 /**
  * WHOIS 调度器接口
@@ -43,10 +46,10 @@ class DnsProviderAdapterRegistry {
    */
   register(adapter: WhoisScheduler): void {
     if (this.adapters.has(adapter.type)) {
-      console.warn(`[DnsProviderAdapter] Adapter for type "${adapter.type}" already registered, overwriting`);
+      log.warn(`Adapter for type "${adapter.type}" already registered, overwriting`);
     }
     this.adapters.set(adapter.type, adapter);
-    console.log(`[DnsProviderAdapter] Registered adapter for type: ${adapter.type}`);
+    log.info(`Registered adapter for type: ${adapter.type}`);
   }
 
   /**
@@ -87,5 +90,5 @@ export function initDnsProviderAdapters(): void {
   // dnsProviderAdapter.register(cloudflareWhoisAdapter);
   
   const registeredTypes = dnsProviderAdapter.getRegisteredTypes();
-  console.log(`[DnsProviderAdapter] Initialized adapters for: ${registeredTypes.join(', ')}`);
+  log.info(`Initialized adapters for: ${registeredTypes.join(', ')}`);
 }

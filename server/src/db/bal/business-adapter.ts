@@ -764,7 +764,7 @@ export const DomainOperations = {
     const paginatedSql = `${baseSqlWithoutOrderBy} ORDER BY ${orderByClause} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
 
     // Debug log
-    console.log('[BusinessAdapter] getAllForSuperAdminWithPagination SQL:', {
+    log.info('SQL:', {
       page,
       pageSize,
       pinnedDomainIds: pinnedDomainIds.length,

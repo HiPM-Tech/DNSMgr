@@ -5,6 +5,9 @@
  */
 
 import { dnsheWhoisScheduler } from '../../lib/dns/providers';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('WhoisService').sub('Scheduler');
 
 /**
  * 初始化 WHOIS 调度器
@@ -20,7 +23,7 @@ export function initWhoisSchedulers(): void {
   // dnsProviderAdapter.register(cloudflareWhoisAdapter);
 
   const registeredTypes = dnsProviderAdapter.getRegisteredTypes();
-  console.log(`[WhoisInit] Registered WHOIS adapters for: ${registeredTypes.join(', ')}`);
+  log.info(`Registered WHOIS adapters for: ${registeredTypes.join(', ')}`);
 }
 
 /**

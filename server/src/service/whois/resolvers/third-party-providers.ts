@@ -4,6 +4,9 @@
  */
 
 import { QueryMethodType } from '../providers/base';
+import { createLogger } from '../../../lib/logger';
+
+const log = createLogger('WhoisService').sub('ThirdPartyProviders');
 
 /**
  * 第三方查询商配置
@@ -104,12 +107,12 @@ export function findThirdPartyRdapProvider(domain: string): ThirdPartyProviderCo
 export function addThirdPartyWhoisProvider(config: ThirdPartyProviderConfig): void {
   const exists = THIRD_PARTY_WHOIS_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
-    console.warn(`[ThirdPartyProviders] WHOIS provider ${config.name} already exists, skipping`);
+    log.warn(`WHOIS provider ${config.name} already exists, skipping`);
     return;
   }
 
   THIRD_PARTY_WHOIS_PROVIDERS.push(config);
-  console.log(`[ThirdPartyProviders] Added WHOIS provider: ${config.name}`, {
+  log.info(`Added WHOIS provider: ${config.name}`, {
     suffixes: config.suffixes,
   });
 }
@@ -120,12 +123,12 @@ export function addThirdPartyWhoisProvider(config: ThirdPartyProviderConfig): vo
 export function addThirdPartyRdapProvider(config: ThirdPartyProviderConfig): void {
   const exists = THIRD_PARTY_RDAP_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
-    console.warn(`[ThirdPartyProviders] RDAP provider ${config.name} already exists, skipping`);
+    log.warn(`RDAP provider ${config.name} already exists, skipping`);
     return;
   }
 
   THIRD_PARTY_RDAP_PROVIDERS.push(config);
-  console.log(`[ThirdPartyProviders] Added RDAP provider: ${config.name}`, {
+  log.info(`Added RDAP provider: ${config.name}`, {
     suffixes: config.suffixes,
   });
 }
@@ -138,7 +141,7 @@ export function removeThirdPartyWhoisProvider(name: string): boolean {
   if (index === -1) return false;
 
   THIRD_PARTY_WHOIS_PROVIDERS.splice(index, 1);
-  console.log(`[ThirdPartyProviders] Removed WHOIS provider: ${name}`);
+  log.info(`Removed WHOIS provider: ${name}`);
   return true;
 }
 
@@ -150,6 +153,6 @@ export function removeThirdPartyRdapProvider(name: string): boolean {
   if (index === -1) return false;
 
   THIRD_PARTY_RDAP_PROVIDERS.splice(index, 1);
-  console.log(`[ThirdPartyProviders] Removed RDAP provider: ${name}`);
+  log.info(`Removed RDAP provider: ${name}`);
   return true;
 }

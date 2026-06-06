@@ -1,4 +1,3 @@
-const log = createLogger('WhoisService').sub('Index');
 /**
  * WHOIS Service 主入口
  *
@@ -122,6 +121,8 @@ import { WhoisResult } from './providers/base';
 import { createLogger } from '../../lib/logger';
 import { getRootDomain } from './domain-utils';
 
+const log = createLogger('WhoisService').sub('Index');
+
 /**
  * 查询选项
  */
@@ -200,12 +201,12 @@ class WhoisService {
     // ========== 子域名查询 ==========
     if (skipParentFallback) {
       // 禁用父域查询模式：仅查询子域，不查询父域
-      log.info(`[SKIP-PARENT] Querying subdomain only (no parent fallback) for ${domain}`);
+      log.tag('SKIP_PARENT').info(`Querying subdomain only (no parent fallback) for ${domain}`);
       return this.querySubdomainOnly(domain, timeout, skipUplevel);
     }
 
     // 默认模式：顶域和子域并行查询
-    log.info(`[PARALLEL] Starting parallel apex and subdomain queries for ${domain}`);
+    log.tag('PARALLEL').info(`Starting parallel apex and subdomain queries for ${domain}`);
 
     // 并行启动顶域查询和子域查询
     const apexPromise = this.queryApexCombined(rootDomain, timeout);
@@ -223,7 +224,7 @@ class WhoisService {
         subdomainResult.apexRegistrar = apexResult.registrar;
       }
       this.setCached(domain, subdomainResult);
-      log.info(`[SUCCESS] Subdomain query succeeded for ${domain}`);
+      log.tag('SUCCESS').info(`Subdomain query succeeded for ${domain}`);
       return subdomainResult;
     }
 
@@ -239,13 +240,13 @@ class WhoisService {
         apexRegistrar: apexResult.registrar,
       };
       this.setCached(domain, result);
-      log.info(`[FALLBACK] Using apex domain expiry for ${domain}`);
+      log.tag('FALLBACK').info(`Using apex domain expiry for ${domain}`);
       return result;
     }
 
     // ========== 3. 第三方查询（最后备选） ==========
     // 同时查询根域名和子域名，合并结果
-    log.info(`[THIRDPARTY] Starting third-party queries for ${domain} (root: ${rootDomain})`);
+    log.tag('THIRDPARTY').info(`Starting third-party queries for ${domain} (root: ${rootDomain})`);
 
     // 并行查询根域名和子域名
     const [rootResult, thirdPartySubdomainResult] = await Promise.all([
@@ -260,7 +261,7 @@ class WhoisService {
         thirdPartySubdomainResult.apexRegistrar = rootResult.registrar;
       }
       this.setCached(domain, thirdPartySubdomainResult);
-      log.info(`[SUCCESS] Third-party subdomain query succeeded for ${domain}`);
+      log.tag('SUCCESS').info(`Third-party subdomain query succeeded for ${domain}`);
       return thirdPartySubdomainResult;
     }
 
@@ -276,11 +277,11 @@ class WhoisService {
         apexRegistrar: rootResult.registrar,
       };
       this.setCached(domain, result);
-      log.info(`[SUCCESS] Third-party root domain query succeeded for ${domain}`);
+      log.tag('SUCCESS').info(`Third-party root domain query succeeded for ${domain}`);
       return result;
     }
 
-    log.warn(`[FAILED] All queries failed for ${domain}`);
+    log.tag('FAILED').warn(`All queries failed for ${domain}`);
     return null;
   }
 
@@ -288,7 +289,7 @@ class WhoisService {
    * 仅查询顶域（用于顶域名本身）
    */
   private async queryApexOnly(domain: string, timeout: number): Promise<WhoisResult | null> {
-    log.info(`[APEX-ONLY] Querying apex domain ${domain}`);
+    log.tag('APEX_ONLY').info(`Querying apex domain ${domain}`);
 
     let result = await this.queryApexRdapParallel(domain, timeout);
     if (!result?.expiryDate) {
@@ -297,7 +298,7 @@ class WhoisService {
 
     if (result?.expiryDate) {
       this.setCached(domain, result);
-      log.info(`[SUCCESS] Apex query succeeded for ${domain}`);
+      log.tag('SUCCESS').info(`Apex query succeeded for ${domain}`);
       return result;
     }
 
@@ -320,7 +321,7 @@ class WhoisService {
    * 用于 skipParentFallback 模式
    */
   private async querySubdomainOnly(domain: string, timeout: number, skipUplevel: boolean = false): Promise<WhoisResult | null> {
-    log.info(`[SUBDOMAIN-ONLY] Querying subdomain only (no parent) ${domain}`, { skipUplevel });
+    log.tag('SUBDOMAIN_ONLY').info(`Querying subdomain only (no parent) ${domain}`, { skipUplevel });
 
     // 1. 尝试子域 RDAP/WHOIS
     let result = await this.querySubdomainRdapParallel(domain, timeout);
@@ -330,13 +331,13 @@ class WhoisService {
 
     if (result?.expiryDate) {
       this.setCached(domain, result);
-      log.info(`[SUCCESS] Subdomain query succeeded for ${domain}`);
+      log.tag('SUCCESS').info(`Subdomain query succeeded for ${domain}`);
       return result;
     }
 
     // 2. 尝试平级查询（uplevel）- 如果允许
     if (!skipUplevel) {
-      log.info(`[SUBDOMAIN-ONLY] Trying uplevel queries for ${domain}`);
+      log.tag('SUBDOMAIN_ONLY').info(`Trying uplevel queries for ${domain}`);
       result = await this.queryUplevelRdapParallel(domain, timeout);
       if (!result?.expiryDate) {
         result = await this.queryUplevelWhoisParallel(domain, timeout);
@@ -344,15 +345,15 @@ class WhoisService {
 
       if (result?.expiryDate) {
         this.setCached(domain, result);
-        log.info(`[SUCCESS] Uplevel query succeeded for ${domain}`);
+        log.tag('SUCCESS').info(`Uplevel query succeeded for ${domain}`);
         return result;
       }
     } else {
-      log.info(`[SUBDOMAIN-ONLY] Skipping uplevel queries for ${domain}`);
+      log.tag('SUBDOMAIN_ONLY').info(`Skipping uplevel queries for ${domain}`);
     }
 
     // 3. 尝试第三方查询（仅查询子域本身，不查询父域）
-    log.info(`[SUBDOMAIN-ONLY] Trying third-party for subdomain ${domain}`);
+    log.tag('SUBDOMAIN_ONLY').info(`Trying third-party for subdomain ${domain}`);
     result = await this.queryThirdPartyRdapParallel(domain, timeout);
     if (!result?.expiryDate) {
       result = await this.queryThirdPartyWhoisParallel(domain, timeout);
@@ -360,12 +361,12 @@ class WhoisService {
 
     if (result?.expiryDate) {
       this.setCached(domain, result);
-      log.info(`[SUCCESS] Third-party subdomain query succeeded for ${domain}`);
+      log.tag('SUCCESS').info(`Third-party subdomain query succeeded for ${domain}`);
       return result;
     }
 
     // 放弃，不查询父域
-    log.warn(`[FAILED] All subdomain queries failed for ${domain} (no parent fallback)`);
+    log.tag('FAILED').warn(`All subdomain queries failed for ${domain} (no parent fallback)`);
     return null;
   }
 
@@ -373,7 +374,7 @@ class WhoisService {
    * 组合查询顶域（RDAP + WHOIS）
    */
   private async queryApexCombined(domain: string, timeout: number): Promise<WhoisResult | null> {
-    log.info(`[APEX-COMBINED] Starting combined apex queries for ${domain}`);
+    log.tag('APEX_COMBINED').info(`Starting combined apex queries for ${domain}`);
 
     // 并行查询 RDAP 和 WHOIS
     const rdapPromise = this.queryApexRdapParallel(domain, timeout);
@@ -382,13 +383,13 @@ class WhoisService {
     // 使用 Promise.race 获取最快的结果
     const rdapResult = await rdapPromise;
     if (rdapResult?.expiryDate) {
-      log.info(`[APEX-COMBINED] RDAP won for ${domain}`);
+      log.tag('APEX_COMBINED').tag('RDAP').info(`won for ${domain}`);
       return rdapResult;
     }
 
     const whoisResult = await whoisPromise;
     if (whoisResult?.expiryDate) {
-      log.info(`[APEX-COMBINED] WHOIS won for ${domain}`);
+      log.tag('APEX_COMBINED').tag('WHOIS').info(`won for ${domain}`);
       return whoisResult;
     }
 
@@ -399,7 +400,7 @@ class WhoisService {
    * 组合查询子域（所有子域查询方式）
    */
   private async querySubdomainCombined(domain: string, timeout: number, skipUplevel: boolean = false): Promise<WhoisResult | null> {
-    log.info(`[SUBDOMAIN-COMBINED] Starting combined subdomain queries for ${domain}`, { skipUplevel });
+    log.tag('SUBDOMAIN_COMBINED').info(`Starting combined subdomain queries for ${domain}`, { skipUplevel });
 
     // 并行启动所有子域查询
     const promises = [
@@ -414,7 +415,7 @@ class WhoisService {
         this.queryUplevelWhoisParallel(domain, timeout)
       );
     } else {
-      log.info(`[SUBDOMAIN-COMBINED] Skipping uplevel queries for ${domain}`);
+      log.tag('SUBDOMAIN_COMBINED').info(`Skipping uplevel queries for ${domain}`);
     }
 
     // 等待所有查询完成，取第一个成功的结果
@@ -423,7 +424,8 @@ class WhoisService {
     for (let i = 0; i < results.length; i++) {
       if (results[i]?.expiryDate) {
         const methods = ['Subdomain-RDAP', 'Subdomain-WHOIS', 'Uplevel-RDAP', 'Uplevel-WHOIS'];
-        log.info(`[SUBDOMAIN-COMBINED] ${methods[i]} won for ${domain}`);
+        const methodTags = methods[i].split('-').map(t => t.toUpperCase());
+        log.tag('SUBDOMAIN_COMBINED').tag(...methodTags).info(`won for ${domain}`);
         return results[i];
       }
     }
@@ -440,18 +442,27 @@ class WhoisService {
   private async raceQueries(
     queries: Array<() => Promise<WhoisResult | null>>,
     timeout: number,
-    raceName: string
+    raceName: string,
+    tags?: string[]
   ): Promise<WhoisResult | null> {
     if (queries.length === 0) return null;
     if (queries.length === 1) return queries[0]();
 
     const startTime = Date.now();
-    log.info(`${raceName} Starting race with ${queries.length} queries`);
+    if (tags?.length) {
+      log.tag(...tags).info(`${raceName} Starting race with ${queries.length} queries`);
+    } else {
+      log.info(`${raceName} Starting race with ${queries.length} queries`);
+    }
 
     // 创建带超时的 Promise
     const timeoutPromise = new Promise<WhoisResult | null>((resolve) => {
       setTimeout(() => {
-        log.debug(`${raceName} Timeout after ${timeout}ms`);
+        if (tags?.length) {
+          log.tag(...tags).debug(`${raceName} Timeout after ${timeout}ms`);
+        } else {
+          log.debug(`${raceName} Timeout after ${timeout}ms`);
+        }
         resolve(null);
       }, timeout);
     });
@@ -464,14 +475,24 @@ class WhoisService {
       query().then((result) => {
         if (result?.expiryDate) {
           const elapsed = Date.now() - startTime;
-          log.info(`${raceName} Query ${index + 1} won in ${elapsed}ms`);
+          if (tags?.length) {
+            log.tag(...tags).info(`${raceName} Query ${index + 1} won in ${elapsed}ms`);
+          } else {
+            log.info(`${raceName} Query ${index + 1} won in ${elapsed}ms`);
+          }
           return result;
         }
         return null;
       }).catch((error) => {
-        log.warn(`${raceName} Query ${index + 1} failed`, {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        if (tags?.length) {
+          log.tag(...tags).warn(`${raceName} Query ${index + 1} failed`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        } else {
+          log.warn(`${raceName} Query ${index + 1} failed`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
         return null;
       });
 
@@ -488,7 +509,11 @@ class WhoisService {
 
       // 检查是否超时
       if (winner === null) {
-        log.warn(`${raceName} Timeout, ${pendingQueries.length} queries still pending`);
+        if (tags?.length) {
+          log.tag(...tags).warn(`${raceName} Timeout, ${pendingQueries.length} queries still pending`);
+        } else {
+          log.warn(`${raceName} Timeout, ${pendingQueries.length} queries still pending`);
+        }
         break;
       }
 
@@ -514,7 +539,11 @@ class WhoisService {
       }
     }
 
-    log.warn(`${raceName} All queries failed or timed out`);
+    if (tags?.length) {
+      log.tag(...tags).warn(`${raceName} All queries failed or timed out`);
+    } else {
+      log.warn(`${raceName} All queries failed or timed out`);
+    }
     return null;
   }
 
@@ -527,18 +556,19 @@ class WhoisService {
     method: { query: (domain: string, server: string) => Promise<WhoisResult | null> },
     context: QueryContext
   ): Promise<WhoisResult | null> {
-    const uplevelTag = context.isUplevel ? '+UPLEVEL' : '';
-    const logPrefix = `[${context.level}+${context.method}${uplevelTag}+${provider.name}]`;
+    const levelTag = context.level === 'apex' ? 'APEX' : context.level === 'subdomain' ? 'SUBDOMAIN' : 'THIRDPARTY';
+    const methodTag = context.method;
+    const tags = context.isUplevel ? [levelTag, methodTag, 'UPLEVEL'] : [levelTag, methodTag];
 
     try {
-      log.info(`${logPrefix} Querying ${domain} via ${provider.server}`);
+      log.tag(...tags).info(`Querying ${domain} via ${provider.server}`);
       const result = await method.query(domain, provider.server);
       if (result?.expiryDate) {
-        log.info(`${logPrefix} Success for ${domain}, expiry: ${result.expiryDate}`);
+        log.tag(...tags).tag('SUCCESS').info(`Query succeeded for ${domain}, expiry: ${result.expiryDate}`);
         return result;
       }
     } catch (error) {
-      log.warn(`${logPrefix} Failed for ${domain}`, {
+      log.tag(...tags).warn(`Query failed for ${domain}`, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -558,7 +588,7 @@ class WhoisService {
     // 首先尝试从 IANA RDAP 列表查找（异步）
     const ianaProvider = await findApexRdapProvider(domain);
     if (ianaProvider) {
-      log.debug(`[APEX+RDAP] Matched IANA provider: ${ianaProvider.name} for ${domain}`);
+      log.tag('APEX').tag('RDAP').debug(`Matched IANA provider: ${ianaProvider.name} for ${domain}`);
       queries.push(() => this.queryWithProvider(
         domain,
         ianaProvider,
@@ -580,7 +610,7 @@ class WhoisService {
       });
 
       if (isMatch) {
-        log.debug(`[APEX+RDAP] Matched built-in provider: ${provider.name} for ${domain}`);
+        log.tag('APEX').tag('RDAP').debug(`Matched built-in provider: ${provider.name} for ${domain}`);
         queries.push(() => this.queryWithProvider(
           domain,
           provider,
@@ -591,12 +621,12 @@ class WhoisService {
     }
 
     if (queries.length === 0) {
-      log.warn(`[APEX+RDAP] No matching providers for ${domain}`);
+      log.tag('APEX').tag('RDAP').warn(`No matching providers for ${domain}`);
       return null;
     }
 
-    log.info(`[APEX+RDAP] Starting parallel queries with ${queries.length} providers for ${domain}`);
-    return this.raceQueries(queries, timeout, `[APEX+RDAP+PARALLEL]`);
+    log.tag('APEX').tag('RDAP').info(`Starting parallel queries with ${queries.length} providers for ${domain}`);
+    return this.raceQueries(queries, timeout, 'APEX+RDAP+PARALLEL', ['APEX', 'RDAP', 'PARALLEL']);
   }
 
   /**
@@ -624,11 +654,11 @@ class WhoisService {
     }
 
     if (queries.length === 0) {
-      log.debug(`[APEX+WHOIS] No matching providers for ${domain}`);
+      log.tag('APEX').tag('WHOIS').debug(`No matching providers for ${domain}`);
       return null;
     }
 
-    return this.raceQueries(queries, timeout, `[APEX+WHOIS+PARALLEL]`);
+    return this.raceQueries(queries, timeout, 'APEX+WHOIS+PARALLEL', ['APEX', 'WHOIS', 'PARALLEL']);
   }
 
   // ========== 子域查询 ==========
@@ -657,11 +687,11 @@ class WhoisService {
     }
 
     if (queries.length === 0) {
-      log.debug(`[SUBDOMAIN+RDAP] No matching registered providers for ${domain}`);
+      log.tag('SUBDOMAIN').tag('RDAP').debug(`No matching registered providers for ${domain}`);
       return null;
     }
 
-    return this.raceQueries(queries, timeout, `[SUBDOMAIN+RDAP+PARALLEL]`);
+    return this.raceQueries(queries, timeout, 'SUBDOMAIN+RDAP+PARALLEL', ['SUBDOMAIN', 'RDAP', 'PARALLEL']);
   }
 
   /**
@@ -688,11 +718,11 @@ class WhoisService {
     }
 
     if (queries.length === 0) {
-      log.debug(`[SUBDOMAIN+WHOIS] No matching registered providers for ${domain}`);
+      log.tag('SUBDOMAIN').tag('WHOIS').debug(`No matching registered providers for ${domain}`);
       return null;
     }
 
-    return this.raceQueries(queries, timeout, `[SUBDOMAIN+WHOIS+PARALLEL]`);
+    return this.raceQueries(queries, timeout, 'SUBDOMAIN+WHOIS+PARALLEL', ['SUBDOMAIN', 'WHOIS', 'PARALLEL']);
   }
 
   // ========== 平级查询 ==========
@@ -715,11 +745,11 @@ class WhoisService {
     }
 
     if (queries.length === 0) {
-      log.debug(`[SUBDOMAIN+RDAP+UPLEVEL] No subdomain RDAP providers available for ${domain}`);
+      log.tag('SUBDOMAIN').tag('RDAP').tag('UPLEVEL').debug(`No subdomain RDAP providers available for ${domain}`);
       return null;
     }
 
-    return this.raceQueries(queries, timeout, `[SUBDOMAIN+RDAP+UPLEVEL]`);
+    return this.raceQueries(queries, timeout, 'SUBDOMAIN+RDAP+UPLEVEL', ['SUBDOMAIN', 'RDAP', 'UPLEVEL']);
   }
 
   /**
@@ -740,11 +770,11 @@ class WhoisService {
     }
 
     if (queries.length === 0) {
-      log.debug(`[SUBDOMAIN+WHOIS+UPLEVEL] No subdomain WHOIS providers available for ${domain}`);
+      log.tag('SUBDOMAIN').tag('WHOIS').tag('UPLEVEL').debug(`No subdomain WHOIS providers available for ${domain}`);
       return null;
     }
 
-    return this.raceQueries(queries, timeout, `[SUBDOMAIN+WHOIS+UPLEVEL]`);
+    return this.raceQueries(queries, timeout, 'SUBDOMAIN+WHOIS+UPLEVEL', ['SUBDOMAIN', 'WHOIS', 'UPLEVEL']);
   }
 
   // ========== 第三方查询 ==========
@@ -773,11 +803,11 @@ class WhoisService {
     }
 
     if (queries.length === 0) {
-      log.debug(`[第三方+RDAP] No matching providers for ${domain}`);
+      log.tag('THIRDPARTY').tag('RDAP').debug(`No matching providers for ${domain}`);
       return null;
     }
 
-    return this.raceQueries(queries, timeout, `[第三方+RDAP+并行]`);
+    return this.raceQueries(queries, timeout, '第三方+RDAP+并行', ['THIRDPARTY', 'RDAP', 'PARALLEL']);
   }
 
   /**
@@ -804,11 +834,11 @@ class WhoisService {
     }
 
     if (queries.length === 0) {
-      log.debug(`[THIRDPARTY+WHOIS] No matching providers for ${domain}`);
+      log.tag('THIRDPARTY').tag('WHOIS').debug(`No matching providers for ${domain}`);
       return null;
     }
 
-    return this.raceQueries(queries, timeout, `[THIRDPARTY+WHOIS+PARALLEL]`);
+    return this.raceQueries(queries, timeout, 'THIRDPARTY+WHOIS+PARALLEL', ['THIRDPARTY', 'WHOIS', 'PARALLEL']);
   }
 
   // ========== 缓存管理 ==========

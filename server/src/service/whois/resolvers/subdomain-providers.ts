@@ -4,6 +4,9 @@
  */
 
 import { QueryMethodType } from '../providers/base';
+import { createLogger } from '../../../lib/logger';
+
+const log = createLogger('WhoisService').sub('SubdomainProviders');
 
 /**
  * 子域查询商配置
@@ -119,18 +122,18 @@ export function isSubdomainHosted(domain: string): boolean {
 export function addSubdomainWhoisProvider(config: SubdomainProviderConfig): void {
   // 安全检查：不允许空 suffixes 数组（防止范用查询）
   if (!config.suffixes || config.suffixes.length === 0) {
-    console.error(`[SubdomainProviders] SECURITY: Rejected WHOIS provider ${config.name} - empty suffixes array not allowed for subdomain providers`);
+    log.error(`SECURITY: Rejected WHOIS provider ${config.name} - empty suffixes array not allowed for subdomain providers`);
     return;
   }
 
   const exists = SUBDOMAIN_WHOIS_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
-    console.warn(`[SubdomainProviders] WHOIS provider ${config.name} already exists, skipping`);
+    log.warn(`WHOIS provider ${config.name} already exists, skipping`);
     return;
   }
 
   SUBDOMAIN_WHOIS_PROVIDERS.push(config);
-  console.log(`[SubdomainProviders] Added WHOIS provider: ${config.name}`, {
+  log.info(`Added WHOIS provider: ${config.name}`, {
     suffixes: config.suffixes,
     subdomainOnly: config.subdomainOnly,
   });
@@ -142,18 +145,18 @@ export function addSubdomainWhoisProvider(config: SubdomainProviderConfig): void
 export function addSubdomainRdapProvider(config: SubdomainProviderConfig): void {
   // 安全检查：不允许空 suffixes 数组（防止范用查询）
   if (!config.suffixes || config.suffixes.length === 0) {
-    console.error(`[SubdomainProviders] SECURITY: Rejected RDAP provider ${config.name} - empty suffixes array not allowed for subdomain providers`);
+    log.error(`SECURITY: Rejected RDAP provider ${config.name} - empty suffixes array not allowed for subdomain providers`);
     return;
   }
 
   const exists = SUBDOMAIN_RDAP_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
-    console.warn(`[SubdomainProviders] RDAP provider ${config.name} already exists, skipping`);
+    log.warn(`RDAP provider ${config.name} already exists, skipping`);
     return;
   }
 
   SUBDOMAIN_RDAP_PROVIDERS.push(config);
-  console.log(`[SubdomainProviders] Added RDAP provider: ${config.name}`, {
+  log.info(`Added RDAP provider: ${config.name}`, {
     suffixes: config.suffixes,
     subdomainOnly: config.subdomainOnly,
   });
@@ -167,7 +170,7 @@ export function removeSubdomainWhoisProvider(name: string): boolean {
   if (index === -1) return false;
 
   SUBDOMAIN_WHOIS_PROVIDERS.splice(index, 1);
-  console.log(`[SubdomainProviders] Removed WHOIS provider: ${name}`);
+  log.info(`Removed WHOIS provider: ${name}`);
   return true;
 }
 
@@ -179,6 +182,6 @@ export function removeSubdomainRdapProvider(name: string): boolean {
   if (index === -1) return false;
 
   SUBDOMAIN_RDAP_PROVIDERS.splice(index, 1);
-  console.log(`[SubdomainProviders] Removed RDAP provider: ${name}`);
+  log.info(`Removed RDAP provider: ${name}`);
   return true;
 }

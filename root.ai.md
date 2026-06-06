@@ -179,13 +179,23 @@
     - 其他模块可根据用途自行命名，保持简短、清晰。
 8. Whois 模块日志定义
     - 主模块名：`WhoisService`
-    - 子模块（`.sub()`）：表示查询层级
+    - 子模块（`.sub()`）：表示查询层级或功能模块
+      - `Index` - WHOIS 服务主入口
       - `Apex` - 顶域查询
       - `Subdomain` - 子域查询
       - `ThirdParty` - 第三方查询
       - `Uplevel` - 平级查询
       - `Provider` - 具体查询提供商（WHOIS/RDAP）
-    - 标签（`.tag()`）：表示查询策略/路径结果，用于区分并行竞速中的不同分支，格式为大写关键词
+      - `DnsProviderAdapter` - DNS 提供商 WHOIS 适配器注册管理
+      - `Scheduler` - WHOIS 同步调度器
+      - `RdapServerList` - RDAP 服务器列表管理
+      - `Checker` - WHOIS 检查器
+      - `Cache` - WHOIS 缓存
+      - `Notifier` - WHOIS 通知器
+      - `ApexProviders` - 顶域提供商管理
+      - `SubdomainProviders` - 子域提供商管理
+      - `ThirdPartyProviders` - 第三方提供商管理
+    - 标签（`.tag()`）：表示查询策略/路径结果/查询方式，用于区分并行竞速中的不同分支，格式为大写关键词
       - `SUCCESS` - 查询成功获取到结果
       - `FAILED` - 查询失败
       - `FALLBACK` - 降级使用其他方式（如子域失败后用顶域结果）
@@ -198,8 +208,13 @@
       - `SUBDOMAIN_ONLY` - 仅执行子域查询
       - `APEX_COMBINED` - 顶域 RDAP+WHOIS 组合竞速
       - `SUBDOMAIN_COMBINED` - 子域 RDAP+WHOIS 组合竞速
-      - `RDAP` - 当前使用 RDAP 方式
-      - `WHOIS` - 当前使用 WHOIS 方式
+      - `RDAP` - 当前使用 RDAP 方式查询
+      - `WHOIS` - 当前使用 WHOIS 方式查询
+      - `APEX` - 顶域查询方式标签（常与 RDAP/WHOIS 组合使用）
+      - `SUBDOMAIN` - 子域查询方式标签（常与 RDAP/WHOIS 组合使用）
+      - `THIRDPARTY` - 第三方查询方式标签（常与 RDAP/WHOIS 组合使用）
+      - `UPLEVEL` - 平级查询方式标签（常与 RDAP/WHOIS 组合使用）
+      - `PROVIDER` - 提供商查询标签
     - 示例：
       ```typescript
       import { createLogger } from '../../lib/logger';

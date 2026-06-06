@@ -198,7 +198,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     : [];
 
   // Debug log
-  console.log('[Domains Route] Query params:', {
+  log.info('Query params', {
     pinned_domains,
     pinnedDomainIds,
     page: currentPage,

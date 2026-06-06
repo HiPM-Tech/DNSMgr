@@ -5,6 +5,9 @@
 
 import { QueryMethodType } from '../providers/base';
 import { findRdapServer, getRdapServerList } from '../rdap-server-list';
+import { createLogger } from '../../../lib/logger';
+
+const log = createLogger('WhoisService').sub('ApexProviders');
 
 /**
  * 查询商配置
@@ -51,7 +54,7 @@ async function loadIanaRdapCache(): Promise<Map<string, string>> {
   ianaRdapCache = cache;
   ianaRdapCacheTime = now;
   
-  console.log(`[ApexProviders] Loaded ${cache.size} RDAP servers from IANA cache`);
+  log.info(`Loaded ${cache.size} RDAP servers from IANA cache`);
   return cache;
 }
 
@@ -366,7 +369,7 @@ export async function findApexRdapProvider(domain: string): Promise<ProviderConf
       };
     }
   } catch (error) {
-    console.warn('[ApexProviders] Failed to load IANA RDAP cache', error);
+    log.warn('Failed to load IANA RDAP cache', error);
   }
   
   // 回退到内置列表
@@ -411,18 +414,18 @@ export function findApexRdapProviderSync(domain: string): ProviderConfig | null 
 export function addApexWhoisProvider(config: ProviderConfig): void {
   // 安全检查：不允许空 suffixes 数组（防止范用查询）
   if (!config.suffixes || config.suffixes.length === 0) {
-    console.error(`[ApexProviders] SECURITY: Rejected WHOIS provider ${config.name} - empty suffixes array not allowed for apex providers`);
+    log.error(`SECURITY: Rejected WHOIS provider ${config.name} - empty suffixes array not allowed for apex providers`);
     return;
   }
 
   const exists = APEX_WHOIS_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
-    console.warn(`[ApexProviders] WHOIS provider ${config.name} already exists, skipping`);
+    log.warn(`WHOIS provider ${config.name} already exists, skipping`);
     return;
   }
 
   APEX_WHOIS_PROVIDERS.push(config);
-  console.log(`[ApexProviders] Added WHOIS provider: ${config.name}`, {
+  log.info(`Added WHOIS provider: ${config.name}`, {
     suffixes: config.suffixes,
   });
 }
@@ -433,18 +436,18 @@ export function addApexWhoisProvider(config: ProviderConfig): void {
 export function addApexRdapProvider(config: ProviderConfig): void {
   // 安全检查：不允许空 suffixes 数组（防止范用查询）
   if (!config.suffixes || config.suffixes.length === 0) {
-    console.error(`[ApexProviders] SECURITY: Rejected RDAP provider ${config.name} - empty suffixes array not allowed for apex providers`);
+    log.error(`SECURITY: Rejected RDAP provider ${config.name} - empty suffixes array not allowed for apex providers`);
     return;
   }
 
   const exists = APEX_RDAP_PROVIDERS.some(p => p.name === config.name);
   if (exists) {
-    console.warn(`[ApexProviders] RDAP provider ${config.name} already exists, skipping`);
+    log.warn(`RDAP provider ${config.name} already exists, skipping`);
     return;
   }
 
   APEX_RDAP_PROVIDERS.push(config);
-  console.log(`[ApexProviders] Added RDAP provider: ${config.name}`, {
+  log.info(`Added RDAP provider: ${config.name}`, {
     suffixes: config.suffixes,
   });
 }
@@ -457,7 +460,7 @@ export function removeApexWhoisProvider(name: string): boolean {
   if (index === -1) return false;
 
   APEX_WHOIS_PROVIDERS.splice(index, 1);
-  console.log(`[ApexProviders] Removed WHOIS provider: ${name}`);
+  log.info(`Removed WHOIS provider: ${name}`);
   return true;
 }
 
@@ -469,6 +472,6 @@ export function removeApexRdapProvider(name: string): boolean {
   if (index === -1) return false;
 
   APEX_RDAP_PROVIDERS.splice(index, 1);
-  console.log(`[ApexProviders] Removed RDAP provider: ${name}`);
+  log.info(`Removed RDAP provider: ${name}`);
   return true;
 }

@@ -5,6 +5,9 @@
 
 import { renewalRegistry } from './renewalScheduler';
 import { dnsheRenewalScheduler } from '../lib/dns/providers';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('Service').sub('RenewalInit');
 
 /**
  * 初始化续期调度器
@@ -19,5 +22,5 @@ export function initRenewalSchedulers(): void {
   // renewalRegistry.register(cloudflareRenewalScheduler);
   
   const registeredTypes = renewalRegistry.getRegisteredTypes();
-  console.log(`[RenewalInit] Registered renewal schedulers for: ${registeredTypes.join(', ')}`);
+  log.info(`Registered renewal schedulers for: ${registeredTypes.join(', ')}`);
 }

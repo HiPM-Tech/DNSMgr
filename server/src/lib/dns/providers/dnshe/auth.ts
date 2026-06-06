@@ -1,4 +1,7 @@
 import { fetchWithFallback } from '../internal';
+import { createLogger } from '../../../../lib/logger';
+
+const log = createLogger('DNS').sub('DNSHE');
 
 export interface DnsheAuthConfig {
   apiKey: string;
@@ -61,15 +64,15 @@ export async function validateCredentials(config: DnsheAuthConfig): Promise<bool
     if (!contentType || !contentType.includes('application/json')) {
       // 如果不是 JSON，可能是 HTML 错误页面
       const text = await response.text();
-      console.error('[DNSHE] Credential check failed: Expected JSON but got:', contentType);
-      console.error('[DNSHE] Response preview:', text.substring(0, 200));
+      log.error('Credential check failed: Expected JSON but got', { contentType });
+      log.error('Response preview', { preview: text.substring(0, 200) });
       return false;
     }
 
     const data = await response.json();
     return data.success === true;
   } catch (error) {
-    console.error('[DNSHE] Credential check error:', error instanceof Error ? error.message : String(error));
+    log.error('Credential check error', { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
