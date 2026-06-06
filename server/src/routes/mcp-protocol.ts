@@ -1,8 +1,12 @@
 /**
  * MCP 协议路由 — Streamable HTTP & SSE 端点
  *
- * /api/mcp      — Streamable HTTP：支持 JSON-RPC 请求-响应和 SSE 流
+ * /api/mcp      — Streamable HTTP：支持 JSON-RPC 请求-响应（每个请求使用独立 Transport）
  * /api/mcp/sse  — 传统 SSE 传输（兼容 Trae IDE、Cursor 等客户端）
+ *
+ * 注意：MCP SDK 的 Streamable HTTP 无状态模式（sessionIdGenerator: undefined）
+ * 不允许复用 Transport 实例。因此每个 POST 请求创建独立的 Transport 实例，
+ * 处理完成后断开连接，以支持多客户端并发访问。
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
@@ -13,20 +17,6 @@ import { McpOperations } from '../db/bal/business-adapter';
 import { log } from '../lib/logger';
 
 const router = Router();
-
-// ── Streamable HTTP 传输层 ──
-
-// 无状态的 Streamable HTTP 传输层（支持多客户端同时连接）
-const httpTransport = new StreamableHTTPServerTransport({
-  sessionIdGenerator: undefined,
-});
-
-// 模块加载时立即连接传输层
-mcpServer.getServer().connect(httpTransport).then(() => {
-  log.info('MCP Protocol', 'Streamable HTTP transport connected to McpServer');
-}).catch((err) => {
-  log.error('MCP Protocol', 'Failed to connect Streamable HTTP transport', { error: err });
-});
 
 // ── 传统 SSE 传输层 ──
 
@@ -98,7 +88,12 @@ function buildOAuthMetadataUrl(req: Request): string {
 }
 
 /**
- * 处理 MCP 协议请求
+ * 处理 MCP Streamable HTTP POST 请求 — 每个请求使用独立的 Transport
+ *
+ * MCP SDK 的 Streamable HTTP 无状态模式（sessionIdGenerator: undefined）
+ * 禁止复用 Transport（抛出 "Stateless transport cannot be reused"）。
+ * 因此为每个 POST 请求创建新 Transport，使用 JSON 响应模式（enableJsonResponse: true）
+ * 避免 SSE 流状态残留，处理完成后立即断开连接。
  */
 async function handleMcpRequest(req: Request, res: Response): Promise<void> {
   const clientIp = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown';
@@ -113,66 +108,99 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
       accept: req.headers['accept'],
     });
 
+    // ── 非 POST 请求：不支持，引导使用 SSE ──
+    if (req.method !== 'POST') {
+      res.status(400).json({
+        code: 400,
+        msg: 'This endpoint only supports POST (Streamable HTTP). For SSE connections, use GET /api/mcp/sse',
+        data: null,
+      });
+      return;
+    }
+
     // ── OAuth 发现：POST 请求未携带认证头时返回 401 ──
-    if (req.method === 'POST') {
-      const authValue = extractAuthValue(req);
+    const authValue = extractAuthValue(req);
 
-      if (!authValue) {
-        const oauthUri = buildOAuthMetadataUrl(req);
+    if (!authValue) {
+      const oauthUri = buildOAuthMetadataUrl(req);
 
-        log.info('MCP Protocol', 'Auth required (no API-Key/Bearer token), returning 401 with OAuth discovery', {
-          clientIp,
-          oauthUri,
-        });
-
-        res.status(401)
-          .set('WWW-Authenticate', `Bearer realm="HiDNS MCP"`)
-          .json({
-            error: 'unauthorized',
-            error_description: 'Authentication is required to access MCP. Provide API-Key header or use OAuth 2.0.',
-            oauth_metadata_uri: oauthUri,
-          });
-        return;
-      }
-
-      // ── 日志：认证通过 ──
-      const methods = extractMethods(req.body);
-      log.info('MCP Protocol', 'POST /api/mcp authenticated', {
+      log.info('MCP Protocol', 'Auth required (no API-Key/Bearer token), returning 401 with OAuth discovery', {
         clientIp,
-        authType: req.headers['api-key'] ? 'api-key' : 'bearer',
-        authValue: maskAuthValue(authValue),
-        methods: methods.length > 0 ? methods : undefined,
-        methodCount: Array.isArray(req.body) ? req.body.length : undefined,
+        oauthUri,
       });
 
-      // 已认证：API Key / Bearer Token 注入到 tools/call 参数
-      if (req.body && typeof req.body === 'object') {
-        const injectApiKey = (msg: any) => {
-          if (msg?.method === 'tools/call' && msg?.params && !msg.params.apiKey) {
-            msg.params.apiKey = authValue;
-            log.debug('MCP Protocol', 'API key injected into tools/call params', {
-              toolName: msg.params?.name,
-              params: Object.keys(msg.params).filter(k => k !== 'apiKey'),
-            });
-          }
-        };
-        if (Array.isArray(req.body)) {
-          req.body.forEach(injectApiKey);
-        } else {
-          injectApiKey(req.body);
+      res.status(401)
+        .set('WWW-Authenticate', `Bearer realm="HiDNS MCP", resource_metadata="${oauthUri}"`)
+        .json({
+          error: 'unauthorized',
+          error_description: 'Authentication is required to access MCP. Provide API-Key header or use OAuth 2.0.',
+          oauth_metadata_uri: oauthUri,
+        });
+      return;
+    }
+
+    // ── 日志：认证通过 ──
+    const methods = extractMethods(req.body);
+    log.info('MCP Protocol', 'POST /api/mcp authenticated', {
+      clientIp,
+      authType: req.headers['api-key'] ? 'api-key' : 'bearer',
+      authValue: maskAuthValue(authValue),
+      methods: methods.length > 0 ? methods : undefined,
+      methodCount: Array.isArray(req.body) ? req.body.length : undefined,
+    });
+
+    // 已认证：API Key / Bearer Token 注入到 tools/call 参数
+    if (req.body && typeof req.body === 'object') {
+      const injectApiKey = (msg: any) => {
+        if (msg?.method === 'tools/call' && msg?.params && !msg.params.apiKey) {
+          msg.params.apiKey = authValue;
+          log.debug('MCP Protocol', 'API key injected into tools/call params', {
+            toolName: msg.params?.name,
+            params: Object.keys(msg.params).filter(k => k !== 'apiKey'),
+          });
         }
+      };
+      if (Array.isArray(req.body)) {
+        req.body.forEach(injectApiKey);
+      } else {
+        injectApiKey(req.body);
       }
     }
 
-    await httpTransport.handleRequest(req, res, req.body);
+    // ── 创建每个请求独立的 Transport ──
+    // 无状态模式（sessionIdGenerator: undefined）+ JSON 响应模式（enableJsonResponse: true）
+    // 每个请求完成后断开连接，让下一个请求可以创建新的 Transport
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
+    });
 
-    // ── 日志：请求完成（仅非 SSE 流） ──
-    const duration = Date.now() - startTime;
-    if (!res.headersSent || res.statusCode !== 200) {
-      log.info('MCP Protocol', `Completed ${req.method} /api/mcp`, {
+    // 先断开上一次连接的 Transport（如果有），再连接新的
+    const server = mcpServer.getServer();
+    if (server.close) {
+      await server.close().catch(() => { /* 忽略未连接时的关闭错误 */ });
+    }
+    await server.connect(transport);
+    log.debug('MCP Protocol', 'Streamable HTTP transport connected for request', {
+      clientIp,
+      methods,
+    });
+
+    try {
+      // 处理请求 — 在 JSON 响应模式下，handleRequest 会在响应发送完成后才 resolve
+      await transport.handleRequest(req, res, req.body);
+
+      // ── 日志：请求完成 ──
+      const duration = Date.now() - startTime;
+      log.info('MCP Protocol', `Completed POST /api/mcp`, {
         statusCode: res.statusCode,
         durationMs: duration,
         clientIp,
+      });
+    } finally {
+      // 断开 Transport 连接，释放服务器以供下一个请求连接
+      await server.close().catch((err) => {
+        log.debug('MCP Protocol', 'Error closing per-request transport', { error: err });
       });
     }
   } catch (error) {
@@ -216,11 +244,14 @@ async function handleSseGet(req: Request, res: Response): Promise<void> {
     if (!authValue) {
       log.info('MCP Protocol', 'SSE auth required (no API-Key/Bearer token), returning 401', { clientIp });
 
+      const oauthUri = buildOAuthMetadataUrl(req);
+
       res.status(401)
-        .set('WWW-Authenticate', `Bearer realm="HiDNS MCP"`)
+        .set('WWW-Authenticate', `Bearer realm="HiDNS MCP", resource_metadata="${oauthUri}"`)
         .json({
           error: 'unauthorized',
           error_description: 'Authentication is required to access MCP SSE endpoint.',
+          oauth_metadata_uri: oauthUri,
         });
       return;
     }
@@ -333,8 +364,8 @@ async function handleSsePost(req: Request, res: Response): Promise<void> {
   }
 }
 
-// /api/mcp — Streamable HTTP：处理 POST(JSON-RPC)
-router.all('/', mcpEnabledCheck, handleMcpRequest);
+// /api/mcp — Streamable HTTP：仅处理 POST (JSON-RPC)
+router.post('/', mcpEnabledCheck, handleMcpRequest);
 
 // /api/mcp/sse — 传统 SSE 传输
 router.get('/sse', mcpEnabledCheck, handleSseGet);
