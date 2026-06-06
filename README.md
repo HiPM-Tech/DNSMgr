@@ -7,7 +7,7 @@
 对于中国用户请看: [简体中文文档](README_zh.md)
 
 ## Repository
-[![License](https://img.shields.io/github/license/HiPM-Tech/HiDNS)](https://github.com/HiPM-Tech/HiDNS/blob/main/LICENSE)\
+[![License](https://img.shields.io/github/license/HiPM-Tech/HiDNS)](https://github.com/HiPM-Tech/HiDNS/blob/main/LICENSE)
 [![Release](https://img.shields.io/github/release/HiPM-Tech/HiDNS)](https://github.com/HiPM-Tech/HiDNS/releases)
 ![Downloads](https://gh-down-badges.linkof.link/HiPM-Tech/HiDNS)
 [![Issues](https://img.shields.io/github/issues/HiPM-Tech/HiDNS)](https://github.com/HiPM-Tech/HiDNS/issues)\
