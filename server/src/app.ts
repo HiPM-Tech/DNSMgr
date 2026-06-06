@@ -59,6 +59,7 @@ import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { startRecordCountCacheRefresh } from './service/recordCountCache';
 import { startDomainSyncJob } from './service/domainSyncJob';
+import { startMcpOAuthCleanupJob } from './service/mcpOAuthCleanupJob';
 
 // 读取 package.json 获取版本信息
 import { readFileSync } from 'fs';
@@ -540,6 +541,9 @@ async function initializeApp() {
         log.error('OAuth', 'Failed to cleanup expired states', { error: err });
       }
     }, 10 * 60 * 1000);
+
+    // 启动 MCP OAuth 临时客户端定期清理任务（每 5 分钟）
+    startMcpOAuthCleanupJob();
 
     // Graceful shutdown
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM', initCheckInterval, oauthStateCleanupInterval));

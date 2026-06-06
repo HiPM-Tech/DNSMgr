@@ -4331,6 +4331,17 @@ export const McpOperations = {
     return result.changes || 0;
   },
 
+  /** 清理超过 25 分钟仍未授权的临时客户端 */
+  async cleanupExpiredUnassignedClients(): Promise<number> {
+    const expiresStr = new Date(Date.now() - 25 * 60 * 1000).toISOString();
+    const result = await runInternal(
+      'DELETE FROM mcp_oauth_clients WHERE user_id IS NULL AND created_at < ?',
+      [expiresStr],
+      { operation: 'Mcp.cleanupExpiredUnassignedClients', table: 'mcp_oauth_clients' }
+    );
+    return result.changes || 0;
+  },
+
   /** 获取所有访问令牌（含客户端名称） */
   async getOAuthAccessTokens(userId: number): Promise<Array<{
     id: number;
