@@ -6,7 +6,9 @@ import type { Transaction, ColumnType } from '../dal/types';
 import type { DriverConfig } from './types';
 import { BaseDriver } from './base';
 import { registerDriver } from './types';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
+
+const dlLog = createLogger('DL').sub('MySQL');
 
 /** MySQL 配置 */
 export interface MySQLDriverConfig {
@@ -36,7 +38,7 @@ export class MySQLDriver extends BaseDriver {
       // 动态导入 mysql2 模块
       const mysql = require('mysql2/promise');
       
-      log.info('MySQL', 'Creating connection pool', { 
+      dlLog.info( 'Creating connection pool', { 
         host: config.host, 
         port: config.port, 
         database: config.database 
@@ -57,9 +59,9 @@ export class MySQLDriver extends BaseDriver {
         connectTimeout: config.connectTimeout || 60000,
       });
 
-      log.info('MySQL', 'Connection pool created successfully');
+      dlLog.info( 'Connection pool created successfully');
     } catch (error) {
-      log.error('MySQL', 'Failed to create connection pool', { 
+      dlLog.error( 'Failed to create connection pool', { 
         host: config.host, 
         port: config.port, 
         database: config.database,
@@ -88,13 +90,13 @@ export class MySQLDriver extends BaseDriver {
       const duration = Date.now() - startTime;
 
       if (duration > (this.config.slowQueryThreshold || 100)) {
-        log.warn('MySQL', 'Slow query detected', { sql: sql.substring(0, 100), duration });
+        dlLog.warn( 'Slow query detected', { sql: sql.substring(0, 100), duration });
       }
 
       return rows as T[];
     } catch (error) {
       this._stats.errors++;
-      log.error('MySQL', 'Query error', { sql: sql.substring(0, 100), error });
+      dlLog.error( 'Query error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -150,7 +152,7 @@ export class MySQLDriver extends BaseDriver {
   }
 
   async close(): Promise<void> {
-    log.info('MySQL', 'Closing connection pool', { stats: this._stats });
+    dlLog.info( 'Closing connection pool', { stats: this._stats });
     await this.pool.end();
   }
 

@@ -4,9 +4,11 @@ import { DataMigrationRunner, DataMigration } from './data-migration-runner';
 import { SchemaVersionManager } from './migration-manager';
 import { sqliteSchema } from './schemas/dialects/sqlite';
 import { getConnection } from '../dal/connection';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 import * as fs from 'fs';
 import * as path from 'path';
+
+const dsmLog = createLogger('DSM');
 
 export async function initializeDSM(dryRun = false): Promise<void> {
   const reconciler = new SchemaReconciler();
@@ -15,13 +17,13 @@ export async function initializeDSM(dryRun = false): Promise<void> {
     const legacyCheck = await reconciler.detectLegacySystem();
     const isLegacy = legacyCheck.isLegacy;
     if (isLegacy) {
-      log.warn('DSM', `⚠️ Legacy system detected: ${legacyCheck.reason}`);
-      log.info('DSM', 'Running in legacy upgrade mode. Performing full reconciliation...');
+      dsmLog.warn( `⚠️ Legacy system detected: ${legacyCheck.reason}`);
+      dsmLog.info( 'Running in legacy upgrade mode. Performing full reconciliation...');
     } else {
-      log.info('DSM', 'No legacy system detected. Proceeding with standard DSM initialization.');
+      dsmLog.info( 'No legacy system detected. Proceeding with standard DSM initialization.');
     }
 
-    log.info('DSM', `Starting full database schema reconciliation${dryRun ? ' (DRY RUN)' : ''}...`);
+    dsmLog.info( `Starting full database schema reconciliation${dryRun ? ' (DRY RUN)' : ''}...`);
     
     await reconciler.reconcile(COMPLETE_SCHEMA, { dryRun });
     
@@ -29,25 +31,25 @@ export async function initializeDSM(dryRun = false): Promise<void> {
       // Data migrations are only needed when upgrading from a legacy system.
       // A brand new database already has the complete schema after reconciliation.
       if (isLegacy) {
-        log.info('DSM', 'Running data migrations for legacy upgrade...');
+        dsmLog.info( 'Running data migrations for legacy upgrade...');
         const runner = new DataMigrationRunner();
         registerDefaultMigrations(runner);
         const result = await runner.run({ dryRun });
         
         if (result.failed.length > 0) {
-          log.error('DSM', 'Some migrations failed:', result.failed.map(f => f.id));
+          dsmLog.error( 'Some migrations failed:', result.failed.map(f => f.id));
         }
       } else {
-        log.info('DSM', 'New database detected. Skipping data migrations.');
+        dsmLog.info( 'New database detected. Skipping data migrations.');
       }
 
-      log.info('DSM', 'Running integrity check...');
+      dsmLog.info( 'Running integrity check...');
       const check = await reconciler.verify(COMPLETE_SCHEMA);
       
       if (check.valid) {
-        log.info('DSM', '✅ All schemas are up to date and verified.');
+        dsmLog.info( '✅ All schemas are up to date and verified.');
       } else {
-        log.error('DSM', '❌ Integrity check failed:', check.issues);
+        dsmLog.error( '❌ Integrity check failed:', check.issues);
         throw new Error(`Schema integrity check failed: ${check.issues.join(', ')}`);
       }
 
@@ -60,16 +62,16 @@ export async function initializeDSM(dryRun = false): Promise<void> {
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
         appVersion = pkg.version || 'dev';
       } catch (e) {
-        log.warn('DSM', 'Failed to read package.json version');
+        dsmLog.warn( 'Failed to read package.json version');
       }
 
       await versionManager.recordDSMVersion(appVersion);
-      log.info('DSM', `✅ DSM version ${appVersion} recorded.`);
+      dsmLog.info( `✅ DSM version ${appVersion} recorded.`);
     } else {
-      log.warn('DSM', '⚠️ Dry run finished. No changes were made.');
+      dsmLog.warn( '⚠️ Dry run finished. No changes were made.');
     }
   } catch (error) {
-    log.error('DSM', '❌ Schema reconciliation failed:', error);
+    dsmLog.error( '❌ Schema reconciliation failed:', error);
     throw error;
   }
 }

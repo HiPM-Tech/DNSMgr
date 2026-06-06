@@ -16,8 +16,10 @@ import crypto from 'crypto';
 import type { SQLCompiler } from '../dal/query/compiler';
 import { getDefaultCompiler } from '../dal/query/compiler';
 import { transaction, getConnection } from '../dal/connection';
-import { log } from '../../lib/logger';
+import { log, createLogger } from '../../lib/logger';
 import { DomainQueryBuilder, RenewableDomainQueryBuilder, AccountQueryBuilder, TeamQueryBuilder } from './query-builders';
+
+const balLog = createLogger('BAL');
 
 // 本地 db 对象，避免循环依赖
 const db = {
@@ -135,11 +137,11 @@ function buildUpsertSql(
 /** 创建操作日志上下*/
 function createOperationLogger(context: OperationContext) {
   return {
-    start: () => log.debug('BusinessAdapter', `Starting ${context.operation}`, { table: context.table, userId: context.userId }),
+    start: () => balLog.debug( `Starting ${context.operation}`, { table: context.table, userId: context.userId }),
     success: (duration: number, meta?: Record<string, unknown>) => 
-      log.debug('BusinessAdapter', `${context.operation} completed`, { ...meta, duration: `${duration}ms`, table: context.table }),
+      balLog.debug( `${context.operation} completed`, { ...meta, duration: `${duration}ms`, table: context.table }),
     error: (error: unknown, duration: number) => 
-      log.error('BusinessAdapter', `${context.operation} failed`, { error, duration: `${duration}ms`, table: context.table }),
+      balLog.error( `${context.operation} failed`, { error, duration: `${duration}ms`, table: context.table }),
   };
 }
 
@@ -200,7 +202,7 @@ function processSql(sql: string, dbType: string): string {
   }
 
   if (sql !== originalSql) {
-    log.debug('BusinessAdapter', 'SQL processed', { original: originalSql, processed: sql });
+    balLog.debug( 'SQL processed', { original: originalSql, processed: sql });
   }
 
   return sql;
@@ -211,12 +213,12 @@ async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], c
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log.debug('BusinessAdapter', 'Executing query', { sql: processedSql, params, operation: context?.operation });
+  balLog.debug( 'Executing query', { sql: processedSql, params, operation: context?.operation });
   
   try {
     const results = await db.query<T>(processedSql, params);
     const duration = Date.now() - startTime;
-    log.debug('BusinessAdapter', `Query executed`, { 
+    balLog.debug( `Query executed`, { 
       sql: processedSql.substring(0, 100), 
       rowCount: results.length,
       duration: `${duration}ms`,
@@ -225,7 +227,7 @@ async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], c
     return results;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error('BusinessAdapter', 'Query failed', { 
+    balLog.error( 'Query failed', { 
       sql: processedSql, 
       params, 
       error,
@@ -241,12 +243,12 @@ async function getInternal<T = QueryResult>(sql: string, params?: unknown[], con
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log.debug('BusinessAdapter', 'Executing get', { sql: processedSql, params, operation: context?.operation });
+  balLog.debug( 'Executing get', { sql: processedSql, params, operation: context?.operation });
   
   try {
     const result = await db.get<T>(processedSql, params);
     const duration = Date.now() - startTime;
-    log.debug('BusinessAdapter', `Get executed`, { 
+    balLog.debug( `Get executed`, { 
       sql: processedSql.substring(0, 100), 
       found: result !== undefined,
       duration: `${duration}ms`,
@@ -255,7 +257,7 @@ async function getInternal<T = QueryResult>(sql: string, params?: unknown[], con
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error('BusinessAdapter', 'Get failed', { 
+    balLog.error( 'Get failed', { 
       sql: processedSql, 
       params, 
       error,
@@ -271,18 +273,18 @@ async function executeInternal(sql: string, params?: unknown[], context?: Operat
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log.debug('BusinessAdapter', 'Executing command', { sql: processedSql, params, operation: context?.operation });
+  balLog.debug( 'Executing command', { sql: processedSql, params, operation: context?.operation });
   
   try {
     await db.execute(processedSql, params);
     const duration = Date.now() - startTime;
-    log.debug('BusinessAdapter', `Command executed`, { 
+    balLog.debug( `Command executed`, { 
       operation: context?.operation,
       duration: `${duration}ms`
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error('BusinessAdapter', 'Command failed', { 
+    balLog.error( 'Command failed', { 
       sql: processedSql, 
       params, 
       error,
@@ -298,12 +300,12 @@ async function insertInternal(sql: string, params?: unknown[], context?: Operati
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log.debug('BusinessAdapter', 'Executing insert', { sql: processedSql, params, operation: context?.operation });
+  balLog.debug( 'Executing insert', { sql: processedSql, params, operation: context?.operation });
   
   try {
     const id = await db.insert(processedSql, params);
     const duration = Date.now() - startTime;
-    log.debug('BusinessAdapter', `Insert executed`, { 
+    balLog.debug( `Insert executed`, { 
       operation: context?.operation,
       insertId: id,
       duration: `${duration}ms`
@@ -311,7 +313,7 @@ async function insertInternal(sql: string, params?: unknown[], context?: Operati
     return id;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error('BusinessAdapter', 'Insert failed', { 
+    balLog.error( 'Insert failed', { 
       sql: processedSql, 
       params, 
       error,
@@ -327,12 +329,12 @@ async function runInternal(sql: string, params?: unknown[], context?: OperationC
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
   
-  log.debug('BusinessAdapter', 'Executing run', { sql: processedSql, params, operation: context?.operation });
+  balLog.debug( 'Executing run', { sql: processedSql, params, operation: context?.operation });
   
   try {
     const result = await db.run(processedSql, params);
     const duration = Date.now() - startTime;
-    log.debug('BusinessAdapter', `Run executed`, { 
+    balLog.debug( `Run executed`, { 
       operation: context?.operation,
       changes: result.changes,
       duration: `${duration}ms`
@@ -340,7 +342,7 @@ async function runInternal(sql: string, params?: unknown[], context?: OperationC
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error('BusinessAdapter', 'Run failed', { 
+    balLog.error( 'Run failed', { 
       sql: processedSql, 
       params, 
       error,
@@ -1915,7 +1917,7 @@ export const EmailTemplateOperations = {
 
 /** 在事务中执行函数 */
 export async function withTransaction<T>(fn: (trx: TransactionOperations) => Promise<T>): Promise<T> {
-  log.info('BusinessAdapter', 'Starting transaction block');
+  balLog.info( 'Starting transaction block');
   const startTime = Date.now();
   
   try {
@@ -1931,11 +1933,11 @@ export async function withTransaction<T>(fn: (trx: TransactionOperations) => Pro
     });
     
     const duration = Date.now() - startTime;
-    log.info('BusinessAdapter', `Transaction block completed`, { duration: `${duration}ms` });
+    balLog.info( `Transaction block completed`, { duration: `${duration}ms` });
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error('BusinessAdapter', 'Transaction block failed', { error, duration: `${duration}ms` });
+    balLog.error( 'Transaction block failed', { error, duration: `${duration}ms` });
     throw error;
   }
 }
@@ -1956,31 +1958,31 @@ export class TransactionOperations {
 
   async query<T = QueryResult>(sql: string, params?: unknown[]): Promise<T[]> {
     const processedSql = processSql(sql, db.type);
-    log.debug('BusinessAdapter', '[Transaction] Executing query', { sql: processedSql });
+    balLog.debug( '[Transaction] Executing query', { sql: processedSql });
     return this.trx.query<T>(processedSql, params);
   }
 
   async get<T = QueryResult>(sql: string, params?: unknown[]): Promise<T | undefined> {
     const processedSql = processSql(sql, db.type);
-    log.debug('BusinessAdapter', '[Transaction] Executing get', { sql: processedSql });
+    balLog.debug( '[Transaction] Executing get', { sql: processedSql });
     return this.trx.get<T>(processedSql, params);
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
     const processedSql = processSql(sql, db.type);
-    log.debug('BusinessAdapter', '[Transaction] Executing execute', { sql: processedSql });
+    balLog.debug( '[Transaction] Executing execute', { sql: processedSql });
     return this.trx.execute(processedSql, params);
   }
 
   async insert(sql: string, params?: unknown[]): Promise<number> {
     const processedSql = processSql(sql, db.type);
-    log.debug('BusinessAdapter', '[Transaction] Executing insert', { sql: processedSql });
+    balLog.debug( '[Transaction] Executing insert', { sql: processedSql });
     return this.trx.insert(processedSql, params);
   }
 
   async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
     const processedSql = processSql(sql, db.type);
-    log.debug('BusinessAdapter', '[Transaction] Executing run', { sql: processedSql });
+    balLog.debug( '[Transaction] Executing run', { sql: processedSql });
     return this.trx.run(processedSql, params);
   }
 }
@@ -3346,7 +3348,7 @@ export const WhoisOperations = {
     } catch (error) {
       const errorMsg = (error as Error).message || '';
       if (!errorMsg.includes('already exists') && !errorMsg.includes('ER_TABLE_EXISTS_ERROR')) {
-        log.warn('BusinessAdapter', 'Failed to create whois_cache table', { error: errorMsg, dbType });
+        balLog.warn( 'Failed to create whois_cache table', { error: errorMsg, dbType });
       }
     }
   },
@@ -3770,7 +3772,7 @@ export const NSMonitorOperations = {
   async getByDomain(userId: number, domainId: number): Promise<QueryResult | undefined> {
     // This method is deprecated - domain_id column has been removed
     // Use getByDomainName instead
-    log.warn('BusinessAdapter', 'getByDomain is deprecated, use getByDomainName instead');
+    balLog.warn( 'getByDomain is deprecated, use getByDomainName instead');
     return undefined;
   },
 

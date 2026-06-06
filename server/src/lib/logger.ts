@@ -10,22 +10,43 @@
  * - 日志必须包含详细操作信息（操作类型、操作对象、操作结果等）
  */
 
+/**
+ * 日志级别
+ *
+ * - trace: 高频率的底层调试信息（协议帧、原始报文、循环/定时器每次触发等），仅开发环境开启
+ * - debug: 低频率的调试信息（请求参数、响应摘要、状态变化等），开发环境默认开启
+ * - info:  正常业务流程的关键节点信息（操作成功、任务启停、连接建立等），生产环境默认开启
+ * - warn:  预期内的异常或降级处理（重试、限流、熔断、降级、配置回退等），需要关注但无需立即处理
+ * - error: 预期外的错误或异常（数据库失败、第三方服务故障、未捕获异常等），需要立即关注和处理
+ */
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
+
+/** 绑定模块名的子日志器类型 */
+export interface SubLogger {
+  /** 高频率底层调试信息，仅开发环境开启 */
+  trace: (message: string, data?: unknown) => void;
+  /** 低频率调试信息，开发环境默认开启 */
+  debug: (message: string, data?: unknown) => void;
+  /** 正常业务流程关键节点信息，生产环境默认开启 */
+  info: (message: string, data?: unknown) => void;
+  /** 预期内的异常或降级处理，需关注但无需立即处理 */
+  warn: (message: string, data?: unknown) => void;
+  /** 预期外的错误或异常，需立即关注和处理 */
+  error: (message: string, data?: unknown) => void;
+  /** 创建嵌套子模块日志器，输出为 [父模块] [子模块] */
+  sub: (name: string) => SubLogger;
+  /** 添加自定义标签，输出为 ["标签1"] ["标签2"] */
+  tag: (...args: string[]) => SubLogger;
+}
 
 interface LogEntry {
   timestamp: string;
   level: LogLevel;
   module: string;
+  subModules?: string[];
+  tags?: string[];
   message: string;
   data?: unknown;
-  context?: LogContext;
-}
-
-interface LogContext {
-  function?: string;
-  line?: number;
-  column?: number;
-  file?: string;
 }
 
 interface ErrorDetails {
@@ -88,34 +109,6 @@ class Logger {
     return levels.indexOf(level) >= levels.indexOf(this.logLevel);
   }
 
-  private getCallerInfo(): LogContext {
-    const stack = new Error().stack;
-    if (!stack) return {};
-
-    const lines = stack.split('\n');
-    // 跳过前3行（Error、getCallerInfo、log方法本身）
-    const callerLine = lines[4] || lines[3];
-    if (!callerLine) return {};
-
-    const match = callerLine.match(/at\s+(?:(\S+)\s+\()?([^)]+)\)?/);
-    if (!match) return {};
-
-    const functionName = match[1] || 'anonymous';
-    const location = match[2];
-    
-    const locationMatch = location.match(/([^:]+):(\d+):(\d+)$/);
-    if (locationMatch) {
-      return {
-        function: functionName,
-        file: locationMatch[1],
-        line: parseInt(locationMatch[2], 10),
-        column: parseInt(locationMatch[3], 10),
-      };
-    }
-
-    return { function: functionName, file: location };
-  }
-
   private formatError(error: unknown): ErrorDetails {
     if (error instanceof Error) {
       return {
@@ -143,31 +136,32 @@ class Logger {
   private formatMessage(entry: LogEntry): string {
     const time = entry.timestamp;
     const level = entry.level.toUpperCase().padStart(5);
-    const module = `[${entry.module}]`;
-    const context = entry.context?.function ? ` [${entry.context.function}]` : '';
+    // 构建模块路径: [主模块] [子模块1] [子模块2] ["标签1"] ["标签2"]
+    const modules = [entry.module, ...(entry.subModules || [])].map(m => `[${m}]`).join(' ');
+    const tagStr = (entry.tags || []).map(t => `["${t}"]`).join(' ');
+    const moduleSection = tagStr ? `${modules} ${tagStr}` : modules;
     
     if (!this.useColors) {
-      return `${time} ${level} ${module}${context} ${entry.message}`;
+      return `${time} ${level} ${moduleSection} ${entry.message}`;
     }
     
     // 应用颜色
     const coloredTime = `${this.colors.timestamp}${time}${this.colors.reset}`;
     const coloredLevel = this.getColorForLevel(entry.level) + level + this.colors.reset;
-    const coloredModule = `${this.colors.module}${module}${this.colors.reset}`;
-    const coloredContext = context ? `${this.colors.context}${context}${this.colors.reset}` : '';
+    const coloredModules = modules.split(' ').map(m => `${this.colors.module}${m}${this.colors.reset}`).join(' ');
+    const coloredTags = tagStr ? ' ' + tagStr.split(' ').map(t => `${this.colors.context}${t}${this.colors.reset}`).join(' ') : '';
     
-    return `${coloredTime} ${coloredLevel} ${coloredModule}${coloredContext} ${entry.message}`;
+    return `${coloredTime} ${coloredLevel} ${coloredModules}${coloredTags} ${entry.message}`;
   }
 
   private getColorForLevel(level: LogLevel): string {
     return this.colors[level] || this.colors.reset;
   }
 
-  private log(level: LogLevel, module: string, message: string, data?: unknown): void {
+  /* 内部日志方法，SubLoggerImpl 通过 logger 实例调用 */
+  log(level: LogLevel, module: string, message: string, data?: unknown, subModules?: string[], tags?: string[]): void {
     if (!this.shouldLog(level)) return;
 
-    const context = this.getCallerInfo();
-    
     // 如果数据是错误类型，格式化为详细错误信息
     let formattedData = data;
     if (data instanceof Error || (data && typeof data === 'object' && 'message' in data)) {
@@ -178,9 +172,10 @@ class Logger {
       timestamp: new Date().toISOString(),
       level,
       module,
+      subModules,
+      tags,
       message,
       data: formattedData,
-      context,
     };
 
     const formatted = this.formatMessage(entry);
@@ -340,6 +335,39 @@ class Logger {
       data,
     });
   }
+
+  /** 创建嵌套模块日志器 */
+  createSubLogger(module: string): SubLogger {
+    return new SubLoggerImpl(this, [module], []);
+  }
+}
+
+/** 嵌套模块日志器实现，支持 .sub() 和 .tag() 链式调用 */
+class SubLoggerImpl implements SubLogger {
+  constructor(
+    private logger: Logger,
+    private modules: string[],
+    private tags: string[]
+  ) {}
+
+  sub(name: string): SubLogger {
+    return new SubLoggerImpl(this.logger, [...this.modules, name], this.tags);
+  }
+
+  tag(...args: string[]): SubLogger {
+    return new SubLoggerImpl(this.logger, this.modules, [...this.tags, ...args]);
+  }
+
+  trace(message: string, data?: unknown) { this.emit('trace', message, data); }
+  debug(message: string, data?: unknown) { this.emit('debug', message, data); }
+  info(message: string, data?: unknown) { this.emit('info', message, data); }
+  warn(message: string, data?: unknown) { this.emit('warn', message, data); }
+  error(message: string, data?: unknown) { this.emit('error', message, data); }
+
+  private emit(level: LogLevel, message: string, data?: unknown) {
+    const [primaryModule, ...subModules] = this.modules;
+    this.logger.log(level, primaryModule, message, data, subModules, this.tags);
+  }
 }
 
 export const logger = Logger.getInstance();
@@ -388,3 +416,6 @@ export const log = {
 };
 
 export default logger;
+
+/** 创建绑定模块名的日志器，调用时无需重复传入 module 参数 */
+export const createLogger = (module: string) => logger.createSubLogger(module);
