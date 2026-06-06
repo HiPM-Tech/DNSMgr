@@ -776,6 +776,26 @@ export class SchemaReconciler {
               await this.modifyColumnType(tableDef.name, col.name, expectedType, col, existingCol.type);
             }
           }
+          continue; // already modified, skip nullability check
+        }
+
+        // Check nullability change (type is compatible, but nullable differs)
+        const targetNullable = col.nullable !== false; // default false → NOT NULL
+        const actualNullableStr = typeof existingCol.nullable === 'string' ? existingCol.nullable.toUpperCase() : '';
+        const actualNullable = actualNullableStr === 'YES' || existingCol.nullable === true;
+        
+        if (targetNullable !== actualNullable) {
+          if (this.getDbType() === 'sqlite') {
+            needsRebuild = true;
+            rebuildTargets.push({ name: col.name, type: expectedType });
+          } else {
+            if (dryRun) {
+              log.warn('Schema [DSM]', `Would change column nullability: ${tableDef.name}.${col.name} (-> ${targetNullable ? 'NULL' : 'NOT NULL'})`);
+            } else {
+              log.warn('Schema', `Changing column nullability: ${tableDef.name}.${col.name} (-> ${targetNullable ? 'NULL' : 'NOT NULL'})`);
+              await this.modifyColumnType(tableDef.name, col.name, expectedType, col, existingCol.type);
+            }
+          }
         }
       }
     }

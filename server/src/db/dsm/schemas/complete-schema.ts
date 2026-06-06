@@ -655,7 +655,7 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'access_token', type: 'string', length: 512, unique: true, nullable: false },
         { name: 'refresh_token', type: 'string', length: 512, unique: true, nullable: false },
         { name: 'client_id', type: 'string', length: 255, nullable: false },
-        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'user_id', type: 'integer', nullable: true },
         { name: 'scope', type: 'json', nullable: true },
         { name: 'expires_at', type: 'datetime', nullable: false },
         { name: 'revoked_at', type: 'datetime', nullable: true },
@@ -716,7 +716,7 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
       columns: [
         { name: 'refresh_token', type: 'string', length: 512, unique: true, nullable: false },
         { name: 'client_id', type: 'string', length: 255, nullable: false },
-        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'user_id', type: 'integer', nullable: true },
         { name: 'scope', type: 'string', length: 1024, nullable: true },
         { name: 'expires_at', type: 'datetime', nullable: false },
         { name: 'revoked_at', type: 'datetime', nullable: true },
