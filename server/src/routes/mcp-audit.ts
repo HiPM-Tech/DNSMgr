@@ -2,8 +2,9 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { McpOperations } from '../db/bal/business-adapter';
 import { sendSuccess } from '../utils/http';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('MCP').sub('Route').sub('Audit');
 const router = Router();
 
 /**
@@ -81,7 +82,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
       total: filtered.length,
     });
   } catch (error) {
-    log.error('MCP', 'Failed to get audit logs', { error });
+    log.error('Failed to get audit logs', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get audit logs' });
   }
 });
@@ -143,7 +144,7 @@ router.get('/export', authMiddleware, async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    log.error('MCP', 'Failed to export audit logs', { error });
+    log.error('Failed to export audit logs', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to export audit logs' });
   }
 });

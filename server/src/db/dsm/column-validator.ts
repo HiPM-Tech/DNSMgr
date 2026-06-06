@@ -1,5 +1,6 @@
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 
+const log = createLogger('DSM').sub('ColumnValidator');
 export interface ColumnSpec {
   tableName: string;
   columnName: string;
@@ -37,7 +38,7 @@ export async function validateColumn(
         LIMIT 1
       `;
       const result = await conn.query(sql, [spec.tableName, spec.columnName]);
-      
+
       if (Array.isArray(result) && result.length > 0) {
         const row = result[0];
         actualType = row.COLUMN_TYPE || '';
@@ -52,7 +53,7 @@ export async function validateColumn(
         LIMIT 1
       `;
       const result = await conn.query(sql, [spec.tableName, spec.columnName]);
-      
+
       if (Array.isArray(result) && result.length > 0) {
         const row = result[0];
         actualType = row.data_type || '';
@@ -62,7 +63,7 @@ export async function validateColumn(
     } else if (dbType === 'sqlite') {
       const sql = `PRAGMA table_info(${spec.tableName})`;
       const result = await conn.execute(sql);
-      
+
       if (Array.isArray(result)) {
         const column = result.find((row: any) => row.name.replace(/["'`]/g, '') === spec.columnName);
         if (column) {
@@ -103,10 +104,10 @@ export async function validateColumn(
       issues,
     };
   } catch (error) {
-    log.error('ColumnValidator', `Failed to validate column ${spec.tableName}.${spec.columnName}`, {
+    log.error(`Failed to validate column ${spec.tableName}.${spec.columnName}`, {
       error: (error as Error).message,
     });
-    
+
     return {
       tableName: spec.tableName,
       columnName: spec.columnName,
@@ -125,20 +126,20 @@ export async function validateColumns(
   dbType: 'mysql' | 'postgresql' | 'sqlite'
 ): Promise<ColumnInfo[]> {
   const results: ColumnInfo[] = [];
-  
+
   for (const spec of specs) {
     const result = await validateColumn(conn, spec, dbType);
     results.push(result);
-    
+
     if (result.matchesExpected) {
-      log.debug('ColumnValidator', `✓ ${spec.tableName}.${spec.columnName} is valid`);
+      log.debug(`✓ ${spec.tableName}.${spec.columnName} is valid`);
     } else {
-      log.warn('ColumnValidator', `✗ ${spec.tableName}.${spec.columnName} has issues:`, {
+      log.warn(`✗ ${spec.tableName}.${spec.columnName} has issues:`, {
         issues: result.issues,
       });
     }
   }
-  
+
   return results;
 }
 
@@ -146,10 +147,10 @@ export function generateValidationReport(results: ColumnInfo[]): string {
   const total = results.length;
   const passed = results.filter(r => r.matchesExpected).length;
   const failed = total - passed;
-  
+
   let report = `\n=== Column Validation Report ===\n`;
   report += `Total: ${total}, Passed: ${passed}, Failed: ${failed}\n\n`;
-  
+
   if (failed > 0) {
     report += `FAILED COLUMNS:\n`;
     results.forEach(result => {
@@ -162,14 +163,14 @@ export function generateValidationReport(results: ColumnInfo[]): string {
     });
     report += '\n';
   }
-  
+
   report += `PASSED COLUMNS:\n`;
   results.forEach(result => {
     if (result.matchesExpected) {
       report += `  ✓ ${result.tableName}.${result.columnName} (${result.actualType})\n`;
     }
   });
-  
+
   return report;
 }
 
@@ -177,10 +178,10 @@ export const COMMON_COLUMN_SPECS = {
   ID: { expectedType: 'INT', expectedNullable: false },
   CREATED_AT: { expectedType: 'DATETIME', expectedNullable: false },
   UPDATED_AT: { expectedType: 'DATETIME', expectedNullable: false },
-  
+
   DOMAIN_NAME: { expectedType: 'VARCHAR', expectedNullable: false },
   DNS_TYPE: { expectedType: 'VARCHAR', expectedNullable: false },
   DNS_VALUE: { expectedType: 'TEXT', expectedNullable: false },
-  
+
   ENABLED_FLAG: { expectedType: 'TINYINT', expectedNullable: false, expectedDefault: '1' },
 };

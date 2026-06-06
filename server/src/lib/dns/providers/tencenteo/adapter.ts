@@ -1,17 +1,6 @@
-import { DnsRecord, DomainInfo, PageResult } from '../internal';
-import {
-  asArray,
-  buildSrvValue,
-  Dict,
-  isSrv,
-  normalizeRrName,
-  parseSrvValue,
-  safeString,
-  TencentCloudAdapter,
-  toNumber,
-} from '../internal';
-import { log } from '../internal';
+import { createProviderAdapterLogger, DnsRecord, DomainInfo, PageResult, asArray, buildSrvValue, Dict, isSrv, normalizeRrName, parseSrvValue, safeString, TencentCloudAdapter, toNumber } from '../internal';
 
+const log = createProviderAdapterLogger('TencentEO');
 export class TencenteoAdapter extends TencentCloudAdapter {
   private zoneId: string = '';
   private domain: string = '';
@@ -41,7 +30,7 @@ export class TencenteoAdapter extends TencentCloudAdapter {
   setZoneInfo(zoneId: string, domain: string): void {
     this.zoneId = zoneId;
     this.domain = domain;
-    log.debug('TencenteoAdapter', 'ZoneInfo set', { zoneId, domain });
+    log.debug('ZoneInfo set', { zoneId, domain });
   }
 
   private fqdn(name: string): string {
@@ -107,7 +96,7 @@ export class TencenteoAdapter extends TencentCloudAdapter {
       return { total: toNumber(data.TotalCount, list.length), list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Tencenteo', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }
@@ -123,10 +112,10 @@ export class TencenteoAdapter extends TencentCloudAdapter {
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     try {
-      log.debug('TencenteoAdapter', 'getDomainRecords called', { zoneId: this.zoneId, domain: this.domain, page, pageSize });
+      log.debug('getDomainRecords called', { zoneId: this.zoneId, domain: this.domain, page, pageSize });
       if (!this.zoneId) {
         this.error = 'Zone ID not set';
-        log.warn('TencenteoAdapter', 'Zone ID not set when getting domain records', { domain: this.domain });
+        log.warn('Zone ID not set when getting domain records', { domain: this.domain });
         return { total: 0, list: [] };
       }
       const offset = (page - 1) * pageSize;

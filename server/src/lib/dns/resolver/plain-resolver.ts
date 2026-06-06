@@ -6,8 +6,9 @@ import * as dgram from 'dgram';
 import * as net from 'net';
 import { DNSQueryType, DNSResponse, DNSServerType } from './types';
 import { encodeDNSQuery, decodeDNSResponse } from './doh-resolver';
-import { log } from '../../logger';
+import { createLogger } from '../../logger';
 
+const log = createLogger('DNS').sub('Resolver').sub('Plain');
 /**
  * 使用 UDP 查询 DNS
  */
@@ -33,7 +34,7 @@ export async function queryDNSUDP(
 
     // 设置超时
     timer = setTimeout(() => {
-      log.debug('PlainResolver', `UDP DNS query timeout: ${domain} @ ${serverAddress}`);
+      log.debug(`UDP DNS query timeout: ${domain} @ ${serverAddress}`);
       cleanup();
       resolve(null);
     }, timeout);
@@ -45,7 +46,7 @@ export async function queryDNSUDP(
         cleanup();
         resolve(response);
       } catch (error) {
-        log.error('PlainResolver', `Failed to decode UDP DNS response: ${domain}`, {
+        log.error(`Failed to decode UDP DNS response: ${domain}`, {
           error: error instanceof Error ? error.message : String(error),
         });
         cleanup();
@@ -54,7 +55,7 @@ export async function queryDNSUDP(
     });
 
     socket.on('error', (error) => {
-      log.error('PlainResolver', `UDP DNS socket error: ${domain}`, {
+      log.error(`UDP DNS socket error: ${domain}`, {
         error: error.message,
       });
       cleanup();
@@ -64,7 +65,7 @@ export async function queryDNSUDP(
     // 发送查询
     socket.send(queryBuffer, port, host, (error) => {
       if (error) {
-        log.error('PlainResolver', `Failed to send UDP DNS query: ${domain}`, {
+        log.error(`Failed to send UDP DNS query: ${domain}`, {
           error: error.message,
         });
         cleanup();
@@ -88,7 +89,7 @@ export async function queryDNSTCP(
     const port = parseInt(portStr) || 53;
 
     const queryBuffer = encodeDNSQuery(domain, type);
-    
+
     // TCP DNS 需要在数据前添加 2 字节的长度前缀
     const tcpBuffer = Buffer.alloc(2 + queryBuffer.length);
     tcpBuffer.writeUInt16BE(queryBuffer.length, 0);
@@ -107,7 +108,7 @@ export async function queryDNSTCP(
 
     // 设置超时
     timer = setTimeout(() => {
-      log.debug('PlainResolver', `TCP DNS query timeout: ${domain} @ ${serverAddress}`);
+      log.debug(`TCP DNS query timeout: ${domain} @ ${serverAddress}`);
       cleanup();
       resolve(null);
     }, timeout);
@@ -135,7 +136,7 @@ export async function queryDNSTCP(
           cleanup();
           resolve(response);
         } catch (error) {
-          log.error('PlainResolver', `Failed to decode TCP DNS response: ${domain}`, {
+          log.error(`Failed to decode TCP DNS response: ${domain}`, {
             error: error instanceof Error ? error.message : String(error),
           });
           cleanup();
@@ -145,7 +146,7 @@ export async function queryDNSTCP(
     });
 
     socket.on('error', (error) => {
-      log.error('PlainResolver', `TCP DNS socket error: ${domain}`, {
+      log.error(`TCP DNS socket error: ${domain}`, {
         error: error.message,
       });
       cleanup();
@@ -153,7 +154,7 @@ export async function queryDNSTCP(
     });
 
     socket.on('timeout', () => {
-      log.debug('PlainResolver', `TCP DNS socket timeout: ${domain}`);
+      log.debug(`TCP DNS socket timeout: ${domain}`);
       cleanup();
       resolve(null);
     });

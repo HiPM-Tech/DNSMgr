@@ -108,54 +108,55 @@
 
 ### 日志相关
 1. 日志架构
-    - 日志系统实现为单例模式（`server/src/lib/logger.ts`），使用 `createLogger('ModuleName')` 创建绑定模块名的日志器。
-    - 所有模块必须使用 `createLogger` 导入时绑定模块名，**禁止**使用旧的 `log.info(module, msg)` 模式。
+    - 日志系统实现为单例模式（`server/src/lib/logger.ts`），使用 `createLogger('ModuleName')` 创建绑定主模块名的日志器。
+    - 所有模块必须在文件顶部创建本地日志映射：`const log = createLogger('MODULE')`；禁止使用 `const dsmLog = createLogger('DSM')`、`const balLog = ...` 等带模块前缀的变量名。
+    - 所有模块必须使用绑定日志器调用：`log.info(msg, data?)`，**禁止**使用旧的 `log.info(module, msg)` 模式。
+    - DNS Provider 必须使用 `server/src/lib/dns/providers/internal.ts` 二次定义的日志工厂，不允许具体 DNS 提供商文件再次定义 `createLogger('DNS')` 主模块。
     - 支持的日志级别（按严重程度升序）：`trace` < `debug` < `info` < `warn` < `error`。
     - 日志级别通过环境变量 `HIDNS_LOG_LEVEL` 配置，默认为 `info`。
 2. 日志格式规范
-    - 格式：`日期 级别 [主模块名] [子模块] [函数名] [L行号] ["自定义标签"] 内容`
+    - 格式：`日期 级别 [主模块名] [子模块.三级模块.四级模块] [函数名] [L行号] ["自定义标签"] 内容`
+    - 主模块名使用独立方括号输出；多级子模块使用点号拼接后输出到第二个方括号中。
     - 函数名和行号由日志系统自动从调用栈捕获，开发者无需手动传入。
     - 示例：
       ```
-      2026-06-07T12:00:00.000Z  INFO [BAL] [execQuery] [L42] Executing query ...
-      2026-06-07T12:00:00.000Z  INFO [DSM] [DRY RUN] [reconcile] [L88] Would create table: xxx
-      2026-06-07T12:00:00.000Z DEBUG [DL] [MySQL] [query] [L55] Creating connection pool ...
-      2026-06-07T12:00:00.000Z  INFO [WhoisService] [queryApex] [L125] ["SUCCESS"] Query succeeded
-      2026-06-07T12:00:00.000Z  INFO [MCP OAuth] [Cleanup] [L67] ["count:5"] Cleaned up 5 temporary clients
+      2026-06-07T12:00:00.000Z  INFO [BAL] [BusinessAdapter] [execQuery] [L42] Executing query ...
+      2026-06-07T12:00:00.000Z  INFO [DSM] [Reconciler.Table] [reconcile] [L88] ["DRY_RUN"] Would create table: xxx
+      2026-06-07T12:00:00.000Z DEBUG [DL] [MySQL.Pool] [query] [L55] Creating connection pool ...
+      2026-06-07T12:00:00.000Z  INFO [DNS] [Provider.Aliyun.Adapter] [getDomainList] [L125] ["SUCCESS"] Query succeeded
+      2026-06-07T12:00:00.000Z  INFO [MCP] [OAuth.Cleanup] [cleanup] [L67] ["count:5"] Cleaned up 5 temporary clients
       ```
-    - 主模块名使用大写缩写（如：BAL、DSM、DL、MCP、DNS、HTTP、Server 等）。
-    - 子模块使用 `.sub('SubModule')` 创建，输出为 `[主模块] [子模块]`。
+    - 主模块名使用大写缩写或固定名称（如：BAL、DAL、DSM、DL、MCP、DNS、HTTP、Server 等）。
+    - 子模块使用 `.sub('SubModule')` 创建；多次 `.sub()` 调用输出为 `[SubModule.NextLevel]`。
     - 调用位置`[函数名] [L行号]` 自动捕获，无需手动传入。
     - 自定义标签使用 `.tag('label1', 'label2')` 创建，输出为 `["label1"] ["label2"]`。
 3. 日志器创建方式
     - 标准方式（推荐）：
       ```typescript
       import { createLogger } from '../../lib/logger';
-      const myLog = createLogger('MODULE');
-      myLog.info('message');
+      const log = createLogger('MODULE');
+      log.info('message');
       // 输出: 2026-06-07T12:00:00.000Z  INFO [MODULE] [myFunction] [L10] message
       
-      myLog.sub('Sub').info('message');
+      log.sub('Sub').info('message');
       // 输出: 2026-06-07T12:00:00.000Z  INFO [MODULE] [Sub] [myFunction] [L12] message
       
-      myLog.tag('SUCCESS').info('message');
-      // 输出: 2026-06-07T12:00:00.000Z  INFO [MODULE] [myFunction] [L14] ["SUCCESS"] message
-      
-      myLog.sub('Sub').tag('k:v').info('msg');
-      // 输出: 2026-06-07T12:00:00.000Z  INFO [MODULE] [Sub] [myFunction] [L16] ["k:v"] msg
+      log.sub('Sub').sub('Third').tag('SUCCESS').info('message');
+      // 输出: 2026-06-07T12:00:00.000Z  INFO [MODULE] [Sub.Third] [myFunction] [L14] ["SUCCESS"] message
       ```
-    - 子日志器嵌套和标签链式调用：
+    - DNS Provider 间接方式（强制）：
       ```typescript
-      const dnsLog = createLogger('DNS');
-      dnsLog.sub('Cloudflare').debug('Resolving zone...');
-      // 输出: 2026-06-07T12:00:00.000Z DEBUG [DNS] [Cloudflare] [resolveZone] [L30] Resolving zone...
+      import { createProviderAdapterLogger } from '../internal';
+      const log = createProviderAdapterLogger('Aliyun');
+      log.tag('SUCCESS').info('Domain list fetched');
+      // 输出: 2026-06-07T12:00:00.000Z  INFO [DNS] [Provider.Aliyun.Adapter] [getDomainList] [L30] ["SUCCESS"] Domain list fetched
       ```
 4. 日志分类
     - 通用日志：`.trace(msg, data?)`、`.debug(msg, data?)`、`.info(msg, data?)`、`.warn(msg, data?)`、`.error(msg, data?)`
-    - DNS Provider 日志：使用 `createLogger('DNS').sub('ProviderName')` 记录
-    - 适配器方法调用日志：由 `DnsHelper.ts` 中的 `createLoggingAdapter` Proxy 自动拦截所有 `DnsAdapter` 方法调用并记录，无需各适配器手动添加
-    - 数据库日志：BAL 层使用 `createLogger('BAL')`，DL 层使用 `createLogger('DL').sub('DriverType')`
-    - HTTP 请求日志：使用 `logger.logHttpRequest/Response` 方法（保留旧 API 供中间件使用）
+    - DNS Provider 日志：由 `internal.ts` 中的 `createProviderAdapterLogger/createProviderAuthLogger/...` 创建，不在 provider 文件直接创建 DNS 主模块。
+    - 适配器方法调用日志：由 `DnsHelper.ts` 中的 `createLoggingAdapter` Proxy 自动拦截所有 `DnsAdapter` 方法调用并记录，无需各适配器手动添加。
+    - 数据库日志：BAL 层使用 `createLogger('BAL')`，DAL 层使用 `createLogger('DAL')`，DL 层使用 `createLogger('DL').sub('DriverType')`，DSM 层使用 `createLogger('DSM')`。
+    - HTTP 请求日志：使用 `createLogger('HTTP').sub(...)`。
 5. 错误日志规范
     - 日志必须包含上下文信息（模块名、子模块名、自定义标签）。
     - 错误日志必须包含详细错误信息（错误类型、错误消息、错误栈等），通过第二个参数 `data` 传入。
@@ -164,17 +165,18 @@
     - `DnsHelper.ts` 中的 `createLoggingAdapter` 使用 JavaScript Proxy 在 `createAdapter` 出口处统一包裹，自动拦截所有 `DnsAdapter` 接口方法的调用并记录日志。
     - 日志内容：方法调用（参数）→ 成功/失败（耗时）。
     - 适配器日志层与 Provider 内部日志独立并存：适配器层记录方法级摘要，Provider 内部日志记录具体 API 请求细节。
-    - 新增 DNS 提供商后，无需手动添加日志代码即可自动获得方法调用日志。
+    - 新增 DNS 提供商后，无需手动添加适配器方法调用日志代码即可自动获得方法调用日志。
 7. 模块名规范
     - 各层模块名固定：
       - `BAL` - 业务适配器层（`server/src/db/bal/`）
+      - `DAL` - 数据访问/连接抽象层（`server/src/db/dal/`）
       - `DSM` - 声明式模式管理层（`server/src/db/dsm/`）
       - `DL` - 数据库驱动层（`server/src/db/dl/`），子模块为具体驱动（MySQL/SQLite/PostgreSQL）
       - `MCP` - MCP 协议相关
-      - `DNS` - DNS 提供商适配器，子模块为提供商名称（Cloudflare/Aliyun 等）
-      - `HTTP` - HTTP 请求/响应日志
+      - `DNS` - DNS 提供商适配器、DNS Helper、DNS Resolver；Provider 文件通过 `internal.ts` 间接创建
+      - `HTTP` - HTTP 请求/响应、路由、中间件日志
       - `Server` - 服务器启动/关闭/生命周期
-    - 其他模块可根据用途自行命名，保持简短、清晰、大写。
+    - 其他模块可根据用途自行命名，保持简短、清晰。
 8. Whois 模块日志定义
     - 主模块名：`WhoisService`
     - 子模块（`.sub()`）：表示查询层级

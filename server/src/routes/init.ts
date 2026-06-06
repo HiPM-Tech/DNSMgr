@@ -7,8 +7,9 @@ import { createConnection, isDbInitialized, hasUsers } from '../db/connection';
 import { connect } from '../db/dal/connection';
 import type { DatabaseConfig } from '../db/dal/config';
 import { UserOperations, SystemOperations, SecretOperations } from '../db/bal/business-adapter';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('HTTP').sub('Route').sub('Init');
 // ============================================================================
 // 初始化专用数据库连接函数（隔离、防污染）
 // ============================================================================
@@ -102,7 +103,7 @@ function saveDatabaseConfig(
   }
 
   saveEnvConfig(envConfig);
-  log.info('Init', 'Database configuration saved', { type });
+  log.info('Database configuration saved', { type });
 }
 
 const router = Router();
@@ -144,7 +145,7 @@ router.get('/db-config', async (_req: Request, res: Response) => {
       msg: 'success',
     });
   } catch (error) {
-    log.error('Init', 'Failed to read database configuration', { error });
+    log.error('Failed to read database configuration', { error });
     res.status(500).json({
       code: 500,
       msg: error instanceof Error ? error.message : 'Failed to read database configuration',
@@ -155,11 +156,11 @@ router.get('/db-config', async (_req: Request, res: Response) => {
 // Check system initialization status
 router.get('/status', async (req: Request, res: Response) => {
   try {
-    log.debug('Init', 'Checking system status...');
+    log.debug('Checking system status...');
     const dbInitialized = await isDbInitialized();
     const hasAnyUsers = await hasUsers();
 
-    log.debug('Init', 'Status check result', { dbInitialized, hasAnyUsers });
+    log.debug('Status check result', { dbInitialized, hasAnyUsers });
     res.json({
       code: 0,
       data: {
@@ -170,7 +171,7 @@ router.get('/status', async (req: Request, res: Response) => {
       msg: 'success',
     });
   } catch (error) {
-    log.warn('Init', 'Status check failed, returning uninitialized state', { error });
+    log.warn('Status check failed, returning uninitialized state', { error });
     // If database is not connected yet
     res.json({
       code: 0,
@@ -188,7 +189,7 @@ router.get('/status', async (req: Request, res: Response) => {
 router.post('/test-db', async (req: Request, res: Response) => {
   const { type, sqlite, mysql: mysqlConfig, postgresql: pgConfig } = req.body;
 
-  log.info('Init', 'Received test-db request', { type, sqlitePath: sqlite?.path });
+  log.info('Received test-db request', { type, sqlitePath: sqlite?.path });
 
   if (!type || !['sqlite', 'mysql', 'postgresql'].includes(type)) {
     return res.status(400).json({ code: 400, msg: 'Invalid database type' });
@@ -197,10 +198,10 @@ router.post('/test-db', async (req: Request, res: Response) => {
   try {
     if (type === 'sqlite') {
       const sqlitePath = sqlite?.path || './data/dnsmgr.db';
-      log.info('Init', 'Testing SQLite connection', { path: sqlitePath });
+      log.info('Testing SQLite connection', { path: sqlitePath });
 
       const result = await SystemOperations.testSqliteConnection(sqlitePath);
-      log.info('Init', 'SQLite test result', { result });
+      log.info('SQLite test result', { result });
       return res.json({
         code: 0,
         data: result,
@@ -213,7 +214,7 @@ router.post('/test-db', async (req: Request, res: Response) => {
         return res.status(400).json({ code: 400, msg: 'MySQL configuration required' });
       }
 
-      log.info('Init', 'Testing MySQL connection', { host: mysqlConfig.host, database: mysqlConfig.database });
+      log.info('Testing MySQL connection', { host: mysqlConfig.host, database: mysqlConfig.database });
       const result = await SystemOperations.testMysqlConnection(mysqlConfig);
       return res.json({
         code: 0,
@@ -227,7 +228,7 @@ router.post('/test-db', async (req: Request, res: Response) => {
         return res.status(400).json({ code: 400, msg: 'PostgreSQL configuration required' });
       }
 
-      log.info('Init', 'Testing PostgreSQL connection', { host: pgConfig.host, database: pgConfig.database });
+      log.info('Testing PostgreSQL connection', { host: pgConfig.host, database: pgConfig.database });
       const result = await SystemOperations.testPostgresqlConnection(pgConfig);
       return res.json({
         code: 0,
@@ -236,7 +237,7 @@ router.post('/test-db', async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    log.error('Init', 'Test database connection failed', { error, type, sqlitePath: sqlite?.path });
+    log.error('Test database connection failed', { error, type, sqlitePath: sqlite?.path });
     return res.status(400).json({
       code: 400,
       data: { success: false, message: error instanceof Error ? error.message : 'Connection failed' },
@@ -259,7 +260,7 @@ router.post('/database', async (req: Request, res: Response) => {
   let hasExistingUsers = false;
 
   try {
-    log.info('Init', 'Testing database connection', { type, sqlitePath: sqlite?.path });
+    log.info('Testing database connection', { type, sqlitePath: sqlite?.path });
     const testResult = await SystemOperations.testConnection({
       type,
       sqlite: sqlite || { path: './data/dnsmgr.db' },
@@ -268,113 +269,113 @@ router.post('/database', async (req: Request, res: Response) => {
     });
     hasExistingData = testResult.hasExistingData;
     hasExistingUsers = testResult.hasUsers || false;
-    log.info('Init', 'Test connection result', { hasExistingData, hasExistingUsers, type });
+    log.info('Test connection result', { hasExistingData, hasExistingUsers, type });
   } catch (error) {
-    log.warn('Init', 'Database connection test failed', { error, type, sqlitePath: sqlite?.path });
+    log.warn('Database connection test failed', { error, type, sqlitePath: sqlite?.path });
     // 继续执行，因为这是新数据库的正常情况
   }
 
   // Step 2: Handle different scenarios based on existing data
-  
+
   // Scenario A: Has existing users and keeping data -> Skip to complete
   if (hasExistingData && hasExistingUsers && !reset) {
     try {
       // Save config first
       saveDatabaseConfig(type, sqlite, mysqlConfig, pgConfig);
-      
+
       // Disconnect any existing connection
       try {
         const { disconnect } = await import('../db/dal/connection');
         await disconnect();
       } catch { /* Ignore */ }
-      
+
       // Establish new connection with explicit config
       await connect(testConfig);
-      log.info('Init', 'Connected to existing database with users, skipping to complete');
-      
+      log.info('Connected to existing database with users, skipping to complete');
+
       return res.json({
         code: 0,
-        data: { 
-          success: true, 
+        data: {
+          success: true,
           skipToComplete: true,
           message: 'Database already initialized with users. Setup complete.'
         },
         msg: 'Database already initialized with users. Setup complete.',
       });
     } catch (error) {
-      log.error('Init', 'Failed to connect to existing database', { error });
+      log.error('Failed to connect to existing database', { error });
       return res.status(500).json({
         code: 500,
         msg: 'Failed to connect to existing database. Please check your configuration.',
       });
     }
   }
-  
+
   // Scenario B: Has existing data but no users, keeping data -> Skip to user creation
   if (hasExistingData && !hasExistingUsers && !reset) {
     try {
       // Save config first
       saveDatabaseConfig(type, sqlite, mysqlConfig, pgConfig);
-      
+
       // Disconnect any existing connection
       try {
         const { disconnect } = await import('../db/dal/connection');
         await disconnect();
       } catch { /* Ignore */ }
-      
+
       // Establish new connection with explicit config
       await connect(testConfig);
-      log.info('Init', 'Connected to existing database without users, skipping to user creation');
-      
+      log.info('Connected to existing database without users, skipping to user creation');
+
       return res.json({
         code: 0,
-        data: { 
-          success: true, 
+        data: {
+          success: true,
           skipToUserCreation: true,
           message: 'Database already initialized. Proceed to create admin user.'
         },
         msg: 'Database already initialized. Please create admin user.',
       });
     } catch (error) {
-      log.error('Init', 'Failed to connect to existing database', { error });
+      log.error('Failed to connect to existing database', { error });
       return res.status(500).json({
         code: 500,
         msg: 'Failed to connect to existing database. Please check your configuration.',
       });
     }
   }
-  
+
   // Scenario C: Fresh initialization or reset
   try {
     // Save configuration
     saveDatabaseConfig(type, sqlite, mysqlConfig, pgConfig);
-    
+
     // Generate JWT secret if needed
     const currentJwtSecret = process.env.JWT_SECRET || '';
     if (!currentJwtSecret || currentJwtSecret === 'dnsmgr-secret-key') {
       saveEnvConfig({ JWT_SECRET: crypto.randomBytes(32).toString('hex') });
     }
-    
+
     // Create database connection with explicit config
-    log.info('Init', 'Creating new database connection', { type, reset });
+    log.info('Creating new database connection', { type, reset });
     const conn = await connect(testConfig);
-    
+
     // Initialize schema using DSM
     if (reset) {
       await initializeDSM();
-      log.info('Init', 'Database schema reset successfully via DSM');
+      log.info('Database schema reset successfully via DSM');
     } else {
       await initializeDSM();
-      log.info('Init', 'Database schema initialized successfully via DSM');
+      log.info('Database schema initialized successfully via DSM');
     }
-    
+
     return res.json({
       code: 0,
       data: { success: true, reset },
       msg: reset ? 'Database reset successfully' : 'Database initialized successfully',
     });
   } catch (error) {
-    log.error('Init', 'Database initialization error', { error, type, reset });
+    log.error('Database initialization error', { error, type, reset });
     return res.status(500).json({
       code: 500,
       msg: error instanceof Error ? error.message : 'Failed to initialize database',
@@ -434,7 +435,7 @@ router.post('/admin', async (req: Request, res: Response) => {
     // 使用业务适配器轮换运行时密钥
     await SecretOperations.rotateRuntimeSecrets();
 
-    log.info('Init', 'Admin user created successfully', { username, email });
+    log.info('Admin user created successfully', { username, email });
 
     res.json({
       code: 0,
@@ -442,7 +443,7 @@ router.post('/admin', async (req: Request, res: Response) => {
       msg: 'Admin user created successfully',
     });
   } catch (error) {
-    log.error('Init', 'Failed to create admin user', { error });
+    log.error('Failed to create admin user', { error });
     res.status(500).json({
       code: 500,
       msg: error instanceof Error ? error.message : 'Failed to create admin user',

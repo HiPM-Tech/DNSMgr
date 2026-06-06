@@ -1,6 +1,6 @@
 /**
  * MCP Tools 注册和实现
- * 
+ *
  * 定义所有可用的 MCP 工具及其处理逻辑
  */
 
@@ -13,8 +13,9 @@ import { checkWhoisForDomain } from '../service/whois/checker';
 import { resolveNsRecords, validateNsRecords } from '../lib/dns/ns-lookup';
 import { getFailoverConfig, getFailoverStatus, saveFailoverConfig, deleteFailoverConfig, performHealthCheck } from '../service/failover';
 import { AppError } from '../middleware/errorHandler';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('MCP').sub('Tools');
 /**
  * 认证请求 - 验证 API Key 或 OAuth2 Token
  */
@@ -24,63 +25,63 @@ async function authenticateRequest(apiKey?: string): Promise<AuthResult> {
   if (!apiKey) {
     return null;
   }
-  
+
   try {
     // 先尝试作为 API Key 验证（保持向后兼容）
     const keyInfo = await McpOperations.validateApiKey(apiKey);
-    
+
     if (keyInfo) {
       // 检查是否已撤销
       if (keyInfo.revoked_at) {
-        log.warn('MCP Auth', 'API key has been revoked', { keyId: keyInfo.id });
+        log.warn('API key has been revoked', { keyId: keyInfo.id });
         return null;
       }
-      
+
       // 检查是否过期
       if (keyInfo.expires_at && new Date(keyInfo.expires_at) < new Date()) {
-        log.warn('MCP Auth', 'API key has expired', { keyId: keyInfo.id, expiresAt: keyInfo.expires_at });
+        log.warn('API key has expired', { keyId: keyInfo.id, expiresAt: keyInfo.expires_at });
         return null;
       }
-      
-      log.info('MCP Auth', 'API key validated successfully', { 
-        userId: keyInfo.user_id, 
+
+      log.info('API key validated successfully', {
+        userId: keyInfo.user_id,
         keyId: keyInfo.id,
-        description: keyInfo.description 
+        description: keyInfo.description
       });
-      
+
       return {
         userId: keyInfo.user_id,
         authType: 'api_key',
         keyId: keyInfo.id,
       };
     }
-    
+
     // API Key 验证失败，尝试作为 OAuth2 Access Token 验证
     const tokenInfo = await McpOperations.validateAccessToken(apiKey);
-    
+
     if (tokenInfo) {
       // 检查是否过期
       if (new Date(tokenInfo.expires_at) < new Date()) {
-        log.warn('MCP Auth', 'OAuth token has expired');
+        log.warn('OAuth token has expired');
         return null;
       }
-      
-      log.info('MCP Auth', 'OAuth token validated successfully', {
+
+      log.info('OAuth token validated successfully', {
         userId: tokenInfo.user_id,
         clientId: tokenInfo.client_id,
       });
-      
+
       return {
         userId: tokenInfo.user_id,
         authType: 'oauth2',
         scope: tokenInfo.scope || undefined,
       };
     }
-    
-    log.warn('MCP Auth', 'Invalid API key or OAuth token');
+
+    log.warn('Invalid API key or OAuth token');
     return null;
   } catch (error) {
-    log.error('MCP Auth', 'Failed to validate API key or OAuth token', { error });
+    log.error('Failed to validate API key or OAuth token', { error });
     return null;
   }
 }
@@ -117,7 +118,7 @@ async function requireTokenScope(auth: AuthResult, toolName: string, requiredPer
 
   if (requiredPermission === 'write') {
     if (!scopes.includes(writeScope)) {
-      log.warn('MCP Auth', 'OAuth token scope insufficient for write', {
+      log.warn('OAuth token scope insufficient for write', {
         module, requiredScope, tokenScope: auth.scope
       });
       throw new AppError(403, `Token does not have '${writeScope}' scope`);
@@ -125,7 +126,7 @@ async function requireTokenScope(auth: AuthResult, toolName: string, requiredPer
   } else {
     // read 操作：需要 read 或 write 权限
     if (!scopes.includes(requiredScope) && !scopes.includes(writeScope)) {
-      log.warn('MCP Auth', 'OAuth token scope insufficient for read', {
+      log.warn('OAuth token scope insufficient for read', {
         module, requiredScope, tokenScope: auth.scope
       });
       throw new AppError(403, `Token does not have '${requiredScope}' scope`);
@@ -162,10 +163,10 @@ export function registerTools(server: McpServer): void {
 
         // 获取所有启用的 NS 监控域名
         let nsDomains = await NSMonitorOperations.getAllEnabled();
-        
+
         // 如果有关键词，进行过滤
         if (keyword) {
-          nsDomains = nsDomains.filter((domain: any) => 
+          nsDomains = nsDomains.filter((domain: any) =>
             domain.domain_name?.toLowerCase().includes(keyword.toLowerCase())
           );
         }
@@ -193,7 +194,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'list_ns_records failed', { error });
+        log.error('list_ns_records failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -230,7 +231,7 @@ export function registerTools(server: McpServer): void {
         // 调用实际的域名列表 API
         const pageNum = page || 1;
         const pageSizeNum = pageSize || 50;
-        
+
         // 使用 DomainOperations 获取域名列表
         const domains = await DomainOperations.getAllForSuperAdminWithPagination({
           keyword,
@@ -265,7 +266,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'list_domains failed', { error });
+        log.error('list_domains failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -295,7 +296,7 @@ export function registerTools(server: McpServer): void {
 
         // 调用实际的域名信息查询
         const domain = await DomainOperations.getById(domainId);
-        
+
         if (!domain) {
           return {
             content: [{ type: 'text', text: `Domain with ID ${domainId} not found` }],
@@ -325,7 +326,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'get_domain_info failed', { error });
+        log.error('get_domain_info failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -359,21 +360,21 @@ export function registerTools(server: McpServer): void {
 
         // 获取所有启用的续期域名
         const renewableDomains = await RenewableDomainOperations.getAllEnabled();
-        
+
         const daysThreshold = daysBeforeExpiry || 30;
         const now = new Date();
         const thresholdDate = new Date(now.getTime() + daysThreshold * 24 * 60 * 60 * 1000);
-        
+
         // 过滤出即将到期的域名
         const expiringDomains = renewableDomains.filter((domain: any) => {
           if (domain.never_expires) {
             return false; // 永不过期的域名不显示
           }
-          
+
           if (!domain.expires_at) {
             return false; // 没有到期日期的不显示
           }
-          
+
           const expiryDate = new Date(domain.expires_at);
           return expiryDate <= thresholdDate && expiryDate > now;
         });
@@ -402,7 +403,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'get_renewable_domains failed', { error });
+        log.error('get_renewable_domains failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -499,7 +500,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'query_audit_logs failed', { error });
+        log.error('query_audit_logs failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -581,7 +582,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'get_audit_stats failed', { error });
+        log.error('get_audit_stats failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -638,7 +639,7 @@ export function registerTools(server: McpServer): void {
         }
 
         const whereClause = conditions.join(' AND ');
-        
+
         // 获取所有匹配的日志（不分页）
         const logs = await AuditExportOperations.getLogs(whereClause, params, 10000, 0);
 
@@ -697,7 +698,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'export_audit_logs failed', { error });
+        log.error('export_audit_logs failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -753,7 +754,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'list_failover_rules failed', { error });
+        log.error('list_failover_rules failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -817,7 +818,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'get_failover_config failed', { error });
+        log.error('get_failover_config failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -889,7 +890,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'create_failover_config failed', { error });
+        log.error('create_failover_config failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -943,7 +944,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'delete_failover_config failed', { error });
+        log.error('delete_failover_config failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -973,7 +974,7 @@ export function registerTools(server: McpServer): void {
 
         // 获取容灾配置
         const config = await getFailoverConfig(domainId);
-        
+
         if (!config) {
           return {
             content: [{ type: 'text', text: `No failover configuration found for domain ${domainId}` }],
@@ -983,7 +984,7 @@ export function registerTools(server: McpServer): void {
 
         // 获取当前状态
         const status = await getFailoverStatus(config.id);
-        
+
         if (!status) {
           return {
             content: [{ type: 'text', text: `No failover status found for config ${config.id}` }],
@@ -1024,7 +1025,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'perform_health_check failed', { error });
+        log.error('perform_health_check failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1078,7 +1079,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: `Domain ${domainId} ${enabled ? 'enabled' : 'disabled'} successfully` }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'update_domain_status failed', { error });
+        log.error('update_domain_status failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1138,7 +1139,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify({ total: result.total, records: result.list }, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'list_domain_records failed', { error });
+        log.error('list_domain_records failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1187,7 +1188,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify({ lines }, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'get_dns_lines failed', { error });
+        log.error('get_dns_lines failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1252,7 +1253,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: `DNS record created successfully with ID: ${recordId}${line ? ` (Line: ${line})` : ''}` }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'create_dns_record failed', { error });
+        log.error('create_dns_record failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1334,7 +1335,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: `DNS record ${recordId} updated successfully${line ? ` (Line: ${line})` : ''}` }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'update_dns_record failed', { error });
+        log.error('update_dns_record failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1388,7 +1389,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: `DNS record ${recordId} deleted successfully` }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'delete_dns_record failed', { error });
+        log.error('delete_dns_record failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1422,7 +1423,7 @@ export function registerTools(server: McpServer): void {
 
         // 获取域名信息
         const domain = await DomainOperations.getById(domainId);
-        
+
         if (!domain) {
           return {
             content: [{ type: 'text', text: `Domain with ID ${domainId} not found` }],
@@ -1454,7 +1455,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'get_domain_remark failed', { error });
+        log.error('get_domain_remark failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1484,7 +1485,7 @@ export function registerTools(server: McpServer): void {
 
         // 获取用户的置顶域名列表
         const pinnedDomains = await UserPreferencesOperations.getPinnedDomains(auth.userId);
-        
+
         const isPinned = pinnedDomains.includes(domainId);
 
         const result = {
@@ -1511,7 +1512,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'get_domain_pinned_status failed', { error });
+        log.error('get_domain_pinned_status failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1544,7 +1545,7 @@ export function registerTools(server: McpServer): void {
 
         const pageNum = page || 1;
         const pageSizeNum = pageSize || 50;
-        
+
         // 使用 DomainOperations 获取域名列表（自动过滤禁用的账号）
         const domains = await DomainOperations.getAllForSuperAdminWithPagination({
           keyword,
@@ -1588,7 +1589,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'list_domains_filtered failed', { error });
+        log.error('list_domains_filtered failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1642,7 +1643,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: `Domain ${renewableDomainId} renewed successfully. New expiry: ${newExpiresAt}` }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'manual_renew_domain failed', { error });
+        log.error('manual_renew_domain failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1691,7 +1692,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: `Renewal disabled for domain ${renewableDomainId}` }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'disable_domain_renewal failed', { error });
+        log.error('disable_domain_renewal failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1741,7 +1742,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(whoisResult, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'get_domain_whois failed', { error });
+        log.error('get_domain_whois failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1775,7 +1776,7 @@ export function registerTools(server: McpServer): void {
 
         // 获取 NS 监控配置
         const monitorConfig = await NSMonitorOperations.getById(nsMonitorId) as any;
-        
+
         if (!monitorConfig) {
           return {
             content: [{ type: 'text', text: `NS monitor ${nsMonitorId} not found` }],
@@ -1783,9 +1784,9 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        log.info('MCP Tool', 'Starting manual NS check', { 
-          domain: monitorConfig.domain_name, 
-          monitorId: nsMonitorId 
+        log.info('Starting manual NS check', {
+          domain: monitorConfig.domain_name,
+          monitorId: nsMonitorId
         });
 
         // 查询当前 NS 记录（带DNS污染检测）
@@ -1836,14 +1837,14 @@ export function registerTools(server: McpServer): void {
           plain_ns: plainNs,
           expected_ns: expectedList,
           last_check_at: nowStr,
-          message: status === 'ok' 
-            ? 'NS records are normal' 
+          message: status === 'ok'
+            ? 'NS records are normal'
             : `NS anomaly detected: ${status}`,
         };
 
         // 如果状态异常，记录到审计日志
         if (status !== 'ok') {
-          log.warn('MCP Tool', 'NS record anomaly detected during manual refresh', {
+          log.warn('NS record anomaly detected during manual refresh', {
             domain: monitorConfig.domain_name,
             status,
             isPoisoned: nsResult.isPoisoned,
@@ -1871,7 +1872,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('MCP Tool', 'refresh_ns_monitor failed', { error });
+        log.error('refresh_ns_monitor failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -1880,5 +1881,5 @@ export function registerTools(server: McpServer): void {
     }
   );
 
-  log.info('MCP Tools', `Registered ${Object.keys(server['_registeredTools'] || {}).length} tools`);
+  log.info(`Registered ${Object.keys(server['_registeredTools'] || {}).length} tools`);
 }

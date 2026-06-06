@@ -1,6 +1,7 @@
 import { Response } from 'express';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('Utils').sub('Response');
 /**
  * Standard API response format
  * Note: Using 'msg' instead of 'message' for consistency with existing codebase
@@ -151,26 +152,26 @@ export const asyncHandler = (fn: Function) => (req: any, res: any, next: any) =>
  * Global error handler middleware
  */
 export function globalErrorHandler(err: Error, req: any, res: Response, _next: any): void {
-  log.error('Error', 'Unhandled error', { error: err });
-  
+  log.error('Unhandled error', { error: err });
+
   // Handle specific error types
   if (err.name === 'ValidationError') {
     ResponseHelper.badRequest(res, err.message);
     return;
   }
-  
+
   if (err.name === 'UnauthorizedError') {
     ResponseHelper.unauthorized(res, 'Unauthorized');
     return;
   }
-  
+
   if (err.name === 'ForbiddenError') {
     ResponseHelper.forbidden(res, 'Forbidden');
     return;
   }
-  
+
   // Default to internal server error
-  ResponseHelper.internalError(res, process.env.NODE_ENV === 'production' 
-    ? 'Internal server error' 
+  ResponseHelper.internalError(res, process.env.NODE_ENV === 'production'
+    ? 'Internal server error'
     : err.message);
 }

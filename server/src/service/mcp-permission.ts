@@ -1,6 +1,6 @@
 /**
  * MCP 权限验证服务
- * 
+ *
  * 权限模型：
  * - 全局开关仅控制启用/禁用，不影响具体权限
  * - 权限由用户角色决定
@@ -10,12 +10,13 @@
 
 import { McpOperations, UserOperations } from '../db/bal/business-adapter';
 import { AppError } from '../middleware/errorHandler';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { ROLE_USER, ROLE_ADMIN, ROLE_SUPER } from '../utils/roles';
 
+const log = createLogger('Security').sub('McpPermission');
 export type McpPermissionLevel = 'disabled' | 'read' | 'write';
 
-export type McpModule = 
+export type McpModule =
   | 'ns_monitor'
   | 'domain_management'
   | 'renewal_management'
@@ -58,7 +59,7 @@ function minPermission(a: McpPermissionLevel, b: McpPermissionLevel): McpPermiss
     read: 1,
     write: 2,
   };
-  
+
   return levels[a] <= levels[b] ? a : b;
 }
 
@@ -70,14 +71,14 @@ export async function isMcpEnabled(): Promise<boolean> {
     const config = await McpOperations.getGlobalConfig();
     return config?.enabled || false;
   } catch (error) {
-    log.error('MCP Permission', 'Failed to check MCP status', { error });
+    log.error('Failed to check MCP status', { error });
     return false;
   }
 }
 
 /**
  * 获取用户在某个模块的权限
- * 
+ *
  * @param userId 用户ID
  * @param module 模块名称
  * @returns 权限级别
@@ -94,7 +95,7 @@ export async function getUserModulePermission(
   // 2. 获取用户角色
   const user = await UserOperations.getById(userId);
   if (!user) {
-    log.warn('MCP Permission', 'User not found', { userId });
+    log.warn('User not found', { userId });
     return 'disabled';
   }
 
@@ -112,7 +113,7 @@ export async function getUserModulePermission(
   // 4. 返回角色对应的权限
   const rolePermissions = ROLE_PERMISSIONS[roleName];
   if (!rolePermissions) {
-    log.warn('MCP Permission', 'Unknown role', { userId, role: user.role });
+    log.warn('Unknown role', { userId, role: user.role });
     return 'disabled';
   }
 
@@ -121,7 +122,7 @@ export async function getUserModulePermission(
 
 /**
  * 验证工具调用权限
- * 
+ *
  * @param userId 用户ID
  * @param toolName 工具名称
  * @param requiredPermission 所需权限级别
@@ -135,7 +136,7 @@ export async function validateToolPermission(
   tokenScope?: string
 ): Promise<void> {
   const module = getModuleByToolName(toolName);
-  
+
   if (!module) {
     throw new AppError(400, `Unknown MCP tool: ${toolName}`);
   }
@@ -152,14 +153,14 @@ export async function validateToolPermission(
 
     if (requiredPermission === 'write') {
       if (!scopes.includes(writeScope)) {
-        log.warn('MCP Permission', 'OAuth token scope insufficient for write', {
+        log.warn('OAuth token scope insufficient for write', {
           userId, module, toolName, tokenScope
         });
         throw new AppError(403, `Token does not have '${writeScope}' scope`);
       }
     } else {
       if (!scopes.includes(requiredScope) && !scopes.includes(writeScope)) {
-        log.warn('MCP Permission', 'OAuth token scope insufficient for read', {
+        log.warn('OAuth token scope insufficient for read', {
           userId, module, toolName, tokenScope
         });
         throw new AppError(403, `Token does not have '${requiredScope}' scope`);
@@ -170,29 +171,29 @@ export async function validateToolPermission(
   const userPermission = await getUserModulePermission(userId, module);
 
   if (userPermission === 'disabled') {
-    log.warn('MCP Permission', 'Module disabled or no permission', { 
-      userId, 
-      module, 
-      toolName 
+    log.warn('Module disabled or no permission', {
+      userId,
+      module,
+      toolName
     });
     throw new AppError(403, `MCP module '${module}' is disabled or you have no permission`);
   }
 
   if (requiredPermission === 'write' && userPermission !== 'write') {
-    log.warn('MCP Permission', 'Insufficient permission for write operation', { 
-      userId, 
-      module, 
+    log.warn('Insufficient permission for write operation', {
+      userId,
+      module,
       toolName,
-      userPermission 
+      userPermission
     });
     throw new AppError(403, `Write permission required for '${module}' module`);
   }
 
-  log.debug('MCP Permission', 'Permission validated', { 
-    userId, 
-    module, 
+  log.debug('Permission validated', {
+    userId,
+    module,
     toolName,
-    permission: userPermission 
+    permission: userPermission
   });
 }
 
@@ -206,7 +207,7 @@ export function getModuleByToolName(toolName: string): McpModule | null {
     'check_ns_status': 'ns_monitor',
     'get_ns_info': 'ns_monitor',
     'refresh_ns_monitor': 'ns_monitor',
-    
+
     // 域名管理模块
     'list_domains': 'domain_management',
     'list_domains_filtered': 'domain_management',
@@ -218,26 +219,26 @@ export function getModuleByToolName(toolName: string): McpModule | null {
     'add_domain': 'domain_management',
     'delete_domain': 'domain_management',
     'update_domain': 'domain_management',
-    
+
     // DNS 解析记录管理
     'list_domain_records': 'domain_management',
     'get_dns_lines': 'domain_management',
     'create_dns_record': 'domain_management',
     'update_dns_record': 'domain_management',
     'delete_dns_record': 'domain_management',
-    
+
     // 续期管理模块
     'get_renewable_domains': 'renewal_management',
     'check_domain_expiry': 'renewal_management',
     'get_expiry_alerts': 'renewal_management',
     'manual_renew_domain': 'renewal_management',
     'disable_domain_renewal': 'renewal_management',
-    
+
     // 日志查询模块
     'query_audit_logs': 'log_query',
     'get_audit_stats': 'log_query',
     'export_audit_logs': 'log_query',
-    
+
     // 故障转移模块
     'list_failover_rules': 'failover_management',
     'get_failover_config': 'failover_management',
@@ -251,7 +252,7 @@ export function getModuleByToolName(toolName: string): McpModule | null {
 
 /**
  * 计算 OAuth2 授权的实际权限范围
- * 
+ *
  * @param userId 用户ID
  * @param requestedScopes 请求的权限范围
  * @returns 实际授权的权限范围
@@ -269,7 +270,7 @@ export async function calculateOAuthScope(
 
     // 获取用户在该模块的实际权限
     const userPermission = await getUserModulePermission(userId, module as McpModule);
-    
+
     // 取请求权限和用户权限的最小值
     actualScopes[module as McpModule] = minPermission(
       requested as McpPermissionLevel,
@@ -291,7 +292,7 @@ function isValidModule(module: string): boolean {
     'log_query',
     'failover_management',
   ];
-  
+
   return validModules.includes(module as McpModule);
 }
 
@@ -325,7 +326,7 @@ export async function logMcpAction(data: {
     });
   } catch (error) {
     // 审计日志失败不应影响主流程
-    log.error('MCP Audit', 'Failed to log MCP action', { error, data });
+    log.error('Failed to log MCP action', { error, data });
   }
 }
 
@@ -335,7 +336,7 @@ export async function logMcpAction(data: {
 export async function trackApiKeyUsage(keyId: number, userId: number, ipAddress?: string): Promise<void> {
   try {
     await McpOperations.updateApiKeyLastUsed(keyId);
-    
+
     // 记录审计日志
     await logMcpAction({
       userId,
@@ -346,6 +347,6 @@ export async function trackApiKeyUsage(keyId: number, userId: number, ipAddress?
       ipAddress,
     });
   } catch (error) {
-    log.error('MCP Audit', 'Failed to track API key usage', { error, keyId });
+    log.error('Failed to track API key usage', { error, keyId });
   }
 }

@@ -1,9 +1,7 @@
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber, uuid, fetchWithFallback } from '../internal';
 import crypto from 'node:crypto';
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber, uuid } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('Jdcloud');
 interface JdcloudConfig {
   AccessKeyId: string;
   AccessKeySecret: string;
@@ -175,7 +173,7 @@ export class JdcloudAdapter extends BaseAdapter {
       return { total: data.totalCount || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Jdcloud', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

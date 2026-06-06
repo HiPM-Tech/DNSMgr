@@ -5,11 +5,12 @@ import { Team, TeamMember } from '../types';
 import { ROLE_ADMIN, isAdmin, isSuper } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { sendError, sendSuccess } from '../utils/http';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { TeamOperations, DomainPermissionOperations, UserOperations } from '../db/bal/business-adapter';
 import { wsService } from '../service/websocket';
 import { getDisplayDomain } from '../utils/dns';
 
+const log = createLogger('HTTP').sub('Route').sub('Teams');
 const router = Router();
 
 /**
@@ -27,14 +28,14 @@ const router = Router();
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   let teams: Team[];
   if (isSuper(role)) {
     teams = await TeamOperations.getAll() as unknown as Team[];
   } else {
     teams = await TeamOperations.getByUserId(userId) as unknown as Team[];
   }
-  
+
   // Get member count and my_role for each team
   const teamsWithDetails = await Promise.all(
     teams.map(async (team) => {
@@ -50,7 +51,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       return { ...team, member_count: members.length, my_role: myRole };
     })
   );
-  
+
   sendSuccess(res, teamsWithDetails);
 }));
 
@@ -81,23 +82,23 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const { name, description } = req.body as { name: string; description?: string };
   const userId = req.user!.userId;
-  
+
   if (!name || name.trim().length === 0) {
     sendError(res, 'Team name is required');
     return;
   }
-  
+
   const id = await TeamOperations.create({
     name: name.trim(),
     description: description?.trim() || '',
     created_by: userId,
   });
-  
+
   // Add creator as admin
   await TeamOperations.addMember(id, userId, 'admin');
-  
+
   await logAuditOperation(userId, 'create_team', name.trim(), { teamId: id }, req as any);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -108,9 +109,9 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       },
     });
   } catch (error) {
-    log.error('Teams', 'Failed to broadcast team_created event', { error });
+    log.error('Failed to broadcast team_created event', { error });
   }
-  
+
   sendSuccess(res, { id }, 'Team created successfully');
 }));
 
@@ -136,22 +137,22 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   const teamId = parseInt(req.params.id);
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check if user is member
   const isMember = await TeamOperations.isMember(teamId, userId);
   if (!isSuper(role) && !isMember) {
     sendError(res, 'Access denied', 403);
     return;
   }
-  
+
   const members = await TeamOperations.getMembers(teamId) as unknown as TeamMember[];
-  
+
   sendSuccess(res, { ...team, members });
 }));
 
@@ -189,28 +190,28 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   const { name, description } = req.body as { name?: string; description?: string };
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission (admin or creator)
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   const updates: { name?: string; description?: string } = {};
   if (name !== undefined) updates.name = name.trim();
   if (description !== undefined) updates.description = description.trim();
-  
+
   await TeamOperations.update(teamId, updates);
-  
+
   await logAuditOperation(userId, 'update_team', team.name, { teamId, ...updates }, req as any);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -221,9 +222,9 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       },
     });
   } catch (error) {
-    log.error('Teams', 'Failed to broadcast team_updated event', { error });
+    log.error('Failed to broadcast team_updated event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -249,23 +250,23 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
   const teamId = parseInt(req.params.id);
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Only super admin or creator can delete
   if (!isSuper(role) && team.created_by !== userId) {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   await TeamOperations.delete(teamId);
-  
+
   await logAuditOperation(userId, 'delete_team', team.name, { teamId }, req as any);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -276,9 +277,9 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
       },
     });
   } catch (error) {
-    log.error('Teams', 'Failed to broadcast team_deleted event', { error });
+    log.error('Failed to broadcast team_deleted event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -304,20 +305,20 @@ router.get('/:id/members', authMiddleware, asyncHandler(async (req: Request, res
   const teamId = parseInt(req.params.id);
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check if user is member
   const isMember = await TeamOperations.isMember(teamId, userId);
   if (!isSuper(role) && !isMember) {
     sendError(res, 'Access denied', 403);
     return;
   }
-  
+
   const members = await TeamOperations.getMembers(teamId) as unknown as TeamMember[];
   sendSuccess(res, members);
 }));
@@ -359,43 +360,43 @@ router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, re
   const targetUserId = user_id || bodyUserId;
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   if (!targetUserId) {
     sendError(res, 'User ID is required');
     return;
   }
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission (admin or creator)
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   // Check if user exists
   const targetUser = await UserOperations.getById(targetUserId);
   if (!targetUser) {
     sendError(res, 'User not found');
     return;
   }
-  
+
   // Check if already member
   const isAlreadyMember = await TeamOperations.isMember(teamId, targetUserId);
   if (isAlreadyMember) {
     sendError(res, 'User is already a member of this team');
     return;
   }
-  
+
   await TeamOperations.addMember(teamId, targetUserId, memberRole || 'member');
-  
+
   await logAuditOperation(userId, 'add_team_member', team.name, { teamId, targetUserId, role: memberRole }, req as any);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -407,9 +408,9 @@ router.post('/:id/members', authMiddleware, asyncHandler(async (req: Request, re
       },
     });
   } catch (error) {
-    log.error('Teams', 'Failed to broadcast team_member_added event', { error });
+    log.error('Failed to broadcast team_member_added event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -453,28 +454,28 @@ router.put('/:id/members/:userId', authMiddleware, asyncHandler(async (req: Requ
   const { role: newRole } = req.body as { role: 'admin' | 'member' };
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission (admin or creator)
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   // Cannot change own role
   if (targetUserId === userId) {
     sendError(res, 'Cannot change your own role');
     return;
   }
-  
+
   await TeamOperations.updateMemberRole(teamId, targetUserId, newRole);
-  
+
   await logAuditOperation(userId, 'update_team_member_role', team.name, { teamId, targetUserId, newRole }, req as any);
   sendSuccess(res);
 }));
@@ -507,30 +508,30 @@ router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: R
   const targetUserId = parseInt(req.params.userId);
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission (admin or creator)
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   // Cannot remove creator
   if (targetUserId === team.created_by) {
     sendError(res, 'Cannot remove team creator');
     return;
   }
-  
+
   await TeamOperations.removeMember(teamId, targetUserId);
-  
+
   await logAuditOperation(userId, 'remove_team_member', team.name, { teamId, targetUserId }, req as any);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -541,9 +542,9 @@ router.delete('/:id/members/:userId', authMiddleware, asyncHandler(async (req: R
       },
     });
   } catch (error) {
-    log.error('Teams', 'Failed to broadcast team_member_removed event', { error });
+    log.error('Failed to broadcast team_member_removed event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -570,28 +571,28 @@ router.get('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: R
   const userId = req.user!.userId;
   const role = req.user!.role;
   const tokenPayload = (req as any).tokenPayload;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   const permissions = await DomainPermissionOperations.getByTeamId(teamId);
-  
+
   // For Session auth, convert Punycode to Unicode; for Token auth, keep raw
   const displayPermissions = tokenPayload ? permissions : permissions.map((p: any) => ({
     ...p,
     domain_name: p.domain_name ? getDisplayDomain(p.domain_name, true) : p.domain_name,
   }));
-  
+
   sendSuccess(res, displayPermissions);
 }));
 
@@ -633,34 +634,34 @@ router.post('/:id/domain-permissions', authMiddleware, asyncHandler(async (req: 
   const { domain_id, permission, sub } = req.body as { domain_id: number; permission: 'read' | 'write'; sub?: string };
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   // Check if already exists
   const existing = await DomainPermissionOperations.getByTeamDomainAndSub(teamId, domain_id, sub || '');
   if (existing) {
     sendError(res, 'Permission already exists for this domain');
     return;
   }
-  
+
   await DomainPermissionOperations.create({
     domain_id,
     team_id: teamId,
     permission,
     sub: sub || '',
   });
-  
+
   await logAuditOperation(userId, 'add_team_domain_permission', team.name, { teamId, domainId: domain_id, permission, sub }, req as any);
   sendSuccess(res);
 }));
@@ -705,22 +706,22 @@ router.put('/:id/domain-permissions/:permissionId', authMiddleware, asyncHandler
   const { permission } = req.body as { permission: 'read' | 'write' };
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   await DomainPermissionOperations.updatePermission(permissionId, permission);
-  
+
   await logAuditOperation(userId, 'update_team_domain_permission', team.name, { teamId, permissionId, permission }, req as any);
   sendSuccess(res);
 }));
@@ -753,22 +754,22 @@ router.delete('/:id/domain-permissions/:permissionId', authMiddleware, asyncHand
   const permissionId = parseInt(req.params.permissionId);
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   await DomainPermissionOperations.deleteByTeamAndId(permissionId, teamId);
-  
+
   await logAuditOperation(userId, 'remove_team_domain_permission', team.name, { teamId, permissionId }, req as any);
   sendSuccess(res);
 }));
@@ -802,35 +803,35 @@ router.get('/:id/members/:userId/domain-permissions', authMiddleware, asyncHandl
   const userId = req.user!.userId;
   const role = req.user!.role;
   const tokenPayload = (req as any).tokenPayload;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission (admin or creator can view any member's permissions, members can view their own)
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin' && userId !== targetUserId) {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   // Check if target user is a team member
   const isMember = await TeamOperations.isMember(teamId, targetUserId);
   if (!isMember) {
     sendError(res, 'User is not a member of this team', 404);
     return;
   }
-  
+
   const permissions = await DomainPermissionOperations.getByUserIdWithDomainName(targetUserId);
-  
+
   // For Session auth, convert Punycode to Unicode; for Token auth, keep raw
   const displayPermissions = tokenPayload ? permissions : permissions.map((p: any) => ({
     ...p,
     domain_name: p.domain_name ? getDisplayDomain(p.domain_name, true) : p.domain_name,
   }));
-  
+
   sendSuccess(res, displayPermissions);
 }));
 
@@ -878,34 +879,34 @@ router.post('/:id/members/:userId/domain-permissions', authMiddleware, asyncHand
   const { domain_id, permission, sub } = req.body as { domain_id: number; permission: 'read' | 'write'; sub?: string };
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   // Check if target user is a team member
   const isMember = await TeamOperations.isMember(teamId, targetUserId);
   if (!isMember) {
     sendError(res, 'User is not a member of this team');
     return;
   }
-  
+
   // Check if already exists
   const existing = await DomainPermissionOperations.getByUserDomainAndSub(targetUserId, domain_id, sub || '');
   if (existing) {
     sendError(res, 'Permission already exists for this domain');
     return;
   }
-  
+
   await DomainPermissionOperations.create({
     domain_id,
     user_id: targetUserId,
@@ -913,7 +914,7 @@ router.post('/:id/members/:userId/domain-permissions', authMiddleware, asyncHand
     permission,
     sub: sub || '',
   });
-  
+
   await logAuditOperation(userId, 'add_domain_permission', team.name, { teamId, targetUserId, domainId: domain_id, permission, sub }, req as any);
   sendSuccess(res);
 }));
@@ -952,22 +953,22 @@ router.delete('/:id/members/:userId/domain-permissions/:permissionId', authMiddl
   const permissionId = parseInt(req.params.permissionId);
   const userId = req.user!.userId;
   const role = req.user!.role;
-  
+
   const team = await TeamOperations.getById(teamId) as Team | undefined;
   if (!team) {
     sendError(res, 'Team not found', 404);
     return;
   }
-  
+
   // Check permission
   const member = await TeamOperations.getMemberWithRole(teamId, userId);
   if (!isSuper(role) && team.created_by !== userId && member?.role !== 'admin') {
     sendError(res, 'Permission denied', 403);
     return;
   }
-  
+
   await DomainPermissionOperations.deleteByUserAndId(permissionId, targetUserId);
-  
+
   await logAuditOperation(userId, 'remove_domain_permission', team.name, { teamId, targetUserId, permissionId }, req as any);
   sendSuccess(res);
 }));

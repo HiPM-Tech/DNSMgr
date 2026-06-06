@@ -2,9 +2,10 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { McpOperations } from '../db/bal/business-adapter';
 import { sendSuccess } from '../utils/http';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import crypto from 'crypto';
 
+const log = createLogger('MCP').sub('Route').sub('Apikeys');
 const router = Router();
 
 /**
@@ -31,16 +32,16 @@ function generateApiKey(): string {
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   try {
     const keys = await McpOperations.getUserApiKeys(req.user!.userId);
-    
+
     // Mask API keys for security
     const maskedKeys = keys.map(key => ({
       ...key,
       api_key: key.api_key.substring(0, 15) + '...',
     }));
-    
+
     sendSuccess(res, maskedKeys);
   } catch (error) {
-    log.error('MCP', 'Failed to get API keys', { error });
+    log.error('Failed to get API keys', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get API keys' });
   }
 });
@@ -81,7 +82,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     }
 
     const apiKey = generateApiKey();
-    
+
     // Calculate expiration date - support both camelCase and snake_case
     let expiresAtStr: string | undefined;
     if (expiresAt) {
@@ -93,9 +94,9 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     }
 
     await McpOperations.createApiKey(req.user!.userId, apiKey, description, expiresAtStr);
-    
-    log.info('MCP', `API key created for user ${req.user!.userId}`, { description });
-    
+
+    log.info(`API key created for user ${req.user!.userId}`, { description });
+
     // Return the full API key (only shown once) with both formats for compatibility
     sendSuccess(res, {
       api_key: apiKey,
@@ -103,7 +104,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
       message: 'API key generated successfully. Please save it securely, it will not be shown again.',
     });
   } catch (error) {
-    log.error('MCP', 'Failed to create API key', { error });
+    log.error('Failed to create API key', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to create API key' });
   }
 });
@@ -131,18 +132,18 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
 router.post('/:id/revoke', authMiddleware, async (req: Request, res: Response) => {
   try {
     const keyId = parseInt(req.params.id);
-    
+
     if (isNaN(keyId)) {
       return res.status(400).json({ code: 400, msg: 'Invalid key ID' });
     }
 
     await McpOperations.revokeApiKey(keyId, req.user!.userId);
-    
-    log.info('MCP', `API key revoked by user ${req.user!.userId}`, { keyId });
-    
+
+    log.info(`API key revoked by user ${req.user!.userId}`, { keyId });
+
     sendSuccess(res, { success: true, message: 'API key revoked' });
   } catch (error) {
-    log.error('MCP', 'Failed to revoke API key', { error });
+    log.error('Failed to revoke API key', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to revoke API key' });
   }
 });
@@ -170,18 +171,18 @@ router.post('/:id/revoke', authMiddleware, async (req: Request, res: Response) =
 router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const keyId = parseInt(req.params.id);
-    
+
     if (isNaN(keyId)) {
       return res.status(400).json({ code: 400, msg: 'Invalid key ID' });
     }
 
     await McpOperations.deleteApiKey(keyId, req.user!.userId);
-    
-    log.info('MCP', `API key deleted by user ${req.user!.userId}`, { keyId });
-    
+
+    log.info(`API key deleted by user ${req.user!.userId}`, { keyId });
+
     sendSuccess(res, { success: true, message: 'API key deleted' });
   } catch (error) {
-    log.error('MCP', 'Failed to delete API key', { error });
+    log.error('Failed to delete API key', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to delete API key' });
   }
 });

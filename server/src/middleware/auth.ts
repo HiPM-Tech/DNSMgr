@@ -6,26 +6,27 @@ import { isAdmin, normalizeRole } from '../utils/roles';
 import { SecretOperations } from '../db/bal/business-adapter';
 import { verifyToken, hasServicePermission, hasDomainPermission } from '../service/token';
 import { TokenPayload } from '../types/token';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('HTTP').sub('Middleware').sub('Auth');
 // JWT密钥配置 - 如果没有设置则随机生成
 const BASE_JWT_SECRET = (() => {
   const secret = process.env.JWT_SECRET;
-  
+
   // 如果设置了环境变量，使用环境变量
   if (secret) {
     // 生产环境检查密钥强度
     if (process.env.NODE_ENV === 'production' && secret.length < 32) {
-      log.error('Auth', 'JWT_SECRET must be at least 32 characters long in production!');
+      log.error('JWT_SECRET must be at least 32 characters long in production!');
       process.exit(1);
     }
     return secret;
   }
-  
+
   // 如果没有设置，生成随机密钥（每次重启服务会变化，仅适合开发环境）
     const generatedSecret = crypto.randomBytes(32).toString('hex');
-    log.warn('Auth', 'JWT_SECRET not set, using randomly generated secret.');
-    log.warn('Auth', 'For production, please set JWT_SECRET environment variable to ensure token persistence across restarts.');
+    log.warn('JWT_SECRET not set, using randomly generated secret.');
+    log.warn('For production, please set JWT_SECRET environment variable to ensure token persistence across restarts.');
     return generatedSecret;
 })();
 
@@ -34,7 +35,7 @@ let runtimeSecretCache: string | null = null;
 
 async function getRuntimeSecret(): Promise<string> {
   if (runtimeSecretCache) return runtimeSecretCache;
-  
+
   try {
     // 使用业务适配器获取运行时密钥
     const value = await SecretOperations.getRuntimeSecret(RUNTIME_SECRET_KEY);
@@ -45,18 +46,18 @@ async function getRuntimeSecret(): Promise<string> {
   } catch {
     // Table might not exist, will create below
   }
-  
+
   // Fallback in case initSchema has not rotated secrets yet.
   const generated = crypto.randomBytes(32).toString('hex');
-  
+
   try {
     // 使用业务适配器创建表和插入密钥
     await SecretOperations.ensureRuntimeSecretsTable();
     await SecretOperations.setRuntimeSecret(RUNTIME_SECRET_KEY, generated);
   } catch (e) {
-    log.error('Auth', 'Error creating runtime_secrets table', { error: e });
+    log.error('Error creating runtime_secrets table', { error: e });
   }
-  
+
   runtimeSecretCache = generated;
   return generated;
 }
@@ -69,19 +70,19 @@ async function getJwtSecret(): Promise<string> {
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   // Try to get token from httpOnly cookie first, then fallback to Authorization header
   let token = req.cookies?.token;
-  
+
   if (!token) {
     const header = req.headers.authorization;
     if (header?.startsWith('Bearer ')) {
       token = header.slice(7);
     }
   }
-  
+
   if (!token) {
     res.status(401).json({ code: -1, msg: 'Unauthorized' });
     return;
   }
-  
+
   // First try to verify as JWT
   try {
     const jwtSecret = await getJwtSecret();
@@ -92,7 +93,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   } catch {
     // Not a valid JWT, try user token
   }
-  
+
   // Try to verify as user token
   const tokenPayload = await verifyToken(token);
   if (tokenPayload) {
@@ -107,7 +108,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     next();
     return;
   }
-  
+
   res.status(401).json({ code: -1, msg: 'Invalid or expired token' });
 }
 
@@ -115,18 +116,18 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 export function requireServicePermission(service: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const tokenPayload = (req as any).tokenPayload as TokenPayload | undefined;
-    
+
     // If not using token auth, allow (JWT auth has its own checks)
     if (!tokenPayload) {
       next();
       return;
     }
-    
+
     if (!hasServicePermission(tokenPayload, service)) {
       res.status(403).json({ code: -1, msg: `Token does not have permission for ${service}` });
       return;
     }
-    
+
     next();
   };
 }
@@ -176,9 +177,9 @@ function isTokenAuth(req: Request): boolean {
 export function noTokenAuth(routeName: string = 'this resource') {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (isTokenAuth(req)) {
-      res.status(403).json({ 
-        code: -1, 
-        msg: `API token is not allowed to access ${routeName}. Please use JWT authentication.` 
+      res.status(403).json({
+        code: -1,
+        msg: `API token is not allowed to access ${routeName}. Please use JWT authentication.`
       });
       return;
     }
@@ -219,13 +220,13 @@ export function requireTokenDomainPermission(paramName: string = 'id') {
       next();
       return;
     }
-    
+
     // 空数组表示允许所有域名（向后兼容 ddns-go 等外部工具）
     // 如果需要限制权限，请显式配置 allowedDomains
     if (tokenPayload.allowedDomains.length === 0) {
-      log.debug('Auth', 'Token has no domain restrictions, allowing all domains', { 
+      log.debug('Token has no domain restrictions, allowing all domains', {
         tokenId: tokenPayload.tokenId,
-        userId: tokenPayload.userId 
+        userId: tokenPayload.userId
       });
       next();
       return;

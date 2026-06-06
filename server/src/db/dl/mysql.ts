@@ -8,7 +8,7 @@ import { BaseDriver } from './base';
 import { registerDriver } from './types';
 import { createLogger } from '../../lib/logger';
 
-const dlLog = createLogger('DL').sub('MySQL');
+const log = createLogger('DL').sub('MySQL');
 
 /** MySQL 配置 */
 export interface MySQLDriverConfig {
@@ -37,11 +37,11 @@ export class MySQLDriver extends BaseDriver {
     try {
       // 动态导入 mysql2 模块
       const mysql = require('mysql2/promise');
-      
-      dlLog.info( 'Creating connection pool', { 
-        host: config.host, 
-        port: config.port, 
-        database: config.database 
+
+      log.info( 'Creating connection pool', {
+        host: config.host,
+        port: config.port,
+        database: config.database
       });
 
       this.pool = mysql.createPool({
@@ -59,13 +59,13 @@ export class MySQLDriver extends BaseDriver {
         connectTimeout: config.connectTimeout || 60000,
       });
 
-      dlLog.info( 'Connection pool created successfully');
+      log.info( 'Connection pool created successfully');
     } catch (error) {
-      dlLog.error( 'Failed to create connection pool', { 
-        host: config.host, 
-        port: config.port, 
+      log.error( 'Failed to create connection pool', {
+        host: config.host,
+        port: config.port,
         database: config.database,
-        error 
+        error
       });
       throw new Error(
         `Failed to initialize MySQL driver: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -90,13 +90,13 @@ export class MySQLDriver extends BaseDriver {
       const duration = Date.now() - startTime;
 
       if (duration > (this.config.slowQueryThreshold || 100)) {
-        dlLog.warn( 'Slow query detected', { sql: sql.substring(0, 100), duration });
+        log.warn( 'Slow query detected', { sql: sql.substring(0, 100), duration });
       }
 
       return rows as T[];
     } catch (error) {
       this._stats.errors++;
-      dlLog.error( 'Query error', { sql: sql.substring(0, 100), error });
+      log.error( 'Query error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -152,7 +152,7 @@ export class MySQLDriver extends BaseDriver {
   }
 
   async close(): Promise<void> {
-    dlLog.info( 'Closing connection pool', { stats: this._stats });
+    log.info( 'Closing connection pool', { stats: this._stats });
     await this.pool.end();
   }
 

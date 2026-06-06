@@ -8,8 +8,9 @@ import * as tls from 'tls';
 import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
-import { log } from '../../logger';
+import { createLogger } from '../../logger';
 
+const log = createLogger('DNS').sub('Resolver').sub('ProxyTunnel');
 export interface ProxyConfig {
   host: string;
   port: number;
@@ -49,7 +50,7 @@ export async function createProxyTunnel(
     connectHeaders.push('', '');
     const connectRequest = connectHeaders.join('\r\n');
 
-    log.debug('ProxyTunnel', `Creating tunnel to ${targetHost}:${targetPort} via ${proxyHost}:${proxyPort}`);
+    log.debug(`Creating tunnel to ${targetHost}:${targetPort} via ${proxyHost}:${proxyPort}`);
 
     const socket = new net.Socket();
     let buffer = '';
@@ -85,7 +86,7 @@ export async function createProxyTunnel(
           // 隧道建立成功
           clearTimeout(timer);
           cleanup();
-          log.debug('ProxyTunnel', `Tunnel established to ${targetHost}:${targetPort}`);
+          log.debug(`Tunnel established to ${targetHost}:${targetPort}`);
           resolve(socket);
         } else {
           // 隧道建立失败
@@ -157,7 +158,7 @@ export async function createTLSViaProxy(
  */
 export function parseProxyUrl(proxyUrl: string): ProxyConfig {
   const url = new URL(proxyUrl);
-  
+
   const config: ProxyConfig = {
     host: url.hostname,
     port: parseInt(url.port) || (url.protocol === 'https:' ? 443 : 80),

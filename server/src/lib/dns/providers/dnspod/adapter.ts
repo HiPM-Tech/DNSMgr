@@ -1,17 +1,6 @@
-import { 
-  DnsRecord, 
-  DomainInfo, 
-  PageResult,
-  asArray,
-  Dict,
-  normalizeRrName,
-  safeString,
-  TencentCloudAdapter,
-  toNumber,
-  toRecordStatus,
-  log,
-} from '../internal';
+import { createProviderAdapterLogger, DnsRecord, DomainInfo, PageResult, asArray, Dict, normalizeRrName, safeString, TencentCloudAdapter, toNumber, toRecordStatus } from '../internal';
 
+const log = createProviderAdapterLogger('Dnspod');
 export class DnspodAdapter extends TencentCloudAdapter {
   private readonly domain: string;
 
@@ -106,7 +95,7 @@ export class DnspodAdapter extends TencentCloudAdapter {
       return { total, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Dnspod', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }
@@ -302,13 +291,13 @@ export class DnspodAdapter extends TencentCloudAdapter {
 
       walk(asArray<Dict>(data.LineList));
       if (lines.length > 0) {
-        log.info('Dnspod', 'getRecordLines success (category)', { domain: this.domain, count: lines.length });
+        log.info('getRecordLines success (category)', { domain: this.domain, count: lines.length });
         return lines;
       }
     } catch (e) {
-      log.warn('Dnspod', 'getRecordLines category failed', { 
-        domain: this.domain, 
-        error: e instanceof Error ? e.message : String(e) 
+      log.warn('getRecordLines category failed', {
+        domain: this.domain,
+        error: e instanceof Error ? e.message : String(e)
       });
     }
 
@@ -324,17 +313,17 @@ export class DnspodAdapter extends TencentCloudAdapter {
       }));
       const merged = [...lines, ...groups].filter((x) => x.id && x.name);
       if (merged.length > 0) {
-        log.info('Dnspod', 'getRecordLines success (list)', { domain: this.domain, count: merged.length });
+        log.info('getRecordLines success (list)', { domain: this.domain, count: merged.length });
         return merged;
       }
     } catch (e) {
-      log.warn('Dnspod', 'getRecordLines list failed', { 
-        domain: this.domain, 
-        error: e instanceof Error ? e.message : String(e) 
+      log.warn('getRecordLines list failed', {
+        domain: this.domain,
+        error: e instanceof Error ? e.message : String(e)
       });
     }
 
-    log.warn('Dnspod', 'getRecordLines fallback to default', { domain: this.domain });
+    log.warn('getRecordLines fallback to default', { domain: this.domain });
     return [{ id: '0', name: '默认' }];
   }
 

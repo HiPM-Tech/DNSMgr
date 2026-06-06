@@ -1,9 +1,7 @@
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, asArray, BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber, toRecordStatus, uuid, fetchWithFallback } from '../internal';
 import crypto from 'node:crypto';
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { asArray, BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber, toRecordStatus, uuid } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('AliyunESA');
 class AliyunEsaRpcClient {
   private useProxy: boolean;
   constructor(
@@ -122,7 +120,7 @@ export class AliyunesaAdapter extends BaseAdapter {
       return { total: toNumber(data.TotalCount, list.length), list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Aliyunesa', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

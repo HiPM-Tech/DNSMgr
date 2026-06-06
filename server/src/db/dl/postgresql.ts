@@ -6,8 +6,9 @@ import type { Transaction, ColumnType } from '../dal/types';
 import type { DriverConfig } from './types';
 import { BaseDriver } from './base';
 import { registerDriver } from './types';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 
+const log = createLogger('DL').sub('Postgresql');
 /** PostgreSQL 配置 */
 export interface PostgreSQLDriverConfig {
   host: string;
@@ -34,11 +35,11 @@ export class PostgreSQLDriver extends BaseDriver {
     try {
       // 动态导入 pg 模块
       const { Pool } = require('pg');
-      
-      log.info('PostgreSQL', 'Creating connection pool', { 
-        host: config.host, 
-        port: config.port, 
-        database: config.database 
+
+      log.info('Creating connection pool', {
+        host: config.host,
+        port: config.port,
+        database: config.database
       });
 
       this.pool = new Pool({
@@ -54,13 +55,13 @@ export class PostgreSQLDriver extends BaseDriver {
       });
 
       this.setupPoolEvents();
-      log.info('PostgreSQL', 'Connection pool created successfully');
+      log.info('Connection pool created successfully');
     } catch (error) {
-      log.error('PostgreSQL', 'Failed to create connection pool', { 
-        host: config.host, 
-        port: config.port, 
+      log.error('Failed to create connection pool', {
+        host: config.host,
+        port: config.port,
         database: config.database,
-        error 
+        error
       });
       throw new Error(
         `Failed to initialize PostgreSQL driver: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -70,19 +71,19 @@ export class PostgreSQLDriver extends BaseDriver {
 
   private setupPoolEvents(): void {
     this.pool.on('error', (err: Error) => {
-      log.error('PostgreSQL', 'Unexpected pool error', { error: err });
+      log.error('Unexpected pool error', { error: err });
     });
 
     this.pool.on('connect', () => {
-      log.debug('PostgreSQL', 'New client connected');
+      log.debug('New client connected');
     });
 
     this.pool.on('acquire', () => {
-      log.debug('PostgreSQL', 'Client acquired from pool');
+      log.debug('Client acquired from pool');
     });
 
     this.pool.on('remove', () => {
-      log.debug('PostgreSQL', 'Client removed from pool');
+      log.debug('Client removed from pool');
     });
   }
 
@@ -113,13 +114,13 @@ export class PostgreSQLDriver extends BaseDriver {
       const duration = Date.now() - startTime;
 
       if (duration > (this.config.slowQueryThreshold || 100)) {
-        log.warn('PostgreSQL', 'Slow query detected', { sql: sql.substring(0, 100), duration });
+        log.warn('Slow query detected', { sql: sql.substring(0, 100), duration });
       }
 
       return result.rows as T[];
     } catch (error) {
       this._stats.errors++;
-      log.error('PostgreSQL', 'Query error', { sql: sql.substring(0, 100), error });
+      log.error('Query error', { sql: sql.substring(0, 100), error });
       throw error;
     }
   }
@@ -182,7 +183,7 @@ export class PostgreSQLDriver extends BaseDriver {
   }
 
   async close(): Promise<void> {
-    log.info('PostgreSQL', 'Closing connection pool', { stats: this._stats });
+    log.info('Closing connection pool', { stats: this._stats });
     await this.pool.end();
   }
 

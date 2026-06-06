@@ -6,12 +6,13 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { SettingsOperations } from '../db/bal/business-adapter';
 import { getProxyConfig, createProxyAgent } from '../lib/proxy-http';
 import https from 'https';
 import http from 'http';
 
+const log = createLogger('HTTP').sub('Route').sub('Network');
 const router = Router();
 
 /**
@@ -42,15 +43,15 @@ interface ConnectivityResult {
  */
 async function getProxyConfigFromDB(): Promise<ProxyConfig | null> {
   try {
-    log.debug('Network', 'Getting proxy config from database');
+    log.debug('Getting proxy config from database');
     const configValue = await SettingsOperations.get('proxy_config');
-    log.debug('Network', 'Proxy config raw value', { configValue: configValue || 'null' });
+    log.debug('Proxy config raw value', { configValue: configValue || 'null' });
     if (!configValue) return null;
     const parsed = JSON.parse(configValue);
-    log.debug('Network', 'Proxy config parsed', { enabled: parsed.enabled, type: parsed.type, host: parsed.host });
+    log.debug('Proxy config parsed', { enabled: parsed.enabled, type: parsed.type, host: parsed.host });
     return parsed;
   } catch (error) {
-    log.warn('Network', 'Failed to get proxy config', { error: (error as Error).message });
+    log.warn('Failed to get proxy config', { error: (error as Error).message });
     return null;
   }
 }
@@ -90,14 +91,14 @@ router.post('/proxy', authMiddleware, asyncHandler(async (req: Request, res: Res
   };
 
   const configJson = JSON.stringify(config);
-  log.debug('Network', 'Saving proxy config to database', { configJson });
+  log.debug('Saving proxy config to database', { configJson });
   await SettingsOperations.set('proxy_config', configJson);
 
   // 验证保存是否成功
   const verifyValue = await SettingsOperations.get('proxy_config');
-  log.debug('Network', 'Verify proxy config saved', { verifyValue: verifyValue || 'null' });
+  log.debug('Verify proxy config saved', { verifyValue: verifyValue || 'null' });
 
-  log.info('Network', 'Proxy configuration updated', { enabled, type, host, port });
+  log.info('Proxy configuration updated', { enabled, type, host, port });
 
   res.json({
     code: 0,
@@ -114,7 +115,7 @@ function testConnectivity(url: string, agent?: any, timeout: number = 10000): Pr
     const startTime = Date.now();
     const parsedUrl = new URL(url);
     const isHttps = parsedUrl.protocol === 'https:';
-    
+
     const requestOptions = {
       hostname: parsedUrl.hostname,
       port: parsedUrl.port || (isHttps ? 443 : 80),
@@ -128,7 +129,7 @@ function testConnectivity(url: string, agent?: any, timeout: number = 10000): Pr
     }
 
     const client = isHttps ? https : http;
-    
+
     const req = client.request(requestOptions, (res) => {
       const latency = Date.now() - startTime;
       resolve({
@@ -174,26 +175,26 @@ const CONNECTIVITY_TARGETS = [
  * GET /api/network/connectivity
  */
 router.get('/connectivity', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  log.debug('Network', 'Testing network connectivity');
-  
+  log.debug('Testing network connectivity');
+
   // 获取代理配置
   const proxyConfig = await getProxyConfig();
   const agent = proxyConfig?.enabled ? createProxyAgent(proxyConfig) : undefined;
-  
+
   const results: ConnectivityResult[] = [];
-  
+
   // 并行测试所有目标
   const tests = CONNECTIVITY_TARGETS.map(async (target) => {
     try {
       const result = await testConnectivity(target.url, agent, 10000);
-      
+
       let status: 'ok' | 'error' | 'timeout' = 'error';
       if (result.error === 'Request timeout') {
         status = 'timeout';
       } else if (result.status >= 200 && result.status < 400) {
         status = 'ok';
       }
-      
+
       return {
         name: target.name,
         url: target.url,
@@ -211,12 +212,12 @@ router.get('/connectivity', authMiddleware, asyncHandler(async (req: Request, re
       } as ConnectivityResult;
     }
   });
-  
+
   const settledResults = await Promise.all(tests);
   results.push(...settledResults);
-  
-  log.debug('Network', 'Connectivity test completed', { results });
-  
+
+  log.debug('Connectivity test completed', { results });
+
   res.json({
     code: 0,
     msg: 'success',

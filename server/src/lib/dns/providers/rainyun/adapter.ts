@@ -1,8 +1,6 @@
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { asArray, BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber, toRecordStatus } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, asArray, BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber, toRecordStatus, fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('Rainyun');
 interface RainyunConfig {
   apiKey: string;
   domain?: string;
@@ -124,7 +122,7 @@ export class RainyunAdapter extends BaseAdapter {
       };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Rainyun', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

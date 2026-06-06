@@ -1,14 +1,15 @@
 /**
  * MCP Server 入口文件
- * 
+ *
  * 实现 Model Context Protocol 服务器，提供 DNS 管理工具
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerTools } from './tools';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('MCP').sub('Server');
 export class HidnsMcpServer {
   private server: McpServer;
 
@@ -30,7 +31,7 @@ export class HidnsMcpServer {
     // 注册所有工具
     registerTools(this.server);
 
-    log.info('MCP Server', 'HiDNS MCP Server initialized', {
+    log.info('HiDNS MCP Server initialized', {
       capabilities: ['tools'],
       toolCount: 25,
     });
@@ -49,7 +50,7 @@ export class HidnsMcpServer {
   async start(): Promise<void> {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    log.info('MCP Server', 'MCP Server started and connected to stdio transport');
+    log.info('MCP Server started and connected to stdio transport');
   }
 
   /**
@@ -57,7 +58,7 @@ export class HidnsMcpServer {
    */
   async stop(): Promise<void> {
     await this.server.close();
-    log.info('MCP Server', 'MCP Server stopped');
+    log.info('MCP Server stopped');
   }
 }
 

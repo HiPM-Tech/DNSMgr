@@ -9,8 +9,9 @@ import { isAdmin, isSuper, normalizeRole, ROLE_ADMIN } from '../utils/roles';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { wsService } from '../service/websocket';
 import { logAuditOperation } from '../service/audit';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('HTTP').sub('Route').sub('Accounts');
 const router = Router();
 
 async function canReadAccount(account: DnsAccount, userId: number, role: number): Promise<boolean> {
@@ -65,7 +66,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     const teamIds = teams.map(r => r.id as number);
     accounts = await DnsAccountOperations.getAccessibleByUserId(userId, teamIds) as unknown as DnsAccount[];
   }
-  
+
   // Check if showDnsProviderSecrets is enabled
   let showSecrets = false;
   try {
@@ -77,7 +78,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   } catch {
     // Ignore errors, default to false
   }
-  
+
   // Mask config secrets unless showDnsProviderSecrets is enabled
   const safe = accounts.map(a => {
     // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
@@ -146,7 +147,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     sendError(res, 'Provider is a stub and cannot be added');
     return;
   }
-  
+
   // Check for duplicate account name under the same provider type
   const existingAccounts = await DnsAccountOperations.getAll() as any[];
   const duplicate = existingAccounts.find(
@@ -156,7 +157,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     sendError(res, `Account name "${name}" already exists for provider ${normalizedType}`);
     return;
   }
-  
+
   try {
     const dnsAdapter = createAdapter(normalizedType, config);
     const ok = await dnsAdapter.check();
@@ -176,10 +177,10 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     created_by: req.user!.userId,
     team_id: team_id ?? null
   });
-  
+
   // 获取完整的账户数据用于 WebSocket 推送
   const newAccount = await DnsAccountOperations.getById(id);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -190,9 +191,9 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       },
     });
   } catch (error) {
-    log.error('Accounts', 'Failed to broadcast account_created event', { error });
+    log.error('Failed to broadcast account_created event', { error });
   }
-  
+
   sendSuccess(res, { id });
 }));
 
@@ -222,7 +223,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
     sendError(res, 'Account not found');
     return;
   }
-  
+
   // Check if showDnsProviderSecrets is enabled
   let showSecrets = false;
   try {
@@ -234,7 +235,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   } catch {
     // Ignore errors, default to false
   }
-  
+
   // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
   const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
   const masked: Record<string, string> = {};
@@ -315,16 +316,16 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       return;
     }
   }
-  
+
   // Check for duplicate account name when updating name or type
   if (name !== undefined || normalizedType !== undefined) {
     const newName = name ?? account.name;
     const newType = normalizedType ?? account.type;
     const existingAccounts = await DnsAccountOperations.getAll() as any[];
     const duplicate = existingAccounts.find(
-      (acc) => 
-        acc.id !== id && 
-        acc.type === newType && 
+      (acc) =>
+        acc.id !== id &&
+        acc.type === newType &&
         acc.name.toLowerCase() === newName.toLowerCase()
     );
     if (duplicate) {
@@ -332,24 +333,24 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       return;
     }
   }
-  
+
   const updates: Record<string, unknown> = {};
   if (normalizedType !== undefined) updates.type = normalizedType;
   if (name !== undefined) updates.name = name;
   if (config !== undefined) updates.config = JSON.stringify(config);
   if (remark !== undefined) updates.remark = remark;
   if (team_id !== undefined) updates.team_id = team_id;
-  
+
   if (Object.keys(updates).length === 0) {
     sendSuccess(res);
     return;
   }
-  
+
   await DnsAccountOperations.update(id, updates);
-  
+
   // 获取更新后的完整账户数据用于 WebSocket 推送
   const updatedAccount = await DnsAccountOperations.getById(id);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -360,9 +361,9 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       },
     });
   } catch (error) {
-    log.error('Accounts', 'Failed to broadcast account_updated event', { error });
+    log.error('Failed to broadcast account_updated event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -392,7 +393,7 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
     return;
   }
   await DnsAccountOperations.delete(id);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -403,9 +404,9 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
       },
     });
   } catch (error) {
-    log.error('Accounts', 'Failed to broadcast account_deleted event', { error });
+    log.error('Failed to broadcast account_deleted event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -419,22 +420,22 @@ router.patch('/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Req
     sendError(res, 'Account not found');
     return;
   }
-  
+
   const { enabled } = req.body;
   if (typeof enabled !== 'boolean') {
     sendError(res, 'Enabled field is required and must be boolean');
     return;
   }
-  
-  log.info('Accounts', 'Toggle account enabled status', { 
-    id, 
+
+  log.info('Toggle account enabled status', {
+    id,
     enabled,
-    userId: req.user?.userId 
+    userId: req.user?.userId
   });
-  
+
   try {
     await DnsAccountOperations.updateEnabled(id, enabled);
-    
+
     // Log audit operation
     await logAuditOperation(
       req.user!.userId,
@@ -443,13 +444,13 @@ router.patch('/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Req
       { enabled, accountId: id },
       req
     );
-    
-    log.info('Accounts', 'Successfully toggled account enabled status', { 
-      id, 
+
+    log.info('Successfully toggled account enabled status', {
+      id,
       enabled,
-      userId: req.user?.userId 
+      userId: req.user?.userId
     });
-    
+
     // Broadcast WebSocket event with full account data
     try {
       const updatedAccount = await DnsAccountOperations.getById(id);
@@ -461,12 +462,12 @@ router.patch('/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Req
         },
       });
     } catch (error) {
-      log.error('Accounts', 'Failed to broadcast account_updated event', { error });
+      log.error('Failed to broadcast account_updated event', { error });
     }
-    
+
     sendSuccess(res, { enabled });
   } catch (error) {
-    log.error('Accounts', 'Failed to toggle account enabled status', { 
+    log.error('Failed to toggle account enabled status', {
       id,
       error: error instanceof Error ? error.message : String(error),
     });

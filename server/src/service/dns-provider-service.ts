@@ -1,15 +1,16 @@
 /**
  * DNS 提供商服务
- * 
+ *
  * 封装 DNS 适配器调用逻辑，供 MCP 和其他模块复用
  */
 
 import { DnsAdapter, DnsRecord, PageResult } from '../lib/dns/DnsInterface';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { DomainOperations, DnsAccountOperations } from '../db/bal/business-adapter';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import type { Domain, DnsAccount } from '../types';
 
+const log = createLogger('DnsProviderService');
 export class DnsProviderService {
   /**
    * 获取域名的 DNS 适配器
@@ -28,7 +29,7 @@ export class DnsProviderService {
    * 为域名创建适配器（内部方法）
    */
   private static async getAdapterForDomain(domain: Domain): Promise<DnsAdapter> {
-    log.info('DnsProviderService', 'Getting adapter for domain', {
+    log.info('Getting adapter for domain', {
       domainId: domain.id,
       domainName: domain.name,
       accountId: domain.account_id,
@@ -38,11 +39,11 @@ export class DnsProviderService {
     // 2. 获取账号信息
     const account = await DnsAccountOperations.getById(domain.account_id as number) as DnsAccount | undefined;
     if (!account) {
-      log.error('DnsProviderService', 'Account not found', { accountId: domain.account_id });
+      log.error('Account not found', { accountId: domain.account_id });
       throw new Error('Account not found');
     }
 
-    log.info('DnsProviderService', 'Found account', {
+    log.info('Found account', {
       accountType: account.type,
       accountName: account.name,
     });
@@ -56,7 +57,7 @@ export class DnsProviderService {
     const isHiDNS = account.type === 'hidns';
     const effectiveDomainId = isHiDNS && domain.third_id ? domain.third_id : String(domain.id);
 
-    log.info('DnsProviderService', 'Creating adapter', {
+    log.info('Creating adapter', {
       type: account.type,
       domain: domain.name,
       thirdId: domain.third_id,
@@ -74,7 +75,7 @@ export class DnsProviderService {
       effectiveDomainId
     );
 
-    log.info('DnsProviderService', 'Adapter created successfully');
+    log.info('Adapter created successfully');
     return adapter;
   }
 
@@ -191,16 +192,16 @@ export class DnsProviderService {
    */
   static async getRecordInfo(recordId: string, domainId: number): Promise<DnsRecord | null> {
     const adapter = await this.getAdapter(domainId);
-    
+
     // 先尝试直接获取
     let record = await adapter.getDomainRecordInfo(recordId);
-    
+
     // 如果失败，尝试从列表中查找
     if (!record) {
       const result = await adapter.getDomainRecords(1, 1000);
       record = result.list.find((item) => item.RecordId === recordId) ?? null;
     }
-    
+
     return record;
   }
 

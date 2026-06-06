@@ -7,12 +7,13 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
 import { verifyToken } from './token';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { getClientIP } from '../middleware/clientIP';
 import { JwtPayload } from '../types';
 import { TokenPayload } from '../types/token';
 import crypto from 'crypto';
 
+const log = createLogger('Websocket');
 // JWT密钥配置
 const BASE_JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const RUNTIME_SECRET_KEY = 'jwt_runtime';
@@ -20,7 +21,7 @@ let runtimeSecretCache: string | null = null;
 
 async function getRuntimeSecret(): Promise<string> {
   if (runtimeSecretCache) return runtimeSecretCache;
-  
+
   try {
     const { SecretOperations } = await import('../db/bal/business-adapter');
     const value = await SecretOperations.getRuntimeSecret(RUNTIME_SECRET_KEY);
@@ -31,7 +32,7 @@ async function getRuntimeSecret(): Promise<string> {
   } catch {
     // Table might not exist
   }
-  
+
   return crypto.randomBytes(32).toString('hex');
 }
 
@@ -60,7 +61,7 @@ class WSService {
    * 初始化 WebSocket 服务器
    */
   initialize(server: any): void {
-    this.wss = new WebSocketServer({ 
+    this.wss = new WebSocketServer({
       server,
       path: '/api/socket/ws',
       maxPayload: 1024 * 1024, // 1MB
@@ -71,13 +72,13 @@ class WSService {
     });
 
     this.wss.on('error', (error: Error) => {
-      log.error('WSService', 'WebSocket server error', { error: error.message });
+      log.error('WebSocket server error', { error: error.message });
     });
 
     // 启动心跳检测
     this.startHeartbeat();
 
-    log.info('WSService', 'WebSocket server initialized on /api/socket/ws');
+    log.info('WebSocket server initialized on /api/socket/ws');
   }
 
   /**
@@ -86,16 +87,16 @@ class WSService {
   private async handleConnection(ws: WebSocket, req: IncomingMessage): Promise<void> {
     // 使用 getClientIP 获取真实客户端 IP（支持反向代理）
     const clientIp = getClientIP(req as any);
-    log.info('WSService', 'New WebSocket connection attempt', { ip: clientIp });
-    
+    log.info('New WebSocket connection attempt', { ip: clientIp });
+
     try {
       // 从 URL 参数或 Cookie 中获取 token
       const url = new URL(req.url || '', `http://${req.headers.host}`);
-      const token = url.searchParams.get('token') || 
+      const token = url.searchParams.get('token') ||
                     req.headers.cookie?.match(/token=([^;]+)/)?.[1];
 
       if (!token) {
-        log.warn('WSService', 'WebSocket connection rejected: no token', { ip: clientIp });
+        log.warn('WebSocket connection rejected: no token', { ip: clientIp });
         ws.close(4001, 'Authentication required');
         return;
       }
@@ -111,25 +112,25 @@ class WSService {
         userId = payload.userId;
         role = String(payload.role);
         authType = 'jwt';
-        log.info('WSService', 'JWT authentication successful', { userId, role, ip: clientIp });
+        log.info('JWT authentication successful', { userId, role, ip: clientIp });
       } catch (jwtError) {
         // JWT 验证失败，尝试验证为 API Token
         const tokenPayload = await verifyToken(token);
         if (!tokenPayload) {
-          log.warn('WSService', 'WebSocket connection rejected: invalid token', { ip: clientIp });
+          log.warn('WebSocket connection rejected: invalid token', { ip: clientIp });
           ws.close(4002, 'Invalid token');
           return;
         }
         userId = tokenPayload.userId;
         role = String(tokenPayload.maxRole);
         authType = 'api';
-        log.info('WSService', 'API token authentication successful', { userId, role, ip: clientIp });
+        log.info('API token authentication successful', { userId, role, ip: clientIp });
       }
 
       // 如果已存在连接，关闭旧连接
       const existingClient = this.clients.get(userId);
       if (existingClient) {
-        log.info('WSService', 'Closing existing WebSocket connection', { userId });
+        log.info('Closing existing WebSocket connection', { userId });
         existingClient.ws.close(4000, 'New connection established');
       }
 
@@ -146,11 +147,11 @@ class WSService {
 
       this.clients.set(userId, client);
 
-      log.info('WSService', 'WebSocket client connected', { 
-        userId, 
+      log.info('WebSocket client connected', {
+        userId,
         role,
         authType,
-        totalClients: this.clients.size 
+        totalClients: this.clients.size
       });
 
       // 发送欢迎消息
@@ -171,9 +172,9 @@ class WSService {
 
       // 处理错误
       ws.on('error', (error: Error) => {
-        log.error('WSService', 'WebSocket client error', { 
-          userId, 
-          error: error.message 
+        log.error('WebSocket client error', {
+          userId,
+          error: error.message
         });
         this.handleDisconnect(userId);
       });
@@ -187,8 +188,8 @@ class WSService {
       });
 
     } catch (error) {
-      log.error('WSService', 'WebSocket connection error', { 
-        error: error instanceof Error ? error.message : String(error) 
+      log.error('WebSocket connection error', {
+        error: error instanceof Error ? error.message : String(error)
       });
       ws.close(4003, 'Internal server error');
     }
@@ -215,9 +216,9 @@ class WSService {
     // Check rate limit
     client.messageCount++;
     if (client.messageCount > MAX_MESSAGES_PER_WINDOW) {
-      log.warn('WSService', 'Rate limit exceeded, closing connection', { 
-        userId, 
-        messageCount: client.messageCount 
+      log.warn('Rate limit exceeded, closing connection', {
+        userId,
+        messageCount: client.messageCount
       });
       client.ws.close(4004, 'Rate limit exceeded');
       return;
@@ -227,14 +228,14 @@ class WSService {
 
     try {
       const data = JSON.parse(message);
-      log.debug('WSService', 'Received message from client', { userId, type: data.type });
+      log.debug('Received message from client', { userId, type: data.type });
 
       // Limit message size to 64KB
       if (message.length > 64 * 1024) {
-        log.warn('WSService', 'Message too large', { userId, size: message.length });
-        this.sendToClient(userId, { 
-          type: 'error', 
-          data: { message: 'Message too large (max 64KB)' } 
+        log.warn('Message too large', { userId, size: message.length });
+        this.sendToClient(userId, {
+          type: 'error',
+          data: { message: 'Message too large (max 64KB)' }
         });
         return;
       }
@@ -245,12 +246,12 @@ class WSService {
           this.sendToClient(userId, { type: 'pong' });
           break;
         default:
-          log.warn('WSService', 'Unknown message type', { userId, type: data.type });
+          log.warn('Unknown message type', { userId, type: data.type });
       }
     } catch (error) {
-      log.error('WSService', 'Failed to parse message', { 
-        userId, 
-        error: error instanceof Error ? error.message : String(error) 
+      log.error('Failed to parse message', {
+        userId,
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
@@ -262,9 +263,9 @@ class WSService {
     const client = this.clients.get(userId);
     if (client) {
       this.clients.delete(userId);
-      log.info('WSService', 'WebSocket client disconnected', { 
+      log.info('WebSocket client disconnected', {
         userId,
-        totalClients: this.clients.size 
+        totalClients: this.clients.size
       });
     }
   }
@@ -276,7 +277,7 @@ class WSService {
     this.heartbeatInterval = setInterval(() => {
       this.clients.forEach((client, userId) => {
         if (!client.isAlive) {
-          log.warn('WSService', 'Client failed heartbeat, disconnecting', { userId });
+          log.warn('Client failed heartbeat, disconnecting', { userId });
           client.ws.terminate();
           this.clients.delete(userId);
           return;
@@ -301,9 +302,9 @@ class WSService {
       client.ws.send(JSON.stringify(message));
       return true;
     } catch (error) {
-      log.error('WSService', 'Failed to send message to client', { 
-        userId, 
-        error: error instanceof Error ? error.message : String(error) 
+      log.error('Failed to send message to client', {
+        userId,
+        error: error instanceof Error ? error.message : String(error)
       });
       return false;
     }
@@ -319,9 +320,9 @@ class WSService {
         try {
           client.ws.send(data);
         } catch (error) {
-          log.error('WSService', 'Failed to broadcast to client', { 
-            userId, 
-            error: error instanceof Error ? error.message : String(error) 
+          log.error('Failed to broadcast to client', {
+            userId,
+            error: error instanceof Error ? error.message : String(error)
           });
         }
       }
@@ -338,10 +339,10 @@ class WSService {
         try {
           client.ws.send(data);
         } catch (error) {
-          log.error('WSService', 'Failed to broadcast to role', { 
-            userId, 
+          log.error('Failed to broadcast to role', {
+            userId,
             role,
-            error: error instanceof Error ? error.message : String(error) 
+            error: error instanceof Error ? error.message : String(error)
           });
         }
       }
@@ -358,7 +359,7 @@ class WSService {
         const data = JSON.stringify(message);
         client.ws.send(data);
       } catch (error) {
-        log.error('WSService', 'Failed to send message to user', {
+        log.error('Failed to send message to user', {
           userId,
           error: error instanceof Error ? error.message : String(error)
         });
@@ -385,7 +386,7 @@ class WSService {
       this.wss = null;
     }
 
-    log.info('WSService', 'WebSocket server shut down');
+    log.info('WebSocket server shut down');
   }
 
   /**

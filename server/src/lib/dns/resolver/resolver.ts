@@ -8,9 +8,10 @@ import { queryDoH } from './doh-resolver';
 import { queryDoT as queryDoTImpl } from './dot-resolver';
 import { queryPlainDNS as queryPlainDNSImpl } from './plain-resolver';
 import { createTLSViaProxy, parseProxyUrl } from './proxy-tunnel';
-import { log } from '../../logger';
+import { createLogger } from '../../logger';
 import { getProxyConfig } from '../../proxy-http';
 
+const log = createLogger('DNS').sub('Resolver').sub('Resolver');
 export class DNSResolver {
   /**
    * 解析域名
@@ -25,7 +26,7 @@ export class DNSResolver {
   ): Promise<DNSResolverResult> {
     const { preferEncrypted = true, timeout = 5000, useProxy = true } = options;
 
-    log.debug('DNSResolver', `Resolving ${domain} (type: ${type})`);
+    log.debug(`Resolving ${domain} (type: ${type})`);
 
     // 1. 尝试加密 DNS 查询（DoH/DoT）
     if (preferEncrypted) {
@@ -33,7 +34,7 @@ export class DNSResolver {
       if (encryptedResult.success) {
         return encryptedResult;
       }
-      log.debug('DNSResolver', `Encrypted DNS failed for ${domain}, falling back to plain DNS`);
+      log.debug(`Encrypted DNS failed for ${domain}, falling back to plain DNS`);
     }
 
     // 2. 尝试明文 DNS 查询（UDP/TCP）
@@ -41,7 +42,7 @@ export class DNSResolver {
     if (plainResult.success) {
       return plainResult;
     }
-    log.debug('DNSResolver', `Plain DNS failed for ${domain}, falling back to system DNS`);
+    log.debug(`Plain DNS failed for ${domain}, falling back to system DNS`);
 
     // 3. 使用系统 DNS
     const systemResult = await this.querySystem(domain, type, timeout);
@@ -50,7 +51,7 @@ export class DNSResolver {
     }
 
     // 全部失败
-    log.error('DNSResolver', `All DNS queries failed for ${domain}`);
+    log.error(`All DNS queries failed for ${domain}`);
     return {
       success: false,
       responseTime: 0,
@@ -111,7 +112,7 @@ export class DNSResolver {
           } as DNSResolverResult;
         }
       } catch (error) {
-        log.debug('DNSResolver', `Encrypted DNS query failed: ${server.name}`, {
+        log.debug(`Encrypted DNS query failed: ${server.name}`, {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -151,13 +152,13 @@ export class DNSResolver {
       }
 
       // 使用代理查询
-      log.debug('DNSResolver', `Using proxy for DoH query: ${domain}`);
+      log.debug(`Using proxy for DoH query: ${domain}`);
 
       // 这里简化处理，实际应该通过代理隧道进行 HTTPS 请求
       // 暂时直接查询
       return await queryDoH(domain, type, dohUrl, timeout);
     } catch (error) {
-      log.error('DNSResolver', `DoH query with proxy failed: ${domain}`, {
+      log.error(`DoH query with proxy failed: ${domain}`, {
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
@@ -191,7 +192,7 @@ export class DNSResolver {
         return await queryDoTImpl(domain, type, address, timeout);
       }
 
-      log.debug('DNSResolver', `Using proxy for DoT query: ${domain}`);
+      log.debug(`Using proxy for DoT query: ${domain}`);
 
       const [host, portStr] = address.split(':');
       const port = parseInt(portStr) || 853;
@@ -202,7 +203,7 @@ export class DNSResolver {
         port: proxyConfig.port || 8080,
         protocol: proxyConfig.type === 'socks5' ? 'http' : (proxyConfig.type as 'http' | 'https') || 'http',
       };
-      
+
       if (proxyConfig.username && proxyConfig.password) {
         proxyCfg.auth = {
           username: proxyConfig.username,
@@ -247,7 +248,7 @@ export class DNSResolver {
               tlsSocket.end();
               resolve(response);
             } catch (error) {
-              log.error('DNSResolver', `Failed to decode DoT+Proxy response: ${domain}`, {
+              log.error(`Failed to decode DoT+Proxy response: ${domain}`, {
                 error: error instanceof Error ? error.message : String(error),
               });
               tlsSocket.end();
@@ -257,20 +258,20 @@ export class DNSResolver {
         });
 
         tlsSocket.on('error', (error) => {
-          log.error('DNSResolver', `DoT+Proxy socket error: ${domain}`, {
+          log.error(`DoT+Proxy socket error: ${domain}`, {
             error: error.message,
           });
           resolve(null);
         });
 
         tlsSocket.on('timeout', () => {
-          log.debug('DNSResolver', `DoT+Proxy timeout: ${domain}`);
+          log.debug(`DoT+Proxy timeout: ${domain}`);
           tlsSocket.end();
           resolve(null);
         });
       });
     } catch (error) {
-      log.error('DNSResolver', `DoT query with proxy failed: ${domain}`, {
+      log.error(`DoT query with proxy failed: ${domain}`, {
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
@@ -312,7 +313,7 @@ export class DNSResolver {
           } as DNSResolverResult;
         }
       } catch (error) {
-        log.debug('DNSResolver', `Plain DNS query failed: ${server.name}`, {
+        log.debug(`Plain DNS query failed: ${server.name}`, {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -399,7 +400,7 @@ export class DNSResolver {
         source: 'system',
       };
     } catch (error) {
-      log.error('DNSResolver', `System DNS query failed: ${domain}`, {
+      log.error(`System DNS query failed: ${domain}`, {
         error: error instanceof Error ? error.message : String(error),
       });
 
@@ -439,7 +440,7 @@ export class DNSResolver {
     if (encryptedResult.success && plainResult.success) {
       // 标准化 NS 记录：移除尾部点号并转为小写
       const normalizeNS = (ns: string) => ns.replace(/\.$/, '').toLowerCase();
-      
+
       const encryptedNS = encryptedResult.records?.map(r => normalizeNS(r.data)).sort() || [];
       const plainNS = plainResult.records?.map(r => normalizeNS(r.data)).sort() || [];
 
@@ -463,7 +464,7 @@ export class DNSResolver {
         : [];
 
     if (isPoisoned) {
-      log.warn('DNSResolver', `DNS poisoning detected for ${domain}`, {
+      log.warn(`DNS poisoning detected for ${domain}`, {
         encrypted: encryptedResult.records?.map(r => r.data),
         plain: plainResult.records?.map(r => r.data),
       });

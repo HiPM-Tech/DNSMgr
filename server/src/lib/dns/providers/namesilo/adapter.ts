@@ -1,6 +1,6 @@
-import { DnsRecord, DomainInfo, PageResult } from '../internal';
-import { asArray, BaseAdapter, normalizeRrName, safeString, toNumber, requestXml, log } from '../internal';
+import { createProviderAdapterLogger, DnsRecord, DomainInfo, PageResult, asArray, BaseAdapter, normalizeRrName, safeString, toNumber, requestXml } from '../internal';
 
+const log = createProviderAdapterLogger('Namesilo');
 interface NamesiloConfig {
   apikey: string;
   domain?: string;
@@ -77,7 +77,7 @@ export class NamesiloAdapter extends BaseAdapter {
       return { total: list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Namesilo', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

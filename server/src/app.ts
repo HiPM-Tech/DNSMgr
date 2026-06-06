@@ -81,7 +81,7 @@ function printBanner(port: number): void {
   const GRAY = '\x1b[90m';
   const RESET = '\x1b[0m';
   const BOLD = '\x1b[1m';
-  
+
   const banner = `
 ${CYAN}╔═══════════════════════════════════════════════════════════╗${RESET}
 ${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
@@ -98,7 +98,8 @@ ${CYAN}╚═══════════════════════�
 import { initRenewalSchedulers } from './service/renewalInit';
 import { wsService } from './service/websocket';
 import { initWhoisSchedulers } from './service/whois';
-import { log } from './lib/logger';
+import { createLogger } from './lib/logger';
+const log = createLogger('Server').sub('App');
 import { OAuthOperations, McpOperations } from './db/bal/business-adapter';
 
 const app = express();
@@ -159,7 +160,7 @@ const corsOptions = {
     if (!origin) {
       return callback(null, true);
     }
-    
+
     // If CORS_ORIGIN is set, only allow those origins
     if (process.env.CORS_ORIGIN) {
       const allowedOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
@@ -168,7 +169,7 @@ const corsOptions = {
       }
       return callback(new Error('Not allowed by CORS'));
     }
-    
+
     // Default: allow all origins (development mode)
     // This makes it work out of the box without configuration
     return callback(null, true);
@@ -199,14 +200,14 @@ const swaggerOptions: swaggerJsdoc.Options = {
 This API supports two authentication methods:
 
 ### 1. JWT Token (User Login)
-After logging in via \`/api/auth/login\`, you will receive a JWT token. 
+After logging in via \`/api/auth/login\`, you will receive a JWT token.
 Include it in the Authorization header:
 \`\`\`
 Authorization: Bearer <jwt_token>
 \`\`\`
 
 ### 2. API Token (Programmatic Access)
-API tokens can be created from the web UI (Settings > API Tokens) and are 
+API tokens can be created from the web UI (Settings > API Tokens) and are
 suitable for automated scripts and CI/CD pipelines.
 
 Include the API token in the Authorization header:
@@ -214,7 +215,7 @@ Include the API token in the Authorization header:
 Authorization: Bearer <api_token>
 \`\`\`
 
-API tokens have the same permissions as the user who created them and can be 
+API tokens have the same permissions as the user who created them and can be
 restricted to specific domains and time ranges.
 
 ### Token Permissions
@@ -434,26 +435,26 @@ async function gracefulShutdown(
 ): Promise<void> {
   if (initCheckInterval) clearInterval(initCheckInterval);
   if (oauthStateCleanupInterval) clearInterval(oauthStateCleanupInterval);
-  
-  log.info('Server', `${signal} received, starting graceful shutdown...`);
-  
+
+  log.info(`${signal} received, starting graceful shutdown...`);
+
   // Shutdown WebSocket service
   wsService.shutdown();
-  
+
   try {
     await disconnect();
-    log.info('Server', 'Database disconnected gracefully');
+    log.info('Database disconnected gracefully');
   } catch (err) {
-    log.error('Server', 'Error during database disconnect', { error: err });
+    log.error('Error during database disconnect', { error: err });
   }
-  
+
   if (server) {
     server.close(() => {
-      log.info('Server', 'Server closed');
+      log.info('Server closed');
       process.exit(0);
     });
   } else {
-    log.info('Server', 'No server instance to close');
+    log.info('No server instance to close');
     process.exit(0);
   }
 }
@@ -472,19 +473,19 @@ async function initializeApp() {
     isInitialized = await checkInitialization();
 
     if (isInitialized) {
-      log.info('Server', 'System initialized. Running in normal mode.');
-      
+      log.info('System initialized. Running in normal mode.');
+
       // 重启时清理所有未分配用户的临时 OAuth 客户端
       McpOperations.cleanupUnassignedOAuthClients().then((count: number) => {
-        if (count > 0) log.info('MCP OAuth', `Cleaned up ${count} unassigned temporary clients on startup`);
+        if (count > 0) log.info(`Cleaned up ${count} unassigned temporary clients on startup`);
       }).catch((err: unknown) => {
-        log.error('MCP OAuth', 'Failed to cleanup unassigned clients on startup', { error: err });
+        log.error('Failed to cleanup unassigned clients on startup', { error: err });
       });
 
       // 初始化续期和 WHOIS 调度器
       initRenewalSchedulers();
       initWhoisSchedulers();
-      
+
       startFailoverJob();
       startWhoisJob();
       startNsMonitorJob();
@@ -492,24 +493,24 @@ async function initializeApp() {
       startRecordCountCacheRefresh(30); // Refresh every 30 minutes
       startDomainSyncJob(0.5); // Sync every 30 minutes
     } else {
-      log.info('Server', 'System not initialized. Running in initialization mode.');
-      log.info('Server', 'Please access the setup wizard to configure the system.');
+      log.info('System not initialized. Running in initialization mode.');
+      log.info('Please access the setup wizard to configure the system.');
     }
 
     // Start server with WebSocket support
     server = http.createServer(app);
-    
+
     // Initialize WebSocket service
     wsService.initialize(server);
-    
+
     // 打印启动横幅
     printBanner(PORT);
-    
+
     server.listen(PORT, () => {
-      log.info('Server', `HiDNS running on http://localhost:${PORT}`);
-      log.info('Server', `API Docs: http://localhost:${PORT}/api/docs`);
+      log.info(`HiDNS running on http://localhost:${PORT}`);
+      log.info(`API Docs: http://localhost:${PORT}/api/docs`);
       if (!isInitialized) {
-        log.info('Server', `Setup Wizard: http://localhost:${PORT}/setup`);
+        log.info(`Setup Wizard: http://localhost:${PORT}/setup`);
       }
     });
 
@@ -519,8 +520,8 @@ async function initializeApp() {
         if (!isInitialized && newState) {
           // System just got initialized
           isInitialized = true;
-          log.info('Server', 'System initialized detected. Normal routes are now enabled.');
-          log.info('Server', 'You may need to refresh the page.');
+          log.info('System initialized detected. Normal routes are now enabled.');
+          log.info('You may need to refresh the page.');
           startFailoverJob();
           startWhoisJob();
           startNsMonitorJob();
@@ -535,10 +536,10 @@ async function initializeApp() {
       try {
         const deletedCount = await OAuthOperations.cleanupExpiredStates();
         if (deletedCount > 0) {
-          log.debug('OAuth', `Cleaned up ${deletedCount} expired states`);
+          log.debug(`Cleaned up ${deletedCount} expired states`);
         }
       } catch (err) {
-        log.error('OAuth', 'Failed to cleanup expired states', { error: err });
+        log.error('Failed to cleanup expired states', { error: err });
       }
     }, 10 * 60 * 1000);
 
@@ -550,21 +551,21 @@ async function initializeApp() {
     process.on('SIGINT', () => gracefulShutdown('SIGINT', initCheckInterval, oauthStateCleanupInterval));
 
   } catch (error) {
-    log.info('Server', 'Database not configured. Running in initialization mode.');
-    log.info('Server', 'Please access the setup wizard to configure the system.');
+    log.info('Database not configured. Running in initialization mode.');
+    log.info('Please access the setup wizard to configure the system.');
 
     server = http.createServer(app);
-    
+
     // Initialize WebSocket service
     wsService.initialize(server);
-    
+
     // 打印启动横幅
     printBanner(PORT);
-    
+
     server.listen(PORT, () => {
-      log.info('Server', `HiDNS running on http://localhost:${PORT}`);
-      log.info('Server', `API Docs: http://localhost:${PORT}/api/docs`);
-      log.info('Server', `Setup Wizard: http://localhost:${PORT}/setup`);
+      log.info(`HiDNS running on http://localhost:${PORT}`);
+      log.info(`API Docs: http://localhost:${PORT}/api/docs`);
+      log.info(`Setup Wizard: http://localhost:${PORT}/setup`);
     });
 
     // Re-check initialization status periodically
@@ -584,13 +585,13 @@ async function initializeApp() {
           startDomainRenewalJob();
           startRecordCountCacheRefresh(30); // Refresh every 30 minutes
           startDomainSyncJob(0.5); // Sync every 30 minutes
-          log.info('Server', 'System initialized detected. Normal routes are now enabled.');
-          log.info('Server', 'You may need to refresh the page.');
+          log.info('System initialized detected. Normal routes are now enabled.');
+          log.info('You may need to refresh the page.');
         }
       } catch (err) {
         retryCount++;
         if (retryCount >= MAX_RETRIES) {
-          log.error('Server', `Failed to initialize after ${MAX_RETRIES} attempts. Stopping retry.`);
+          log.error(`Failed to initialize after ${MAX_RETRIES} attempts. Stopping retry.`);
           clearInterval(initCheckInterval);
         }
         // Still not initialized

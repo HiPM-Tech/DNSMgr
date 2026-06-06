@@ -8,7 +8,7 @@ import { createLogger } from '../../lib/logger';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const dsmLog = createLogger('DSM');
+const log = createLogger('DSM').sub('Init');
 
 export async function initializeDSM(dryRun = false): Promise<void> {
   const reconciler = new SchemaReconciler();
@@ -17,61 +17,61 @@ export async function initializeDSM(dryRun = false): Promise<void> {
     const legacyCheck = await reconciler.detectLegacySystem();
     const isLegacy = legacyCheck.isLegacy;
     if (isLegacy) {
-      dsmLog.warn( `⚠️ Legacy system detected: ${legacyCheck.reason}`);
-      dsmLog.info( 'Running in legacy upgrade mode. Performing full reconciliation...');
+      log.warn( `⚠️ Legacy system detected: ${legacyCheck.reason}`);
+      log.info( 'Running in legacy upgrade mode. Performing full reconciliation...');
     } else {
-      dsmLog.info( 'No legacy system detected. Proceeding with standard DSM initialization.');
+      log.info( 'No legacy system detected. Proceeding with standard DSM initialization.');
     }
 
-    dsmLog.info( `Starting full database schema reconciliation${dryRun ? ' (DRY RUN)' : ''}...`);
-    
+    log.info( `Starting full database schema reconciliation${dryRun ? ' (DRY RUN)' : ''}...`);
+
     await reconciler.reconcile(COMPLETE_SCHEMA, { dryRun });
-    
+
     if (!dryRun) {
       // Data migrations are only needed when upgrading from a legacy system.
       // A brand new database already has the complete schema after reconciliation.
       if (isLegacy) {
-        dsmLog.info( 'Running data migrations for legacy upgrade...');
+        log.info( 'Running data migrations for legacy upgrade...');
         const runner = new DataMigrationRunner();
         registerDefaultMigrations(runner);
         const result = await runner.run({ dryRun });
-        
+
         if (result.failed.length > 0) {
-          dsmLog.error( 'Some migrations failed:', result.failed.map(f => f.id));
+          log.error( 'Some migrations failed:', result.failed.map(f => f.id));
         }
       } else {
-        dsmLog.info( 'New database detected. Skipping data migrations.');
+        log.info( 'New database detected. Skipping data migrations.');
       }
 
-      dsmLog.info( 'Running integrity check...');
+      log.info( 'Running integrity check...');
       const check = await reconciler.verify(COMPLETE_SCHEMA);
-      
+
       if (check.valid) {
-        dsmLog.info( '✅ All schemas are up to date and verified.');
+        log.info( '✅ All schemas are up to date and verified.');
       } else {
-        dsmLog.error( '❌ Integrity check failed:', check.issues);
+        log.error( '❌ Integrity check failed:', check.issues);
         throw new Error(`Schema integrity check failed: ${check.issues.join(', ')}`);
       }
 
       const conn = getConnection();
       const versionManager = new SchemaVersionManager(conn, sqliteSchema);
-      
+
       let appVersion = 'unknown';
       try {
         const pkgPath = path.join(__dirname, '../../package.json');
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
         appVersion = pkg.version || 'dev';
       } catch (e) {
-        dsmLog.warn( 'Failed to read package.json version');
+        log.warn( 'Failed to read package.json version');
       }
 
       await versionManager.recordDSMVersion(appVersion);
-      dsmLog.info( `✅ DSM version ${appVersion} recorded.`);
+      log.info( `✅ DSM version ${appVersion} recorded.`);
     } else {
-      dsmLog.warn( '⚠️ Dry run finished. No changes were made.');
+      log.warn( '⚠️ Dry run finished. No changes were made.');
     }
   } catch (error) {
-    dsmLog.error( '❌ Schema reconciliation failed:', error);
+    log.error( '❌ Schema reconciliation failed:', error);
     throw error;
   }
 }
@@ -101,7 +101,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     },
     execute: async () => {
       const conn = getConnection();
-      await conn.execute(`INSERT INTO security_policies 
+      await conn.execute(`INSERT INTO security_policies
         (require_2fa_global, min_password_length, session_timeout_hours, max_login_attempts)
         VALUES (0, 8, 24, 5)`);
     }
@@ -193,7 +193,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
     execute: async () => {
       const conn = getConnection();
       const type = conn.type;
-      
+
       if (type === 'mysql') {
         await conn.execute('DROP TABLE IF EXISTS dns_accounts_new');
         await conn.execute(`CREATE TABLE dns_accounts_new (
@@ -202,10 +202,10 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
           enabled TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
           INDEX idx_created_by (created_by), INDEX idx_team_id (team_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
-        
+
         await conn.execute(`INSERT INTO dns_accounts_new (id, type, name, config, remark, created_by, team_id, enabled, created_at)
           SELECT id, type, name, config, remark, created_by, team_id, 1, created_at FROM dns_accounts`);
-        
+
         await conn.execute('SET FOREIGN_KEY_CHECKS = 0');
         await conn.execute('DROP TABLE dns_accounts');
         await conn.execute('ALTER TABLE dns_accounts_new RENAME TO dns_accounts');
@@ -238,7 +238,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
       const type = conn.type;
 
       if (type === 'mysql') {
-        await conn.execute(`DELETE n1 FROM ns_monitor_domains n1 INNER JOIN ns_monitor_domains n2 
+        await conn.execute(`DELETE n1 FROM ns_monitor_domains n1 INNER JOIN ns_monitor_domains n2
           WHERE n1.id > n2.id AND n1.user_id = n2.user_id AND n1.domain_name = n2.domain_name`);
       } else {
         await conn.execute(`DELETE FROM ns_monitor_domains WHERE rowid NOT IN (
@@ -248,7 +248,7 @@ function registerDefaultMigrations(runner: DataMigrationRunner): void {
 
       if (type === 'sqlite') {
         await conn.execute('DROP TABLE IF EXISTS ns_monitor_domains_new');
-        await conn.execute(`CREATE TABLE ns_monitor_domains_new AS 
+        await conn.execute(`CREATE TABLE ns_monitor_domains_new AS
           SELECT id, user_id, domain_name, expected_ns, current_ns, encrypted_ns, plain_ns,
                  is_poisoned, status, enabled, last_check_at, last_alert_at, alert_count, created_at, updated_at
           FROM ns_monitor_domains`);

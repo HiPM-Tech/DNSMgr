@@ -1,8 +1,6 @@
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
-import { resolveDomainIdHelper } from '../internal';
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, fetchWithFallback, resolveDomainIdHelper } from '../internal';
 
+const log = createProviderAdapterLogger('HiDNS');
 interface HiDNSConfig {
   baseUrl: string;
   apiToken: string;
@@ -70,27 +68,27 @@ export class HiDNSAdapter implements DnsAdapter {
     const baseUrl = this.config.baseUrl.replace(/\/api\/?$/, '');
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
     const url = `${baseUrl}/api${normalizedPath}`;
-    log.providerRequest('HiDNS', method, url, body);
-    
+    log.sub('API').tag('REQUEST').debug('Provider request', { method: method, url: url, params: body });
+
     try {
       const res = await fetchWithFallback(url, {
         method,
         headers: this.getHeaders(),
         body: body ? JSON.stringify(body) : undefined,
       }, this.config.useProxy, 'HiDNS');
-      
+
       const data = (await res.json()) as HiDNSApiResponse<T>;
-      log.providerResponse('HiDNS', res.status, data.code === 0, { resultCount: data.data && typeof data.data === 'object' && 'list' in data.data ? (data.data as any).list?.length : 0 });
-      
+      log.sub('API').tag('RESPONSE').debug('Provider response', { status: res.status, success: data.code === 0, data: { resultCount: data.data && typeof data.data === 'object' && 'list' in data.data ? (data.data as any).list?.length : 0 } });
+
       if (data.code !== 0) {
         this.error = data.msg || 'API error';
-        log.providerError('HiDNS', [{ message: this.error }]);
+        log.sub('API').tag('ERROR').error('Provider error', [{ message: this.error }]);
       }
-      
+
       return data;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.providerError('HiDNS', [{ message: this.error }]);
+      log.sub('API').tag('ERROR').error('Provider error', [{ message: this.error }]);
       return { code: -1, data: {} as T, msg: this.error };
     }
   }
@@ -116,13 +114,13 @@ export class HiDNSAdapter implements DnsAdapter {
       if (keyword) {
         path += `&keyword=${encodeURIComponent(keyword)}`;
       }
-      
+
       // HiDNS API can return either { total, list } or direct array
       const res = await this.request<any>('GET', path);
-      
-      log.debug('HiDNS', 'getDomainList response', { 
-        code: res.code, 
-        hasData: !!res.data, 
+
+      log.debug('getDomainList response', {
+        code: res.code,
+        hasData: !!res.data,
         dataType: typeof res.data,
         isObject: typeof res.data === 'object' && !Array.isArray(res.data),
         isArray: Array.isArray(res.data),
@@ -130,9 +128,9 @@ export class HiDNSAdapter implements DnsAdapter {
         dataLength: Array.isArray(res.data) ? res.data.length : (res.data?.list?.length || 0),
         rawData: JSON.stringify(res.data).substring(0, 200)
       });
-      
+
       if (res.code !== 0) {
-        log.error('HiDNS', 'getDomainList failed', { code: res.code, msg: res.msg });
+        log.error('getDomainList failed', { code: res.code, msg: res.msg });
         return { total: 0, list: [] };
       }
 
@@ -144,17 +142,17 @@ export class HiDNSAdapter implements DnsAdapter {
         // Format 1: Direct array (when using API Token or format=array)
         domains = res.data;
         total = domains.length;
-        log.debug('HiDNS', 'Detected array format response');
+        log.debug('Detected array format response');
       } else if (res.data && typeof res.data === 'object' && 'list' in res.data) {
         // Format 2: Paginated object { total, list, page, pageSize }
         domains = res.data.list;
         total = res.data.total || domains.length;
-        log.debug('HiDNS', 'Detected paginated object format response');
+        log.debug('Detected paginated object format response');
       } else {
-        log.error('HiDNS', 'getDomainList invalid data structure', { data: res.data });
+        log.error('getDomainList invalid data structure', { data: res.data });
         return { total: 0, list: [] };
       }
-      
+
       // Apply keyword filter if provided (server-side filtering may not work)
       let filteredDomains = domains;
       if (keyword) {
@@ -172,7 +170,7 @@ export class HiDNSAdapter implements DnsAdapter {
       };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('HiDNS', 'getDomainList exception', { error: this.error });
+      log.error('getDomainList exception', { error: this.error });
       return { total: 0, list: [] };
     }
   }
@@ -254,7 +252,7 @@ export class HiDNSAdapter implements DnsAdapter {
 
       // HiDNS API 没有单独的获取单条记录接口，从列表中查找
       const res = await this.request<{ total: number; list: HiDNSRecord[] }>('GET', `/domains/${domainId}/records?page=1&pageSize=1000`);
-      
+
       if (res.code !== 0) {
         return null;
       }

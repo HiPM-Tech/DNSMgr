@@ -8,8 +8,9 @@ import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { isValidUsername } from '../utils/validation';
 import { UserOperations } from '../db/bal/business-adapter';
 import { wsService } from '../service/websocket';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('HTTP').sub('Route').sub('Users');
 const router = Router();
 
 /**
@@ -94,7 +95,7 @@ router.post('/', authMiddleware, noTokenAuth('user management'), adminOnly, asyn
       role: roleText,
       role_level: roleLevel,
     });
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -106,9 +107,9 @@ router.post('/', authMiddleware, noTokenAuth('user management'), adminOnly, asyn
         },
       });
     } catch (error) {
-      log.error('Users', 'Failed to broadcast user_created event', { error });
+      log.error('Failed to broadcast user_created event', { error });
     }
-    
+
     sendSuccess(res, { id });
   } catch {
     sendError(res, 'Username already exists');
@@ -162,20 +163,20 @@ router.put('/:id', authMiddleware, noTokenAuth('user management'), adminOnly, as
   };
   const callerRole = normalizeRole(req.user?.role);
   const targetRole = normalizeRole(user.role);
-  
+
   // Super admin cannot be modified
   if (targetRole === ROLE_SUPER) {
     sendError(res, 'Super admin cannot be modified');
     return;
   }
-  
+
   // Admin cannot modify users with same or higher role level (peer protection)
   // This prevents admins from modifying other admins or being modified by other admins
   if (callerRole === ROLE_ADMIN && targetRole >= ROLE_ADMIN) {
     sendError(res, 'Permission denied: Cannot modify users with same or higher role level');
     return;
   }
-  
+
   // Admin cannot upgrade users to admin level
   if (callerRole === ROLE_ADMIN && role !== undefined) {
     const newRoleLevel = normalizeRole(role);
@@ -184,9 +185,9 @@ router.put('/:id', authMiddleware, noTokenAuth('user management'), adminOnly, as
       return;
     }
   }
-  
+
   const updates: { nickname?: string; email?: string; role_level?: number; role?: string; status?: number; password_hash?: string } = {};
-  
+
   if (nickname !== undefined) {
     updates.nickname = nickname.trim() || user.username;
   }
@@ -206,9 +207,9 @@ router.put('/:id', authMiddleware, noTokenAuth('user management'), adminOnly, as
   }
   if (status !== undefined) { updates.status = status; }
   if (password) { updates.password_hash = bcrypt.hashSync(password, 10); }
-  
+
   await UserOperations.update(id, updates);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -219,9 +220,9 @@ router.put('/:id', authMiddleware, noTokenAuth('user management'), adminOnly, as
       },
     });
   } catch (error) {
-    log.error('Users', 'Failed to broadcast user_updated event', { error });
+    log.error('Failed to broadcast user_updated event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -256,21 +257,21 @@ router.delete('/:id', authMiddleware, noTokenAuth('user management'), adminOnly,
   }
   const callerRole = normalizeRole(req.user?.role);
   const targetRole = normalizeRole(target.role);
-  
+
   // Super admin cannot be deleted
   if (targetRole === ROLE_SUPER) {
     sendError(res, 'Super admin cannot be deleted');
     return;
   }
-  
+
   // Admin cannot delete users with same or higher role level (peer protection)
   if (callerRole === ROLE_ADMIN && targetRole >= ROLE_ADMIN) {
     sendError(res, 'Permission denied: Cannot delete users with same or higher role level');
     return;
   }
-  
+
   await UserOperations.delete(id);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -281,9 +282,9 @@ router.delete('/:id', authMiddleware, noTokenAuth('user management'), adminOnly,
       },
     });
   } catch (error) {
-    log.error('Users', 'Failed to broadcast user_deleted event', { error });
+    log.error('Failed to broadcast user_deleted event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 

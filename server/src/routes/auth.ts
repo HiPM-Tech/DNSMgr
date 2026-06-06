@@ -10,7 +10,7 @@ import { getSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { getUserPreferences, updateUserPreferences, UserPreferences } from '../service/userPreferences';
 import { loginLimiter, emailLimiter } from '../middleware/rateLimit';
 import { getTOTPStatus, verifyTOTPToken, verifyBackupCode } from '../service/totp';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { UserOperations, OAuthOperations, TwoFAOperations, SettingsOperations, UserPreferencesOperations, DomainOperations } from '../db/bal/business-adapter';
 import { requires2FA, has2FAEnabled, validatePassword, getSecurityPolicy, SecurityPolicy } from '../service/securityPolicy';
 import { verifyTrustedDevice, addTrustedDevice, DeviceInfo } from '../service/deviceTrust';
@@ -18,6 +18,7 @@ import { getRequestIP } from '../middleware/clientIP';
 import db from '../db/bal/business-adapter';
 import { sendError } from '../utils/http';
 
+const log = createLogger('HTTP').sub('Route').sub('Auth');
 /**
  * RSA Key Pair for password encryption
  * Generated once and cached for the lifetime of the server
@@ -33,11 +34,11 @@ let keyGeneratedAt = 0;
 
 function getOrGenerateRSAKeyPair(): RSAKeyPair {
   const now = Date.now();
-  
+
   // Regenerate keys if expired or not generated
   if (!rsaKeyPair || (now - keyGeneratedAt) > KEY_CACHE_TTL) {
-    log.info('Auth', 'Generating new RSA key pair for password encryption');
-    
+    log.info('Generating new RSA key pair for password encryption');
+
     const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
       modulusLength: 2048,
       publicKeyEncoding: {
@@ -49,21 +50,21 @@ function getOrGenerateRSAKeyPair(): RSAKeyPair {
         format: 'pem'
       }
     });
-    
+
     rsaKeyPair = { publicKey, privateKey };
     keyGeneratedAt = now;
   }
-  
+
   return rsaKeyPair;
 }
 
 function decryptPassword(encryptedPassword: string): string {
   try {
     const keyPair = getOrGenerateRSAKeyPair();
-    
+
     // Decode from base64
     const buffer = Buffer.from(encryptedPassword, 'base64');
-    
+
     // Decrypt using private key
     const decrypted = crypto.privateDecrypt(
       {
@@ -73,10 +74,10 @@ function decryptPassword(encryptedPassword: string): string {
       },
       buffer
     );
-    
+
     return decrypted.toString('utf-8');
   } catch (error) {
-    log.error('Auth', 'Failed to decrypt password', { error: error instanceof Error ? error.message : String(error) });
+    log.error('Failed to decrypt password', { error: error instanceof Error ? error.message : String(error) });
     throw new Error('Invalid encrypted password');
   }
 }
@@ -195,14 +196,14 @@ function randomHex(size: number): string {
 
 function addProcessedCode(code: string): void {
   const now = Date.now();
-  
+
   // 先清理过期条目
   for (const [key, timestamp] of processedCodes.entries()) {
     if (now - timestamp > PROCESSED_CODES_TTL) {
       processedCodes.delete(key);
     }
   }
-  
+
   // 如果仍然超过限制，删除最旧的条目
   if (processedCodes.size >= MAX_PROCESSED_CODES) {
     let oldestKey: string | undefined;
@@ -217,7 +218,7 @@ function addProcessedCode(code: string): void {
       processedCodes.delete(oldestKey);
     }
   }
-  
+
   processedCodes.set(code, now);
 }
 
@@ -280,16 +281,16 @@ async function exchangeOauthCode(config: OAuthConfig, code: string): Promise<{ a
     client_secret: config.clientSecret,
     redirect_uri: config.redirectUri,
   });
-  log.debug('OAuth', 'Token request', { endpoint: config.tokenEndpoint, body: body.toString() });
+  log.debug('Token request', { endpoint: config.tokenEndpoint, body: body.toString() });
   try {
     const response = await fetch(config.tokenEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     });
-    log.debug('OAuth', 'Token response', { status: response.status });
+    log.debug('Token response', { status: response.status });
     const tokenPayload = await response.json() as { access_token?: string; id_token?: string; error?: string; error_description?: string };
-    log.debug('OAuth', 'Token response payload', { payload: tokenPayload });
+    log.debug('Token response payload', { payload: tokenPayload });
     if (!response.ok) {
       throw new Error(`OAuth token exchange failed: HTTP ${response.status}${tokenPayload.error_description ? ' - ' + tokenPayload.error_description : ''}`);
     }
@@ -298,7 +299,7 @@ async function exchangeOauthCode(config: OAuthConfig, code: string): Promise<{ a
     }
     return { accessToken: tokenPayload.access_token, idToken: tokenPayload.id_token || '' };
   } catch (error) {
-    log.error('OAuth', 'Token request failed', { error: error instanceof Error ? error.message : String(error), endpoint: config.tokenEndpoint });
+    log.error('Token request failed', { error: error instanceof Error ? error.message : String(error), endpoint: config.tokenEndpoint });
     throw error;
   }
 }
@@ -385,23 +386,23 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
   const header = JSON.parse(decodeBase64Url(parts[0]).toString('utf8')) as { alg?: string; kid?: string };
   const payload = JSON.parse(decodeBase64Url(parts[1]).toString('utf8')) as Record<string, unknown>;
 
-  log.debug('OAuth', 'id_token header', { header });
-  log.debug('OAuth', 'id_token payload', { payload });
-  log.debug('OAuth', 'Expected issuer', { issuer: config.issuer });
-  log.debug('OAuth', 'Expected clientId', { clientId: config.clientId });
-  log.debug('OAuth', 'JWKS URI', { jwksUri: config.jwksUri });
+  log.debug('id_token header', { header });
+  log.debug('id_token payload', { payload });
+  log.debug('Expected issuer', { issuer: config.issuer });
+  log.debug('Expected clientId', { clientId: config.clientId });
+  log.debug('JWKS URI', { jwksUri: config.jwksUri });
 
   if (!header.alg || !header.kid) throw new Error('id_token missing alg or kid');
 
   const jwksResp = await fetch(config.jwksUri);
-  log.debug('OAuth', 'JWKS fetch status', { status: jwksResp.status });
+  log.debug('JWKS fetch status', { status: jwksResp.status });
   if (!jwksResp.ok) throw new Error(`JWKS fetch failed: HTTP ${jwksResp.status}`);
   const jwks = await jwksResp.json() as { keys?: Array<Record<string, unknown>> };
-  log.debug('OAuth', 'JWKS keys count', { count: jwks.keys?.length });
-  log.debug('OAuth', 'JWKS keys', { keys: jwks.keys?.map(k => ({ kid: k.kid, alg: k.alg, kty: k.kty })) });
+  log.debug('JWKS keys count', { count: jwks.keys?.length });
+  log.debug('JWKS keys', { keys: jwks.keys?.map(k => ({ kid: k.kid, alg: k.alg, kty: k.kty })) });
 
   const jwk = (jwks.keys || []).find((key) => String(key.kid || '') === header.kid);
-  log.debug('OAuth', 'Matched JWK', { jwk: jwk ? { kid: jwk.kid, alg: jwk.alg, kty: jwk.kty } : 'NOT FOUND' });
+  log.debug('Matched JWK', { jwk: jwk ? { kid: jwk.kid, alg: jwk.alg, kty: jwk.kty } : 'NOT FOUND' });
   if (!jwk) throw new Error('Unable to find matching JWKS key for id_token');
 
   const verifyAlgMap: Record<string, string> = {
@@ -413,12 +414,12 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
     ES512: 'sha512',
   };
   const verifyAlg = verifyAlgMap[header.alg];
-  log.debug('OAuth', 'Using verify algorithm', { verifyAlg });
+  log.debug('Using verify algorithm', { verifyAlg });
   if (!verifyAlg) throw new Error(`Unsupported id_token algorithm: ${header.alg}`);
   const publicKey = crypto.createPublicKey({ key: jwk as crypto.JsonWebKey, format: 'jwk' });
   const signingInput = `${parts[0]}.${parts[1]}`;
   let signature = decodeBase64Url(parts[2]);
-  log.debug('OAuth', 'Original signature length', { length: signature.length });
+  log.debug('Original signature length', { length: signature.length });
 
   if (header.alg.startsWith('ES') && jwk.kty === 'EC') {
     const keySize = header.alg === 'ES256' ? 32 : header.alg === 'ES384' ? 48 : 66;
@@ -426,12 +427,12 @@ async function verifyIdToken(idToken: string, config: OAuthConfig): Promise<OAut
       const r = signature.slice(0, keySize);
       const s = signature.slice(keySize);
       signature = ellipticSigToDer(r, s);
-      log.debug('OAuth', 'Converted ECDSA signature to DER format', { newLength: signature.length });
+      log.debug('Converted ECDSA signature to DER format', { newLength: signature.length });
     }
   }
 
   const ok = crypto.verify(verifyAlg, Buffer.from(signingInput), publicKey, signature);
-  log.debug('OAuth', 'Signature verification result', { ok });
+  log.debug('Signature verification result', { ok });
   if (!ok) throw new Error('id_token signature verification failed');
 
   const now = Math.floor(Date.now() / 1000);
@@ -465,7 +466,7 @@ router.get('/public-key', (req: Request, res: Response) => {
       msg: 'success'
     });
   } catch (error) {
-    log.error('Auth', 'Failed to generate public key', { error: error instanceof Error ? error.message : String(error) });
+    log.error('Failed to generate public key', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ code: 500, msg: 'Failed to generate public key' });
   }
 });
@@ -498,11 +499,11 @@ router.get('/public-key', (req: Request, res: Response) => {
  *         description: JWT token returned
  */
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
-  const { username, password, totpCode, backupCode, webauthnResponse, trustDevice, encrypted } = req.body as { 
-    username: string; 
-    password: string; 
-    totpCode?: string; 
-    backupCode?: string; 
+  const { username, password, totpCode, backupCode, webauthnResponse, trustDevice, encrypted } = req.body as {
+    username: string;
+    password: string;
+    totpCode?: string;
+    backupCode?: string;
     webauthnResponse?: any;
     trustDevice?: boolean;
     encrypted?: boolean;
@@ -518,19 +519,19 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     if (encrypted) {
       try {
         actualPassword = decryptPassword(password);
-        log.debug('Auth', 'Password decrypted successfully');
+        log.debug('Password decrypted successfully');
       } catch (decryptError) {
-        log.warn('Auth', 'Failed to decrypt password, using as-is', { error: decryptError instanceof Error ? decryptError.message : String(decryptError) });
+        log.warn('Failed to decrypt password, using as-is', { error: decryptError instanceof Error ? decryptError.message : String(decryptError) });
         // If decryption fails, continue with the original password (backward compatibility)
       }
     }
 
     // Check if input is an email (contains @)
     const isEmail = username.includes('@');
-    
+
     // Get the identifier for login limit check (use username if found, otherwise use the input)
     let loginIdentifier = username.toLowerCase();
-    
+
     // Check login limit
     const ipAddress = getRequestIP(req);
     const limitCheck = await checkLoginAllowed(loginIdentifier, ipAddress);
@@ -538,7 +539,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       sendError(res, limitCheck.message || 'Account is temporarily locked', 429);
       return;
     }
-    
+
     let user: User | undefined;
     if (isEmail) {
       // Login with email
@@ -550,7 +551,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
 
     // Timing attack prevention: always execute bcrypt to maintain constant response time
     const fakeHash = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'; // Fixed dummy hash
-    const passwordMatch = user 
+    const passwordMatch = user
       ? bcrypt.compareSync(actualPassword, user.password_hash)
       : bcrypt.compareSync(actualPassword, fakeHash);
 
@@ -564,7 +565,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       }
       return;
     }
-    
+
     // At this point, user is guaranteed to exist and password matches
     // Use non-null assertion to satisfy TypeScript
     const authenticatedUser = user!;
@@ -581,17 +582,17 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     const isWebauthnEnabled = await TwoFAOperations.isWebAuthnEnabled(authenticatedUser.id);
     const isTotpEnabled = totpStatus.enabled;
     const has2FA = isTotpEnabled || isWebauthnEnabled;
-    
+
     // 检查是否需要强制 2FA
     const force2FA = twoFAValidationEnabled && (await requires2FA(authenticatedUser.id));
     const userHas2FA = await has2FAEnabled(authenticatedUser.id);
-    
+
     // 如果强制 2FA 但用户未设置，要求先设置 2FA
     if (force2FA && !userHas2FA) {
-      res.json({ 
-        code: -3, 
-        msg: '2FA setup required', 
-        data: { require2FASetup: true } 
+      res.json({
+        code: -3,
+        msg: '2FA setup required',
+        data: { require2FASetup: true }
       });
       return;
     }
@@ -616,7 +617,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
           sendError(res, 'WebAuthn challenge expired or missing', 400);
           return;
         }
-        
+
         const { verifyAuthenticationResponse } = require('@simplewebauthn/server');
         const { getUserWebAuthnCredentials, updateWebAuthnCredentialCounter } = require('../service/webauthn');
         const userCreds = await getUserWebAuthnCredentials(authenticatedUser.id);
@@ -625,7 +626,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
           sendError(res, 'Credential not found', 404);
           return;
         }
-        
+
         try {
           const verification = await verifyAuthenticationResponse({
             response: webauthnResponse,
@@ -639,7 +640,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
               transports: cred.transports,
             },
           });
-          
+
           if (!verification.verified) {
             sendError(res, 'WebAuthn verification failed', 401);
             return;
@@ -662,7 +663,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
 
     // Clear login attempts on successful login
     await clearLoginAttempts(loginIdentifier);
-    
+
     // 如果用户选择信任设备，添加设备信任
     let deviceId: string | undefined;
     if (trustDevice && twoFAValidationEnabled && has2FA) {
@@ -672,15 +673,15 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       };
       deviceId = await addTrustedDevice(authenticatedUser.id, deviceInfo);
     }
-    
+
     const token = await signToken({ userId: authenticatedUser.id, username: authenticatedUser.username, nickname: authenticatedUser.nickname, role: authenticatedUser.role });
-    
+
     // Set httpOnly cookie (secure, XSS-proof)
     setAuthCookie(res, token);
-    
+
     res.json({
       code: 0,
-      data: { 
+      data: {
         user: { id: authenticatedUser.id, username: authenticatedUser.username, nickname: authenticatedUser.nickname, email: authenticatedUser.email, role: authenticatedUser.role },
         deviceId,
         require2FASetup: force2FA && !userHas2FA,
@@ -791,7 +792,7 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
     const state = randomHex(24);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await OAuthOperations.createState(state, 'login', desired, null, expiresAt);
-    log.debug('OAuth', 'State created for login', { state: state.substring(0, 10) + '...', provider: desired, expiresAt: expiresAt.toISOString() });
+    log.debug('State created for login', { state: state.substring(0, 10) + '...', provider: desired, expiresAt: expiresAt.toISOString() });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
     res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth flow' });
@@ -826,10 +827,10 @@ router.post('/oauth/start', async (req: Request, res: Response) => {
  */
 router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Response) => {
   // 最早期日志，确认请求到达
-  log.debug('OAuth', '>>> /oauth/start-bind ENTRY', { userId: req.user?.userId, body: req.body });
+  log.debug('>>> /oauth/start-bind ENTRY', { userId: req.user?.userId, body: req.body });
   try {
     const desired = (req.body?.provider as 'custom' | 'logto' | undefined) || 'custom';
-    log.debug('OAuth', 'Start bind request received', { provider: desired, userId: req.user!.userId });
+    log.debug('Start bind request received', { provider: desired, userId: req.user!.userId });
 
     const config = await getOAuthConfigByProvider(desired);
     assertOAuthEnabled(config);
@@ -843,7 +844,7 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
     const state = randomHex(24);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await OAuthOperations.createState(state, 'bind', desired, req.user!.userId, expiresAt);
-    log.debug('OAuth', 'State created for bind', {
+    log.debug('State created for bind', {
       state: state.substring(0, 16) + '...',
       provider: desired,
       userId: req.user!.userId,
@@ -851,7 +852,7 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
     });
     res.json({ code: 0, data: { authUrl: buildOauthAuthUrl(config, state) }, msg: 'success' });
   } catch (error) {
-    log.error('OAuth', 'Failed to start bind', { error: error instanceof Error ? error.message : String(error) });
+    log.error('Failed to start bind', { error: error instanceof Error ? error.message : String(error) });
     res.status(400).json({ code: 400, msg: error instanceof Error ? error.message : 'Failed to start oauth bind flow' });
   }
 });
@@ -907,18 +908,18 @@ router.post('/oauth/start-bind', authMiddleware, async (req: Request, res: Respo
  */
 router.post('/oauth/callback', async (req: Request, res: Response) => {
   const { code, state } = req.body as { code?: string; state?: string };
-  log.debug('OAuth', 'Callback received', { code: code?.substring(0, 16) + '...', state: state?.substring(0, 16) + '...' });
-  
+  log.debug('Callback received', { code: code?.substring(0, 16) + '...', state: state?.substring(0, 16) + '...' });
+
   if (!code || !state) {
-    log.warn('OAuth', 'Missing code or state', { hasCode: !!code, hasState: !!state });
+    log.warn('Missing code or state', { hasCode: !!code, hasState: !!state });
     res.status(400).json({ code: 400, msg: 'code and state are required' });
     return;
   }
-  
+
   // 检查是否正在处理相同的回调（防止重复请求）
   const callbackKey = `${code}:${state}`;
   if (processingCallbacks.has(callbackKey)) {
-    log.warn('OAuth', 'Duplicate callback detected, ignoring', { state: state.substring(0, 16) + '...' });
+    log.warn('Duplicate callback detected, ignoring', { state: state.substring(0, 16) + '...' });
     res.status(429).json({ code: 429, msg: 'Callback is being processed, please wait' });
     return;
   }
@@ -926,18 +927,18 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
   processingCallbacks.add(callbackKey);
 
   try {
-    log.debug('OAuth', 'State store lookup', { lookingFor: state.substring(0, 16) + '...' });
+    log.debug('State store lookup', { lookingFor: state.substring(0, 16) + '...' });
 
     // 从数据库获取并删除 state（一次性使用）
     const stateEntry = await OAuthOperations.getAndDeleteState(state);
 
     if (!stateEntry) {
-      log.warn('OAuth', 'State not found in store', { state: state.substring(0, 16) + '...', code: code?.substring(0, 16) + '...' });
-      
+      log.warn('State not found in store', { state: state.substring(0, 16) + '...', code: code?.substring(0, 16) + '...' });
+
       // 检查这个code是否已经被处理过
       const processedTimestamp = processedCodes.get(code);
       if (processedTimestamp && Date.now() - processedTimestamp <= PROCESSED_CODES_TTL) {
-        log.info('OAuth', 'Code already processed, returning success', { code: code?.substring(0, 16) + '...' });
+        log.info('Code already processed, returning success', { code: code?.substring(0, 16) + '...' });
         // 如果已经处理过，返回成功（幂等性）
         // 对于绑定模式，返回成功
         // 对于登录模式，需要检查用户是否已经登录，但这里简单返回成功
@@ -945,35 +946,35 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
         res.json({ code: 0, data: { mode: 'login' }, msg: 'OAuth flow already completed' });
         return;
       }
-      
+
       // 可能正在处理中，等待一小段时间后重试
-      log.info('OAuth', 'State not found but may be processing, waiting...', { state: state.substring(0, 16) + '...' });
-      
+      log.info('State not found but may be processing, waiting...', { state: state.substring(0, 16) + '...' });
+
       // 等待1秒，让第一个请求有机会完成
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // 再次检查是否已经被处理
       const processedTimestamp2 = processedCodes.get(code);
       if (processedTimestamp2 && Date.now() - processedTimestamp2 <= PROCESSED_CODES_TTL) {
-        log.info('OAuth', 'Code processed after waiting, returning success', { code: code?.substring(0, 16) + '...' });
+        log.info('Code processed after waiting, returning success', { code: code?.substring(0, 16) + '...' });
         addProcessedCode(code);
         res.json({ code: 0, data: { mode: 'login' }, msg: 'OAuth flow completed after retry' });
         return;
       }
-      
+
       res.status(400).json({ code: 400, msg: 'Invalid oauth state - state not found. Server may have restarted or callback was already processed.' });
       return;
     }
 
-    log.debug('OAuth', 'State found and removed', { state: state.substring(0, 16) + '...' });
+    log.debug('State found and removed', { state: state.substring(0, 16) + '...' });
 
     if (new Date() > stateEntry.expiresAt) {
-      log.warn('OAuth', 'State expired', { state: state.substring(0, 16) + '...', expiredAt: stateEntry.expiresAt.toISOString() });
+      log.warn('State expired', { state: state.substring(0, 16) + '...', expiredAt: stateEntry.expiresAt.toISOString() });
       res.status(400).json({ code: 400, msg: 'Expired oauth state' });
       return;
     }
 
-    log.debug('OAuth', 'State validated', { mode: stateEntry.mode, provider: stateEntry.provider, userId: stateEntry.userId });
+    log.debug('State validated', { mode: stateEntry.mode, provider: stateEntry.provider, userId: stateEntry.userId });
 
     // 处理成功后立即清理标记（后续代码可能耗时较长）
     processingCallbacks.delete(callbackKey);
@@ -981,13 +982,13 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     const config = await getOAuthConfigByProvider(stateEntry.provider);
     assertOAuthEnabled(config);
     const provider = stateEntry.provider;
-    
+
     // Force redirectUri to use the fixed callback endpoint
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const baseUrl = `${protocol}://${host}`;
     config.redirectUri = `${baseUrl}/oauth/callback`;
-    
+
     const tokenResult = await exchangeOauthCode(config, code);
     const profile = await fetchOAuthProfile(config, tokenResult.accessToken);
     // ID Token 验证（可选，失败不阻断流程）
@@ -996,16 +997,16 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
       try {
         idTokenClaims = await verifyIdToken(tokenResult.idToken, config);
       } catch (idTokenError) {
-        log.warn('OAuth', 'ID Token verification failed, continuing with profile only', { error: idTokenError instanceof Error ? idTokenError.message : String(idTokenError) });
+        log.warn('ID Token verification failed, continuing with profile only', { error: idTokenError instanceof Error ? idTokenError.message : String(idTokenError) });
       }
     }
     const mergedProfile = { ...idTokenClaims, ...profile };
     const subject = resolveOAuthSubject(config, mergedProfile);
     const normalizedEmail = resolveOAuthEmail(config, mergedProfile);
-    
+
     // Get provider key for database lookup
     const providerKey = getProviderKey(config);
-    
+
     const existingLink = await OAuthOperations.getUserByProviderSubject(providerKey, subject);
 
     if (stateEntry.mode === 'bind') {
@@ -1042,10 +1043,10 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
     }
 
     const token = await signToken({ userId: user.id, username: user.username, nickname: user.nickname, role: user.role });
-    
+
     // Set httpOnly cookie (secure, XSS-proof)
     setAuthCookie(res, token);
-    
+
     await logAuditOperation(user.id, 'oauth_login', 'system', { provider: providerKey });
     addProcessedCode(code);
     res.json({
@@ -1054,7 +1055,7 @@ router.post('/oauth/callback', async (req: Request, res: Response) => {
       msg: 'success',
     });
   } catch (error) {
-    log.error('OAuth', 'Callback processing failed', { error: error instanceof Error ? error.message : String(error) });
+    log.error('Callback processing failed', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'OAuth callback failed' });
   } finally {
     // 清理处理标记
@@ -1137,8 +1138,8 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
  *         description: Password changed
  */
 router.put('/password', authMiddleware, async (req: Request, res: Response) => {
-  const { oldPassword, newPassword, encrypted } = req.body as { 
-    oldPassword: string; 
+  const { oldPassword, newPassword, encrypted } = req.body as {
+    oldPassword: string;
     newPassword: string;
     encrypted?: boolean;
   };
@@ -1151,37 +1152,37 @@ router.put('/password', authMiddleware, async (req: Request, res: Response) => {
     // Decrypt passwords if encrypted
     let actualOldPassword = oldPassword;
     let actualNewPassword = newPassword;
-    
+
     if (encrypted) {
       try {
         actualOldPassword = decryptPassword(oldPassword);
         actualNewPassword = decryptPassword(newPassword);
-        log.debug('Auth', 'Passwords decrypted successfully for password change');
+        log.debug('Passwords decrypted successfully for password change');
       } catch (decryptError) {
-        log.warn('Auth', 'Failed to decrypt passwords, using as-is', { 
-          error: decryptError instanceof Error ? decryptError.message : String(decryptError) 
+        log.warn('Failed to decrypt passwords, using as-is', {
+          error: decryptError instanceof Error ? decryptError.message : String(decryptError)
         });
       }
     }
-    
+
     const user = await UserOperations.getById(req.user!.userId);
 
     if (!user || !bcrypt.compareSync(actualOldPassword, user.password_hash as string)) {
       sendError(res, 'Old password is incorrect', 401);
       return;
     }
-    
+
     // 验证新密码强度
     const passwordCheck = await validatePassword(actualNewPassword);
     if (!passwordCheck.valid) {
       sendError(res, passwordCheck.message!, 400);
       return;
     }
-    
+
     const hash = bcrypt.hashSync(actualNewPassword, 10);
 
     await UserOperations.updatePassword(user.id as number, hash);
-    
+
     // 修改密码后清除所有受信任设备
     const { removeAllUserTrustedDevices } = require('../service/deviceTrust');
     await removeAllUserTrustedDevices(user.id as number);
@@ -1305,9 +1306,9 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
 });
 
 router.post('/password-reset/confirm', async (req: Request, res: Response) => {
-  const { email, code, newPassword, encrypted } = req.body as { 
-    email?: string; 
-    code?: string; 
+  const { email, code, newPassword, encrypted } = req.body as {
+    email?: string;
+    code?: string;
     newPassword?: string;
     encrypted?: boolean;
   };
@@ -1316,20 +1317,20 @@ router.post('/password-reset/confirm', async (req: Request, res: Response) => {
     res.status(400).json({ code: 400, msg: 'Email, code and newPassword are required' });
     return;
   }
-  
+
   // Decrypt password if encrypted
   let actualNewPassword = newPassword;
   if (encrypted) {
     try {
       actualNewPassword = decryptPassword(newPassword);
-      log.debug('Auth', 'Password decrypted successfully for reset');
+      log.debug('Password decrypted successfully for reset');
     } catch (decryptError) {
-      log.warn('Auth', 'Failed to decrypt password, using as-is', { 
-        error: decryptError instanceof Error ? decryptError.message : String(decryptError) 
+      log.warn('Failed to decrypt password, using as-is', {
+        error: decryptError instanceof Error ? decryptError.message : String(decryptError)
       });
     }
   }
-  
+
   if (actualNewPassword.length < 6) {
     res.status(400).json({ code: 400, msg: 'Password must be at least 6 characters' });
     return;
@@ -1459,27 +1460,27 @@ router.get('/preferences/pinned-domains', authMiddleware, async (req: Request, r
  */
 router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, res: Response) => {
   const { domainIds } = req.body as { domainIds?: number[] };
-  
+
   if (!Array.isArray(domainIds)) {
     res.status(400).json({ code: 400, msg: 'domainIds must be an array' });
     return;
   }
-  
+
   try {
     // ← 新增：检查是否有同名域名已经置顶
     if (domainIds.length > 0) {
       // 获取所有要置顶的域名信息
       const domainsToPin = await DomainOperations.getByIds(domainIds);
-      
+
       // 构建域名名称到 ID 的映射
       const nameToIdMap = new Map<string, number>();
       const duplicateNames: string[] = [];
-      
+
       for (const domain of domainsToPin) {
         const domainName = (domain as any).name || (domain as any).full_domain;
         const domainId = Number((domain as any).id);
         if (!domainName || !domainId) continue;
-        
+
         if (nameToIdMap.has(domainName)) {
           // 发现同名域名
           duplicateNames.push(domainName);
@@ -1487,19 +1488,19 @@ router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, r
           nameToIdMap.set(domainName, domainId);
         }
       }
-      
+
       // 如果有重复的域名名称，返回错误
       if (duplicateNames.length > 0) {
-        res.status(400).json({ 
-          code: 400, 
-          msg: `Duplicate domain names found: ${duplicateNames.join(', ')}. Cannot pin multiple domains with the same name.` 
+        res.status(400).json({
+          code: 400,
+          msg: `Duplicate domain names found: ${duplicateNames.join(', ')}. Cannot pin multiple domains with the same name.`
         });
         return;
       }
     }
-    
+
     await UserPreferencesOperations.updatePinnedDomains(req.user!.userId, domainIds);
-    
+
     // ← 发送 WebSocket 通知，刷新前端域名列表
     const wsService = require('../service/websocket').wsService;
     wsService.sendToUser(req.user!.userId, {
@@ -1507,7 +1508,7 @@ router.put('/preferences/pinned-domains', authMiddleware, async (req: Request, r
       data: { domainIds },
       timestamp: new Date().toISOString()
     });
-    
+
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update pinned domains' });

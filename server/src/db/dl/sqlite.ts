@@ -8,8 +8,9 @@ import { BaseDriver } from './base';
 import { registerDriver } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 
+const log = createLogger('DL').sub('Sqlite');
 /** SQLite 配置 */
 export interface SQLiteDriverConfig {
   path: string;
@@ -41,7 +42,7 @@ export class SQLiteDriver extends BaseDriver {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      log.info('SQLite', 'Opening database', { path: config.path, cwd: process.cwd() });
+      log.info('Opening database', { path: config.path, cwd: process.cwd() });
 
       // 在 EXE 环境中，需要手动指定 better-sqlite3 的绑定文件路径
       // pkg 打包后，process.pkg 会被设置
@@ -49,7 +50,7 @@ export class SQLiteDriver extends BaseDriver {
       let bindingPath: string | null = null;
 
       if (isPkgEnvironment) {
-        log.info('SQLite', 'Detected PKG environment, setting up native bindings path');
+        log.info('Detected PKG environment, setting up native bindings path');
         // 尝试从 EXE 所在目录的 node_modules 加载绑定文件
         const exeDir = path.dirname(process.execPath);
         const possiblePaths = [
@@ -60,7 +61,7 @@ export class SQLiteDriver extends BaseDriver {
         ];
 
         for (const tryPath of possiblePaths) {
-          log.debug('SQLite', 'Checking binding path', { path: tryPath, exists: fs.existsSync(tryPath) });
+          log.debug('Checking binding path', { path: tryPath, exists: fs.existsSync(tryPath) });
           if (fs.existsSync(tryPath)) {
             bindingPath = tryPath;
             break;
@@ -68,9 +69,9 @@ export class SQLiteDriver extends BaseDriver {
         }
 
         if (bindingPath) {
-          log.info('SQLite', 'Found native binding', { path: bindingPath });
+          log.info('Found native binding', { path: bindingPath });
         } else {
-          log.warn('SQLite', 'Native binding not found in expected locations', { possiblePaths });
+          log.warn('Native binding not found in expected locations', { possiblePaths });
         }
       }
 
@@ -82,7 +83,7 @@ export class SQLiteDriver extends BaseDriver {
           // 通过修改 require.cache 来注入正确的绑定路径
           const bindingModulePath = 'better-sqlite3/build/Release/better_sqlite3.node';
           const resolvedPath = require.resolve(bindingModulePath);
-          log.info('SQLite', 'Pre-loading native binding', { bindingPath, resolvedPath });
+          log.info('Pre-loading native binding', { bindingPath, resolvedPath });
 
           // 清除旧的缓存并加载新的绑定
           delete require.cache[resolvedPath];
@@ -102,7 +103,7 @@ export class SQLiteDriver extends BaseDriver {
 
         Database = require('better-sqlite3');
       } catch (importError) {
-        log.error('SQLite', 'Failed to import better-sqlite3 module', {
+        log.error('Failed to import better-sqlite3 module', {
           error: importError,
           cwd: process.cwd(),
           execPath: process.execPath,
@@ -119,7 +120,7 @@ export class SQLiteDriver extends BaseDriver {
       }
 
       this.db = new Database(config.path);
-      log.info('SQLite', 'Database opened successfully');
+      log.info('Database opened successfully');
 
       // 配置 SQLite
       if (config.enableWAL !== false) {
@@ -132,7 +133,7 @@ export class SQLiteDriver extends BaseDriver {
         this.db.pragma(`busy_timeout = ${config.busyTimeout}`);
       }
     } catch (error) {
-      log.error('SQLite', 'Failed to open database', { path: config.path, error });
+      log.error('Failed to open database', { path: config.path, error });
       throw error;
     }
   }
@@ -158,7 +159,7 @@ export class SQLiteDriver extends BaseDriver {
         return [];
       } catch (error) {
         this._stats.errors++;
-        log.error('SQLite', 'Query error', { sql: sql.substring(0, 100), error });
+        log.error('Query error', { sql: sql.substring(0, 100), error });
         throw error;
       }
     });
@@ -172,7 +173,7 @@ export class SQLiteDriver extends BaseDriver {
         return stmt.get(...serializeParams(params || [])) as T | undefined;
       } catch (error) {
         this._stats.errors++;
-        log.error('SQLite', 'Get error', { sql: sql.substring(0, 100), error });
+        log.error('Get error', { sql: sql.substring(0, 100), error });
         throw error;
       }
     });
@@ -186,7 +187,7 @@ export class SQLiteDriver extends BaseDriver {
         stmt.run(...serializeParams(params || []));
       } catch (error) {
         this._stats.errors++;
-        log.error('SQLite', 'Execute error', { sql: sql.substring(0, 100), error });
+        log.error('Execute error', { sql: sql.substring(0, 100), error });
         throw error;
       }
     });
@@ -242,7 +243,7 @@ export class SQLiteDriver extends BaseDriver {
   }
 
   async close(): Promise<void> {
-    log.info('SQLite', 'Closing database', { stats: this._stats });
+    log.info('Closing database', { stats: this._stats });
     if (this.db) {
       this.db.close();
     }

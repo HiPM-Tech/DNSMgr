@@ -1,8 +1,9 @@
 import { getConnection } from '../dal/connection';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 import { SchemaVersionManager } from './migration-manager';
 import { sqliteSchema } from './schemas/dialects/sqlite';
 
+const log = createLogger('DSM').sub('DataMigrationRunner');
 export interface DataMigration {
   id: string;
   description: string;
@@ -40,7 +41,7 @@ export class DataMigrationRunner {
     await this.ensureVersionTable();
 
     const executedIds = await this.getExecutedMigrationIds();
-    
+
     const sortedMigrations = this.topologicalSort();
 
     for (const migrationId of sortedMigrations) {
@@ -48,61 +49,61 @@ export class DataMigrationRunner {
       if (!migration) continue;
 
       if (executedIds.includes(migrationId)) {
-        log.debug('DSM-Migration', `Skipping already executed migration: ${migrationId}`);
+        log.debug(`Skipping already executed migration: ${migrationId}`);
         result.skipped.push(migrationId);
         continue;
       }
 
       let shouldExecute = true;
       try {
-        log.debug('DSM-Migration', `Checking condition for: ${migrationId}...`);
+        log.debug(`Checking condition for: ${migrationId}...`);
         shouldExecute = await migration.condition();
         if (shouldExecute) {
-          log.info('DSM-Migration', `✅ Condition met for ${migrationId}. Will execute.`);
+          log.info(`✅ Condition met for ${migrationId}. Will execute.`);
         } else {
-          log.debug('DSM-Migration', `⏭️ Condition not met for ${migrationId}. Skipping.`);
+          log.debug(`⏭️ Condition not met for ${migrationId}. Skipping.`);
         }
       } catch (e) {
-        log.error('DSM-Migration', `Condition check failed for ${migrationId}`, e);
+        log.error(`Condition check failed for ${migrationId}`, e);
         result.failed.push({ id: migrationId, error: e as Error });
         continue;
       }
 
       if (!shouldExecute) {
-        log.debug('DSM-Migration', `Condition not met, skipping: ${migrationId}`);
+        log.debug(`Condition not met, skipping: ${migrationId}`);
         result.skipped.push(migrationId);
         continue;
       }
 
       if (options.dryRun) {
-        log.warn('DSM-Migration [DRY RUN]', `🔍 Would execute: ${migrationId} - ${migration.description}`);
+        log.warn(`🔍 Would execute: ${migrationId} - ${migration.description}`);
         result.executed.push(migrationId);
       } else {
         const startTime = Date.now();
         try {
-          log.info('DSM-Migration', `🚀 Starting migration: ${migrationId}`);
-          log.debug('DSM-Migration', `Description: ${migration.description}`);
-          
+          log.info(`🚀 Starting migration: ${migrationId}`);
+          log.debug(`Description: ${migration.description}`);
+
           await migration.execute();
-          
+
           const duration = Date.now() - startTime;
-          log.info('DSM-Migration', `✨ Completed: ${migrationId} in ${duration}ms`);
-          
+          log.info(`✨ Completed: ${migrationId} in ${duration}ms`);
+
           await this.recordSuccess(migrationId, migration.description);
           result.executed.push(migrationId);
         } catch (e) {
-          log.error('DSM-Migration', `Failed to execute ${migrationId}`, e);
+          log.error(`Failed to execute ${migrationId}`, e);
           result.failed.push({ id: migrationId, error: e as Error });
         }
       }
     }
 
-    log.info('DSM-Migration', '--- Migration Summary ---');
-    log.info('DSM-Migration', `Executed: ${result.executed.length}, Skipped: ${result.skipped.length}, Failed: ${result.failed.length}`);
+    log.info('--- Migration Summary ---');
+    log.info(`Executed: ${result.executed.length}, Skipped: ${result.skipped.length}, Failed: ${result.failed.length}`);
     if (result.failed.length > 0) {
-      log.error('DSM-Migration', 'Failed migrations:', result.failed.map(f => f.id).join(', '));
+      log.error('Failed migrations:', result.failed.map(f => f.id).join(', '));
     }
-    log.info('DSM-Migration', '-----------------------');
+    log.info('-----------------------');
 
     return result;
   }
@@ -110,7 +111,7 @@ export class DataMigrationRunner {
   private async ensureVersionTable(): Promise<void> {
     const conn = getConnection();
     const type = conn.type;
-    
+
     if (type === 'sqlite') {
       await conn.execute(`CREATE TABLE IF NOT EXISTS schema_versions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,7 +162,7 @@ export class DataMigrationRunner {
   private async recordSuccess(id: string, description: string): Promise<void> {
     const conn = getConnection();
     await conn.execute(
-      `INSERT INTO schema_versions (version, semantic_version, description, success, system_type) 
+      `INSERT INTO schema_versions (version, semantic_version, description, success, system_type)
        VALUES (?, ?, ?, 1, 'hidns-migration')`,
       [id, '1.0.0', description]
     );

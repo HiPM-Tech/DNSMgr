@@ -1,3 +1,4 @@
+import { createProviderWhoisLogger } from '../internal';
 /**
  * DNSHE WHOIS 查询调度器实现
  */
@@ -5,8 +6,8 @@
 import { WhoisScheduler, WhoisSchedulerResult } from '../../../../service/whois';
 import { getWhois } from './whois';
 import { DnsheAuthConfig } from './auth';
-import { log } from '../internal';
 
+const log = createProviderWhoisLogger('DNSHE');
 export class DnsheWhoisScheduler implements WhoisScheduler {
   readonly type = 'dnshe';
 
@@ -16,9 +17,9 @@ export class DnsheWhoisScheduler implements WhoisScheduler {
   async queryWhois(config: DnsheAuthConfig, domain: string): Promise<WhoisSchedulerResult | null> {
     try {
       const result = await getWhois(config, domain);
-      
+
       if (!result || !result.success) {
-        log.warn('DnsheWhoisScheduler', 'WHOIS query failed', { domain });
+        log.warn('WHOIS query failed', { domain });
         return null;
       }
 
@@ -39,7 +40,7 @@ export class DnsheWhoisScheduler implements WhoisScheduler {
         raw_data: result.raw_data,
       };
     } catch (error) {
-      log.error('DnsheWhoisScheduler', 'Error querying WHOIS', {
+      log.error('Error querying WHOIS', {
         domain,
         error: error instanceof Error ? error.message : String(error),
       });

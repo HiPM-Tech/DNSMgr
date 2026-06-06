@@ -1,9 +1,7 @@
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber, fetchWithFallback } from '../internal';
 import crypto from 'node:crypto';
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('Bt');
 interface BtConfig {
   AccountID: string;
   AccessKey: string;
@@ -86,7 +84,7 @@ export class BtAdapter extends BaseAdapter {
       return { total: data.total || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Bt', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }
@@ -105,21 +103,21 @@ export class BtAdapter extends BaseAdapter {
     }
 
     try {
-      log.debug('Bt', `Resolving domainId for domain: ${this.config.domain}`);
+      log.debug(`Resolving domainId for domain: ${this.config.domain}`);
       const result = await this.getDomainList(this.config.domain, 1, 1);
       if (result.list.length > 0) {
         const thirdId = result.list[0].ThirdId;
         const parts = thirdId.split('|');
         const domainId = parts[0];
         const domainType = parts[1] || '1';
-        log.debug('Bt', `Resolved domainId: ${domainId}, domainType: ${domainType} for domain: ${this.config.domain}`);
+        log.debug(`Resolved domainId: ${domainId}, domainType: ${domainType} for domain: ${this.config.domain}`);
         // 缓存 domainId 和 domainType 避免重复查询
         this.config.domainId = domainId;
         this.config.domainType = domainType;
         return domainId;
       }
     } catch (error) {
-      log.error('Bt', `Failed to resolve domainId for domain: ${this.config.domain}`, { error });
+      log.error(`Failed to resolve domainId for domain: ${this.config.domain}`, { error });
     }
 
     return null;

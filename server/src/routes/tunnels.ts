@@ -5,21 +5,22 @@ import { CloudflareAdapter } from '../lib/dns/providers';
 import { DnsAccount } from '../types';
 import { isSuper, normalizeRole } from '../utils/roles';
 import { wsService } from '../service/websocket';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('HTTP').sub('Route').sub('Tunnels');
 const router = Router();
 
 async function getAccessibleCloudflareAccounts(userId: number, role: number): Promise<DnsAccount[]> {
   if (isSuper(role)) {
     return await DnsAccountOperations.getByType('cloudflare') as unknown as DnsAccount[];
   }
-  
+
   const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
-  
+
   if (teamIds.length > 0) {
     return await DnsAccountOperations.getByTypeAndUserOrTeams('cloudflare', userId, teamIds) as unknown as DnsAccount[];
   }
-  
+
   return await DnsAccountOperations.getByTypeAndUser('cloudflare', userId) as unknown as DnsAccount[];
 }
 
@@ -64,7 +65,7 @@ router.get('/:accountId/:tunnelId', authMiddleware, async (req: Request, res: Re
       normalizeRole(req.user?.role)
     );
     if (!acc) return res.status(404).json({ code: 404, msg: 'Account not found' });
-    
+
     // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
     const cfg = typeof acc.config === 'string' ? JSON.parse(acc.config) : acc.config;
     const cf = new CloudflareAdapter(cfg);
@@ -83,7 +84,7 @@ router.put('/:accountId/:tunnelId/config', authMiddleware, async (req: Request, 
       normalizeRole(req.user?.role)
     );
     if (!acc) return res.status(404).json({ code: 404, msg: 'Account not found' });
-    
+
     // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
     const cfg = typeof acc.config === 'string' ? JSON.parse(acc.config) : acc.config;
     const cf = new CloudflareAdapter(cfg);
@@ -99,9 +100,9 @@ router.put('/:accountId/:tunnelId/config', authMiddleware, async (req: Request, 
           },
         });
       } catch (error) {
-        log.error('Tunnels', 'Failed to broadcast tunnel_config_updated event', { error });
+        log.error('Failed to broadcast tunnel_config_updated event', { error });
       }
-      
+
       res.json({ code: 0, msg: 'success' });
     } else {
       res.json({ code: -1, msg: 'Failed to update tunnel config' });
@@ -119,7 +120,7 @@ router.delete('/:accountId/:tunnelId', authMiddleware, async (req: Request, res:
       normalizeRole(req.user?.role)
     );
     if (!acc) return res.status(404).json({ code: 404, msg: 'Account not found' });
-    
+
     // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
     const cfg = typeof acc.config === 'string' ? JSON.parse(acc.config) : acc.config;
     const cf = new CloudflareAdapter(cfg);
@@ -135,9 +136,9 @@ router.delete('/:accountId/:tunnelId', authMiddleware, async (req: Request, res:
           },
         });
       } catch (error) {
-        log.error('Tunnels', 'Failed to broadcast tunnel_deleted event', { error });
+        log.error('Failed to broadcast tunnel_deleted event', { error });
       }
-      
+
       res.json({ code: 0, msg: 'success' });
     } else {
       res.json({ code: -1, msg: 'Failed to delete tunnel' });

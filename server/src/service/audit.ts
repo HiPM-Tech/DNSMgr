@@ -1,9 +1,10 @@
 import { AuditLogOperations, UserOperations } from '../db/bal/business-adapter';
 import { checkAuditRules } from './auditRules';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { Request } from 'express';
 import { wsService } from './websocket';
 
+const log = createLogger('Audit');
 /**
  * 记录审计操作
  * @param userId - 用户 ID（可能是 Token 关联的用户 ID）
@@ -27,7 +28,7 @@ export async function logAuditOperation(
   const tokenPayload = (req as any)?.tokenPayload;
   if (tokenPayload) {
     authSource = 'token';
-    
+
     // Token 认证时，尝试获取实际用户信息
     try {
       const user = await UserOperations.getById(userId) as { username?: string; nickname?: string } | undefined;
@@ -37,7 +38,7 @@ export async function logAuditOperation(
         operatorName = `user:${userId}`;
       }
     } catch (err) {
-      log.warn('Audit', 'Failed to get user info for token auth', { userId, error: err });
+      log.warn('Failed to get user info for token auth', { userId, error: err });
       operatorName = `user:${userId}`;
     }
   } else {
@@ -50,7 +51,7 @@ export async function logAuditOperation(
         operatorName = `user:${userId}`;
       }
     } catch (err) {
-      log.warn('Audit', 'Failed to get user info for JWT auth', { userId, error: err });
+      log.warn('Failed to get user info for JWT auth', { userId, error: err });
       operatorName = `user:${userId}`;
     }
   }
@@ -67,9 +68,9 @@ export async function logAuditOperation(
 
   // Async check against audit rules
   checkAuditRules(actualUserId, action, domain, auditData).catch(err => {
-    log.error('Audit', 'Audit rule engine error', { error: err });
+    log.error('Audit rule engine error', { error: err });
   });
-  
+
   // 推送 WebSocket 消息给管理员（异步，不阻塞）
   try {
     wsService.broadcastToRole('3', {
@@ -81,6 +82,6 @@ export async function logAuditOperation(
       },
     });
   } catch (err) {
-    log.warn('Audit', 'Failed to broadcast audit_log_created event', { error: err });
+    log.warn('Failed to broadcast audit_log_created event', { error: err });
   }
 }

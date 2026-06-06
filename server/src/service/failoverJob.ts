@@ -2,8 +2,9 @@ import { FailoverOperations, getDbType } from '../db/bal/business-adapter';
 import { getFailoverConfig, getFailoverStatus, performHealthCheck, performFailover, FailoverConfig } from './failover';
 import { taskManager } from './taskManager';
 import { connect } from '../db/dal/connection';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('Job').sub('Failover');
 export async function startFailoverJob() {
   // 每 10 秒检查一次，但使用任务管理器控制并发
   setInterval(async () => {
@@ -74,15 +75,15 @@ export async function startFailoverJob() {
     } catch (e) {
       // Check if it's a connection error, try to reconnect
       if (e instanceof Error && e.message.includes('Database connection not initialized')) {
-        log.warn('FailoverJob', 'Database connection lost, attempting to reconnect...');
+        log.warn('Database connection lost, attempting to reconnect...');
         try {
           await connect();
-          log.info('FailoverJob', 'Database reconnected successfully');
+          log.info('Database reconnected successfully');
         } catch (reconnectError) {
-          log.error('FailoverJob', 'Failed to reconnect to database', { error: reconnectError });
+          log.error('Failed to reconnect to database', { error: reconnectError });
         }
       } else {
-        log.error('FailoverJob', 'Error', { error: e });
+        log.error('Error', { error: e });
       }
     }
   }, 10000); // check every 10 seconds, but inside we respect checkInterval

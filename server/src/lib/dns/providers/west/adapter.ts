@@ -1,9 +1,7 @@
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, fetchWithFallback } from '../internal';
 import crypto from 'node:crypto';
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('West');
 interface WestConfig {
   username: string;
   apiPassword: string;
@@ -177,7 +175,7 @@ export class WestAdapter extends BaseAdapter implements DnsAdapter {
       };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('West', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

@@ -3,8 +3,9 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { McpOperations } from '../db/bal/business-adapter';
 import { sendSuccess } from '../utils/http';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('MCP').sub('Route').sub('Config');
 const router = Router();
 
 // ─── MCP OAuth JWKS Key Pair ──────────────────────────────────────
@@ -21,7 +22,7 @@ function getOrGenerateMcpJwksKey(): McpJwksKey {
   const now = Date.now();
 
   if (!jwksKeyCache || (now - jwksKeyGeneratedAt) > JWKS_KEY_TTL) {
-    log.info('MCP', 'Generating new EC P-256 key pair for MCP OAuth JWKS');
+    log.info('Generating new EC P-256 key pair for MCP OAuth JWKS');
 
     const { publicKey } = crypto.generateKeyPairSync('ec', {
       namedCurve: 'P-256',
@@ -65,7 +66,7 @@ router.get('/.well-known/jwks.json', async (req: Request, res: Response) => {
     const { jwk } = getOrGenerateMcpJwksKey();
     res.status(200).json({ keys: [jwk] });
   } catch (error) {
-    log.error('MCP', 'Failed to serve JWKS', { error });
+    log.error('Failed to serve JWKS', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });
@@ -99,7 +100,7 @@ router.get('/status', async (req: Request, res: Response) => {
     const config = await McpOperations.getGlobalConfig();
     sendSuccess(res, { enabled: config?.enabled || false });
   } catch (error) {
-    log.error('MCP', 'Failed to get MCP status', { error });
+    log.error('Failed to get MCP status', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get MCP status' });
   }
 });
@@ -123,7 +124,7 @@ router.get('/config', authMiddleware, adminOnly, async (req: Request, res: Respo
     const config = await McpOperations.getGlobalConfig();
     sendSuccess(res, config || { id: 0, enabled: false });
   } catch (error) {
-    log.error('MCP', 'Failed to get MCP config', { error });
+    log.error('Failed to get MCP config', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get MCP config' });
   }
 });
@@ -163,12 +164,12 @@ router.post('/config', authMiddleware, adminOnly, async (req: Request, res: Resp
     }
 
     await McpOperations.updateGlobalConfig(enabled, req.user!.userId);
-    
-    log.info('MCP', `MCP global config updated by user ${req.user!.userId}`, { enabled });
-    
+
+    log.info(`MCP global config updated by user ${req.user!.userId}`, { enabled });
+
     sendSuccess(res, { success: true });
   } catch (error) {
-    log.error('MCP', 'Failed to update MCP config', { error });
+    log.error('Failed to update MCP config', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update MCP config' });
   }
 });
@@ -183,12 +184,12 @@ router.put('/config', authMiddleware, adminOnly, async (req: Request, res: Respo
     }
 
     await McpOperations.updateGlobalConfig(enabled, req.user!.userId);
-    
-    log.info('MCP', `MCP global config updated by user ${req.user!.userId}`, { enabled });
-    
+
+    log.info(`MCP global config updated by user ${req.user!.userId}`, { enabled });
+
     sendSuccess(res, { success: true });
   } catch (error) {
-    log.error('MCP', 'Failed to update MCP config', { error });
+    log.error('Failed to update MCP config', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update MCP config' });
   }
 });
@@ -267,7 +268,7 @@ router.get('/.well-known/oauth-protected-resource', async (req: Request, res: Re
 
     res.status(200).json(metadata);
   } catch (error) {
-    log.error('MCP', 'Failed to serve OAuth protected resource metadata', { error });
+    log.error('Failed to serve OAuth protected resource metadata', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });
@@ -372,7 +373,7 @@ router.get('/.well-known/oauth-authorization-server', async (req: Request, res: 
 
     res.status(200).json(metadata);
   } catch (error) {
-    log.error('MCP', 'Failed to serve authorization server metadata', { error });
+    log.error('Failed to serve authorization server metadata', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });
@@ -491,7 +492,7 @@ router.get('/.well-known/mcp.json', async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.status(200).json(metadata);
   } catch (error) {
-    log.error('MCP', 'Failed to serve MCP capability discovery metadata', { error });
+    log.error('Failed to serve MCP capability discovery metadata', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });

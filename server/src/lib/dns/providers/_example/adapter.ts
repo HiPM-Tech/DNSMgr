@@ -1,9 +1,10 @@
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, fetchWithFallback, resolveDomainIdHelper, normalizeRrName, safeString, toNumber, Dict } from '../internal';
 /**
  * Example DNS Provider Adapter - 示例 DNS 提供商适配器
- * 
+ *
  * 这个文件展示了如何实现一个新的 DNS 提供商适配器。
  * 复制此文件并重命名，然后按照注释实现各个方法。
- * 
+ *
  * 实现步骤：
  * 1) 定义配置接口（Config Interface）
  * 2) 实现适配器类，继承 BaseAdapter
@@ -12,12 +13,9 @@
  * 5) 在 index.ts 中导出适配器
  */
 
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
-import { resolveDomainIdHelper, normalizeRrName, safeString, toNumber, Dict } from '../internal';
 import { buildAuthHeaders, authenticatedRequest, type ExampleAuthConfig } from './auth';
 
+const log = createProviderAdapterLogger('Example');
 // ==================== 配置接口示例 ====================
 
 /**
@@ -84,8 +82,8 @@ export class ExampleAdapter implements DnsAdapter {
       body = JSON.stringify(params);
     }
 
-    log.providerRequest('Example', method, url);
-    
+    log.sub('API').tag('REQUEST').debug('Provider request', { method: method, url: url, params: undefined });
+
     const options: RequestInit = {
       method,
       headers: buildAuthHeaders(this.config),
@@ -153,7 +151,7 @@ export class ExampleAdapter implements DnsAdapter {
       return { total: data.total || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Example', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

@@ -5,9 +5,10 @@
  */
 
 import { dnsResolver, DNSQueryType, DNSResolverResult } from './resolver';
-import { log } from '../logger';
+import { createLogger } from '../logger';
 import { normalizeDomain } from '../../utils/domain';
 
+const log = createLogger('DNS').sub('NsLookup');
 // 查询超时时间（毫秒）
 const DNS_TIMEOUT = 10000;
 
@@ -30,7 +31,7 @@ export async function resolveNsRecords(domain: string): Promise<NSLookupResult> 
   const normalizedDomain = normalizeDomain(domain).replace(/\.$/, '');
 
   if (!normalizedDomain || normalizedDomain.includes(' ')) {
-    log.warn('NSLookup', 'Invalid domain provided', { domain, normalizedDomain });
+    log.warn('Invalid domain provided', { domain, normalizedDomain });
     return { nsRecords: [], isPoisoned: false };
   }
 
@@ -39,7 +40,7 @@ export async function resolveNsRecords(domain: string): Promise<NSLookupResult> 
     const validationResult = await dnsResolver.resolveNSWithValidation(normalizedDomain);
 
     if (validationResult.nsRecords.length > 0) {
-      log.info('NSLookup', 'NS records resolved', {
+      log.info('NS records resolved', {
         domain: normalizedDomain,
         count: validationResult.nsRecords.length,
         servers: validationResult.nsRecords,
@@ -57,7 +58,7 @@ export async function resolveNsRecords(domain: string): Promise<NSLookupResult> 
     }
 
     // 如果没有 NS 记录，尝试查询 A 记录（可能是子域名）
-    log.debug('NSLookup', 'No NS records found, trying A record', {
+    log.debug('No NS records found, trying A record', {
       domain: normalizedDomain,
     });
 
@@ -68,7 +69,7 @@ export async function resolveNsRecords(domain: string): Promise<NSLookupResult> 
     });
 
     if (aResult.success && aResult.records && aResult.records.length > 0) {
-      log.info('NSLookup', 'A records found (subdomain)', {
+      log.info('A records found (subdomain)', {
         domain: normalizedDomain,
         ips: aResult.records.map(r => r.data),
         source: aResult.source,
@@ -77,14 +78,14 @@ export async function resolveNsRecords(domain: string): Promise<NSLookupResult> 
       return { nsRecords: [], isPoisoned: false };
     }
   } catch (error) {
-    log.error('NSLookup', 'DNS resolution failed', {
+    log.error('DNS resolution failed', {
       domain: normalizedDomain,
       error: error instanceof Error ? error.message : String(error),
     });
   }
 
   // 所有查询都失败
-  log.error('NSLookup', 'Failed to resolve NS records', {
+  log.error('Failed to resolve NS records', {
     domain: normalizedDomain,
   });
 
@@ -164,7 +165,7 @@ export async function resolveNsRecordsBatch(domains: string[]): Promise<Map<stri
 
   const poisonedCount = Array.from(results.values()).filter(r => r.isPoisoned).length;
 
-  log.info('NSLookup', 'Batch NS resolution completed', {
+  log.info('Batch NS resolution completed', {
     total: domains.length,
     successful: Array.from(results.values()).filter(r => r.nsRecords.length > 0).length,
     poisoned: poisonedCount,

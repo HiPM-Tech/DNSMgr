@@ -1,9 +1,7 @@
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, asArray, BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber, toRecordStatus, uuid, fetchWithFallback } from '../internal';
 import crypto from 'node:crypto';
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { asArray, BaseAdapter, Dict, normalizeRrName, resolveDomainIdHelper, safeString, toNumber, toRecordStatus, uuid } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('Huawei');
 class HuaweiCloudClient {
   private readonly useProxy: boolean;
 
@@ -113,7 +111,7 @@ class HuaweiCloudClient {
       if (queryStr) url += '?' + queryStr;
     }
 
-    log.providerRequest('Huawei', method, url);
+    log.sub('API').tag('REQUEST').debug('Provider request', { method: method, url: url, params: undefined });
     const res = await fetchWithFallback(url, {
       method,
       headers,
@@ -123,10 +121,10 @@ class HuaweiCloudClient {
     const data = (await res.json()) as Dict;
     if (!res.ok || data.error_msg || data.message || (data.error as Dict)?.error_msg) {
       const err = safeString(data.error_msg) || safeString(data.message) || safeString((data.error as Dict)?.error_msg) || `HuaweiCloud request failed: ${res.status}`;
-      log.providerError('Huawei', data);
+      log.sub('API').tag('ERROR').error('Provider error', data);
       throw new Error(err);
     }
-    log.providerResponse('Huawei', res.status, true);
+    log.sub('API').tag('RESPONSE').debug('Provider response', { status: res.status, success: true, data: undefined });
 
     return data as T;
   }
@@ -190,7 +188,7 @@ export class HuaweiAdapter extends BaseAdapter {
       return { total: data.metadata?.total_count || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Huawei', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

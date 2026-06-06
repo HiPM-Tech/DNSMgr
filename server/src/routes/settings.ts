@@ -5,10 +5,11 @@ import { getLoginLimitConfig, updateLoginLimitConfig, getLoginAttemptStats, unlo
 import { SettingsOperations, NotificationOperations, AuditRuleOperations, DomainExpiryOperations, UserOperations } from '../db/bal/business-adapter';
 import { getSmtpConfig, updateSmtpConfig, sendSmtpEmail } from '../service/smtp';
 import { logAuditOperation } from '../service/audit';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { wsService } from '../service/websocket';
 import { sendError } from '../utils/http';
 
+const log = createLogger('HTTP').sub('Route').sub('Settings');
 const router = Router();
 type SecurityConfig = { jwtViewEmailNotify: boolean; showDnsProviderSecrets: boolean };
 const DEFAULT_SECURITY_CONFIG: SecurityConfig = { jwtViewEmailNotify: true, showDnsProviderSecrets: false };
@@ -204,7 +205,7 @@ router.post('/jwt-secret', authMiddleware, noTokenAuth('system settings'), admin
       }
     }
   } catch (e) {
-    log.warn('Security', 'Failed to send JWT view notification email', { error: e });
+    log.warn('Failed to send JWT view notification email', { error: e });
   }
   res.json({
     code: 0,
@@ -230,7 +231,7 @@ router.get('/notifications', authMiddleware, noTokenAuth('system settings'), adm
 router.put('/notifications', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const channels = req.body.channels;
   if (!Array.isArray(channels)) return sendError(res, 'Invalid channels array', 400);
-  
+
   await NotificationOperations.saveChannels(JSON.stringify(channels));
   res.json({ code: 0, msg: 'success' });
 });
@@ -259,7 +260,7 @@ router.get('/audit-rules', authMiddleware, noTokenAuth('system settings'), admin
 router.put('/audit-rules', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const rules = req.body.rules;
   if (!rules) return sendError(res, 'Rules required', 400);
-  
+
   await AuditRuleOperations.saveRules(JSON.stringify(rules));
   const defaultRules = {
     enabled: true,
@@ -273,7 +274,7 @@ router.put('/audit-rules', authMiddleware, noTokenAuth('system settings'), admin
 
 router.get('/security', authMiddleware, noTokenAuth('system settings'), adminOnly, async (_req: Request, res: Response) => {
   const value = await SettingsOperations.get('security_config');
-  
+
   const expiryNotifyValue = await DomainExpiryOperations.getNotification();
   const expiryDaysValue = await DomainExpiryOperations.getDays();
 
@@ -282,7 +283,7 @@ router.get('/security', authMiddleware, noTokenAuth('system settings'), adminOnl
     domainExpiryNotify: expiryNotifyValue ? (expiryNotifyValue === '1' || expiryNotifyValue === 'true') : false,
     domainExpiryDays: expiryDaysValue ? parseInt(expiryDaysValue) : 30
   };
-  
+
   if (!value) {
     res.json({ code: 0, data: defaultConf, msg: 'success' });
     return;
@@ -298,7 +299,7 @@ router.get('/security', authMiddleware, noTokenAuth('system settings'), adminOnl
 
 router.put('/security', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const { jwtViewEmailNotify, domainExpiryNotify, domainExpiryDays, showDnsProviderSecrets } = req.body;
-  const config = { 
+  const config = {
     jwtViewEmailNotify: !!jwtViewEmailNotify,
     showDnsProviderSecrets: !!showDnsProviderSecrets
   };
@@ -321,7 +322,7 @@ router.put('/security', authMiddleware, noTokenAuth('system settings'), adminOnl
       },
     });
   } catch (error) {
-    log.error('Settings', 'Failed to broadcast security_config_updated event', { error });
+    log.error('Failed to broadcast security_config_updated event', { error });
   }
 
   res.json({ code: 0, msg: 'success' });
@@ -340,7 +341,7 @@ router.put('/smtp', authMiddleware, noTokenAuth('system settings'), adminOnly, a
   try {
     const next = await updateSmtpConfig(req.body || {});
     await logAuditOperation(req.user!.userId, 'update_smtp_config', 'system', { enabled: next.enabled, host: next.host, port: next.port }, req);
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -351,9 +352,9 @@ router.put('/smtp', authMiddleware, noTokenAuth('system settings'), adminOnly, a
         },
       });
     } catch (error) {
-      log.error('Settings', 'Failed to broadcast smtp_updated event', { error });
+      log.error('Failed to broadcast smtp_updated event', { error });
     }
-    
+
     res.json({ code: 0, data: next, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update SMTP config' });
@@ -369,15 +370,15 @@ router.post('/smtp/test', authMiddleware, adminOnly, async (req: Request, res: R
       res.status(400).json({ code: 400, msg: 'Target email is required' });
       return;
     }
-    log.info('SMTP', 'Sending test email', { to: target, fromUser: req.user!.userId });
+    log.info('Sending test email', { to: target, fromUser: req.user!.userId });
     await sendSmtpEmail(target, 'HiDNS SMTP Test', 'This is a test email from HiDNS SMTP settings.');
     await logAuditOperation(req.user!.userId, 'smtp_test_email', 'system', { to: target }, req);
-    log.info('SMTP', 'Test email sent successfully', { to: target });
+    log.info('Test email sent successfully', { to: target });
     res.json({ code: 0, msg: 'success' });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
-    log.error('SMTP', 'Failed to send test email', { 
+    log.error('Failed to send test email', {
       error: errorMsg,
       stack: errorStack,
       to: to || '(not provided)',
@@ -400,7 +401,7 @@ router.put('/oauth', authMiddleware, noTokenAuth('system settings'), adminOnly, 
   try {
     const config = await updateOAuthConfig({ ...(req.body || {}), template: 'generic' });
     await logAuditOperation(req.user!.userId, 'update_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, issuer: config.issuer }, req);
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -411,9 +412,9 @@ router.put('/oauth', authMiddleware, noTokenAuth('system settings'), adminOnly, 
         },
       });
     } catch (error) {
-      log.error('Settings', 'Failed to broadcast oauth_updated event', { error });
+      log.error('Failed to broadcast oauth_updated event', { error });
     }
-    
+
     res.json({ code: 0, data: config, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update OAuth config' });
@@ -433,7 +434,7 @@ router.put('/oauth/logto', authMiddleware, noTokenAuth('system settings'), admin
   try {
     const config = await updateLogtoOAuthConfig(req.body || {});
     await logAuditOperation(req.user!.userId, 'update_logto_oauth_config', 'system', { enabled: config.enabled, providerName: config.providerName, logtoDomain: config.logtoDomain }, req);
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -444,9 +445,9 @@ router.put('/oauth/logto', authMiddleware, noTokenAuth('system settings'), admin
         },
       });
     } catch (error) {
-      log.error('Settings', 'Failed to broadcast oauth_updated event', { error });
+      log.error('Failed to broadcast oauth_updated event', { error });
     }
-    
+
     res.json({ code: 0, data: config, msg: 'success' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update Logto OAuth config' });
@@ -539,18 +540,18 @@ router.get('/login-limit', authMiddleware, noTokenAuth('system settings'), admin
  */
 router.put('/login-limit', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const { enabled, maxAttempts, lockoutDuration } = req.body;
-  
+
   try {
     const updateData: Partial<{ enabled: boolean; maxAttempts: number; lockoutDuration: number }> = {};
-    
+
     if (enabled !== undefined) updateData.enabled = enabled;
     if (maxAttempts !== undefined) updateData.maxAttempts = maxAttempts;
     if (lockoutDuration !== undefined) updateData.lockoutDuration = lockoutDuration;
-    
+
     await updateLoginLimitConfig(updateData);
-    
+
     const config = await getLoginLimitConfig();
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -562,9 +563,9 @@ router.put('/login-limit', authMiddleware, noTokenAuth('system settings'), admin
         },
       });
     } catch (error) {
-      log.error('Settings', 'Failed to broadcast config_updated event', { error });
+      log.error('Failed to broadcast config_updated event', { error });
     }
-    
+
     res.json({
       code: 0,
       data: config,
@@ -630,12 +631,12 @@ router.get('/login-attempts/stats', authMiddleware, noTokenAuth('system settings
  */
 router.post('/login-attempts/unlock', authMiddleware, noTokenAuth('system settings'), adminOnly, async (req: Request, res: Response) => {
   const { identifier } = req.body;
-  
+
   if (!identifier) {
     sendError(res, 'Identifier is required', 400);
     return;
   }
-  
+
   try {
     await unlockAccount(identifier);
     res.json({

@@ -3,8 +3,9 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { McpOperations } from '../db/bal/business-adapter';
 import { sendSuccess } from '../utils/http';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('MCP').sub('Route').sub('Oauth');
 const router = Router();
 
 /**
@@ -33,7 +34,7 @@ router.get('/clients', authMiddleware, async (req: Request, res: Response) => {
     const clients = await McpOperations.getUserOAuthClients(req.user!.userId);
     sendSuccess(res, clients);
   } catch (error) {
-    log.error('MCP', 'Failed to get OAuth clients', { error });
+    log.error('Failed to get OAuth clients', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get OAuth clients' });
   }
 });
@@ -94,7 +95,7 @@ router.post('/clients', authMiddleware, async (req: Request, res: Response) => {
       scope: scope ? JSON.stringify(scope) : undefined,
     });
 
-    log.info('MCP', `OAuth client created for user ${req.user!.userId}`, { app_name });
+    log.info(`OAuth client created for user ${req.user!.userId}`, { app_name });
 
     // Return credentials (only shown once)
     sendSuccess(res, {
@@ -103,7 +104,7 @@ router.post('/clients', authMiddleware, async (req: Request, res: Response) => {
       message: 'OAuth client created successfully. Please save the client_secret securely, it will not be shown again.',
     });
   } catch (error) {
-    log.error('MCP', 'Failed to create OAuth client', { error });
+    log.error('Failed to create OAuth client', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to create OAuth client' });
   }
 });
@@ -145,10 +146,10 @@ router.put('/clients/:id/scope', authMiddleware, async (req: Request, res: Respo
     }
 
     await McpOperations.updateOAuthClientScope(req.params.id, req.user!.userId, scope);
-    log.info('MCP', `OAuth client scope updated by user ${req.user!.userId}`, { clientId: req.params.id, scope });
+    log.info(`OAuth client scope updated by user ${req.user!.userId}`, { clientId: req.params.id, scope });
     sendSuccess(res, { success: true });
   } catch (error) {
-    log.error('MCP', 'Failed to update OAuth client scope', { error });
+    log.error('Failed to update OAuth client scope', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update scope' });
   }
 });
@@ -188,10 +189,10 @@ router.put('/clients/:id/expiry', authMiddleware, async (req: Request, res: Resp
     const expiryValue = expires_at ? expires_at : null;
 
     await McpOperations.updateOAuthClientExpiry(req.params.id, req.user!.userId, expiryValue);
-    log.info('MCP', `OAuth client expiry updated by user ${req.user!.userId}`, { clientId: req.params.id, expires_at: expiryValue });
+    log.info(`OAuth client expiry updated by user ${req.user!.userId}`, { clientId: req.params.id, expires_at: expiryValue });
     sendSuccess(res, { success: true });
   } catch (error) {
-    log.error('MCP', 'Failed to update OAuth client expiry', { error });
+    log.error('Failed to update OAuth client expiry', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update expiry' });
   }
 });
@@ -223,11 +224,11 @@ router.delete('/clients/:id', authMiddleware, async (req: Request, res: Response
 
     await McpOperations.deleteOAuthClient(clientId, req.user!.userId);
 
-    log.info('MCP', `OAuth client deleted by user ${req.user!.userId}`, { clientId });
+    log.info(`OAuth client deleted by user ${req.user!.userId}`, { clientId });
 
     sendSuccess(res, { success: true, message: 'OAuth client deleted' });
   } catch (error) {
-    log.error('MCP', 'Failed to delete OAuth client', { error });
+    log.error('Failed to delete OAuth client', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to delete OAuth client' });
   }
 });
@@ -333,7 +334,7 @@ router.get('/authorize', authMiddleware, async (req: Request, res: Response) => 
       expires_at: expiresAt,
     });
 
-    log.info('MCP OAuth', 'Authorization code issued', {
+    log.info('Authorization code issued', {
       client_id,
       user_id: req.user!.userId,
       redirect_uri,
@@ -343,7 +344,7 @@ router.get('/authorize', authMiddleware, async (req: Request, res: Response) => 
     const redirectUrl = `${redirect_uri}?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
     res.redirect(redirectUrl);
   } catch (error) {
-    log.error('MCP OAuth', 'Authorization failed', { error });
+    log.error('Authorization failed', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });
@@ -438,7 +439,7 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const now = Math.floor(Date.now() / 1000);
 
-    log.info('MCP OAuth', 'Dynamic client registered (expires in 10m)', {
+    log.info('Dynamic client registered (expires in 10m)', {
       client_id: clientId,
       client_name,
     });
@@ -453,7 +454,7 @@ router.post('/register', async (req: Request, res: Response) => {
       token_endpoint_auth_method: token_endpoint_auth_method || 'client_secret_post',
     });
   } catch (error) {
-    log.error('MCP OAuth', 'Dynamic client registration failed', { error });
+    log.error('Dynamic client registration failed', { error });
     res.status(500).json({
       error: 'server_error',
       error_description: 'Internal server error',
@@ -538,7 +539,7 @@ router.post('/token', async (req: Request, res: Response) => {
         });
     }
   } catch (error) {
-    log.error('MCP OAuth', 'Token endpoint error', { error });
+    log.error('Token endpoint error', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });
@@ -577,7 +578,7 @@ async function handleClientCredentials(req: Request, res: Response) {
     expires_at: expiresAt,
   });
 
-  log.info('MCP OAuth', 'Token issued (client_credentials)', { client_id, user_id: client.user_id ?? 0 });
+  log.info('Token issued (client_credentials)', { client_id, user_id: client.user_id ?? 0 });
 
   res.status(200).json({
     access_token: accessToken,
@@ -648,7 +649,7 @@ async function handleAuthorizationCode(req: Request, res: Response) {
 
   await Promise.all(operations);
 
-  log.info('MCP OAuth', 'Token issued (authorization_code)', {
+  log.info('Token issued (authorization_code)', {
     client_id: authData.client_id,
     user_id: authData.user_id,
   });
@@ -716,7 +717,7 @@ async function handleRefreshToken(req: Request, res: Response) {
     expires_at: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(), // 30 days
   });
 
-  log.info('MCP OAuth', 'Token refreshed', {
+  log.info('Token refreshed', {
     client_id: tokenData.client_id,
     user_id: tokenData.user_id,
   });
@@ -747,7 +748,7 @@ router.get('/tokens', authMiddleware, async (req: Request, res: Response) => {
     const tokens = await McpOperations.getOAuthAccessTokens(req.user!.userId);
     sendSuccess(res, tokens);
   } catch (error) {
-    log.error('MCP OAuth', 'Failed to get tokens', { error });
+    log.error('Failed to get tokens', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to get tokens' });
   }
 });
@@ -779,11 +780,11 @@ router.post('/tokens/:id/revoke', authMiddleware, async (req: Request, res: Resp
 
     await McpOperations.revokeOAuthTokenById(tokenId, req.user!.userId);
 
-    log.info('MCP OAuth', `Token revoked by user ${req.user!.userId}`, { tokenId });
+    log.info(`Token revoked by user ${req.user!.userId}`, { tokenId });
 
     sendSuccess(res, { success: true, message: 'Token revoked' });
   } catch (error) {
-    log.error('MCP OAuth', 'Failed to revoke token', { error });
+    log.error('Failed to revoke token', { error });
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to revoke token' });
   }
 });
@@ -876,7 +877,7 @@ router.post('/introspect', async (req: Request, res: Response) => {
 
     res.status(200).json(response);
   } catch (error) {
-    log.error('MCP OAuth', 'Token introspection failed', { error });
+    log.error('Token introspection failed', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });
@@ -922,7 +923,7 @@ router.post('/revoke', async (req: Request, res: Response) => {
     // Per RFC 7009: always return 200, even if the token was already invalid
     res.status(200).json({});
   } catch (error) {
-    log.error('MCP OAuth', 'Token revocation failed', { error });
+    log.error('Token revocation failed', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });

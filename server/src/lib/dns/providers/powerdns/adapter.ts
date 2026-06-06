@@ -1,8 +1,6 @@
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber, fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('Powerdns');
 interface PowerdnsConfig {
   serverUrl: string;
   apiKey: string;
@@ -112,7 +110,7 @@ export class PowerdnsAdapter extends BaseAdapter {
       return { total: list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Powerdns', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

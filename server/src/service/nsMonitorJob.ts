@@ -7,8 +7,9 @@ import { NSMonitorOperations, DomainOperations, AuditOperations, UserOperations,
 import { resolveNsRecords, getNsStatus, validateNsRecords } from '../lib/dns/ns-lookup';
 import { sendNotification, sendEmailToUser } from './notification';
 import { taskManager } from './taskManager';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('Job').sub('NsMonitor');
 let monitorInterval: NodeJS.Timeout | null = null;
 
 // 告警抑制配置：同一问题在30分钟内只发送一次通知
@@ -30,7 +31,7 @@ async function shouldSuppressAlert(monitorId: number, alertType: string, lastAle
 
     // 如果在抑制时间内，则抑制告警
     if (now - lastAlertTime < suppressTimeMs) {
-      log.info('NSMonitorJob', 'Alert suppressed (recent alert exists)', {
+      log.info('Alert suppressed (recent alert exists)', {
         monitorId,
         alertType,
         lastAlertAt,
@@ -41,7 +42,7 @@ async function shouldSuppressAlert(monitorId: number, alertType: string, lastAle
 
     return false;
   } catch (error) {
-    log.error('NSMonitorJob', 'Failed to check alert suppression', { monitorId, alertType, error });
+    log.error('Failed to check alert suppression', { monitorId, alertType, error });
     return false; // 出错时不抑制，确保告警能被发送
   }
 }
@@ -70,7 +71,7 @@ async function logNsAlertToAudit(
       'poisoned': 'DNS污染检测',
     };
     const alertTypeText = alertTypeMap[status] || 'NS异常';
-    
+
     const detailsObj: Record<string, unknown> = {
       domain: monitor.domain_name,
       alertType: status,
@@ -78,14 +79,14 @@ async function logNsAlertToAudit(
       expectedNs: expectedNs.join(', ') || '未配置',
       monitorId: monitor.id,
     };
-    
+
     // 添加DNS污染检测详情
     if (isPoisoned) {
       detailsObj.isPoisoned = true;
       detailsObj.encryptedNs = encryptedNs?.join(', ') || '无';
       detailsObj.plainNs = plainNs?.join(', ') || '无';
     }
-    
+
     const details = JSON.stringify(detailsObj);
 
     // 使用系统用户ID (0) 或者配置的创建者ID
@@ -99,14 +100,14 @@ async function logNsAlertToAudit(
       details: `${alertTypeText}: ${monitor.domain_name} - ${details}`,
     });
 
-    log.info('NSMonitorJob', 'NS alert logged to audit', {
+    log.info('NS alert logged to audit', {
       domain: monitor.domain_name,
       status,
       isPoisoned,
       userId,
     });
   } catch (error) {
-    log.error('NSMonitorJob', 'Failed to log NS alert to audit', { error });
+    log.error('Failed to log NS alert to audit', { error });
   }
 }
 
@@ -124,7 +125,7 @@ async function checkDomainNs(monitor: {
   last_alert_at: string | null;
 }): Promise<void> {
   try {
-    log.info('NSMonitorJob', 'Checking NS records', { domain: monitor.domain_name, monitorId: monitor.id });
+    log.info('Checking NS records', { domain: monitor.domain_name, monitorId: monitor.id });
 
     // 查询当前 NS 记录（带DNS污染检测）
     const nsResult = await resolveNsRecords(monitor.domain_name);
@@ -165,7 +166,7 @@ async function checkDomainNs(monitor: {
 
     // 如果状态异常且与上次不同，发送告警
     if (status !== 'ok' && monitor.status !== status) {
-      log.warn('NSMonitorJob', 'NS record anomaly detected', {
+      log.warn('NS record anomaly detected', {
         domain: monitor.domain_name,
         status,
         isPoisoned: nsResult.isPoisoned,
@@ -194,14 +195,14 @@ async function checkDomainNs(monitor: {
       }
     }
 
-    log.info('NSMonitorJob', 'NS check completed', {
+    log.info('NS check completed', {
       domain: monitor.domain_name,
       status,
       isPoisoned: nsResult.isPoisoned,
       currentNs: currentNsStr,
     });
   } catch (error) {
-    log.error('NSMonitorJob', 'Failed to check NS records', {
+    log.error('Failed to check NS records', {
       domain: monitor.domain_name,
       error,
     });
@@ -237,14 +238,14 @@ async function sendNsAlert(
     `告警类型: ${alertTypeText}\n` +
     `当前 NS: ${currentNs.join(', ') || '无'}\n` +
     `预期 NS: ${expectedNs.join(', ') || '未配置'}\n`;
-  
+
   // 添加DNS污染检测详情
   if (isPoisoned && encryptedNs && plainNs) {
     message += `加密 DNS 结果: ${encryptedNs.join(', ') || '无'}\n` +
       `明文 DNS 结果: ${plainNs.join(', ') || '无'}\n` +
       `⚠️ 警告: 加密DNS与明文DNS查询结果不一致，可能存在DNS污染!\n`;
   }
-  
+
   message += `时间: ${new Date().toLocaleString('zh-CN')}`;
 
   try {
@@ -279,7 +280,7 @@ async function sendNsAlert(
         if (user && user.email) {
           const emailSent = await sendEmailToUser(user.email as string, title, plainMessage, plainMessage);
           if (emailSent) {
-            log.info('NSMonitorJob', 'Email notification sent to user', {
+            log.info('Email notification sent to user', {
               domain: monitor.domain_name,
               userId,
               email: user.email,
@@ -287,20 +288,20 @@ async function sendNsAlert(
               isPoisoned,
             });
           } else {
-            log.warn('NSMonitorJob', 'Failed to send email notification to user', {
+            log.warn('Failed to send email notification to user', {
               domain: monitor.domain_name,
               userId,
               email: user.email,
             });
           }
         } else {
-          log.warn('NSMonitorJob', 'User has no email configured, skipping email notification', {
+          log.warn('User has no email configured, skipping email notification', {
             domain: monitor.domain_name,
             userId,
           });
         }
       } catch (emailError) {
-        log.warn('NSMonitorJob', 'Error sending email to user', {
+        log.warn('Error sending email to user', {
           domain: monitor.domain_name,
           userId,
           error: emailError,
@@ -312,14 +313,14 @@ async function sendNsAlert(
     if (shouldSendChannels) {
       try {
         await sendNotification(title, plainMessage, plainMessage);
-        log.info('NSMonitorJob', 'Channel notification sent', {
+        log.info('Channel notification sent', {
           domain: monitor.domain_name,
           status,
           isPoisoned,
           userId,
         });
       } catch (channelError) {
-        log.warn('NSMonitorJob', 'Error sending channel notification', {
+        log.warn('Error sending channel notification', {
           domain: monitor.domain_name,
           userId,
           error: channelError,
@@ -328,13 +329,13 @@ async function sendNsAlert(
     }
 
     if (!shouldSendEmail && !shouldSendChannels) {
-      log.info('NSMonitorJob', 'Notification skipped (disabled in user preferences)', {
+      log.info('Notification skipped (disabled in user preferences)', {
         domain: monitor.domain_name,
         userId,
       });
     }
   } catch (error) {
-    log.error('NSMonitorJob', 'Failed to send alert notification', {
+    log.error('Failed to send alert notification', {
       domain: monitor.domain_name,
       error,
     });
@@ -346,7 +347,7 @@ async function sendNsAlert(
  */
 async function runNsMonitorJob(): Promise<void> {
   try {
-    log.info('NSMonitorJob', 'Starting NS monitor job');
+    log.info('Starting NS monitor job');
 
     // 获取所有启用的监测配置
     const monitors = await NSMonitorOperations.getAllEnabled() as unknown as Array<{
@@ -361,11 +362,11 @@ async function runNsMonitorJob(): Promise<void> {
     }>;
 
     if (monitors.length === 0) {
-      log.info('NSMonitorJob', 'No enabled NS monitor configurations');
+      log.info('No enabled NS monitor configurations');
       return;
     }
 
-    log.info('NSMonitorJob', `Checking ${monitors.length} domains`);
+    log.info(`Checking ${monitors.length} domains`);
 
     // 使用任务管理器并发检查（最多同时5个）
     const tasks = monitors.map(monitor => {
@@ -387,9 +388,9 @@ async function runNsMonitorJob(): Promise<void> {
     // 等待所有任务完成
     await Promise.all(tasks);
 
-    log.info('NSMonitorJob', 'NS monitor job completed');
+    log.info('NS monitor job completed');
   } catch (error) {
-    log.error('NSMonitorJob', 'NS monitor job failed', { error });
+    log.error('NS monitor job failed', { error });
   }
 }
 
@@ -398,14 +399,14 @@ async function runNsMonitorJob(): Promise<void> {
  */
 export function startNsMonitorJob(): void {
   if (monitorInterval) {
-    log.warn('NSMonitorJob', 'NS monitor job already started');
+    log.warn('NS monitor job already started');
     return;
   }
 
   // 每 5 分钟检查一次
   monitorInterval = setInterval(runNsMonitorJob, 5 * 60 * 1000);
 
-  log.info('NSMonitorJob', 'NS monitor job started (interval: 5 minutes)');
+  log.info('NS monitor job started (interval: 5 minutes)');
 
   // 立即执行一次
   runNsMonitorJob();
@@ -418,7 +419,7 @@ export function stopNsMonitorJob(): void {
   if (monitorInterval) {
     clearInterval(monitorInterval);
     monitorInterval = null;
-    log.info('NSMonitorJob', 'NS monitor job stopped');
+    log.info('NS monitor job stopped');
   }
 }
 

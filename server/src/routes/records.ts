@@ -9,11 +9,12 @@ import { normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { DomainOperations, DnsAccountOperations } from '../db/bal/business-adapter';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, isValidHostname } from '../utils/dns';
 import { getAvailableTemplates, getEmailTemplate, generatePreview } from '../lib/dns/emailTemplate';
 
+const log = createLogger('HTTP').sub('Route').sub('Records');
 const router = Router({ mergeParams: true });
 
 // Create a separate router for email templates to avoid route conflicts with /:domainId/records
@@ -95,24 +96,24 @@ function canWriteSubdomain(writeSubs: string[] | null, fullName: string, domainN
 }
 
 async function getAdapterForDomain(domain: Domain) {
-  log.info('Records', 'Getting adapter for domain', { domainId: domain.id, domainName: domain.name, accountId: domain.account_id, thirdId: domain.third_id });
+  log.info('Getting adapter for domain', { domainId: domain.id, domainName: domain.name, accountId: domain.account_id, thirdId: domain.third_id });
   const account = await DnsAccountOperations.getById(domain.account_id) as DnsAccount | undefined;
   if (!account) {
-    log.error('Records', 'Account not found', { accountId: domain.account_id });
+    log.error('Account not found', { accountId: domain.account_id });
     throw new Error('Account not found');
   }
-  log.info('Records', 'Found account', { accountType: account.type, accountName: account.name });
+  log.info('Found account', { accountType: account.type, accountName: account.name });
   // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
   const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
-  
+
   // For HiDNS provider, use third_id (remote domain ID) as domainId
   // For other providers, use local domain.id
   const isHiDNS = account.type === 'hidns';
   const domainId = isHiDNS && domain.third_id ? domain.third_id : String(domain.id);
-  
-  log.info('Records', 'Creating adapter', { type: account.type, domain: domain.name, thirdId: domain.third_id, localDomainId: domain.id, effectiveDomainId: domainId, isHiDNS });
+
+  log.info('Creating adapter', { type: account.type, domain: domain.name, thirdId: domain.third_id, localDomainId: domain.id, effectiveDomainId: domainId, isHiDNS });
   const adapter = createAdapter(account.type, cfg, domain.name, domain.third_id, domainId);
-  log.info('Records', 'Adapter created');
+  log.info('Adapter created');
   return adapter;
 }
 
@@ -151,36 +152,36 @@ async function updateDomainRecordCount(domainId: number, count: number): Promise
  *         description: List of DNS records
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response, next) => {
-  log.info('Records', '=== GET /records route entered ===', { domainId: req.params.domainId, path: req.path, originalUrl: req.originalUrl });
-  
+  log.info('=== GET /records route entered ===', { domainId: req.params.domainId, path: req.path, originalUrl: req.originalUrl });
+
   // 检查是否有 domainId 参数，如果没有则交给下一个路由处理（如 email-templates）
   if (!req.params.domainId) {
-    log.info('Records', 'No domainId parameter, passing to next route');
+    log.info('No domainId parameter, passing to next route');
     return next();
   }
-  
+
   const domainId = parseInteger(req.params.domainId) ?? 0;
-  log.info('Records', 'Parsed domainId', { domainId });
+  log.info('Parsed domainId', { domainId });
   const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
-  log.info('Records', 'Got domain access', { hasDomain: !!access.domain, canRead: access.canRead });
+  log.info('Got domain access', { hasDomain: !!access.domain, canRead: access.canRead });
   if (!access.domain || !access.canRead) {
     sendError(res, 'Domain not found');
     return;
   }
   const { page = '1', pageSize = '100', keyword, subdomain, value, type, line, status } = req.query as Record<string, string>;
   try {
-    log.info('Records', 'Fetching records', { domainId: access.domain.id, page, pageSize, keyword, subdomain, value, type, line, status });
+    log.info('Fetching records', { domainId: access.domain.id, page, pageSize, keyword, subdomain, value, type, line, status });
     const dnsAdapter = await getAdapterForDomain(access.domain);
-    log.info('Records', 'Got adapter, calling getDomainRecords');
+    log.info('Got adapter, calling getDomainRecords');
     const result = await dnsAdapter.getDomainRecords(
       parseInt(page), parseInt(pageSize), keyword, subdomain, value, type, line,
       status !== undefined ? parseInt(status) : undefined
     );
-    log.info('Records', 'Got records result', { total: result.total, count: result.list.length });
+    log.info('Got records result', { total: result.total, count: result.list.length });
     await updateDomainRecordCount(access.domain.id, result.total);
     sendSuccess(res, { total: result.total, list: result.list.map(toApiRecord) });
   } catch (e) {
-    log.error('Records', 'Error fetching records', { error: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? e.stack : undefined });
+    log.error('Error fetching records', { error: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? e.stack : undefined });
     sendError(res, e instanceof Error ? e.message : String(e));
   }
 }));
@@ -272,10 +273,10 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
       return;
     }
     await logAuditOperation(req.user!.userId, 'add_record', access.domain.name, { name, type, value }, req);
-    
+
     // 获取新创建的记录数据用于 WebSocket 推送
     const newRecord = await dnsAdapter.getDomainRecordInfo(recordId);
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -289,9 +290,9 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
         },
       });
     } catch (error) {
-      log.error('Records', 'Failed to broadcast record_created event', { error });
+      log.error('Failed to broadcast record_created event', { error });
     }
-    
+
     sendSuccess(res, { id: recordId });
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -323,13 +324,13 @@ emailTemplatesRouter.get('/', authMiddleware, asyncHandler(async (req: Request, 
  */
 emailTemplatesRouter.get('/:templateId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const templateId = req.params.templateId;
-  
+
   const template = getEmailTemplate(templateId);
   if (!template) {
     sendError(res, 'Template not found', 404);
     return;
   }
-  
+
   sendSuccess(res, { template });
 }));
 
@@ -356,18 +357,18 @@ emailTemplatesRouter.get('/:templateId', authMiddleware, asyncHandler(async (req
 emailTemplatesRouter.get('/:templateId/preview', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const templateId = req.params.templateId;
   const { domain } = req.query;
-  
+
   if (!domain || typeof domain !== 'string') {
     sendError(res, 'Domain parameter is required', 400);
     return;
   }
-  
+
   const template = getEmailTemplate(templateId);
   if (!template) {
     sendError(res, 'Template not found', 404);
     return;
   }
-  
+
   const preview = generatePreview(templateId, domain);
   sendSuccess(res, { preview });
 }));
@@ -383,12 +384,12 @@ router.post('/batch', authMiddleware, requireTokenDomainPermission('domainId'), 
     sendError(res, 'Permission denied');
     return;
   }
-  
+
   const records = req.body.records as Array<{
     name: string; type: string; value: string; line?: string;
     ttl?: number; mx?: number; weight?: number; remark?: string;
   }>;
-  
+
   if (!Array.isArray(records) || records.length === 0) {
     sendError(res, 'records array is required');
     return;
@@ -412,7 +413,7 @@ router.post('/batch', authMiddleware, requireTokenDomainPermission('domainId'), 
   const dnsAdapter = await getAdapterForDomain(access.domain);
   const addedIds: string[] = [];
   const errors: string[] = [];
-  
+
   for (const r of records) {
     try {
       const recordId = await dnsAdapter.addDomainRecord(r.name, r.type, r.value, r.line, r.ttl, r.mx, r.weight, r.remark);
@@ -429,7 +430,7 @@ router.post('/batch', authMiddleware, requireTokenDomainPermission('domainId'), 
   if (addedIds.length > 0) {
     await logAuditOperation(req.user!.userId, 'add_records_batch', access.domain.name, { count: addedIds.length }, req);
   }
-    
+
   if (errors.length > 0) {
     sendError(res, errors.join('; '), 200, { addedIds });
   } else {
@@ -491,7 +492,7 @@ router.put('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'
       return;
     }
     await logAuditOperation(req.user!.userId, 'update_record', access.domain.name, { recordId, name, type, value }, req);
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -502,9 +503,9 @@ router.put('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'
         },
       });
     } catch (error) {
-      log.error('Records', 'Failed to broadcast record_updated event', { error });
+      log.error('Failed to broadcast record_updated event', { error });
     }
-    
+
     sendSuccess(res);
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -553,7 +554,7 @@ router.delete('/:recordId', authMiddleware, requireTokenDomainPermission('domain
       return;
     }
     await logAuditOperation(req.user!.userId, 'delete_record', access.domain.name, { recordId }, req);
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -564,9 +565,9 @@ router.delete('/:recordId', authMiddleware, requireTokenDomainPermission('domain
         },
       });
     } catch (error) {
-      log.error('Records', 'Failed to broadcast record_deleted event', { error });
+      log.error('Failed to broadcast record_deleted event', { error });
     }
-    
+
     sendSuccess(res);
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -607,7 +608,7 @@ router.put('/:recordId/status', authMiddleware, requireTokenDomainPermission('do
       return;
     }
     await logAuditOperation(req.user!.userId, status === 1 ? 'enable_record' : 'disable_record', access.domain.name, { recordId });
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -619,9 +620,9 @@ router.put('/:recordId/status', authMiddleware, requireTokenDomainPermission('do
         },
       });
     } catch (error) {
-      log.error('Records', 'Failed to broadcast record_status_changed event', { error });
+      log.error('Failed to broadcast record_status_changed event', { error });
     }
-    
+
     sendSuccess(res);
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));

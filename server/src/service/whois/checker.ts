@@ -1,15 +1,16 @@
 /**
  * WHOIS 域名检查器
- * 
+ *
  * 负责单个域名的 WHOIS 查询、缓存管理和状态提取
  */
 
 import { WhoisOperations, DnsAccountOperations } from '../../db/bal/business-adapter';
 import { Domain, DnsAccount } from '../../types';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatus, dnsProviderAdapter, WhoisResult } from './index';
 import { areDomainsEqual } from '../../utils/dns';
 
+const log = createLogger('WhoisService').sub('Checker');
 /**
  * WHOIS 检查结果
  */
@@ -42,53 +43,53 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
     // 直接查询指定域名的记录，而不是遍历所有域名
     const { DomainOperations } = await import('../../db/bal/business-adapter');
     const domain = await DomainOperations.getByName(domainName) as Domain | undefined;
-    
+
     if (!domain || !domain.account_id) {
-      log.debug('WhoisChecker', `Domain ${domainName} not found or has no account_id`);
+      log.debug(`Domain ${domainName} not found or has no account_id`);
       return null;
     }
 
     const account = await DnsAccountOperations.getById(domain.account_id) as DnsAccount | undefined;
     if (!account) {
-      log.debug('WhoisChecker', `Account ${domain.account_id} not found for domain ${domainName}`);
+      log.debug(`Account ${domain.account_id} not found for domain ${domainName}`);
       return null;
     }
 
     // Check if the DNS account is enabled before querying provider API
     if (!account.enabled) {
-      log.debug('WhoisChecker', `DNS account ${account.id} (${account.name}) is disabled, skipping provider WHOIS for ${domainName}`);
+      log.debug(`DNS account ${account.id} (${account.name}) is disabled, skipping provider WHOIS for ${domainName}`);
       return null;
     }
 
-    log.info('WhoisChecker', `Querying provider ${account.type} for domain ${domainName}`);
+    log.info(`Querying provider ${account.type} for domain ${domainName}`);
 
     // 检查是否有注册的 WHOIS 适配器
     const scheduler = dnsProviderAdapter.getAdapter(account.type);
     if (!scheduler) {
-      log.debug('WhoisChecker', `No WHOIS adapter registered for provider ${account.type}`);
+      log.debug(`No WHOIS adapter registered for provider ${account.type}`);
       return null;
     }
 
     // account.config 可能是字符串或对象，安全解析
-    const config = typeof account.config === 'string' 
-      ? JSON.parse(account.config) 
+    const config = typeof account.config === 'string'
+      ? JSON.parse(account.config)
       : account.config;
-    
-    log.info('WhoisChecker', `Calling ${account.type.toUpperCase()} WHOIS for ${domainName}`);
+
+    log.info(`Calling ${account.type.toUpperCase()} WHOIS for ${domainName}`);
     const whoisResult = await scheduler.queryWhois(config, domainName);
-    
+
     if (whoisResult?.success && whoisResult.expiration_date) {
       const expiryDate = new Date(whoisResult.expiration_date);
       if (!isNaN(expiryDate.getTime())) {
-        log.info('WhoisChecker', `${account.type.toUpperCase()} returned expiry for ${domainName}: ${expiryDate.toISOString()}`);
+        log.info(`${account.type.toUpperCase()} returned expiry for ${domainName}: ${expiryDate.toISOString()}`);
         return expiryDate;
       }
     }
-    
-    log.debug('WhoisChecker', `${account.type.toUpperCase()} query failed or no expiration_date for ${domainName}`);
+
+    log.debug(`${account.type.toUpperCase()} query failed or no expiration_date for ${domainName}`);
     return null;
   } catch (error) {
-    log.error('WhoisChecker', `Failed to get expiry from provider for ${domainName}:`, {
+    log.error(`Failed to get expiry from provider for ${domainName}:`, {
       error: error instanceof Error ? error.message : String(error),
     });
     return null;
@@ -102,34 +103,34 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
  */
 export async function checkWhoisForDomain(domainName: string, forceRefresh: boolean = false): Promise<WhoisCheckResult> {
   let whoisStatus: string | null = null;
-  
+
   try {
-    log.info('WhoisChecker', `Checking WHOIS for ${domainName}`, { forceRefresh });
-    
+    log.info(`Checking WHOIS for ${domainName}`, { forceRefresh });
+
     // 如果不是强制刷新，先尝试从 DNS 提供商获取（优先于缓存）
     if (!forceRefresh) {
       const providerExpiryDate = await getExpiryFromProvider(domainName);
-      
+
       if (providerExpiryDate) {
         // DNS 提供商查询成功，使用提供商数据
-        log.info('WhoisChecker', `Using provider expiry for ${domainName}: ${providerExpiryDate.toISOString()}`);
-        
+        log.info(`Using provider expiry for ${domainName}: ${providerExpiryDate.toISOString()}`);
+
         // 仍然查询 WHOIS 获取状态等信息
         const whoisResult = await queryWhois(domainName);
         if (whoisResult?.raw) {
           whoisStatus = extractStatus(whoisResult.raw);
         }
-        
+
         // 判断是否为顶域
         const rootDomain = getRootDomain(domainName);
         const isApexDomain = domainName.toLowerCase() === rootDomain.toLowerCase();
-        
+
         let finalApexExpiryDate: Date | null = null;
         if (!isApexDomain && whoisResult?.expiryDate) {
           // 子域：同时保存顶域到期时间
           finalApexExpiryDate = whoisResult.expiryDate;
         }
-        
+
         const result: WhoisResult = {
           domain: domainName,
           expiryDate: providerExpiryDate,
@@ -140,7 +141,7 @@ export async function checkWhoisForDomain(domainName: string, forceRefresh: bool
           status: whoisStatus,
         };
         setCachedWhois(domainName, result);
-        
+
         return {
           expiryDate: providerExpiryDate,
           apexExpiryDate: finalApexExpiryDate,
@@ -149,22 +150,22 @@ export async function checkWhoisForDomain(domainName: string, forceRefresh: bool
           status: whoisStatus,
         };
       }
-      
+
       // DNS 提供商查询失败，尝试使用缓存
-      log.info('WhoisChecker', `Provider query failed, trying cache for ${domainName}`);
+      log.info(`Provider query failed, trying cache for ${domainName}`);
       const cached = await getCachedWhois(domainName);
       if (cached?.expiryDate) {
-        log.info('WhoisChecker', `Using cached expiry for ${domainName}: ${cached.expiryDate.toISOString()}`);
-      
+        log.info(`Using cached expiry for ${domainName}: ${cached.expiryDate.toISOString()}`);
+
         // 如果缓存中没有 status，尝试从 raw_data 中解析
         whoisStatus = cached.status || null;
         if (!whoisStatus && cached.raw) {
           whoisStatus = extractStatus(cached.raw);
           if (whoisStatus) {
-            log.info('WhoisChecker', `Parsed status from cache for ${domainName}: ${whoisStatus}`);
+            log.info(`Parsed status from cache for ${domainName}: ${whoisStatus}`);
           }
         }
-        
+
         return {
           expiryDate: cached.expiryDate,
           apexExpiryDate: cached.apexExpiryDate || null,
@@ -174,18 +175,18 @@ export async function checkWhoisForDomain(domainName: string, forceRefresh: bool
         };
       }
     } else {
-      log.info('WhoisChecker', `Force refresh mode, skipping cache for ${domainName}`);
+      log.info(`Force refresh mode, skipping cache for ${domainName}`);
     }
 
     // 使用 WHOIS 查询（缓存也失败时）
-    log.info('WhoisChecker', `Querying WHOIS for ${domainName}`);
+    log.info(`Querying WHOIS for ${domainName}`);
     const whoisResult = await queryWhois(domainName);
 
     // 提取 WHOIS 状态信息
     if (whoisResult?.raw) {
       whoisStatus = extractStatus(whoisResult.raw);
       if (whoisStatus) {
-        log.info('WhoisChecker', `Extracted status for ${domainName}: ${whoisStatus}`);
+        log.info(`Extracted status for ${domainName}: ${whoisStatus}`);
       }
     }
 
@@ -200,7 +201,7 @@ export async function checkWhoisForDomain(domainName: string, forceRefresh: bool
         status: whoisStatus,
       };
       setCachedWhois(domainName, result);
-      
+
       return {
         expiryDate: whoisResult.expiryDate,
         apexExpiryDate: whoisResult.apexExpiryDate || null,
@@ -210,9 +211,9 @@ export async function checkWhoisForDomain(domainName: string, forceRefresh: bool
       };
     }
 
-    log.warn('WhoisChecker', `No expiry date found for ${domainName}`);
+    log.warn(`No expiry date found for ${domainName}`);
   } catch (error) {
-    log.error('WhoisChecker', `Error checking ${domainName}:`, {
+    log.error(`Error checking ${domainName}:`, {
       error: error instanceof Error ? error.message : String(error),
     });
   }
@@ -243,13 +244,13 @@ export async function syncDomainWhois(domainId: number, forceRefresh: boolean = 
 
     if (whoisResult.expiryDate) {
       const formattedDate = formatDateForMySQL(whoisResult.expiryDate);
-      const formattedApexDate = whoisResult.apexExpiryDate 
-        ? formatDateForMySQL(whoisResult.apexExpiryDate) 
+      const formattedApexDate = whoisResult.apexExpiryDate
+        ? formatDateForMySQL(whoisResult.apexExpiryDate)
         : null;
       await WhoisOperations.updateExpiry(domainId, formattedDate, formattedApexDate, whoisResult.status);
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         expiresAt: whoisResult.expiryDate,
         apexExpiresAt: whoisResult.apexExpiryDate,
       };
