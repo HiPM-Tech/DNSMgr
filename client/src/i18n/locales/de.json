@@ -1380,11 +1380,13 @@
             "scopeLevelDisabled": "Deaktiviert",
             "scopeLevelRead": "Nur Lesen",
             "scopeLevelWrite": "Lesen/Schreiben",
-            "scopeModule.ns_monitor": "NS-Überwachung",
-            "scopeModule.domain_management": "Domain-Verwaltung",
-            "scopeModule.renewal_management": "Verlängerungsverwaltung",
-            "scopeModule.log_query": "Prüfprotokolle",
-            "scopeModule.failover_management": "Failover-Verwaltung",
+            "scopeModule": {
+              "ns_monitor": "NS-Überwachung",
+              "domain_management": "Domain-Verwaltung",
+              "renewal_management": "Verlängerungsverwaltung",
+              "log_query": "Prüfprotokolle",
+              "failover_management": "Failover-Verwaltung"
+            },
             "oauthScopeEditTitle": "Autorisierungsbereich bearbeiten",
             "oauthScopeEditDesc": "Kommagetrennte Liste der Berechtigungsbereiche",
             "oauthExpiryEditTitle": "Autorisierungsablaufdatum bearbeiten",

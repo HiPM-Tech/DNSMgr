@@ -1389,11 +1389,13 @@
             "scopeLevelDisabled": "Désactivé",
             "scopeLevelRead": "Lecture seule",
             "scopeLevelWrite": "Lecture/Écriture",
-            "scopeModule.ns_monitor": "Surveillance NS",
-            "scopeModule.domain_management": "Gestion des domaines",
-            "scopeModule.renewal_management": "Gestion des renouvellements",
-            "scopeModule.log_query": "Journaux d'audit",
-            "scopeModule.failover_management": "Gestion du basculement",
+            "scopeModule": {
+              "ns_monitor": "Surveillance NS",
+              "domain_management": "Gestion des domaines",
+              "renewal_management": "Gestion des renouvellements",
+              "log_query": "Journaux d'audit",
+              "failover_management": "Gestion du basculement"
+            },
             "oauthScopeEditTitle": "Modifier la portée d'autorisation",
             "oauthScopeEditDesc": "Liste des portées d'autorisation séparées par des virgules",
             "oauthExpiryEditTitle": "Modifier la date d'expiration de l'autorisation",

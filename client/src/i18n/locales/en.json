@@ -1390,11 +1390,13 @@
             "scopeLevelDisabled": "Disabled",
             "scopeLevelRead": "Read Only",
             "scopeLevelWrite": "Read/Write",
-            "scopeModule.ns_monitor": "NS Monitor",
-            "scopeModule.domain_management": "Domain Management",
-            "scopeModule.renewal_management": "Renewal Management",
-            "scopeModule.log_query": "Audit Logs",
-            "scopeModule.failover_management": "Failover Management",
+            "scopeModule": {
+              "ns_monitor": "NS Monitor",
+              "domain_management": "Domain Management",
+              "renewal_management": "Renewal Management",
+              "log_query": "Audit Logs",
+              "failover_management": "Failover Management"
+            },
             "oauthScopeEditTitle": "Edit Authorization Scope",
             "oauthScopeEditDesc": "Comma-separated list of permission scopes",
             "oauthExpiryEditTitle": "Edit Authorization Expiry Date",

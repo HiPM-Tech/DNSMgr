@@ -1420,11 +1420,13 @@
             "scopeLevelDisabled": "無効",
             "scopeLevelRead": "読み取り専用",
             "scopeLevelWrite": "読み取り/書き込み",
-            "scopeModule.ns_monitor": "NS監視",
-            "scopeModule.domain_management": "ドメイン管理",
-            "scopeModule.renewal_management": "更新管理",
-            "scopeModule.log_query": "監査ログ",
-            "scopeModule.failover_management": "フェイルオーバー管理",
+            "scopeModule": {
+              "ns_monitor": "NS監視",
+              "domain_management": "ドメイン管理",
+              "renewal_management": "更新管理",
+              "log_query": "監査ログ",
+              "failover_management": "フェイルオーバー管理"
+            },
             "oauthScopeEditTitle": "認可スコープを編集",
             "oauthScopeEditDesc": "カンマ区切りの権限スコープリスト",
             "oauthExpiryEditTitle": "認可有効期限を編集",

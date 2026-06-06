@@ -1389,11 +1389,13 @@
             "scopeLevelDisabled": "Desabilitado",
             "scopeLevelRead": "Somente leitura",
             "scopeLevelWrite": "Leitura/Escrita",
-            "scopeModule.ns_monitor": "Monitor NS",
-            "scopeModule.domain_management": "Gerenciamento de domínios",
-            "scopeModule.renewal_management": "Gerenciamento de renovação",
-            "scopeModule.log_query": "Logs de auditoria",
-            "scopeModule.failover_management": "Gerenciamento de failover",
+            "scopeModule": {
+              "ns_monitor": "Monitor NS",
+              "domain_management": "Gerenciamento de domínios",
+              "renewal_management": "Gerenciamento de renovação",
+              "log_query": "Logs de auditoria",
+              "failover_management": "Gerenciamento de failover"
+            },
             "oauthScopeEditTitle": "Editar escopo de autorização",
             "oauthScopeEditDesc": "Lista de escopos de permissão separados por vírgula",
             "oauthExpiryEditTitle": "Editar data de expiração da autorização",

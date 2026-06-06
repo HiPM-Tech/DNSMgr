@@ -1390,11 +1390,13 @@
             "scopeLevelDisabled": "禁止",
             "scopeLevelRead": "只读",
             "scopeLevelWrite": "读写",
-            "scopeModule.ns_monitor": "NS 监控",
-            "scopeModule.domain_management": "域名管理",
-            "scopeModule.renewal_management": "续期管理",
-            "scopeModule.log_query": "审计日志",
-            "scopeModule.failover_management": "故障转移管理",
+            "scopeModule": {
+              "ns_monitor": "NS 监控",
+              "domain_management": "域名管理",
+              "renewal_management": "续期管理",
+              "log_query": "审计日志",
+              "failover_management": "故障转移管理"
+            },
             "oauthScopeEditTitle": "编辑授权范围",
             "oauthScopeEditDesc": "逗号分隔的权限范围列表",
             "oauthExpiryEditTitle": "编辑授权到期日期",

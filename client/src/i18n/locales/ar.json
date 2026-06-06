@@ -1363,11 +1363,13 @@
             "scopeLevelDisabled": "معطل",
             "scopeLevelRead": "قراءة فقط",
             "scopeLevelWrite": "قراءة/كتابة",
-            "scopeModule.ns_monitor": "مراقب NS",
-            "scopeModule.domain_management": "إدارة النطاقات",
-            "scopeModule.renewal_management": "إدارة التجديد",
-            "scopeModule.log_query": "سجلات التدقيق",
-            "scopeModule.failover_management": "إدارة التبديل",
+            "scopeModule": {
+              "ns_monitor": "مراقب NS",
+              "domain_management": "إدارة النطاقات",
+              "renewal_management": "إدارة التجديد",
+              "log_query": "سجلات التدقيق",
+              "failover_management": "إدارة التبديل"
+            },
             "oauthScopeEditTitle": "تعديل نطاق الترخيص",
             "oauthScopeEditDesc": "قائمة نطاقات الأذونات مفصولة بفواصل",
             "oauthExpiryEditTitle": "تعديل تاريخ انتهاء الترخيص",

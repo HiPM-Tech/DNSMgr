@@ -1392,11 +1392,13 @@
             "scopeLevelDisabled": "비활성화",
             "scopeLevelRead": "읽기 전용",
             "scopeLevelWrite": "읽기/쓰기",
-            "scopeModule.ns_monitor": "NS 모니터",
-            "scopeModule.domain_management": "도메인 관리",
-            "scopeModule.renewal_management": "갱신 관리",
-            "scopeModule.log_query": "감사 로그",
-            "scopeModule.failover_management": "장애 조치 관리",
+            "scopeModule": {
+              "ns_monitor": "NS 모니터",
+              "domain_management": "도메인 관리",
+              "renewal_management": "갱신 관리",
+              "log_query": "감사 로그",
+              "failover_management": "장애 조치 관리"
+            },
             "oauthScopeEditTitle": "권한 범위 편집",
             "oauthScopeEditDesc": "쉼표로 구분된 권한 범위 목록",
             "oauthExpiryEditTitle": "권한 만료일 편집",
