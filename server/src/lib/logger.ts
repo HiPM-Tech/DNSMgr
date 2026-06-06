@@ -1,6 +1,13 @@
 /**
  * HiDNS 统一日志系统
  * 
+ * 日志格式: 日期 级别 [主模块名] [子模块] [函数名] [L行号] ["自定义标签"] 内容
+ * 示例:
+ *   2026-06-07T12:00:00.000Z  INFO [BAL] [execQuery] [L42] Executing query ...
+ *   2026-06-07T12:00:00.000Z  INFO [DSM] [DRY RUN] [reconcile] [L88] Would create table: xxx
+ *   2026-06-07T12:00:00.000Z DEBUG [DL] [MySQL] [query] [L55] Creating connection pool ...
+ *   2026-06-07T12:00:00.000Z  INFO [WhoisService] [queryApex] [L125] ["SUCCESS"] Query succeeded
+ * 
  * 项目理念：详细的日志是调试和监控的基础
  * 所有模块都应该使用此日志系统记录关键操作
  * 
@@ -45,6 +52,8 @@ interface LogEntry {
   module: string;
   subModules?: string[];
   tags?: string[];
+  callerFunction?: string;
+  callerLine?: number;
   message: string;
   data?: unknown;
 }
@@ -136,22 +145,26 @@ class Logger {
   private formatMessage(entry: LogEntry): string {
     const time = entry.timestamp;
     const level = entry.level.toUpperCase().padStart(5);
-    // 构建模块路径: [主模块] [子模块1] [子模块2] ["标签1"] ["标签2"]
+    // 构建模块路径: [主模块] [子模块1] [子模块2]
     const modules = [entry.module, ...(entry.subModules || [])].map(m => `[${m}]`).join(' ');
+    // 调用位置: [函数名] [L行号]
+    const callerStr = entry.callerFunction && entry.callerLine ? ` [${entry.callerFunction}] [L${entry.callerLine}]` : '';
+    // 自定义标签: ["标签1"] ["标签2"]
     const tagStr = (entry.tags || []).map(t => `["${t}"]`).join(' ');
-    const moduleSection = tagStr ? `${modules} ${tagStr}` : modules;
+    const middleSection = [modules, callerStr, tagStr ? ` ${tagStr}` : ''].filter(Boolean).join('');
     
     if (!this.useColors) {
-      return `${time} ${level} ${moduleSection} ${entry.message}`;
+      return `${time} ${level} ${middleSection} ${entry.message}`;
     }
     
     // 应用颜色
     const coloredTime = `${this.colors.timestamp}${time}${this.colors.reset}`;
     const coloredLevel = this.getColorForLevel(entry.level) + level + this.colors.reset;
     const coloredModules = modules.split(' ').map(m => `${this.colors.module}${m}${this.colors.reset}`).join(' ');
+    const coloredCaller = callerStr ? callerStr.split(' ').map(m => `${this.colors.context}${m}${this.colors.reset}`).join(' ') : '';
     const coloredTags = tagStr ? ' ' + tagStr.split(' ').map(t => `${this.colors.context}${t}${this.colors.reset}`).join(' ') : '';
     
-    return `${coloredTime} ${coloredLevel} ${coloredModules}${coloredTags} ${entry.message}`;
+    return `${coloredTime} ${coloredLevel} ${coloredModules}${coloredCaller}${coloredTags} ${entry.message}`;
   }
 
   private getColorForLevel(level: LogLevel): string {
@@ -159,7 +172,7 @@ class Logger {
   }
 
   /* 内部日志方法，SubLoggerImpl 通过 logger 实例调用 */
-  log(level: LogLevel, module: string, message: string, data?: unknown, subModules?: string[], tags?: string[]): void {
+  log(level: LogLevel, module: string, message: string, data?: unknown, subModules?: string[], tags?: string[], callerFunction?: string, callerLine?: number): void {
     if (!this.shouldLog(level)) return;
 
     // 如果数据是错误类型，格式化为详细错误信息
@@ -174,6 +187,8 @@ class Logger {
       module,
       subModules,
       tags,
+      callerFunction,
+      callerLine,
       message,
       data: formattedData,
     };
@@ -364,9 +379,31 @@ class SubLoggerImpl implements SubLogger {
   warn(message: string, data?: unknown) { this.emit('warn', message, data); }
   error(message: string, data?: unknown) { this.emit('error', message, data); }
 
+  /**
+   * 从调用栈中自动捕获调用者函数名和行号
+   * skipFrames = 2: 跳过 emit 自身 + info/debug/warn/error 方法
+   */
+  private getCallerInfo(skipFrames: number): { functionName: string; lineNumber: number } | null {
+    const stack = new Error().stack;
+    if (!stack) return null;
+    const lines = stack.split('\n');
+    // 帧分布: 0=Error, 1=getCallerInfo, 2=emit, 3=info/debug/warn/error, 4=实际调用者
+    const idx = skipFrames + 2;
+    if (idx >= lines.length) return null;
+    const frame = lines[idx].trim();
+    // 匹配 V8 栈格式: at functionName (file:line:col) 或 at file:line:col
+    const m = frame.match(/(?:at\s+)?(?:(\S+)\s+\()?(?:\/.+?):(\d+):\d+\)?$/);
+    if (!m) return null;
+    return {
+      functionName: m[1] || '<anonymous>',
+      lineNumber: parseInt(m[2], 10),
+    };
+  }
+
   private emit(level: LogLevel, message: string, data?: unknown) {
+    const callerInfo = this.getCallerInfo(2); // skip emit + info/debug/warn/error
     const [primaryModule, ...subModules] = this.modules;
-    this.logger.log(level, primaryModule, message, data, subModules, this.tags);
+    this.logger.log(level, primaryModule, message, data, subModules, this.tags, callerInfo?.functionName, callerInfo?.lineNumber);
   }
 }
 
