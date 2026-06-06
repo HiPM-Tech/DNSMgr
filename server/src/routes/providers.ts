@@ -3,7 +3,8 @@ import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { normalizeRole } from '../utils/roles';
 import { sendError, sendSuccess } from '../utils/http';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
+const providerLog = createLogger('Route:Providers');
 import { DnsAccountOperations, RenewableDomainOperations } from '../db/bal/business-adapter';
 import { listSubdomains as dnsheListSubdomains } from '../lib/dns/providers/dnshe/renewal';
 import * as fs from 'fs';
@@ -28,7 +29,7 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
     // In prod: __dirname = server/dist/routes, need to go up to server/dist/lib/dns/providers
     const providersDir = path.join(__dirname, '..', 'lib', 'dns', 'providers');
     
-    log.info('Providers', `Looking for icon in: ${providersDir}`);
+    providerLog.info(`Looking for icon in: ${providersDir}`);
     
     let iconPath = '';
     let iconExt = '';
@@ -36,11 +37,11 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
     // Try to find icon file with highest priority extension first
     for (const ext of iconExtensions) {
       const candidatePath = path.join(providersDir, type, `icon${ext}`);
-      log.info('Providers', `Checking: ${candidatePath} - ${fs.existsSync(candidatePath) ? 'FOUND' : 'NOT FOUND'}`);
+      providerLog.info(`Checking: ${candidatePath} - ${fs.existsSync(candidatePath) ? 'FOUND' : 'NOT FOUND'}`);
       if (fs.existsSync(candidatePath)) {
         iconPath = candidatePath;
         iconExt = ext;
-        log.info('Providers', `Serving icon for ${type}: icon${ext} (priority: ${iconExtensions.indexOf(ext) + 1}/${iconExtensions.length})`);
+        providerLog.info(`Serving icon for ${type}: icon${ext} (priority: ${iconExtensions.indexOf(ext) + 1}/${iconExtensions.length})`);
         break;
       }
     }
@@ -63,7 +64,7 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
     
     if (!iconPath || !fs.existsSync(iconPath)) {
       // Return 404 if icon not found
-      log.warn('Providers', `Icon not found for provider: ${type}`);
+      providerLog.warn(`Icon not found for provider: ${type}`);
       res.status(404).json({ error: 'Icon not found' });
       return;
     }
@@ -85,7 +86,7 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
     res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
     res.send(iconData);
   } catch (error) {
-    log.error('Providers', `Failed to serve icon for ${type}`, { error });
+    providerLog.error(`Failed to serve icon for ${type}`, { error });
     res.status(500).json({ error: 'Failed to load icon' });
   }
 }));
@@ -177,7 +178,7 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
 
     sendSuccess(res, allDomains);
   } catch (error) {
-    log.error('Providers', `Failed to fetch renewable domains for ${type}`, { error });
+    providerLog.error(`Failed to fetch renewable domains for ${type}`, { error });
     sendError(res, error instanceof Error ? error.message : 'Failed to fetch domains');
   }
 }));
