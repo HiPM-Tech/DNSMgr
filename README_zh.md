@@ -4,6 +4,18 @@
 >
 > 一个现代化的 DNS 聚合管理平台，前端使用 React + TailwindCSS，后端使用 Node.js + TypeScript。
 
+## Repository
+[![License](https://img.shields.io/github/license/HiPM-Tech/HiDNS)](https://github.com/HiPM-Tech/HiDNS/blob/main/LICENSE)
+[![Release](https://img.shields.io/github/release/HiPM-Tech/HiDNS)](https://github.com/HiPM-Tech/HiDNS/releases)
+[![Downloads](https://gh-down-badges.linkof.link/HiPM-Tech/HiDNS)]
+[![Stars](https://img.shields.io/github/stars/HiPM-Tech/HiDNS?style=social)](https://github.com/HiPM-Tech/HiDNS/stargazers)
+[![Forks](https://img.shields.io/github/forks/HiPM-Tech/HiDNS?style=social)](https://github.com/HiPM-Tech/HiDNS/forks)
+[![Issues](https://img.shields.io/github/issues/HiPM-Tech/HiDNS)](https://github.com/HiPM-Tech/HiDNS/issues)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/HiPM-Tech/HiDNS)
+[![Release Build](https://github.com/HiPM-Tech/HiDNS/actions/workflows/release.yml/badge.svg)](https://github.com/HiPM-Tech/HiDNS/actions/workflows/release.yml)
+[![Nightly Docker Build](https://github.com/HiPM-Tech/HiDNS/actions/workflows/nightly-build.yml/badge.svg)](https://github.com/HiPM-Tech/HiDNS/actions/workflows/nightly-build.yml)
+[![Test Suite](https://github.com/HiPM-Tech/HiDNS/actions/workflows/test-suite.yml/badge.svg)](https://github.com/HiPM-Tech/HiDNS/actions/workflows/test-suite.yml)
+
 ## 功能特性
 
 - **多服务商支持**: 可管理 22+ DNS 服务商的解析记录：
