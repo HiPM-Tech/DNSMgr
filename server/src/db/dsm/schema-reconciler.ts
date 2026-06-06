@@ -780,7 +780,7 @@ export class SchemaReconciler {
         }
 
         // Check nullability change (type is compatible, but nullable differs)
-        const targetNullable = col.nullable !== false; // default false → NOT NULL
+        const targetNullable = col.nullable === true; // only explicit true means NULL; undefined/false means NOT NULL
         const actualNullableStr = typeof existingCol.nullable === 'string' ? existingCol.nullable.toUpperCase() : '';
         const actualNullable = actualNullableStr === 'YES' || existingCol.nullable === true;
         
