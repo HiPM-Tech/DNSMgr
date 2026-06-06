@@ -20,6 +20,7 @@ import { Security } from './pages/Security';
 import { Tunnels } from './pages/Tunnels';
 import { Tokens } from './pages/Tokens';
 import { McpManagement } from './pages/McpManagement';
+import { McpOAuthConsent } from './pages/McpOAuthConsent';
 
 import { About } from './pages/About';
 import { System } from './pages/System';
@@ -48,6 +49,7 @@ function App() {
                     <Route path="/setup" element={<Setup />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/oauth/callback" element={<OAuthCallback />} />
+                    <Route path="/oauth/authorize" element={<McpOAuthConsent />} />
                     <Route element={<ProtectedRoute />}>
                       <Route element={<Layout />}>
                         <Route path="dash" element={<Dashboard />} />

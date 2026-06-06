@@ -38,6 +38,75 @@ function formatDate(dateString: string, locale: string): string {
 function toastSuccess(msg: string) { addToast(msg, 'success'); }
 function toastError(msg: string) { addToast(msg, 'error'); }
 
+/** MCP scope modules and helper functions */
+const MCP_SCOPE_MODULES = [
+  'ns_monitor',
+  'domain_management',
+  'renewal_management',
+  'log_query',
+  'failover_management',
+] as const;
+
+function parseScopeToPerms(scope: string | null | undefined): Record<string, string> {
+  if (!scope) return {};
+  try {
+    const parsed = JSON.parse(scope);
+    const scopeStr = typeof parsed === 'string' ? parsed : String(parsed);
+    const perms: Record<string, string> = {};
+    for (const item of scopeStr.split(',').map(s => s.trim()).filter(Boolean)) {
+      const [mod, level] = item.split(':');
+      if (mod && level && MCP_SCOPE_MODULES.includes(mod as any)) {
+        perms[mod] = level;
+      }
+    }
+    return perms;
+  } catch {
+    return {};
+  }
+}
+
+function permsToScopeString(perms: Record<string, string>): string {
+  const entries = Object.entries(perms).filter(([mod, level]) => level && level !== 'disabled' && MCP_SCOPE_MODULES.includes(mod as any));
+  if (entries.length === 0) return '';
+  return entries.map(([mod, level]) => `${mod}:${level}`).join(', ');
+}
+
+/** MCP scope table row component */
+function McpScopeRow({ mod, level, onChange, t }: { mod: string; level: string; onChange: (val: string) => void; t: (key: string) => string }) {
+  const levels = [
+    { value: 'disabled', label: t('mcp.scopeLevelDisabled') },
+    { value: 'read', label: t('mcp.scopeLevelRead') },
+    { value: 'write', label: t('mcp.scopeLevelWrite') },
+  ];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--td-component-stroke)' }}>
+      <span style={{ flex: '0 0 160px', fontWeight: 500, fontSize: 13 }}>{t(`mcp.scopeModule.${mod}`)}</span>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {levels.map(lv => (
+          <label
+            key={lv.value}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', cursor: 'pointer',
+              borderRadius: 3, fontSize: 12, transition: 'all .2s',
+              background: level === lv.value ? (lv.value === 'write' ? '#2ba471' : lv.value === 'read' ? '#165dff' : '#999') : 'var(--td-bg-color-secondary)',
+              color: level === lv.value ? '#fff' : 'var(--td-text-color-primary)',
+            }}
+          >
+            <input
+              type="radio"
+              name={`scope-${mod}`}
+              checked={level === lv.value || (!level && lv.value === 'disabled')}
+              onChange={() => onChange(lv.value)}
+              style={{ margin: 0, accentColor: '#fff' }}
+            />
+            {lv.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function McpManagement() {
   const { t, locale } = useI18n();
   const baseUrl = window.location.origin;
@@ -54,10 +123,10 @@ export function McpManagement() {
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmBody, setConfirmBody] = useState('');
   const [confirmLabel, setConfirmLabel] = useState('');
-  const [confirmTheme, setConfirmTheme] = useState<'warning' | 'danger'>('danger');
+  const [confirmTheme, setConfirmTheme] = useState<'warning' | 'danger' | 'success'>('danger');
   const confirmActionRef = useRef<() => void>(() => {});
 
-  const openConfirm = (title: string, body: string, label: string, theme: 'warning' | 'danger', action: () => void) => {
+  const openConfirm = (title: string, body: string, label: string, theme: 'warning' | 'danger' | 'success', action: () => void) => {
     setConfirmTitle(title);
     setConfirmBody(body);
     setConfirmLabel(label);
@@ -72,14 +141,19 @@ export function McpManagement() {
   const [oauthAppName, setOAuthAppName] = useState('');
   const [redirectUris, setRedirectUris] = useState<string[]>([]);
   const [redirectUriInput, setRedirectUriInput] = useState('');
-  const [oauthScope, setOAuthScope] = useState('');
+  const [oauthScopePerms, setOauthScopePerms] = useState<Record<string, string>>({});
 
   // OAuth scope/expiry editing
   const [editingClient, setEditingClient] = useState<McpOAuthClient | null>(null);
   const [showScopeModal, setShowScopeModal] = useState(false);
   const [showExpiryModal, setShowExpiryModal] = useState(false);
-  const [editScope, setEditScope] = useState('');
+  const [editScopePerms, setEditScopePerms] = useState<Record<string, string>>({});
   const [editExpiry, setEditExpiry] = useState('');
+
+  // API Key expiry editing
+  const [editingApiKey, setEditingApiKey] = useState<McpApiKey | null>(null);
+  const [showApiKeyExpiryModal, setShowApiKeyExpiryModal] = useState(false);
+  const [editApiKeyExpiry, setEditApiKeyExpiry] = useState('');
 
   // ─── OAuth Clients ──────────────────────────────────────────
 
@@ -134,6 +208,31 @@ export function McpManagement() {
     },
   });
 
+  const restoreKeyMutation = useMutation({
+    mutationFn: (keyId: number) => mcpApi.restoreApiKey(keyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mcp-api-keys'] });
+      toastSuccess(t('common.success'));
+    },
+    onError: (_error: unknown) => {
+      toastError(t('common.error'));
+    },
+  });
+
+  const updateApiKeyExpiryMutation = useMutation({
+    mutationFn: ({ keyId, expires_at }: { keyId: number; expires_at: string | null }) =>
+      mcpApi.updateApiKeyExpiry(keyId, expires_at),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mcp-api-keys'] });
+      setShowApiKeyExpiryModal(false);
+      setEditingApiKey(null);
+      toastSuccess(t('common.success'));
+    },
+    onError: (_error: unknown) => {
+      toastError(t('common.error'));
+    },
+  });
+
   // ─── OAuth Clients ──────────────────────────────────────────
 
   const { data: oauthClients = [], isLoading: oauthLoading } = useQuery({
@@ -154,7 +253,7 @@ export function McpManagement() {
         setShowCreateOAuthModal(false);
         setOAuthAppName('');
         setRedirectUris([]);
-        setOAuthScope('');
+        setOauthScopePerms({});
         queryClient.invalidateQueries({ queryKey: ['mcp-oauth-clients'] });
         toastSuccess(t('common.success'));
       } else {
@@ -235,10 +334,11 @@ export function McpManagement() {
       toastError(t('mcp.oauthAppNameRequired'));
       return;
     }
+    const scopeStr = permsToScopeString(oauthScopePerms);
     createOAuthMutation.mutate({
       app_name: oauthAppName,
       redirect_uris: redirectUris,
-      scope: oauthScope || undefined,
+      scope: scopeStr || undefined,
     });
   };
 
@@ -271,7 +371,7 @@ export function McpManagement() {
     setOAuthAppName('');
     setRedirectUris([]);
     setRedirectUriInput('');
-    setOAuthScope('');
+    setOauthScopePerms({});
   };
 
   const handleCopyKey = (key: string) => {
@@ -310,6 +410,22 @@ export function McpManagement() {
       'danger',
       () => deleteKeyMutation.mutate(keyId),
     );
+  };
+
+  const handleRestoreKey = (keyId: number) => {
+    openConfirm(
+      t('mcp.confirmRestore'),
+      t('mcp.confirmRestoreBody'),
+      t('common.restore'),
+      'success',
+      () => restoreKeyMutation.mutate(keyId),
+    );
+  };
+
+  const handleEditApiKeyExpiry = (key: McpApiKey) => {
+    setEditingApiKey(key);
+    setEditApiKeyExpiry(key.expires_at || '');
+    setShowApiKeyExpiryModal(true);
   };
 
   const handleShowCreateModal = () => {
@@ -647,11 +763,11 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                 {
                   colKey: 'actions',
                   title: t('mcp.actions'),
-                  width: 150,
+                  width: 200,
                   fixed: 'right',
                   cell: ({ row }: any) => (
                     <Space>
-                      {!row.revoked_at && (
+                      {!row.revoked_at ? (
                         <Button
                           size="small"
                           variant="text"
@@ -661,7 +777,25 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                         >
                           {t('mcp.revoke')}
                         </Button>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="text"
+                          theme="success"
+                          onClick={() => handleRestoreKey(row.id)}
+                          loading={restoreKeyMutation.isPending}
+                        >
+                          {t('common.restore')}
+                        </Button>
                       )}
+                      <Button
+                        size="small"
+                        variant="text"
+                        icon={<EditIcon />}
+                        onClick={() => handleEditApiKeyExpiry(row)}
+                      >
+                        {t('mcp.oauthModifyExpiry')}
+                      </Button>
                       <Button
                         size="small"
                         variant="text"
@@ -718,7 +852,11 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                         {client.client_id}
                       </div>
                       <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                        <span>{t('mcp.oauthScope')}: {client.scope ? (() => { try { return JSON.parse(client.scope).join(', '); } catch { return client.scope; } })() : '-'}</span>
+                        <span>{t('mcp.oauthScope')}: {client.scope ? (() => {
+                          const perms = parseScopeToPerms(client.scope);
+                          const parts = Object.entries(perms).filter(([, lv]) => lv && lv !== 'disabled').map(([mod, lv]) => `${t(`mcp.scopeModule.${mod}`)}:${t(`mcp.scopeLevel${lv === 'read' ? 'Read' : 'Write'}`)}`);
+                          return parts.length ? parts.join(' | ') : '-';
+                        })() : '-'}</span>
                         {' | '}
                         <span>{t('mcp.oauthExpiresAt')}: {client.expires_at ? formatDate(client.expires_at, locale) : t('mcp.oauthNeverExpires')}</span>
                       </div>
@@ -730,7 +868,7 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                         icon={<EditIcon />}
                         onClick={() => {
                           setEditingClient(client);
-                          setEditScope(client.scope ? (() => { try { return JSON.parse(client.scope).join(', '); } catch { return client.scope; } })() : '');
+                          setEditScopePerms(parseScopeToPerms(client.scope));
                           setShowScopeModal(true);
                         }}
                       >
@@ -958,12 +1096,18 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>{t('mcp.oauthScope')}</label>
-              <Input
-                placeholder={t('mcp.oauthScopePlaceholder')}
-                value={oauthScope}
-                onChange={(val) => setOAuthScope(val)}
-              />
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>{t('mcp.oauthScope')}</label>
+              <div style={{ border: '1px solid var(--td-component-stroke)', borderRadius: 4, padding: '4px 12px' }}>
+                {MCP_SCOPE_MODULES.map(mod => (
+                  <McpScopeRow
+                    key={mod}
+                    mod={mod}
+                    level={oauthScopePerms[mod] || 'disabled'}
+                    onChange={(val) => setOauthScopePerms(prev => ({ ...prev, [mod]: val === 'disabled' ? '' : val }))}
+                    t={t}
+                  />
+                ))}
+              </div>
               <small style={{ color: 'var(--td-text-color-secondary)', display: 'block', marginTop: 4 }}>{t('mcp.oauthScopeDesc')}</small>
             </div>
           </div>
@@ -1025,18 +1169,23 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
         <Modal title={t('mcp.oauthScopeEditTitle')} onClose={() => setShowScopeModal(false)}>
           <div style={{ padding: '16px 0' }}>
             <p className="page-description">{t('mcp.oauthScopeEditDesc')}</p>
-            <Input
-              value={editScope}
-              onChange={(val) => setEditScope(val)}
-              placeholder={t('mcp.oauthScopePlaceholder')}
-              style={{ marginTop: 16 }}
-            />
+            <div style={{ border: '1px solid var(--td-component-stroke)', borderRadius: 4, padding: '4px 12px' }}>
+              {MCP_SCOPE_MODULES.map(mod => (
+                <McpScopeRow
+                  key={mod}
+                  mod={mod}
+                  level={editScopePerms[mod] || 'disabled'}
+                  onChange={(val) => setEditScopePerms(prev => ({ ...prev, [mod]: val === 'disabled' ? '' : val }))}
+                  t={t}
+                />
+              ))}
+            </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
             <Button variant="outline" onClick={() => setShowScopeModal(false)}>{t('mcp.cancel')}</Button>
             <Button
               theme="primary"
-              onClick={() => updateScopeMutation.mutate({ clientId: editingClient.client_id, scope: editScope })}
+              onClick={() => updateScopeMutation.mutate({ clientId: editingClient.client_id, scope: permsToScopeString(editScopePerms) })}
               loading={updateScopeMutation.isPending}
             >
               {t('common.save')}
@@ -1081,6 +1230,49 @@ curl -X POST ${baseUrl}/api/mcp/oauth/register \\
                 expires_at: editExpiry || null,
               })}
               loading={updateExpiryMutation.isPending}
+            >
+              {t('common.save')}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* API Key Expiry Edit Modal */}
+      {showApiKeyExpiryModal && editingApiKey && (
+        <Modal title={t('mcp.oauthExpiryEditTitle')} onClose={() => setShowApiKeyExpiryModal(false)}>
+          <div style={{ padding: '16px 0' }}>
+            <p style={{ margin: '0 0 12px', color: 'var(--td-text-color-secondary)', fontSize: 14 }}>{t('mcp.oauthExpiryEditDesc')}</p>
+            <input
+              type="date"
+              value={editApiKeyExpiry}
+              onChange={(e) => setEditApiKeyExpiry(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--td-component-stroke)', borderRadius: 3, marginTop: 16 }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#666', fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={!editApiKeyExpiry}
+                  onChange={(e) => {
+                    if (e.target.checked) setEditApiKeyExpiry('');
+                  }}
+                />
+                {t('mcp.oauthNoExpiry')}
+              </label>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            {editApiKeyExpiry && (
+              <Button variant="text" onClick={() => setEditApiKeyExpiry('')}>{t('mcp.oauthClearExpiry')}</Button>
+            )}
+            <Button variant="outline" onClick={() => setShowApiKeyExpiryModal(false)}>{t('mcp.cancel')}</Button>
+            <Button
+              theme="primary"
+              onClick={() => updateApiKeyExpiryMutation.mutate({
+                keyId: editingApiKey.id,
+                expires_at: editApiKeyExpiry || null,
+              })}
+              loading={updateApiKeyExpiryMutation.isPending}
             >
               {t('common.save')}
             </Button>

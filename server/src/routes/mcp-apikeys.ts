@@ -150,6 +150,96 @@ router.post('/:id/revoke', authMiddleware, async (req: Request, res: Response) =
 
 /**
  * @swagger
+ * /api/mcp/api-keys/{id}/restore:
+ *   post:
+ *     summary: Restore a revoked API key (re-authorize)
+ *     tags: [MCP]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: number
+ *     responses:
+ *       200:
+ *         description: API key restored
+ *       404:
+ *         description: API key not found
+ */
+router.post('/:id/restore', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const keyId = parseInt(req.params.id);
+
+    if (isNaN(keyId)) {
+      return res.status(400).json({ code: 400, msg: 'Invalid key ID' });
+    }
+
+    await McpOperations.restoreApiKey(keyId, req.user!.userId);
+
+    log.info(`API key restored by user ${req.user!.userId}`, { keyId });
+
+    sendSuccess(res, { success: true, message: 'API key restored' });
+  } catch (error) {
+    log.error('Failed to restore API key', { error });
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to restore API key' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/mcp/api-keys/{id}/expiry:
+ *   put:
+ *     summary: Update API key expiry date
+ *     tags: [MCP]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: number
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               expires_at:
+ *                 type: string
+ *                 format: date
+ *                 description: ISO datetime or null to clear
+ *     responses:
+ *       200:
+ *         description: Expiry updated
+ */
+router.put('/:id/expiry', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const keyId = parseInt(req.params.id);
+
+    if (isNaN(keyId)) {
+      return res.status(400).json({ code: 400, msg: 'Invalid key ID' });
+    }
+
+    const { expires_at } = req.body;
+    const expiryValue = expires_at ? expires_at : null;
+
+    await McpOperations.updateApiKeyExpiry(keyId, req.user!.userId, expiryValue);
+
+    log.info(`API key expiry updated by user ${req.user!.userId}`, { keyId, expires_at: expiryValue });
+
+    sendSuccess(res, { success: true });
+  } catch (error) {
+    log.error('Failed to update API key expiry', { error });
+    res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update expiry' });
+  }
+});
+
+/**
+ * @swagger
  * /api/mcp/api-keys/{id}:
  *   delete:
  *     summary: Delete API key (permanently remove)

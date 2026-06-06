@@ -25,7 +25,7 @@ export const locales: Record<string, LocaleDefinition> = {
   'zh-CN-Mesugaki': { code: 'zh-CN-Mesugaki', label: '简体中文-雌小鬼版', messages: zhCNMesugaki.messages },
 };
 
-export const defaultLocale = 'zh-CN';
+export const defaultLocale = 'en';
 
 export const localeOptions: { code: string; label: string }[] = [
   { code: 'en', label: 'English' },

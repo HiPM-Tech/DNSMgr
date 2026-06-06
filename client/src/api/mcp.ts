@@ -86,6 +86,10 @@ export const mcpApi = {
     api.post<ApiResponse<null>>(`/mcp/api-keys/${keyId}/revoke`),
   deleteApiKey: (keyId: number) => 
     api.delete<ApiResponse<null>>(`/mcp/api-keys/${keyId}`),
+  restoreApiKey: (keyId: number) => 
+    api.post<ApiResponse<null>>(`/mcp/api-keys/${keyId}/restore`),
+  updateApiKeyExpiry: (keyId: number, expires_at: string | null) => 
+    api.put<ApiResponse<null>>(`/mcp/api-keys/${keyId}/expiry`, { expires_at }),
 
   // Audit Logs
   getAuditLogs: (params: {
@@ -136,4 +140,8 @@ export const mcpApi = {
   getOAuthTokens: () => api.get<ApiResponse<McpOAuthAccessToken[]>>('/mcp/oauth/tokens'),
   revokeOAuthToken: (tokenId: number) =>
     api.post<ApiResponse<null>>(`/mcp/oauth/tokens/${tokenId}/revoke`),
+
+  // OAuth Authorize (consent decision)
+  postOAuthAuthorize: (data: { client_id: string; redirect_uri: string; scope: string; state: string; decision: 'approve' | 'deny' }) =>
+    api.post<{ redirect_url: string }>('/mcp/oauth/authorize', data),
 };

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Button, Dialog, Divider, Form, Input, Loading, Space } from 'tdesign-react';
 import {
   FingerprintIcon,
@@ -34,10 +34,13 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 }
 
 export function Login() {
+  const year = new Date().getFullYear();
   const { user, login } = useAuth();
   const { t } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get('return_to') || '/dash';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -59,7 +62,7 @@ export function Login() {
 
   useEffect(() => {
     if (user) {
-      navigate('/dash', { replace: true });
+      navigate(returnTo, { replace: true });
       return;
     }
     initApi.status()
@@ -127,7 +130,7 @@ export function Login() {
         undefined,
         true, // encrypted flag
       );
-      navigate('/dash');
+      navigate(returnTo);
     } catch (err: any) {
       if (err.message === '2FA_REQUIRED') {
         setRequire2FA(true);
@@ -161,7 +164,7 @@ export function Login() {
       }
       
       await login(username, passwordToSend, undefined, undefined, attResp as unknown as WebAuthnResponse, true);
-      navigate('/dash');
+      navigate(returnTo);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t('login.failed'));
     } finally {
@@ -249,13 +252,17 @@ export function Login() {
 
   if (checking) {
     return (
-      <main className="login-page login-page--checking">
-        <Loading loading size="large" text={t('common.loading')} />
-      </main>
+      <>
+        <main className="login-page login-page--checking">
+          <Loading loading size="large" text={t('common.loading')} />
+        </main>
+        <footer className="login-footer">&copy;{year} HiPM-Tech &middot; All Rights Reserved.</footer>
+      </>
     );
   }
 
   return (
+    <>
     <main className="login-page">
       <div className="login-shell">
         <section className="login-identity" aria-label="HiDNS">
@@ -497,5 +504,6 @@ export function Login() {
         </Space>
       </Dialog>
     </main>
-  );
+      <footer className="login-footer">&copy;{year} HiPM-Tech &middot; All Rights Reserved.</footer>
+    </>);
 }

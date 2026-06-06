@@ -8,6 +8,46 @@ import { createLogger } from '../lib/logger';
 const log = createLogger('MCP').sub('Route').sub('Oauth');
 const router = Router();
 
+const MCP_MODULES = [
+  { key: 'ns_monitor', name: 'NS Monitor', nameCn: 'NS 监控' },
+  { key: 'domain_management', name: 'Domain Management', nameCn: '域名管理' },
+  { key: 'renewal_management', name: 'Renewal Management', nameCn: '续费管理' },
+  { key: 'log_query', name: 'Audit Logs', nameCn: '审计日志' },
+  { key: 'failover_management', name: 'Failover Management', nameCn: '故障转移' },
+];
+
+const PERMISSION_LABELS: Record<string, { en: string; cn: string }> = {
+  disabled: { en: 'Disabled', cn: '禁止' },
+  read: { en: 'Read Only', cn: '只读' },
+  write: { en: 'Read/Write', cn: '读写' },
+};
+
+const PERMISSION_COLORS: Record<string, string> = {
+  disabled: '#999',
+  read: '#165dff',
+  write: '#2ba471',
+};
+
+function parseScopeToModules(scopeJson: string | null | undefined): { key: string; level: string }[] {
+  if (!scopeJson) return MCP_MODULES.map(m => ({ key: m.key, level: 'disabled' }));
+  try {
+    const parsed = JSON.parse(scopeJson);
+    const scopeStr = typeof parsed === 'string' ? parsed : String(parsed);
+    const perms: Record<string, string> = {};
+    for (const item of scopeStr.split(',').map(s => s.trim()).filter(Boolean)) {
+      const [mod, level] = item.split(':');
+      if (mod && level) {
+        perms[mod] = level;
+      }
+    }
+    return MCP_MODULES.map(m => ({ key: m.key, level: perms[m.key] || 'disabled' }));
+  } catch {
+    return MCP_MODULES.map(m => ({ key: m.key, level: 'disabled' }));
+  }
+}
+
+/** Keep MCP_MODULES, PERMISSION_LABELS, PERMISSION_COLORS, parseScopeToModules for internal use */
+
 /**
  * Generate secure client ID and secret
  */
@@ -315,26 +355,79 @@ router.get('/authorize', authMiddleware, async (req: Request, res: Response) => 
       return res.redirect(errUrl);
     }
 
-    // Generate authorization code (valid for 10 minutes)
-    const code = 'hda_' + crypto.randomBytes(24).toString('hex');
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
-    // Parse scope from client - stored as JSON string in MySQL
+    // Parse client scope
     let clientScope: string | null = null;
     if (client.scope) {
       try { clientScope = JSON.parse(client.scope); } catch { clientScope = client.scope; }
     }
+
+    // Detect language
+    const acceptLang = req.headers['accept-language'] || 'en';
+    const lang = acceptLang.split(',')[0] || 'en';
+
+    // Build redirect URL to frontend OAuth consent page
+    const frontendParams = new URLSearchParams({
+      type: 'mcp',
+      client_id,
+      redirect_uri,
+      app_name: client.app_name || client_id,
+      lang,
+    });
+    if (scope || clientScope) frontendParams.set('scope', scope || clientScope!);
+    if (state) frontendParams.set('state', state);
+
+    const frontendUrl = `/oauth/authorize?${frontendParams.toString()}`;
+    log.info('Redirecting to frontend consent page', { client_id, frontendUrl });
+    res.redirect(frontendUrl);
+  } catch (error) {
+    log.error('Authorization failed', { error });
+    res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/mcp/oauth/authorize — Consent Decision
+ */
+router.post('/authorize', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { client_id, redirect_uri, scope, state, decision } = req.body;
+
+    if (!client_id || !redirect_uri || !decision) {
+      return res.status(400).json({ error: 'invalid_request', error_description: 'client_id, redirect_uri, and decision are required' });
+    }
+
+    if (decision === 'deny') {
+      const redirectUrl = `${redirect_uri}?error=access_denied&error_description=${encodeURIComponent('User denied the authorization request')}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
+      return res.json({ redirect_url: redirectUrl });
+    }
+
+    // Re-validate client
+    const client = await McpOperations.getOAuthClient(client_id);
+    if (!client) {
+      const redirectUrl = `${redirect_uri}?error=invalid_client&error_description=${encodeURIComponent('Unknown client_id')}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
+      return res.json({ redirect_url: redirectUrl });
+    }
+
+    // Check client expiry
+    if (client.expires_at && new Date(client.expires_at) < new Date()) {
+      const redirectUrl = `${redirect_uri}?error=access_denied&error_description=${encodeURIComponent('Client registration has expired')}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
+      return res.json({ redirect_url: redirectUrl });
+    }
+
+    // Generate authorization code (valid for 10 minutes)
+    const code = 'hda_' + crypto.randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     await McpOperations.createAuthCode({
       code,
       client_id,
       user_id: req.user!.userId,
       redirect_uri,
-      scope: scope || clientScope || null,
+      scope: scope || null,
       expires_at: expiresAt,
     });
 
-    log.info('Authorization code issued', {
+    log.info('Authorization code issued after consent', {
       client_id,
       user_id: req.user!.userId,
       redirect_uri,
@@ -342,9 +435,9 @@ router.get('/authorize', authMiddleware, async (req: Request, res: Response) => 
 
     // Redirect back to client with the code
     const redirectUrl = `${redirect_uri}?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
-    res.redirect(redirectUrl);
+    res.json({ redirect_url: redirectUrl });
   } catch (error) {
-    log.error('Authorization failed', { error });
+    log.error('Authorization (POST) failed', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });

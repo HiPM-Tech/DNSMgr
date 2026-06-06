@@ -4178,6 +4178,24 @@ export const McpOperations = {
     );
   },
 
+  /** 恢复（取消撤销）API Key */
+  async restoreApiKey(keyId: number, userId: number): Promise<void> {
+    await executeInternal(
+      'UPDATE mcp_user_api_keys SET revoked_at = NULL WHERE id = ? AND user_id = ?',
+      [keyId, userId],
+      { operation: 'Mcp.restoreApiKey', table: 'mcp_user_api_keys', userId }
+    );
+  },
+
+  /** 更新 API Key 授权到期日期 */
+  async updateApiKeyExpiry(keyId: number, userId: number, expiresAt: string | null): Promise<void> {
+    await executeInternal(
+      "UPDATE mcp_user_api_keys SET expires_at = ? WHERE id = ? AND user_id = ?",
+      [expiresAt, keyId, userId],
+      { operation: 'Mcp.updateApiKeyExpiry', table: 'mcp_user_api_keys', userId }
+    );
+  },
+
   /** 删除 API Key */
   async deleteApiKey(keyId: number, userId: number): Promise<void> {
     await executeInternal(
@@ -4251,6 +4269,7 @@ export const McpOperations = {
     app_name: string;
     redirect_uris: string;
     scope?: string;
+    expires_at?: string;
     created_at: string;
     updated_at: string;
   }>> {
@@ -4260,10 +4279,11 @@ export const McpOperations = {
       app_name: string;
       redirect_uris: string;
       scope?: string;
+      expires_at?: string;
       created_at: string;
       updated_at: string;
     }>(
-      'SELECT id, client_id, app_name, redirect_uris, scope, created_at, updated_at FROM mcp_oauth_clients WHERE user_id = ? ORDER BY created_at DESC',
+      'SELECT id, client_id, app_name, redirect_uris, scope, expires_at, created_at, updated_at FROM mcp_oauth_clients WHERE user_id = ? ORDER BY created_at DESC',
       [userId],
       { operation: 'Mcp.getUserOAuthClients', table: 'mcp_oauth_clients', userId }
     );
