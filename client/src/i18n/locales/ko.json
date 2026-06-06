@@ -1419,7 +1419,9 @@
             "oauthDiscoveryStep3": "클라이언트가 자동으로 /api/mcp/oauth/register를 호출하여 등록하고 client_id / client_secret을 획득합니다.",
             "oauthDiscoveryStep4": "클라이언트가 자동으로 OAuth 인증 코드 흐름을 완료하여 Access Token을 획득하고 사용합니다.",
             "oauthDiscoveryEndpointDesc": "OAuth 보호 리소스 메타데이터 (RFC 9728), 클라이언트가 자동 검색",
-            "oauthRegisterEndpointDesc": "동적 클라이언트 등록 (RFC 7591), 등록에 인증 불필요"
+            "oauthRegisterEndpointDesc": "동적 클라이언트 등록 (RFC 7591), 등록에 인증 불필요",
+            "mcpDiscoveryDesc": "MCP 기능 검색, 프로토콜 버전, 엔드포인트 및 인증 정보 반환",
+            "oauthAuthServerMetadataDesc": "OAuth 인증 서버 메타데이터 (RFC 8414)"
         }
     }
 }

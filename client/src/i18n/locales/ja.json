@@ -1447,7 +1447,9 @@
             "oauthDiscoveryStep3": "クライアントが自動的に /api/mcp/oauth/register を呼び出して登録し、client_id / client_secret を取得します。",
             "oauthDiscoveryStep4": "クライアントが自動的にOAuth認可コードフローを完了し、Access Tokenを取得して使用します。",
             "oauthDiscoveryEndpointDesc": "OAuth保護リソースメタデータ（RFC 9728）、クライアントが自動検出",
-            "oauthRegisterEndpointDesc": "動的クライアント登録（RFC 7591）、登録に認証不要"
+            "oauthRegisterEndpointDesc": "動的クライアント登録（RFC 7591）、登録に認証不要",
+            "mcpDiscoveryDesc": "MCP 能力発見、プロトコルバージョン、エンドポイント、認証情報を返す",
+            "oauthAuthServerMetadataDesc": "OAuth 認可サーバーメタデータ (RFC 8414)"
         }
     }
 }

@@ -118,47 +118,53 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // ── 认证信息提取 ──
-    // 注：不再提前返回 401 拦截未认证请求，而是将请求传递给 MCP 服务器处理。
-    // 对于 tools/call 等需要认证的操作，由 MCP 工具处理层（authenticateRequest）在工具级别进行校验。
-    // 这种设计允许 Trae IDE 等客户端成功完成 initialize 握手和 tools/list 发现，
-    // 仅在真正执行工具操作时提示认证错误，避免客户端因无法处理 OAuth 发现流程而连接失败。
+    // ── OAuth 发现：POST 请求未携带认证头时返回 401 ──
     const authValue = extractAuthValue(req);
+
+    if (!authValue) {
+      const oauthUri = buildOAuthMetadataUrl(req);
+
+      log.info('MCP Protocol', 'Auth required (no API-Key/Bearer token), returning 401 with OAuth discovery', {
+        clientIp,
+        oauthUri,
+      });
+
+      res.status(401)
+        .set('WWW-Authenticate', `Bearer realm="HiDNS MCP", resource_metadata="${oauthUri}"`)
+        .json({
+          error: 'unauthorized',
+          error_description: 'Authentication is required to access MCP. Provide API-Key header or use OAuth 2.0.',
+          oauth_metadata_uri: oauthUri,
+        });
+      return;
+    }
+
+    // ── 日志：认证通过 ──
     const methods = extractMethods(req.body);
+    log.info('MCP Protocol', 'POST /api/mcp authenticated', {
+      clientIp,
+      authType: req.headers['api-key'] ? 'api-key' : 'bearer',
+      authValue: maskAuthValue(authValue),
+      methods: methods.length > 0 ? methods : undefined,
+      methodCount: Array.isArray(req.body) ? req.body.length : undefined,
+    });
 
-    if (authValue) {
-      // ── 日志：认证通过 ──
-      log.info('MCP Protocol', 'POST /api/mcp authenticated', {
-        clientIp,
-        authType: req.headers['api-key'] ? 'api-key' : 'bearer',
-        authValue: maskAuthValue(authValue),
-        methods: methods.length > 0 ? methods : undefined,
-        methodCount: Array.isArray(req.body) ? req.body.length : undefined,
-      });
-
-      // API Key / Bearer Token 注入到 tools/call 参数
-      if (req.body && typeof req.body === 'object') {
-        const injectApiKey = (msg: any) => {
-          if (msg?.method === 'tools/call' && msg?.params && !msg.params.apiKey) {
-            msg.params.apiKey = authValue;
-            log.debug('MCP Protocol', 'API key injected into tools/call params', {
-              toolName: msg.params?.name,
-              params: Object.keys(msg.params).filter(k => k !== 'apiKey'),
-            });
-          }
-        };
-        if (Array.isArray(req.body)) {
-          req.body.forEach(injectApiKey);
-        } else {
-          injectApiKey(req.body);
+    // 已认证：API Key / Bearer Token 注入到 tools/call 参数
+    if (req.body && typeof req.body === 'object') {
+      const injectApiKey = (msg: any) => {
+        if (msg?.method === 'tools/call' && msg?.params && !msg.params.apiKey) {
+          msg.params.apiKey = authValue;
+          log.debug('MCP Protocol', 'API key injected into tools/call params', {
+            toolName: msg.params?.name,
+            params: Object.keys(msg.params).filter(k => k !== 'apiKey'),
+          });
         }
+      };
+      if (Array.isArray(req.body)) {
+        req.body.forEach(injectApiKey);
+      } else {
+        injectApiKey(req.body);
       }
-    } else {
-      // ── 日志：未认证请求 ──
-      log.info('MCP Protocol', 'POST /api/mcp without auth (will be checked at tool level)', {
-        clientIp,
-        methods: methods.length > 0 ? methods : undefined,
-      });
     }
 
     // ── 创建每个请求独立的 Transport ──
@@ -235,18 +241,27 @@ async function handleSseGet(req: Request, res: Response): Promise<void> {
       accept: req.headers['accept'],
     });
 
-    // ── 日志：认证状态 ──
-    if (authValue) {
-      log.info('MCP Protocol', 'SSE GET /api/mcp/sse authenticated', {
-        clientIp,
-        authType: req.headers['api-key'] ? 'api-key' : 'bearer',
-        authValue: maskAuthValue(authValue),
-      });
-    } else {
-      log.info('MCP Protocol', 'SSE GET /api/mcp/sse without auth (auth checked at tool level)', {
-        clientIp,
-      });
+    if (!authValue) {
+      log.info('MCP Protocol', 'SSE auth required (no API-Key/Bearer token), returning 401', { clientIp });
+
+      const oauthUri = buildOAuthMetadataUrl(req);
+
+      res.status(401)
+        .set('WWW-Authenticate', `Bearer realm="HiDNS MCP", resource_metadata="${oauthUri}"`)
+        .json({
+          error: 'unauthorized',
+          error_description: 'Authentication is required to access MCP SSE endpoint.',
+          oauth_metadata_uri: oauthUri,
+        });
+      return;
     }
+
+    // ── 日志：SSE 认证通过 ──
+    log.info('MCP Protocol', 'SSE GET /api/mcp/sse authenticated', {
+      clientIp,
+      authType: req.headers['api-key'] ? 'api-key' : 'bearer',
+      authValue: maskAuthValue(authValue),
+    });
 
     // 创建 SSE 传输层，endpoint 指向当前路径（用于 POST 消息回传）
     const transport = new SSEServerTransport('/api/mcp/sse', res);

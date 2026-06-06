@@ -1415,7 +1415,9 @@
             "oauthDiscoveryStep3": "Клиент автоматически вызывает /api/mcp/oauth/register для регистрации и получает client_id / client_secret.",
             "oauthDiscoveryStep4": "Клиент автоматически выполняет поток кода авторизации OAuth, получает и использует Access Token.",
             "oauthDiscoveryEndpointDesc": "Метаданные защищённого ресурса OAuth (RFC 9728), автоматически обнаруживаются клиентом",
-            "oauthRegisterEndpointDesc": "Динамическая регистрация клиента (RFC 7591), регистрация без аутентификации"
+            "oauthRegisterEndpointDesc": "Динамическая регистрация клиента (RFC 7591), регистрация без аутентификации",
+            "mcpDiscoveryDesc": "Обнаружение возможностей MCP, возвращает версию протокола, конечные точки и информацию об аутентификации",
+            "oauthAuthServerMetadataDesc": "Метаданные сервера авторизации OAuth (RFC 8414)"
         }
     }
 }

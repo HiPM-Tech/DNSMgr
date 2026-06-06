@@ -1390,7 +1390,9 @@
             "oauthDiscoveryStep3": "يقوم العميل تلقائيًا باستدعاء /api/mcp/oauth/register لتسجيل نفسه والحصول على client_id / client_secret.",
             "oauthDiscoveryStep4": "يكمل العميل تلقائيًا تدفق رمز التفويض OAuth للحصول على Access Token واستخدامه.",
             "oauthDiscoveryEndpointDesc": "بيانات الموارد المحمية OAuth (RFC 9728)، يكتشفها العميل تلقائيًا",
-            "oauthRegisterEndpointDesc": "تسجيل العميل الديناميكي (RFC 7591)، تسجيل بدون مصادقة"
+            "oauthRegisterEndpointDesc": "تسجيل العميل الديناميكي (RFC 7591)، تسجيل بدون مصادقة",
+            "mcpDiscoveryDesc": "اكتشاف إمكانيات MCP، يعيد إصدار البروتوكول ونقاط النهاية ومعلومات المصادقة",
+            "oauthAuthServerMetadataDesc": "بيانات خادم ترخيص OAuth (RFC 8414)"
         }
     }
 }

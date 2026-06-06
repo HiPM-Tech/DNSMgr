@@ -374,6 +374,11 @@ export function McpManagement() {
               </thead>
               <tbody>
                 <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/.well-known/mcp.json</code></td>
+                  <td style={{ padding: '8px' }}>GET</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.mcpDiscoveryDesc')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/.well-known/oauth-protected-resource</code></td>
                   <td style={{ padding: '8px' }}>GET</td>
                   <td style={{ padding: '8px' }}>{t('mcp.oauthDiscoveryEndpointDesc')}</td>
@@ -382,6 +387,11 @@ export function McpManagement() {
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/.well-known/jwks.json</code></td>
                   <td style={{ padding: '8px' }}>GET</td>
                   <td style={{ padding: '8px' }}>{t('mcp.jwksDesc')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/.well-known/oauth-authorization-server</code></td>
+                  <td style={{ padding: '8px' }}>GET</td>
+                  <td style={{ padding: '8px' }}>{t('mcp.oauthAuthServerMetadataDesc')}</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid var(--td-component-stroke)' }}>
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}><code>{baseUrl}/api/mcp/oauth/authorize</code></td>

@@ -377,4 +377,123 @@ router.get('/.well-known/oauth-authorization-server', async (req: Request, res: 
   }
 });
 
+/**
+ * @swagger
+ * /api/mcp/.well-known/mcp.json:
+ *   get:
+ *     summary: MCP Server Capability Discovery
+ *     description: |
+ *       MCP 能力发现端点。客户端可在连接前或收到 401 后获取此信息,
+ *       了解服务器支持的 MCP 协议版本、端点地址和认证方式。
+ *     tags: [MCP]
+ *     responses:
+ *       200:
+ *         description: MCP server metadata
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 name:
+ *                   type: string
+ *                 version:
+ *                   type: string
+ *                 protocolVersion:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 capabilities:
+ *                   type: object
+ *                   properties:
+ *                     tools:
+ *                       type: object
+ *                       description: Server supports tools
+ *                 endpoints:
+ *                   type: object
+ *                   properties:
+ *                     streamableHttp:
+ *                       type: object
+ *                       properties:
+ *                         url:
+ *                           type: string
+ *                     sse:
+ *                       type: object
+ *                       properties:
+ *                         url:
+ *                           type: string
+ *                 authentication:
+ *                   type: object
+ *                   properties:
+ *                     type:
+ *                       type: string
+ *                     authorizationEndpoint:
+ *                       type: string
+ *                     tokenEndpoint:
+ *                       type: string
+ *                     registrationEndpoint:
+ *                       type: string
+ *                     scopesSupported:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ */
+router.get('/.well-known/mcp.json', async (req: Request, res: Response) => {
+  try {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const baseUrl = `${protocol}://${host}`;
+
+    const metadata = {
+      // 服务器信息
+      name: 'HiDNS MCP Server',
+      version: '1.0.0',
+      protocolVersion: '2025-03-26',
+      description: 'MCP server for HiDNS domain management, DNS record management, NS monitoring, and related services.',
+
+      // 能力声明
+      capabilities: {
+        tools: {},
+      },
+
+      // 端点地址
+      endpoints: {
+        streamableHttp: {
+          url: `${baseUrl}/api/mcp`,
+        },
+        sse: {
+          url: `${baseUrl}/api/mcp/sse`,
+        },
+      },
+
+      // 认证信息
+      authentication: {
+        type: 'oauth2',
+        authorizationEndpoint: `${baseUrl}/api/mcp/oauth/authorize`,
+        tokenEndpoint: `${baseUrl}/api/mcp/oauth/token`,
+        registrationEndpoint: `${baseUrl}/api/mcp/oauth/register`,
+        scopesSupported: [
+          'ns_monitor:read',
+          'ns_monitor:write',
+          'domain_management:read',
+          'domain_management:write',
+          'renewal_management:read',
+          'renewal_management:write',
+          'log_query:read',
+          'failover_management:read',
+          'failover_management:write',
+        ],
+        metadataUri: `${baseUrl}/api/mcp/.well-known/oauth-protected-resource`,
+        authorizationServerMetadataUri: `${baseUrl}/api/mcp/.well-known/oauth-authorization-server`,
+      },
+    };
+
+    // 允许跨域访问（MCP 客户端可能来自不同源）
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.status(200).json(metadata);
+  } catch (error) {
+    log.error('MCP', 'Failed to serve MCP capability discovery metadata', { error });
+    res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
+  }
+});
+
 export default router;

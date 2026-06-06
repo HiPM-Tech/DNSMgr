@@ -1416,7 +1416,9 @@
             "oauthDiscoveryStep3": "Le client appelle automatiquement /api/mcp/oauth/register pour s'enregistrer et obtenir client_id / client_secret.",
             "oauthDiscoveryStep4": "Le client termine automatiquement le flux de code d'autorisation OAuth pour obtenir et utiliser un jeton d'accès.",
             "oauthDiscoveryEndpointDesc": "Métadonnées de la ressource protégée OAuth (RFC 9728), découverte automatique par le client",
-            "oauthRegisterEndpointDesc": "Enregistrement dynamique de client (RFC 7591), enregistrement sans authentification"
+            "oauthRegisterEndpointDesc": "Enregistrement dynamique de client (RFC 7591), enregistrement sans authentification",
+            "mcpDiscoveryDesc": "Découverte des capacités MCP, retourne la version du protocole, les points de terminaison et les infos d'authentification",
+            "oauthAuthServerMetadataDesc": "Métadonnées du serveur d'autorisation OAuth (RFC 8414)"
         }
     }
 }

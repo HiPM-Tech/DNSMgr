@@ -1416,7 +1416,9 @@
             "oauthDiscoveryStep3": "客户端自动调用 /api/mcp/oauth/register 注册自己，获取 client_id / client_secret。",
             "oauthDiscoveryStep4": "客户端自动完成 OAuth 授权码流程，获取 Access Token 并使用。",
             "oauthDiscoveryEndpointDesc": "OAuth 受保护资源元数据（RFC 9728），客户端自动发现",
-            "oauthRegisterEndpointDesc": "动态客户端注册（RFC 7591），客户端无需认证即可注册"
+            "oauthRegisterEndpointDesc": "动态客户端注册（RFC 7591），客户端无需认证即可注册",
+            "mcpDiscoveryDesc": "MCP 能力发现，返回协议版本、端点地址和认证信息",
+            "oauthAuthServerMetadataDesc": "OAuth 授权服务器元数据 (RFC 8414)"
         }
     }
 }

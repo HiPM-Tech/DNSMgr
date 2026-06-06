@@ -1416,7 +1416,9 @@
             "oauthDiscoveryStep3": "The client automatically calls /api/mcp/oauth/register to register itself and obtain client_id / client_secret.",
             "oauthDiscoveryStep4": "The client automatically completes the OAuth authorization code flow to obtain and use an Access Token.",
             "oauthDiscoveryEndpointDesc": "OAuth Protected Resource Metadata (RFC 9728), auto-discovered by clients",
-            "oauthRegisterEndpointDesc": "Dynamic Client Registration (RFC 7591), no auth required for registration"
+            "oauthRegisterEndpointDesc": "Dynamic Client Registration (RFC 7591), no auth required for registration",
+            "mcpDiscoveryDesc": "MCP capability discovery, returns protocol version, endpoints and auth info",
+            "oauthAuthServerMetadataDesc": "OAuth Authorization Server Metadata (RFC 8414)"
         }
     }
 }
