@@ -8,10 +8,10 @@
  * - OAuth2 可选择具体的权限范围
  */
 
-import { McpOperations } from '../db/bal/business-adapter';
-import { UserOperations } from '../db/bal/business-adapter';
+import { McpOperations, UserOperations } from '../db/bal/business-adapter';
 import { AppError } from '../middleware/errorHandler';
 import { log } from '../lib/logger';
+import { ROLE_USER, ROLE_ADMIN, ROLE_SUPER } from '../utils/roles';
 
 export type McpPermissionLevel = 'disabled' | 'read' | 'write';
 
@@ -98,8 +98,19 @@ export async function getUserModulePermission(
     return 'disabled';
   }
 
-  // 3. 返回角色对应的权限
-  const rolePermissions = ROLE_PERMISSIONS[user.role as string];
+  // 3. 将数字 role_level 转为角色名称字符串
+  const roleLevel = user.role as number;
+  let roleName: string;
+  if (roleLevel >= ROLE_SUPER) {
+    roleName = 'super';
+  } else if (roleLevel >= ROLE_ADMIN) {
+    roleName = 'admin';
+  } else {
+    roleName = 'member';
+  }
+
+  // 4. 返回角色对应的权限
+  const rolePermissions = ROLE_PERMISSIONS[roleName];
   if (!rolePermissions) {
     log.warn('MCP Permission', 'Unknown role', { userId, role: user.role });
     return 'disabled';
