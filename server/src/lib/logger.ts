@@ -180,7 +180,8 @@ class Logger {
     const time = entry.timestamp;
     const level = entry.level.toUpperCase().padStart(5);
     const modules = this.formatModules(entry.module, entry.subModules);
-    const callerStr = entry.callerFunction && entry.callerLine ? ` [${entry.callerFunction}] [L${entry.callerLine}]` : '';
+    const showCaller = this.logLevel === 'trace' || entry.level === 'warn' || entry.level === 'error';
+    const callerStr = showCaller && entry.callerFunction && entry.callerLine ? ` [${entry.callerFunction}] [L${entry.callerLine}]` : '';
     const tagStr = (entry.tags || []).map(t => `["${t}"]`).join(' ');
     const middleSection = [modules, callerStr, tagStr ? ` ${tagStr}` : ''].filter(Boolean).join('');
 
