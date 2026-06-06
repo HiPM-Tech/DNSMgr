@@ -318,12 +318,18 @@ router.get('/authorize', authMiddleware, async (req: Request, res: Response) => 
     const code = 'hda_' + crypto.randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
+    // Parse scope from client - stored as JSON string in MySQL
+    let clientScope: string | null = null;
+    if (client.scope) {
+      try { clientScope = JSON.parse(client.scope); } catch { clientScope = client.scope; }
+    }
+
     await McpOperations.createAuthCode({
       code,
       client_id,
       user_id: req.user!.userId,
       redirect_uri,
-      scope: scope || client.scope || null,
+      scope: scope || clientScope || null,
       expires_at: expiresAt,
     });
 
@@ -426,7 +432,7 @@ router.post('/register', async (req: Request, res: Response) => {
       user_id: undefined, // unassigned until authorized
       app_name: client_name,
       redirect_uris: JSON.stringify(redirect_uris),
-      scope: scope || undefined,
+      scope: scope ? JSON.stringify(scope) : undefined,
     });
 
     const now = Math.floor(Date.now() / 1000);
@@ -554,9 +560,12 @@ async function handleClientCredentials(req: Request, res: Response) {
   const expiresIn = 3600;
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
+  // Parse scope from client - stored as JSON string in MySQL
   let tokenScope: string | undefined;
   if (scope) tokenScope = scope;
-  else if (client.scope) tokenScope = client.scope;
+  else if (client.scope) {
+    try { tokenScope = JSON.parse(client.scope); } catch { tokenScope = client.scope; }
+  }
 
   await McpOperations.createAccessToken({
     access_token: accessToken,
