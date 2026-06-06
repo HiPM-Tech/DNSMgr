@@ -1,8 +1,9 @@
 import { SettingsOperations } from '../db/bal/business-adapter';
 import { sendSmtpEmail } from './smtp';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { fetchWithFallback } from '../lib/proxy-http';
 
+const log = createLogger('Notification');
 export interface NotificationChannel {
   id: string;
   type: 'webhook' | 'telegram' | 'dingtalk' | 'email';
@@ -30,31 +31,31 @@ async function withRetry<T>(
   maxRetries: number = RETRY_CONFIG.maxRetries
 ): Promise<T | null> {
   let lastError: Error | null = null;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const result = await fn();
       if (attempt > 1) {
-        log.info('Notification', `Success for ${channelName} on attempt ${attempt}`);
+        log.info(`Success for ${channelName} on attempt ${attempt}`);
       }
       return result;
     } catch (error) {
       lastError = error as Error;
-      log.warn('Notification', `Attempt ${attempt}/${maxRetries} failed for ${channelName}`, { error: (error as Error).message });
-      
+      log.warn(`Attempt ${attempt}/${maxRetries} failed for ${channelName}`, { error: (error as Error).message });
+
       if (attempt < maxRetries) {
         // 指数退避策略
         const retryDelay = Math.min(
           RETRY_CONFIG.retryDelay * Math.pow(2, attempt - 1),
           RETRY_CONFIG.maxDelay
         );
-        log.info('Notification', `Retrying ${channelName} in ${retryDelay}ms...`);
+        log.info(`Retrying ${channelName} in ${retryDelay}ms...`);
         await delay(retryDelay);
       }
     }
   }
-  
-  log.error('Notification', `All ${maxRetries} attempts failed for ${channelName}`, { error: lastError });
+
+  log.error(`All ${maxRetries} attempts failed for ${channelName}`, { error: lastError });
   return null;
 }
 
@@ -102,7 +103,7 @@ export async function sendEmailToUser(
   htmlMessage?: string
 ): Promise<boolean> {
   if (!email) {
-    log.warn('Notification', 'Cannot send email: email address is empty');
+    log.warn('Cannot send email: email address is empty');
     return false;
   }
 
@@ -113,7 +114,7 @@ export async function sendEmailToUser(
     );
     return result !== null;
   } catch (error) {
-    log.warn('Notification', 'Failed to send email to user', { email, error });
+    log.warn('Failed to send email to user', { email, error });
     return false;
   }
 }
@@ -126,7 +127,7 @@ async function sendWebhookWithRetry(
 ): Promise<boolean> {
   const { url, method = 'POST', headers = {}, useProxy } = channel.config;
   if (!url) return false;
-  
+
   const result = await withRetry(
     () => fetchWithFallback(url, {
       method,
@@ -149,7 +150,7 @@ async function sendTelegramWithRetry(
 ): Promise<boolean> {
   const { botToken, chatId, useProxy } = channel.config;
   if (!botToken || !chatId) return false;
-  
+
   const text = `*${title}*\n\n${message}`;
   const result = await withRetry(
     () => fetchWithFallback(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -176,7 +177,7 @@ async function sendDingtalkWithRetry(
 ): Promise<boolean> {
   const { webhook, useProxy } = channel.config;
   if (!webhook) return false;
-  
+
   const result = await withRetry(
     () => fetchWithFallback(webhook, {
       method: 'POST',
@@ -200,18 +201,18 @@ async function sendDingtalkWithRetry(
 export async function sendNotification(title: string, message: string, htmlMessage?: string) {
   const channels = await getNotificationChannels();
   const enabledChannels = channels.filter(c => c.enabled);
-  
+
   if (enabledChannels.length === 0) {
-    log.info('Notification', 'No enabled channels found');
+    log.info('No enabled channels found');
     return;
   }
-  
+
   const results: { channel: string; success: boolean }[] = [];
-  
+
   for (const channel of enabledChannels) {
     try {
       let success = false;
-      
+
       switch (channel.type) {
         case 'email':
           success = await sendEmailWithRetry(channel, title, message, htmlMessage);
@@ -226,26 +227,26 @@ export async function sendNotification(title: string, message: string, htmlMessa
           success = await sendDingtalkWithRetry(channel, title, message);
           break;
         default:
-          log.warn('Notification', `Unknown channel type: ${channel.type}`);
+          log.warn(`Unknown channel type: ${channel.type}`);
       }
-      
+
       results.push({ channel: channel.name, success });
     } catch (e) {
-      log.error('Notification', `Unexpected error for ${channel.name} (${channel.type})`, { error: e });
+      log.error(`Unexpected error for ${channel.name} (${channel.type})`, { error: e });
       results.push({ channel: channel.name, success: false });
     }
   }
-  
+
   // 汇总通知结果
   const successCount = results.filter(r => r.success).length;
   const failCount = results.length - successCount;
-  
+
   if (failCount > 0) {
-    log.warn('Notification', `Summary: ${successCount} succeeded, ${failCount} failed`);
+    log.warn(`Summary: ${successCount} succeeded, ${failCount} failed`);
     results.filter(r => !r.success).forEach(r => {
-      log.warn('Notification', `Failed: ${r.channel}`);
+      log.warn(`Failed: ${r.channel}`);
     });
   } else {
-    log.info('Notification', `All ${successCount} channels succeeded`);
+    log.info(`All ${successCount} channels succeeded`);
   }
 }

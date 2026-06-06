@@ -1,9 +1,7 @@
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { log } from '../internal';
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, fetchWithFallback, resolveDomainIdHelper } from '../internal';
 import crypto from 'crypto';
-import { fetchWithFallback } from '../internal';
-import { resolveDomainIdHelper } from '../internal';
 
+const log = createProviderAdapterLogger('CaihongDns');
 interface CaihongDnsConfig {
   baseUrl: string;
   uid: string;
@@ -88,7 +86,7 @@ export class CaihongDnsAdapter implements DnsAdapter {
     const url = `${baseUrl}/api${normalizedPath}`;
     const authParams = this.getAuthParams();
 
-    log.providerRequest('CaihongDns', method, url, { ...body, ...authParams, sign: '***' });
+    log.sub('API').tag('REQUEST').debug('Provider request', { method: method, url: url, params: { ...body, ...authParams, sign: '***' } });
 
     try {
       const headers: Record<string, string> = {
@@ -126,23 +124,23 @@ export class CaihongDnsAdapter implements DnsAdapter {
       } catch (parseError) {
         // If JSON parsing fails, return error with raw response
         const errorMsg = `Invalid JSON response: ${responseText.substring(0, 200)}`;
-        log.providerError('CaihongDns', [{ message: errorMsg }]);
+        log.sub('API').tag('ERROR').error('Provider error', [{ message: errorMsg }]);
         return { code: -1, msg: errorMsg };
       }
 
       // Check if response has error code
       const hasError = data.code !== undefined && data.code !== 0;
-      log.providerResponse('CaihongDns', res.status, !hasError, { code: data.code, msg: data.msg, hasData: data.rows !== undefined });
+      log.sub('API').tag('RESPONSE').debug('Provider response', { status: res.status, success: !hasError, data: { code: data.code, msg: data.msg, hasData: data.rows !== undefined } });
 
       if (hasError) {
         this.error = data.msg || 'API error';
-        log.providerError('CaihongDns', [{ message: this.error }]);
+        log.sub('API').tag('ERROR').error('Provider error', [{ message: this.error }]);
       }
 
       return data;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.providerError('CaihongDns', [{ message: this.error }]);
+      log.sub('API').tag('ERROR').error('Provider error', [{ message: this.error }]);
       return { code: -1, msg: this.error };
     }
   }

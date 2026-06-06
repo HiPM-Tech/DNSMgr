@@ -4,8 +4,9 @@ import { createUserToken, getUserTokens, deleteUserToken, toggleTokenStatus, upd
 import { DomainOperations } from '../db/bal/business-adapter';
 import { normalizeRole } from '../utils/roles';
 import { wsService } from '../service/websocket';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('HTTP').sub('Route').sub('Tokens');
 const router = Router();
 
 /**
@@ -156,7 +157,7 @@ router.post('/', authMiddleware, noTokenAuth('token management'), async (req: Re
       },
       msg: 'Token created successfully',
     });
-    
+
     // 推送 WebSocket 消息给当前用户
     try {
       wsService.sendToClient(req.user!.userId, {
@@ -167,7 +168,7 @@ router.post('/', authMiddleware, noTokenAuth('token management'), async (req: Re
         },
       });
     } catch (error) {
-      log.error('Tokens', 'Failed to send token_created event', { error });
+      log.error('Failed to send token_created event', { error });
     }
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to create token' });
@@ -207,7 +208,7 @@ router.delete('/:id', authMiddleware, noTokenAuth('token management'), async (re
   try {
     await deleteUserToken(tokenId, req.user!.userId);
     res.json({ code: 0, msg: 'Token deleted successfully' });
-    
+
     // 推送 WebSocket 消息给当前用户
     try {
       wsService.sendToClient(req.user!.userId, {
@@ -217,7 +218,7 @@ router.delete('/:id', authMiddleware, noTokenAuth('token management'), async (re
         },
       });
     } catch (error) {
-      log.error('Tokens', 'Failed to send token_revoked event', { error });
+      log.error('Failed to send token_revoked event', { error });
     }
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to delete token' });
@@ -344,7 +345,7 @@ router.put('/:id', authMiddleware, noTokenAuth('token management'), async (req: 
       start_time,
       end_time,
     });
-    
+
     // 推送 WebSocket 消息给当前用户
     try {
       wsService.sendToClient(req.user!.userId, {
@@ -355,9 +356,9 @@ router.put('/:id', authMiddleware, noTokenAuth('token management'), async (req: 
         },
       });
     } catch (error) {
-      log.error('Tokens', 'Failed to send token_updated event', { error });
+      log.error('Failed to send token_updated event', { error });
     }
-    
+
     res.json({ code: 0, msg: 'Token permissions updated successfully' });
   } catch (error) {
     res.status(500).json({ code: 500, msg: error instanceof Error ? error.message : 'Failed to update token permissions' });

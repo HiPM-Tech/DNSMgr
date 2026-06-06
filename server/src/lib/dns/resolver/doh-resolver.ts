@@ -6,8 +6,9 @@ import * as https from 'https';
 import * as http from 'http';
 import { URL } from 'url';
 import { DNSQueryType, DNSResponse, DNSRecord } from './types';
-import { log } from '../../logger';
+import { createLogger } from '../../logger';
 
+const log = createLogger('DNS').sub('Resolver').sub('Doh');
 // DNS 查询包编码（简化版，用于 DoH）
 export function encodeDNSQuery(domain: string, type: DNSQueryType): Buffer {
   // 构造 DNS 查询包
@@ -287,7 +288,7 @@ export async function queryDoH(
       source: dohUrl,
     };
   } catch (error) {
-    log.error('DoHResolver', `DoH query failed for ${domain}`, {
+    log.error(`DoH query failed for ${domain}`, {
       error: error instanceof Error ? error.message : String(error),
       url: dohUrl,
     });
@@ -336,7 +337,7 @@ export async function queryDoHWire(
           response.source = dohUrl;
           resolve(response);
         } catch (error) {
-          log.error('DoHResolver', `Failed to decode DoH response for ${domain}`, {
+          log.error(`Failed to decode DoH response for ${domain}`, {
             error: error instanceof Error ? error.message : String(error),
           });
           resolve(null);
@@ -345,7 +346,7 @@ export async function queryDoHWire(
     });
 
     req.on('error', (error) => {
-      log.error('DoHResolver', `DoH request failed for ${domain}`, {
+      log.error(`DoH request failed for ${domain}`, {
         error: error.message,
       });
       resolve(null);

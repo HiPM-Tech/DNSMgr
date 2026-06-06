@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { getRequestIP } from './clientIP';
 
+const log = createLogger('HTTP').sub('Middleware').sub('ErrorHandler');
 /**
  * Standard API error response format
  */
@@ -36,7 +37,7 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ): void {
-  log.error('Error', `Request error: ${err.message}`, {
+  log.error(`Request error: ${err.message}`, {
     name: err.name,
     message: err.message,
     stack: err.stack,

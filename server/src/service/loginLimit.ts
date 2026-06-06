@@ -1,7 +1,8 @@
 import { LoginLimitOperations, getDbType } from '../db/bal/business-adapter';
 import { checkAuditRules } from './auditRules';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('Security').sub('LoginLimit');
 /**
  * 将日期格式化为数据库兼容的格式 (YYYY-MM-DD HH:mm:ss)
  */
@@ -45,7 +46,7 @@ export async function getLoginLimitConfig(): Promise<LoginLimitConfig> {
       return { ...DEFAULT_CONFIG, ...JSON.parse((result as { value: string }).value) };
     }
   } catch (e) {
-    log.error('LoginLimit', 'Failed to get config', { error: e });
+    log.error('Failed to get config', { error: e });
   }
   return DEFAULT_CONFIG;
 }
@@ -93,7 +94,7 @@ export async function checkLoginAllowed(identifier: string, ipAddress: string = 
       remainingAttempts,
     };
   } catch (e) {
-    log.error('LoginLimit', 'Failed to check login allowed', { error: e });
+    log.error('Failed to check login allowed', { error: e });
     return { allowed: true };
   }
 }
@@ -138,7 +139,7 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
 
         await LoginLimitOperations.updateAttempt(attempt.id, newCount, formatDateForDB(lockedUntil));
 
-        checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => log.error('LoginLimit', 'Audit rule check failed', { error: e }));
+        checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => log.error('Audit rule check failed', { error: e }));
 
         return {
           locked: true,
@@ -149,7 +150,7 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
       // Update attempt count
       await LoginLimitOperations.updateAttempt(attempt.id, newCount, null);
 
-      checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => log.error('LoginLimit', 'Audit rule check failed', { error: e }));
+      checkAuditRules(0, 'login_failed', '', { identifier: normalizedIdentifier, ip: ipAddress, attemptCount: newCount }).catch(e => log.error('Audit rule check failed', { error: e }));
 
       const remainingAttempts = config.maxAttempts - newCount;
       return {
@@ -167,7 +168,7 @@ export async function recordFailedAttempt(identifier: string, ipAddress: string 
       };
     }
   } catch (e) {
-    log.error('LoginLimit', 'Failed to record failed attempt', { error: e });
+    log.error('Failed to record failed attempt', { error: e });
     return { locked: false };
   }
 }
@@ -177,7 +178,7 @@ export async function clearLoginAttempts(identifier: string): Promise<void> {
   try {
     await LoginLimitOperations.clearAttempts(identifier);
   } catch (e) {
-    log.error('LoginLimit', 'Failed to clear attempts', { error: e });
+    log.error('Failed to clear attempts', { error: e });
   }
 }
 
@@ -208,7 +209,7 @@ export async function getLoginAttemptStats(): Promise<{
       topIdentifiers,
     };
   } catch (e) {
-    log.error('LoginLimit', 'Failed to get stats', { error: e });
+    log.error('Failed to get stats', { error: e });
     return { totalLocked: 0, recentAttempts: 0, topIdentifiers: [] };
   }
 }

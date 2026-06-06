@@ -8,7 +8,9 @@ import {
   getProviderInfoList,
   providerDefinitionMap,
 } from './providers/registry';
-import { log } from '../logger';
+import { createLogger } from '../logger';
+
+const log = createLogger('DNS').sub('Helper');
 
 export type { ProviderCapabilities, ProviderConfigField, ProviderInfo };
 
@@ -55,13 +57,13 @@ function createLoggingAdapter(adapter: DnsAdapter, providerType: string): DnsAda
       const methodName = String(prop);
       return async (...args: unknown[]) => {
         const start = Date.now();
-        log.providerRequest(providerType, methodName, '', sanitizeArgs(args));
+        log.sub('AdapterProxy').sub(providerType).sub(methodName).tag('CALL').debug('Adapter method called', { args: sanitizeArgs(args) });
         try {
           const result = await original.apply(target, args);
-          log.providerResponse(providerType, Date.now() - start, true, { method: methodName });
+          log.sub('AdapterProxy').sub(providerType).sub(methodName).tag('SUCCESS').debug('Adapter method completed', { durationMs: Date.now() - start });
           return result;
         } catch (e) {
-          log.providerError(providerType, { method: methodName, error: e instanceof Error ? e.message : String(e) });
+          log.sub('AdapterProxy').sub(providerType).sub(methodName).tag('FAILED').error('Adapter method failed', { durationMs: Date.now() - start, error: e });
           throw e;
         }
       };
@@ -85,12 +87,12 @@ export function createAdapter(type: string, config: Record<string, string>, doma
 
   // 对于腾讯 EO 适配器，设置 Zone ID 和域名
   if (type === 'tencenteo' && adapter instanceof TencenteoAdapter) {
-    log.debug('DnsHelper', 'Creating TencentEO adapter', { domain, zoneId, hasZoneId: !!zoneId, hasDomain: !!domain });
+    log.sub('AdapterFactory').sub('TencentEO').debug('Creating adapter', { domain, zoneId, hasZoneId: !!zoneId, hasDomain: !!domain });
     if (zoneId && domain) {
       adapter.setZoneInfo(zoneId, domain);
-      log.debug('DnsHelper', 'TencentEO adapter ZoneInfo set', { zoneId, domain });
+      log.sub('AdapterFactory').sub('TencentEO').tag('SUCCESS').debug('ZoneInfo set', { zoneId, domain });
     } else {
-      log.warn('DnsHelper', 'TencentEO adapter missing zoneId or domain', { zoneId, domain });
+      log.sub('AdapterFactory').sub('TencentEO').tag('VALIDATION').warn('Missing zoneId or domain', { zoneId, domain });
     }
   }
 

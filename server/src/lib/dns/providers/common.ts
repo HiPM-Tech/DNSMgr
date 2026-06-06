@@ -1,4 +1,4 @@
-﻿import crypto from 'node:crypto';
+import crypto from 'node:crypto';
 import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../DnsInterface';
 import {
   Dict,
@@ -6,7 +6,9 @@ import {
   hmacSignSha1,
   requestJson,
 } from './http';
-import { log } from '../../logger';
+import { createLogger } from '../../logger';
+
+const log = createLogger('DNS').sub('Provider').sub('Common');
 
 export type { Dict };
 
@@ -91,24 +93,24 @@ export async function resolveDomainIdHelper(
   }
 
   try {
-    log.debug(providerName, `Resolving domainId for domain: ${config.domain}`);
+    log.sub(providerName).debug(`Resolving domainId for domain: ${config.domain}`);
     const result = await getDomainList(config.domain, 1, 1);
     if (result.list.length > 0) {
       const domainId = result.list[0].ThirdId;
-      log.debug(providerName, `Resolved domainId: ${domainId} for domain: ${config.domain}`);
+      log.sub(providerName).debug(`Resolved domainId: ${domainId} for domain: ${config.domain}`);
       // 缓存 domainId 避免重复查询
       config.domainId = domainId;
       return domainId;
     } else {
-      log.warn(providerName, `No domain found for: ${config.domain}. Available domains will be listed.`);
+      log.sub(providerName).warn(`No domain found for: ${config.domain}. Available domains will be listed.`);
       // 尝试列出所有域名帮助调试
       const allDomains = await getDomainList(undefined, 1, 10);
       if (allDomains.list.length > 0) {
-        log.warn(providerName, `Available domains:`, allDomains.list.map(d => d.Domain).join(', '));
+        log.sub(providerName).warn('Available domains', { domains: allDomains.list.map(d => d.Domain).join(', ') });
       }
     }
   } catch (error) {
-    log.error(providerName, `Failed to resolve domainId for domain: ${config.domain}`, { error });
+    log.sub(providerName).error(`Failed to resolve domainId for domain: ${config.domain}`, { error });
   }
 
   return null;
@@ -220,13 +222,13 @@ export abstract class AliyunRpcAdapter extends BaseAdapter {
     query.set('Signature', signature);
 
     const url = `${this.endpoint()}?${query.toString()}`;
-    log.providerRequest('Aliyun', 'GET', url);
+    log.sub('API').tag('REQUEST').debug('Provider request', { method: 'GET', url: url, params: undefined });
     const result = await requestJson<T>(url, {
       method: 'GET',
       parseError: (payload) => {
         const data = (payload ?? {}) as Dict;
         if (data.Code || data.Message) {
-          log.providerError('Aliyun', data);
+          log.sub('API').tag('ERROR').error('Provider error', data);
           return safeString(data.Message) || safeString(data.Code) || `Aliyun action ${action} failed`;
         }
         return undefined;
@@ -234,7 +236,7 @@ export abstract class AliyunRpcAdapter extends BaseAdapter {
       useProxy: this.useProxy,
       providerName: 'Aliyun',
     });
-    log.providerResponse('Aliyun', 200, true, { action, hasData: result !== null });
+    log.sub('API').tag('RESPONSE').debug('Provider response', { status: 200, success: true, data: { action, hasData: result !== null } });
     return result;
   }
 }
@@ -296,7 +298,7 @@ export abstract class TencentCloudAdapter extends BaseAdapter {
       `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
     const url = `https://${host}`;
-    log.providerRequest('TencentCloud', 'POST', url, { action });
+    log.sub('API').tag('REQUEST').debug('Provider request', { method: 'POST', url: url, params: { action } });
     const data = await requestJson<Dict>(url, {
       method: 'POST',
       headers: {
@@ -317,10 +319,10 @@ export abstract class TencentCloudAdapter extends BaseAdapter {
     if (error) {
       const code = safeString(error?.Code);
       const msg = safeString(error?.Message) || `TencentCloud action ${action} failed`;
-      log.providerError('TencentCloud', error);
+      log.sub('API').tag('ERROR').error('Provider error', error);
       throw new Error(code ? `${code}: ${msg}` : msg);
     }
-    log.providerResponse('TencentCloud', 200, true, { action, hasData: response !== null });
+    log.sub('API').tag('RESPONSE').debug('Provider response', { status: 200, success: true, data: { action, hasData: response !== null } });
     return response as T;
   }
 }

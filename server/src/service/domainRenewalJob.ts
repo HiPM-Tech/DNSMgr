@@ -7,8 +7,9 @@ import { DnsAccountOperations, RenewableDomainOperations } from '../db/bal/busin
 import { renewalRegistry } from './renewalScheduler';
 import { taskManager } from './taskManager';
 import { logAuditOperation } from './audit';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('Job').sub('DomainRenewal');
 let renewalInterval: NodeJS.Timeout | null = null;
 
 /**
@@ -16,14 +17,14 @@ let renewalInterval: NodeJS.Timeout | null = null;
  */
 export async function executeDomainRenewal(): Promise<void> {
   try {
-    log.info('DomainRenewalJob', 'Starting automatic domain renewal');
+    log.info('Starting automatic domain renewal');
 
     // 获取所有 DNSHE 账号
     const accounts = await DnsAccountOperations.getAll() as any[];
     const dnsheAccounts = accounts.filter((acc: any) => acc.type === 'dnshe');
 
     if (dnsheAccounts.length === 0) {
-      log.info('DomainRenewalJob', 'No DNSHE accounts found, skipping renewal');
+      log.info('No DNSHE accounts found, skipping renewal');
       return;
     }
 
@@ -34,33 +35,33 @@ export async function executeDomainRenewal(): Promise<void> {
     for (const account of dnsheAccounts) {
       try {
         const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
-        
+
         // 获取该提供商类型的续期调度器
         const scheduler = renewalRegistry.getScheduler(account.type);
-        
+
         if (!scheduler) {
-          log.warn('DomainRenewalJob', 'No renewal scheduler registered for provider type', {
+          log.warn('No renewal scheduler registered for provider type', {
             accountId: account.id,
             accountName: account.name,
             type: account.type,
           });
           continue;
         }
-        
+
         // 通过调度器获取可续期的域名列表
         const renewableDomains = await scheduler.listRenewableDomains({
           apiKey: config.apiKey,
           apiSecret: config.apiSecret,
           useProxy: !!config.useProxy,
         });
-        
-        log.info('DomainRenewalJob', 'Fetched renewable domains via scheduler', {
+
+        log.info('Fetched renewable domains via scheduler', {
           accountId: account.id,
           accountName: account.name,
           type: account.type,
           count: renewableDomains.length,
         });
-        
+
         // 注意：DNSHE listSubdomains API 不返回 expires_at
         // 所以我们对所有子域名尝试续期，让 API 自己判断是否需要续期
         const domainsToRenew = renewableDomains;
@@ -70,7 +71,7 @@ export async function executeDomainRenewal(): Promise<void> {
           try {
             const domainId = domain.id;
             if (!domainId) {
-              log.warn('DomainRenewalJob', 'Domain has no id, skipping', {
+              log.warn('Domain has no id, skipping', {
                 domainName: domain.name || domain.full_domain,
               });
               continue;
@@ -79,7 +80,7 @@ export async function executeDomainRenewal(): Promise<void> {
             // Check if domain is enabled in database
             const dbDomain = await RenewableDomainOperations.getById(Number(domainId));
             if (!dbDomain) {
-              log.warn('DomainRenewalJob', 'Domain not found in database, skipping', {
+              log.warn('Domain not found in database, skipping', {
                 domainId,
                 domainName: domain.name || domain.full_domain,
               });
@@ -87,7 +88,7 @@ export async function executeDomainRenewal(): Promise<void> {
             }
 
             if (!dbDomain.enabled) {
-              log.info('DomainRenewalJob', 'Skipping disabled domain', {
+              log.info('Skipping disabled domain', {
                 domainId,
                 domainName: dbDomain.full_domain,
                 enabled: dbDomain.enabled,
@@ -95,7 +96,7 @@ export async function executeDomainRenewal(): Promise<void> {
               continue;
             }
 
-            log.info('DomainRenewalJob', 'Attempting domain renewal via scheduler', {
+            log.info('Attempting domain renewal via scheduler', {
               domainName: domain.name || domain.full_domain,
               domainId,
               // Note: expires_at is not available from listSubdomains API
@@ -113,7 +114,7 @@ export async function executeDomainRenewal(): Promise<void> {
 
             if (result) {
               renewedCount++;
-              log.info('DomainRenewalJob', 'Domain renewed successfully', {
+              log.info('Domain renewed successfully', {
                 domainName: result.domain_name,
                 previousExpiresAt: result.previous_expires_at,
                 newExpiresAt: result.new_expires_at,
@@ -124,12 +125,12 @@ export async function executeDomainRenewal(): Promise<void> {
               if (result.new_expires_at) {
                 try {
                   await RenewableDomainOperations.updateExpiresAt(Number(domainId), result.new_expires_at);
-                  log.debug('DomainRenewalJob', 'Updated expires_at in renewable_domains', {
+                  log.debug('Updated expires_at in renewable_domains', {
                     domainId,
                     newExpiresAt: result.new_expires_at,
                   });
                 } catch (updateError) {
-                  log.error('DomainRenewalJob', 'Failed to update expires_at in renewable_domains', {
+                  log.error('Failed to update expires_at in renewable_domains', {
                     domainId,
                     error: updateError instanceof Error ? updateError.message : String(updateError),
                   });
@@ -137,21 +138,21 @@ export async function executeDomainRenewal(): Promise<void> {
               }
             } else {
               failedCount++;
-              log.error('DomainRenewalJob', 'Domain renewal failed', {
+              log.error('Domain renewal failed', {
                 domainName: domain.name || domain.full_domain,
                 domainId,
               });
             }
           } catch (error) {
             failedCount++;
-            log.error('DomainRenewalJob', 'Domain renewal error', {
+            log.error('Domain renewal error', {
               domainName: domain.name || domain.full_domain,
               error: error instanceof Error ? error.message : String(error),
             });
           }
         }
       } catch (error) {
-        log.error('DomainRenewalJob', 'Failed to process account', {
+        log.error('Failed to process account', {
           accountId: account.id,
           accountName: account.name,
           error: error instanceof Error ? error.message : String(error),
@@ -159,13 +160,13 @@ export async function executeDomainRenewal(): Promise<void> {
       }
     }
 
-    log.info('DomainRenewalJob', 'Automatic domain renewal completed', {
+    log.info('Automatic domain renewal completed', {
       renewedCount,
       failedCount,
       totalAccounts: dnsheAccounts.length,
     });
   } catch (error) {
-    log.error('DomainRenewalJob', 'Automatic domain renewal failed', {
+    log.error('Automatic domain renewal failed', {
       error: error instanceof Error ? error.message : String(error),
     });
   }
@@ -180,10 +181,10 @@ export async function startDomainRenewalJob(): Promise<void> {
   const now = new Date();
   const nextRun = new Date(now);
   nextRun.setUTCHours(24, 0, 0, 0); // 明天 UTC 0:00
-  
+
   const initialDelay = nextRun.getTime() - now.getTime();
-  
-  log.info('DomainRenewalJob', 'Starting domain renewal job', {
+
+  log.info('Starting domain renewal job', {
     nextRun: nextRun.toISOString(),
     initialDelayMs: initialDelay,
     initialDelayHours: Math.round(initialDelay / (1000 * 60 * 60) * 100) / 100,
@@ -201,8 +202,8 @@ export async function startDomainRenewalJob(): Promise<void> {
         retryDelay: 60000,    // 重试间隔1分钟
       },
       executeDomainRenewal
-    ).catch(err => log.error('DomainRenewalJob', 'Initial renewal error:', { error: err }));
-    
+    ).catch(err => log.error('Initial renewal error:', { error: err }));
+
     // 之后每 24 小时执行一次
     setInterval(() => {
       taskManager.submit(
@@ -215,7 +216,7 @@ export async function startDomainRenewalJob(): Promise<void> {
           retryDelay: 60000,    // 重试间隔1分钟
         },
         executeDomainRenewal
-      ).catch(err => log.error('DomainRenewalJob', 'Scheduled renewal error:', { error: err }));
+      ).catch(err => log.error('Scheduled renewal error:', { error: err }));
     }, 24 * 60 * 60 * 1000);
   }, initialDelay);
 }
@@ -227,6 +228,6 @@ export function stopDomainRenewalJob(): void {
   if (renewalInterval) {
     clearInterval(renewalInterval);
     renewalInterval = null;
-    log.info('DomainRenewalJob', 'Domain renewal job stopped');
+    log.info('Domain renewal job stopped');
   }
 }

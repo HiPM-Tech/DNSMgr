@@ -1,9 +1,9 @@
 /**
  * 数据库业务适配器层 (Database Business Adapter Layer)
- * 
+ *
  * 架构层级：
  * 路由 → 业务适配器（本文件）→ 数据库抽象层 → 数据库驱动层 → 数据库
- * 
+ *
  * 设计原则：
  * 1. 函数式API - 路由层通过简单函数调用使用数据库
  * 2. 单一职责 - 每个函数只处理一个业务操作
@@ -16,15 +16,15 @@ import crypto from 'crypto';
 import type { SQLCompiler } from '../dal/query/compiler';
 import { getDefaultCompiler } from '../dal/query/compiler';
 import { transaction, getConnection } from '../dal/connection';
-import { log, createLogger } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 import { DomainQueryBuilder, RenewableDomainQueryBuilder, AccountQueryBuilder, TeamQueryBuilder } from './query-builders';
 
-const balLog = createLogger('BAL');
+const log = createLogger('BAL').sub('BusinessAdapter');
 
 // 本地 db 对象，避免循环依赖
 const db = {
   get type() { return process.env.DB_TYPE || 'sqlite'; },
-  get isConnected() { 
+  get isConnected() {
     try {
       const conn = getConnection();
       return !!conn;
@@ -89,10 +89,10 @@ function buildUpsertSql(
   updateColumns: string[]
 ): { sql: string; params: unknown[] } {
   const dbType = getDbType();
-  
-  // 添加 updated_at 
+
+  // 添加 updated_at
   const allColumns = [...columns, 'updated_at'];
-  
+
   if (dbType === 'mysql') {
     // MySQL: INSERT ... ON DUPLICATE KEY UPDATE
     // updated_at 不在 INSERT 的列中，只在 UPDATE 部分使用 NOW()
@@ -102,7 +102,7 @@ function buildUpsertSql(
       const escaped = col === 'key' || col === 'value' ? `\`${col}\`` : col;
       return `${escaped} = VALUES(${escaped})`;
     }).join(', ');
-    
+
     const sql = `INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}, updated_at = NOW()`;
     return { sql, params: values };
   } else if (dbType === 'postgresql') {
@@ -113,7 +113,7 @@ function buildUpsertSql(
     const updates = updateColumns.map(col => {
       return `${col} = EXCLUDED.${col}`;
     }).join(', ');
-    
+
     const sql = `INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = NOW()`;
     return { sql, params: values };
   } else {
@@ -124,7 +124,7 @@ function buildUpsertSql(
     const updates = updateColumns.map(col => {
       return `${col} = excluded.${col}`;
     }).join(', ');
-    
+
     const sql = `INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders}) ON CONFLICT(${conflictKey}) DO UPDATE SET ${updates}, updated_at = CURRENT_TIMESTAMP`;
     return { sql, params: values };
   }
@@ -137,11 +137,11 @@ function buildUpsertSql(
 /** 创建操作日志上下*/
 function createOperationLogger(context: OperationContext) {
   return {
-    start: () => balLog.debug( `Starting ${context.operation}`, { table: context.table, userId: context.userId }),
-    success: (duration: number, meta?: Record<string, unknown>) => 
-      balLog.debug( `${context.operation} completed`, { ...meta, duration: `${duration}ms`, table: context.table }),
-    error: (error: unknown, duration: number) => 
-      balLog.error( `${context.operation} failed`, { error, duration: `${duration}ms`, table: context.table }),
+    start: () => log.debug( `Starting ${context.operation}`, { table: context.table, userId: context.userId }),
+    success: (duration: number, meta?: Record<string, unknown>) =>
+      log.debug( `${context.operation} completed`, { ...meta, duration: `${duration}ms`, table: context.table }),
+    error: (error: unknown, duration: number) =>
+      log.error( `${context.operation} failed`, { error, duration: `${duration}ms`, table: context.table }),
   };
 }
 
@@ -180,29 +180,29 @@ function processSql(sql: string, dbType: string): string {
         const upperSql = sql.toUpperCase();
         const beforeContext = sql.substring(Math.max(0, offset - 20), offset).toUpperCase();
         const afterContext = sql.substring(offset + match.length, Math.min(sql.length, offset + match.length + 20)).toUpperCase();
-        
+
         // 跳过 ON DUPLICATE KEY UPDATE 中的 KEY
         if (beforeContext.includes('ON DUPLICATE') && keyword.toLowerCase() === 'key') {
           return match;
         }
-        
+
         // 跳过 ORDER BY / GROUP BY 中的 BY
         if (beforeContext.includes('ORDER') || beforeContext.includes('GROUP')) {
           return match;
         }
-        
+
         // 跳过 FOREIGN KEY / PRIMARY KEY 中的 KEY
         if (beforeContext.includes('FOREIGN') || beforeContext.includes('PRIMARY')) {
           return match;
         }
-        
+
         return `\`${keyword}\``;
       });
     });
   }
 
   if (sql !== originalSql) {
-    balLog.debug( 'SQL processed', { original: originalSql, processed: sql });
+    log.debug( 'SQL processed', { original: originalSql, processed: sql });
   }
 
   return sql;
@@ -212,14 +212,14 @@ function processSql(sql: string, dbType: string): string {
 async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], context?: OperationContext): Promise<T[]> {
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
-  
-  balLog.debug( 'Executing query', { sql: processedSql, params, operation: context?.operation });
-  
+
+  log.debug( 'Executing query', { sql: processedSql, params, operation: context?.operation });
+
   try {
     const results = await db.query<T>(processedSql, params);
     const duration = Date.now() - startTime;
-    balLog.debug( `Query executed`, { 
-      sql: processedSql.substring(0, 100), 
+    log.debug( `Query executed`, {
+      sql: processedSql.substring(0, 100),
       rowCount: results.length,
       duration: `${duration}ms`,
       operation: context?.operation
@@ -227,9 +227,9 @@ async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], c
     return results;
   } catch (error) {
     const duration = Date.now() - startTime;
-    balLog.error( 'Query failed', { 
-      sql: processedSql, 
-      params, 
+    log.error( 'Query failed', {
+      sql: processedSql,
+      params,
       error,
       duration: `${duration}ms`,
       operation: context?.operation
@@ -242,14 +242,14 @@ async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], c
 async function getInternal<T = QueryResult>(sql: string, params?: unknown[], context?: OperationContext): Promise<T | undefined> {
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
-  
-  balLog.debug( 'Executing get', { sql: processedSql, params, operation: context?.operation });
-  
+
+  log.debug( 'Executing get', { sql: processedSql, params, operation: context?.operation });
+
   try {
     const result = await db.get<T>(processedSql, params);
     const duration = Date.now() - startTime;
-    balLog.debug( `Get executed`, { 
-      sql: processedSql.substring(0, 100), 
+    log.debug( `Get executed`, {
+      sql: processedSql.substring(0, 100),
       found: result !== undefined,
       duration: `${duration}ms`,
       operation: context?.operation
@@ -257,9 +257,9 @@ async function getInternal<T = QueryResult>(sql: string, params?: unknown[], con
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    balLog.error( 'Get failed', { 
-      sql: processedSql, 
-      params, 
+    log.error( 'Get failed', {
+      sql: processedSql,
+      params,
       error,
       duration: `${duration}ms`,
       operation: context?.operation
@@ -272,21 +272,21 @@ async function getInternal<T = QueryResult>(sql: string, params?: unknown[], con
 async function executeInternal(sql: string, params?: unknown[], context?: OperationContext): Promise<void> {
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
-  
-  balLog.debug( 'Executing command', { sql: processedSql, params, operation: context?.operation });
-  
+
+  log.debug( 'Executing command', { sql: processedSql, params, operation: context?.operation });
+
   try {
     await db.execute(processedSql, params);
     const duration = Date.now() - startTime;
-    balLog.debug( `Command executed`, { 
+    log.debug( `Command executed`, {
       operation: context?.operation,
       duration: `${duration}ms`
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    balLog.error( 'Command failed', { 
-      sql: processedSql, 
-      params, 
+    log.error( 'Command failed', {
+      sql: processedSql,
+      params,
       error,
       duration: `${duration}ms`,
       operation: context?.operation
@@ -299,13 +299,13 @@ async function executeInternal(sql: string, params?: unknown[], context?: Operat
 async function insertInternal(sql: string, params?: unknown[], context?: OperationContext): Promise<number> {
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
-  
-  balLog.debug( 'Executing insert', { sql: processedSql, params, operation: context?.operation });
-  
+
+  log.debug( 'Executing insert', { sql: processedSql, params, operation: context?.operation });
+
   try {
     const id = await db.insert(processedSql, params);
     const duration = Date.now() - startTime;
-    balLog.debug( `Insert executed`, { 
+    log.debug( `Insert executed`, {
       operation: context?.operation,
       insertId: id,
       duration: `${duration}ms`
@@ -313,9 +313,9 @@ async function insertInternal(sql: string, params?: unknown[], context?: Operati
     return id;
   } catch (error) {
     const duration = Date.now() - startTime;
-    balLog.error( 'Insert failed', { 
-      sql: processedSql, 
-      params, 
+    log.error( 'Insert failed', {
+      sql: processedSql,
+      params,
       error,
       duration: `${duration}ms`,
       operation: context?.operation
@@ -328,13 +328,13 @@ async function insertInternal(sql: string, params?: unknown[], context?: Operati
 async function runInternal(sql: string, params?: unknown[], context?: OperationContext): Promise<{ changes: number }> {
   const startTime = Date.now();
   const processedSql = processSql(sql, db.type);
-  
-  balLog.debug( 'Executing run', { sql: processedSql, params, operation: context?.operation });
-  
+
+  log.debug( 'Executing run', { sql: processedSql, params, operation: context?.operation });
+
   try {
     const result = await db.run(processedSql, params);
     const duration = Date.now() - startTime;
-    balLog.debug( `Run executed`, { 
+    log.debug( `Run executed`, {
       operation: context?.operation,
       changes: result.changes,
       duration: `${duration}ms`
@@ -342,9 +342,9 @@ async function runInternal(sql: string, params?: unknown[], context?: OperationC
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    balLog.error( 'Run failed', { 
-      sql: processedSql, 
-      params, 
+    log.error( 'Run failed', {
+      sql: processedSql,
+      params,
       error,
       duration: `${duration}ms`,
       operation: context?.operation
@@ -484,10 +484,10 @@ export const UserOperations = {
   async update(id: number, updates: Record<string, unknown>): Promise<void> {
     const fields = Object.keys(updates);
     if (fields.length === 0) return;
-    
+
     const setClause = fields.map(f => `${f} = ?`).join(', ');
     const values = Object.values(updates);
-    
+
     return executeInternal(
       `UPDATE users SET ${setClause} WHERE id = ?`,
       [...values, id],
@@ -566,10 +566,10 @@ export const DnsAccountOperations = {
   async update(id: number, updates: Record<string, unknown>): Promise<void> {
     const fields = Object.keys(updates);
     if (fields.length === 0) return;
-    
+
     const setClause = fields.map(f => `${f} = ?`).join(', ');
     const values = Object.values(updates);
-    
+
     return executeInternal(
       `UPDATE dns_accounts SET ${setClause} WHERE id = ?`,
       [...values, id],
@@ -674,7 +674,7 @@ export const DomainOperations = {
 
     const builder = DomainQueryBuilder.forTokenAuth(ids, options);
     const { sql, params } = builder.build();
-    
+
     return queryInternal(sql, params, { operation: 'Domain.getByIds', table: 'domains' });
   },
 
@@ -682,7 +682,7 @@ export const DomainOperations = {
   async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
     const builder = DomainQueryBuilder.forSuperAdmin(options);
     const { sql, params } = builder.build();
-    
+
     return queryInternal(sql, params, { operation: 'Domain.getAllForSuperAdmin', table: 'domains' });
   },
 
@@ -708,7 +708,7 @@ export const DomainOperations = {
 
     // 构建查询
     let builder = DomainQueryBuilder.forSuperAdmin({ accountId, keyword });
-    
+
     // 添加 enabled 过滤
     if (domainStatus === 'enabled') {
       builder = builder.whereDomainEnabled(true);
@@ -716,14 +716,14 @@ export const DomainOperations = {
       builder = builder.whereDomainEnabled(false);
     }
     // domainStatus === 'all' 时不过滤
-    
+
     // 添加 domain_type 过滤
     if (domainType) {
       builder = builder.whereDomainType(domainType);
     }
-    
+
     const { sql: baseSql, params: baseParams } = builder.build();
-    
+
     // 如果有置顶域名，添加置顶排序
     let orderByClause = '';
     if (pinnedDomainIds.length > 0) {
@@ -744,25 +744,25 @@ export const DomainOperations = {
     } else {
       orderByClause = 'd.id ASC';
     }
-    
+
     // 查询总数
     const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
-    const countResult = await queryInternal(countSql, baseParams, { 
-      operation: 'Domain.getAllForSuperAdminWithPagination.count', 
-      table: 'domains' 
+    const countResult = await queryInternal(countSql, baseParams, {
+      operation: 'Domain.getAllForSuperAdminWithPagination.count',
+      table: 'domains'
     });
     const total = Number((countResult[0] as any)?.count || 0);
-    
+
     // 查询分页数据
     const offset = (page - 1) * pageSize;
-    
+
     // 移除原有ORDER BY，添加置顶排
     const baseSqlWithoutOrderBy = baseSql.replace(/\s+ORDER\s+BY\s+[^)]+$/i, '');
-    
+
     // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
     // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
     const paginatedSql = `${baseSqlWithoutOrderBy} ORDER BY ${orderByClause} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
-    
+
     // Debug log
     console.log('[BusinessAdapter] getAllForSuperAdminWithPagination SQL:', {
       page,
@@ -771,12 +771,12 @@ export const DomainOperations = {
       orderByClause,
       sql: paginatedSql.substring(0, 300)
     });
-    
-    const list = await queryInternal(paginatedSql, baseParams, { 
-      operation: 'Domain.getAllForSuperAdminWithPagination.list', 
-      table: 'domains' 
+
+    const list = await queryInternal(paginatedSql, baseParams, {
+      operation: 'Domain.getAllForSuperAdminWithPagination.list',
+      table: 'domains'
     });
-    
+
     return { list, total };
   },
 
@@ -793,10 +793,10 @@ export const DomainOperations = {
   async update(id: number, updates: Record<string, unknown>): Promise<void> {
     const fields = Object.keys(updates);
     if (fields.length === 0) return;
-    
+
     const setClause = fields.map(f => `${f} = ?`).join(', ');
     const values = Object.values(updates);
-    
+
     return executeInternal(
       `UPDATE domains SET ${setClause} WHERE id = ?`,
       [...values, id],
@@ -875,9 +875,9 @@ export const DomainOperations = {
     isSuper?: boolean;
   }): Promise<QueryResult[]> {
     const { userId, teamIds, accountId, keyword, isSuper } = params;
-    
+
     let builder: DomainQueryBuilder;
-    
+
     if (isSuper) {
       // Super admin: use simplified query
       builder = DomainQueryBuilder.accessibleForSuperAdmin({ accountId, keyword });
@@ -885,14 +885,14 @@ export const DomainOperations = {
       // Regular user: full permission check with teams
       builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
     }
-    
+
     const { sql, params: queryParams } = builder.build();
-    
-    return queryInternal(sql, queryParams, { 
-      operation: isSuper 
-        ? 'Domain.getAccessibleDomains.super' 
-        : 'Domain.getAccessibleDomains', 
-      table: 'domains' 
+
+    return queryInternal(sql, queryParams, {
+      operation: isSuper
+        ? 'Domain.getAccessibleDomains.super'
+        : 'Domain.getAccessibleDomains',
+      table: 'domains'
     });
   },
 
@@ -922,7 +922,7 @@ export const DomainOperations = {
 
     // 构建查询
     let builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
-    
+
     // 添加 enabled 过滤
     if (domainStatus === 'enabled') {
       builder = builder.whereDomainEnabled(true);
@@ -930,14 +930,14 @@ export const DomainOperations = {
       builder = builder.whereDomainEnabled(false);
     }
     // domainStatus === 'all' 时不过滤
-    
+
     // 添加 domain_type 过滤
     if (domainType) {
       builder = builder.whereDomainType(domainType);
     }
-    
+
     const { sql: baseSql, params: baseParams } = builder.build();
-    
+
     // 如果有置顶域名，添加置顶排序
     let orderByClause = '';
     if (pinnedDomainIds.length > 0) {
@@ -958,27 +958,27 @@ export const DomainOperations = {
     } else {
       orderByClause = 'd.id ASC';
     }
-    
+
     // 查询总数
     const countSql = `SELECT COUNT(*) as count FROM (${baseSql}) as subquery`;
-    const countResult = await queryInternal(countSql, baseParams, { 
-      operation: 'Domain.getAccessibleDomainsWithPagination.count', 
-      table: 'domains' 
+    const countResult = await queryInternal(countSql, baseParams, {
+      operation: 'Domain.getAccessibleDomainsWithPagination.count',
+      table: 'domains'
     });
     const total = Number((countResult[0] as any)?.count || 0);
-    
+
     // 查询分页数据
     const offset = (page - 1) * pageSize;
-    
+
     // MySQL 不支持在 prepared statement 中对 LIMIT/OFFSET 使用参数化占位符
     // 需要直接将整数值拼接到 SQL 中（已验证为整数，安全）
     const paginatedSql = `${baseSql.replace(/ORDER BY [^)]+$/, '')} ORDER BY ${orderByClause} LIMIT ${parseInt(String(pageSize), 10)} OFFSET ${parseInt(String(offset), 10)}`;
-    
-    const list = await queryInternal(paginatedSql, baseParams, { 
-      operation: 'Domain.getAccessibleDomainsWithPagination.list', 
-      table: 'domains' 
+
+    const list = await queryInternal(paginatedSql, baseParams, {
+      operation: 'Domain.getAccessibleDomainsWithPagination.list',
+      table: 'domains'
     });
-    
+
     return { list, total };
   },
 
@@ -986,12 +986,12 @@ export const DomainOperations = {
   async checkUserDomainAccess(domainId: number, userId: number): Promise<boolean> {
     const builder = DomainQueryBuilder.checkUserAccess(domainId, userId);
     const { sql, params } = builder.build();
-    
-    const result = await getInternal<{ id: number }>(sql, params, { 
-      operation: 'Domain.checkUserDomainAccess', 
-      table: 'domains' 
+
+    const result = await getInternal<{ id: number }>(sql, params, {
+      operation: 'Domain.checkUserDomainAccess',
+      table: 'domains'
     });
-    
+
     return !!result;
   },
 
@@ -1023,7 +1023,7 @@ export const DomainOperations = {
   /** 获取 NS 监控可用的域名列表（Level 1 - ALL，不过滤 enabled 状态） */
   async getAvailableDomainsForNSMonitor(userId: number, isSuperAdmin: boolean): Promise<QueryResult[]> {
     let builder: DomainQueryBuilder;
-    
+
     if (isSuperAdmin) {
       // Super admin: reuse getAll() pattern but select specific columns
       builder = DomainQueryBuilder.all().select('d.id, d.name, d.account_id').orderByColumn('d.name');
@@ -1033,13 +1033,13 @@ export const DomainOperations = {
         .select('d.id, d.name, d.account_id')
         .orderByColumn('d.name');
     }
-    
+
     const { sql, params } = builder.build();
-    return queryInternal(sql, params, { 
-      operation: isSuperAdmin 
-        ? 'Domain.getAvailableDomainsForNSMonitor.super' 
-        : 'Domain.getAvailableDomainsForNSMonitor.user', 
-      table: 'domains' 
+    return queryInternal(sql, params, {
+      operation: isSuperAdmin
+        ? 'Domain.getAvailableDomainsForNSMonitor.super'
+        : 'Domain.getAvailableDomainsForNSMonitor.user',
+      table: 'domains'
     });
   },
 };
@@ -1083,10 +1083,10 @@ export const TeamOperations = {
   async update(id: number, updates: Record<string, unknown>): Promise<void> {
     const fields = Object.keys(updates);
     if (fields.length === 0) return;
-    
+
     const setClause = fields.map(f => `${f} = ?`).join(', ');
     const values = Object.values(updates);
-    
+
     return executeInternal(
       `UPDATE teams SET ${setClause} WHERE id = ?`,
       [...values, id],
@@ -1191,7 +1191,7 @@ export const SettingsOperations = {
       'key',
       ['value']
     );
-    
+
     return executeInternal(sql, params, { operation: 'Settings.set', table: 'system_settings' });
   },
 
@@ -1230,19 +1230,19 @@ export const AuditOperations = {
   async getLogs(options: { userId?: number; action?: string; limit?: number; offset?: number } = {}): Promise<QueryResult[]> {
     let sql = 'SELECT * FROM operation_logs WHERE 1=1';
     const params: unknown[] = [];
-    
+
     if (options.userId) {
       sql += ' AND user_id = ?';
       params.push(options.userId);
     }
-    
+
     if (options.action) {
       sql += ' AND action = ?';
       params.push(options.action);
     }
-    
+
     sql += ' ORDER BY created_at DESC';
-    
+
     // MySQL LIMIT/OFFSET 需要直接嵌入数
     const dbType = getDbType();
     if (options.limit) {
@@ -1253,7 +1253,7 @@ export const AuditOperations = {
         params.push(Number(options.limit));
       }
     }
-    
+
     if (options.offset) {
       if (dbType === 'mysql') {
         sql += ` OFFSET ${Number(options.offset)}`;
@@ -1262,7 +1262,7 @@ export const AuditOperations = {
         params.push(Number(options.offset));
       }
     }
-    
+
     return queryInternal(sql, params, { operation: 'Audit.getLogs', table: 'audit_logs' });
   },
 };
@@ -1455,7 +1455,7 @@ export const OAuthOperations = {
   async createState(state: string, mode: 'login' | 'bind', provider: string, userId: number | null, expiresAt: Date): Promise<void> {
     // 使用数据库兼容的日期格式
     const expiresStr = this.formatDateForDB(expiresAt);
-    log.debug('OAuth', 'Creating state', {
+    log.debug('Creating state', {
       state: state.substring(0, 16) + '...',
       mode,
       provider,
@@ -1477,7 +1477,7 @@ export const OAuthOperations = {
       { operation: 'OAuth.getState', table: 'oauth_states' }
     );
 
-    log.debug('OAuth', 'Getting state', {
+    log.debug('Getting state', {
       state: state.substring(0, 16) + '...',
       found: !!result,
       result
@@ -1917,9 +1917,9 @@ export const EmailTemplateOperations = {
 
 /** 在事务中执行函数 */
 export async function withTransaction<T>(fn: (trx: TransactionOperations) => Promise<T>): Promise<T> {
-  balLog.info( 'Starting transaction block');
+  log.info( 'Starting transaction block');
   const startTime = Date.now();
-  
+
   try {
     const result = await transaction(async (trx: {
       query: <U>(sql: string, params?: unknown[]) => Promise<U[]>;
@@ -1931,13 +1931,13 @@ export async function withTransaction<T>(fn: (trx: TransactionOperations) => Pro
       const trxOps = new TransactionOperations(trx);
       return fn(trxOps);
     });
-    
+
     const duration = Date.now() - startTime;
-    balLog.info( `Transaction block completed`, { duration: `${duration}ms` });
+    log.info( `Transaction block completed`, { duration: `${duration}ms` });
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    balLog.error( 'Transaction block failed', { error, duration: `${duration}ms` });
+    log.error( 'Transaction block failed', { error, duration: `${duration}ms` });
     throw error;
   }
 }
@@ -1958,31 +1958,31 @@ export class TransactionOperations {
 
   async query<T = QueryResult>(sql: string, params?: unknown[]): Promise<T[]> {
     const processedSql = processSql(sql, db.type);
-    balLog.debug( '[Transaction] Executing query', { sql: processedSql });
+    log.debug( '[Transaction] Executing query', { sql: processedSql });
     return this.trx.query<T>(processedSql, params);
   }
 
   async get<T = QueryResult>(sql: string, params?: unknown[]): Promise<T | undefined> {
     const processedSql = processSql(sql, db.type);
-    balLog.debug( '[Transaction] Executing get', { sql: processedSql });
+    log.debug( '[Transaction] Executing get', { sql: processedSql });
     return this.trx.get<T>(processedSql, params);
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
     const processedSql = processSql(sql, db.type);
-    balLog.debug( '[Transaction] Executing execute', { sql: processedSql });
+    log.debug( '[Transaction] Executing execute', { sql: processedSql });
     return this.trx.execute(processedSql, params);
   }
 
   async insert(sql: string, params?: unknown[]): Promise<number> {
     const processedSql = processSql(sql, db.type);
-    balLog.debug( '[Transaction] Executing insert', { sql: processedSql });
+    log.debug( '[Transaction] Executing insert', { sql: processedSql });
     return this.trx.insert(processedSql, params);
   }
 
   async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
     const processedSql = processSql(sql, db.type);
-    balLog.debug( '[Transaction] Executing run', { sql: processedSql });
+    log.debug( '[Transaction] Executing run', { sql: processedSql });
     return this.trx.run(processedSql, params);
   }
 }
@@ -2025,7 +2025,7 @@ export const SystemOperations = {
     return dbInfo;
   },
 
-  /** 
+  /**
    * 测试 SQLite 数据库连接并检查是否有现有数据
    * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
    */
@@ -2043,7 +2043,7 @@ export const SystemOperations = {
       try {
         fs.mkdirSync(dir, { recursive: true });
       } catch (err) {
-        log.warn('SystemOperations', 'Failed to create directory, may already exist', { dir, error: err });
+        log.warn('Failed to create directory, may already exist', { dir, error: err });
       }
     }
 
@@ -2051,10 +2051,10 @@ export const SystemOperations = {
     try {
       testDb = new Database(normalizedPath);
     } catch (err) {
-      log.error('SystemOperations', 'Failed to open SQLite database', { path: normalizedPath, error: err });
+      log.error('Failed to open SQLite database', { path: normalizedPath, error: err });
       throw err;
     }
-    
+
     // Check if tables exist
     let hasData = false;
     let hasUsers = false;
@@ -2072,18 +2072,18 @@ export const SystemOperations = {
     } catch {
       // No tables yet
     }
-    
+
     testDb.close();
     return { success: true, message: 'SQLite connection successful', hasExistingData: hasData, hasUsers };
   },
 
-  /** 
+  /**
    * 测试 MySQL 数据库连接并检查是否有现有数据
    * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
    */
   async testMysqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
     const mysql = require('mysql2/promise');
-    
+
     const pool = mysql.createPool({
       host: config.host,
       port: config.port || 3306,
@@ -2115,18 +2115,18 @@ export const SystemOperations = {
     } catch {
       // No tables yet
     }
-    
+
     await pool.end();
     return { success: true, message: 'MySQL connection successful', hasExistingData: hasData, hasUsers };
   },
 
-  /** 
+  /**
    * 测试 PostgreSQL 数据库连接并检查是否有现有数据
    * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
    */
   async testPostgresqlConnection(config: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
     const { Pool } = require('pg');
-    
+
     const pool = new Pool({
       host: config.host,
       port: config.port || 5432,
@@ -2146,7 +2146,7 @@ export const SystemOperations = {
     let hasUsers = false;
     try {
       const tablesResult = await pool.query(`
-        SELECT table_name FROM information_schema.tables 
+        SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
       `);
       const tables = tablesResult.rows as { table_name: string }[];
@@ -2162,7 +2162,7 @@ export const SystemOperations = {
     } catch {
       // No tables yet
     }
-    
+
     await pool.end();
     return { success: true, message: 'PostgreSQL connection successful', hasExistingData: hasData, hasUsers };
   },
@@ -2171,11 +2171,11 @@ export const SystemOperations = {
    * 统一测试数据库连接（根据类型自动选择
    * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
    */
-  async testConnection(config: { 
-    type: 'sqlite' | 'mysql' | 'postgresql'; 
-    sqlite?: { path: string }; 
-    mysql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }; 
-    postgresql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean } 
+  async testConnection(config: {
+    type: 'sqlite' | 'mysql' | 'postgresql';
+    sqlite?: { path: string };
+    mysql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean };
+    postgresql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }
   }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
     if (config.type === 'sqlite') {
       return this.testSqliteConnection(config.sqlite?.path || './data/dnsmgr.db');
@@ -2298,9 +2298,9 @@ export const SecretOperations = {
         );
       }
 
-      log.info('Secret', 'Runtime secrets rotated');
+      log.info('Runtime secrets rotated');
     } catch (error) {
-      log.error('Secret', 'Error rotating runtime secrets', { error });
+      log.error('Error rotating runtime secrets', { error });
       throw error;
     }
   },
@@ -2376,11 +2376,11 @@ export const SecurityPolicyOperations = {
     const dbType = process.env.DB_TYPE || 'sqlite';
     const enabledValue = dbType === 'postgresql' ? '$4' : '?';
     const enabledParam = dbType === 'postgresql' ? [userId, 'totp', 'webauthn', 1] : [userId, 'totp', 'webauthn', 1];
-    
+
     const sql = dbType === 'postgresql'
       ? 'SELECT COUNT(*) as count FROM user_2fa WHERE user_id = $1 AND type IN ($2, $3) AND enabled = $4'
       : 'SELECT COUNT(*) as count FROM user_2fa WHERE user_id = ? AND type IN (?, ?) AND enabled = ?';
-    
+
     const result = await getInternal<{ count: number }>(
       sql,
       enabledParam,
@@ -2578,7 +2578,7 @@ export const UserPreferencesOperations = {
       return [];
     } catch (error) {
       // 表或字段不存在时返回空数
-      log.warn('UserPreferences', 'Failed to get pinned domains, returning empty array', { userId, error });
+      log.warn('Failed to get pinned domains, returning empty array', { userId, error });
       return [];
     }
   },
@@ -2586,7 +2586,7 @@ export const UserPreferencesOperations = {
   /** 更新用户置顶的域名列*/
   async updatePinnedDomains(userId: number, domainIds: number[]): Promise<void> {
     const pinnedDomainsJson = JSON.stringify(domainIds);
-    
+
     // SQLite
     if (process.env.DB_TYPE === 'sqlite' || !process.env.DB_TYPE) {
       await executeInternal(
@@ -2950,12 +2950,12 @@ export const AuditExportOperations = {
     const dbType = getDbType();
     // Use CASE WHEN to display 'Root' for user_id = 0
     const listSql = dbType === 'postgresql'
-      ? `SELECT l.*, 
+      ? `SELECT l.*,
           CASE WHEN l.user_id = 0 THEN 'Root' ELSE u.username END as username,
           CASE WHEN l.user_id = 0 THEN '后端' ELSE u.nickname END as nickname
          FROM operation_logs l
          LEFT JOIN users u ON u.id = l.user_id WHERE ${where} ORDER BY l.id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
-      : `SELECT l.*, 
+      : `SELECT l.*,
           CASE WHEN l.user_id = 0 THEN 'Root' ELSE u.username END as username,
           CASE WHEN l.user_id = 0 THEN '后端' ELSE u.nickname END as nickname
          FROM operation_logs l
@@ -3309,7 +3309,7 @@ export const WhoisOperations = {
   /** 确保 whois_cache 表存*/
   async ensureWhoisCacheTable(): Promise<void> {
     const dbType = db.type;
-    
+
     try {
       if (dbType === 'sqlite') {
         await executeInternal(`
@@ -3348,7 +3348,7 @@ export const WhoisOperations = {
     } catch (error) {
       const errorMsg = (error as Error).message || '';
       if (!errorMsg.includes('already exists') && !errorMsg.includes('ER_TABLE_EXISTS_ERROR')) {
-        balLog.warn( 'Failed to create whois_cache table', { error: errorMsg, dbType });
+        log.warn( 'Failed to create whois_cache table', { error: errorMsg, dbType });
       }
     }
   },
@@ -3356,24 +3356,24 @@ export const WhoisOperations = {
   /** 从数据库获取缓存WHOIS 结果 */
   async getCachedWhois(domain: string, cacheTtlSeconds: number): Promise<QueryResult | undefined> {
     const dbType = getDbType();
-    
+
     if (dbType === 'postgresql') {
       return await getInternal(
-        `SELECT whois_data, status, cached_at, expires_at FROM whois_cache WHERE domain_name = $1 AND 
+        `SELECT whois_data, status, cached_at, expires_at FROM whois_cache WHERE domain_name = $1 AND
          cached_at > NOW() - ($2 || ' seconds')::interval`,
         [domain, cacheTtlSeconds],
         { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
       );
     } else if (dbType === 'mysql') {
       return await getInternal(
-        `SELECT whois_data, status, cached_at, expires_at FROM whois_cache WHERE domain_name = ? AND 
+        `SELECT whois_data, status, cached_at, expires_at FROM whois_cache WHERE domain_name = ? AND
          cached_at > DATE_SUB(NOW(), INTERVAL ? SECOND)`,
         [domain, cacheTtlSeconds],
         { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
       );
     } else {
       return await getInternal(
-        `SELECT whois_data, status, cached_at, expires_at FROM whois_cache WHERE domain_name = ? AND 
+        `SELECT whois_data, status, cached_at, expires_at FROM whois_cache WHERE domain_name = ? AND
          cached_at > datetime('now', '-' || ? || ' seconds')`,
         [domain, cacheTtlSeconds],
         { operation: 'Whois.getCachedWhois', table: 'whois_cache' }
@@ -3393,7 +3393,7 @@ export const WhoisOperations = {
   ): Promise<void> {
     const whoisData = JSON.stringify({ expiryDate, apexExpiryDate, registrar, nameServers, raw: rawData });
     const dbType = getDbType();
-    
+
     if (dbType === 'postgresql') {
       await executeInternal(
         `INSERT INTO whois_cache (domain_name, whois_data, status, cached_at)
@@ -3449,7 +3449,7 @@ export const RenewableDomainOperations = {
   async getAll(): Promise<any[]> {
     const builder = RenewableDomainQueryBuilder.all();
     const { sql, params } = builder.build();
-    
+
     return await queryInternal(sql, params, { operation: 'RenewableDomain.getAll', table: 'renewable_domains' });
   },
 
@@ -3457,10 +3457,10 @@ export const RenewableDomainOperations = {
   async getAllEnabled(): Promise<any[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
-    
+
     const builder = RenewableDomainQueryBuilder.allEnabled(enabledValue);
     const { sql, params } = builder.build();
-    
+
     return await queryInternal(sql, params, { operation: 'RenewableDomain.getAllEnabled', table: 'renewable_domains' });
   },
 
@@ -3468,7 +3468,7 @@ export const RenewableDomainOperations = {
   async getByAccountId(accountId: number): Promise<any[]> {
     const builder = RenewableDomainQueryBuilder.byAccountId(accountId);
     const { sql, params } = builder.build();
-    
+
     return await queryInternal(sql, params, { operation: 'RenewableDomain.getByAccountId', table: 'renewable_domains' });
   },
 
@@ -3476,10 +3476,10 @@ export const RenewableDomainOperations = {
   async getByProviderType(providerType: string): Promise<any[]> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
-    
+
     const builder = RenewableDomainQueryBuilder.byProviderType(providerType, enabledValue);
     const { sql, params } = builder.build();
-    
+
     return await queryInternal(sql, params, { operation: 'RenewableDomain.getByProviderType', table: 'renewable_domains' });
   },
 
@@ -3497,7 +3497,7 @@ export const RenewableDomainOperations = {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? true : 1;
     const neverExpiresValue = dbType === 'postgresql' ? (data.never_expires ? true : false) : (data.never_expires ? 1 : 0);
-    
+
     const result = await insertInternal(
       'INSERT INTO renewable_domains (account_id, provider_type, domain_name, third_id, full_domain, expires_at, never_expires, enabled, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
@@ -3534,9 +3534,9 @@ export const RenewableDomainOperations = {
         addedCount++;
       } catch (error) {
         // 跳过重复的域名（UNIQUE 约束
-        log.warn('RenewableDomain', 'Skip duplicate domain', { 
+        log.warn('Skip duplicate domain', {
           domain: domain.full_domain,
-          error: (error as Error).message 
+          error: (error as Error).message
         });
       }
     }
@@ -3772,7 +3772,7 @@ export const NSMonitorOperations = {
   async getByDomain(userId: number, domainId: number): Promise<QueryResult | undefined> {
     // This method is deprecated - domain_id column has been removed
     // Use getByDomainName instead
-    balLog.warn( 'getByDomain is deprecated, use getByDomainName instead');
+    log.warn( 'getByDomain is deprecated, use getByDomainName instead');
     return undefined;
   },
 
@@ -3875,13 +3875,13 @@ export const RdapCacheOperations = {
 
     for (const entry of entries) {
       const serversJson = JSON.stringify(entry.servers);
-      
+
       if (dbType === 'postgresql') {
         // PostgreSQL 使用 ON CONFLICT
         await executeInternal(
-          `INSERT INTO rdap_server_cache (tld, servers, created_at, updated_at) 
+          `INSERT INTO rdap_server_cache (tld, servers, created_at, updated_at)
            VALUES ($1, $2, $3, $4)
-           ON CONFLICT (tld) DO UPDATE SET 
+           ON CONFLICT (tld) DO UPDATE SET
            servers = EXCLUDED.servers, updated_at = EXCLUDED.updated_at`,
           [entry.tld.toLowerCase(), serversJson, now, now],
           { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
@@ -3889,9 +3889,9 @@ export const RdapCacheOperations = {
       } else if (dbType === 'mysql') {
         // MySQL 使用 ON DUPLICATE KEY UPDATE
         await executeInternal(
-          `INSERT INTO rdap_server_cache (tld, servers, created_at, updated_at) 
+          `INSERT INTO rdap_server_cache (tld, servers, created_at, updated_at)
            VALUES (?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE 
+           ON DUPLICATE KEY UPDATE
            servers = VALUES(servers), updated_at = VALUES(updated_at)`,
           [entry.tld.toLowerCase(), serversJson, now, now],
           { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
@@ -3899,7 +3899,7 @@ export const RdapCacheOperations = {
       } else {
         // SQLite 使用 REPLACE 或先删除后插
         await executeInternal(
-          `INSERT OR REPLACE INTO rdap_server_cache (tld, servers, created_at, updated_at) 
+          `INSERT OR REPLACE INTO rdap_server_cache (tld, servers, created_at, updated_at)
            VALUES (?, ?, COALESCE((SELECT created_at FROM rdap_server_cache WHERE tld = ?), ?), ?)`,
           [entry.tld.toLowerCase(), serversJson, entry.tld.toLowerCase(), now, now],
           { operation: 'RdapCache.saveBatch', table: 'rdap_server_cache' }
@@ -3954,25 +3954,25 @@ export const SystemCacheOperations = {
 
     if (dbType === 'postgresql') {
       await executeInternal(
-        `INSERT INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at) 
+        `INSERT INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT (cache_key) DO UPDATE SET 
+         ON CONFLICT (cache_key) DO UPDATE SET
          cache_value = EXCLUDED.cache_value, expires_at = EXCLUDED.expires_at, updated_at = EXCLUDED.updated_at`,
         [key, value, expires, now, now],
         { operation: 'SystemCache.set', table: 'system_cache' }
       );
     } else if (dbType === 'mysql') {
       await executeInternal(
-        `INSERT INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at) 
+        `INSERT INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
+         ON DUPLICATE KEY UPDATE
          cache_value = VALUES(cache_value), expires_at = VALUES(expires_at), updated_at = VALUES(updated_at)`,
         [key, value, expires, now, now],
         { operation: 'SystemCache.set', table: 'system_cache' }
       );
     } else {
       await executeInternal(
-        `INSERT OR REPLACE INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at) 
+        `INSERT OR REPLACE INTO system_cache (cache_key, cache_value, expires_at, created_at, updated_at)
          VALUES (?, ?, ?, COALESCE((SELECT created_at FROM system_cache WHERE cache_key = ?), ?), ?)`,
         [key, value, expires, key, now, now],
         { operation: 'SystemCache.set', table: 'system_cache' }
@@ -4027,9 +4027,9 @@ const PasswordResetOperations = {
       [normalizedEmail],
       { operation: 'PasswordReset.getCode', table: 'password_resets' }
     );
-    
+
     if (!row) return null;
-    
+
     return {
       code: row.code,
       expiresAt: new Date(row.expires_at).getTime(),
@@ -4090,7 +4090,7 @@ export const McpOperations = {
   /** 更新 MCP 全局配置 */
   async updateGlobalConfig(enabled: boolean, userId?: number): Promise<void> {
     const existing = await McpOperations.getGlobalConfig();
-    
+
     if (existing) {
       await executeInternal(
         'UPDATE mcp_global_config SET enabled = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -4132,14 +4132,14 @@ export const McpOperations = {
       [apiKey],
       { operation: 'Mcp.validateApiKey', table: 'mcp_user_api_keys' }
     );
-    
+
     if (!key) return null;
-    
+
     // 检查是否过期
     if (key.expires_at && new Date(key.expires_at) < new Date()) {
       return null;
     }
-    
+
     return key;
   },
 
@@ -4315,11 +4315,11 @@ export const McpOperations = {
       [clientId],
       { operation: 'Mcp.validateClientCredentials', table: 'mcp_oauth_clients' }
     );
-    
+
     if (!client) return null;
     if (client.client_secret !== clientSecret) return null;
     if (client.expires_at && new Date(client.expires_at) < new Date()) return null;
-    
+
     return { id: client.id, user_id: client.user_id, app_name: client.app_name, scope: client.scope };
   },
 
@@ -4428,14 +4428,14 @@ export const McpOperations = {
       [accessToken],
       { operation: 'Mcp.validateAccessToken', table: 'mcp_oauth_access_tokens' }
     );
-    
+
     if (!token) return null;
-    
+
     // 检查是否过期
     if (new Date(token.expires_at) < new Date()) {
       return null;
     }
-    
+
     return token;
   },
 
@@ -4734,19 +4734,19 @@ export const McpOperations = {
   }>> {
     let sql = 'SELECT * FROM mcp_audit_logs WHERE 1=1';
     const params: unknown[] = [];
-    
+
     if (options.userId) {
       sql += ' AND user_id = ?';
       params.push(options.userId);
     }
-    
+
     if (options.module) {
       sql += ' AND module = ?';
       params.push(options.module);
     }
-    
+
     sql += ' ORDER BY created_at DESC';
-    
+
     const dbType = getDbType();
     if (options.limit) {
       if (dbType === 'mysql') {
@@ -4756,7 +4756,7 @@ export const McpOperations = {
         params.push(Number(options.limit));
       }
     }
-    
+
     if (options.offset) {
       if (dbType === 'mysql') {
         sql += ` OFFSET ${Number(options.offset)}`;
@@ -4765,7 +4765,7 @@ export const McpOperations = {
         params.push(Number(options.offset));
       }
     }
-    
+
     return queryInternal<{
       id: number;
       user_id: number;

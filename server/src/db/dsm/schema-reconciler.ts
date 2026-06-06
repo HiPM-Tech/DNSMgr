@@ -3,7 +3,7 @@ import { DatabaseSchema, TableDef, ColumnDef, TriggerDef, ViewDef, ProcedureDef 
 import { BackupManager } from './backup-manager';
 import { createLogger } from '../../lib/logger';
 
-const dsmLog = createLogger('DSM');
+const log = createLogger('DSM').sub('SchemaReconciler');
 
 export type DropTablePolicy = 'never' | 'dry-run-only' | 'safe-only' | 'always';
 
@@ -49,7 +49,7 @@ export class SchemaReconciler {
   async auditSchema(targetSchema: DatabaseSchema): Promise<{ valid: boolean; issues: string[] }> {
     const issues: string[] = [];
     const existingTables = await this.getAllTables();
-    
+
     for (const table of targetSchema.tables) {
       if (!existingTables.includes(table.name)) {
         issues.push(`Table missing in database: ${table.name}`);
@@ -127,12 +127,12 @@ export class SchemaReconciler {
         // Simple type mismatch check
         const targetSqlType = this.mapTypeToSQL(col.type, this.getDbType(), col.length);
         const actualDbType = (dbCol.type || dbCol.data_type || '').toUpperCase();
-        
+
         // Normalize and compare
         if (targetSqlType && actualDbType) {
           const normalizedTarget = targetSqlType.replace(/\(.*?\)/g, '').trim().toUpperCase();
           const normalizedActual = actualDbType.replace(/\(.*?\)/g, '').trim().toUpperCase();
-          
+
           const compatibleTypes = new Map<string, string[]>([
             ['INTEGER', ['INTEGER', 'INT', 'INT4', 'INT2', 'TINYINT', 'SMALLINT', 'BIGINT', 'SERIAL', 'BIGSERIAL']],
             ['BIGINT', ['BIGINT', 'BIGSERIAL', 'INTEGER', 'INT', 'INT4', 'INT8']],
@@ -191,15 +191,15 @@ export class SchemaReconciler {
       return this.conn.query(`PRAGMA table_info(${tableName})`);
     } else if (type === 'mysql') {
       return this.conn.query(
-        `SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE as nullable, COLUMN_DEFAULT as defaultValue 
-         FROM INFORMATION_SCHEMA.COLUMNS 
+        `SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE as nullable, COLUMN_DEFAULT as defaultValue
+         FROM INFORMATION_SCHEMA.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
         [tableName]
       );
     } else if (type === 'postgresql') {
       return this.conn.query(
-        `SELECT column_name as name, data_type as type, is_nullable as nullable, column_default as defaultValue 
-         FROM information_schema.columns 
+        `SELECT column_name as name, data_type as type, is_nullable as nullable, column_default as defaultValue
+         FROM information_schema.columns
          WHERE table_schema = 'public' AND table_name = $1`,
         [tableName]
       );
@@ -214,7 +214,7 @@ export class SchemaReconciler {
   private async dropColumn(table: string, column: string): Promise<void> {
     const dbType = this.getDbType();
     if (dbType === 'sqlite') {
-      dsmLog.warn( `Using table rebuild for SQLite DROP COLUMN: ${table}.${column}`);
+      log.warn( `Using table rebuild for SQLite DROP COLUMN: ${table}.${column}`);
       return;
     }
     await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} DROP COLUMN ${this.escapeIdentifier(column)}`);
@@ -223,20 +223,20 @@ export class SchemaReconciler {
   private async modifyColumnType(table: string, column: string, newType: string, originCol?: ColumnDef, actualDbType?: string): Promise<void> {
     const dbType = this.getDbType();
     if (dbType === 'sqlite') {
-      dsmLog.warn( `Using table rebuild for SQLite type modification: ${table}.${column}`);
+      log.warn( `Using table rebuild for SQLite type modification: ${table}.${column}`);
       return;
     }
-    
+
     if (dbType === 'postgresql' && newType === 'SERIAL') {
-      dsmLog.warn( `Skipping type modification to SERIAL for ${table}.${column} (SERIAL is a pseudo-type)`);
+      log.warn( `Skipping type modification to SERIAL for ${table}.${column} (SERIAL is a pseudo-type)`);
       return;
     }
-    
+
     if (dbType === 'postgresql') {
       await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} DROP DEFAULT`);
-      
+
       let sql = `ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`;
-      
+
       if (newType === 'BOOLEAN' || newType === 'BIGINT' || newType === 'TIMESTAMPTZ' || newType === 'INTEGER') {
         if (newType === 'BOOLEAN' && actualDbType && ['SMALLINT', 'INT', 'INTEGER', 'INT2', 'INT4', 'TINYINT'].includes(actualDbType.toUpperCase().replace(/\(.*?\)/g, '').trim())) {
           sql += ` USING CASE WHEN ${this.escapeIdentifier(column)} != 0 THEN true ELSE false END`;
@@ -248,9 +248,9 @@ export class SchemaReconciler {
           sql += ` USING ${this.escapeIdentifier(column)}::${newType}`;
         }
       }
-      
+
       await this.conn.execute(sql);
-      
+
       if (originCol?.defaultValue !== undefined) {
         const defaultVal = this.formatDefaultValue(originCol.defaultValue, originCol.type, 'postgresql');
         await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} SET DEFAULT ${defaultVal}`);
@@ -279,7 +279,7 @@ export class SchemaReconciler {
         const msg = e.message?.toLowerCase() || '';
         const isTruncation = e.code === 'WARN_DATA_TRUNCATED' || e.code === 'ER_DATA_TOO_LONG' || msg.includes('data truncated') || msg.includes('data too long');
         if (isTruncation) {
-          dsmLog.warn( `Data truncation when modifying ${table}.${column}: ${e.message}. Skipping this column modification.`);
+          log.warn( `Data truncation when modifying ${table}.${column}: ${e.message}. Skipping this column modification.`);
         } else {
           throw e;
         }
@@ -336,10 +336,10 @@ export class SchemaReconciler {
   async reconcile(schema: DatabaseSchema, options: ReconcileOptions = {}): Promise<void> {
     const { dryRun = false, dropTablePolicy = 'always', forceBackup = true } = options;
     const dbType = this.getDbType();
-    dsmLog.info( `Starting reconciliation for ${dbType} (Version: ${schema.version})...`);
+    log.info( `Starting reconciliation for ${dbType} (Version: ${schema.version})...`);
 
     if (options.dryRun) {
-      dsmLog.warn( 'DRY RUN MODE: No changes will be applied to the database.');
+      log.warn( 'DRY RUN MODE: No changes will be applied to the database.');
     }
 
     // Only create backup if schema changes are actually needed
@@ -349,24 +349,24 @@ export class SchemaReconciler {
       if (isExistingDb) {
         const needsBackup = await this.detectChangesNeeded(schema);
         if (needsBackup) {
-          dsmLog.info( 'Schema changes detected. Creating backup before applying changes...');
+          log.info( 'Schema changes detected. Creating backup before applying changes...');
           try {
             await this.backupManager.createBackup(dbType);
             this.backupManager.cleanup(7); // keep backups for 7 days
           } catch (err) {
-            dsmLog.error( 'Backup failed! Aborting reconciliation to protect data.', err);
+            log.error( 'Backup failed! Aborting reconciliation to protect data.', err);
             const continueOnFail = process.env.DSM_BACKUP_REQUIRED !== 'true';
             if (continueOnFail) {
-              dsmLog.warn( 'DSM_BACKUP_REQUIRED is not set to true, continuing with reconciliation...');
+              log.warn( 'DSM_BACKUP_REQUIRED is not set to true, continuing with reconciliation...');
             } else {
               throw err;
             }
           }
         } else {
-          dsmLog.info( 'No schema changes detected. Skipping backup.');
+          log.info( 'No schema changes detected. Skipping backup.');
         }
       } else {
-        dsmLog.info( 'New database. Skipping backup pre-check.');
+        log.info( 'New database. Skipping backup pre-check.');
       }
     }
 
@@ -407,12 +407,12 @@ export class SchemaReconciler {
       }
     }
 
-    dsmLog.info( 'Reconciliation completed successfully.');
+    log.info( 'Reconciliation completed successfully.');
   }
 
   async verify(schema: DatabaseSchema): Promise<{ valid: boolean; issues: string[] }> {
     const issues: string[] = [];
-    
+
     for (const tableDef of schema.tables) {
       const exists = await this.tableExists(tableDef.name);
       if (!exists) {
@@ -422,7 +422,7 @@ export class SchemaReconciler {
 
       const existingCols = await this.getTableColumns(tableDef.name);
       const existingNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '')));
-      
+
       for (const col of tableDef.columns) {
         if (!existingNames.has(col.name)) {
           issues.push(`Missing column: ${tableDef.name}.${col.name}`);
@@ -447,10 +447,10 @@ export class SchemaReconciler {
     if (!exists) {
       const sql = this.generateCreateTableSQL(tableDef);
       if (dryRun) {
-        dsmLog.sub('DRY RUN').info( `Would create table: ${tableDef.name}`);
-        dsmLog.sub('DRY RUN').info( `SQL: ${sql}`);
+        log.sub('DRY RUN').info( `Would create table: ${tableDef.name}`);
+        log.sub('DRY RUN').info( `SQL: ${sql}`);
       } else {
-        dsmLog.info( `Creating new table: ${tableDef.name}`);
+        log.info( `Creating new table: ${tableDef.name}`);
         await this.execute(sql);
       }
       // Indexes are not included in CREATE TABLE; create them separately
@@ -459,7 +459,7 @@ export class SchemaReconciler {
         await this.syncForeignKeys(tableDef, dryRun);
       }
     } else {
-      dsmLog.debug( `Table ${tableDef.name} exists, checking columns and indexes...`);
+      log.debug( `Table ${tableDef.name} exists, checking columns and indexes...`);
       if (this.getDbType() === 'mysql') {
         await this.dropAllForeignKeys(tableDef.name);
       }
@@ -476,7 +476,7 @@ export class SchemaReconciler {
 
     const dbType = this.getDbType();
     const targetNames = new Set(targetTables.map(t => t.name.toLowerCase()));
-    
+
     let existingTables: string[] = [];
     if (dbType === 'sqlite') {
       const rows = await this.conn.query(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`);
@@ -496,7 +496,7 @@ export class SchemaReconciler {
         }
 
         if (policy === 'dry-run-only') {
-          dsmLog.sub('DRY RUN').warn( `Would drop table (policy: dry-run-only): ${tableName}`);
+          log.sub('DRY RUN').warn( `Would drop table (policy: dry-run-only): ${tableName}`);
           continue;
         }
 
@@ -504,15 +504,15 @@ export class SchemaReconciler {
           const countRes = await this.conn.get(`SELECT COUNT(*) as cnt FROM ${this.escapeIdentifier(tableName)}`);
           const rowCount = (countRes as any)?.cnt || 0;
           if (rowCount > 0) {
-            dsmLog.warn( `Skipping non-empty table (policy: safe-only): ${tableName} (${rowCount} rows)`);
+            log.warn( `Skipping non-empty table (policy: safe-only): ${tableName} (${rowCount} rows)`);
             continue;
           }
         }
 
         if (dryRun) {
-          dsmLog.sub('DRY RUN').warn( `Would drop table: ${tableName}`);
+          log.sub('DRY RUN').warn( `Would drop table: ${tableName}`);
         } else {
-          dsmLog.warn( `Dropping obsolete table (policy: ${policy}): ${tableName}`);
+          log.warn( `Dropping obsolete table (policy: ${policy}): ${tableName}`);
           await this.dropTable(tableName);
         }
       }
@@ -533,16 +533,16 @@ export class SchemaReconciler {
   private async syncForeignKeys(tableDef: TableDef, dryRun: boolean): Promise<void> {
     const dbType = this.getDbType();
     if (!tableDef.foreignKeys || dbType === 'sqlite') return;
-    
+
     const existingFKs = await this.getTableForeignKeys(tableDef.name);
     const existingFKNames = new Set(existingFKs.map((fk: any) => fk.constraint_name));
-    
+
     const targetFKNames = new Set<string>();
 
     for (const fk of tableDef.foreignKeys) {
       const constraintName = `fk_${tableDef.name}_${fk.column}`;
       targetFKNames.add(constraintName);
-      
+
       if (!existingFKNames.has(constraintName)) {
         let sql = '';
         if (dbType === 'mysql' || dbType === 'postgresql') {
@@ -551,31 +551,31 @@ export class SchemaReconciler {
 
         if (sql) {
           if (dryRun) {
-            dsmLog.sub('DRY RUN').info( `Would add FK: ${constraintName}`);
+            log.sub('DRY RUN').info( `Would add FK: ${constraintName}`);
           } else {
             try {
               await this.execute(sql);
-              dsmLog.info( `Added foreign key constraint: ${constraintName}`);
+              log.info( `Added foreign key constraint: ${constraintName}`);
             } catch (e: any) {
               if (e.message?.includes('Duplicate key') || e.message?.includes('already exists')) {
-                dsmLog.debug( `FK ${constraintName} already exists.`);
+                log.debug( `FK ${constraintName} already exists.`);
               } else {
-                dsmLog.warn( `Failed to add FK ${constraintName}:`, e);
+                log.warn( `Failed to add FK ${constraintName}:`, e);
               }
             }
           }
         }
       } else {
-        dsmLog.debug( `FK ${constraintName} already exists, skipping.`);
+        log.debug( `FK ${constraintName} already exists, skipping.`);
       }
     }
 
     for (const existingFKName of existingFKNames) {
       if (!targetFKNames.has(existingFKName)) {
         if (dryRun) {
-          dsmLog.sub('DRY RUN').warn( `Would drop FK: ${existingFKName}`);
+          log.sub('DRY RUN').warn( `Would drop FK: ${existingFKName}`);
         } else {
-          dsmLog.warn( `Dropping obsolete FK: ${existingFKName}`);
+          log.warn( `Dropping obsolete FK: ${existingFKName}`);
           await this.dropForeignKey(tableDef.name, existingFKName);
         }
       }
@@ -586,18 +586,18 @@ export class SchemaReconciler {
     const dbType = this.getDbType();
     if (dbType === 'mysql') {
       return this.conn.query(
-        `SELECT CONSTRAINT_NAME as constraint_name, COLUMN_NAME as column_name, 
+        `SELECT CONSTRAINT_NAME as constraint_name, COLUMN_NAME as column_name,
          REFERENCED_TABLE_NAME as ref_table, REFERENCED_COLUMN_NAME as ref_column
-         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL`,
         [tableName]
       );
     } else if (dbType === 'postgresql') {
       return this.conn.query(
-        `SELECT tc.constraint_name, kcu.column_name, 
+        `SELECT tc.constraint_name, kcu.column_name,
          ccu.table_name AS ref_table, ccu.column_name AS ref_column,
          rc.delete_rule
-         FROM information_schema.table_constraints AS tc 
+         FROM information_schema.table_constraints AS tc
          JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
          JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name
          JOIN information_schema.referential_constraints AS rc ON rc.constraint_name = tc.constraint_name
@@ -614,7 +614,7 @@ export class SchemaReconciler {
       try {
         await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(tableName)} DROP FOREIGN KEY ${this.escapeIdentifier(constraintName)}`);
       } catch (err) {
-        dsmLog.debug( `FK ${constraintName} not found or already dropped`);
+        log.debug( `FK ${constraintName} not found or already dropped`);
       }
     } else if (dbType === 'postgresql') {
       await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(tableName)} DROP CONSTRAINT IF EXISTS ${this.escapeIdentifier(constraintName)}`);
@@ -626,14 +626,14 @@ export class SchemaReconciler {
     if (dbType === 'mysql') {
       return this.conn.query(
         `SELECT CONSTRAINT_NAME as constraint_name, TABLE_NAME as table_name, COLUMN_NAME as column_name
-         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
          WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME = ? AND REFERENCED_COLUMN_NAME IS NOT NULL`,
         [tableName]
       );
     } else if (dbType === 'postgresql') {
       return this.conn.query(
         `SELECT tc.constraint_name, tc.table_name, kcu.column_name
-         FROM information_schema.table_constraints AS tc 
+         FROM information_schema.table_constraints AS tc
          JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
          JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name
          WHERE tc.constraint_type = 'FOREIGN KEY' AND ccu.table_name = $1`,
@@ -645,13 +645,13 @@ export class SchemaReconciler {
 
   private async dropAllForeignKeys(tableName: string): Promise<void> {
     const dbType = this.getDbType();
-    
+
     // Drop FKs defined on this table
     const fks = await this.getTableForeignKeys(tableName);
     for (const fk of fks) {
       await this.dropForeignKey(tableName, fk.constraint_name || fk.constraintName);
     }
-    
+
     // Also drop FKs from other tables that reference this table
     // This is necessary for MySQL column type changes, where existing FK constraints
     // referencing the column being modified will block ALTER TABLE MODIFY COLUMN
@@ -696,10 +696,10 @@ export class SchemaReconciler {
         const ifNotExists = dbType === 'mysql' ? '' : ' IF NOT EXISTS';
         const sql = `CREATE ${uniqueStr} INDEX${ifNotExists} ${this.escapeIdentifier(idx.name)} ON ${this.escapeIdentifier(tableDef.name)} (${cols})`;
         if (dryRun) {
-          dsmLog.sub('DRY RUN').info( `Would add index: ${idx.name}`);
-          dsmLog.sub('DRY RUN').info( `SQL: ${sql}`);
+          log.sub('DRY RUN').info( `Would add index: ${idx.name}`);
+          log.sub('DRY RUN').info( `SQL: ${sql}`);
         } else {
-          dsmLog.info( `Adding missing index: ${idx.name}`);
+          log.info( `Adding missing index: ${idx.name}`);
           await this.execute(sql);
         }
       }
@@ -715,24 +715,24 @@ export class SchemaReconciler {
       if (!existingNames.has(col.name)) {
         const def = this.getColumnDefinitionSQL(col);
         if (dryRun) {
-          dsmLog.sub('DRY RUN').info( `Would add column: ${tableDef.name}.${col.name}`);
+          log.sub('DRY RUN').info( `Would add column: ${tableDef.name}.${col.name}`);
         } else {
-          dsmLog.info( `Adding missing column: ${tableDef.name}.${col.name}`);
+          log.info( `Adding missing column: ${tableDef.name}.${col.name}`);
           try {
             await this.addColumn(tableDef.name, col.name, def);
           } catch (e: any) {
             const msg = e.message?.toLowerCase() || '';
             if (msg.includes('duplicate column')) {
-              dsmLog.warn( `Column ${tableDef.name}.${col.name} already exists, skipping.`);
+              log.warn( `Column ${tableDef.name}.${col.name} already exists, skipping.`);
             } else if (this.getDbType() === 'sqlite' && (msg.includes('unique column') || msg.includes('unique constraint'))) {
-              dsmLog.warn( `Cannot add UNIQUE column ${tableDef.name}.${col.name} via ALTER in SQLite. Skipping add and relying on rebuild.`);
+              log.warn( `Cannot add UNIQUE column ${tableDef.name}.${col.name} via ALTER in SQLite. Skipping add and relying on rebuild.`);
             } else if (this.getDbType() === 'sqlite' && (msg.includes('non-constant default') || msg.includes('default value'))) {
-              dsmLog.warn( `Cannot add column ${tableDef.name}.${col.name} with non-constant default via ALTER in SQLite. Skipping add and relying on rebuild.`);
+              log.warn( `Cannot add column ${tableDef.name}.${col.name} with non-constant default via ALTER in SQLite. Skipping add and relying on rebuild.`);
             } else if (col.unique && (e.code === 'ER_DUP_ENTRY' || msg.includes('duplicate entry'))) {
               // Adding a UNIQUE NOT NULL column to an existing table with rows will fail
               // because all rows get the same default value, violating UNIQUE.
               // Retry without UNIQUE constraint to allow the migration to proceed.
-              dsmLog.warn( `Cannot add UNIQUE column ${tableDef.name}.${col.name} due to existing data. Retrying without UNIQUE constraint.`);
+              log.warn( `Cannot add UNIQUE column ${tableDef.name}.${col.name} due to existing data. Retrying without UNIQUE constraint.`);
               const defWithoutUnique = this.getColumnDefinitionSQL({ ...col, unique: false });
               await this.addColumn(tableDef.name, col.name, defWithoutUnique);
             } else {
@@ -747,9 +747,9 @@ export class SchemaReconciler {
       const normalizedName = existingCol.name.replace(/["'`]/g, '').trim();
       if (!targetNames.has(normalizedName)) {
         if (dryRun) {
-          dsmLog.sub('DRY RUN').warn( `Would drop column: ${tableDef.name}.${existingCol.name}`);
+          log.sub('DRY RUN').warn( `Would drop column: ${tableDef.name}.${existingCol.name}`);
         } else {
-          dsmLog.warn( `Dropping obsolete column: ${tableDef.name}.${existingCol.name}`);
+          log.warn( `Dropping obsolete column: ${tableDef.name}.${existingCol.name}`);
           await this.dropColumn(tableDef.name, existingCol.name);
         }
       }
@@ -763,18 +763,18 @@ export class SchemaReconciler {
       if (existingCol) {
         const expectedType = this.mapTypeToSQL(col.type, this.getDbType(), col.length);
         const actualType = existingCol.type?.toUpperCase();
-        
+
         const isPostgresSerial = this.getDbType() === 'postgresql' && expectedType === 'SERIAL';
-        
+
         if (actualType && !isPostgresSerial && !this.isTypeCompatible(actualType, expectedType)) {
           if (this.getDbType() === 'sqlite') {
             needsRebuild = true;
             rebuildTargets.push({ name: col.name, type: expectedType });
           } else {
             if (dryRun) {
-              dsmLog.sub('DRY RUN').warn( `Would modify column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
+              log.sub('DRY RUN').warn( `Would modify column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
             } else {
-              dsmLog.warn( `Modifying column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
+              log.warn( `Modifying column type: ${tableDef.name}.${col.name} (${actualType} -> ${expectedType})`);
               await this.modifyColumnType(tableDef.name, col.name, expectedType, col, existingCol.type);
             }
           }
@@ -785,16 +785,16 @@ export class SchemaReconciler {
         const targetNullable = col.nullable === true; // only explicit true means NULL; undefined/false means NOT NULL
         const actualNullableStr = typeof existingCol.nullable === 'string' ? existingCol.nullable.toUpperCase() : '';
         const actualNullable = actualNullableStr === 'YES' || existingCol.nullable === true;
-        
+
         if (targetNullable !== actualNullable) {
           if (this.getDbType() === 'sqlite') {
             needsRebuild = true;
             rebuildTargets.push({ name: col.name, type: expectedType });
           } else {
             if (dryRun) {
-              dsmLog.sub('DRY RUN').warn(`Would change column nullability: ${tableDef.name}.${col.name} (-> ${targetNullable ? 'NULL' : 'NOT NULL'})`);
+              log.sub('DRY RUN').warn(`Would change column nullability: ${tableDef.name}.${col.name} (-> ${targetNullable ? 'NULL' : 'NOT NULL'})`);
             } else {
-              dsmLog.warn( `Changing column nullability: ${tableDef.name}.${col.name} (-> ${targetNullable ? 'NULL' : 'NOT NULL'})`);
+              log.warn( `Changing column nullability: ${tableDef.name}.${col.name} (-> ${targetNullable ? 'NULL' : 'NOT NULL'})`);
               await this.modifyColumnType(tableDef.name, col.name, expectedType, col, existingCol.type);
             }
           }
@@ -810,18 +810,18 @@ export class SchemaReconciler {
   private async rebuildTableForSQLite(tableDef: TableDef, dryRun: boolean): Promise<void> {
     const tableName = tableDef.name;
     const tempName = `${tableName}_dsm_rebuild_${Date.now()}`;
-    
+
     const existingCols = await this.getTableColumns(tableName);
     const existingColNames = new Set(existingCols.map((c: any) => c.name.replace(/["'`]/g, '').trim()));
-    
+
     const keepCols = tableDef.columns.filter(c => {
       const normalizedName = c.name.replace(/["'`]/g, '').trim();
       return existingColNames.has(normalizedName);
     });
     const keepColNames = keepCols.map(c => this.escapeIdentifier(c.name));
-    
+
     if (keepColNames.length === 0) {
-      dsmLog.error( `No columns to keep during rebuild for ${tableName}. Aborting.`);
+      log.error( `No columns to keep during rebuild for ${tableName}. Aborting.`);
       return;
     }
 
@@ -838,7 +838,7 @@ export class SchemaReconciler {
         .replace(/\s+AUTOINCREMENT\s*/i, ' ')
         .trim();
     }).join(', ');
-    
+
     let fkClause = '';
     if (tableDef.foreignKeys && tableDef.foreignKeys.length > 0) {
       const fks = tableDef.foreignKeys
@@ -849,31 +849,31 @@ export class SchemaReconciler {
     }
 
     if (dryRun) {
-      dsmLog.sub('DRY RUN').info( `Would rebuild SQLite table: ${tableName}`);
+      log.sub('DRY RUN').info( `Would rebuild SQLite table: ${tableName}`);
       return;
     }
 
     try {
       await this.conn.execute('PRAGMA foreign_keys = OFF');
-      
+
       await this.conn.execute('BEGIN TRANSACTION');
-      
+
       await this.conn.execute(`CREATE TABLE ${this.escapeIdentifier(tempName)} (${newColDefs}${fkClause})`);
-      
+
       await this.conn.execute(
-        `INSERT INTO ${this.escapeIdentifier(tempName)} (${keepColNames.join(', ')}) 
+        `INSERT INTO ${this.escapeIdentifier(tempName)} (${keepColNames.join(', ')})
          SELECT ${keepColNames.join(', ')} FROM ${this.escapeIdentifier(tableName)}`
       );
-      
+
       await this.conn.execute(`DROP TABLE ${this.escapeIdentifier(tableName)}`);
       await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(tempName)} RENAME TO ${this.escapeIdentifier(tableName)}`);
-      
+
       if (tableDef.indexes) {
         const keptColumnNameSet = new Set(keepCols.map(c => c.name));
         for (const idx of tableDef.indexes) {
           const allColsExist = idx.columns.every(c => keptColumnNameSet.has(c));
           if (!allColsExist) {
-            dsmLog.warn( `Skipping index ${idx.name} during rebuild: referenced columns not kept in new table`);
+            log.warn( `Skipping index ${idx.name} during rebuild: referenced columns not kept in new table`);
             continue;
           }
           const cols = idx.columns.map(c => this.escapeIdentifier(c)).join(', ');
@@ -884,11 +884,11 @@ export class SchemaReconciler {
 
       await this.conn.execute('COMMIT');
       await this.conn.execute('PRAGMA foreign_keys = ON');
-      dsmLog.info( `Successfully rebuilt SQLite table: ${tableName}`);
+      log.info( `Successfully rebuilt SQLite table: ${tableName}`);
     } catch (err) {
       await this.conn.execute('ROLLBACK');
       await this.conn.execute('PRAGMA foreign_keys = ON');
-      dsmLog.error( `Failed to rebuild SQLite table ${tableName}:`, err);
+      log.error( `Failed to rebuild SQLite table ${tableName}:`, err);
       throw err;
     }
   }
@@ -896,9 +896,9 @@ export class SchemaReconciler {
   private generateCreateTableSQL(table: TableDef): string {
     const dbType = this.getDbType();
     const cols = table.columns.map(c => this.getColumnDefinitionSQL(c)).join(', ');
-    
+
     let sql = `CREATE TABLE IF NOT EXISTS ${this.escapeIdentifier(table.name)} (${cols}`;
-    
+
     if (table.foreignKeys && table.foreignKeys.length > 0) {
       const fkClauses = table.foreignKeys.map(fk => {
         return `FOREIGN KEY (${fk.column}) REFERENCES ${fk.refTable}(${fk.refColumn}) ON DELETE ${fk.onDelete || 'NO ACTION'}`;
@@ -926,7 +926,7 @@ export class SchemaReconciler {
       if (col.autoIncrement) {
         if (dbType === 'sqlite') def += ' AUTOINCREMENT';
         else if (dbType === 'mysql') def += ' AUTO_INCREMENT';
-        else if (dbType === 'postgresql') def = def.replace('INTEGER', 'SERIAL'); 
+        else if (dbType === 'postgresql') def = def.replace('INTEGER', 'SERIAL');
       }
     } else {
       if (!col.nullable) def += ' NOT NULL';
@@ -963,28 +963,28 @@ export class SchemaReconciler {
       if (typeof value === 'boolean') return value ? '1' : '0';
       return value.toString();
     }
-    
+
     if (type === 'boolean') {
       if (dbType === 'postgresql') return value ? 'TRUE' : 'FALSE';
       if (dbType === 'mysql') return value ? '1' : '0';
       return value ? '1' : '0';
     }
-    
+
     if (value === 'NOW()' || value === 'CURRENT_TIMESTAMP') {
       return dbType === 'postgresql' ? 'CURRENT_TIMESTAMP' : 'CURRENT_TIMESTAMP';
     }
 
     if (type === 'json') {
-      return `'${JSON.stringify(value).replace(/'/g, "''")}'`; 
+      return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
     }
-    
+
     return `'${String(value).replace(/'/g, "''")}'`;
   }
 
   private async syncTrigger(trigger: TriggerDef, dryRun: boolean): Promise<void> {
     const dbType = this.getDbType();
     const exists = await this.triggerExists(trigger.name);
-    
+
     let sql = '';
     if (dbType === 'mysql') {
       sql = `CREATE OR REPLACE TRIGGER ${trigger.name} ${trigger.timing} ${trigger.event} ON ${trigger.table} FOR EACH ROW ${trigger.body}`;
@@ -996,7 +996,7 @@ export class SchemaReconciler {
           ${trigger.body}
         END;
         $$ LANGUAGE plpgsql;
-        
+
         DROP TRIGGER IF EXISTS ${trigger.name} ON ${trigger.table};
         CREATE TRIGGER ${trigger.name} ${trigger.timing} ${trigger.event} ON ${trigger.table} FOR EACH ROW EXECUTE FUNCTION ${funcName}();
       `;
@@ -1005,12 +1005,12 @@ export class SchemaReconciler {
     }
 
     if (dryRun) {
-      dsmLog.sub('DRY RUN').info( `Would sync trigger: ${trigger.name}`);
+      log.sub('DRY RUN').info( `Would sync trigger: ${trigger.name}`);
     } else {
       if (!exists) {
-        dsmLog.info( `Creating trigger: ${trigger.name}`);
+        log.info( `Creating trigger: ${trigger.name}`);
       } else {
-        dsmLog.info( `Updating trigger: ${trigger.name}`);
+        log.info( `Updating trigger: ${trigger.name}`);
       }
       await this.execute(sql);
     }
@@ -1033,11 +1033,11 @@ export class SchemaReconciler {
 
   private async syncView(view: ViewDef, dryRun: boolean): Promise<void> {
     const sql = `CREATE OR REPLACE VIEW ${this.escapeIdentifier(view.name)} AS ${view.query}`;
-    
+
     if (dryRun) {
-      dsmLog.sub('DRY RUN').info( `Would sync view: ${view.name}`);
+      log.sub('DRY RUN').info( `Would sync view: ${view.name}`);
     } else {
-      dsmLog.info( `Syncing view: ${view.name}`);
+      log.info( `Syncing view: ${view.name}`);
       await this.execute(sql);
     }
   }
@@ -1045,21 +1045,21 @@ export class SchemaReconciler {
   private async syncProcedure(proc: ProcedureDef, dryRun: boolean): Promise<void> {
     const dbType = this.getDbType();
     const params = proc.parameters || '';
-    
+
     let sql = '';
     if (dbType === 'mysql') {
       sql = `CREATE OR REPLACE PROCEDURE ${proc.name}${params} ${proc.body}`;
     } else if (dbType === 'postgresql') {
       sql = `CREATE OR REPLACE FUNCTION ${proc.name}${params} ${proc.body}`;
     } else if (dbType === 'sqlite') {
-      dsmLog.warn( `SQLite does not support stored procedures. Skipping: ${proc.name}`);
+      log.warn( `SQLite does not support stored procedures. Skipping: ${proc.name}`);
       return;
     }
 
     if (dryRun) {
-      dsmLog.sub('DRY RUN').info( `Would sync procedure: ${proc.name}`);
+      log.sub('DRY RUN').info( `Would sync procedure: ${proc.name}`);
     } else {
-      dsmLog.info( `Syncing procedure: ${proc.name}`);
+      log.info( `Syncing procedure: ${proc.name}`);
       await this.execute(sql);
     }
   }

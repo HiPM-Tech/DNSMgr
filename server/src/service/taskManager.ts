@@ -3,8 +3,9 @@
  * 实现任务队列、并发控制和执行调度，避免多个任务同时执行导致系统卡顿
  */
 
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('Job').sub('TaskManager');
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export type TaskPriority = 'low' | 'normal' | 'high' | 'critical';
@@ -57,7 +58,7 @@ class TaskManager {
    */
   setMaxConcurrentTasks(max: number): void {
     this.maxConcurrentTasks = max;
-    log.info('TaskManager', `Max concurrent tasks set to ${max}`);
+    log.info(`Max concurrent tasks set to ${max}`);
     this.processQueue();
   }
 
@@ -98,8 +99,8 @@ class TaskManager {
 
       // 根据优先级插入队列（高优先级插队）
       this.insertTaskByPriority(queuedTask);
-      
-      log.debug('TaskManager', `Task queued: ${options.name} (${options.id})`, {
+
+      log.debug(`Task queued: ${options.name} (${options.id})`, {
         queueLength: this.taskQueue.length,
         priority: options.priority || 'normal',
       });
@@ -114,7 +115,7 @@ class TaskManager {
    */
   private insertTaskByPriority(task: QueuedTask): void {
     const priorityValue = this.getPriorityValue(task.options.priority || 'normal');
-    
+
     // 找到第一个优先级低于当前任务的位置
     let insertIndex = this.taskQueue.length;
     for (let i = 0; i < this.taskQueue.length; i++) {
@@ -124,12 +125,12 @@ class TaskManager {
         break;
       }
     }
-    
+
     // 插入到合适的位置
     this.taskQueue.splice(insertIndex, 0, task);
-    
+
     if (insertIndex < this.taskQueue.length - 1) {
-      log.info('TaskManager', `High priority task inserted at position ${insertIndex}: ${task.options.name}`, {
+      log.info(`High priority task inserted at position ${insertIndex}: ${task.options.name}`, {
         priority: task.options.priority,
       });
     }
@@ -176,7 +177,7 @@ class TaskManager {
 
     // 检查是否已有相同ID的任务在运行
     if (this.runningTasks.has(taskId)) {
-      log.warn('TaskManager', `Task already running, re-queuing: ${options.name}`, { taskId });
+      log.warn(`Task already running, re-queuing: ${options.name}`, { taskId });
       this.taskQueue.unshift(queuedTask);
       return;
     }
@@ -190,7 +191,7 @@ class TaskManager {
     };
 
     this.runningTasks.set(taskId, taskInfo);
-    log.info('TaskManager', `Task started: ${options.name}`, {
+    log.info(`Task started: ${options.name}`, {
       taskId,
       runningCount: this.runningTasks.size,
       queuedCount: this.taskQueue.length,
@@ -221,7 +222,7 @@ class TaskManager {
       taskInfo.endTime = Date.now();
       taskInfo.duration = taskInfo.endTime - taskInfo.startTime!;
 
-      log.info('TaskManager', `Task completed: ${options.name}`, {
+      log.info(`Task completed: ${options.name}`, {
         taskId,
         duration: taskInfo.duration,
       });
@@ -229,12 +230,12 @@ class TaskManager {
       resolve();
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      
+
       // 重试逻辑
       const maxRetries = options.retries || 0;
       if (attempts < maxRetries) {
         const retryDelay = options.retryDelay || 1000;
-        log.warn('TaskManager', `Task failed, retrying (${attempts + 1}/${maxRetries}): ${options.name}`, {
+        log.warn(`Task failed, retrying (${attempts + 1}/${maxRetries}): ${options.name}`, {
           taskId,
           error: err.message,
           retryDelay,
@@ -255,7 +256,7 @@ class TaskManager {
         taskInfo.duration = taskInfo.endTime - taskInfo.startTime!;
         taskInfo.error = err;
 
-        log.error('TaskManager', `Task failed: ${options.name}`, {
+        log.error(`Task failed: ${options.name}`, {
           taskId,
           attempts: attempts + 1,
           error: err.message,
@@ -266,7 +267,7 @@ class TaskManager {
     } finally {
       // 移除运行中的任务
       this.runningTasks.delete(taskId);
-      
+
       // 继续处理队列
       this.processQueue();
     }
@@ -281,13 +282,13 @@ class TaskManager {
     if (index !== -1) {
       const removed = this.taskQueue.splice(index, 1)[0];
       removed.reject(new Error('Task cancelled'));
-      log.info('TaskManager', `Task cancelled from queue: ${removed.options.name}`, { taskId });
+      log.info(`Task cancelled from queue: ${removed.options.name}`, { taskId });
       return true;
     }
 
     // 无法取消正在运行的任务，只能标记
     if (this.runningTasks.has(taskId)) {
-      log.warn('TaskManager', `Cannot cancel running task, it will complete: ${taskId}`);
+      log.warn(`Cannot cancel running task, it will complete: ${taskId}`);
       return false;
     }
 
@@ -303,7 +304,7 @@ class TaskManager {
       task.reject(new Error('Queue cleared'));
     });
     this.taskQueue = [];
-    log.info('TaskManager', `Queue cleared, removed ${count} tasks`);
+    log.info(`Queue cleared, removed ${count} tasks`);
   }
 
   /**

@@ -18,8 +18,9 @@ import type {
   OrderBy,
 } from '../dal/types';
 import type { DatabaseDriver, DriverConfig, ConnectionStats } from './types';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 
+const log = createLogger('DL').sub('Base');
 /** 抽象基础驱动类 */
 export abstract class BaseDriver implements DatabaseDriver {
   abstract readonly type: DatabaseType;
@@ -46,26 +47,26 @@ export abstract class BaseDriver implements DatabaseDriver {
     executor: () => Promise<T>
   ): Promise<T> {
     const startTime = Date.now();
-    
+
     try {
       const result = await executor();
       const duration = Date.now() - startTime;
-      
+
       // Check if query is slow
       if (duration > this.slowQueryThreshold) {
         this.logSlowQuery(operation, sql, params, duration);
       }
-      
+
       return result;
     } catch (error) {
       const duration = Date.now() - startTime;
       this._stats.errors++;
-      
+
       // Also log slow failed queries
       if (duration > this.slowQueryThreshold) {
         this.logSlowQuery(operation, sql, params, duration, error as Error);
       }
-      
+
       throw error;
     }
   }
@@ -86,17 +87,17 @@ export abstract class BaseDriver implements DatabaseDriver {
       threshold: `${this.slowQueryThreshold}ms`,
       sql: sql.substring(0, 200), // Limit SQL length
     };
-    
+
     if (params && params.length > 0) {
       logData.params = params;
     }
-    
+
     if (error) {
       logData.error = error.message;
     }
-    
+
     // Log slow query using unified logging system
-    log.warn('DB', `Slow Query: ${operation} took ${duration}ms (threshold: ${this.slowQueryThreshold}ms)`, {
+    log.warn(`Slow Query: ${operation} took ${duration}ms (threshold: ${this.slowQueryThreshold}ms)`, {
       sql: sql.substring(0, 200),
       params: params && params.length > 0 ? params : undefined,
       error: error?.message,
@@ -230,10 +231,10 @@ export abstract class BaseDriver implements DatabaseDriver {
     const params: unknown[] = [];
     const table = this.escapeIdentifier(query.table);
 
-    const columns = query.columns.length === 0 || query.columns[0] === '*' 
-      ? '*' 
+    const columns = query.columns.length === 0 || query.columns[0] === '*'
+      ? '*'
       : query.columns.map(c => this.escapeIdentifier(c)).join(', ');
-    
+
     let sql = `SELECT ${query.distinct ? 'DISTINCT ' : ''}${columns} FROM ${table}`;
 
     const joinsSql = this.compileJoins(query.joins);
@@ -262,7 +263,7 @@ export abstract class BaseDriver implements DatabaseDriver {
   compileInsert(query: InsertQuery): CompiledSQL {
     const table = this.escapeIdentifier(query.table);
     const entries = Object.entries(query.data);
-    
+
     const columns = entries.map(([key]) => this.escapeIdentifier(key)).join(', ');
     const placeholders = entries.map((_, i) => this.placeholder(i + 1)).join(', ');
     const params = entries.map(([, value]) => value);
@@ -278,14 +279,14 @@ export abstract class BaseDriver implements DatabaseDriver {
 
   compileBatchInsert(query: BatchInsertQuery): CompiledSQL {
     const table = this.escapeIdentifier(query.table);
-    
+
     if (query.data.length === 0) {
       return { sql: '', params: [] };
     }
 
     const keys = Object.keys(query.data[0]);
     const columns = keys.map(k => this.escapeIdentifier(k)).join(', ');
-    
+
     const params: unknown[] = [];
     const valueGroups: string[] = [];
 

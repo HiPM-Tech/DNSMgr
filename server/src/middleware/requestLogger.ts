@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { getRequestIP } from './clientIP';
 
+const log = createLogger('HTTP').sub('Middleware').sub('RequestLogger');
 /**
  * Request logging middleware
  * Logs all incoming requests with method, path, status, and duration
@@ -18,26 +19,26 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
 
     // 扁平化日志：只保留关键信息
     const logLevel = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'debug';
-    
+
     // 基础日志数据（精简）
     const baseLog = `${req.method} ${req.path} ${statusCode} ${duration}ms`;
-    
+
     // 错误和警告才记录详细信息
     if (logLevel === 'error') {
-      log.error('HTTP', baseLog, { 
+      log.error(baseLog, {
         ip: getRequestIP(req),
         error: 'Server error'
       });
     } else if (logLevel === 'warn') {
       // 404 等警告只记录基础信息
       if (statusCode === 404) {
-        log.debug('HTTP', baseLog);
+        log.debug(baseLog);
       } else {
-        log.warn('HTTP', baseLog, { ip: getRequestIP(req) });
+        log.warn(baseLog, { ip: getRequestIP(req) });
       }
     } else {
       // 正常请求使用 debug 级别
-      log.debug('HTTP', baseLog);
+      log.debug(baseLog);
     }
   };
 

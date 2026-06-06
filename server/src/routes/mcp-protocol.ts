@@ -14,8 +14,9 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { mcpServer, HidnsMcpServer } from '../mcp/server';
 import { McpOperations } from '../db/bal/business-adapter';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('MCP').sub('Route').sub('Protocol');
 const router = Router();
 
 // ── 传统 SSE 传输层 ──
@@ -38,7 +39,7 @@ async function mcpEnabledCheck(req: Request, res: Response, next: NextFunction):
     }
     next();
   } catch (error) {
-    log.error('MCP Protocol', 'Failed to check MCP enabled status', { error });
+    log.error('Failed to check MCP enabled status', { error });
     res.status(500).json({ code: 500, msg: 'Failed to check MCP status', data: null });
   }
 }
@@ -101,7 +102,7 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
 
   try {
     // ── 日志：收到请求 ──
-    log.info('MCP Protocol', `Incoming ${req.method} /api/mcp`, {
+    log.info(`Incoming ${req.method} /api/mcp`, {
       method: req.method,
       clientIp,
       contentType: req.headers['content-type'],
@@ -124,7 +125,7 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
     if (!authValue) {
       const oauthUri = buildOAuthMetadataUrl(req);
 
-      log.info('MCP Protocol', 'Auth required (no API-Key/Bearer token), returning 401 with OAuth discovery', {
+      log.info('Auth required (no API-Key/Bearer token), returning 401 with OAuth discovery', {
         clientIp,
         oauthUri,
       });
@@ -141,7 +142,7 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
 
     // ── 日志：认证通过 ──
     const methods = extractMethods(req.body);
-    log.info('MCP Protocol', 'POST /api/mcp authenticated', {
+    log.info('POST /api/mcp authenticated', {
       clientIp,
       authType: req.headers['api-key'] ? 'api-key' : 'bearer',
       authValue: maskAuthValue(authValue),
@@ -154,7 +155,7 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
       const injectApiKey = (msg: any) => {
         if (msg?.method === 'tools/call' && msg?.params && !msg.params.apiKey) {
           msg.params.apiKey = authValue;
-          log.debug('MCP Protocol', 'API key injected into tools/call params', {
+          log.debug('API key injected into tools/call params', {
             toolName: msg.params?.name,
             params: Object.keys(msg.params).filter(k => k !== 'apiKey'),
           });
@@ -181,7 +182,7 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
       await server.close().catch(() => { /* 忽略未连接时的关闭错误 */ });
     }
     await server.connect(transport);
-    log.debug('MCP Protocol', 'Streamable HTTP transport connected for request', {
+    log.debug('Streamable HTTP transport connected for request', {
       clientIp,
       methods,
     });
@@ -192,7 +193,7 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
 
       // ── 日志：请求完成 ──
       const duration = Date.now() - startTime;
-      log.info('MCP Protocol', `Completed POST /api/mcp`, {
+      log.info(`Completed POST /api/mcp`, {
         statusCode: res.statusCode,
         durationMs: duration,
         clientIp,
@@ -200,12 +201,12 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
     } finally {
       // 断开 Transport 连接，释放服务器以供下一个请求连接
       await server.close().catch((err) => {
-        log.debug('MCP Protocol', 'Error closing per-request transport', { error: err });
+        log.debug('Error closing per-request transport', { error: err });
       });
     }
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error('MCP Protocol', 'Failed to handle MCP protocol request', {
+    log.error('Failed to handle MCP protocol request', {
       error: error instanceof Error ? { message: error.message, name: error.name, stack: error.stack } : error,
       method: req.method,
       path: req.path,
@@ -235,14 +236,14 @@ async function handleSseGet(req: Request, res: Response): Promise<void> {
     const authValue = extractAuthValue(req);
 
     // ── 日志：收到 SSE 连接请求 ──
-    log.info('MCP Protocol', 'Incoming SSE GET /api/mcp/sse', {
+    log.info('Incoming SSE GET /api/mcp/sse', {
       clientIp,
       contentType: req.headers['content-type'],
       accept: req.headers['accept'],
     });
 
     if (!authValue) {
-      log.info('MCP Protocol', 'SSE auth required (no API-Key/Bearer token), returning 401', { clientIp });
+      log.info('SSE auth required (no API-Key/Bearer token), returning 401', { clientIp });
 
       const oauthUri = buildOAuthMetadataUrl(req);
 
@@ -257,7 +258,7 @@ async function handleSseGet(req: Request, res: Response): Promise<void> {
     }
 
     // ── 日志：SSE 认证通过 ──
-    log.info('MCP Protocol', 'SSE GET /api/mcp/sse authenticated', {
+    log.info('SSE GET /api/mcp/sse authenticated', {
       clientIp,
       authType: req.headers['api-key'] ? 'api-key' : 'bearer',
       authValue: maskAuthValue(authValue),
@@ -273,7 +274,7 @@ async function handleSseGet(req: Request, res: Response): Promise<void> {
     // 连接到 MCP 服务器（connect 会调用 transport.start() 自动发送 endpoint 事件）
     await sseMcpServer.getServer().connect(transport);
 
-    log.info('MCP Protocol', `SSE session established: ${sessionId}`, {
+    log.info(`SSE session established: ${sessionId}`, {
       sessionId,
       clientIp,
       authType: req.headers['api-key'] ? 'api-key' : 'bearer',
@@ -283,13 +284,13 @@ async function handleSseGet(req: Request, res: Response): Promise<void> {
     // 连接关闭时清理
     res.on('close', () => {
       sseTransports.delete(sessionId);
-      log.info('MCP Protocol', `SSE session closed: ${sessionId}`, {
+      log.info(`SSE session closed: ${sessionId}`, {
         sessionId,
         clientIp,
       });
     });
   } catch (error) {
-    log.error('MCP Protocol', 'Failed to establish SSE connection', {
+    log.error('Failed to establish SSE connection', {
       error: error instanceof Error ? { message: error.message, name: error.name, stack: error.stack } : error,
       clientIp,
     });
@@ -315,7 +316,7 @@ async function handleSsePost(req: Request, res: Response): Promise<void> {
   try {
     // ── 日志：收到 SSE POST 消息 ──
     const methods = extractMethods(req.body);
-    log.info('MCP Protocol', `Incoming SSE POST /api/mcp/sse`, {
+    log.info(`Incoming SSE POST /api/mcp/sse`, {
       sessionId: sessionId || '(missing)',
       clientIp,
       contentType: req.headers['content-type'],
@@ -330,7 +331,7 @@ async function handleSsePost(req: Request, res: Response): Promise<void> {
 
     const transport = sseTransports.get(sessionId);
     if (!transport) {
-      log.warn('MCP Protocol', 'SSE session not found for POST message', {
+      log.warn('SSE session not found for POST message', {
         sessionId,
         clientIp,
         durationMs: Date.now() - startTime,
@@ -344,7 +345,7 @@ async function handleSsePost(req: Request, res: Response): Promise<void> {
 
     // ── 日志：SSE POST 完成 ──
     const duration = Date.now() - startTime;
-    log.info('MCP Protocol', `Completed SSE POST /api/mcp/sse`, {
+    log.info(`Completed SSE POST /api/mcp/sse`, {
       sessionId,
       clientIp,
       statusCode: res.statusCode,
@@ -352,7 +353,7 @@ async function handleSsePost(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error('MCP Protocol', 'Failed to handle SSE POST message', {
+    log.error('Failed to handle SSE POST message', {
       error: error instanceof Error ? { message: error.message, name: error.name, stack: error.stack } : error,
       sessionId: sessionId || '(unknown)',
       clientIp,

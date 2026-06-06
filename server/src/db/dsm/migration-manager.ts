@@ -1,6 +1,7 @@
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 import { calculateSchemaHash, SchemaDefinition } from './schemas';
 
+const log = createLogger('DSM').sub('MigrationManager');
 export interface SchemaVersion {
   major: number;
   minor: number;
@@ -29,7 +30,7 @@ export class SchemaVersionManager {
     this.conn = conn;
     this.schema = schema;
     this.schemaHash = calculateSchemaHash(schema);
-    
+
     this.semanticVersion = {
       major: version?.major ?? 1,
       minor: version?.minor ?? 5,
@@ -62,15 +63,15 @@ export class SchemaVersionManager {
 
   async ensureVersionTableExists(): Promise<void> {
     const dbType = (this.conn as any).type || 'unknown';
-    
+
     if (await this.hasVersionTable()) {
       return;
     }
-    
-    log.info('SchemaVersion', 'Creating schema_versions table...');
-    
+
+    log.info('Creating schema_versions table...');
+
     let createTableSQL = '';
-    
+
     switch (dbType) {
       case 'mysql':
         createTableSQL = `
@@ -91,7 +92,7 @@ export class SchemaVersionManager {
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `;
         break;
-      
+
       case 'postgresql':
         createTableSQL = `
           CREATE TABLE IF NOT EXISTS schema_versions (
@@ -107,7 +108,7 @@ export class SchemaVersionManager {
           )
         `;
         break;
-      
+
       case 'sqlite':
       default:
         createTableSQL = `
@@ -125,32 +126,32 @@ export class SchemaVersionManager {
         `;
         break;
     }
-    
+
     await this.conn.execute(createTableSQL);
-    log.info('SchemaVersion', 'schema_versions table created successfully');
+    log.info('schema_versions table created successfully');
   }
 
   async autoDetectAndPromote(description: string): Promise<boolean> {
     const dbType = (this.conn as any).type || 'unknown';
-    log.info('SchemaVersion', `Auto-detecting migration status for ${dbType}...`);
+    log.info(`Auto-detecting migration status for ${dbType}...`);
 
     try {
       const isMigrated = await this.checkMigrationIndicators(dbType);
-      
+
       if (isMigrated) {
-        log.info('SchemaVersion', 'Database appears to be already migrated, promoting status...');
-        
+        log.info('Database appears to be already migrated, promoting status...');
+
         await this.ensureVersionTableExists();
-        
+
         await this.recordSuccess(description, 0);
-        log.info('SchemaVersion', `Auto-promoted schema version ${this.schemaHash} as successful`);
+        log.info(`Auto-promoted schema version ${this.schemaHash} as successful`);
         return true;
       } else {
-        log.info('SchemaVersion', 'Database needs migration');
+        log.info('Database needs migration');
         return false;
       }
     } catch (error) {
-      log.error('SchemaVersion', 'Failed to auto-detect migration status', { error: (error as Error).message });
+      log.error('Failed to auto-detect migration status', { error: (error as Error).message });
       return false;
     }
   }
@@ -171,20 +172,20 @@ export class SchemaVersionManager {
   private async checkMySQLIndicators(): Promise<boolean> {
     try {
       const checkSql = `
-        SELECT COUNT(*) as count 
-        FROM INFORMATION_SCHEMA.COLUMNS 
+        SELECT COUNT(*) as count
+        FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'dns_accounts' AND COLUMN_NAME = 'enabled'
       `;
       const result = await this.conn.execute(checkSql);
-      
+
       if (Array.isArray(result) && result.length > 0) {
         const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
         return parseInt(String(count), 10) > 0;
       }
-      
+
       return false;
     } catch (error) {
-      log.warn('SchemaVersion', 'Failed to check MySQL indicators', { error: (error as Error).message });
+      log.warn('Failed to check MySQL indicators', { error: (error as Error).message });
       return false;
     }
   }
@@ -192,20 +193,20 @@ export class SchemaVersionManager {
   private async checkPostgreSQLIndicators(): Promise<boolean> {
     try {
       const checkSql = `
-        SELECT COUNT(*) as count 
-        FROM information_schema.columns 
+        SELECT COUNT(*) as count
+        FROM information_schema.columns
         WHERE table_name = 'dns_accounts' AND column_name = 'enabled'
       `;
       const result = await this.conn.execute(checkSql);
-      
+
       if (Array.isArray(result) && result.length > 0) {
         const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
         return parseInt(String(count), 10) > 0;
       }
-      
+
       return false;
     } catch (error) {
-      log.warn('SchemaVersion', 'Failed to check PostgreSQL indicators', { error: (error as Error).message });
+      log.warn('Failed to check PostgreSQL indicators', { error: (error as Error).message });
       return false;
     }
   }
@@ -214,15 +215,15 @@ export class SchemaVersionManager {
     try {
       const checkSql = `PRAGMA table_info(dns_accounts)`;
       const result = await this.conn.execute(checkSql);
-      
+
       if (Array.isArray(result)) {
         const hasEnabledColumn = result.some((row: any) => row.name.replace(/["'`]/g, '') === 'enabled');
         return hasEnabledColumn;
       }
-      
+
       return false;
     } catch (error) {
-      log.warn('SchemaVersion', 'Failed to check SQLite indicators', { error: (error as Error).message });
+      log.warn('Failed to check SQLite indicators', { error: (error as Error).message });
       return false;
     }
   }
@@ -231,12 +232,12 @@ export class SchemaVersionManager {
     try {
       const sql = 'SELECT COUNT(*) as count FROM schema_versions WHERE version = ? AND success = 1';
       const result = await this.conn.execute(sql, [this.schemaHash]);
-      
+
       if (Array.isArray(result) && result.length > 0) {
         const count = (result[0] as any).count || (result[0] as any)['COUNT(*)'];
         return count > 0;
       }
-      
+
       return false;
     } catch (error) {
       if ((error as Error).message?.includes('schema_versions')) {
@@ -252,22 +253,22 @@ export class SchemaVersionManager {
   ): Promise<void> {
     const checkSql = 'SELECT COUNT(*) as cnt FROM schema_versions WHERE version = ?';
     const result = await this.conn.get(checkSql, [this.schemaHash]) as { cnt: number } | undefined;
-    
+
     if (result && Number(result.cnt || 0) > 0) {
-      log.debug('SchemaVersion', `Schema version ${this.schemaHash} already recorded, skipping`);
+      log.debug(`Schema version ${this.schemaHash} already recorded, skipping`);
       return;
     }
-    
-    const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, execution_time_ms, system_type) 
+
+    const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, execution_time_ms, system_type)
                  VALUES (?, ?, ?, 1, ?, 'hidns')`;
-    
+
     await this.conn.execute(sql, [
-      this.schemaHash, 
+      this.schemaHash,
       this.getSemanticVersion(),
-      description, 
+      description,
       executionTimeMs
     ]);
-    log.info('SchemaVersion', `Schema version ${this.getSemanticVersion()} (${this.schemaHash}) recorded as successful (HiDNS)`);
+    log.info(`Schema version ${this.getSemanticVersion()} (${this.schemaHash}) recorded as successful (HiDNS)`);
   }
 
   async recordFailure(
@@ -277,29 +278,29 @@ export class SchemaVersionManager {
   ): Promise<void> {
     const checkSql = 'SELECT COUNT(*) as cnt FROM schema_versions WHERE version = ?';
     const result = await this.conn.get(checkSql, [this.schemaHash]) as { cnt: number } | undefined;
-    
+
     if (result && Number(result.cnt || 0) > 0) {
-      log.debug('SchemaVersion', `Schema version ${this.schemaHash} already recorded, skipping failure record`);
+      log.debug(`Schema version ${this.schemaHash} already recorded, skipping failure record`);
       return;
     }
-    
-    const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, error_message, execution_time_ms, system_type) 
+
+    const sql = `INSERT INTO schema_versions (version, semantic_version, description, success, error_message, execution_time_ms, system_type)
                  VALUES (?, ?, ?, 0, ?, ?, 'hidns')`;
-    
+
     await this.conn.execute(sql, [
       this.schemaHash,
       this.getSemanticVersion(),
-      description, 
-      errorMessage, 
+      description,
+      errorMessage,
       executionTimeMs
     ]);
-    log.error('SchemaVersion', `Schema version ${this.getSemanticVersion()} (${this.schemaHash}) recorded as failed (HiDNS): ${errorMessage}`);
+    log.error(`Schema version ${this.getSemanticVersion()} (${this.schemaHash}) recorded as failed (HiDNS): ${errorMessage}`);
   }
 
   async getAppliedMigrations(): Promise<MigrationRecord[]> {
     const sql = 'SELECT * FROM schema_versions ORDER BY applied_at ASC';
     const result = await this.conn.execute(sql);
-    
+
     if (!Array.isArray(result)) {
       return [];
     }
@@ -318,18 +319,18 @@ export class SchemaVersionManager {
   async getLastSuccessfulVersion(): Promise<string | null> {
     const sql = 'SELECT version FROM schema_versions WHERE success = 1 ORDER BY applied_at DESC LIMIT 1';
     const result = await this.conn.execute(sql);
-    
+
     if (Array.isArray(result) && result.length > 0) {
       return (result[0] as any).version;
     }
-    
+
     return null;
   }
 
   async recordDSMVersion(schemaVersion: string): Promise<void> {
     const exists = await this.isDSMVersionRecorded(schemaVersion);
     if (exists) {
-      log.debug('SchemaVersion', `DSM version ${schemaVersion} already recorded.`);
+      log.debug(`DSM version ${schemaVersion} already recorded.`);
       return;
     }
 
@@ -337,7 +338,7 @@ export class SchemaVersionManager {
       `Declarative Schema Management v${schemaVersion}`,
       0
     );
-    
+
     await this.conn.execute(
       `UPDATE schema_versions SET semantic_version = ? WHERE version = ?`,
       [schemaVersion, this.schemaHash]
@@ -346,7 +347,7 @@ export class SchemaVersionManager {
 
   async isDSMVersionRecorded(schemaVersion: string): Promise<boolean> {
     const result = await this.conn.get(
-      `SELECT COUNT(*) as cnt FROM schema_versions 
+      `SELECT COUNT(*) as cnt FROM schema_versions
        WHERE semantic_version = ? AND version LIKE 'DSM-%'`,
       [schemaVersion]
     );

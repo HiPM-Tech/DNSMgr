@@ -20,7 +20,6 @@ import {
   DeviceInfo,
 } from '../service/deviceTrust';
 import { getRequestIP } from '../middleware/clientIP';
-import { log } from '../lib/logger';
 
 const router = Router();
 
@@ -109,10 +108,10 @@ router.post('/password-strength', asyncHandler(async (req: Request, res: Respons
     sendError(res, 'Password is required');
     return;
   }
-  
+
   const result = checkPasswordStrength(password);
   const policy = await getSecurityPolicy();
-  
+
   sendSuccess(res, {
     ...result,
     meetsPolicy: result.score >= policy.minPasswordStrength && password.length >= policy.minPasswordLength,
@@ -141,7 +140,7 @@ router.get('/2fa/requirement', authMiddleware, asyncHandler(async (req: Request,
   const validationEnabled = Boolean(policy.require2FAGlobal);
   const forceRequired = validationEnabled && (await requires2FA(userId));
   const enabled = validationEnabled && (await has2FAEnabled(userId));
-  
+
   sendSuccess(res, {
     enabled,
     forceRequired,
@@ -188,7 +187,7 @@ router.get('/trusted-devices', authMiddleware, asyncHandler(async (req: Request,
 router.delete('/trusted-devices/:id', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const deviceId = req.params.id;
   const success = await removeTrustedDevice(req.user!.userId, deviceId);
-  
+
   if (success) {
     sendSuccess(res);
   } else {
@@ -213,7 +212,7 @@ router.post('/check-device', authMiddleware, asyncHandler(async (req: Request, r
     userAgent: req.headers['user-agent'] || '',
     ipAddress: getRequestIP(req),
   };
-  
+
   const result = await verifyTrustedDevice(req.user!.userId, deviceInfo);
   sendSuccess(res, result);
 }));

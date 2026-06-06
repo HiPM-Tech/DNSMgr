@@ -1,13 +1,14 @@
 /**
  * WHOIS 缓存管理
- * 
+ *
  * 负责 WHOIS 结果的数据库缓存读写
  */
 
 import { WhoisOperations } from '../../db/bal/business-adapter';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 import { extractStatus } from './data-parser';
 
+const log = createLogger('WhoisService').sub('Cache');
 // WHOIS 数据库缓存配置
 const CACHE_TTL = 3 * 60 * 60 * 1000; // 3 小时
 const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL / 1000);
@@ -44,10 +45,10 @@ function formatDateForMySQL(date: Date): string {
 export async function getCachedWhois(domain: string): Promise<WhoisResult | null> {
   try {
     const row = await WhoisOperations.getCachedWhois(domain, CACHE_TTL_SECONDS);
-    
+
     if (row) {
-      log.debug('WhoisCache', `Cache hit for ${domain}`);
-      
+      log.debug(`Cache hit for ${domain}`);
+
       let whoisData: Record<string, unknown> = {};
       try {
         const rawWhoisData = (row as any).whois_data;
@@ -59,7 +60,7 @@ export async function getCachedWhois(domain: string): Promise<WhoisResult | null
       } catch {
         whoisData = {};
       }
-      
+
       const cached: WhoisResult = {
         domain: domain,
         expiryDate: whoisData.expiryDate ? new Date(whoisData.expiryDate as string) : null,
@@ -69,21 +70,21 @@ export async function getCachedWhois(domain: string): Promise<WhoisResult | null
         raw: (whoisData.raw as string) || '',
         status: (row as any).status || null,
       };
-      
+
       // 如果缓存中没有 status，尝试从 raw_data 中解析
       if (!cached.status && cached.raw) {
         cached.status = extractStatus(cached.raw);
         if (cached.status) {
-          log.info('WhoisCache', `Parsed status from cache for ${domain}: ${cached.status}`);
+          log.info(`Parsed status from cache for ${domain}: ${cached.status}`);
         }
       }
-      
+
       return cached;
     }
-    
+
     return null;
   } catch (error) {
-    log.error('WhoisCache', 'Failed to get cached WHOIS', { domain, error });
+    log.error('Failed to get cached WHOIS', { domain, error });
     return null;
   }
 }
@@ -102,8 +103,8 @@ export async function setCachedWhois(domain: string, result: WhoisResult): Promi
       result.raw || '',
       result.status || null
     );
-    log.debug('WhoisCache', `Cached WHOIS result for ${domain}`, { status: result.status });
+    log.debug(`Cached WHOIS result for ${domain}`, { status: result.status });
   } catch (error) {
-    log.error('WhoisCache', 'Failed to cache WHOIS result', { domain, error });
+    log.error('Failed to cache WHOIS result', { domain, error });
   }
 }

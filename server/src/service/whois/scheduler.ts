@@ -1,6 +1,6 @@
 /**
  * WHOIS 调度器注册表
- * 
+ *
  * 所有支持 WHOIS 查询的 DNS 提供商需要实现此接口并向核心注册
  */
 
@@ -14,11 +14,11 @@ export function initWhoisSchedulers(): void {
   const { dnsProviderAdapter } = require('./providers/adapter');
   // 注册 DNSHE WHOIS 适配器
   dnsProviderAdapter.register(dnsheWhoisScheduler);
-  
+
   // 未来可以在这里注册其他提供商的适配器
   // dnsProviderAdapter.register(alicloudWhoisAdapter);
   // dnsProviderAdapter.register(cloudflareWhoisAdapter);
-  
+
   const registeredTypes = dnsProviderAdapter.getRegisteredTypes();
   console.log(`[WhoisInit] Registered WHOIS adapters for: ${registeredTypes.join(', ')}`);
 }
@@ -31,24 +31,25 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
   const { WhoisOperations } = await import('../../db/bal/business-adapter');
   const { connect } = await import('../../db/dal/connection');
   const { taskManager } = await import('../taskManager');
-  const { log } = await import('../../lib/logger');
+  const { createLogger } = await import('../../lib/logger');
+  const log = createLogger('WhoisService').sub('Scheduler');
   const { checkWhoisForDomain } = await import('./checker');
   const { checkAndSendNotification } = await import('./notifier');
-  
-  log.info('WhoisScheduler', 'Starting WHOIS sync for all domains');
+
+  log.info('Starting WHOIS sync for all domains');
 
   let domains: any[] = [];
   try {
     domains = await WhoisOperations.getAllDomains();
   } catch (error) {
     if (error instanceof Error && error.message.includes('Database connection not initialized')) {
-      log.warn('WhoisScheduler', 'Database connection lost, attempting to reconnect...');
+      log.warn('Database connection lost, attempting to reconnect...');
       try {
         await connect();
-        log.info('WhoisScheduler', 'Database reconnected successfully, retrying...');
+        log.info('Database reconnected successfully, retrying...');
         domains = await WhoisOperations.getAllDomains();
       } catch (reconnectError) {
-        log.error('WhoisScheduler', 'Failed to reconnect to database');
+        log.error('Failed to reconnect to database');
         return;
       }
     } else {
@@ -56,7 +57,7 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
     }
   }
 
-  log.info('WhoisScheduler', `Found ${domains.length} domains to sync`);
+  log.info(`Found ${domains.length} domains to sync`);
 
   let successCount = 0;
   let failCount = 0;
@@ -76,7 +77,7 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
         try {
           // 跳过已禁用的域名
           if (d.enabled === 0) {
-            log.info('WhoisScheduler', `Skipping disabled domain: ${d.name}`);
+            log.info(`Skipping disabled domain: ${d.name}`);
             return;
           }
 
@@ -90,8 +91,8 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
             const minutes = String(whoisResult.expiryDate.getMinutes()).padStart(2, '0');
             const seconds = String(whoisResult.expiryDate.getSeconds()).padStart(2, '0');
             const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-            
-            const formattedApexDate = whoisResult.apexExpiryDate 
+
+            const formattedApexDate = whoisResult.apexExpiryDate
               ? (() => {
                   const y = whoisResult.apexExpiryDate!.getFullYear();
                   const m = String(whoisResult.apexExpiryDate!.getMonth() + 1).padStart(2, '0');
@@ -102,11 +103,11 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
                   return `${y}-${m}-${d} ${h}:${min}:${s}`;
                 })()
               : null;
-              
+
             await WhoisOperations.updateExpiry(d.id, formattedDate, formattedApexDate, whoisResult.status);
 
             successCount++;
-            log.info('WhoisScheduler', `Updated expiry for ${d.name}: ${formattedDate}`);
+            log.info(`Updated expiry for ${d.name}: ${formattedDate}`);
 
             // 推送 WebSocket 消息通知前端更新
             try {
@@ -122,19 +123,19 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
                 },
               });
             } catch (error) {
-              log.error('WhoisScheduler', 'Failed to broadcast domain_whois_updated event', { error });
+              log.error('Failed to broadcast domain_whois_updated event', { error });
             }
 
             await checkAndSendNotification(d, whoisResult.expiryDate);
           } else {
             failCount++;
             failedDomains.push(d.name);
-            log.warn('WhoisScheduler', `Failed to get expiry for ${d.name}`);
+            log.warn(`Failed to get expiry for ${d.name}`);
           }
         } catch (error) {
           failCount++;
           failedDomains.push(d.name);
-          log.error('WhoisScheduler', `Error processing ${d.name}`);
+          log.error(`Error processing ${d.name}`);
         }
       }
     );
@@ -142,7 +143,7 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
 
   await Promise.all(tasks);
 
-  log.info('WhoisScheduler', `WHOIS sync completed: ${successCount} success, ${failCount} failed`, {
+  log.info(`WHOIS sync completed: ${successCount} success, ${failCount} failed`, {
     failedDomains: failedDomains.slice(0, 20),
     totalFailed: failedDomains.length,
   });
@@ -154,14 +155,15 @@ export async function syncAllDomainsWhois(forceRefresh: boolean = false): Promis
 export async function startWhoisJob(): Promise<void> {
   const { WhoisOperations } = await import('../../db/bal/business-adapter');
   const { taskManager } = await import('../taskManager');
-  const { log } = await import('../../lib/logger');
-  
+  const { createLogger } = await import('../../lib/logger');
+  const log = createLogger('WhoisService').sub('Scheduler');
+
   // 初始化 WHOIS 缓存表
   try {
     await WhoisOperations.ensureWhoisCacheTable();
-    log.info('WhoisScheduler', 'WHOIS cache table initialized');
+    log.info('WHOIS cache table initialized');
   } catch (error) {
-    log.error('WhoisScheduler', 'Failed to initialize WHOIS cache table');
+    log.error('Failed to initialize WHOIS cache table');
   }
 
   // 启动后 30 秒运行第一次
@@ -176,7 +178,7 @@ export async function startWhoisJob(): Promise<void> {
         retryDelay: 10000,
       },
       syncAllDomainsWhois
-    ).catch(err => log.error('WhoisScheduler', 'Initial sync error'));
+    ).catch(err => log.error('Initial sync error'));
   }, 30 * 1000);
 
   // 每小时运行一次
@@ -191,8 +193,8 @@ export async function startWhoisJob(): Promise<void> {
         retryDelay: 10000,
       },
       syncAllDomainsWhois
-    ).catch(err => log.error('WhoisScheduler', 'Scheduled sync error'));
+    ).catch(err => log.error('Scheduled sync error'));
   }, 60 * 60 * 1000);
 
-  log.info('WhoisScheduler', 'WHOIS job scheduler started (every 1 hour)');
+  log.info('WHOIS job scheduler started (every 1 hour)');
 }

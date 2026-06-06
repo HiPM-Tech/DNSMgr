@@ -1,21 +1,8 @@
-import { 
-  DnsAdapter, 
-  DnsRecord, 
-  DomainInfo, 
-  PageResult,
-  asArray, 
-  Dict, 
-  normalizeRrName, 
-  safeString, 
-  BaseAdapter, 
-  toNumber, 
-  toRecordStatus,
-  log,
-  fetchWithFallback,
-} from '../internal';
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, asArray, Dict, normalizeRrName, safeString, BaseAdapter, toNumber, toRecordStatus, fetchWithFallback } from '../internal';
 import { renewSubdomain as renewSubdomainApi } from './renewal';
 import { getWhois as getWhoisApi } from './whois';
 
+const log = createProviderAdapterLogger('DNSHE');
 interface DnsheConfig {
   apiKey: string;
   apiSecret: string;
@@ -106,7 +93,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
     queryParams?: Record<string, string | number>
   ): Promise<DnsheApiResponse<T>> {
     let url = `${this.baseUrl}?m=domain_hub&endpoint=${endpoint}&action=${action}`;
-    
+
     // Add query parameters for GET requests
     if (queryParams && method === 'GET') {
       const params = new URLSearchParams();
@@ -115,7 +102,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
       });
       url += `&${params.toString()}`;
     }
-    
+
     const options: RequestInit = {
       method,
       headers: this.getHeaders(),
@@ -127,12 +114,12 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
 
     const res = await fetchWithFallback(url, options, this.config.useProxy, 'DNSHE');
     const data = (await res.json()) as DnsheApiResponse<T>;
-    
+
     if (!data.success) {
       this.error = data.error || data.message || 'Unknown error';
-      log.error('DNSHE', `Request failed: ${endpoint}/${action}`, { error: this.error });
+      log.error(`Request failed: ${endpoint}/${action}`, { error: this.error });
     }
-    
+
     return data;
   }
 
@@ -155,7 +142,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
         include_total: 1,
         ...(keyword && { search: keyword }),
       });
-      
+
       if (!res.success || !res.subdomains) {
         return { total: 0, list: [] };
       }
@@ -175,7 +162,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
       return { total, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Dnshe', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }
@@ -193,7 +180,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
     try {
       if (!this.config.subdomainId) {
         this.error = 'Subdomain ID not configured';
-        log.error('DNSHE', 'getDomainRecords failed: subdomainId not set');
+        log.error('getDomainRecords failed: subdomainId not set');
         return { total: 0, list: [] };
       }
 
@@ -205,9 +192,9 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
         undefined,
         { subdomain_id: toNumber(this.config.subdomainId, 0) }
       );
-      
+
       if (!res.success || !res.records) {
-        log.error('DNSHE', 'getDomainRecords failed: API returned no records', { success: res.success });
+        log.error('getDomainRecords failed: API returned no records', { success: res.success });
         return { total: 0, list: [] };
       }
 
@@ -215,7 +202,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
 
       if (keyword) {
         const lowerKeyword = keyword.toLowerCase();
-        list = list.filter((r) => 
+        list = list.filter((r) =>
           r.Name.toLowerCase().includes(lowerKeyword) ||
           r.Value.toLowerCase().includes(lowerKeyword)
         );
@@ -241,11 +228,11 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
       const offset = (page - 1) * pageSize;
       list = list.slice(offset, offset + pageSize);
 
-      log.info('DNSHE', 'getDomainRecords success', { total, page, pageSize });
+      log.info('getDomainRecords success', { total, page, pageSize });
       return { total, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('DNSHE', 'getDomainRecords exception', { error: this.error });
+      log.error('getDomainRecords exception', { error: this.error });
       return { total: 0, list: [] };
     }
   }
@@ -265,7 +252,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
         undefined,
         { subdomain_id: toNumber(this.config.subdomainId, 0) }
       );
-      
+
       if (!res.success || !res.records) {
         return null;
       }
@@ -315,19 +302,19 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
       }
 
       const res = await this.request<{ record_id: number }>('dns_records', 'create', 'POST', body);
-      log.info('DNSHE', 'Add record response', { 
-        success: res.success, 
+      log.info('Add record response', {
+        success: res.success,
         record_id: res.record_id,
         fullResponse: JSON.stringify(res)
       });
       if (!res.success) {
-        log.error('DNSHE', 'Add record failed', { response: res });
+        log.error('Add record failed', { response: res });
         return null;
       }
 
       const recordId = res.record_id;
       if (!recordId) {
-        log.error('DNSHE', 'No record_id in response', { response: res });
+        log.error('No record_id in response', { response: res });
         return null;
       }
 
@@ -457,7 +444,7 @@ export class DnsheAdapter extends BaseAdapter implements DnsAdapter {
   private mapRecord(r: DnsheRecord): DnsRecord {
     // Use full_domain from DNSHE API directly
     const domain = r.full_domain || this.config.domain || '';
-    
+
     // Extract record name from full domain
     let name: string;
     if (r.name === '@' || r.name === domain) {

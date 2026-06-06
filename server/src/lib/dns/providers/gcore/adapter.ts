@@ -1,14 +1,8 @@
-import { 
-  DnsAdapter, 
-  DnsRecord, 
-  DomainInfo, 
-  PageResult,
-  resolveDomainIdHelper,
-  log,
-} from '../internal';
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, resolveDomainIdHelper } from '../internal';
 import { buildAuthHeaders, type GcoreAuthConfig } from './auth';
 import { requestJson } from '../http';
 
+const log = createProviderAdapterLogger('Gcore');
 interface GcoreZone {
   id: number;
   name: string;
@@ -64,7 +58,7 @@ export class GcoreAdapter implements DnsAdapter {
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<GcoreApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
-    log.providerRequest('Gcore', method, url, body);
+    log.sub('API').tag('REQUEST').debug('Provider request', { method: method, url: url, params: body });
 
     try {
       const raw = await requestJson<GcoreApiResponse<T>>(url, {
@@ -76,15 +70,15 @@ export class GcoreAdapter implements DnsAdapter {
         parseError: parseGcoreError,
       });
       const data: GcoreApiResponse<T> = Array.isArray(raw) ? { results: raw, total: raw.length } : (raw ?? {});
-      log.providerResponse('Gcore', 200, true, {
+      log.sub('API').tag('RESPONSE').debug('Provider response', { status: 200, success: true, data: {
         hasResult: !!data.zones || !!data.rrsets || !!data.result || !!data.results,
         total: data.total_amount ?? data.total,
-      });
+      } });
       return data;
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       this.error = errorMessage;
-      log.providerError('Gcore', { error: errorMessage });
+      log.sub('API').tag('ERROR').error('Provider error', { error: errorMessage });
       return {} as GcoreApiResponse<T>;
     }
   }
@@ -131,7 +125,7 @@ export class GcoreAdapter implements DnsAdapter {
       return { total: res.total_amount ?? list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Gcore', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

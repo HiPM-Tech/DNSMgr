@@ -1,8 +1,9 @@
 import net from 'net';
 import tls from 'tls';
 import { SmtpOperations, getDbType } from '../db/bal/business-adapter';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('Smtp');
 export interface SmtpConfig {
   enabled: boolean;
   host: string;
@@ -90,7 +91,7 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
   const timeoutMs = Number(process.env.SMTP_TIMEOUT_MS || 15000);
   const useImplicitTls = config.secure || config.port === 465;
 
-  log.info('SMTP', 'Connecting to SMTP server', {
+  log.info('Connecting to SMTP server', {
     host: config.host,
     port: config.port,
     secure: config.secure,
@@ -104,9 +105,9 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
     socket = useImplicitTls
       ? tls.connect({ host: config.host, port: config.port, servername: config.host })
       : net.connect({ host: config.host, port: config.port });
-    log.info('SMTP', 'Socket created');
+    log.info('Socket created');
   } catch (e) {
-    log.error('SMTP', 'Failed to create socket', { error: e instanceof Error ? e.message : String(e) });
+    log.error('Failed to create socket', { error: e instanceof Error ? e.message : String(e) });
     throw e;
   }
 
@@ -167,49 +168,49 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
   };
 
   const sendCmd = async (command: string, expectedPrefix?: string | string[]): Promise<string> => {
-    log.debug('SMTP', 'Sending command', { command: command.substring(0, 50) });
+    log.debug('Sending command', { command: command.substring(0, 50) });
     socket.write(command + '\r\n');
     const response = await waitForCode(expectedPrefix);
-    log.debug('SMTP', 'Got response', { response: response.substring(0, 100) });
+    log.debug('Got response', { response: response.substring(0, 100) });
     return response;
   };
 
   try {
-    log.info('SMTP', 'Waiting for 220 greeting...');
+    log.info('Waiting for 220 greeting...');
     await waitForCode('220');
-    log.info('SMTP', 'Got 220 greeting');
+    log.info('Got 220 greeting');
 
     let ehloResp = await sendCmd('EHLO hidns.local', '250');
-    log.info('SMTP', 'EHLO response received');
+    log.info('EHLO response received');
 
     // If server supports STARTTLS, upgrade plaintext connection before AUTH/MAIL.
     if (!useImplicitTls && /(^|\r?\n)250[ -].*STARTTLS/i.test(ehloResp)) {
-      log.info('SMTP', 'Server supports STARTTLS, upgrading connection...');
+      log.info('Server supports STARTTLS, upgrading connection...');
       await sendCmd('STARTTLS', '220');
       socket = await new Promise<tls.TLSSocket>((resolve, reject) => {
         const tlsSocket = tls.connect({ socket, servername: config.host }, () => resolve(tlsSocket));
         tlsSocket.once('error', reject);
       });
-      log.info('SMTP', 'STARTTLS upgrade complete');
+      log.info('STARTTLS upgrade complete');
       ehloResp = await sendCmd('EHLO hidns.local', '250');
     }
 
     if (config.username && config.password) {
-      log.info('SMTP', 'Authenticating...');
+      log.info('Authenticating...');
       await sendCmd('AUTH LOGIN', '334');
       await sendCmd(Buffer.from(config.username).toString('base64'), '334');
       await sendCmd(Buffer.from(config.password).toString('base64'), '235');
-      log.info('SMTP', 'Authentication successful');
+      log.info('Authentication successful');
     }
 
-    log.info('SMTP', 'Sending MAIL FROM...');
+    log.info('Sending MAIL FROM...');
     await sendCmd(`MAIL FROM:<${config.fromEmail}>`, '250');
-    log.info('SMTP', 'Sending RCPT TO...');
+    log.info('Sending RCPT TO...');
     await sendCmd(`RCPT TO:<${to}>`, ['250', '251']);
-    log.info('SMTP', 'Sending DATA...');
+    log.info('Sending DATA...');
     await sendCmd('DATA', '354');
   } catch (e) {
-    log.error('SMTP', 'SMTP command failed', { error: e instanceof Error ? e.message : String(e) });
+    log.error('SMTP command failed', { error: e instanceof Error ? e.message : String(e) });
     throw e;
   }
 
@@ -228,24 +229,24 @@ async function sendRawSmtpMail(config: SmtpConfig, to: string, subject: string, 
 }
 
 export async function sendSmtpEmail(to: string, subject: string, text: string): Promise<void> {
-  log.info('SMTP', 'Preparing to send email', { to, subject });
+  log.info('Preparing to send email', { to, subject });
   const config = await getSmtpConfig();
-  log.debug('SMTP', 'SMTP config loaded', { 
-    host: config.host, 
+  log.debug('SMTP config loaded', {
+    host: config.host,
     port: config.port,
     enabled: config.enabled,
     secure: config.secure,
     hasAuth: !!(config.username && config.password)
   });
   if (!config.enabled) {
-    log.error('SMTP', 'SMTP is not enabled in configuration');
+    log.error('SMTP is not enabled in configuration');
     throw new Error('SMTP is not enabled');
   }
   try {
     await sendRawSmtpMail(config, to, subject, text);
-    log.info('SMTP', 'Email sent successfully', { to });
+    log.info('Email sent successfully', { to });
   } catch (error) {
-    log.error('SMTP', 'Failed to send raw SMTP mail', { 
+    log.error('Failed to send raw SMTP mail', {
       error: error instanceof Error ? error.message : String(error),
       to,
       host: config.host,

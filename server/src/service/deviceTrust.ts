@@ -5,15 +5,16 @@
 
 import crypto from 'crypto';
 import { TrustedDeviceOperations, getDbType } from '../db/bal/business-adapter';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { getSecurityPolicy } from './securityPolicy';
 
+const log = createLogger('Security').sub('DeviceTrust');
 /**
  * 初始化受信任设备表
  */
 export async function initTrustedDevicesTable(): Promise<void> {
   // 表初始化已在业务适配器中处理，此函数保留用于兼容性
-  log.debug('DeviceTrust', 'Trusted devices table initialized');
+  log.debug('Trusted devices table initialized');
 }
 
 export interface TrustedDevice {
@@ -77,7 +78,7 @@ export async function addTrustedDevice(
     expiresAt.toISOString()
   );
 
-  log.info('DeviceTrust', `Added trusted device for user ${userId}: ${name}`);
+  log.info(`Added trusted device for user ${userId}: ${name}`);
   return deviceId;
 }
 
@@ -108,7 +109,7 @@ export async function verifyTrustedDevice(
   if (expiresAt < new Date()) {
     // 删除过期设备
     await TrustedDeviceOperations.delete(device.id as string);
-    log.debug('DeviceTrust', `Removed expired device ${device.id}`);
+    log.debug(`Removed expired device ${device.id}`);
     return { trusted: false };
   }
 
@@ -139,7 +140,7 @@ export async function removeTrustedDevice(userId: number, deviceId: string): Pro
   const changes = await TrustedDeviceOperations.deleteByUserAndId(userId, deviceId);
 
   if (changes > 0) {
-    log.info('DeviceTrust', `Removed trusted device ${deviceId} for user ${userId}`);
+    log.info(`Removed trusted device ${deviceId} for user ${userId}`);
     return true;
   }
 
@@ -151,7 +152,7 @@ export async function removeTrustedDevice(userId: number, deviceId: string): Pro
  */
 export async function removeAllUserTrustedDevices(userId: number): Promise<void> {
   await TrustedDeviceOperations.deleteByUser(userId);
-  log.info('DeviceTrust', `Removed all trusted devices for user ${userId}`);
+  log.info(`Removed all trusted devices for user ${userId}`);
 }
 
 /**
@@ -161,7 +162,7 @@ export async function cleanupExpiredDevices(): Promise<number> {
   const count = await TrustedDeviceOperations.cleanupExpired();
 
   if (count > 0) {
-    log.info('DeviceTrust', `Cleaned up ${count} expired devices`);
+    log.info(`Cleaned up ${count} expired devices`);
   }
 
   return count;

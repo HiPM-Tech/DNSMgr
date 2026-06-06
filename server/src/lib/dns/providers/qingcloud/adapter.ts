@@ -1,9 +1,7 @@
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber, fetchWithFallback } from '../internal';
 import crypto from 'node:crypto';
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { BaseAdapter, Dict, resolveDomainIdHelper, safeString, toNumber } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('Qingcloud');
 interface QingcloudConfig {
   access_key_id: string;
   secret_access_key: string;
@@ -99,7 +97,7 @@ export class QingcloudAdapter extends BaseAdapter {
       return { total: data.total_count || list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Qingcloud', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

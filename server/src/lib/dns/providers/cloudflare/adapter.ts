@@ -1,13 +1,7 @@
-﻿import { 
-  DnsAdapter, 
-  DnsRecord, 
-  DomainInfo, 
-  PageResult,
-  resolveDomainIdHelper,
-  log,
-} from '../internal';
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, resolveDomainIdHelper } from '../internal';
 import { buildAuthHeaders, authenticatedRequest, type CloudflareAuthConfig } from './auth';
 
+const log = createProviderAdapterLogger('Cloudflare');
 interface CfZone {
   id: string;
   name: string;
@@ -56,37 +50,37 @@ export class CloudflareAdapter implements DnsAdapter {
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<CfApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
-    log.providerRequest('Cloudflare', method, url, body);
-    
+    log.sub('API').tag('REQUEST').debug('Provider request', { method: method, url: url, params: body });
+
     const options: RequestInit = {
       method,
       body: body ? JSON.stringify(body) : undefined,
     };
-    
+
     // authenticatedRequest 会自动添加授权头
     const res = await authenticatedRequest(url, this.config, options);
     const data = (await res.json()) as CfApiResponse<T>;
-    log.providerResponse('Cloudflare', res.status, data.success, { resultCount: Array.isArray(data.result) ? data.result.length : 0 });
+    log.sub('API').tag('RESPONSE').debug('Provider response', { status: res.status, success: data.success, data: { resultCount: Array.isArray(data.result) ? data.result.length : 0 } });
     if (!data.success) {
       // Log detailed error information
       if (data.errors?.length) {
         this.error = data.errors[0].message;
-        log.providerError('Cloudflare', {
+        log.sub('API').tag('ERROR').error('Provider error', {
           status: res.status,
           errors: data.errors.map((e) => e.message),
         });
       } else if (res.status === 404) {
         this.error = `Resource not found (404): ${path}`;
-        log.providerError('Cloudflare', { 
-          status: 404, 
-          path, 
+        log.sub('API').tag('ERROR').error('Provider error', {
+          status: 404,
+          path,
           message: 'Zone or record not found',
           zoneId: this.config.zoneId,
           domain: this.config.domain
         });
       } else {
         this.error = `API request failed with status ${res.status}`;
-        log.providerError('Cloudflare', { status: res.status, path });
+        log.sub('API').tag('ERROR').error('Provider error', { status: res.status, path });
       }
     }
     return data;
@@ -112,16 +106,16 @@ export class CloudflareAdapter implements DnsAdapter {
    */
   private async validateZone(zoneId: string): Promise<boolean> {
     try {
-      log.debug('Cloudflare', `Validating zone: ${zoneId}`);
+      log.debug(`Validating zone: ${zoneId}`);
       const res = await this.request<CfZone>('GET', `/zones/${zoneId}`);
       if (!res.success) {
-        log.warn('Cloudflare', `Zone validation failed:`, res.errors);
+        log.warn(`Zone validation failed:`, res.errors);
         return false;
       }
-      log.debug('Cloudflare', `Zone validated successfully: ${res.result.name} (${zoneId})`);
+      log.debug(`Zone validated successfully: ${res.result.name} (${zoneId})`);
       return true;
     } catch (e) {
-      log.error('Cloudflare', `Zone validation error:`, e);
+      log.error(`Zone validation error:`, e);
       return false;
     }
   }
@@ -131,12 +125,12 @@ export class CloudflareAdapter implements DnsAdapter {
    * 当 config.zoneId 未设置时，尝试通过域名搜索获取
    */
   private async resolveZoneId(): Promise<string | null> {
-    log.debug('Cloudflare', `resolveZoneId called. Current config:`, {
+    log.debug(`resolveZoneId called. Current config:`, {
       zoneId: this.config.zoneId,
       domainId: (this.config as any).domainId,
       domain: this.config.domain
     });
-    
+
     // 如果已有 zoneId，先验证其格式是否正确
     const existingZoneId = this.config.zoneId || (this.config as any).domainId;
     if (existingZoneId) {
@@ -144,27 +138,27 @@ export class CloudflareAdapter implements DnsAdapter {
       // 如果是 32 位且看起来像 MD5（全部小写），可能需要重新获取
       const isValidFormat = /^[a-f0-9]{32,40}$/i.test(existingZoneId);
       if (!isValidFormat) {
-        log.warn('Cloudflare', `Existing zoneId has invalid format: ${existingZoneId}. Will attempt to fetch from API.`);
+        log.warn(`Existing zoneId has invalid format: ${existingZoneId}. Will attempt to fetch from API.`);
         // 清除无效的 zoneId，强制重新获取
         this.config.zoneId = undefined;
         (this.config as any).domainId = undefined;
       }
     }
-    
+
     return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Cloudflare');
   }
 
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
     let path = `/zones?page=${page}&per_page=${pageSize}`;
     if (keyword) path += `&name=${encodeURIComponent(keyword)}`;
-    log.debug('Cloudflare', `getDomainList: page=${page}, pageSize=${pageSize}, keyword=${keyword || 'none'}`);
+    log.debug(`getDomainList: page=${page}, pageSize=${pageSize}, keyword=${keyword || 'none'}`);
     const res = await this.request<CfZone[]>('GET', path);
     if (!res.success) {
-      log.error('Cloudflare', 'getDomainList failed', res.errors);
+      log.error('getDomainList failed', res.errors);
       return { total: 0, list: [] };
     }
     const total = res.result_info?.total_count ?? res.result.length;
-    log.debug('Cloudflare', `getDomainList success: total=${total}, returned=${res.result.length}`);
+    log.debug(`getDomainList success: total=${total}, returned=${res.result.length}`);
     return {
       total,
       list: res.result.map((z) => ({
@@ -186,25 +180,25 @@ export class CloudflareAdapter implements DnsAdapter {
     _status?: number
   ): Promise<PageResult<DnsRecord>> {
     const zoneId = await this.resolveZoneId();
-    log.debug('Cloudflare', `getDomainRecords: zoneId=${zoneId || 'null'}, domain=${this.config.domain}, page=${page}, pageSize=${pageSize}`);
+    log.debug(`getDomainRecords: zoneId=${zoneId || 'null'}, domain=${this.config.domain}, page=${page}, pageSize=${pageSize}`);
     if (!zoneId) {
-      log.warn('Cloudflare', `getDomainRecords: zoneId is null, returning empty result. Config:`, {
+      log.warn(`getDomainRecords: zoneId is null, returning empty result. Config:`, {
         zoneId: this.config.zoneId,
         domainId: (this.config as any).domainId,
         domain: this.config.domain
       });
       return { total: 0, list: [] };
     }
-    
+
     // 先验证 Zone ID 是否有效
-    log.debug('Cloudflare', `Validating zoneId: ${zoneId} for domain: ${this.config.domain}`);
+    log.debug(`Validating zoneId: ${zoneId} for domain: ${this.config.domain}`);
     const zoneValid = await this.validateZone(zoneId);
     if (!zoneValid) {
-      log.error('Cloudflare', `Zone validation failed for zoneId: ${zoneId}. The zone may not exist or API token may lack permissions.`);
+      log.error(`Zone validation failed for zoneId: ${zoneId}. The zone may not exist or API token may lack permissions.`);
       this.error = `Zone validation failed. Please check if zoneId '${zoneId}' is correct and API token has proper permissions.`;
       return { total: 0, list: [] };
     }
-    
+
     let path = `/zones/${zoneId}/dns_records?page=${page}&per_page=${pageSize}`;
     if (type) path += `&type=${encodeURIComponent(type)}`;
     // Cloudflare requires full record name for filtering (including zone name).

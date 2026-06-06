@@ -13,8 +13,9 @@ import type { DatabaseConfig } from './config';
 import { getDatabaseConfig, validateConfig } from './config';
 import type { DatabaseDriver } from '../dl/types';
 import { initDriver, getCurrentDriver, closeDriver, DriverManager } from '../dl';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 
+const log = createLogger('DAL').sub('Connection');
 /**
  * 驱动包装器
  * 将 DatabaseDriver 包装为 DatabaseConnection 接口
@@ -103,16 +104,16 @@ export class ConnectionManager {
     if (this.connection) {
       const isHealthy = await this.checkHealth();
       if (isHealthy) {
-        log.info('ConnectionManager', 'Returning existing healthy connection', { type: this.connection.type });
+        log.info('Returning existing healthy connection', { type: this.connection.type });
         return this.connection;
       }
       // 连接不健康，尝试重连
-      log.warn('ConnectionManager', 'Existing connection unhealthy, attempting reconnect');
+      log.warn('Existing connection unhealthy, attempting reconnect');
       await this.disconnect();
     }
 
     if (this.connectionPromise) {
-      log.info('ConnectionManager', 'Waiting for existing connection promise');
+      log.info('Waiting for existing connection promise');
       return this.connectionPromise;
     }
 
@@ -134,7 +135,7 @@ export class ConnectionManager {
   private async createConnectionWithRetry(config: DatabaseConfig): Promise<DatabaseConnection> {
     while (this.reconnectAttempts < this.maxReconnectAttempts) {
       try {
-        log.info('ConnectionManager', `Creating new ${config.type} connection...`, {
+        log.info(`Creating new ${config.type} connection...`, {
           attempt: this.reconnectAttempts + 1,
           maxAttempts: this.maxReconnectAttempts,
         });
@@ -147,20 +148,20 @@ export class ConnectionManager {
           },
         });
 
-        log.info('ConnectionManager', `${config.type} driver initialized successfully`);
+        log.info(`${config.type} driver initialized successfully`);
         return new DriverConnectionWrapper(driver);
       } catch (error) {
         this.reconnectAttempts++;
-        log.error('ConnectionManager', `Connection attempt ${this.reconnectAttempts} failed`, { error });
+        log.error(`Connection attempt ${this.reconnectAttempts} failed`, { error });
 
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-          log.error('ConnectionManager', 'Max reconnection attempts reached');
+          log.error('Max reconnection attempts reached');
           throw error;
         }
 
         // 指数退避
         const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-        log.info('ConnectionManager', `Retrying connection in ${delay}ms...`);
+        log.info(`Retrying connection in ${delay}ms...`);
         await this.sleep(delay);
       }
     }
@@ -176,7 +177,7 @@ export class ConnectionManager {
     if (this.isShuttingDown) {
       return false;
     }
-    
+
     if (!this.connection) return false;
 
     try {
@@ -186,7 +187,7 @@ export class ConnectionManager {
     } catch (error) {
       // 只在非关闭状态下记录警告
       if (!this.isShuttingDown) {
-        log.warn('ConnectionManager', 'Health check failed', { error });
+        log.warn('Health check failed', { error });
       }
       return false;
     }
@@ -203,15 +204,15 @@ export class ConnectionManager {
         this.stopHealthCheck();
         return;
       }
-      
+
       const isHealthy = await this.checkHealth();
       if (!isHealthy && !this.isShuttingDown) {
-        log.warn('ConnectionManager', 'Health check detected unhealthy connection, attempting reconnect');
+        log.warn('Health check detected unhealthy connection, attempting reconnect');
         try {
           await this.disconnect();
           await this.connect();
         } catch (error) {
-          log.error('ConnectionManager', 'Auto-reconnect failed', { error });
+          log.error('Auto-reconnect failed', { error });
         }
       }
     }, 30000);
@@ -242,26 +243,26 @@ export class ConnectionManager {
    */
   async disconnect(): Promise<void> {
     if (this.isShuttingDown) {
-      log.warn('ConnectionManager', 'Disconnect already in progress');
+      log.warn('Disconnect already in progress');
       return;
     }
 
     this.isShuttingDown = true;
-    log.info('ConnectionManager', 'Gracefully shutting down connection...');
+    log.info('Gracefully shutting down connection...');
 
     // 停止健康检查
     this.stopHealthCheck();
 
     // 等待正在进行的连接完成
     if (this.connectionPromise) {
-      log.info('ConnectionManager', 'Waiting for pending connection to complete...');
+      log.info('Waiting for pending connection to complete...');
       try {
         await Promise.race([
           this.connectionPromise,
           new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000)),
         ]);
       } catch (error) {
-        log.warn('ConnectionManager', 'Pending connection did not complete in time', { error });
+        log.warn('Pending connection did not complete in time', { error });
       }
       this.connectionPromise = null;
     }
@@ -274,9 +275,9 @@ export class ConnectionManager {
     // 关闭驱动
     try {
       await closeDriver();
-      log.info('ConnectionManager', 'Driver closed successfully');
+      log.info('Driver closed successfully');
     } catch (error) {
-      log.error('ConnectionManager', 'Error closing driver', { error });
+      log.error('Error closing driver', { error });
     }
 
     this.isShuttingDown = false;

@@ -1,14 +1,15 @@
 /**
  * WHOIS 过期通知器
- * 
+ *
  * 负责检查域名到期时间并发送通知
  */
 
 import { WhoisOperations } from '../../db/bal/business-adapter';
 import { Domain } from '../../types';
 import { sendNotification } from '../notification';
-import { log } from '../../lib/logger';
+import { createLogger } from '../../lib/logger';
 
+const log = createLogger('WhoisService').sub('Notifier');
 /**
  * 检查并发送过期通知
  */
@@ -30,12 +31,12 @@ export async function checkAndSendNotification(domain: Domain, expiresAt: Date):
           `[HiDNS] Domain Expiring Soon: ${domain.name}`,
           `Your domain ${domain.name} is expiring in ${daysLeft} days (on ${expiresAt.toLocaleDateString()}). Please renew it soon.`
         );
-        log.info('WhoisNotifier', `Sent expiry notification for ${domain.name} (${daysLeft} days left)`);
+        log.info(`Sent expiry notification for ${domain.name} (${daysLeft} days left)`);
       } catch (err) {
-        log.error('WhoisNotifier', `Failed to send notification for ${domain.name}`);
+        log.error(`Failed to send notification for ${domain.name}`);
       }
     }
   } catch (error) {
-    log.error('WhoisNotifier', `Error checking notification for ${domain.name}`);
+    log.error(`Error checking notification for ${domain.name}`);
   }
 }

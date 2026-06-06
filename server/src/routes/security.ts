@@ -3,9 +3,10 @@ import { authMiddleware, adminOnly, noTokenAuth } from '../middleware/auth';
 import { SecurityPolicyOperations, TrustedDeviceOperations, getDbType, UserOperations } from '../db/bal/business-adapter';
 import { getSecurityPolicy, updateSecurityPolicy, checkPasswordStrength, validatePassword, requires2FA, has2FAEnabled } from '../service/securityPolicy';
 import { generateTOTPSecret, enableTOTP, disableTOTP, getTOTPStatus, verifyTOTPToken } from '../service/totp';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { wsService } from '../service/websocket';
 
+const log = createLogger('HTTP').sub('Route').sub('Security');
 const router = Router();
 
 // 获取安全策略
@@ -14,7 +15,7 @@ router.get('/policy', authMiddleware, noTokenAuth('security settings'), adminOnl
     const policy = await getSecurityPolicy();
     res.json({ code: 0, data: policy, msg: 'success' });
   } catch (error) {
-    log.error('Security', 'Failed to get security policy:', { error });
+    log.error('Failed to get security policy:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to get security policy' });
   }
 });
@@ -26,7 +27,7 @@ router.put('/policy', authMiddleware, noTokenAuth('security settings'), adminOnl
     await updateSecurityPolicy(policy);
     res.json({ code: 0, msg: 'Security policy updated' });
   } catch (error) {
-    log.error('Security', 'Failed to update security policy:', { error });
+    log.error('Failed to update security policy:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to update security policy' });
   }
 });
@@ -42,7 +43,7 @@ router.post('/password-strength', async (req, res) => {
     const result = checkPasswordStrength(password);
     res.json({ code: 0, data: result, msg: 'success' });
   } catch (error) {
-    log.error('Security', 'Failed to check password strength:', { error });
+    log.error('Failed to check password strength:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to check password strength' });
   }
 });
@@ -58,7 +59,7 @@ router.post('/validate-password', async (req, res) => {
     const result = await validatePassword(password);
     res.json({ code: 0, data: result, msg: 'success' });
   } catch (error) {
-    log.error('Security', 'Failed to validate password:', { error });
+    log.error('Failed to validate password:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to validate password' });
   }
 });
@@ -70,7 +71,7 @@ router.get('/requires-2fa', authMiddleware, async (req, res) => {
     const required = await requires2FA(userId);
     res.json({ code: 0, data: { required }, msg: 'success' });
   } catch (error) {
-    log.error('Security', 'Failed to check 2FA requirement:', { error });
+    log.error('Failed to check 2FA requirement:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to check 2FA requirement' });
   }
 });
@@ -93,7 +94,7 @@ router.get('/2fa-status', authMiddleware, async (req, res) => {
       msg: 'success',
     });
   } catch (error) {
-    log.error('Security', 'Failed to check 2FA status:', { error });
+    log.error('Failed to check 2FA status:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to check 2FA status' });
   }
 });
@@ -121,7 +122,7 @@ router.get('/users/:userId/require-2fa', authMiddleware, noTokenAuth('security s
       msg: 'success',
     });
   } catch (error) {
-    log.error('Security', 'Failed to get user 2FA requirement:', { error });
+    log.error('Failed to get user 2FA requirement:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to get user 2FA requirement' });
   }
 });
@@ -153,7 +154,7 @@ router.put('/users/:userId/require-2fa', authMiddleware, noTokenAuth('security s
       msg: 'User 2FA requirement updated',
     });
   } catch (error) {
-    log.error('Security', 'Failed to update user 2FA requirement:', { error });
+    log.error('Failed to update user 2FA requirement:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to update user 2FA requirement' });
   }
 });
@@ -173,7 +174,7 @@ router.post('/2fa/setup', authMiddleware, async (req, res) => {
     const setup = await generateTOTPSecret(userId, email || username);
     res.json({ code: 0, data: setup, msg: 'success' });
   } catch (error) {
-    log.error('Security', 'Failed to setup 2FA:', { error });
+    log.error('Failed to setup 2FA:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to setup 2FA' });
   }
 });
@@ -194,7 +195,7 @@ router.post('/2fa/enable', authMiddleware, async (req, res) => {
     }
 
     await enableTOTP(userId, secret, backupCodes);
-    
+
     // 推送 WebSocket 消息给当前用户
     try {
       wsService.sendToClient(userId, {
@@ -205,12 +206,12 @@ router.post('/2fa/enable', authMiddleware, async (req, res) => {
         },
       });
     } catch (error) {
-      log.error('Security', 'Failed to send 2fa_enabled event', { error });
+      log.error('Failed to send 2fa_enabled event', { error });
     }
-    
+
     res.json({ code: 0, msg: '2FA enabled successfully' });
   } catch (error) {
-    log.error('Security', 'Failed to enable 2FA:', { error });
+    log.error('Failed to enable 2FA:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to enable 2FA' });
   }
 });
@@ -228,7 +229,7 @@ router.post('/2fa/disable', authMiddleware, async (req, res) => {
     }
 
     await disableTOTP(userId);
-    
+
     // 推送 WebSocket 消息给当前用户
     try {
       wsService.sendToClient(userId, {
@@ -239,12 +240,12 @@ router.post('/2fa/disable', authMiddleware, async (req, res) => {
         },
       });
     } catch (error) {
-      log.error('Security', 'Failed to send 2fa_disabled event', { error });
+      log.error('Failed to send 2fa_disabled event', { error });
     }
-    
+
     res.json({ code: 0, msg: '2FA disabled successfully' });
   } catch (error) {
-    log.error('Security', 'Failed to disable 2FA:', { error });
+    log.error('Failed to disable 2FA:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to disable 2FA' });
   }
 });
@@ -256,7 +257,7 @@ router.get('/trusted-devices', authMiddleware, async (req, res) => {
     const devices = await TrustedDeviceOperations.getByUser(userId);
     res.json({ code: 0, data: devices, msg: 'success' });
   } catch (error) {
-    log.error('Security', 'Failed to get trusted devices:', { error });
+    log.error('Failed to get trusted devices:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to get trusted devices' });
   }
 });
@@ -280,15 +281,15 @@ router.delete('/trusted-devices/:deviceId', authMiddleware, async (req, res) => 
           },
         });
       } catch (error) {
-        log.error('Security', 'Failed to send trusted_device_removed event', { error });
+        log.error('Failed to send trusted_device_removed event', { error });
       }
-      
+
       res.json({ code: 0, msg: 'Device removed' });
     } else {
       res.status(404).json({ code: 1, msg: 'Device not found' });
     }
   } catch (error) {
-    log.error('Security', 'Failed to remove trusted device:', { error });
+    log.error('Failed to remove trusted device:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to remove trusted device' });
   }
 });
@@ -300,7 +301,7 @@ router.delete('/trusted-devices', authMiddleware, async (req, res) => {
     await TrustedDeviceOperations.deleteByUser(userId);
     res.json({ code: 0, msg: 'All devices removed' });
   } catch (error) {
-    log.error('Security', 'Failed to remove all trusted devices:', { error });
+    log.error('Failed to remove all trusted devices:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to remove all trusted devices' });
   }
 });
@@ -316,7 +317,7 @@ router.post('/user-require-2fa', authMiddleware, noTokenAuth('security settings'
     await SecurityPolicyOperations.updateUser2FARequirement(userId, require2FA);
     res.json({ code: 0, msg: 'User 2FA requirement updated' });
   } catch (error) {
-    log.error('Security', 'Failed to update user 2FA requirement:', { error });
+    log.error('Failed to update user 2FA requirement:', { error });
     res.status(500).json({ code: 1, msg: 'Failed to update user 2FA requirement' });
   }
 });

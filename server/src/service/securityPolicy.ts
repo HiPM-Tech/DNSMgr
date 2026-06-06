@@ -4,8 +4,9 @@
  */
 
 import { SecurityPolicyOperations } from '../db/bal/business-adapter';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('Security').sub('SecurityPolicy');
 // zxcvbn 是 CommonJS 模块，需要这样导入
 import zxcvbn from 'zxcvbn';
 
@@ -75,10 +76,10 @@ export async function initSecurityPolicyTable(): Promise<void> {
         DEFAULT_POLICY.trustedDeviceDays,
         DEFAULT_POLICY.requirePasswordChangeOnFirstLogin ? 1 : 0,
       ]);
-      log.info('SecurityPolicy', 'Initialized default security policy');
+      log.info('Initialized default security policy');
     }
   } catch (error) {
-    log.error('SecurityPolicy', 'Failed to init table:', { error });
+    log.error('Failed to init table:', { error });
     throw error;
   }
 }
@@ -102,7 +103,7 @@ export async function getSecurityPolicy(): Promise<SecurityPolicy> {
       requirePasswordChangeOnFirstLogin: Boolean(row.requirePasswordChangeOnFirstLogin),
     } as SecurityPolicy;
   } catch (error) {
-    log.error('SecurityPolicy', 'Failed to get policy:', { error });
+    log.error('Failed to get policy:', { error });
     return DEFAULT_POLICY;
   }
 }
@@ -146,7 +147,7 @@ export async function updateSecurityPolicy(policy: Partial<SecurityPolicy>): Pro
 
   await SecurityPolicyOperations.updatePolicy(updates, current.id!);
 
-  log.info('SecurityPolicy', 'Policy updated', policy);
+  log.info('Policy updated', policy);
 }
 
 /**

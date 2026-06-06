@@ -1,9 +1,6 @@
-import { DnsRecord, DomainInfo, PageResult } from '../internal';
-import { BaseAdapter, safeString, toNumber } from '../internal';
-import { Dict } from '../internal';
-import { fetchWithFallback } from '../internal';
-import { log } from '../internal';
+import { createProviderAdapterLogger, DnsRecord, DomainInfo, PageResult, BaseAdapter, safeString, toNumber, Dict, fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('VPS8');
 interface Vps8Config {
   apiKey: string;
   client: string;
@@ -36,11 +33,11 @@ export class Vps8Adapter extends BaseAdapter {
   private async request<T>(endpoint: string, params: Record<string, unknown> = {}): Promise<T> {
     const url = `${this.baseUrl}/${endpoint}`;
     const body = JSON.stringify(params);
-    
+
     try {
       // HTTP Basic Auth: username="client" (fixed literal string), password=apiKey
       const credentials = Buffer.from(`client:${this.config.apiKey}`).toString('base64');
-      
+
       const res = await fetchWithFallback(url, {
         method: 'POST',
         headers: {
@@ -49,10 +46,10 @@ export class Vps8Adapter extends BaseAdapter {
         },
         body,
       }, this.config.useProxy, 'VPS8');
-      
+
       const text = await res.text();
       let payload: unknown = undefined;
-      
+
       if (text) {
         try {
           payload = JSON.parse(text);
@@ -60,14 +57,14 @@ export class Vps8Adapter extends BaseAdapter {
           throw new Error(`Invalid JSON response: ${text.slice(0, 200)}`);
         }
       }
-      
+
       const data = payload as Vps8Response<T>;
-      
+
       // 如果响应有 error 字段且不为 null，抛出错误
       if (data.error && data.error.code && data.error.code !== 200) {
         throw new Error(safeString(data.error.message) || 'VPS8 API request failed');
       }
-      
+
       return (data.result ?? {}) as T;
     } catch (error) {
       if (error instanceof Error) {
@@ -89,19 +86,19 @@ export class Vps8Adapter extends BaseAdapter {
 
   async getDomainList(keyword?: string, _page = 1, _pageSize = 50): Promise<PageResult<DomainInfo>> {
     try {
-      log.debug('VPS8', 'Fetching domain list', { 
+      log.debug('Fetching domain list', {
         client: this.config.client,
         apiKeyLength: this.config.apiKey.length,
-        baseUrl: this.baseUrl 
+        baseUrl: this.baseUrl
       });
-      
-      const response = await this.request<Array<{ 
-        domain: string; 
+
+      const response = await this.request<Array<{
+        domain: string;
         id?: string;
         expires_at?: string;
         created_at?: string;
       }>>('domain_list', {});
-      
+
       let list = (response || []).map((item) => ({
         Domain: safeString(item.domain),
         ThirdId: safeString(item.id) || safeString(item.domain),
@@ -116,7 +113,7 @@ export class Vps8Adapter extends BaseAdapter {
       return { total: list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('VPS8', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }
@@ -209,7 +206,7 @@ export class Vps8Adapter extends BaseAdapter {
       return safeString(response.id) || 'success';
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('VPS8', 'addDomainRecord failed', this.error);
+      log.error('addDomainRecord failed', this.error);
       return null;
     }
   }
@@ -230,7 +227,7 @@ export class Vps8Adapter extends BaseAdapter {
         return false;
       }
 
-      log.debug('VPS8', 'Updating record', { recordId, domain: this.config.domain });
+      log.debug('Updating record', { recordId, domain: this.config.domain });
 
       const params: Record<string, unknown> = {
         domain: this.config.domain,
@@ -244,13 +241,13 @@ export class Vps8Adapter extends BaseAdapter {
       }
 
       await this.request('record_update', params);
-      log.debug('VPS8', 'Record updated successfully', { recordId });
+      log.debug('Record updated successfully', { recordId });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('VPS8', 'updateDomainRecord failed', { 
-        recordId, 
-        error: this.error 
+      log.error('updateDomainRecord failed', {
+        recordId,
+        error: this.error
       });
       return false;
     }
@@ -262,20 +259,20 @@ export class Vps8Adapter extends BaseAdapter {
         return false;
       }
 
-      log.debug('VPS8', 'Deleting record', { recordId, domain: this.config.domain });
+      log.debug('Deleting record', { recordId, domain: this.config.domain });
 
       await this.request('record_delete', {
         domain: this.config.domain,
         id: recordId,
       });
-      
-      log.debug('VPS8', 'Record deleted successfully', { recordId });
+
+      log.debug('Record deleted successfully', { recordId });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('VPS8', 'deleteDomainRecord failed', { 
-        recordId, 
-        error: this.error 
+      log.error('deleteDomainRecord failed', {
+        recordId,
+        error: this.error
       });
       return false;
     }

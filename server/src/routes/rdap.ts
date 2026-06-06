@@ -1,11 +1,11 @@
 /**
  * RDAP 公开查询路由
- * 
+ *
  * 提供符合 RFC 7483 标准的 RDAP 查询接口
  * - 无需鉴权，开放查询
  * - 直接使用 WHOIS/RDAP 系统，不走数据库
  * - 返回国际标准 JSON 格式
- * 
+ *
  * 端点:
  *   GET /api/rdap/domain/{domain}     - 查询域名信息
  *   GET /api/rdap/nameserver/{name}   - 查询 Nameserver（预留）
@@ -15,14 +15,15 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { whoisService, getRootDomain } from '../service/whois';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { normalizeDomain, isValidDomain, toUnicode } from '../utils/dns';
 
+const log = createLogger('HTTP').sub('Route').sub('Rdap');
 const router = Router();
 
 /**
  * RDAP 查询函数（使用内部分层查询）
- * 
+ *
  * 查询策略（分层并行竞速）：
  * 1. 顶域RDAP 并行查询（所有匹配的RDAP提供商竞速）
  * 2. 顶域WHOIS 并行查询（所有匹配的WHOIS提供商竞速）
@@ -32,31 +33,31 @@ const router = Router();
  * 6. 子域WHOIS 并行平级查询（试图查询其它子域提供商）
  * 7. 第三方RDAP 并行查询
  * 8. 第三方WHOIS 并行查询
- * 
+ *
  * 注意：此函数不会查询 DNS 提供商，因为：
  * - DNS 提供商查询需要数据库握手（获取账号配置）
  * - 公开 RDAP 接口无需鉴权，无法传递账号信息
  * - DNS 提供商查询仅在内部定时任务中执行（checker.ts）
- * 
+ *
  * @returns { type: 'RDAP' | 'WHOIS', raw: string, ... } 或 null
  */
 async function queryRdapWithLayers(domain: string): Promise<any | null> {
   const rootDomain = getRootDomain(domain);
   const isSubdomain = domain !== rootDomain;
-  
-  log.info('RDAP', `Layered RDAP query for ${domain} (isSubdomain: ${isSubdomain})`);
-  
+
+  log.info(`Layered RDAP query for ${domain} (isSubdomain: ${isSubdomain})`);
+
   // 使用完整的分层查询服务
   const result = await whoisService.query(domain, {
     preferSubdomain: true,
     useCache: false,        // 公开 RDAP 不使用缓存，确保实时性
     skipUplevel: true,      // 禁用平级查询，避免查询其他提供商
   });
-  
+
   if (!result) {
     return null;
   }
-  
+
   // 判断查询类型：检查 raw 是否为 JSON
   let queryType: 'RDAP' | 'WHOIS' = 'WHOIS';
   try {
@@ -70,7 +71,7 @@ async function queryRdapWithLayers(domain: string): Promise<any | null> {
     // 不能解析为 JSON，是 WHOIS 文本
     queryType = 'WHOIS';
   }
-  
+
   return {
     ...result,
     queryType,  // 添加查询类型标记
@@ -84,7 +85,7 @@ async function queryRdapWithLayers(domain: string): Promise<any | null> {
 function convertToRdapFormat(domain: string, whoisResult: any): any {
   // 获取 Unicode 格式的域名用于显示
   const unicodeDomain = toUnicode(domain);
-  
+
   const rdapResponse: any = {
     objectClassName: 'domain',
     // ldhName: 字母-数字-连字符格式（Punycode）
@@ -92,25 +93,25 @@ function convertToRdapFormat(domain: string, whoisResult: any): any {
     // 如果域名包含非 ASCII 字符，添加 unicodeName 字段
     ...(unicodeDomain !== domain.toLowerCase() && { unicodeName: unicodeDomain }),
     handle: domain.toUpperCase(),
-    
+
     // 域名状态
     status: whoisResult.status ? [whoisResult.status] : [],
-    
+
     // 事件信息
     events: [],
-    
+
     // 域名服务器
     nameservers: [],
-    
+
     // 实体信息（注册商等）
     entities: [],
-    
+
     // RDAP  conformant
     rdapConformance: [
       'rdap_level_0',
       'icann_rdap_technical_implementation_guide_0',
     ],
-    
+
     //  notices: [
     //   {
     //     title: 'Terms of Use',
@@ -193,9 +194,9 @@ function convertToRdapFormat(domain: string, whoisResult: any): any {
 
 /**
  * GET /api/rdap/domain/{domain}
- * 
+ *
  * 查询域名的 RDAP 信息
- * 
+ *
  * 示例:
  *   GET /api/rdap/domain/example.com
  *   GET /api/rdap/domain/hins.io.ht
@@ -205,7 +206,7 @@ router.get(
   asyncHandler(async (req, res, next): Promise<void> => {
     // 获取原始域名参数（可能是 Unicode 或 Punycode）
     const rawDomain = req.params.domain.trim();
-    
+
     // 使用 IDN-aware 归一化（将 Unicode 转换为 Punycode）
     const domain = normalizeDomain(rawDomain);
 
@@ -220,7 +221,7 @@ router.get(
     }
 
     try {
-      log.info('RDAP', `Public RDAP query for domain: ${domain}`);
+      log.info(`Public RDAP query for domain: ${domain}`);
 
       // 使用完整的分层 RDAP 查询
       const queryResult = await queryRdapWithLayers(domain);
@@ -235,32 +236,32 @@ router.get(
       }
 
       let rdapResponse: any;
-      
+
       // 根据查询类型决定处理方式
       if (queryResult.queryType === 'RDAP') {
         // RDAP 查询：直接返回原始 JSON（不转换）
-        log.info('RDAP', 'Returning raw RDAP response');
+        log.info('Returning raw RDAP response');
         try {
           rdapResponse = JSON.parse(queryResult.raw);
         } catch (e) {
           // 如果解析失败，降级为转换模式
-          log.warn('RDAP', 'Failed to parse RDAP JSON, falling back to conversion');
+          log.warn('Failed to parse RDAP JSON, falling back to conversion');
           rdapResponse = convertToRdapFormat(domain, queryResult);
         }
       } else {
         // WHOIS 查询：转换为 RDAP 格式
         // 注：DNS 提供商查询不会在此触发（需要认证，公开 RDAP 不支持）
-        log.info('RDAP', 'Converting WHOIS data to RDAP format');
+        log.info('Converting WHOIS data to RDAP format');
         rdapResponse = convertToRdapFormat(domain, queryResult);
       }
 
       // 设置正确的 Content-Type
       res.setHeader('Content-Type', 'application/rdap+json');
       res.setHeader('Access-Control-Allow-Origin', '*');
-      
+
       res.json(rdapResponse);
     } catch (error) {
-      log.error('RDAP', `Error querying domain ${domain}:`, {
+      log.error(`Error querying domain ${domain}:`, {
         error: error instanceof Error ? error.message : String(error),
       });
 
@@ -275,7 +276,7 @@ router.get(
 
 /**
  * GET /api/rdap/help
- * 
+ *
  * 返回 RDAP 帮助信息
  */
 router.get(

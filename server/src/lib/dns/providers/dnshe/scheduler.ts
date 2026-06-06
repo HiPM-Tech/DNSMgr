@@ -1,11 +1,12 @@
+import { createProviderRenewalLogger } from '../internal';
 /**
  * DNSHE 域名续期调度器实现
  */
 
 import { RenewalScheduler, RenewableDomain, RenewalResult } from '../../../../service/renewalScheduler';
 import { listSubdomains, renewSubdomain, DnsheAuthConfig } from './index';
-import { log } from '../internal';
 
+const log = createProviderRenewalLogger('DNSHE');
 export class DnsheRenewalScheduler implements RenewalScheduler {
   readonly type = 'dnshe';
 
@@ -17,9 +18,9 @@ export class DnsheRenewalScheduler implements RenewalScheduler {
   async listRenewableDomains(config: DnsheAuthConfig): Promise<RenewableDomain[]> {
     try {
       const result = await listSubdomains(config);
-      
+
       if (!result || !result.success || !result.subdomains) {
-        log.warn('DnsheRenewalScheduler', 'Failed to list subdomains');
+        log.warn('Failed to list subdomains');
         return [];
       }
 
@@ -32,7 +33,7 @@ export class DnsheRenewalScheduler implements RenewalScheduler {
         // expires_at 将在续期时通过 renewSubdomain API 获取
       }));
     } catch (error) {
-      log.error('DnsheRenewalScheduler', 'Error listing renewable domains', {
+      log.error('Error listing renewable domains', {
         error: error instanceof Error ? error.message : String(error),
       });
       return [];
@@ -45,9 +46,9 @@ export class DnsheRenewalScheduler implements RenewalScheduler {
   async renewDomain(config: DnsheAuthConfig, domainId: number | string): Promise<RenewalResult | null> {
     try {
       const result = await renewSubdomain(config, Number(domainId));
-      
+
       if (!result) {
-        log.error('DnsheRenewalScheduler', 'Renewal failed', { domainId });
+        log.error('Renewal failed', { domainId });
         return null;
       }
 
@@ -61,7 +62,7 @@ export class DnsheRenewalScheduler implements RenewalScheduler {
         message: result.message,
       };
     } catch (error) {
-      log.error('DnsheRenewalScheduler', 'Error renewing domain', {
+      log.error('Error renewing domain', {
         domainId,
         error: error instanceof Error ? error.message : String(error),
       });

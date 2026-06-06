@@ -5,8 +5,9 @@
 import * as tls from 'tls';
 import { DNSQueryType, DNSResponse } from './types';
 import { encodeDNSQuery, decodeDNSResponse } from './doh-resolver';
-import { log } from '../../logger';
+import { createLogger } from '../../logger';
 
+const log = createLogger('DNS').sub('Resolver').sub('Dot');
 /**
  * 使用 DoT 查询 DNS
  */
@@ -21,7 +22,7 @@ export async function queryDoT(
     const port = parseInt(portStr) || 853;
 
     const queryBuffer = encodeDNSQuery(domain, type);
-    
+
     // DoT 需要在数据前添加 2 字节的长度前缀（与 TCP DNS 相同）
     const dotBuffer = Buffer.alloc(2 + queryBuffer.length);
     dotBuffer.writeUInt16BE(queryBuffer.length, 0);
@@ -38,7 +39,7 @@ export async function queryDoT(
 
     // 设置超时
     timer = setTimeout(() => {
-      log.debug('DoTResolver', `DoT query timeout: ${domain} @ ${serverAddress}`);
+      log.debug(`DoT query timeout: ${domain} @ ${serverAddress}`);
       cleanup();
       socket.end();
       resolve(null);
@@ -55,7 +56,7 @@ export async function queryDoT(
     socket.setTimeout(timeout);
 
     socket.on('secureConnect', () => {
-      log.debug('DoTResolver', `DoT TLS connection established: ${host}:${port}`);
+      log.debug(`DoT TLS connection established: ${host}:${port}`);
       socket.write(dotBuffer);
     });
 
@@ -77,7 +78,7 @@ export async function queryDoT(
           socket.end();
           resolve(response);
         } catch (error) {
-          log.error('DoTResolver', `Failed to decode DoT response: ${domain}`, {
+          log.error(`Failed to decode DoT response: ${domain}`, {
             error: error instanceof Error ? error.message : String(error),
           });
           cleanup();
@@ -88,7 +89,7 @@ export async function queryDoT(
     });
 
     socket.on('error', (error) => {
-      log.error('DoTResolver', `DoT socket error: ${domain}`, {
+      log.error(`DoT socket error: ${domain}`, {
         error: error.message,
       });
       cleanup();
@@ -96,7 +97,7 @@ export async function queryDoT(
     });
 
     socket.on('timeout', () => {
-      log.debug('DoTResolver', `DoT socket timeout: ${domain}`);
+      log.debug(`DoT socket timeout: ${domain}`);
       cleanup();
       socket.end();
       resolve(null);
@@ -124,6 +125,6 @@ export async function queryDoTWithProxy(
   timeout: number = 5000
 ): Promise<DNSResponse | null> {
   // TODO: 实现通过 HTTPS CONNECT 代理的 DoT 查询
-  log.debug('DoTResolver', `DoT with proxy not implemented yet: ${domain}`);
+  log.debug(`DoT with proxy not implemented yet: ${domain}`);
   return null;
 }

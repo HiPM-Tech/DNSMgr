@@ -4,7 +4,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { normalizeRole } from '../utils/roles';
 import { sendError, sendSuccess } from '../utils/http';
 import { createLogger } from '../lib/logger';
-const log = createLogger('Route:Providers');
+const log = createLogger('HTTP').sub('Route').sub('Providers');
 import { DnsAccountOperations, RenewableDomainOperations } from '../db/bal/business-adapter';
 import { listSubdomains as dnsheListSubdomains } from '../lib/dns/providers/dnshe/renewal';
 import * as fs from 'fs';
@@ -18,22 +18,22 @@ const router = Router();
  */
 router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
   const { type } = req.params;
-  
+
   try {
     // Icon file paths to check in priority order (SVG > PNG > ICO > JPG)
     // SVG is preferred for scalability and small file size
     const iconExtensions = ['.svg', '.png', '.ico', '.jpg', '.jpeg'];
-    
+
     // Support both development (src) and production (dist) environments
     // In dev: __dirname = server/dist/routes, need to go up to server/src/lib/dns/providers
     // In prod: __dirname = server/dist/routes, need to go up to server/dist/lib/dns/providers
     const providersDir = path.join(__dirname, '..', 'lib', 'dns', 'providers');
-    
+
     log.info(`Looking for icon in: ${providersDir}`);
-    
+
     let iconPath = '';
     let iconExt = '';
-    
+
     // Try to find icon file with highest priority extension first
     for (const ext of iconExtensions) {
       const candidatePath = path.join(providersDir, type, `icon${ext}`);
@@ -45,7 +45,7 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
         break;
       }
     }
-    
+
     // If not found in dist, try src directory (for development without copying files)
     if (!iconPath) {
       const srcProvidersDir = path.join(__dirname, '..', '..', 'src', 'lib', 'dns', 'providers');
@@ -56,19 +56,19 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
         if (fs.existsSync(candidatePath)) {
           iconPath = candidatePath;
           iconExt = ext;
-          log.info('Providers', `Serving icon from src for ${type}: icon${ext}`);
+          log.info(`Serving icon from src for ${type}: icon${ext}`);
           break;
         }
       }
     }
-    
+
     if (!iconPath || !fs.existsSync(iconPath)) {
       // Return 404 if icon not found
       log.warn(`Icon not found for provider: ${type}`);
       res.status(404).json({ error: 'Icon not found' });
       return;
     }
-    
+
     // Set appropriate content type based on file extension
     const contentTypes: Record<string, string> = {
       '.svg': 'image/svg+xml',
@@ -77,9 +77,9 @@ router.get('/:type/icon', asyncHandler(async (req: Request, res: Response) => {
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',
     };
-    
+
     const contentType = contentTypes[iconExt] || 'application/octet-stream';
-    
+
     // Read and send the icon file
     const iconData = fs.readFileSync(iconPath);
     res.set('Content-Type', contentType);
@@ -104,12 +104,12 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
   }
 
   const { type } = req.params;
-  
+
   try {
     // Get all accounts of the specified provider type
     const accounts = await DnsAccountOperations.getAll() as any[];
     const providerAccounts = accounts.filter((acc: any) => acc.type === type);
-    
+
     if (providerAccounts.length === 0) {
       sendSuccess(res, []);
       return;
@@ -132,13 +132,13 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
         for (const account of providerAccounts) {
           try {
             const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
-            
+
             const result = await dnsheListSubdomains({
               apiKey: config.apiKey,
               apiSecret: config.apiSecret,
               useProxy: !!config.useProxy,
             });
-            
+
             if (result && result.success && result.subdomains) {
               // Filter out already added domains and add account info
               const domainsWithAccount = result.subdomains
@@ -151,7 +151,7 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
                   id: sub.id,
                   third_id: String(sub.id),
                 }));
-              
+
               allDomains.push(...domainsWithAccount);
             }
           } catch (error) {
@@ -164,13 +164,13 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
         }
         break;
       }
-      
+
       // TODO: Add other providers here when they support renewal
       // case 'other_provider': {
       //   // Call other provider's listRenewableDomains function
       //   break;
       // }
-      
+
       default:
         sendError(res, `Provider type '${type}' does not support domain renewal`);
         return;

@@ -6,9 +6,10 @@
 import https from 'https';
 import http from 'http';
 import { URL } from 'url';
-import { log } from './logger';
+import { createLogger } from './logger';
 import { SettingsOperations } from '../db/bal/business-adapter';
 
+const log = createLogger('ProxyHttp');
 // Dynamic imports for proxy agents
 let SocksProxyAgent: any;
 let HttpsProxyAgent: any;
@@ -17,14 +18,14 @@ try {
   const socksModule = require('socks-proxy-agent');
   SocksProxyAgent = socksModule.SocksProxyAgent;
 } catch {
-  log.warn('ProxyHTTP', 'socks-proxy-agent not available');
+  log.warn('socks-proxy-agent not available');
 }
 
 try {
   const httpsModule = require('https-proxy-agent');
   HttpsProxyAgent = httpsModule.HttpsProxyAgent;
 } catch {
-  log.warn('ProxyHTTP', 'https-proxy-agent not available');
+  log.warn('https-proxy-agent not available');
 }
 
 /**
@@ -48,7 +49,7 @@ export async function getProxyConfig(): Promise<ProxyConfig | null> {
     if (!configValue) return null;
     return JSON.parse(configValue);
   } catch (error) {
-    log.warn('ProxyHTTP', 'Failed to get proxy config', { error });
+    log.warn('Failed to get proxy config', { error });
     return null;
   }
 }
@@ -73,10 +74,10 @@ export function createProxyAgent(config: ProxyConfig): any | null {
       const proxyUrl = `http://${auth}${config.host}:${config.port}`;
       return new HttpsProxyAgent(proxyUrl);
     }
-    log.warn('ProxyHTTP', 'Proxy agent not available');
+    log.warn('Proxy agent not available');
     return null;
   } catch (error) {
-    log.error('ProxyHTTP', 'Failed to create proxy agent', { error });
+    log.error('Failed to create proxy agent', { error });
     return null;
   }
 }
@@ -195,7 +196,7 @@ export function httpRequest(url: string, options: RequestOptions = {}, agent?: a
  */
 export async function request(url: string, options: RequestOptions = {}): Promise<{ status: number; data: string; headers: Record<string, string> }> {
   const agent = await getProxyAgent();
-  
+
   if (url.startsWith('https://')) {
     return httpsRequest(url, options, agent);
   } else {
@@ -277,7 +278,7 @@ export async function fetchWithFallback(
   // 检查全局代理配置是否启用
   const proxyConfig = await getProxyConfig();
   if (!proxyConfig || !proxyConfig.enabled) {
-    log.info('ProxyHTTP', `[${providerName}] Proxy not configured or disabled, using direct connection`);
+    log.info(`[${providerName}] Proxy not configured or disabled, using direct connection`);
     const res = await fetch(url, options);
     return res;
   }
@@ -285,7 +286,7 @@ export async function fetchWithFallback(
   // 尝试使用代理（设置较短的超时时间）
   const proxyStartTime = Date.now();
   try {
-    log.info('ProxyHTTP', `[${providerName}] Trying proxy request to ${url}`);
+    log.info(`[${providerName}] Trying proxy request to ${url}`);
     const agent = createProxyAgent(proxyConfig);
     if (!agent) {
       throw new Error('Failed to create proxy agent');
@@ -304,7 +305,7 @@ export async function fetchWithFallback(
       : await httpRequest(url, requestOptions, agent);
 
     const proxyDuration = Date.now() - proxyStartTime;
-    log.info('ProxyHTTP', `[${providerName}] Proxy request successful`, { duration: `${proxyDuration}ms` });
+    log.info(`[${providerName}] Proxy request successful`, { duration: `${proxyDuration}ms` });
     return new Response(res.data, {
       status: res.status,
       headers: res.headers,
@@ -312,20 +313,20 @@ export async function fetchWithFallback(
   } catch (proxyError) {
     // 代理请求失败，回退到直连
     const proxyDuration = Date.now() - proxyStartTime;
-    log.warn('ProxyHTTP', `[${providerName}] Proxy request failed after ${proxyDuration}ms, falling back to direct connection`, { 
-      error: proxyError instanceof Error ? proxyError.message : String(proxyError) 
+    log.warn(`[${providerName}] Proxy request failed after ${proxyDuration}ms, falling back to direct connection`, {
+      error: proxyError instanceof Error ? proxyError.message : String(proxyError)
     });
-    
+
     const directStartTime = Date.now();
     try {
       const res = await fetch(url, options);
       const directDuration = Date.now() - directStartTime;
-      log.info('ProxyHTTP', `[${providerName}] Direct connection successful`, { duration: `${directDuration}ms` });
+      log.info(`[${providerName}] Direct connection successful`, { duration: `${directDuration}ms` });
       return res;
     } catch (directError) {
       const directDuration = Date.now() - directStartTime;
-      log.error('ProxyHTTP', `[${providerName}] Direct connection also failed after ${directDuration}ms`, { 
-        error: directError instanceof Error ? directError.message : String(directError) 
+      log.error(`[${providerName}] Direct connection also failed after ${directDuration}ms`, {
+        error: directError instanceof Error ? directError.message : String(directError)
       });
       throw directError;
     }

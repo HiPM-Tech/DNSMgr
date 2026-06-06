@@ -7,13 +7,14 @@ import { Router, Request, Response } from 'express';
 import { NSMonitorOperations, DomainOperations, getDbType, formatDateForDB } from '../db/bal/business-adapter';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { normalizeRole, isSuper, isAdmin } from '../utils/roles';
 import { resolveNsRecords, NSLookupResult, validateNsRecords } from '../lib/dns/ns-lookup';
 import { getDomainAccess } from './domains';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, toUnicode, getDisplayDomain } from '../utils/dns';
 
+const log = createLogger('HTTP').sub('Route').sub('NsMonitor');
 const router = Router();
 
 /** 将布尔值转换为数据库特定的布尔类型 */
@@ -116,7 +117,7 @@ router.post('/resolve-ns', authMiddleware, asyncHandler(async (req: Request, res
       },
     });
   } catch (error) {
-    log.error('NSMonitor', 'Failed to resolve NS records', {
+    log.error('Failed to resolve NS records', {
       domain,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -160,7 +161,7 @@ router.put('/user/prefs', authMiddleware, asyncHandler(async (req: Request, res:
       updates.notify_channels = toDbBoolean(notify_channels, dbType);
     }
   } else if (notify_channels !== undefined) {
-    log.warn('NSMonitor', 'Non-admin user attempted to modify notification channels', {
+    log.warn('Non-admin user attempted to modify notification channels', {
       userId,
       role,
     });
@@ -184,8 +185,8 @@ router.put('/user/prefs', authMiddleware, asyncHandler(async (req: Request, res:
     });
   }
 
-  log.info('NSMonitor', 'User preferences updated', { userId, updates });
-  
+  log.info('User preferences updated', { userId, updates });
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -195,9 +196,9 @@ router.put('/user/prefs', authMiddleware, asyncHandler(async (req: Request, res:
       },
     });
   } catch (error) {
-    log.error('NSMonitor', 'Failed to broadcast ns_monitor_prefs_updated event', { error });
+    log.error('Failed to broadcast ns_monitor_prefs_updated event', { error });
   }
-  
+
   res.json({ success: true, msg: 'Preferences updated successfully' });
 }));
 
@@ -246,7 +247,7 @@ router.get('/available-domains', authMiddleware, asyncHandler(async (req: Reques
   // Level 1: Reuse DomainOperations.getAll() for super admin
   // For regular users, use dedicated function that filters by user's accounts
   let allDomains: any[];
-  
+
   if (isSuper(role)) {
     // Super admin: reuse existing getAll() function
     allDomains = await DomainOperations.getAll() as any[];
@@ -259,8 +260,8 @@ router.get('/available-domains', authMiddleware, asyncHandler(async (req: Reques
   const monitoredDomainNames = new Set(
     (await NSMonitorOperations.getUserMonitors(userId)).map((m: any) => m.domain_name)
   );
-  
-  const availableDomains = allDomains.filter((domain: any) => 
+
+  const availableDomains = allDomains.filter((domain: any) =>
     !monitoredDomainNames.has(domain.name)
   );
 
@@ -346,7 +347,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   const existing = await NSMonitorOperations.getByDomainName(userId, domainName);
   if (existing) {
     // Delete old monitor config first
-    log.info('NSMonitor', 'Deleting old monitor config for same domain name', {
+    log.info('Deleting old monitor config for same domain name', {
       oldMonitorId: existing.id,
       domainName,
     });
@@ -360,13 +361,13 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       const nsResult = await resolveNsRecords(domainName);
       if (nsResult.nsRecords.length > 0) {
         finalExpectedNs = nsResult.nsRecords.join(', ');
-        log.info('NSMonitor', 'Auto-filled expected NS', {
+        log.info('Auto-filled expected NS', {
           domainName,
           nsRecords: nsResult.nsRecords,
         });
       }
     } catch (error) {
-      log.warn('NSMonitor', 'Failed to auto-fetch NS records', { domainName, error });
+      log.warn('Failed to auto-fetch NS records', { domainName, error });
     }
   }
 
@@ -376,7 +377,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     expected_ns: finalExpectedNs,
   });
 
-  log.info('NSMonitor', 'Monitor created', { domainName, userId, monitorId: id });
+  log.info('Monitor created', { domainName, userId, monitorId: id });
 
   // 获取完整的监测配置数据用于 WebSocket 推送
   const newMonitor = await NSMonitorOperations.getById(id, userId);
@@ -393,7 +394,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       },
     });
   } catch (error) {
-    log.error('NSMonitor', 'Failed to broadcast ns_monitor_created event', { error });
+    log.error('Failed to broadcast ns_monitor_created event', { error });
   }
 
   res.json({
@@ -434,11 +435,11 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
 
   await NSMonitorOperations.update(parseInt(id), userId, updates);
 
-  log.info('NSMonitor', 'Monitor updated', { monitorId: id, userId, updates });
-  
+  log.info('Monitor updated', { monitorId: id, userId, updates });
+
   // 获取更新后的完整监测配置数据用于 WebSocket 推送
   const updatedMonitor = await NSMonitorOperations.getById(parseInt(id), userId);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -450,9 +451,9 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       },
     });
   } catch (error) {
-    log.error('NSMonitor', 'Failed to broadcast ns_monitor_updated event', { error });
+    log.error('Failed to broadcast ns_monitor_updated event', { error });
   }
-  
+
   res.json({ success: true });
 }));
 
@@ -477,8 +478,8 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
 
   await NSMonitorOperations.delete(parseInt(id), userId);
 
-  log.info('NSMonitor', 'Monitor deleted', { monitorId: id, userId });
-  
+  log.info('Monitor deleted', { monitorId: id, userId });
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -489,9 +490,9 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
       },
     });
   } catch (error) {
-    log.error('NSMonitor', 'Failed to broadcast ns_monitor_deleted event', { error });
+    log.error('Failed to broadcast ns_monitor_deleted event', { error });
   }
-  
+
   res.json({ success: true });
 }));
 
@@ -540,7 +541,7 @@ async function performNsCheck(monitorId: number, monitor: any, userId: number): 
     last_check_at: formatDateForDB(new Date()),
   });
 
-  log.info('NSMonitor', 'Manual check completed', {
+  log.info('Manual check completed', {
     monitorId,
     domainName: monitor.domain_name,
     status,

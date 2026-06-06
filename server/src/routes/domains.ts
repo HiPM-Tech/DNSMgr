@@ -9,13 +9,14 @@ import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations } from '../db/bal/business-adapter';
 import { syncDomainWhois } from '../service/whois';
 import { getRootDomain, queryWhois } from '../service/whois';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/dns';
 
+const log = createLogger('HTTP').sub('Route').sub('Domains');
 const router = Router();
 
 async function getAccountForUser(accountId: number, userId: number, role: number): Promise<DnsAccount | null> {
@@ -76,7 +77,7 @@ async function resolveDomainAccess(domain: Domain, userId: number, role: number)
     // 账号不存在或已禁用，拒绝所有操作（除了 WHOIS）
     return { domain, canRead: false, canWrite: false, writeSubs: [], hasRules: false };
   }
-  
+
   const hasRules = await DomainPermissionOperations.hasRules(domain.id);
   if (isSuper(role)) {
     return { domain, canRead: true, canWrite: true, writeSubs: null, hasRules };
@@ -159,11 +160,11 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword, domain_type, page, pageSize, format, include_disabled, domain_status, pinned_domains } = req.query as { 
-    account_id?: string; 
-    keyword?: string; 
-    domain_type?: string; 
-    page?: string; 
+  const { account_id, keyword, domain_type, page, pageSize, format, include_disabled, domain_status, pinned_domains } = req.query as {
+    account_id?: string;
+    keyword?: string;
+    domain_type?: string;
+    page?: string;
     pageSize?: string;
     format?: string; // 'array' for direct array response (for external adapters)
     include_disabled?: string; // 'true' to include disabled domains (legacy)
@@ -176,11 +177,11 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   // Pagination params
   const currentPage = Math.max(1, parseInteger(page) || 1);
   const size = Math.min(100, Math.max(1, parseInteger(pageSize) || 20));
-  
+
   // Parse domain_type with type safety
-  const parsedDomainType: 'apex' | 'subdomain' | undefined = 
+  const parsedDomainType: 'apex' | 'subdomain' | undefined =
     (domain_type === 'apex' || domain_type === 'subdomain') ? domain_type : undefined;
-  
+
   // Parse domain_status with fallback to legacy include_disabled parameter
   let parsedDomainStatus: 'enabled' | 'disabled' | 'all' = 'all';
   if (domain_status === 'enabled' || domain_status === 'disabled' || domain_status === 'all') {
@@ -192,7 +193,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   // If include_disabled=true or not specified, default to 'all'
 
   // Parse pinned_domains (comma-separated string to number array)
-  const pinnedDomainIds: number[] = pinned_domains 
+  const pinnedDomainIds: number[] = pinned_domains
     ? pinned_domains.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
     : [];
 
@@ -212,7 +213,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 
   let domains: Domain[];
   let total = 0; // 初始化 total
-  
+
   // Token 认证优化：根据 allowedDomains 是否为空选择不同策略
   if (tokenPayload) {
     const queryStartTime = Date.now();
@@ -255,8 +256,8 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
         total = result.total;
       }
     }
-    log.debug('Domains', 'Token auth domain query completed', { 
-      duration: `${Date.now() - queryStartTime}ms`, 
+    log.debug('Token auth domain query completed', {
+      duration: `${Date.now() - queryStartTime}ms`,
       count: domains.length,
       total
     });
@@ -365,7 +366,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
  * ⚠️ IMPORTANT: Static routes MUST be defined BEFORE dynamic routes (/:id)
  * Express matches routes in definition order. If /:id is defined first,
  * it will match '/renewable-domains' as an ID parameter, causing 404 errors.
- * 
+ *
  * Route priority order:
  * 1. Exact static routes (e.g., /renewable-domains)
  * 2. Prefixed static routes (e.g., /renewable-domains/sync)
@@ -379,28 +380,28 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
-  log.info('Domains', 'Renewable domains request', { userId: req.user?.userId, role });
-  
+  log.info('Renewable domains request', { userId: req.user?.userId, role });
+
   if (role < 2) {
-    log.warn('Domains', 'Unauthorized attempt to fetch renewable domains', { userId: req.user?.userId, role });
+    log.warn('Unauthorized attempt to fetch renewable domains', { userId: req.user?.userId, role });
     sendError(res, 'Permission denied');
     return;
   }
-  
-  log.info('Domains', 'Fetching renewable domains', { userId: req.user?.userId });
-  
+
+  log.info('Fetching renewable domains', { userId: req.user?.userId });
+
   try {
     // Query from renewable_domains table (include both enabled and disabled)
     const startTime = Date.now();
-    log.debug('Domains', 'Calling RenewableDomainOperations.getAll()');
+    log.debug('Calling RenewableDomainOperations.getAll()');
     const renewableDomains = await RenewableDomainOperations.getAll();
     const queryDuration = Date.now() - startTime;
-    
-    log.info('Domains', 'Fetched renewable domains from database', { 
+
+    log.info('Fetched renewable domains from database', {
       count: renewableDomains.length,
       duration: `${queryDuration}ms`
     });
-    
+
     // Enrich with account information
     const enrichStartTime = Date.now();
     const tokenPayload = (req as any).tokenPayload;
@@ -424,20 +425,20 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
       })
     );
     const enrichDuration = Date.now() - enrichStartTime;
-    
-    log.debug('Domains', 'Enriched domains with account info', { 
+
+    log.debug('Enriched domains with account info', {
       count: enrichedDomains.length,
       duration: `${enrichDuration}ms`
     });
-    
-    log.info('Domains', 'Successfully fetched renewable domains', { 
+
+    log.info('Successfully fetched renewable domains', {
       total: enrichedDomains.length,
       totalDuration: `${Date.now() - startTime}ms`
     });
-    
+
     sendSuccess(res, enrichedDomains);
   } catch (error) {
-    log.error('Domains', 'Failed to fetch renewable domains', { 
+    log.error('Failed to fetch renewable domains', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });
@@ -474,9 +475,9 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       sendError(res, 'Domain not found or no permission');
       return;
     }
-    
+
     const domain = access.domain;
-    
+
     // For Session auth, convert Punycode to Unicode for display
     // For Token auth, return raw Punycode
     const tokenPayload = (req as any).tokenPayload;
@@ -490,7 +491,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
       sendSuccess(res, domain);
     }
   } catch (error) {
-    log.error('Domains', 'Failed to get domain', { error });
+    log.error('Failed to get domain', { error });
     sendError(res, error instanceof Error ? error.message : 'Failed to get domain');
   }
 }));
@@ -562,10 +563,10 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       if (firstId === null) firstId = id;
       added++;
       addedDomains.push(item.name);
-      
+
       // 异步获取 WHOIS 信息（不阻塞响应），强制刷新以获取最新的多状态
       syncDomainWhois(id, true).catch(err => {
-        log.warn('Domains', `Failed to sync WHOIS for ${item.name}:`, { error: err });
+        log.warn(`Failed to sync WHOIS for ${item.name}:`, { error: err });
       });
     } catch (error) {
       if (error instanceof Error && error.message.toLowerCase().includes('unique')) {
@@ -584,7 +585,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   for (const domainName of addedDomains) {
     await logAuditOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id }, req);
   }
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -596,9 +597,9 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
       },
     });
   } catch (error) {
-    log.error('Domains', 'Failed to broadcast domain_created event', { error });
+    log.error('Failed to broadcast domain_created event', { error });
   }
-  
+
   sendSuccess(res, { id: firstId, added, skipped: duplicates.length, duplicates });
 }));
 
@@ -658,30 +659,30 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
 
         // 安全限制：最多获取10万个域名或2000页防止无限循环
         if (allDomains.length >= 100000 || page > maxPages) {
-          log.warn('Domains', `Sync domain limit reached (${allDomains.length} domains, ${page} pages), stopping pagination`);
+          log.warn(`Sync domain limit reached (${allDomains.length} domains, ${page} pages), stopping pagination`);
           break;
         }
       } catch (error) {
-        log.error('Domains', `Failed to fetch page ${page}:`, { error });
+        log.error(`Failed to fetch page ${page}:`, { error });
         break;
       }
     }
 
-    log.info('Domains', `Sync fetched ${allDomains.length} domains from provider`, { accountId: account_id, provider: account.type });
+    log.info(`Sync fetched ${allDomains.length} domains from provider`, { accountId: account_id, provider: account.type });
 
     let added = 0;
     for (const d of allDomains) {
       const normalizedName = normalizeDomain(d.Domain);
-      
+
       // 记录 IDN 域名转换信息
       if (normalizedName !== d.Domain.toLowerCase()) {
-        log.debug('Domains', 'IDN domain normalized during sync', {
+        log.debug('IDN domain normalized during sync', {
           original: d.Domain,
           normalized: normalizedName,
           accountId: account_id,
         });
       }
-      
+
       const existing = await DomainOperations.getByAccountIdAndName(account_id, normalizedName);
       if (!existing) {
         const id = await DomainOperations.create({
@@ -691,7 +692,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
           record_count: d.RecordCount ?? 0,
         });
         added++;
-        log.info('Domains', `Domain added during sync: ${normalizedName}`, {
+        log.info(`Domain added during sync: ${normalizedName}`, {
           originalName: d.Domain,
           accountId: account_id,
           isIdn: normalizedName !== d.Domain.toLowerCase(),
@@ -700,7 +701,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
 
         // 异步获取 WHOIS 信息（不阻塞响应）
         syncDomainWhois(id).catch(err => {
-          log.warn('Domains', `Failed to sync WHOIS for ${normalizedName}:`, { error: err });
+          log.warn(`Failed to sync WHOIS for ${normalizedName}:`, { error: err });
         });
       } else {
         await DomainOperations.updateThirdIdAndRecordCount(existing.id as number, d.ThirdId || '', d.RecordCount ?? 0);
@@ -741,7 +742,7 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
   try {
     // MySQL JSON type returns object directly, SQLite/PostgreSQL returns string
     const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
-    log.info('ProviderList', 'Fetching domains', { accountType: account.type, configKeys: Object.keys(cfg) });
+    log.info('Fetching domains', { accountType: account.type, configKeys: Object.keys(cfg) });
     const dnsAdapter = createAdapter(account.type, cfg);
 
     // 分页获取所有域名
@@ -759,16 +760,16 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
         page++;
 
         if (allProviderDomains.length >= 100000 || page > maxPages) {
-          log.warn('ProviderList', `Domain limit reached (${allProviderDomains.length} domains, ${page} pages), stopping pagination`);
+          log.warn(`Domain limit reached (${allProviderDomains.length} domains, ${page} pages), stopping pagination`);
           break;
         }
       } catch (error) {
-        log.error('ProviderList', `Failed to fetch page ${page}:`, { error });
+        log.error(`Failed to fetch page ${page}:`, { error });
         break;
       }
     }
 
-    log.info('ProviderList', 'Domains fetched', { total: allProviderDomains.length });
+    log.info('Domains fetched', { total: allProviderDomains.length });
 
     // 获取当前账号下已添加的域名列表
     const existingDomains = await DomainOperations.getByAccountId(accountId) as Array<{ name: string }>;
@@ -794,10 +795,10 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
         };
       });
 
-    log.info('ProviderList', 'Filtered domains', { total: allProviderDomains.length, filtered: domains.length, existing: existingDomainNames.size });
+    log.info('Filtered domains', { total: allProviderDomains.length, filtered: domains.length, existing: existingDomainNames.size });
     sendSuccess(res, domains);
   } catch (e) {
-    log.error('ProviderList', 'Error fetching domains', e);
+    log.error('Error fetching domains', e);
     sendError(res, e instanceof Error ? e.message : String(e));
   }
 }));
@@ -875,17 +876,17 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
   }
   const { remark, is_hidden, enabled } = req.body as { remark?: string; is_hidden?: number; enabled?: number };
   await DomainOperations.updateRemarkAndHidden(id, remark, is_hidden);
-  
+
   // Update enabled status if provided
   if (enabled !== undefined) {
     await DomainOperations.setEnabled(id, enabled);
   }
-  
+
   await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden, enabled }, req);
-  
+
   // 获取更新后的域名信息（包含到期时间）
   const updatedDomain = await DomainOperations.getById(id);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -900,9 +901,9 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
       },
     });
   } catch (error) {
-    log.error('Domains', 'Failed to broadcast domain_updated event', { error });
+    log.error('Failed to broadcast domain_updated event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -936,15 +937,15 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
     return;
   }
   await DomainOperations.delete(id);
-  
+
   // Check if there are any other domains with the same name
   const domainName = access.domain.name as string;
   const remainingDomains = await DomainOperations.getAll();
   const hasSameNameDomain = remainingDomains.some((d: any) => d.name === domainName);
-  
+
   // If no other domains with this name exist, delete NS monitor configs
   if (!hasSameNameDomain) {
-    log.info('Domains', 'No remaining domains with this name, deleting NS monitors', { domainName });
+    log.info('No remaining domains with this name, deleting NS monitors', { domainName });
     // Find and delete NS monitor configs for this domain name
     const userId = req.user!.userId;
     try {
@@ -952,19 +953,19 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
       for (const monitor of monitors) {
         if ((monitor as any).domain_name === domainName) {
           await NSMonitorOperations.delete(monitor.id as number, userId);
-          log.info('Domains', 'Deleted NS monitor for removed domain', {
+          log.info('Deleted NS monitor for removed domain', {
             monitorId: monitor.id,
             domainName,
           });
         }
       }
     } catch (error) {
-      log.error('Domains', 'Failed to cleanup NS monitors', { error });
+      log.error('Failed to cleanup NS monitors', { error });
     }
   }
-  
+
   await logAuditOperation(req.user!.userId, 'delete_domain', access.domain.name, { domainId: id, accountId: access.domain.account_id }, req);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -975,9 +976,9 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
       },
     });
   } catch (error) {
-    log.error('Domains', 'Failed to broadcast domain_deleted event', { error });
+    log.error('Failed to broadcast domain_deleted event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -1080,7 +1081,7 @@ router.post('/:id/failover', authMiddleware, requireTokenDomainPermission(), asy
   };
   if (existing) {
     await updateFailoverConfig(existing.id, configData);
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -1091,13 +1092,13 @@ router.post('/:id/failover', authMiddleware, requireTokenDomainPermission(), asy
         },
       });
     } catch (error) {
-      log.error('Domains', 'Failed to broadcast failover_config_updated event', { error });
+      log.error('Failed to broadcast failover_config_updated event', { error });
     }
-    
+
     sendSuccess(res, { id: existing.id });
   } else {
     const configId = await createFailoverConfig(domainId, configData);
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -1108,9 +1109,9 @@ router.post('/:id/failover', authMiddleware, requireTokenDomainPermission(), asy
         },
       });
     } catch (error) {
-      log.error('Domains', 'Failed to broadcast failover_config_created event', { error });
+      log.error('Failed to broadcast failover_config_created event', { error });
     }
-    
+
     sendSuccess(res, { id: configId });
   }
 }));
@@ -1128,7 +1129,7 @@ router.put('/:id/failover', authMiddleware, requireTokenDomainPermission(), asyn
     return;
   }
   await updateFailoverConfig(existing.id, req.body);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -1139,9 +1140,9 @@ router.put('/:id/failover', authMiddleware, requireTokenDomainPermission(), asyn
       },
     });
   } catch (error) {
-    log.error('Domains', 'Failed to broadcast failover_config_updated event', { error });
+    log.error('Failed to broadcast failover_config_updated event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -1158,7 +1159,7 @@ router.delete('/:id/failover', authMiddleware, requireTokenDomainPermission(), a
     return;
   }
   await deleteFailoverConfig(existing.id);
-  
+
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -1169,9 +1170,9 @@ router.delete('/:id/failover', authMiddleware, requireTokenDomainPermission(), a
       },
     });
   } catch (error) {
-    log.error('Domains', 'Failed to broadcast failover_config_deleted event', { error });
+    log.error('Failed to broadcast failover_config_deleted event', { error });
   }
-  
+
   sendSuccess(res);
 }));
 
@@ -1200,11 +1201,11 @@ router.post('/:id/whois', authMiddleware, requireTokenDomainPermission(), asyncH
     sendError(res, 'Domain not found');
     return;
   }
-  
+
   const result = await syncDomainWhois(id);
-  
+
   if (result.success) {
-    sendSuccess(res, { 
+    sendSuccess(res, {
       expires_at: result.expiresAt?.toISOString(),
       apex_expires_at: result.apexExpiresAt?.toISOString(),
     }, 'WHOIS info refreshed successfully');
@@ -1219,38 +1220,38 @@ router.post('/:id/whois', authMiddleware, requireTokenDomainPermission(), asyncH
 router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const renewableDomainId = parseInteger(req.params.id);
   const { subdomain_id } = req.body;
-  
-  log.info('Domains', 'Renewal request received', { 
-    renewableDomainId, 
-    subdomainId: subdomain_id, 
-    userId: req.user?.userId 
+
+  log.info('Renewal request received', {
+    renewableDomainId,
+    subdomainId: subdomain_id,
+    userId: req.user?.userId
   });
-  
+
   if (!renewableDomainId || !subdomain_id) {
-    log.error('Domains', 'Missing required parameters', { renewableDomainId, subdomain_id });
+    log.error('Missing required parameters', { renewableDomainId, subdomain_id });
     sendError(res, 'Missing domain ID or subdomain ID');
     return;
   }
-  
+
   // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
   if (role < 2) {
-    log.warn('Domains', 'Unauthorized renewal attempt', { userId: req.user?.userId, role });
+    log.warn('Unauthorized renewal attempt', { userId: req.user?.userId, role });
     sendError(res, 'Permission denied');
     return;
   }
-  
+
   // Get the renewable domain from renewable_domains table
   const renewableDomain = await RenewableDomainOperations.getById(renewableDomainId);
   if (!renewableDomain) {
-    log.error('Domains', 'Renewable domain not found', { renewableDomainId });
+    log.error('Renewable domain not found', { renewableDomainId });
     sendError(res, 'Renewable domain not found');
     return;
   }
-  
+
   // Check if domain is enabled
   if (!renewableDomain.enabled) {
-    log.warn('Domains', 'Cannot renew disabled domain', { 
+    log.warn('Cannot renew disabled domain', {
       renewableDomainId,
       full_domain: renewableDomain.full_domain,
       enabled: renewableDomain.enabled
@@ -1258,45 +1259,45 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
     sendError(res, 'Cannot renew disabled domain. Please enable it first.');
     return;
   }
-  
-  log.info('Domains', 'Renewable domain retrieved', { 
+
+  log.info('Renewable domain retrieved', {
     id: renewableDomain.id,
     full_domain: renewableDomain.full_domain,
     account_id: renewableDomain.account_id,
     provider_type: renewableDomain.provider_type,
     third_id: renewableDomain.third_id
   });
-  
+
   // Get the account
   const account = await DnsAccountOperations.getById(renewableDomain.account_id) as DnsAccount | undefined;
   if (!account) {
-    log.error('Domains', 'Account not found', { accountId: renewableDomain.account_id });
+    log.error('Account not found', { accountId: renewableDomain.account_id });
     sendError(res, 'Account not found');
     return;
   }
-  
-  log.info('Domains', 'Account retrieved for renewal', { 
-    accountId: account.id, 
-    accountName: account.name, 
-    type: account.type 
+
+  log.info('Account retrieved for renewal', {
+    accountId: account.id,
+    accountName: account.name,
+    type: account.type
   });
-  
+
   // Only support DNSHE provider
   if (account.type !== 'dnshe') {
-    log.warn('Domains', 'Unsupported provider for renewal', { type: account.type });
+    log.warn('Unsupported provider for renewal', { type: account.type });
     sendError(res, 'Renewal only supported for DNSHE provider');
     return;
   }
-  
+
   try {
     const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
-    
-    log.info('Domains', 'Calling DNSHE renewal API', { 
-      subdomainId: Number(subdomain_id), 
+
+    log.info('Calling DNSHE renewal API', {
+      subdomainId: Number(subdomain_id),
       useProxy: !!config.useProxy,
       apiKeyPrefix: config.apiKey?.substring(0, 8) + '...'
     });
-    
+
     const result = await dnsheRenewSubdomain(
       {
         apiKey: config.apiKey,
@@ -1305,24 +1306,24 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
       },
       Number(subdomain_id)
     );
-    
-    log.info('Domains', 'DNSHE renewal API response', { success: !!result, result });
-    
+
+    log.info('DNSHE renewal API response', { success: !!result, result });
+
     if (!result) {
-      log.error('Domains', 'DNSHE renewal returned null result');
+      log.error('DNSHE renewal returned null result');
       sendError(res, 'Renewal failed');
       return;
     }
-    
+
     // Update expires_at in renewable_domains table
     if (result.new_expires_at) {
       await RenewableDomainOperations.updateExpiresAt(renewableDomainId, result.new_expires_at);
-      log.info('Domains', 'Updated expires_at in renewable_domains', { 
+      log.info('Updated expires_at in renewable_domains', {
         renewableDomainId,
         newExpiresAt: result.new_expires_at
       });
     }
-    
+
     // Log audit operation
     await logAuditOperation(
       req.user!.userId,
@@ -1337,16 +1338,16 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
       },
       req
     );
-    
-    log.info('Domains', 'Domain renewed successfully', { 
-      renewableDomainId, 
+
+    log.info('Domain renewed successfully', {
+      renewableDomainId,
       subdomainId: result.subdomain_id,
       fullDomain: renewableDomain.full_domain,
       previousExpiresAt: result.previous_expires_at,
       newExpiresAt: result.new_expires_at,
       remainingDays: result.remaining_days
     });
-    
+
     // 推送 WebSocket 消息
     try {
       wsService.broadcast({
@@ -1359,12 +1360,12 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
         },
       });
     } catch (error) {
-      log.error('Domains', 'Failed to broadcast domain_renewed event', { error });
+      log.error('Failed to broadcast domain_renewed event', { error });
     }
-    
+
     sendSuccess(res, result, 'Domain renewed successfully');
   } catch (error) {
-    log.error('Domains', 'Renewal failed with exception', { 
+    log.error('Renewal failed with exception', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });
@@ -1377,24 +1378,24 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
  */
 router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const { domain, accountId } = req.query;
-  
+
   if (!domain || typeof domain !== 'string') {
     sendError(res, 'Domain parameter is required');
     return;
   }
-  
+
   // Normalize domain name to Punycode for database query
   const normalizedDomain = normalizeDomain(domain);
-  
+
   let dbDomain: Domain | undefined;
-  
+
   if (accountId) {
     // 如果指定了 accountId，精确查询
     dbDomain = await DomainOperations.getByAccountIdAndName(
       Number(accountId),
       normalizedDomain
     ) as Domain | undefined;
-    
+
     if (!dbDomain) {
       sendError(res, 'Domain not found in specified account');
       return;
@@ -1402,20 +1403,20 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
   } else {
     // 未指定 accountId，查询第一条记录
     dbDomain = await DomainOperations.getByName(normalizedDomain) as Domain | undefined;
-    
+
     if (!dbDomain) {
       sendError(res, 'Domain not found');
       return;
     }
-    
+
     // 检查用户是否有权限访问这个域名
     const access = await resolveDomainAccessById(dbDomain.id, req.user!.userId, normalizeRole(req.user?.role));
-    
+
     if (!access.domain || !access.canRead) {
       // 如果第一条记录无权限，尝试查找用户有权限的其他同名域名
       const userDomains = await DomainOperations.getAll() as unknown as Domain[];
       const accessibleDomains = userDomains.filter((d: Domain) => d.name === normalizedDomain);
-      
+
       let foundAccessible = false;
       for (const candidateDomain of accessibleDomains) {
         const candidateAccess = await resolveDomainAccessById(
@@ -1423,38 +1424,38 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
           req.user!.userId,
           normalizeRole(req.user?.role)
         );
-        
+
         if (candidateAccess.domain && candidateAccess.canRead) {
           dbDomain = candidateDomain;
           foundAccessible = true;
           break;
         }
       }
-      
+
       if (!foundAccessible) {
         sendError(res, 'No permission to access this domain');
         return;
       }
     }
   }
-  
+
   // Get the account
   const account = await DnsAccountOperations.getById(dbDomain.account_id) as DnsAccount | undefined;
   if (!account) {
     sendError(res, 'Account not found');
     return;
   }
-  
+
   try {
     // 使用通用 WHOIS 查询服务（支持所有域名）
-    log.info('Domains', `Querying WHOIS for ${domain}`);
+    log.info(`Querying WHOIS for ${domain}`);
     const whoisResult = await queryWhois(domain);
-    
+
     if (!whoisResult) {
       sendError(res, 'WHOIS query failed or no data available');
       return;
     }
-    
+
     // 转换为前端期望的格式
     const response = {
       domain: whoisResult.domain || domain,
@@ -1466,10 +1467,10 @@ router.get('/whois', authMiddleware, asyncHandler(async (req: Request, res: Resp
       name_servers: whoisResult.nameServers || [],
       raw_data: whoisResult.raw || '',
     };
-    
+
     sendSuccess(res, response);
   } catch (error) {
-    log.error('Domains', 'WHOIS query failed', { error });
+    log.error('WHOIS query failed', { error });
     sendError(res, error instanceof Error ? error.message : 'WHOIS query failed');
   }
 }));
@@ -1492,11 +1493,11 @@ router.post('/renewable-domains', authMiddleware, asyncHandler(async (req: Reque
   // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
   if (role < 2) {
-    log.warn('Domains', 'Unauthorized attempt to add renewable domain', { userId: req.user?.userId, role });
+    log.warn('Unauthorized attempt to add renewable domain', { userId: req.user?.userId, role });
     sendError(res, 'Permission denied');
     return;
   }
-  
+
   const { account_id, provider_type, domain_name, third_id, full_domain, expires_at, remark } = req.body as {
     account_id: number;
     provider_type: string;
@@ -1506,32 +1507,32 @@ router.post('/renewable-domains', authMiddleware, asyncHandler(async (req: Reque
     expires_at?: string;
     remark?: string;
   };
-  
-  log.info('Domains', 'Add renewable domain request', { 
-    account_id, 
-    provider_type, 
-    domain_name, 
+
+  log.info('Add renewable domain request', {
+    account_id,
+    provider_type,
+    domain_name,
     third_id,
     full_domain,
     expires_at,
     userId: req.user?.userId
   });
-  
+
   if (!account_id || !provider_type || !domain_name || !third_id || !full_domain) {
-    log.error('Domains', 'Missing required fields for adding renewable domain', { 
-      account_id, 
-      provider_type, 
-      domain_name, 
+    log.error('Missing required fields for adding renewable domain', {
+      account_id,
+      provider_type,
+      domain_name,
       third_id,
       full_domain
     });
     sendError(res, 'Missing required fields');
     return;
   }
-  
+
   try {
-    log.debug('Domains', 'Adding renewable domain to database', { account_id, provider_type, domain_name, third_id });
-    
+    log.debug('Adding renewable domain to database', { account_id, provider_type, domain_name, third_id });
+
     const id = await RenewableDomainOperations.add({
       account_id,
       provider_type,
@@ -1541,11 +1542,11 @@ router.post('/renewable-domains', authMiddleware, asyncHandler(async (req: Reque
       expires_at,
       remark,
     });
-    
-    log.info('Domains', 'Successfully added renewable domain', { id, full_domain, userId: req.user?.userId });
+
+    log.info('Successfully added renewable domain', { id, full_domain, userId: req.user?.userId });
     sendSuccess(res, { id });
   } catch (error) {
-    log.error('Domains', 'Failed to add renewable domain', { 
+    log.error('Failed to add renewable domain', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });
@@ -1560,26 +1561,26 @@ router.delete('/renewable-domains/:id', authMiddleware, asyncHandler(async (req:
   // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
   if (role < 2) {
-    log.warn('Domains', 'Unauthorized attempt to delete renewable domain', { userId: req.user?.userId, role });
+    log.warn('Unauthorized attempt to delete renewable domain', { userId: req.user?.userId, role });
     sendError(res, 'Permission denied');
     return;
   }
-  
+
   const id = parseInt(req.params.id);
   if (isNaN(id)) {
-    log.error('Domains', 'Invalid renewable domain ID', { id: req.params.id });
+    log.error('Invalid renewable domain ID', { id: req.params.id });
     sendError(res, 'Invalid ID');
     return;
   }
-  
-  log.info('Domains', 'Delete renewable domain request', { id, userId: req.user?.userId });
-  
+
+  log.info('Delete renewable domain request', { id, userId: req.user?.userId });
+
   try {
     await RenewableDomainOperations.delete(id);
-    log.info('Domains', 'Successfully deleted renewable domain', { id, userId: req.user?.userId });
+    log.info('Successfully deleted renewable domain', { id, userId: req.user?.userId });
     sendSuccess(res, null);
   } catch (error) {
-    log.error('Domains', 'Failed to delete renewable domain', { 
+    log.error('Failed to delete renewable domain', {
       id,
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
@@ -1595,42 +1596,42 @@ router.patch('/renewable-domains/:id/toggle-enabled', authMiddleware, asyncHandl
   // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
   if (role < 2) {
-    log.warn('Domains', 'Unauthorized attempt to toggle renewable domain', { userId: req.user?.userId, role });
+    log.warn('Unauthorized attempt to toggle renewable domain', { userId: req.user?.userId, role });
     sendError(res, 'Permission denied');
     return;
   }
-  
+
   const id = parseInt(req.params.id);
   if (isNaN(id)) {
-    log.error('Domains', 'Invalid renewable domain ID', { id: req.params.id });
+    log.error('Invalid renewable domain ID', { id: req.params.id });
     sendError(res, 'Invalid ID');
     return;
   }
-  
+
   const { enabled } = req.body;
   if (typeof enabled !== 'boolean') {
-    log.error('Domains', 'Missing or invalid enabled field', { enabled });
+    log.error('Missing or invalid enabled field', { enabled });
     sendError(res, 'Enabled field is required and must be boolean');
     return;
   }
-  
-  log.info('Domains', 'Toggle renewable domain enabled status', { 
-    id, 
+
+  log.info('Toggle renewable domain enabled status', {
+    id,
     enabled,
-    userId: req.user?.userId 
+    userId: req.user?.userId
   });
-  
+
   try {
     // Get current domain info for audit log
     const domain = await RenewableDomainOperations.getById(id);
     if (!domain) {
-      log.error('Domains', 'Renewable domain not found', { id });
+      log.error('Renewable domain not found', { id });
       sendError(res, 'Renewable domain not found');
       return;
     }
-    
+
     await RenewableDomainOperations.toggleEnabled(id, enabled);
-    
+
     // Log audit operation
     await logAuditOperation(
       req.user!.userId,
@@ -1639,16 +1640,16 @@ router.patch('/renewable-domains/:id/toggle-enabled', authMiddleware, asyncHandl
       { enabled },
       req
     );
-    
-    log.info('Domains', 'Successfully toggled renewable domain enabled status', { 
-      id, 
+
+    log.info('Successfully toggled renewable domain enabled status', {
+      id,
       enabled,
-      userId: req.user?.userId 
+      userId: req.user?.userId
     });
-    
+
     sendSuccess(res, { enabled });
   } catch (error) {
-    log.error('Domains', 'Failed to toggle renewable domain enabled status', { 
+    log.error('Failed to toggle renewable domain enabled status', {
       id,
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
@@ -1667,7 +1668,7 @@ router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: 
     sendError(res, 'Permission denied');
     return;
   }
-  
+
   const { account_id, domain_ids } = req.body as {
     account_id: number;
     domain_ids: Array<{
@@ -1677,12 +1678,12 @@ router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: 
       expires_at?: string;
     }>;
   };
-  
+
   if (!account_id || !Array.isArray(domain_ids) || domain_ids.length === 0) {
     sendError(res, 'Missing required fields');
     return;
   }
-  
+
   try {
     // Get account info
     const account = await DnsAccountOperations.getById(account_id);
@@ -1690,7 +1691,7 @@ router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: 
       sendError(res, 'Account not found');
       return;
     }
-    
+
     // Filter out disabled domains
     const enabledDomainIds: Set<string> = new Set();
     for (const d of domain_ids) {
@@ -1698,10 +1699,10 @@ router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: 
       if (dbDomain && dbDomain.enabled !== 0) {
         enabledDomainIds.add(String(d.id));
       } else if (dbDomain) {
-        log.info('Domains', `Skipping disabled domain for renewal sync: ${d.name || d.full_domain}`);
+        log.info(`Skipping disabled domain for renewal sync: ${d.name || d.full_domain}`);
       }
     }
-    
+
     // Add only enabled domains to renewable list
     const domainsToAdd = domain_ids
       .filter(d => enabledDomainIds.has(String(d.id)))
@@ -1714,18 +1715,18 @@ router.post('/renewable-domains/sync', authMiddleware, asyncHandler(async (req: 
         expires_at: d.expires_at,
         remark: `Synced from ${account.name}`,
       }));
-    
+
     const addedCount = await RenewableDomainOperations.addBatch(domainsToAdd);
-    
-    log.info('Domains', 'Synced renewable domains', { 
-      accountId: account_id, 
+
+    log.info('Synced renewable domains', {
+      accountId: account_id,
       addedCount,
-      totalCount: domain_ids.length 
+      totalCount: domain_ids.length
     });
-    
+
     sendSuccess(res, { addedCount, total: domain_ids.length });
   } catch (error) {
-    log.error('Domains', 'Failed to sync renewable domains', { error });
+    log.error('Failed to sync renewable domains', { error });
     sendError(res, 'Failed to sync domains');
   }
 }));

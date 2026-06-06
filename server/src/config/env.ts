@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
-import { log } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
+const log = createLogger('Config').sub('Env');
 // Get the current working directory (where the server is running)
 function getCwd(): string {
   return process.cwd();
@@ -25,32 +26,32 @@ export function loadEnv(): void {
   const dataEnvPath = path.join(dataDir, '.env');
   const rootEnvPath = path.join(cwd, '.env');
 
-  log.info('Env', 'Current working directory', { cwd });
-  log.info('Env', 'Looking for data/.env', { path: dataEnvPath });
-  log.info('Env', 'Looking for root .env', { path: rootEnvPath });
+  log.info('Current working directory', { cwd });
+  log.info('Looking for data/.env', { path: dataEnvPath });
+  log.info('Looking for root .env', { path: rootEnvPath });
 
   // Load root .env first (lowest priority)
   if (fs.existsSync(rootEnvPath)) {
-    log.info('Env', 'Loading root .env');
+    log.info('Loading root .env');
     dotenv.config({ path: rootEnvPath });
   } else {
-    log.info('Env', 'Root .env not found');
+    log.info('Root .env not found');
   }
 
   // Load data/.env second (highest priority, overrides root .env)
   if (fs.existsSync(dataEnvPath)) {
-    log.info('Env', 'Loading data/.env');
+    log.info('Loading data/.env');
     const result = dotenv.config({ path: dataEnvPath, override: true });
     if (result.error) {
-      log.error('Env', 'Error loading data/.env', { error: result.error });
+      log.error('Error loading data/.env', { error: result.error });
     } else {
-      log.info('Env', 'data/.env loaded successfully');
+      log.info('data/.env loaded successfully');
     }
   } else {
-    log.info('Env', 'data/.env not found');
+    log.info('data/.env not found');
   }
 
-  log.info('Env', 'DB_TYPE after loading', { dbType: process.env.DB_TYPE || 'not set' });
+  log.info('DB_TYPE after loading', { dbType: process.env.DB_TYPE || 'not set' });
 }
 
 // Save configuration to ./data/.env (current working directory)
@@ -58,18 +59,18 @@ export function saveEnvConfig(config: Record<string, string>): void {
   const cwd = getCwd();
   const dataDir = path.join(cwd, 'data');
   const envPath = path.join(dataDir, '.env');
-  
+
   // Ensure data directory exists
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
-  
+
   // Read existing content if file exists
   let existingContent = '';
   if (fs.existsSync(envPath)) {
     existingContent = fs.readFileSync(envPath, 'utf-8');
   }
-  
+
   // Parse existing config
   const existingConfig: Record<string, string> = {};
   existingContent.split('\n').forEach(line => {
@@ -78,20 +79,20 @@ export function saveEnvConfig(config: Record<string, string>): void {
       existingConfig[match[1].trim()] = match[2].trim();
     }
   });
-  
+
   // Merge with new config
   const mergedConfig = { ...existingConfig, ...config };
-  
+
   // Write back
   const content = Object.entries(mergedConfig)
     .map(([key, value]) => `${key}=${value}`)
     .join('\n');
-  
+
   fs.writeFileSync(envPath, content);
-  
+
   // Reload environment variables
   dotenv.config({ path: envPath, override: true });
-  
+
   // Also directly update process.env to ensure the changes take effect immediately
   Object.entries(config).forEach(([key, value]) => {
     process.env[key] = value;
@@ -126,7 +127,7 @@ export function validateEnv(): void {
 
   // 如果有错误，抛出异常
   if (errors.length > 0) {
-    log.error('Env', 'Environment Validation Failed', { errors });
+    log.error('Environment Validation Failed', { errors });
     throw new Error(`Environment validation failed: ${errors.join(', ')}`);
   }
 }
@@ -138,13 +139,13 @@ export function getDbConfig(): {
   mysql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
   postgresql: { host: string; port: number; database: string; user: string; password: string; ssl: boolean };
 } {
-  log.info('Env', 'getDbConfig() called', { dbType: process.env.DB_TYPE || 'not set' });
+  log.info('getDbConfig() called', { dbType: process.env.DB_TYPE || 'not set' });
 
   // 在获取配置前验证环境变量
   validateEnv();
 
   const dbType = (process.env.DB_TYPE as 'sqlite' | 'mysql' | 'postgresql') || 'sqlite';
-  log.info('Env', 'Using database type', { dbType });
+  log.info('Using database type', { dbType });
 
   return {
     type: dbType,

@@ -1,9 +1,7 @@
+import { createProviderAdapterLogger, DnsAdapter, DnsRecord, DomainInfo, PageResult, asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid, fetchWithFallback } from '../internal';
 import crypto from 'node:crypto';
-import { DnsAdapter, DnsRecord, DomainInfo, PageResult } from '../internal';
-import { asArray, BaseAdapter, Dict, normalizeRrName, safeString, toNumber, toRecordStatus, uuid } from '../internal';
-import { log } from '../internal';
-import { fetchWithFallback } from '../internal';
 
+const log = createProviderAdapterLogger('Baidu');
 class BaiduCloudClient {
   private readonly useProxy: boolean;
 
@@ -181,7 +179,7 @@ export class BaiduAdapter extends BaseAdapter {
       return { total: list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
-      log.error('Baidu', 'getDomainList failed', this.error);
+      log.error('getDomainList failed', this.error);
       return { total: 0, list: [] };
     }
   }

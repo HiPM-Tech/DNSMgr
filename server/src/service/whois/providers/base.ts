@@ -3,7 +3,10 @@
  * 定义查询协议的基础能力
  */
 
-import { log } from '../../../lib/logger';
+import { createLogger } from '../../../lib/logger';
+
+const log = createLogger('WhoisService').sub('Provider').sub('Base');
+
 
 /**
  * WHOIS 查询结果
@@ -141,6 +144,6 @@ export abstract class BaseQueryMethod implements IQueryMethod {
    * 日志记录
    */
   protected log(level: 'info' | 'warn' | 'error' | 'debug', message: string, meta?: Record<string, unknown>) {
-    log[level]('WhoisQuery', `[${this.name}] ${message}`, meta);
+    log.sub(this.name).tag(level.toUpperCase())[level](message, meta);
   }
 }
