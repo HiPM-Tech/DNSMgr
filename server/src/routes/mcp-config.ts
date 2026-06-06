@@ -245,7 +245,7 @@ router.get('/.well-known/oauth-protected-resource', async (req: Request, res: Re
 
     const metadata = {
       resource: `${baseUrl}/api/mcp`,
-      authorization_servers: [baseUrl],
+      authorization_servers: [`${baseUrl}/api/mcp`],
       scopes_supported: [
         'ns_monitor:read',
         'ns_monitor:write',
@@ -268,6 +268,111 @@ router.get('/.well-known/oauth-protected-resource', async (req: Request, res: Re
     res.status(200).json(metadata);
   } catch (error) {
     log.error('MCP', 'Failed to serve OAuth protected resource metadata', { error });
+    res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/mcp/.well-known/oauth-authorization-server:
+ *   get:
+ *     summary: OAuth 2.0 Authorization Server Metadata (RFC 8414)
+ *     tags: [MCP]
+ *     responses:
+ *       200:
+ *         description: Authorization server metadata
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 issuer:
+ *                   type: string
+ *                   description: REQUIRED. The authorization server's issuer identifier
+ *                 authorization_endpoint:
+ *                   type: string
+ *                   description: REQUIRED. URL of the authorization endpoint
+ *                 token_endpoint:
+ *                   type: string
+ *                   description: REQUIRED. URL of the token endpoint
+ *                 registration_endpoint:
+ *                   type: string
+ *                   description: OPTIONAL. URL of the dynamic client registration endpoint
+ *                 jwks_uri:
+ *                   type: string
+ *                   description: RECOMMENDED. URL of the JWK Set
+ *                 scopes_supported:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: RECOMMENDED. JSON array of supported scope values
+ *                 response_types_supported:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: REQUIRED. JSON array of supported response types
+ *                 grant_types_supported:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: OPTIONAL. JSON array of supported grant types
+ *                 token_endpoint_auth_methods_supported:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: OPTIONAL. JSON array of supported token endpoint auth methods
+ *                 code_challenge_methods_supported:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: OPTIONAL. JSON array of supported PKCE code challenge methods
+ */
+router.get('/.well-known/oauth-authorization-server', async (req: Request, res: Response) => {
+  try {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const baseUrl = `${protocol}://${host}`;
+
+    const metadata = {
+      // REQUIRED
+      issuer: `${baseUrl}/api/mcp`,
+      authorization_endpoint: `${baseUrl}/api/mcp/oauth/authorize`,
+      token_endpoint: `${baseUrl}/api/mcp/oauth/token`,
+      response_types_supported: ['code'],
+      // RECOMMENDED
+      jwks_uri: `${baseUrl}/api/mcp/.well-known/jwks.json`,
+      scopes_supported: [
+        'ns_monitor:read',
+        'ns_monitor:write',
+        'domain_management:read',
+        'domain_management:write',
+        'renewal_management:read',
+        'renewal_management:write',
+        'log_query:read',
+        'failover_management:read',
+        'failover_management:write',
+      ],
+      // OPTIONAL
+      registration_endpoint: `${baseUrl}/api/mcp/oauth/register`,
+      grant_types_supported: [
+        'authorization_code',
+        'client_credentials',
+        'refresh_token',
+      ],
+      token_endpoint_auth_methods_supported: [
+        'client_secret_post',
+        'client_secret_basic',
+        'none',
+      ],
+      code_challenge_methods_supported: ['S256', 'plain'],
+      // Additional
+      introspection_endpoint: `${baseUrl}/api/mcp/oauth/introspect`,
+      revocation_endpoint: `${baseUrl}/api/mcp/oauth/revoke`,
+    };
+
+    res.status(200).json(metadata);
+  } catch (error) {
+    log.error('MCP', 'Failed to serve authorization server metadata', { error });
     res.status(500).json({ error: 'server_error', error_description: 'Internal server error' });
   }
 });
