@@ -98,7 +98,7 @@ import { initRenewalSchedulers } from './service/renewalInit';
 import { wsService } from './service/websocket';
 import { initWhoisSchedulers } from './service/whois';
 import { log } from './lib/logger';
-import { OAuthOperations } from './db/bal/business-adapter';
+import { OAuthOperations, McpOperations } from './db/bal/business-adapter';
 
 const app = express();
 
@@ -179,6 +179,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(requestIdMiddleware);
 app.use(clientIPMiddleware); // 必须在 requestLogger 之前，确保日志记录真实 IP
 app.use(requestLogger);
@@ -472,6 +473,13 @@ async function initializeApp() {
     if (isInitialized) {
       log.info('Server', 'System initialized. Running in normal mode.');
       
+      // 重启时清理所有未分配用户的临时 OAuth 客户端
+      McpOperations.cleanupUnassignedOAuthClients().then((count: number) => {
+        if (count > 0) log.info('MCP OAuth', `Cleaned up ${count} unassigned temporary clients on startup`);
+      }).catch((err: unknown) => {
+        log.error('MCP OAuth', 'Failed to cleanup unassigned clients on startup', { error: err });
+      });
+
       // 初始化续期和 WHOIS 调度器
       initRenewalSchedulers();
       initWhoisSchedulers();

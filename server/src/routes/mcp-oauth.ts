@@ -424,8 +424,9 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const { clientId, clientSecret } = generateOAuthCredentials();
 
-    // Public registration — no auth required, client registered without user assignment
+    // Temporary registration — unassigned client expires in 10 minutes
     // user will be determined when the client completes the authorization flow
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await McpOperations.createOAuthClient({
       client_id: clientId,
       client_secret: clientSecret,
@@ -433,11 +434,12 @@ router.post('/register', async (req: Request, res: Response) => {
       app_name: client_name,
       redirect_uris: JSON.stringify(redirect_uris),
       scope: scope ? JSON.stringify(scope) : undefined,
+      expires_at: expiresAt,
     });
 
     const now = Math.floor(Date.now() / 1000);
 
-    log.info('MCP OAuth', 'Dynamic client registered', {
+    log.info('MCP OAuth', 'Dynamic client registered (expires in 10m)', {
       client_id: clientId,
       client_name,
     });
@@ -446,7 +448,7 @@ router.post('/register', async (req: Request, res: Response) => {
       client_id: clientId,
       client_secret: clientSecret,
       client_id_issued_at: now,
-      client_secret_expires_at: 0, // 0 = never expires
+      client_secret_expires_at: now + 600, // 10 minutes
       client_name,
       redirect_uris,
       token_endpoint_auth_method: token_endpoint_auth_method || 'client_secret_post',

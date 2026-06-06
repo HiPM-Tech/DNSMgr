@@ -4197,12 +4197,21 @@ export const McpOperations = {
     app_name: string;
     redirect_uris: string;
     scope?: string;
+    expires_at?: string;
   }): Promise<void> {
-    await executeInternal(
-      'INSERT INTO mcp_oauth_clients (client_id, client_secret, user_id, app_name, redirect_uris, scope, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-      [data.client_id, data.client_secret, data.user_id ?? null, data.app_name, data.redirect_uris, data.scope || null],
-      { operation: 'Mcp.createOAuthClient', table: 'mcp_oauth_clients', userId: data.user_id ?? 0 }
-    );
+    if (data.expires_at) {
+      await executeInternal(
+        'INSERT INTO mcp_oauth_clients (client_id, client_secret, user_id, app_name, redirect_uris, scope, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        [data.client_id, data.client_secret, data.user_id ?? null, data.app_name, data.redirect_uris, data.scope || null, data.expires_at],
+        { operation: 'Mcp.createOAuthClient', table: 'mcp_oauth_clients', userId: data.user_id ?? 0 }
+      );
+    } else {
+      await executeInternal(
+        'INSERT INTO mcp_oauth_clients (client_id, client_secret, user_id, app_name, redirect_uris, scope, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        [data.client_id, data.client_secret, data.user_id ?? null, data.app_name, data.redirect_uris, data.scope || null],
+        { operation: 'Mcp.createOAuthClient', table: 'mcp_oauth_clients', userId: data.user_id ?? 0 }
+      );
+    }
   },
 
   /** 获取 OAuth2 客户端 */
@@ -4298,16 +4307,28 @@ export const McpOperations = {
       app_name: string;
       scope?: string;
       client_secret: string;
+      expires_at?: string;
     }>(
-      'SELECT id, user_id, app_name, scope, client_secret FROM mcp_oauth_clients WHERE client_id = ?',
+      'SELECT id, user_id, app_name, scope, client_secret, expires_at FROM mcp_oauth_clients WHERE client_id = ?',
       [clientId],
       { operation: 'Mcp.validateClientCredentials', table: 'mcp_oauth_clients' }
     );
     
     if (!client) return null;
     if (client.client_secret !== clientSecret) return null;
+    if (client.expires_at && new Date(client.expires_at) < new Date()) return null;
     
     return { id: client.id, user_id: client.user_id, app_name: client.app_name, scope: client.scope };
+  },
+
+  /** 清理所有未分配用户的临时 OAuth 客户端（重启时调用） */
+  async cleanupUnassignedOAuthClients(): Promise<number> {
+    const result = await runInternal(
+      'DELETE FROM mcp_oauth_clients WHERE user_id IS NULL',
+      [],
+      { operation: 'Mcp.cleanupUnassignedOAuthClients', table: 'mcp_oauth_clients' }
+    );
+    return result.changes || 0;
   },
 
   /** 获取所有访问令牌（含客户端名称） */
