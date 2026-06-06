@@ -4193,15 +4193,15 @@ export const McpOperations = {
   async createOAuthClient(data: {
     client_id: string;
     client_secret: string;
-    user_id: number;
+    user_id?: number;
     app_name: string;
     redirect_uris: string;
     scope?: string;
   }): Promise<void> {
     await executeInternal(
       'INSERT INTO mcp_oauth_clients (client_id, client_secret, user_id, app_name, redirect_uris, scope, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-      [data.client_id, data.client_secret, data.user_id, data.app_name, data.redirect_uris, data.scope || null],
-      { operation: 'Mcp.createOAuthClient', table: 'mcp_oauth_clients', userId: data.user_id }
+      [data.client_id, data.client_secret, data.user_id ?? null, data.app_name, data.redirect_uris, data.scope || null],
+      { operation: 'Mcp.createOAuthClient', table: 'mcp_oauth_clients', userId: data.user_id ?? 0 }
     );
   },
 

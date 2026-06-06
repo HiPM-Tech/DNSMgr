@@ -418,11 +418,12 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const { clientId, clientSecret } = generateOAuthCredentials();
 
-    // Public registration — no auth required, client registered under default scope
+    // Public registration — no auth required, client registered without user assignment
+    // user will be determined when the client completes the authorization flow
     await McpOperations.createOAuthClient({
       client_id: clientId,
       client_secret: clientSecret,
-      user_id: 0, // system-level, no specific user
+      user_id: undefined, // unassigned until authorized
       app_name: client_name,
       redirect_uris: JSON.stringify(redirect_uris),
       scope: scope || undefined,
@@ -561,12 +562,12 @@ async function handleClientCredentials(req: Request, res: Response) {
     access_token: accessToken,
     refresh_token: refreshToken,
     client_id,
-    user_id: client.user_id,
+    user_id: client.user_id ?? 0,
     scope: tokenScope ? JSON.stringify(tokenScope) : undefined,
     expires_at: expiresAt,
   });
 
-  log.info('MCP OAuth', 'Token issued (client_credentials)', { client_id, user_id: client.user_id });
+  log.info('MCP OAuth', 'Token issued (client_credentials)', { client_id, user_id: client.user_id ?? 0 });
 
   res.status(200).json({
     access_token: accessToken,
@@ -597,7 +598,7 @@ async function handleAuthorizationCode(req: Request, res: Response) {
     if (!client) {
       return res.status(401).json({ error: 'invalid_client', error_description: 'Invalid client credentials' });
     }
-    if (client.user_id !== authData.user_id) {
+    if (client.user_id && authData.user_id && client.user_id !== authData.user_id) {
       return res.status(401).json({ error: 'invalid_client', error_description: 'Client mismatch' });
     }
   }

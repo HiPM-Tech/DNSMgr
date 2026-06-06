@@ -633,7 +633,7 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
         { name: 'client_id', type: 'string', length: 255, unique: true, nullable: false },
         { name: 'client_secret', type: 'string', length: 512, nullable: false },
-        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'user_id', type: 'integer', nullable: true },
         { name: 'app_name', type: 'string', length: 255, nullable: false },
         { name: 'redirect_uris', type: 'json', nullable: false },
         { name: 'scope', type: 'json', nullable: true },
