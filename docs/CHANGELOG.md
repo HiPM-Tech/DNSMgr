@@ -1,5 +1,110 @@
 # 更新日志
 
+## [2.0.0] - 2026-06-07
+
+### ⚠️ 重大变更
+
+版本号从 1.x 跃升至 2.0.0，标志着以下三个里程碑式模块的正式引入：
+
+- **DSM（Dynamic Schema Migration）模块** — 数据库迁移系统重构
+- **MCP（Model Context Protocol）支持**（Beta）— AI 协议集成
+- **Service Monitor（服务监控）**（Beta）— 复合型服务状态监控
+
+### 🚀 主要更新
+
+#### DSM 模块引入 ⭐
+- **动态 Schema 迁移系统**：全新的数据库迁移架构，支持运行时自动检测和执行迁移
+- **智能列验证**：`column-validator.ts` 自动化列存在性检查，确保幂等迁移
+- **三数据库一致性**：MySQL/PostgreSQL/SQLite 迁移逻辑完全对齐，消除差异
+- **语义化版本追踪**：`semantic_version` 字段实现细粒度版本管理和追踪
+- **迁移完整性验证**：34 张表、全部索引和迁移脚本已对齐验证
+- **跨版本跃升支持**：当前测试阶段支持从 1.2.0 直接跃升到最新版本
+
+#### MCP（Model Context Protocol）协议集成（Beta）⭐
+- **MCP 协议握手支持**：实现 MCP Streamable HTTP 和 SSE 传输协议
+- **OAuth 2.0 授权流程**：
+  - 完整的授权码流程（Authorization Code Flow）
+  - 动态客户端注册（OAuth Dynamic Client Registration）
+  - 令牌内省（Token Introspection，RFC 7662）
+  - 令牌撤销（Token Revocation，RFC 7009）
+  - 客户端凭证流程（Client Credentials Grant）
+- **API Key 认证**：支持 API Key 创建、撤销、恢复、过期管理
+- **MCP 能力发现端点**：`/.well-known/mcp.json` 标准化端点
+- **图形化权限管理**：Web UI 模块级权限选择器（`disabled`/`read`/`write`）
+- **权限粒度控制**：基于 `module:permission` 格式的细粒度授权单元
+  - ns_monitor、domain_management、renewal_management、log_query、service_monitor
+- **MCP 管理页面**：完整的 Web UI 管理界面，展示公共端点、JSON 配置示例
+- **OAuth 授权确认页**：前端渲染的授权确认页，与登录页风格一致
+- **临时客户端清理**：5 分钟定期清理未绑定临时客户端（接入任务管理器）
+
+#### Service Monitor（服务监控）（Beta）⭐
+- **故障转移全面重构**：从单一故障转移升级为复合型服务状态监控
+- **三种监测类型**：
+  - **SSL 证书监测**：检测站点 SSL 证书到期和有效性
+  - **端点访问监测**：监测域名/URL 的可达性和响应状态
+  - **DNS 故障转移**：继承原故障转移功能，自动切换 DNS 解析
+- **全新表结构**：`serviceguard_monitors` + `serviceguard_status` 两张专用表
+- **定时检测任务**：每 300 秒扫描待检条目，接入任务管理器
+- **手动检测支持**：支持立即触发单条监测
+- **MCP 集成**：5 个 MCP 工具覆盖服务监控全部操作
+
+#### 日志系统全面重构 ⭐
+- **新日志规范**：`日期 级别 [主模块名] [子模块] [函数名] [L行号] ["自定义标签"] 内容`
+- **自动调用者信息捕获**：通过 `Error.stack` 自动获取函数名和行号
+- **智能显示策略**：`HIDNS_LOG_LEVEL=trace` 时全部显示，否则仅 `ERROR` 级别显示
+- **嵌套子模块支持**：通过 `.sub()` 实现多级子模块嵌套
+- **自定义标签支持**：通过 `.tag()` 添加标注（适用于 Whois 竞速策略标注）
+- **Whois 模块日志体系**：完整的四层子模块 + 策略标签体系（SUCCESS/FAILED/FALLBACK 等）
+- **核心层全面迁移**：BAL/DSM/DL 所有日志调用已按新规范迁移
+- **DNS Provider 标准化**：通过 `internal.ts` 强制统一日志工厂
+
+#### OAuth 授权页前端化
+- **授权确认页迁移**：从后端 HTML 模板渲染迁移到前端 React 组件
+- **授权状态管理**：未登录提示 + 正确登录后跳转回授权流程
+- **登录页 `return_to` 支持**：登录成功后跳转回原始页面
+- **多 OAuth 类型复用**：`type=mcp` 参数标识，未来可扩展 `type=hidns`
+
+#### 国际化与 UI 增强
+- **浏览器语言自动检测**：首次访问自动匹配浏览器语言偏好
+- **底栏统一**：登录页、OAuth 授权页、加载页统一添加版权底栏
+- **全局 CSS 按钮颜色修复**：统一 `var(--td-brand-color)` 变量使用
+- **Service Monitor 管理页面**：完整的 Web UI（表格+弹窗+手动检测）
+
+### 📝 技术细节
+
+#### 修改文件统计
+- **后端模块**：
+  - `routes/mcp-config.ts` - MCP 能力发现端点（**新建**）
+  - `routes/mcp-oauth.ts` - OAuth 授权流程（重写，前端化）
+  - `routes/mcp-apikeys.ts` - API Key 管理（**新建**）
+  - `routes/servicemonitor.ts` - 服务监控路由（**新建**）
+  - `service/serviceMonitor.ts` - 服务监控核心（**新建**）
+  - `service/serviceMonitorJob.ts` - 服务监控定时任务（**新建**）
+  - `service/mcp-permission.ts` - MCP 权限定义（**新建**）
+  - `mcp/` - MCP 协议层（tools.ts、transport.ts 等）
+  - `db/bal/business-adapter.ts` - ServiceMonitor/API Key 操作
+  - `db/dsm/schema-reconciler.ts` - DSM 迁移器
+  - `lib/logger.ts` - 日志系统全面重构
+  - `service/whois/` - 日志规范迁移
+  - `routes/failover.ts` → `routes/servicemonitor.ts`（废弃）
+  - `service/failover.ts` → `service/serviceMonitor.ts`（废弃）
+- **前端模块**：
+  - `pages/McpManagement.tsx` - MCP 管理页面（重写）
+  - `pages/McpOAuthConsent.tsx` - OAuth 授权确认页（**新建**）
+  - `pages/domains/ServiceMonitorTab.tsx` - 服务监控 Tab（**新建**）
+  - `pages/domains/FailoverTab.tsx` - 废弃删除
+  - `App.tsx` - 路由注册
+  - `components/Sidebar.tsx` - 导航更新
+- **国际化**：11 个语言文件全面补全
+
+### 🔧 兼容性
+- ✅ 1.7.x 配置和数据完全兼容
+- ✅ 旧版 `failover_configs`/`failover_status` 表保留，数据不受影响
+- ✅ 旧版 API 路径（`/api/failover`）已废弃，重定向到 `/api/servicemonitor`
+- ✅ MCP 客户端需重新注册 OAuth 客户端
+
+---
+
 ## [1.7.2] - 2026-05-31
 
 ### 🚀 主要更新
