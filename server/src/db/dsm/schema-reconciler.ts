@@ -126,7 +126,12 @@ export class SchemaReconciler {
 
         // Simple type mismatch check
         const targetSqlType = this.mapTypeToSQL(col.type, this.getDbType(), col.length);
-        const actualDbType = (dbCol.type || dbCol.data_type || '').toUpperCase();
+
+        // Include character_maximum_length in actual DB type for accurate comparison
+        let actualDbType = (dbCol.type || dbCol.data_type || '').toUpperCase();
+        if (dbCol.length != null && actualDbType) {
+          actualDbType = `${actualDbType}(${dbCol.length})`;
+        }
 
         // Normalize and compare
         if (targetSqlType && actualDbType) {
@@ -147,6 +152,18 @@ export class SchemaReconciler {
 
           if (!isCompatible) {
             return true; // type mismatch detected
+          }
+
+          // Also detect length changes (e.g. VARCHAR(50) -> VARCHAR(500))
+          // Only when both types have explicit length parameters
+          const extractLen = (t: string): number | null => {
+            const m = t.match(/\((\d+)\)/);
+            return m ? parseInt(m[1], 10) : null;
+          };
+          const targetLen = extractLen(targetSqlType);
+          const actualLen = extractLen(actualDbType);
+          if (targetLen !== null && actualLen !== null && targetLen !== actualLen) {
+            return true; // length changed
           }
         }
       }
@@ -191,14 +208,16 @@ export class SchemaReconciler {
       return this.conn.query(`PRAGMA table_info(${tableName})`);
     } else if (type === 'mysql') {
       return this.conn.query(
-        `SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE as nullable, COLUMN_DEFAULT as defaultValue
+        `SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE as nullable, COLUMN_DEFAULT as defaultValue,
+                CHARACTER_MAXIMUM_LENGTH as length
          FROM INFORMATION_SCHEMA.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
         [tableName]
       );
     } else if (type === 'postgresql') {
       return this.conn.query(
-        `SELECT column_name as name, data_type as type, is_nullable as nullable, column_default as defaultValue
+        `SELECT column_name as name, data_type as type, is_nullable as nullable, column_default as defaultValue,
+                character_maximum_length as length
          FROM information_schema.columns
          WHERE table_schema = 'public' AND table_name = $1`,
         [tableName]
@@ -343,7 +362,25 @@ export class SchemaReconciler {
     const normalize = (t: string) => t.toUpperCase().replace(/\(.*?\)/g, '').trim();
     const normActual = normalize(actual);
     const normExpected = normalize(expected);
-    if (normActual === normExpected) return true;
+
+    // Extract length params if present (e.g. VARCHAR(50) -> 50)
+    const extractLen = (t: string): number | null => {
+      const m = t.match(/\((\d+)\)/);
+      return m ? parseInt(m[1], 10) : null;
+    };
+    const actualLen = extractLen(actual);
+    const expectedLen = extractLen(expected);
+
+    // If base types match, check length compatibility
+    if (normActual === normExpected) {
+      // Both have explicit length — only compatible if they match exactly
+      if (actualLen !== null && expectedLen !== null) {
+        return actualLen === expectedLen;
+      }
+      // Neither has length, or one does but the other doesn't — treat as compatible
+      // (e.g. TEXT vs TEXT, or CHARACTER VARYING vs VARCHAR(500) where DB doesn't report length)
+      return true;
+    }
 
     const aliases: Record<string, string[]> = {
       'VARCHAR': ['CHARACTER VARYING'],
@@ -838,7 +875,11 @@ export class SchemaReconciler {
       const existingCol = existingCols.find((c: any) => c.name.replace(/["'`]/g, '').trim() === col.name);
       if (existingCol) {
         const expectedType = this.mapTypeToSQL(col.type, this.getDbType(), col.length);
-        const actualType = existingCol.type?.toUpperCase();
+        // Include character_maximum_length in actual type for accurate comparison
+        let actualType = existingCol.type?.toUpperCase() || '';
+        if (existingCol.length != null && actualType) {
+          actualType = `${actualType}(${existingCol.length})`;
+        }
 
         const isPostgresSerial = this.getDbType() === 'postgresql' && expectedType === 'SERIAL';
 
