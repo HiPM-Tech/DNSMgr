@@ -6,7 +6,7 @@ import { createLogger } from '../lib/logger';
 
 const log = createLogger('Job').sub('ServiceMonitor');
 export function startServiceMonitorJob() {
-  // 每 10 秒检查一次，但使用任务管理器控制并发并尊重每个监控的 check_interval
+  // 每 5 分钟检查一次，任务管理器控制并发并尊重每个监控的 check_interval
   setInterval(async () => {
     try {
       const configs = await getAllEnabled();
@@ -60,5 +60,5 @@ export function startServiceMonitorJob() {
         log.error('Error', { error: e });
       }
     }
-  }, 10000); // check every 10 seconds, but inside we respect checkInterval
+  },   5 * 60 * 1000); // check every 10 seconds, but inside we respect checkInterval
 }
