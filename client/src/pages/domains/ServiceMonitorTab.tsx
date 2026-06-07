@@ -622,6 +622,7 @@ export function ServiceMonitorTab() {
         <Modal title={t('domains.servicemonitor.addMonitor')} onClose={closeAddModal} size="lg">
           {renderForm('add')}
         </Modal>
+      )}
 
       {isEditModalOpen && selectedMonitor && (
         <Modal title={t('domains.servicemonitor.editMonitor')} onClose={closeEditModal} size="lg">
