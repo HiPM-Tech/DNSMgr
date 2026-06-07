@@ -728,6 +728,15 @@ export class SchemaReconciler {
               log.warn( `Cannot add UNIQUE column ${tableDef.name}.${col.name} via ALTER in SQLite. Skipping add and relying on rebuild.`);
             } else if (this.getDbType() === 'sqlite' && (msg.includes('non-constant default') || msg.includes('default value'))) {
               log.warn( `Cannot add column ${tableDef.name}.${col.name} with non-constant default via ALTER in SQLite. Skipping add and relying on rebuild.`);
+            } else if (!col.nullable && (e.code === '23502' || e.code === '1048' || e.code === '1364' || msg.includes('contains null values') || msg.includes('cannot be null') || msg.includes('not null'))) {
+              // Adding a NOT NULL column to an existing table fails because existing
+              // rows contain NULL values for the new column. This is a cross-DB issue:
+              //   - PostgreSQL: code 23502, msg "contains null values"
+              //   - MySQL strict: code 1048 (ER_BAD_NULL_ERROR) or 1364 (ER_NO_DEFAULT_FOR_FIELD)
+              // Retry without NOT NULL constraint to allow migration to proceed.
+              log.warn( `Cannot add NOT NULL column ${tableDef.name}.${col.name} due to existing data. Retrying without NOT NULL constraint.`);
+              const defWithoutNotNull = this.getColumnDefinitionSQL({ ...col, nullable: true });
+              await this.addColumn(tableDef.name, col.name, defWithoutNotNull);
             } else if (col.unique && (e.code === 'ER_DUP_ENTRY' || msg.includes('duplicate entry'))) {
               // Adding a UNIQUE NOT NULL column to an existing table with rows will fail
               // because all rows get the same default value, violating UNIQUE.
