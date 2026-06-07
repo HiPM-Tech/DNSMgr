@@ -1497,7 +1497,7 @@
                 "domain_management": "Управление доменами",
                 "renewal_management": "Управление продлением",
                 "log_query": "Журналы аудита",
-                "failover_management": "Управление отказоустойчивостью"
+                "service_monitor": "Мониторинг служб"
             },
             "oauthScopeEditTitle": "Редактировать область авторизации",
             "oauthScopeEditDesc": "Список областей разрешений, разделенных запятыми",

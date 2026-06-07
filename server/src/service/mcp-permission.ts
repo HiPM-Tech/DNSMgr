@@ -241,8 +241,9 @@ export function getModuleByToolName(toolName: string): McpModule | null {
 
     // 服务监控模块
     'list_servicemonitor_monitors': 'service_monitor',
-    'get_servicemonitor_monitor': 'service_monitor',
-    'create_servicemonitor_monitor': 'service_monitor',
+    'get_servicemonitor': 'service_monitor',
+    'create_servicemonitor': 'service_monitor',
+    'update_servicemonitor': 'service_monitor',
     'delete_servicemonitor_monitor': 'service_monitor',
     'perform_servicemonitor_check': 'service_monitor',
   };

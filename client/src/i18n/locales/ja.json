@@ -1528,7 +1528,7 @@
                 "domain_management": "ドメイン管理",
                 "renewal_management": "更新管理",
                 "log_query": "監査ログ",
-                "failover_management": "フェイルオーバー管理"
+                "service_monitor": "サービス監視"
             },
             "oauthScopeEditTitle": "認可スコープを編集",
             "oauthScopeEditDesc": "カンマ区切りの権限スコープリスト",

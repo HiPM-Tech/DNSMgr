@@ -44,7 +44,7 @@ const MCP_SCOPE_MODULES = [
   'domain_management',
   'renewal_management',
   'log_query',
-  'failover_management',
+  'service_monitor',
 ] as const;
 
 function parseScopeToPerms(scope: string | null | undefined): Record<string, string> {

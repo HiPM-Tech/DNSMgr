@@ -1503,7 +1503,7 @@
                 "domain_management": "Gestión de dominios",
                 "renewal_management": "Gestión de renovación",
                 "log_query": "Registros de auditoría",
-                "failover_management": "Gestión de conmutación"
+                "service_monitor": "Monitorización de servicios"
             },
             "oauthScopeEditTitle": "Editar ámbito de autorización",
             "oauthScopeEditDesc": "Lista de ámbitos de permiso separados por comas",

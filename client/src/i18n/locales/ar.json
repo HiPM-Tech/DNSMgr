@@ -1471,7 +1471,7 @@
                 "domain_management": "إدارة النطاقات",
                 "renewal_management": "إدارة التجديد",
                 "log_query": "سجلات التدقيق",
-                "failover_management": "إدارة التبديل"
+                "service_monitor": "مراقبة الخدمة"
             },
             "oauthScopeEditTitle": "تعديل نطاق الترخيص",
             "oauthScopeEditDesc": "قائمة نطاقات الأذونات مفصولة بفواصل",

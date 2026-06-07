@@ -2,12 +2,13 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Input, Pagination, Select, Space, Switch, Tag, Tabs, Textarea } from 'tdesign-react';
 import { AddIcon, DeleteIcon, SearchIcon, EditIcon, CheckCircleIcon, ErrorCircleIcon, TimeIcon, LinkIcon } from 'tdesign-icons-react';
-import { serviceMonitorApi } from '../../api';
+import { serviceMonitorApi, domainsApi } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 
 type MonitorType = 'ssl_certificate' | 'endpoint' | 'dns_failover';
 
@@ -321,6 +322,12 @@ export function ServiceMonitorTab() {
   const [formState, setFormState] = useState<Record<string, any>>({});
   const [availableDomains, setAvailableDomains] = useState<any[]>([]);
 
+  useRealtimeData({
+    queryKey: ['servicemonitor'],
+    websocketEventTypes: ['servicemonitor_created', 'servicemonitor_updated', 'servicemonitor_deleted', 'servicemonitor_checked'],
+    pollingInterval: 60000,
+  });
+
   const { data: monitors = [], isLoading } = useQuery({
     queryKey: ['servicemonitor'],
     queryFn: () => serviceMonitorApi.list().then((r) => r.data.data || []),
@@ -344,11 +351,35 @@ export function ServiceMonitorTab() {
     if (endpointMonitors.length > 0) loadChildren();
   }, [monitors]);
 
+  const [lines, setLines] = useState<any[]>([]);
+
   useEffect(() => {
-    if (activeTab === 'failover' || addType === 'dns_failover') {
+    if (activeTab === 'failover' || addType === 'dns_failover' || bindEndpoint) {
       serviceMonitorApi.getAvailableDomains().then(r => setAvailableDomains(r.data.data || [])).catch(() => {});
     }
-  }, [activeTab, addType]);
+  }, [activeTab, addType, bindEndpoint]);
+
+  // Smart domain/hostname detection for bind modal
+  useEffect(() => {
+    if (!bindEndpoint || availableDomains.length === 0) return;
+    const target = bindEndpoint.target;
+    const parts = target.split('.');
+    for (let i = 1; i < parts.length; i++) {
+      const candidate = parts.slice(i).join('.');
+      const matched = availableDomains.find((d: any) => d.name === candidate);
+      if (matched) {
+        const hostname = i === 1 ? '@' : parts.slice(0, i).join('.');
+        setFormState((s: any) => ({ ...s, failover_domain_id: matched.id, record_name: hostname }));
+        return;
+      }
+    }
+  }, [bindEndpoint, availableDomains]);
+
+  // Fetch lines when domain selection changes in bind form
+  useEffect(() => {
+    if (!formState.failover_domain_id) { setLines([]); return; }
+    domainsApi.lines(formState.failover_domain_id).then(r => setLines(r.data.data || [])).catch(() => setLines([]));
+  }, [formState.failover_domain_id]);
 
   const createMutation = useMutation({
     mutationFn: (data: any) => serviceMonitorApi.create(data),
@@ -430,7 +461,6 @@ export function ServiceMonitorTab() {
         recordName: formState.record_name,
         ttl: Number(formState.record_ttl) || 600,
         line: formState.record_line || 'default',
-        proxyEnabled: formState.proxy_enabled || false,
         primaryValue: formState.primary_value,
         backupValues: (formState.backup_values || '').split('\n').map((s: string) => s.trim()).filter(Boolean),
         autoSwitchBack: formState.auto_switch_back !== false,
@@ -546,13 +576,25 @@ export function ServiceMonitorTab() {
 
   const renderBindForm = () => {
     if (!bindEndpoint) return null;
+    const bindDomain = availableDomains.find((d: any) => d.id === formState.failover_domain_id);
+    const isCloudflare = bindDomain?.account_type === 'cloudflare';
+    const isAliyunESA = bindDomain?.account_type === 'aliyunesa';
+    const hasProxyMode = isCloudflare || isAliyunESA;
+    const lineOptions = hasProxyMode
+      ? [
+          { label: t('records.dnsOnly') || 'DNS Only', value: '0' },
+          { label: t('records.proxied') || 'Proxied', value: '1' },
+        ]
+      : lines.length > 1
+        ? lines.map((l: any) => ({ label: l.name, value: String(l.id) }))
+        : [{ label: t('records.defaultLine') || '默认', value: 'default' }];
     return (
       <div className="page-shell dialog-form servicemonitor-dialog">
         <p style={{ marginBottom: 12, color: '#666' }}>{t('domains.servicemonitor.bindFailoverDesc', { name: bindEndpoint.name })}</p>
         <div className="dialog-form-grid">
           {dialogField(t('domains.servicemonitor.failover_recordName'),
             <Input value={formState.record_name || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_name: String(v) }))}
-              placeholder={`www (${bindEndpoint.target} &rarr; www.${bindEndpoint.target})`} />)}
+              placeholder={`@ / www / sub`} />)}
           {dialogField(t('domains.servicemonitor.failover_recordType'),
             <Select value={formState.record_type || 'A'} options={[
               { label: 'A', value: 'A' }, { label: 'AAAA', value: 'AAAA' }, { label: 'CNAME', value: 'CNAME' },
@@ -561,20 +603,23 @@ export function ServiceMonitorTab() {
         <div className="dialog-form-grid">
           {dialogField(t('domains.servicemonitor.form_ttl'),
             <Input type="number" value={String(formState.record_ttl || 600)} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_ttl: Number(v) || 600 }))} />)}
-          {dialogField(t('domains.servicemonitor.form_line'),
-            <Input value={formState.record_line || 'default'} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_line: String(v) }))} />)}
+          {dialogField(hasProxyMode ? t('records.proxy') : t('common.line'),
+            <Select value={formState.record_line ?? 'default'} options={lineOptions}
+              onChange={(v: any) => setFormState((s: any) => ({ ...s, record_line: String(Array.isArray(v) ? v[0] : v) }))} />)}
         </div>
         {dialogField(t('domains.servicemonitor.form_failoverDomain'),
-          <Select value={formState.failover_domain_id || ''} options={availableDomains.map((d: any) => ({ label: `${d.name} (${d.account_name})`, value: d.id }))}
-            onChange={(v: any) => setFormState((s: any) => ({ ...s, failover_domain_id: Number(Array.isArray(v) ? v[0] : v) }))} />)}
+          <Select value={formState.failover_domain_id || ''} filterable options={(() => {
+            const parts = bindEndpoint.target.split('.');
+            const suffixes = new Set<string>();
+            for (let i = 1; i < parts.length; i++) suffixes.add(parts.slice(i).join('.'));
+            const filtered = availableDomains.filter((d: any) => suffixes.has(d.name));
+            return (filtered.length > 0 ? filtered : availableDomains).map((d: any) => ({ label: `${d.name} (${d.account_name})`, value: d.id }));
+          })()}
+            onChange={(v: any) => setFormState((s: any) => ({ ...s, failover_domain_id: Number(Array.isArray(v) ? v[0] : v), record_line: 'default' }))} />)}
         {dialogField(t('domains.servicemonitor.form_primaryValue'),
           <Input value={formState.primary_value || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, primary_value: String(v) }))} />)}
         {dialogField(t('domains.servicemonitor.form_backupValues'),
           <Textarea value={formState.backup_values || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, backup_values: String(v) }))} placeholder={t('domains.servicemonitor.form_backupPlaceholder')} />)}
-        <div className="dialog-switch-row">
-          <div><strong>{t('domains.servicemonitor.form_proxyEnabled')}</strong></div>
-          <Switch value={formState.proxy_enabled || false} onChange={(c: any) => setFormState((s: any) => ({ ...s, proxy_enabled: Boolean(c) }))} />
-        </div>
         <div className="dialog-switch-row">
           <div><strong>{t('domains.servicemonitor.form_autoSwitchBack')}</strong></div>
           <Switch value={formState.auto_switch_back !== false} onChange={(c: any) => setFormState((s: any) => ({ ...s, auto_switch_back: Boolean(c) }))} />
@@ -610,10 +655,10 @@ export function ServiceMonitorTab() {
             onBindFailover={(m) => { setBindEndpoint(m); resetForm(); setIsBindModalOpen(true); }} />
         </Tabs.TabPanel>
         <Tabs.TabPanel value="failover" label={t('domains.servicemonitor.tab_failover')}>
-          <FailoverTab monitors={monitors} isLoading={isLoading}
-            onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
-            onCheck={(m) => checkMutation.mutate(m.id)} />
-        </Tabs.TabPanel>
+            <FailoverTab monitors={monitors} isLoading={isLoading}
+              onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
+              onCheck={(m) => checkMutation.mutate(m.id)} />
+          </Tabs.TabPanel>
       </Tabs>
 
       {isAddModalOpen && (

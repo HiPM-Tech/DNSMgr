@@ -5,6 +5,7 @@ import { DomainOperations } from '../db/bal/business-adapter';
 import { createLogger } from '../lib/logger';
 import { normalizeRole, isSuper } from '../utils/roles';
 import { parseInteger, sendError, sendSuccess } from '../utils/http';
+import { wsService } from '../service/websocket';
 import {
   getMonitors,
   getMonitor,
@@ -193,6 +194,9 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   });
 
   log.info(`ServiceMonitor monitor created: ${id}`, { userId, name, type, target });
+
+  try { wsService.broadcast({ type: 'servicemonitor_created', data: { id, name, type, target, userId } }); } catch (e) { log.error('WS broadcast error', e); }
+
   sendSuccess(res, { id });
 }));
 
@@ -252,6 +256,9 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   });
 
   log.info(`ServiceMonitor monitor updated: ${monitorId}`, { userId: req.user!.userId });
+
+  try { wsService.broadcast({ type: 'servicemonitor_updated', data: { id: monitorId, userId: req.user!.userId } }); } catch (e) { log.error('WS broadcast error', e); }
+
   sendSuccess(res, { id: monitorId });
 }));
 
@@ -275,6 +282,9 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
   await deleteMonitor(monitorId);
 
   log.info(`ServiceMonitor monitor deleted: ${monitorId}`, { userId: req.user!.userId });
+
+  try { wsService.broadcast({ type: 'servicemonitor_deleted', data: { id: monitorId, userId: req.user!.userId } }); } catch (e) { log.error('WS broadcast error', e); }
+
   sendSuccess(res, { id: monitorId });
 }));
 
@@ -300,6 +310,8 @@ router.post('/:id/check', authMiddleware, asyncHandler(async (req: Request, res:
 
   // 更新状态
   await runCheckAndUpdate(existing);
+
+  try { wsService.broadcast({ type: 'servicemonitor_checked', data: { id: monitorId, status, userId: req.user!.userId } }); } catch (e) { log.error('WS broadcast error', e); }
 
   sendSuccess(res, {
     monitorId,

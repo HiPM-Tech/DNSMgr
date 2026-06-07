@@ -1497,7 +1497,7 @@
                 "domain_management": "Gerenciamento de domínios",
                 "renewal_management": "Gerenciamento de renovação",
                 "log_query": "Logs de auditoria",
-                "failover_management": "Gerenciamento de failover"
+                "service_monitor": "Monitoramento de serviço"
             },
             "oauthScopeEditTitle": "Editar escopo de autorização",
             "oauthScopeEditDesc": "Lista de escopos de permissão separados por vírgula",

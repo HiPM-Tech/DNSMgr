@@ -13,7 +13,7 @@ const MCP_SCOPE_MODULES = [
   { key: 'domain_management' },
   { key: 'renewal_management' },
   { key: 'log_query' },
-  { key: 'failover_management' },
+  { key: 'service_monitor' },
 ] as const;
 
 const SCOPE_LEVELS = ['disabled', 'read', 'write'] as const;

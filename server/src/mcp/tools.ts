@@ -913,6 +913,82 @@ export function registerTools(server: McpServer): void {
   );
 
   server.tool(
+    'update_servicemonitor',
+    'Update a ServiceMonitor monitor',
+    {
+      apiKey: z.string().describe('API key for authentication'),
+      monitorId: z.number().describe('Monitor ID'),
+      name: z.string().optional().describe('Monitor name'),
+      target: z.string().optional().describe('Domain/URL being monitored'),
+      domainId: z.number().optional().describe('Domain ID (for dns_failover type)'),
+      config: z.string().optional().describe('JSON string of type-specific configuration'),
+      checkInterval: z.number().optional().describe('Check interval in seconds'),
+      checkTimeout: z.number().optional().describe('Check timeout in seconds'),
+      enabled: z.boolean().optional().describe('Enable monitor'),
+      notifyOnFailure: z.boolean().optional().describe('Notify on failure'),
+      notifyOnRecovery: z.boolean().optional().describe('Notify on recovery'),
+    },
+    async ({ apiKey, monitorId, name, target, domainId, config, checkInterval, checkTimeout, enabled, notifyOnFailure, notifyOnRecovery }) => {
+      try {
+        const auth = await authenticateRequest(apiKey);
+        if (!auth) {
+          return {
+            content: [{ type: 'text', text: 'Authentication failed' }],
+            isError: true,
+          };
+        }
+
+        await validateToolPermission(auth.userId, 'update_servicemonitor', 'write', auth.authType, auth.scope);
+
+        const { updateMonitor } = await import('../service/serviceMonitor');
+        const updates: Record<string, unknown> = {};
+
+        if (name !== undefined) updates.name = name;
+        if (target !== undefined) updates.target = target;
+        if (domainId !== undefined) updates.domainId = domainId;
+        if (config !== undefined) {
+          try { updates.config = JSON.parse(config); } catch { updates.config = { raw: config }; }
+        }
+        if (checkInterval !== undefined) updates.checkInterval = checkInterval;
+        if (checkTimeout !== undefined) updates.checkTimeout = checkTimeout;
+        if (enabled !== undefined) updates.enabled = enabled;
+        if (notifyOnFailure !== undefined) updates.notifyOnFailure = notifyOnFailure;
+        if (notifyOnRecovery !== undefined) updates.notifyOnRecovery = notifyOnRecovery;
+
+        await updateMonitor(monitorId, updates);
+
+        const result = {
+          monitor_id: monitorId,
+          message: 'ServiceMonitor monitor updated successfully',
+        };
+
+        if (auth.keyId) {
+          await McpOperations.updateApiKeyLastUsed(auth.keyId);
+        }
+
+        await logMcpAction({
+          userId: auth.userId,
+          authType: auth.authType,
+          module: 'service_monitor',
+          action: 'update_servicemonitor',
+          requestParams: { monitorId, ...(name ? { name } : {}) },
+          responseStatus: 'success',
+        });
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        log.error('update_servicemonitor failed', { error });
+        return {
+          content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
     'delete_servicemonitor_monitor',
     'Delete a ServiceMonitor monitor',
     {

@@ -1500,7 +1500,7 @@
                 "domain_management": "도메인 관리",
                 "renewal_management": "갱신 관리",
                 "log_query": "감사 로그",
-                "failover_management": "장애 조치 관리"
+                "service_monitor": "서비스 모니터링"
             },
             "oauthScopeEditTitle": "권한 범위 편집",
             "oauthScopeEditDesc": "쉼표로 구분된 권한 범위 목록",

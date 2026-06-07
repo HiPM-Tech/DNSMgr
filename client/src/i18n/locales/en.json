@@ -1498,7 +1498,7 @@
               "domain_management": "Domain Management",
               "renewal_management": "Renewal Management",
               "log_query": "Audit Logs",
-              "failover_management": "Failover Management"
+              "service_monitor": "Service Monitor"
             },
             "oauthScopeEditTitle": "Edit Authorization Scope",
             "oauthScopeEditDesc": "Comma-separated list of permission scopes",

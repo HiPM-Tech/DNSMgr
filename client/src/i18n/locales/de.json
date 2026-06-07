@@ -1488,7 +1488,7 @@
                 "domain_management": "Domain-Verwaltung",
                 "renewal_management": "Verlängerungsverwaltung",
                 "log_query": "Prüfprotokolle",
-                "failover_management": "Failover-Verwaltung"
+                "service_monitor": "Dienstüberwachung"
             },
             "oauthScopeEditTitle": "Autorisierungsbereich bearbeiten",
             "oauthScopeEditDesc": "Kommagetrennte Liste der Berechtigungsbereiche",

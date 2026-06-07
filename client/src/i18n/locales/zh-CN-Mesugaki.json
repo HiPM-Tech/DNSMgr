@@ -1496,7 +1496,7 @@
                 "domain_management": "域名管理啦",
                 "renewal_management": "续期管理呢",
                 "log_query": "审计日志呀",
-                "failover_management": "故障转移管理嗷"
+                "service_monitor": "服务监控嗷"
             },
             "oauthScopeEditTitle": "编辑授权范围",
             "oauthScopeEditDesc": "用逗号分隔的权限范围列表啦",

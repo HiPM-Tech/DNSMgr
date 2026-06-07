@@ -1497,7 +1497,7 @@
                 "domain_management": "Gestion des domaines",
                 "renewal_management": "Gestion des renouvellements",
                 "log_query": "Journaux d'audit",
-                "failover_management": "Gestion du basculement"
+                "service_monitor": "Supervision de service"
             },
             "oauthScopeEditTitle": "Modifier la portée d'autorisation",
             "oauthScopeEditDesc": "Liste des portées d'autorisation séparées par des virgules",
