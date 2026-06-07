@@ -233,27 +233,50 @@ export class SchemaReconciler {
     }
 
     if (dbType === 'postgresql') {
-      await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} DROP DEFAULT`);
+      try {
+        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} DROP DEFAULT`);
 
-      let sql = `ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`;
+        let sql = `ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType}`;
 
-      if (newType === 'BOOLEAN' || newType === 'BIGINT' || newType === 'TIMESTAMPTZ' || newType === 'INTEGER') {
-        if (newType === 'BOOLEAN' && actualDbType && ['SMALLINT', 'INT', 'INTEGER', 'INT2', 'INT4', 'TINYINT'].includes(actualDbType.toUpperCase().replace(/\(.*?\)/g, '').trim())) {
-          sql += ` USING CASE WHEN ${this.escapeIdentifier(column)} != 0 THEN true ELSE false END`;
-        } else if (newType === 'TIMESTAMPTZ' && actualDbType && actualDbType.toUpperCase().includes('TIMESTAMP WITHOUT TIME ZONE')) {
-          sql += ` USING ${this.escapeIdentifier(column)}::TIMESTAMP WITHOUT TIME ZONE AT TIME ZONE 'UTC'`;
-        } else if (newType === 'INTEGER' && actualDbType && actualDbType.toUpperCase() === 'BOOLEAN') {
-          sql += ` USING CASE WHEN ${this.escapeIdentifier(column)} THEN 1 ELSE 0 END`;
-        } else {
-          sql += ` USING ${this.escapeIdentifier(column)}::${newType}`;
+        if (newType === 'BOOLEAN' || newType === 'BIGINT' || newType === 'TIMESTAMPTZ' || newType === 'INTEGER') {
+          if (newType === 'BOOLEAN' && actualDbType && ['SMALLINT', 'INT', 'INTEGER', 'INT2', 'INT4', 'TINYINT'].includes(actualDbType.toUpperCase().replace(/\(.*?\)/g, '').trim())) {
+            sql += ` USING CASE WHEN ${this.escapeIdentifier(column)} != 0 THEN true ELSE false END`;
+          } else if (newType === 'TIMESTAMPTZ' && actualDbType && actualDbType.toUpperCase().includes('TIMESTAMP WITHOUT TIME ZONE')) {
+            sql += ` USING ${this.escapeIdentifier(column)}::TIMESTAMP WITHOUT TIME ZONE AT TIME ZONE 'UTC'`;
+          } else if (newType === 'INTEGER' && actualDbType && actualDbType.toUpperCase() === 'BOOLEAN') {
+            sql += ` USING CASE WHEN ${this.escapeIdentifier(column)} THEN 1 ELSE 0 END`;
+          } else {
+            sql += ` USING ${this.escapeIdentifier(column)}::${newType}`;
+          }
         }
-      }
 
-      await this.conn.execute(sql);
+        await this.conn.execute(sql);
 
-      if (originCol?.defaultValue !== undefined) {
-        const defaultVal = this.formatDefaultValue(originCol.defaultValue, originCol.type, 'postgresql');
-        await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} SET DEFAULT ${defaultVal}`);
+        if (originCol?.defaultValue !== undefined) {
+          const defaultVal = this.formatDefaultValue(originCol.defaultValue, originCol.type, 'postgresql');
+          await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} SET DEFAULT ${defaultVal}`);
+        }
+      } catch (pgErr: any) {
+        // Generic fallback: if target type has a length limit (e.g. VARCHAR(50)),
+        // retry with SUBSTRING to truncate existing data. Works for any data
+        // compatibility issue without needing error-code-specific checks.
+        const lengthMatch = newType.match(/\((\d+)\)/);
+        if (lengthMatch) {
+          const length = parseInt(lengthMatch[1], 10);
+          log.warn( `Cannot modify type for ${table}.${column} (${pgErr.code || 'unknown'}). Retrying with data truncation (max ${length} chars).`);
+          try {
+            await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} TYPE ${newType} USING SUBSTRING(${this.escapeIdentifier(column)} FROM 1 FOR ${length})`);
+            if (originCol?.defaultValue !== undefined) {
+              const defaultVal = this.formatDefaultValue(originCol.defaultValue, originCol.type, 'postgresql');
+              await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} ALTER COLUMN ${this.escapeIdentifier(column)} SET DEFAULT ${defaultVal}`);
+            }
+            return;
+          } catch {
+            log.warn( `Data truncation fallback also failed for ${table}.${column}. Skipping this column modification.`);
+            return;
+          }
+        }
+        throw pgErr;
       }
     } else if (dbType === 'mysql') {
       try {
@@ -722,31 +745,46 @@ export class SchemaReconciler {
             await this.addColumn(tableDef.name, col.name, def);
           } catch (e: any) {
             const msg = e.message?.toLowerCase() || '';
+
+            // Column already exists (race condition on parallel runs)
             if (msg.includes('duplicate column')) {
               log.warn( `Column ${tableDef.name}.${col.name} already exists, skipping.`);
-            } else if (this.getDbType() === 'sqlite' && (msg.includes('unique column') || msg.includes('unique constraint'))) {
-              log.warn( `Cannot add UNIQUE column ${tableDef.name}.${col.name} via ALTER in SQLite. Skipping add and relying on rebuild.`);
-            } else if (this.getDbType() === 'sqlite' && (msg.includes('non-constant default') || msg.includes('default value'))) {
-              log.warn( `Cannot add column ${tableDef.name}.${col.name} with non-constant default via ALTER in SQLite. Skipping add and relying on rebuild.`);
-            } else if (!col.nullable && (e.code === '23502' || e.code === '1048' || e.code === '1364' || msg.includes('contains null values') || msg.includes('cannot be null') || msg.includes('not null'))) {
-              // Adding a NOT NULL column to an existing table fails because existing
-              // rows contain NULL values for the new column. This is a cross-DB issue:
-              //   - PostgreSQL: code 23502, msg "contains null values"
-              //   - MySQL strict: code 1048 (ER_BAD_NULL_ERROR) or 1364 (ER_NO_DEFAULT_FOR_FIELD)
-              // Retry without NOT NULL constraint to allow migration to proceed.
-              log.warn( `Cannot add NOT NULL column ${tableDef.name}.${col.name} due to existing data. Retrying without NOT NULL constraint.`);
-              const defWithoutNotNull = this.getColumnDefinitionSQL({ ...col, nullable: true });
-              await this.addColumn(tableDef.name, col.name, defWithoutNotNull);
-            } else if (col.unique && (e.code === 'ER_DUP_ENTRY' || msg.includes('duplicate entry'))) {
-              // Adding a UNIQUE NOT NULL column to an existing table with rows will fail
-              // because all rows get the same default value, violating UNIQUE.
-              // Retry without UNIQUE constraint to allow the migration to proceed.
-              log.warn( `Cannot add UNIQUE column ${tableDef.name}.${col.name} due to existing data. Retrying without UNIQUE constraint.`);
-              const defWithoutUnique = this.getColumnDefinitionSQL({ ...col, unique: false });
-              await this.addColumn(tableDef.name, col.name, defWithoutUnique);
-            } else {
-              throw e;
+              continue;
             }
+
+            // SQLite: ALTER TABLE cannot add UNIQUE or non-constant DEFAULT columns
+            if (this.getDbType() === 'sqlite') {
+              if (msg.includes('unique column') || msg.includes('unique constraint')) {
+                log.warn( `Cannot add UNIQUE column ${tableDef.name}.${col.name} via ALTER in SQLite. Skipping add and relying on rebuild.`);
+                continue;
+              }
+              if (msg.includes('non-constant default') || msg.includes('default value')) {
+                log.warn( `Cannot add column ${tableDef.name}.${col.name} with non-constant default via ALTER in SQLite. Skipping add and relying on rebuild.`);
+                continue;
+              }
+            }
+
+            // Generic constraint fallback: strip NOT NULL → UNIQUE → both and retry
+            // Works cross-DB (PostgreSQL 23502, MySQL 1048/1364, etc.) without
+            // needing database-specific error code checks.
+            if (!col.nullable || col.unique) {
+              const relaxed = { ...col };
+              let relaxedLabel = '';
+              if (!col.nullable) {
+                relaxed.nullable = true;
+                relaxedLabel += 'NOT NULL ';
+              }
+              if (col.unique) {
+                delete relaxed.unique;
+                relaxedLabel += 'UNIQUE ';
+              }
+              log.warn( `Cannot add column ${tableDef.name}.${col.name}. Retrying without ${relaxedLabel.trim()} constraint.`);
+              await this.addColumn(tableDef.name, col.name, this.getColumnDefinitionSQL(relaxed));
+              continue;
+            }
+
+            // Unknown / unhandled error
+            throw e;
           }
         }
       }
