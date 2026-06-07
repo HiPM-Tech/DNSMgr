@@ -620,7 +620,7 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
         { name: 'domain_name', type: 'string', length: 255, unique: true, nullable: false },
         { name: 'whois_data', type: 'json', nullable: true },
-        { name: 'status', type: 'string', length: 50, nullable: true },
+        { name: 'status', type: 'string', length: 500, nullable: true },
         { name: 'cached_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
         { name: 'expires_at', type: 'datetime', nullable: true },
       ],
