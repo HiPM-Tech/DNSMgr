@@ -299,13 +299,42 @@ export class SchemaReconciler {
         }
       } catch (e: any) {
         try { await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1'); } catch {}
-        const msg = e.message?.toLowerCase() || '';
-        const isTruncation = e.code === 'WARN_DATA_TRUNCATED' || e.code === 'ER_DATA_TOO_LONG' || msg.includes('data truncated') || msg.includes('data too long');
-        if (isTruncation) {
-          log.warn( `Data truncation when modifying ${table}.${column}: ${e.message}. Skipping this column modification.`);
-        } else {
-          throw e;
+
+        // Generic fallback: if target type has a length limit (e.g. VARCHAR(50)),
+        // retry by truncating existing data with SUBSTRING first, then MODIFY COLUMN.
+        // Works for any data compatibility issue without needing error-code-specific checks.
+        const lengthMatch = newType.match(/\((\d+)\)/);
+        if (lengthMatch) {
+          const length = parseInt(lengthMatch[1], 10);
+          log.warn( `Cannot modify type for ${table}.${column}. Retrying with data truncation (max ${length} chars).`);
+          try {
+            await this.conn.execute(
+              `UPDATE ${this.escapeIdentifier(table)} SET ${this.escapeIdentifier(column)} = SUBSTRING(${this.escapeIdentifier(column)}, 1, ${length})`
+            );
+            if (originCol) {
+              const fullDef = this.getColumnDefinitionSQL(originCol);
+              const cleanedDef = originCol.primaryKey
+                ? fullDef.replace(/\s+PRIMARY KEY\s*/i, ' ').trim()
+                : fullDef
+                    .replace(/\s+PRIMARY KEY\s*/i, ' ')
+                    .replace(/\s+AUTO_INCREMENT\s*/i, ' ')
+                    .replace(/\s+AUTOINCREMENT\s*/i, ' ')
+                    .trim();
+              await this.conn.execute('SET FOREIGN_KEY_CHECKS = 0');
+              await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${cleanedDef}`);
+              await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1');
+            } else {
+              await this.conn.execute('SET FOREIGN_KEY_CHECKS = 0');
+              await this.conn.execute(`ALTER TABLE ${this.escapeIdentifier(table)} MODIFY COLUMN ${this.escapeIdentifier(column)} ${newType}`);
+              await this.conn.execute('SET FOREIGN_KEY_CHECKS = 1');
+            }
+            return;
+          } catch {
+            log.warn( `Data truncation fallback also failed for ${table}.${column}. Skipping this column modification.`);
+            return;
+          }
         }
+        throw e;
       }
     }
   }

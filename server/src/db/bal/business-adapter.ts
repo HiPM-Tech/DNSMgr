@@ -238,6 +238,12 @@ async function queryInternal<T = QueryResult>(sql: string, params?: unknown[], c
   }
 }
 
+/** 将参数中的 boolean 值转为 0/1（兼容 PostgreSQL 严格类型要求） */
+function normalizeParams(params?: unknown[]): unknown[] | undefined {
+  if (!params) return params;
+  return params.map(p => typeof p === 'boolean' ? (p ? 1 : 0) : p);
+}
+
 /** 执行查询并返回单行（内部*/
 async function getInternal<T = QueryResult>(sql: string, params?: unknown[], context?: OperationContext): Promise<T | undefined> {
   const startTime = Date.now();
@@ -246,7 +252,7 @@ async function getInternal<T = QueryResult>(sql: string, params?: unknown[], con
   log.debug( 'Executing get', { sql: processedSql, params, operation: context?.operation });
 
   try {
-    const result = await db.get<T>(processedSql, params);
+    const result = await db.get<T>(processedSql, normalizeParams(params));
     const duration = Date.now() - startTime;
     log.debug( `Get executed`, {
       sql: processedSql.substring(0, 100),
@@ -276,7 +282,7 @@ async function executeInternal(sql: string, params?: unknown[], context?: Operat
   log.debug( 'Executing command', { sql: processedSql, params, operation: context?.operation });
 
   try {
-    await db.execute(processedSql, params);
+    await db.execute(processedSql, normalizeParams(params));
     const duration = Date.now() - startTime;
     log.debug( `Command executed`, {
       operation: context?.operation,
@@ -303,7 +309,7 @@ async function insertInternal(sql: string, params?: unknown[], context?: Operati
   log.debug( 'Executing insert', { sql: processedSql, params, operation: context?.operation });
 
   try {
-    const id = await db.insert(processedSql, params);
+    const id = await db.insert(processedSql, normalizeParams(params));
     const duration = Date.now() - startTime;
     log.debug( `Insert executed`, {
       operation: context?.operation,
