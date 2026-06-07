@@ -402,6 +402,60 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
       ]
     },
     {
+      name: 'servicemonitor_monitors',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'name', type: 'string', length: 255, nullable: false },
+        { name: 'type', type: 'string', length: 50, nullable: false }, // ssl_certificate | endpoint | dns_failover
+        { name: 'target', type: 'string', length: 1024, nullable: false }, // domain/URL being monitored
+        { name: 'domain_id', type: 'integer', nullable: true }, // FK for dns_failover type
+        { name: 'config', type: 'json', nullable: false }, // type-specific config
+        { name: 'check_interval', type: 'integer', defaultValue: 300 },
+        { name: 'check_timeout', type: 'integer', defaultValue: 10 },
+        { name: 'enabled', type: 'integer', defaultValue: true },
+        { name: 'notify_on_failure', type: 'integer', defaultValue: true },
+        { name: 'notify_on_recovery', type: 'integer', defaultValue: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_servicemonitor_user_id', columns: ['user_id'] },
+        { name: 'idx_servicemonitor_type', columns: ['type'] },
+        { name: 'idx_servicemonitor_enabled', columns: ['enabled'] },
+        { name: 'idx_servicemonitor_domain_id', columns: ['domain_id'] }
+      ],
+      foreignKeys: [
+        { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' },
+        { column: 'domain_id', refTable: 'domains', refColumn: 'id', onDelete: 'SET NULL' }
+      ]
+    },
+    {
+      name: 'servicemonitor_status',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'monitor_id', type: 'integer', unique: true, nullable: false },
+        { name: 'status', type: 'string', length: 20, defaultValue: 'unknown' }, // ok | warning | error | unknown
+        { name: 'last_check_at', type: 'datetime', nullable: true },
+        { name: 'last_success_at', type: 'datetime', nullable: true },
+        { name: 'last_failure_at', type: 'datetime', nullable: true },
+        { name: 'last_error', type: 'string', length: 2048, nullable: true },
+        { name: 'last_response_time', type: 'integer', nullable: true },
+        { name: 'consecutive_failures', type: 'integer', defaultValue: 0 },
+        { name: 'consecutive_successes', type: 'integer', defaultValue: 0 },
+        { name: 'result_data', type: 'json', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_servicemonitor_status_monitor', columns: ['monitor_id'] },
+        { name: 'idx_servicemonitor_status_status', columns: ['status'] }
+      ],
+      foreignKeys: [
+        { column: 'monitor_id', refTable: 'servicemonitor_monitors', refColumn: 'id', onDelete: 'CASCADE' }
+      ]
+    },
+    {
       name: 'security_policies',
       columns: [
         { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },

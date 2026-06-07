@@ -20,6 +20,7 @@ export { systemApi, settingsApi, securityApi } from './settings';
 export { tokensApi } from './tokens';
 export { nsMonitorApi } from './ns-monitor';
 export { networkApi } from './network';
+export { serviceMonitorApi } from './servicemonitor';
 export { initApi } from './init';
 export type { InitDbConfig, InitDatabaseType } from './init';
 export { mcpApi } from './mcp';

@@ -53,7 +53,7 @@ import mcpProtocolRouter from './routes/mcp-protocol';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
-import { startFailoverJob } from './service/failoverJob';
+import { startServiceMonitorJob } from './service/serviceMonitorJob';
 import { startWhoisJob } from './service/whois';
 import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
@@ -486,7 +486,7 @@ async function initializeApp() {
       initRenewalSchedulers();
       initWhoisSchedulers();
 
-      startFailoverJob();
+      startServiceMonitorJob();
       startWhoisJob();
       startNsMonitorJob();
       startDomainRenewalJob();
@@ -522,7 +522,7 @@ async function initializeApp() {
           isInitialized = true;
           log.info('System initialized detected. Normal routes are now enabled.');
           log.info('You may need to refresh the page.');
-          startFailoverJob();
+          startServiceMonitorJob();
           startWhoisJob();
           startNsMonitorJob();
           startDomainRenewalJob();
@@ -579,7 +579,7 @@ async function initializeApp() {
         if (newState) {
           isInitialized = true;
           clearInterval(initCheckInterval);
-          startFailoverJob();
+          startServiceMonitorJob();
           startWhoisJob();
           startNsMonitorJob();
           startDomainRenewalJob();

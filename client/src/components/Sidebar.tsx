@@ -47,7 +47,7 @@ const primaryItems: NavItem[] = [
 
 const domainItems: NavItem[] = [
   { to: '/dash/domains', icon: <RootListIcon />, key: 'domains.tabs.list' },
-  { to: '/dash/domains/failover', icon: <ActivityIcon />, key: 'domains.tabs.failover' },
+  { to: '/dash/domains/servicemonitor', icon: <ActivityIcon />, key: 'domains.tabs.servicemonitor' },
   { to: '/dash/domains/ns-monitor', icon: <SecuredIcon />, key: 'domains.tabs.nsMonitor' },
   { to: '/dash/domains/renewal', icon: <CalendarIcon />, key: 'domains.tabs.renewal' },
 ];

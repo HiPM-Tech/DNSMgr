@@ -21,7 +21,7 @@ export type McpModule =
   | 'domain_management'
   | 'renewal_management'
   | 'log_query'
-  | 'failover_management';
+  | 'service_monitor';
 
 /**
  * 用户角色对应的权限映射
@@ -32,21 +32,21 @@ const ROLE_PERMISSIONS: Record<string, Record<McpModule, McpPermissionLevel>> = 
     domain_management: 'read',
     renewal_management: 'read',
     log_query: 'disabled', // 普通用户禁止访问日志
-    failover_management: 'read',
+    service_monitor: 'read',
   },
   admin: {
     ns_monitor: 'write',
     domain_management: 'write',
     renewal_management: 'write',
     log_query: 'read', // 管理员可读日志
-    failover_management: 'write',
+    service_monitor: 'write',
   },
   super: {
     ns_monitor: 'write',
     domain_management: 'write',
     renewal_management: 'write',
     log_query: 'read', // 超管也只读日志（安全考虑）
-    failover_management: 'write',
+    service_monitor: 'write',
   },
 };
 
@@ -239,12 +239,12 @@ export function getModuleByToolName(toolName: string): McpModule | null {
     'get_audit_stats': 'log_query',
     'export_audit_logs': 'log_query',
 
-    // 故障转移模块
-    'list_failover_rules': 'failover_management',
-    'get_failover_config': 'failover_management',
-    'create_failover_config': 'failover_management',
-    'delete_failover_config': 'failover_management',
-    'perform_health_check': 'failover_management',
+    // 服务监控模块
+    'list_servicemonitor_monitors': 'service_monitor',
+    'get_servicemonitor_monitor': 'service_monitor',
+    'create_servicemonitor_monitor': 'service_monitor',
+    'delete_servicemonitor_monitor': 'service_monitor',
+    'perform_servicemonitor_check': 'service_monitor',
   };
 
   return toolToModule[toolName] || null;
@@ -290,7 +290,7 @@ function isValidModule(module: string): boolean {
     'domain_management',
     'renewal_management',
     'log_query',
-    'failover_management',
+    'service_monitor',
   ];
 
   return validModules.includes(module as McpModule);

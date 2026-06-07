@@ -55,7 +55,8 @@ function App() {
                         <Route path="dash" element={<Dashboard />} />
                         <Route path="dash/accounts" element={<Accounts />} />
                         <Route path="dash/domains" element={<Domains activeTab="list" />} />
-                        <Route path="dash/domains/failover" element={<Domains activeTab="failover" />} />
+                        <Route path="dash/domains/servicemonitor" element={<Domains activeTab="servicemonitor" />} />
+                        <Route path="dash/domains/failover" element={<Navigate to="/dash/domains/servicemonitor" replace />} />
                         <Route path="dash/domains/ns-monitor" element={<Domains activeTab="ns-monitor" />} />
                         <Route path="dash/domains/renewal" element={<Domains activeTab="renewal" />} />
                         <Route path="dash/domains/:id/records" element={<Records />} />

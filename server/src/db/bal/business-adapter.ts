@@ -2931,6 +2931,154 @@ export const FailoverOperations = {
 };
 
 // ============================================================================
+// 服务监控业务操作 (ServiceMonitor)
+// ============================================================================
+
+export const ServiceMonitorOperations = {
+  /** 获取所有启用的监控 */
+  async getAllEnabled(): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM servicemonitor_monitors WHERE enabled = 1',
+      [],
+      { operation: 'ServiceMonitor.getAllEnabled', table: 'servicemonitor_monitors' }
+    );
+  },
+
+  /** 根据用户ID获取监控列表 */
+  async getByUser(userId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM servicemonitor_monitors WHERE user_id = ?',
+      [userId],
+      { operation: 'ServiceMonitor.getByUser', table: 'servicemonitor_monitors' }
+    );
+  },
+
+  /** 根据ID获取监控 */
+  async getById(id: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM servicemonitor_monitors WHERE id = ?',
+      [id],
+      { operation: 'ServiceMonitor.getById', table: 'servicemonitor_monitors' }
+    );
+  },
+
+  /** 根据域名ID获取监控 */
+  async getByDomain(domainId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM servicemonitor_monitors WHERE domain_id = ?',
+      [domainId],
+      { operation: 'ServiceMonitor.getByDomain', table: 'servicemonitor_monitors' }
+    );
+  },
+
+  /** 创建监控 */
+  async create(data: Record<string, unknown>): Promise<number> {
+    const fields = Object.keys(data);
+    const placeholders = fields.map(() => '?').join(', ');
+    return insertInternal(
+      `INSERT INTO servicemonitor_monitors (${fields.join(', ')}) VALUES (${placeholders})`,
+      Object.values(data),
+      { operation: 'ServiceMonitor.create', table: 'servicemonitor_monitors' }
+    );
+  },
+
+  /** 更新监控 */
+  async update(id: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE servicemonitor_monitors SET ${setClause} WHERE id = ?`,
+      [...values, id],
+      { operation: 'ServiceMonitor.update', table: 'servicemonitor_monitors' }
+    );
+  },
+
+  /** 删除监控 */
+  async delete(id: number): Promise<void> {
+    return executeInternal(
+      'DELETE FROM servicemonitor_monitors WHERE id = ?',
+      [id],
+      { operation: 'ServiceMonitor.delete', table: 'servicemonitor_monitors' }
+    );
+  },
+
+  /** 获取监控状态 */
+  async getStatus(monitorId: number): Promise<QueryResult | undefined> {
+    return getInternal(
+      'SELECT * FROM servicemonitor_status WHERE monitor_id = ?',
+      [monitorId],
+      { operation: 'ServiceMonitor.getStatus', table: 'servicemonitor_status' }
+    );
+  },
+
+  /** 更新监控状态 (UPSERT) */
+  async updateStatus(monitorId: number, updates: Record<string, unknown>): Promise<void> {
+    const fields = Object.keys(updates);
+    if (fields.length === 0) return;
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = Object.values(updates);
+    return executeInternal(
+      `UPDATE servicemonitor_status SET ${setClause} WHERE monitor_id = ?`,
+      [...values, monitorId],
+      { operation: 'ServiceMonitor.updateStatus', table: 'servicemonitor_status' }
+    );
+  },
+
+  /** 初始化监控状态 */
+  async initStatus(monitorId: number): Promise<void> {
+    return executeInternal(
+      `INSERT INTO servicemonitor_status (monitor_id, status, last_check_at)
+       VALUES (?, 'unknown', ${now()})`,
+      [monitorId],
+      { operation: 'ServiceMonitor.initStatus', table: 'servicemonitor_status' }
+    );
+  },
+
+  /** 更新状态并记录检查结果(SQLite) */
+  async updateCheckStatusSQLite(monitorId: number, status: string, responseTime: number | null, error: string | null): Promise<void> {
+    const errorField = error ? `, last_error = '${error.replace(/'/g, "''")}'` : '';
+    const responseTimeField = responseTime !== null ? `, last_response_time = ${responseTime}` : '';
+    return executeInternal(
+      `INSERT INTO servicemonitor_status (monitor_id, status, last_check_at, last_response_time, last_error${error ? ', last_failure_at' : ', last_success_at'})
+       VALUES (?, ?, datetime('now'), ?, ?${error ? `, datetime('now')` : `, datetime('now')`})
+       ON CONFLICT(monitor_id) DO UPDATE SET
+        status = excluded.status, last_check_at = datetime('now'), last_response_time = excluded.last_response_time${error ? `, last_error = '${error.replace(/'/g, "''")}', last_failure_at = datetime('now')` : `, last_error = NULL, last_success_at = datetime('now')`}`,
+      [monitorId, status, responseTime, responseTime],
+      { operation: 'ServiceMonitor.updateCheckStatusSQLite', table: 'servicemonitor_status' }
+    );
+  },
+
+  /** 更新状态并记录检查结果(MySQL) */
+  async updateCheckStatusMySQL(monitorId: number, status: string, responseTime: number | null, error: string | null): Promise<void> {
+    const errorField = error ? `, last_error = '${error.replace(/'/g, "\\'")}'` : '';
+    return executeInternal(
+      `INSERT INTO servicemonitor_status (monitor_id, status, last_check_at, last_response_time, last_error)
+       VALUES (?, ?, NOW(), ?, ?)
+       ON DUPLICATE KEY UPDATE
+        status = VALUES(status), last_check_at = NOW(), last_response_time = VALUES(last_response_time),
+        last_error = VALUES(last_error)${error ? `, last_failure_at = NOW()` : `, last_success_at = NOW()`}`,
+      [monitorId, status, responseTime, error],
+      { operation: 'ServiceMonitor.updateCheckStatusMySQL', table: 'servicemonitor_status' }
+    );
+  },
+
+  /** 更新状态并记录检查结果(PostgreSQL) */
+  async updateCheckStatusPostgreSQL(monitorId: number, status: string, responseTime: number | null, error: string | null): Promise<void> {
+    return executeInternal(
+      `INSERT INTO servicemonitor_status (monitor_id, status, last_check_at, last_response_time, last_error)
+       VALUES ($1, $2, NOW(), $3, $4)
+       ON CONFLICT(monitor_id) DO UPDATE SET
+        status = EXCLUDED.status, last_check_at = NOW(), last_response_time = EXCLUDED.last_response_time,
+        last_error = EXCLUDED.last_error${error ? `, last_failure_at = NOW()` : `, last_success_at = NOW()`}`,
+      [monitorId, status, responseTime, error],
+      { operation: 'ServiceMonitor.updateCheckStatusPostgreSQL', table: 'servicemonitor_status' }
+    );
+  },
+};
+
+// ============================================================================
 // 审计日志导出业务操作
 // ============================================================================
 

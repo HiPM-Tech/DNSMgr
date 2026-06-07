@@ -13,7 +13,7 @@ const MCP_MODULES = [
   { key: 'domain_management', name: 'Domain Management', nameCn: '域名管理' },
   { key: 'renewal_management', name: 'Renewal Management', nameCn: '续费管理' },
   { key: 'log_query', name: 'Audit Logs', nameCn: '审计日志' },
-  { key: 'failover_management', name: 'Failover Management', nameCn: '故障转移' },
+  { key: 'service_monitor', name: 'ServiceMonitor', nameCn: '服务监控' },
 ];
 
 const PERMISSION_LABELS: Record<string, { en: string; cn: string }> = {

@@ -7,11 +7,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { validateToolPermission, logMcpAction, getModuleByToolName } from '../service/mcp-permission';
-import { McpOperations, DomainOperations, RenewableDomainOperations, FailoverOperations, NSMonitorOperations, RecordOperations, UserPreferencesOperations, AuditExportOperations } from '../db/bal/business-adapter';
+import { McpOperations, DomainOperations, RenewableDomainOperations, ServiceMonitorOperations, NSMonitorOperations, RecordOperations, UserPreferencesOperations, AuditExportOperations } from '../db/bal/business-adapter';
 import { DnsProviderService } from '../service/dns-provider-service';
 import { checkWhoisForDomain } from '../service/whois/checker';
 import { resolveNsRecords, validateNsRecords } from '../lib/dns/ns-lookup';
-import { getFailoverConfig, getFailoverStatus, saveFailoverConfig, deleteFailoverConfig, performHealthCheck } from '../service/failover';
 import { AppError } from '../middleware/errorHandler';
 import { createLogger } from '../lib/logger';
 
@@ -708,16 +707,17 @@ export function registerTools(server: McpServer): void {
   );
 
   // ========================================
-  // 故障转移模块工具
+  // 服务监控模块工具 (ServiceMonitor)
   // ========================================
 
   server.tool(
-    'list_failover_rules',
-    'List DNS failover rules',
+    'list_servicemonitor_monitors',
+    'List ServiceMonitor monitors',
     {
       apiKey: z.string().describe('API key for authentication'),
+      type: z.string().optional().describe('Filter by monitor type: ssl_certificate, endpoint, dns_failover'),
     },
-    async ({ apiKey }) => {
+    async ({ apiKey, type }) => {
       try {
         const auth = await authenticateRequest(apiKey);
         if (!auth) {
@@ -727,14 +727,19 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'list_failover_rules', 'read');
+        await validateToolPermission(auth.userId, 'list_servicemonitor_monitors', 'read');
 
-        // 获取所有启用的故障转移规则
-        const failoverRules = await FailoverOperations.getAllEnabled();
+        // 获取所有启用的服务卫士监控
+        const monitors = await ServiceMonitorOperations.getByUser(auth.userId);
+
+        let filtered = monitors;
+        if (type) {
+          filtered = monitors.filter((m: any) => m.type === type);
+        }
 
         const result = {
-          failover_rules: failoverRules,
-          total: failoverRules.length,
+          servicemonitors: filtered,
+          total: filtered.length,
         };
 
         // 追踪 API Key 使用
@@ -745,8 +750,9 @@ export function registerTools(server: McpServer): void {
         await logMcpAction({
           userId: auth.userId,
           authType: auth.authType,
-          module: 'failover_management',
-          action: 'list_failover_rules',
+          module: 'service_monitor',
+          action: 'list_servicemonitor_monitors',
+          requestParams: { type },
           responseStatus: 'success',
         });
 
@@ -754,7 +760,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('list_failover_rules failed', { error });
+        log.error('list_servicemonitors failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -764,13 +770,13 @@ export function registerTools(server: McpServer): void {
   );
 
   server.tool(
-    'get_failover_config',
-    'Get failover configuration for a domain',
+    'get_servicemonitor',
+    'Get ServiceMonitor monitor details',
     {
       apiKey: z.string().describe('API key for authentication'),
-      domainId: z.number().describe('Domain ID'),
+      monitorId: z.number().describe('Monitor ID'),
     },
-    async ({ apiKey, domainId }) => {
+    async ({ apiKey, monitorId }) => {
       try {
         const auth = await authenticateRequest(apiKey);
         if (!auth) {
@@ -780,24 +786,21 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'get_failover_config', 'read');
+        await validateToolPermission(auth.userId, 'get_servicemonitor', 'read');
 
-        // 获取容灾配置
-        const config = await getFailoverConfig(domainId);
+        // 获取监控详情
+        const { getMonitor } = await import('../service/serviceMonitor');
+        const monitorResult = await getMonitor(monitorId);
 
-        if (!config) {
+        if (!monitorResult) {
           return {
-            content: [{ type: 'text', text: `No failover configuration found for domain ${domainId}` }],
+            content: [{ type: 'text', text: `ServiceMonitor monitor with ID ${monitorId} not found` }],
             isError: true,
           };
         }
 
-        // 获取当前状态
-        const status = await getFailoverStatus(config.id);
-
         const result = {
-          config,
-          status,
+          servicemonitor: monitorResult,
         };
 
         // 追踪 API Key 使用
@@ -808,9 +811,9 @@ export function registerTools(server: McpServer): void {
         await logMcpAction({
           userId: auth.userId,
           authType: auth.authType,
-          module: 'failover_management',
-          action: 'get_failover_config',
-          requestParams: { domainId },
+          module: 'service_monitor',
+          action: 'get_servicemonitor',
+          requestParams: { monitorId },
           responseStatus: 'success',
         });
 
@@ -818,7 +821,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('get_failover_config failed', { error });
+        log.error('get_servicemonitor failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -828,21 +831,22 @@ export function registerTools(server: McpServer): void {
   );
 
   server.tool(
-    'create_failover_config',
-    'Create or update failover configuration for a domain',
+    'create_servicemonitor',
+    'Create a ServiceMonitor monitor',
     {
       apiKey: z.string().describe('API key for authentication'),
-      domainId: z.number().describe('Domain ID'),
-      primaryIp: z.string().describe('Primary IP address'),
-      backupIps: z.array(z.string()).describe('Backup IP addresses'),
-      checkMethod: z.enum(['http', 'tcp', 'ping']).optional().describe('Health check method (default: http)'),
-      checkInterval: z.number().optional().describe('Check interval in seconds (default: 60)'),
-      checkPort: z.number().optional().describe('Check port (default: 80)'),
-      checkPath: z.string().optional().describe('HTTP check path (default: /)'),
-      autoSwitchBack: z.boolean().optional().describe('Auto switch back to primary (default: true)'),
-      enabled: z.boolean().optional().describe('Enable failover (default: true)'),
+      name: z.string().describe('Monitor name'),
+      type: z.enum(['ssl_certificate', 'endpoint', 'dns_failover']).describe('Monitor type'),
+      target: z.string().describe('Domain/URL being monitored'),
+      domainId: z.number().optional().describe('Domain ID (for dns_failover type)'),
+      config: z.string().describe('JSON string of type-specific configuration'),
+      checkInterval: z.number().optional().describe('Check interval in seconds (default: 300)'),
+      checkTimeout: z.number().optional().describe('Check timeout in seconds (default: 10)'),
+      enabled: z.boolean().optional().describe('Enable monitor (default: true)'),
+      notifyOnFailure: z.boolean().optional().describe('Notify on failure (default: true)'),
+      notifyOnRecovery: z.boolean().optional().describe('Notify on recovery (default: true)'),
     },
-    async ({ apiKey, domainId, primaryIp, backupIps, checkMethod, checkInterval, checkPort, checkPath, autoSwitchBack, enabled }) => {
+    async ({ apiKey, name, type, target, domainId, config, checkInterval, checkTimeout, enabled, notifyOnFailure, notifyOnRecovery }) => {
       try {
         const auth = await authenticateRequest(apiKey);
         if (!auth) {
@@ -852,24 +856,33 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'create_failover_config', 'write', auth.authType, auth.scope);
+        await validateToolPermission(auth.userId, 'create_servicemonitor', 'write', auth.authType, auth.scope);
 
-        // 保存容灾配置
-        const configId = await saveFailoverConfig(domainId, {
-          primaryIp,
-          backupIps,
-          checkMethod: checkMethod || 'http',
-          checkInterval: checkInterval || 60,
-          checkPort: checkPort || 80,
-          checkPath: checkPath || '/',
-          autoSwitchBack: autoSwitchBack !== undefined ? autoSwitchBack : true,
-          enabled: enabled !== undefined ? enabled : true,
+        // 创建监控
+        const { createMonitor } = await import('../service/serviceMonitor');
+        let parsedConfig: Record<string, unknown> = {};
+        try { parsedConfig = JSON.parse(config); } catch { parsedConfig = { raw: config }; }
+
+        const id = await createMonitor({
+          userId: auth.userId,
+          name,
+          type,
+          target,
+          domainId,
+          config: parsedConfig,
+          checkInterval,
+          checkTimeout,
+          enabled,
+          notifyOnFailure,
+          notifyOnRecovery,
         });
 
         const result = {
-          config_id: configId,
-          domain_id: domainId,
-          message: 'Failover configuration created/updated successfully',
+          monitor_id: id,
+          name,
+          type,
+          target,
+          message: 'ServiceMonitor monitor created successfully',
         };
 
         // 追踪 API Key 使用
@@ -880,9 +893,9 @@ export function registerTools(server: McpServer): void {
         await logMcpAction({
           userId: auth.userId,
           authType: auth.authType,
-          module: 'failover_management',
-          action: 'create_failover_config',
-          requestParams: { domainId, primaryIp, backupIps },
+          module: 'service_monitor',
+          action: 'create_servicemonitor',
+          requestParams: { name, type, target },
           responseStatus: 'success',
         });
 
@@ -890,7 +903,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('create_failover_config failed', { error });
+        log.error('create_servicemonitor failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -900,13 +913,13 @@ export function registerTools(server: McpServer): void {
   );
 
   server.tool(
-    'delete_failover_config',
-    'Delete failover configuration for a domain',
+    'delete_servicemonitor_monitor',
+    'Delete a ServiceMonitor monitor',
     {
       apiKey: z.string().describe('API key for authentication'),
-      domainId: z.number().describe('Domain ID'),
+      monitorId: z.number().describe('Monitor ID'),
     },
-    async ({ apiKey, domainId }) => {
+    async ({ apiKey, monitorId }) => {
       try {
         const auth = await authenticateRequest(apiKey);
         if (!auth) {
@@ -916,14 +929,15 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'delete_failover_config', 'write', auth.authType, auth.scope);
+        await validateToolPermission(auth.userId, 'delete_servicemonitor_monitor', 'write', auth.authType, auth.scope);
 
-        // 删除容灾配置
-        await deleteFailoverConfig(domainId);
+        // 删除监控
+        const { deleteMonitor } = await import('../service/serviceMonitor');
+        await deleteMonitor(monitorId);
 
         const result = {
-          domain_id: domainId,
-          message: 'Failover configuration deleted successfully',
+          monitor_id: monitorId,
+          message: 'ServiceMonitor monitor deleted successfully',
         };
 
         // 追踪 API Key 使用
@@ -934,9 +948,9 @@ export function registerTools(server: McpServer): void {
         await logMcpAction({
           userId: auth.userId,
           authType: auth.authType,
-          module: 'failover_management',
-          action: 'delete_failover_config',
-          requestParams: { domainId },
+          module: 'service_monitor',
+          action: 'delete_servicemonitor_monitor',
+          requestParams: { monitorId },
           responseStatus: 'success',
         });
 
@@ -944,7 +958,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('delete_failover_config failed', { error });
+        log.error('delete_servicemonitor failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
@@ -954,13 +968,13 @@ export function registerTools(server: McpServer): void {
   );
 
   server.tool(
-    'perform_health_check',
-    'Manually perform health check for a failover configuration',
+    'perform_servicemonitor_check',
+    'Manually trigger a health check for a ServiceMonitor monitor',
     {
       apiKey: z.string().describe('API key for authentication'),
-      domainId: z.number().describe('Domain ID'),
+      monitorId: z.number().describe('Monitor ID'),
     },
-    async ({ apiKey, domainId }) => {
+    async ({ apiKey, monitorId }) => {
       try {
         const auth = await authenticateRequest(apiKey);
         if (!auth) {
@@ -970,39 +984,33 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        await validateToolPermission(auth.userId, 'perform_health_check', 'write', auth.authType, auth.scope);
+        await validateToolPermission(auth.userId, 'perform_servicemonitor_check', 'write', auth.authType, auth.scope);
 
-        // 获取容灾配置
-        const config = await getFailoverConfig(domainId);
+        // 获取监控配置
+        const { getMonitor, performCheck, runCheckAndUpdate } = await import('../service/serviceMonitor');
+        const monitor = await getMonitor(monitorId);
 
-        if (!config) {
+        if (!monitor) {
           return {
-            content: [{ type: 'text', text: `No failover configuration found for domain ${domainId}` }],
-            isError: true,
-          };
-        }
-
-        // 获取当前状态
-        const status = await getFailoverStatus(config.id);
-
-        if (!status) {
-          return {
-            content: [{ type: 'text', text: `No failover status found for config ${config.id}` }],
+            content: [{ type: 'text', text: `ServiceMonitor monitor with ID ${monitorId} not found` }],
             isError: true,
           };
         }
 
         // 执行健康检查
-        const checkResult = await performHealthCheck(config, status);
+        const checkResult = await performCheck(monitor);
+        await runCheckAndUpdate(monitor);
 
         const result = {
-          domain_id: domainId,
-          config_id: config.id,
-          current_ip: status.currentIp,
-          is_primary: status.isPrimary,
+          monitor_id: monitorId,
+          name: monitor.name,
+          type: monitor.type,
+          target: monitor.target,
           health_check: {
-            available: checkResult.available,
+            status: checkResult.status,
             response_time_ms: checkResult.responseTime,
+            error: checkResult.error,
+            result_data: checkResult.resultData,
             timestamp: new Date().toISOString(),
           },
         };
@@ -1015,9 +1023,9 @@ export function registerTools(server: McpServer): void {
         await logMcpAction({
           userId: auth.userId,
           authType: auth.authType,
-          module: 'failover_management',
-          action: 'perform_health_check',
-          requestParams: { domainId },
+          module: 'service_monitor',
+          action: 'perform_servicemonitor_check',
+          requestParams: { monitorId },
           responseStatus: 'success',
         });
 
@@ -1025,7 +1033,7 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        log.error('perform_health_check failed', { error });
+        log.error('perform_servicemonitor_check failed', { error });
         return {
           content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
           isError: true,
