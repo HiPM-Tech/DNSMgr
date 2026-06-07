@@ -50,6 +50,7 @@ import mcpApiKeysRouter from './routes/mcp-apikeys';
 import mcpOAuthRouter from './routes/mcp-oauth';
 import mcpAuditRouter from './routes/mcp-audit';
 import mcpProtocolRouter from './routes/mcp-protocol';
+import servicemonitorRouter from './routes/servicemonitor';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
@@ -264,7 +265,7 @@ function initCheckMiddleware(req: Request, res: Response, next: NextFunction) {
 }
 
 // Apply initialization check middleware to protected paths
-const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings', '/api/tokens', '/api/mcp'];
+const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings', '/api/tokens', '/api/mcp', '/api/servicemonitor'];
 protectedPaths.forEach(path => {
   app.use(path, initCheckMiddleware);
 });
@@ -291,6 +292,7 @@ app.use('/api/auth/webauthn', webauthnRouter);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/ns-monitor', nsMonitorRouter);
 app.use('/api/network', networkRouter);
+app.use('/api/servicemonitor', servicemonitorRouter);
 
 // MCP 路由 - 统一合并到父级路由器，避免重复注册 /api/mcp
 const mcpRouter = express.Router();
