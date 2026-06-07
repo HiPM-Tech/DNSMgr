@@ -399,10 +399,18 @@ export class SchemaReconciler {
     };
 
     const expectedAliases = aliases[normExpected];
-    if (expectedAliases && expectedAliases.includes(normActual)) return true;
+    if (expectedAliases && expectedAliases.includes(normActual)) {
+      // Alias matches — check length compatibility if both have explicit length
+      if (actualLen !== null && expectedLen !== null) return actualLen === expectedLen;
+      return true;
+    }
 
     for (const [canonical, aliasList] of Object.entries(aliases)) {
-      if (aliasList.includes(normActual) && canonical === normExpected) return true;
+      if (aliasList.includes(normActual) && canonical === normExpected) {
+        // Alias matches — check length compatibility if both have explicit length
+        if (actualLen !== null && expectedLen !== null) return actualLen === expectedLen;
+        return true;
+      }
     }
 
     return false;
