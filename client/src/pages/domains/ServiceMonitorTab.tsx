@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Form, Input, Loading, Pagination, Select, Space, Switch, Tag } from 'tdesign-react';
+import { Button, Card, Form, Input, Pagination, Select, Space, Switch, Tag } from 'tdesign-react';
 import { AddIcon, DeleteIcon, SearchIcon, EditIcon, CheckCircleIcon, ErrorCircleIcon, TimeIcon } from 'tdesign-icons-react';
 import { serviceMonitorApi } from '../../api';
 import { Table } from '../../components/Table';
@@ -176,12 +176,6 @@ export function ServiceMonitorTab() {
     staleTime: 30000,
   });
 
-  const { data: availableDomains = [] } = useQuery({
-    queryKey: ['servicemonitor-domains'],
-    queryFn: () => serviceMonitorApi.getAvailableDomains().then((r) => r.data.data || []),
-    enabled: isAddModalOpen,
-  });
-
   const createMutation = useMutation({
     mutationFn: (data: any) => serviceMonitorApi.create(data),
     onSuccess: () => {
@@ -306,7 +300,7 @@ export function ServiceMonitorTab() {
       error: 'danger',
       unknown: 'default',
     };
-    const icons: Record<string, ReactNode> = {
+    const icons: Record<string, JSX.Element> = {
       ok: <CheckCircleIcon />,
       warning: <TimeIcon />,
       error: <ErrorCircleIcon />,
@@ -625,13 +619,12 @@ export function ServiceMonitorTab() {
       </Card>
 
       {isAddModalOpen && (
-        <Modal title={t('domains.servicemonitor.addMonitor')} onClose={closeAddModal} size="lg" destroyOnClose>
+        <Modal title={t('domains.servicemonitor.addMonitor')} onClose={closeAddModal} size="lg">
           {renderForm('add')}
         </Modal>
-      )}
 
       {isEditModalOpen && selectedMonitor && (
-        <Modal title={t('domains.servicemonitor.editMonitor')} onClose={closeEditModal} size="lg" destroyOnClose>
+        <Modal title={t('domains.servicemonitor.editMonitor')} onClose={closeEditModal} size="lg">
           {renderForm('edit')}
         </Modal>
       )}
