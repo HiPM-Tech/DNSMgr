@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Form, Input, Pagination, Select, Space, Switch, Tag } from 'tdesign-react';
-import { AddIcon, DeleteIcon, SearchIcon, EditIcon, CheckCircleIcon, ErrorCircleIcon, TimeIcon } from 'tdesign-icons-react';
+import { Button, Card, Input, Pagination, Select, Space, Switch, Tag, Tabs } from 'tdesign-react';
+import { AddIcon, DeleteIcon, SearchIcon, EditIcon, CheckCircleIcon, ErrorCircleIcon, TimeIcon, LinkIcon, UnlinkIcon } from 'tdesign-icons-react';
 import { serviceMonitorApi } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
@@ -9,637 +9,747 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 
+type MonitorType = 'ssl_certificate' | 'endpoint' | 'dns_failover';
+
 interface ServiceMonitorMonitor {
   id: number;
   name: string;
-  monitor_type: 'ssl_certificate' | 'endpoint' | 'dns_failover';
+  monitor_type: MonitorType;
   target: string;
-  status: 'ok' | 'warning' | 'error' | 'unknown';
+  status: string;
   check_interval: number;
   config: Record<string, any>;
   notify_on_failure: boolean;
   notify_on_recovery: boolean;
+  parent_id: number | null;
+  domain_id: number | null;
   last_check_at?: string;
   response_time?: number;
-  domain_id?: number;
+  result_data?: Record<string, any> | null;
   created_at: string;
   updated_at: string;
 }
 
-interface MonitorFormState {
-  name: string;
-  monitor_type: 'ssl_certificate' | 'endpoint' | 'dns_failover';
-  target: string;
-  domain_id?: number;
-  check_interval: number;
-  notify_on_failure: boolean;
-  notify_on_recovery: boolean;
-  // SSL config
-  ssl_port: number;
-  ssl_warn_days: number;
-  ssl_check_chain: boolean;
-  // Endpoint config
-  endpoint_method: 'GET' | 'HEAD' | 'POST';
-  endpoint_expected_status: number;
-  endpoint_follow_redirects: boolean;
-  // DNS Failover config
-  failover_primary_value: string;
-  failover_backup_values: string;
-  failover_check_method: 'http' | 'tcp' | 'ping';
-  failover_check_port: number;
-  failover_check_path: string;
-  failover_auto_switch_back: boolean;
+// ---- SSL Tab ----
+
+function SSLTab({ monitors, isLoading, onEdit, onDelete, onCheck, onAdd }: {
+  monitors: ServiceMonitorMonitor[];
+  isLoading: boolean;
+  onEdit: (m: ServiceMonitorMonitor) => void;
+  onDelete: (m: ServiceMonitorMonitor) => void;
+  onCheck: (m: ServiceMonitorMonitor) => void;
+  onAdd: () => void;
+}) {
+  const { t } = useI18n();
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const ps = 20;
+
+  const filtered = monitors.filter(m => m.monitor_type === 'ssl_certificate').filter(m =>
+    m.name.toLowerCase().includes(search.toLowerCase()) || m.target.toLowerCase().includes(search.toLowerCase())
+  );
+  const paged = filtered.slice((page - 1) * ps, page * ps);
+
+  const columns = [
+    { key: 'name', label: t('domains.servicemonitor.name'), render: (r: ServiceMonitorMonitor) => <span className="page-strong">{r.name}</span> },
+    {
+      key: 'status', label: t('domains.servicemonitor.status'),
+      render: (r: ServiceMonitorMonitor) => statusTag(r.status, t),
+    },
+    { key: 'target', label: '域名', render: (r: ServiceMonitorMonitor) => <span className="record-mono">{r.target}</span> },
+    {
+      key: 'ssl_info', label: '证书信息',
+      render: (r: ServiceMonitorMonitor) => {
+        const rd = r.result_data;
+        if (!rd) return <span className="page-muted">-</span>;
+        return (
+          <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+            <div><Tag theme="primary" variant="light" size="small">{rd.encryptionType || '-'}</Tag> <Tag theme="warning" variant="light" size="small">{rd.validationLevel || '-'}</Tag></div>
+            <div style={{ color: '#666' }}>颁发: {rd.issuer || '-'}</div>
+            {rd.sanDomains && Array.isArray(rd.sanDomains) && rd.sanDomains.length > 1 && (
+              <div style={{ color: '#999', fontSize: 11 }}>SAN: {(rd.sanDomains as string[]).slice(0, 3).join(', ')}{rd.sanDomains.length > 3 ? ` +${rd.sanDomains.length - 3}` : ''}</div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'expiry', label: '到期',
+      render: (r: ServiceMonitorMonitor) => {
+        const rd = r.result_data;
+        if (!rd?.daysLeft) return <span className="page-muted">-</span>;
+        const days = Number(rd.daysLeft);
+        const theme = days <= 0 ? 'danger' : days <= 30 ? 'warning' : 'success';
+        return <Tag theme={theme} variant="light">{days <= 0 ? '已过期' : `${days}天`}</Tag>;
+      },
+    },
+    { key: 'response_time', label: t('domains.servicemonitor.responseTime'), render: (r: ServiceMonitorMonitor) => <span className="page-muted">{r.response_time != null ? `${r.response_time}ms` : '-'}</span> },
+    { key: 'last_check_at', label: t('domains.servicemonitor.lastCheck'), render: (r: ServiceMonitorMonitor) => <span className="page-muted">{r.last_check_at ? new Date(r.last_check_at).toLocaleString() : '-'}</span> },
+    {
+      key: 'actions', label: t('domains.servicemonitor.actions'),
+      render: (r: ServiceMonitorMonitor) => (
+        <Space size="small">
+          <Button shape="square" variant="text" theme="primary" icon={<CheckCircleIcon />} onClick={() => onCheck(r)} />
+          <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => onEdit(r)} />
+          <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} onClick={() => onDelete(r)} />
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <div className="records-toolbar" style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+        <Input clearable type="search" value={search} prefixIcon={<SearchIcon />} placeholder={t('common.search')}
+          onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
+        <Button theme="primary" icon={<AddIcon />} onClick={onAdd}>{t('domains.servicemonitor.addMonitor')}</Button>
+      </div>
+      <Card bordered={false} shadow={false}>
+        <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText="暂无SSL证书监测" />
+        <div className="records-pagination">
+          <Pagination size="small" current={page} pageSize={ps} total={filtered.length} totalContent={false}
+            showPageSize={false} showJumper={false} onCurrentChange={(c: number) => setPage(c)} />
+        </div>
+      </Card>
+    </div>
+  );
 }
 
-const DEFAULT_FORM_STATE: MonitorFormState = {
-  name: '',
-  monitor_type: 'ssl_certificate',
-  target: '',
-  domain_id: undefined,
-  check_interval: 300,
-  notify_on_failure: true,
-  notify_on_recovery: true,
-  ssl_port: 443,
-  ssl_warn_days: 30,
-  ssl_check_chain: true,
-  endpoint_method: 'GET',
-  endpoint_expected_status: 200,
-  endpoint_follow_redirects: true,
-  failover_primary_value: '',
-  failover_backup_values: '',
-  failover_check_method: 'http',
-  failover_check_port: 80,
-  failover_check_path: '/',
-  failover_auto_switch_back: true,
-};
+// ---- Endpoint Tab ----
 
-const dialogField = (label: string, control: ReactNode, tips?: ReactNode) => (
-  <div className="settings-control-field">
-    <span>{label}</span>
-    {control}
-    {tips && <small className="settings-control-field__tip">{tips}</small>}
-  </div>
-);
+function EndpointTab({ monitors, failoverMap, isLoading, onEdit, onDelete, onCheck, onAdd, onBindFailover }: {
+  monitors: ServiceMonitorMonitor[];
+  failoverMap: Record<number, ServiceMonitorMonitor[]>;
+  isLoading: boolean;
+  onEdit: (m: ServiceMonitorMonitor) => void;
+  onDelete: (m: ServiceMonitorMonitor) => void;
+  onCheck: (m: ServiceMonitorMonitor) => void;
+  onAdd: () => void;
+  onBindFailover: (m: ServiceMonitorMonitor) => void;
+}) {
+  const { t } = useI18n();
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const ps = 20;
 
-function buildFormFromMonitor(monitor: ServiceMonitorMonitor | null): MonitorFormState {
-  if (!monitor) return { ...DEFAULT_FORM_STATE };
-  const config = monitor.config || {};
-  return {
-    name: monitor.name || '',
-    monitor_type: monitor.monitor_type || 'ssl_certificate',
-    target: monitor.target || '',
-    domain_id: monitor.domain_id,
-    check_interval: monitor.check_interval || 300,
-    notify_on_failure: monitor.notify_on_failure ?? true,
-    notify_on_recovery: monitor.notify_on_recovery ?? true,
-    ssl_port: Number(config.port) || 443,
-    ssl_warn_days: Number(config.warn_days_before) || 30,
-    ssl_check_chain: config.check_chain ?? true,
-    endpoint_method: config.method || 'GET',
-    endpoint_expected_status: Number(config.expected_status) || 200,
-    endpoint_follow_redirects: config.follow_redirects ?? true,
-    failover_primary_value: String(config.primary_value || ''),
-    failover_backup_values: Array.isArray(config.backup_values) ? config.backup_values.join(', ') : String(config.backup_values || ''),
-    failover_check_method: config.check_method || 'http',
-    failover_check_port: Number(config.check_port) || 80,
-    failover_check_path: String(config.check_path || '/'),
-    failover_auto_switch_back: config.auto_switch_back ?? true,
+  const filtered = monitors.filter(m => m.monitor_type === 'endpoint').filter(m =>
+    m.name.toLowerCase().includes(search.toLowerCase()) || m.target.toLowerCase().includes(search.toLowerCase())
+  );
+  const paged = filtered.slice((page - 1) * ps, page * ps);
+
+  const columns = [
+    { key: 'name', label: t('domains.servicemonitor.name'), render: (r: ServiceMonitorMonitor) => <span className="page-strong">{r.name}</span> },
+    {
+      key: 'status', label: t('domains.servicemonitor.status'),
+      render: (r: ServiceMonitorMonitor) => statusTag(r.status, t),
+    },
+    { key: 'target', label: '目标', render: (r: ServiceMonitorMonitor) => <span className="record-mono">{r.target}{r.config?.path || ''}</span> },
+    {
+      key: 'endpoint_info', label: '响应',
+      render: (r: ServiceMonitorMonitor) => {
+        const rd = r.result_data;
+        if (!rd) return <span className="page-muted">-</span>;
+        return (
+          <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+            <Tag theme={Number(rd.statusCode) < 400 ? 'success' : 'danger'} variant="light" size="small">{rd.statusCode || '-'}</Tag>
+            {rd.redirectCount > 0 && <Tag theme="warning" variant="light" size="small" style={{ marginLeft: 4 }}>{rd.redirectCount}次跳转</Tag>}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'failover_bind', label: '故障转移',
+      render: (r: ServiceMonitorMonitor) => {
+        const children = failoverMap[r.id] || [];
+        if (children.length > 0) {
+          return <Tag theme="danger" variant="light" icon={<LinkIcon />}>已绑定</Tag>;
+        }
+        return <Button variant="text" size="small" icon={<LinkIcon />} onClick={() => onBindFailover(r)}>绑定故障转移</Button>;
+      },
+    },
+    { key: 'response_time', label: t('domains.servicemonitor.responseTime'), render: (r: ServiceMonitorMonitor) => <span className="page-muted">{r.response_time != null ? `${r.response_time}ms` : '-'}</span> },
+    { key: 'last_check_at', label: t('domains.servicemonitor.lastCheck'), render: (r: ServiceMonitorMonitor) => <span className="page-muted">{r.last_check_at ? new Date(r.last_check_at).toLocaleString() : '-'}</span> },
+    {
+      key: 'actions', label: t('domains.servicemonitor.actions'),
+      render: (r: ServiceMonitorMonitor) => (
+        <Space size="small">
+          <Button shape="square" variant="text" theme="primary" icon={<CheckCircleIcon />} onClick={() => onCheck(r)} />
+          <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => onEdit(r)} />
+          <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} onClick={() => onDelete(r)} />
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <div className="records-toolbar" style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+        <Input clearable type="search" value={search} prefixIcon={<SearchIcon />} placeholder={t('common.search')}
+          onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
+        <Button theme="primary" icon={<AddIcon />} onClick={onAdd}>{t('domains.servicemonitor.addMonitor')}</Button>
+      </div>
+      <Card bordered={false} shadow={false}>
+        <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText="暂无站点访问监测" />
+        <div className="records-pagination">
+          <Pagination size="small" current={page} pageSize={ps} total={filtered.length} totalContent={false}
+            showPageSize={false} showJumper={false} onCurrentChange={(c: number) => setPage(c)} />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ---- Failover Tab ----
+
+function FailoverTab({ monitors, isLoading, onEdit, onDelete, onCheck }: {
+  monitors: ServiceMonitorMonitor[];
+  isLoading: boolean;
+  onEdit: (m: ServiceMonitorMonitor) => void;
+  onDelete: (m: ServiceMonitorMonitor) => void;
+  onCheck: (m: ServiceMonitorMonitor) => void;
+}) {
+  const { t } = useI18n();
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const ps = 20;
+
+  const filtered = monitors.filter(m => m.monitor_type === 'dns_failover').filter(m =>
+    m.name.toLowerCase().includes(search.toLowerCase()) || m.target.toLowerCase().includes(search.toLowerCase())
+  );
+  const paged = filtered.slice((page - 1) * ps, page * ps);
+
+  const columns = [
+    { key: 'name', label: t('domains.servicemonitor.name'), render: (r: ServiceMonitorMonitor) => <span className="page-strong">{r.name}</span> },
+    {
+      key: 'status', label: t('domains.servicemonitor.status'),
+      render: (r: ServiceMonitorMonitor) => statusTag(r.status, t),
+    },
+    {
+      key: 'failover_info', label: '故障转移',
+      render: (r: ServiceMonitorMonitor) => {
+        const cfg = r.config || {};
+        const rd = r.result_data;
+        const active = rd?.activeValue || '-';
+        return (
+          <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+            <Tag theme="primary" variant="light" size="small">{cfg.recordType || 'A'}</Tag>
+            <span className="record-mono" style={{ marginLeft: 6 }}>{cfg.recordName || '-'} → {active}</span>
+            {rd?.usingBackup && <Tag theme="danger" variant="light" size="small" style={{ marginLeft: 4 }}>备用</Tag>}
+          </div>
+        );
+      },
+    },
+    { key: 'target', label: '监测源', render: (r: ServiceMonitorMonitor) => <span className="record-mono">{r.target}</span> },
+    { key: 'last_check_at', label: t('domains.servicemonitor.lastCheck'), render: (r: ServiceMonitorMonitor) => <span className="page-muted">{r.last_check_at ? new Date(r.last_check_at).toLocaleString() : '-'}</span> },
+    {
+      key: 'actions', label: t('domains.servicemonitor.actions'),
+      render: (r: ServiceMonitorMonitor) => (
+        <Space size="small">
+          <Button shape="square" variant="text" theme="primary" icon={<CheckCircleIcon />} onClick={() => onCheck(r)} />
+          <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => onEdit(r)} />
+          <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} onClick={() => onDelete(r)} />
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <div className="records-toolbar" style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+        <Input clearable type="search" value={search} prefixIcon={<SearchIcon />} placeholder={t('common.search')}
+          onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
+      </div>
+      <Card bordered={false} shadow={false}>
+        <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText="暂无DNS故障转移配置" />
+        <div className="records-pagination">
+          <Pagination size="small" current={page} pageSize={ps} total={filtered.length} totalContent={false}
+            showPageSize={false} showJumper={false} onCurrentChange={(c: number) => setPage(c)} />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ---- Shared helpers ----
+
+function statusTag(status: string, t: any) {
+  const labels: Record<string, string> = {
+    ok: '正常', warning: '警告', error: '异常', unknown: '未知',
   };
-}
-
-function buildPayload(form: MonitorFormState): any {
-  const payload: any = {
-    name: form.name,
-    monitor_type: form.monitor_type,
-    target: form.target,
-    check_interval: form.check_interval,
-    notify_on_failure: form.notify_on_failure,
-    notify_on_recovery: form.notify_on_recovery,
+  const themes: Record<string, 'success' | 'warning' | 'danger' | 'default'> = {
+    ok: 'success', warning: 'warning', error: 'danger', unknown: 'default',
   };
-
-  if (form.domain_id) {
-    payload.domain_id = form.domain_id;
-  }
-
-  switch (form.monitor_type) {
-    case 'ssl_certificate':
-      payload.config = {
-        port: form.ssl_port,
-        warn_days_before: form.ssl_warn_days,
-        check_chain: form.ssl_check_chain,
-      };
-      break;
-    case 'endpoint':
-      payload.config = {
-        method: form.endpoint_method,
-        expected_status: form.endpoint_expected_status,
-        follow_redirects: form.endpoint_follow_redirects,
-      };
-      break;
-    case 'dns_failover':
-      payload.config = {
-        primary_value: form.failover_primary_value,
-        backup_values: form.failover_backup_values.split(',').map((s: string) => s.trim()).filter(Boolean),
-        check_method: form.failover_check_method,
-        check_port: form.failover_check_port,
-        check_path: form.failover_check_path,
-        auto_switch_back: form.failover_auto_switch_back,
-      };
-      break;
-  }
-
-  return payload;
+  const icons: Record<string, React.ReactElement> = {
+    ok: <CheckCircleIcon />, warning: <TimeIcon />, error: <ErrorCircleIcon />, unknown: <TimeIcon />,
+  };
+  return <Tag theme={themes[status] || 'default'} variant="light" icon={icons[status]}>{labels[status] || status}</Tag>;
 }
+
+// ---- Main Tab Component ----
 
 export function ServiceMonitorTab() {
   const { t } = useI18n();
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [activeTab, setActiveTab] = useState('ssl');
 
+  // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isBindModalOpen, setIsBindModalOpen] = useState(false);
+  const [bindEndpoint, setBindEndpoint] = useState<ServiceMonitorMonitor | null>(null);
   const [selectedMonitor, setSelectedMonitor] = useState<ServiceMonitorMonitor | null>(null);
   const [deleteMonitor, setDeleteMonitor] = useState<ServiceMonitorMonitor | null>(null);
+  const [addType, setAddType] = useState<MonitorType>('ssl_certificate');
 
   // Form state
-  const [formState, setFormState] = useState<MonitorFormState>({ ...DEFAULT_FORM_STATE });
+  const [formState, setFormState] = useState<Record<string, any>>({});
+  const [availableDomains, setAvailableDomains] = useState<any[]>([]);
 
   const { data: monitors = [], isLoading } = useQuery({
     queryKey: ['servicemonitor'],
     queryFn: () => serviceMonitorApi.list().then((r) => r.data.data || []),
-    retry: 1,
-    retryDelay: 1000,
-    staleTime: 30000,
+    retry: 1, staleTime: 30000,
   });
+
+  // Fetch failover children for each endpoint
+  const endpointMonitors = monitors.filter((m: ServiceMonitorMonitor) => m.monitor_type === 'endpoint');
+  const [failoverMap, setFailoverMap] = useState<Record<number, ServiceMonitorMonitor[]>>({});
+
+  useEffect(() => {
+    async function loadChildren() {
+      const map: Record<number, ServiceMonitorMonitor[]> = {};
+      for (const ep of endpointMonitors) {
+        try {
+          const res = await serviceMonitorApi.getChildren(ep.id);
+          map[ep.id] = res.data.data || [];
+        } catch { map[ep.id] = []; }
+      }
+      setFailoverMap(map);
+    }
+    if (endpointMonitors.length > 0) loadChildren();
+  }, [monitors]);
+
+  // Load available domains for failover
+  useEffect(() => {
+    if (activeTab === 'failover' || addType === 'dns_failover') {
+      serviceMonitorApi.getAvailableDomains().then(r => setAvailableDomains(r.data.data || [])).catch(() => {});
+    }
+  }, [activeTab, addType]);
 
   const createMutation = useMutation({
     mutationFn: (data: any) => serviceMonitorApi.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['servicemonitor'] });
-      closeAddModal();
-      toast.success(t('domains.servicemonitor.monitorCreated'));
-    },
-    onError: () => {
-      toast.error(t('common.failed'));
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['servicemonitor'] }); closeAddModal(); toast.success('创建成功'); },
+    onError: () => { toast.error(t('common.failed')); },
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: { id: number; payload: any }) => serviceMonitorApi.update(data.id, data.payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['servicemonitor'] });
-      closeEditModal();
-      toast.success(t('domains.servicemonitor.monitorUpdated'));
-    },
-    onError: () => {
-      toast.error(t('common.failed'));
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['servicemonitor'] }); closeEditModal(); toast.success('更新成功'); },
+    onError: () => { toast.error(t('common.failed')); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => serviceMonitorApi.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['servicemonitor'] });
-      setDeleteMonitor(null);
-      toast.success(t('domains.servicemonitor.monitorDeleted'));
-    },
-    onError: () => {
-      toast.error(t('common.failed'));
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['servicemonitor'] }); setDeleteMonitor(null); toast.success('已删除'); },
+    onError: () => { toast.error(t('common.failed')); },
   });
 
   const checkMutation = useMutation({
     mutationFn: (id: number) => serviceMonitorApi.check(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['servicemonitor'] });
-      toast.success(t('domains.servicemonitor.monitorCheckTriggered'));
-    },
-    onError: () => {
-      toast.error(t('common.failed'));
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['servicemonitor'] }); toast.success('检查完成'); },
+    onError: () => { toast.error(t('common.failed')); },
   });
 
-  const resetForm = () => {
-    setFormState({ ...DEFAULT_FORM_STATE });
-  };
+  // Bind failover mutation
+  const bindMutation = useMutation({
+    mutationFn: (data: any) => serviceMonitorApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicemonitor'] });
+      setIsBindModalOpen(false);
+      setBindEndpoint(null);
+      toast.success('故障转移已绑定');
+    },
+    onError: () => { toast.error(t('common.failed')); },
+  });
 
-  const openAddModal = () => {
+  const resetForm = () => setFormState({});
+
+  const openAddModal = (type: MonitorType) => {
+    setAddType(type);
     resetForm();
     setIsAddModalOpen(true);
   };
 
-  const closeAddModal = () => {
-    setIsAddModalOpen(false);
-    resetForm();
-  };
+  const closeAddModal = () => { setIsAddModalOpen(false); resetForm(); };
+  const closeEditModal = () => { setIsEditModalOpen(false); setSelectedMonitor(null); resetForm(); };
 
-  const openEditModal = (monitor: ServiceMonitorMonitor) => {
-    setSelectedMonitor(monitor);
-    setFormState(buildFormFromMonitor(monitor));
+  const openEdit = (m: ServiceMonitorMonitor) => {
+    setSelectedMonitor(m);
+    setFormState({
+      name: m.name,
+      target: m.target,
+      monitor_type: m.monitor_type,
+      check_interval: m.check_interval,
+      notify_on_failure: m.notify_on_failure,
+      notify_on_recovery: m.notify_on_recovery,
+      domain_id: m.domain_id,
+      ...buildConfigFromMonitor(m),
+    });
     setIsEditModalOpen(true);
   };
 
-  const closeEditModal = () => {
-    setIsEditModalOpen(false);
-    setSelectedMonitor(null);
-    resetForm();
-  };
-
-  const updateField = <K extends keyof MonitorFormState>(field: K, value: MonitorFormState[K]) => {
-    setFormState((prev) => ({ ...prev, [field]: value }));
-  };
-
   const handleAdd = () => {
-    if (!formState.name || !formState.target) {
-      toast.error(t('common.required'));
-      return;
-    }
-    createMutation.mutate(buildPayload(formState));
+    if (!formState.name || !formState.target) { toast.error('请填写名称和目标'); return; }
+    const payload = buildPayloadForType(formState, addType);
+    createMutation.mutate(payload);
   };
 
   const handleEdit = () => {
     if (!selectedMonitor) return;
-    updateMutation.mutate({ id: selectedMonitor.id, payload: buildPayload(formState) });
+    const payload = buildPayloadForType(formState, selectedMonitor.monitor_type);
+    updateMutation.mutate({ id: selectedMonitor.id, payload });
   };
 
-  const filteredMonitors = monitors.filter((m: ServiceMonitorMonitor) =>
-    m.name?.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-    m.target?.toLowerCase().includes(searchKeyword.toLowerCase())
-  );
-
-  const paginatedMonitors = filteredMonitors.slice((page - 1) * pageSize, page * pageSize);
-
-  const typeTag = (type: string) => {
-    const labels: Record<string, string> = {
-      ssl_certificate: t('domains.servicemonitor.type_ssl_certificate'),
-      endpoint: t('domains.servicemonitor.type_endpoint'),
-      dns_failover: t('domains.servicemonitor.type_dns_failover'),
-    };
-    const themes: Record<string, 'primary' | 'warning' | 'danger'> = {
-      ssl_certificate: 'primary',
-      endpoint: 'warning',
-      dns_failover: 'danger',
-    };
-    return <Tag theme={themes[type] || 'default'} variant="light">{labels[type] || type}</Tag>;
+  const handleBind = () => {
+    if (!bindEndpoint || !formState.failover_domain_id || !formState.record_name || !formState.primary_value) {
+      toast.error('请完整填写故障转移配置'); return;
+    }
+    bindMutation.mutate({
+      name: `${bindEndpoint.name} 故障转移`,
+      monitor_type: 'dns_failover',
+      target: bindEndpoint.target,
+      parent_id: bindEndpoint.id,
+      domain_id: formState.failover_domain_id,
+      check_interval: bindEndpoint.check_interval,
+      notify_on_failure: true,
+      notify_on_recovery: true,
+      config: {
+        recordType: formState.record_type || 'A',
+        recordName: formState.record_name,
+        ttl: Number(formState.record_ttl) || 600,
+        line: formState.record_line || 'default',
+        proxyEnabled: formState.proxy_enabled || false,
+        primaryValue: formState.primary_value,
+        backupValues: (formState.backup_values || '').split('\n').map((s: string) => s.trim()).filter(Boolean),
+        autoSwitchBack: formState.auto_switch_back !== false,
+      },
+    });
   };
 
-  const statusTag = (status: string) => {
-    const labels: Record<string, string> = {
-      ok: t('domains.servicemonitor.status_ok'),
-      warning: t('domains.servicemonitor.status_warning'),
-      error: t('domains.servicemonitor.status_error'),
-      unknown: t('domains.servicemonitor.status_unknown'),
-    };
-    const themes: Record<string, 'success' | 'warning' | 'danger' | 'default'> = {
-      ok: 'success',
-      warning: 'warning',
-      error: 'danger',
-      unknown: 'default',
-    };
-    const icons: Record<string, React.ReactElement> = {
-      ok: <CheckCircleIcon />,
-      warning: <TimeIcon />,
-      error: <ErrorCircleIcon />,
-      unknown: <TimeIcon />,
-    };
-    return (
-      <Tag theme={themes[status] || 'default'} variant="light" icon={icons[status]}>
-        {labels[status] || status}
-      </Tag>
-    );
-  };
 
-  const columns = [
-    {
-      key: 'name',
-      label: t('domains.servicemonitor.name'),
-      render: (row: ServiceMonitorMonitor) => <span className="page-strong">{row.name}</span>,
-    },
-    {
-      key: 'monitor_type',
-      label: t('domains.servicemonitor.type'),
-      render: (row: ServiceMonitorMonitor) => typeTag(row.monitor_type),
-    },
-    {
-      key: 'target',
-      label: t('domains.servicemonitor.target'),
-      render: (row: ServiceMonitorMonitor) => <span className="record-mono record-mono--value">{row.target}</span>,
-    },
-    {
-      key: 'status',
-      label: t('domains.servicemonitor.status'),
-      render: (row: ServiceMonitorMonitor) => statusTag(row.status),
-    },
-    {
-      key: 'last_check_at',
-      label: t('domains.servicemonitor.lastCheck'),
-      render: (row: ServiceMonitorMonitor) => (
-        <span className="page-muted">
-          {row.last_check_at ? new Date(row.last_check_at).toLocaleString() : '-'}
-        </span>
-      ),
-    },
-    {
-      key: 'response_time',
-      label: t('domains.servicemonitor.responseTime'),
-      render: (row: ServiceMonitorMonitor) => (
-        <span className="page-muted">
-          {row.response_time != null ? `${row.response_time}ms` : '-'}
-        </span>
-      ),
-    },
-    {
-      key: 'actions',
-      label: t('domains.servicemonitor.actions'),
-      render: (row: ServiceMonitorMonitor) => (
-        <Space size="small">
-          <Button
-            shape="square"
-            variant="text"
-            theme="primary"
-            icon={<CheckCircleIcon />}
-            loading={checkMutation.isPending}
-            onClick={() => checkMutation.mutate(row.id)}
-          />
-          <Button
-            shape="square"
-            variant="text"
-            icon={<EditIcon />}
-            onClick={() => openEditModal(row)}
-          />
-          <Button
-            shape="square"
-            variant="text"
-            theme="danger"
-            icon={<DeleteIcon />}
-            disabled={deleteMutation.isPending}
-            onClick={() => setDeleteMonitor(row)}
-          />
-        </Space>
-      ),
-    },
-  ];
 
-  const renderConfigFields = () => {
-    switch (formState.monitor_type) {
+  // ---- Render add/edit form ----
+
+  const renderTypeForm = (type: MonitorType, forAdd: boolean) => {
+    switch (type) {
       case 'ssl_certificate':
         return (
           <>
             <div className="dialog-form-grid">
-              {dialogField(t('domains.servicemonitor.ssl_port'),
-                <Input
-                  type="number"
-                  value={String(formState.ssl_port)}
-                  onChange={(value: any) => updateField('ssl_port', Number(value) || 443)}
-                />
-              )}
-              {dialogField(t('domains.servicemonitor.ssl_warnDays'),
-                <Input
-                  type="number"
-                  value={String(formState.ssl_warn_days)}
-                  onChange={(value: any) => updateField('ssl_warn_days', Number(value) || 30)}
-                />
-              )}
+              {dialogField('监测域名',
+                <Input value={formState.target || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, target: String(v) }))} placeholder="例: example.com" />)}
+              {dialogField('HTTPS 端口',
+                <Input type="number" value={String(formState.ssl_port || 443)} onChange={(v: any) => setFormState((s: any) => ({ ...s, ssl_port: Number(v) || 443 }))} />)}
             </div>
-            <div className="dialog-switch-row">
-              <div>
-                <strong>{t('domains.servicemonitor.ssl_checkChain')}</strong>
-              </div>
-              <Switch value={formState.ssl_check_chain} onChange={(checked: any) => updateField('ssl_check_chain', Boolean(checked))} />
-            </div>
+            {dialogField('提前告警天数',
+              <Input type="number" value={String(formState.warn_days_before || 30)} onChange={(v: any) => setFormState((s: any) => ({ ...s, warn_days_before: Number(v) || 30 }))} />)}
           </>
         );
       case 'endpoint':
         return (
           <>
             <div className="dialog-form-grid">
-              {dialogField(t('domains.servicemonitor.endpoint_method'),
-                <Select
-                  value={formState.endpoint_method}
-                  options={[
-                    { label: 'GET', value: 'GET' },
-                    { label: 'HEAD', value: 'HEAD' },
-                    { label: 'POST', value: 'POST' },
-                  ]}
-                  onChange={(value: any) => updateField('endpoint_method', String(Array.isArray(value) ? value[0] : value) as 'GET' | 'HEAD' | 'POST')}
-                />
-              )}
-              {dialogField(t('domains.servicemonitor.endpoint_expectedStatus'),
-                <Input
-                  type="number"
-                  value={String(formState.endpoint_expected_status)}
-                  onChange={(value: any) => updateField('endpoint_expected_status', Number(value) || 200)}
-                />
-              )}
+              {dialogField('监测域名',
+                <Input value={formState.target || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, target: String(v) }))} placeholder="例: example.com" />)}
+              {dialogField('访问路径',
+                <Input value={formState.endpoint_path || '/'} onChange={(v: any) => setFormState((s: any) => ({ ...s, endpoint_path: String(v) }))} placeholder="/" />)}
+            </div>
+            <div className="dialog-form-grid">
+              {dialogField('协议',
+                <Select value={formState.endpoint_protocol || 'https'} options={[
+                  { label: 'HTTPS', value: 'https' }, { label: 'HTTP', value: 'http' },
+                ]} onChange={(v: any) => setFormState((s: any) => ({ ...s, endpoint_protocol: String(Array.isArray(v) ? v[0] : v) }))} />)}
+              {dialogField('端口',
+                <Input type="number" value={String(formState.endpoint_port || 443)} onChange={(v: any) => setFormState((s: any) => ({ ...s, endpoint_port: Number(v) || 443 }))} />)}
             </div>
             <div className="dialog-switch-row">
-              <div>
-                <strong>{t('domains.servicemonitor.endpoint_followRedirects')}</strong>
-              </div>
-              <Switch value={formState.endpoint_follow_redirects} onChange={(checked: any) => updateField('endpoint_follow_redirects', Boolean(checked))} />
+              <div><strong>跟随跳转</strong></div>
+              <Switch value={formState.follow_redirects !== false} onChange={(c: any) => setFormState((s: any) => ({ ...s, follow_redirects: Boolean(c) }))} />
             </div>
           </>
         );
       case 'dns_failover':
         return (
           <>
-            {dialogField(t('domains.servicemonitor.failover_primaryValue'),
-              <Input
-                value={formState.failover_primary_value}
-                onChange={(value: any) => updateField('failover_primary_value', String(value))}
-              />
-            )}
-            {dialogField(t('domains.servicemonitor.failover_backupValues'),
-              <Input
-                value={formState.failover_backup_values}
-                onChange={(value: any) => updateField('failover_backup_values', String(value))}
-              />
-            )}
             <div className="dialog-form-grid">
-              {dialogField(t('domains.servicemonitor.failover_checkMethod'),
-                <Select
-                  value={formState.failover_check_method}
-                  options={[
-                    { label: 'HTTP', value: 'http' },
-                    { label: 'TCP', value: 'tcp' },
-                    { label: 'PING', value: 'ping' },
-                  ]}
-                  onChange={(value: any) => updateField('failover_check_method', String(Array.isArray(value) ? value[0] : value) as 'http' | 'tcp' | 'ping')}
-                />
-              )}
-              {dialogField(t('domains.servicemonitor.failover_checkPort'),
-                <Input
-                  type="number"
-                  value={String(formState.failover_check_port)}
-                  onChange={(value: any) => updateField('failover_check_port', Number(value) || 80)}
-                />
-              )}
+              {dialogField('主机记录',
+                <Input value={formState.record_name || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_name: String(v) }))} placeholder="如: www, @" />)}
+              {dialogField('记录类型',
+                <Select value={formState.record_type || 'A'} options={[
+                  { label: 'A', value: 'A' }, { label: 'AAAA', value: 'AAAA' }, { label: 'CNAME', value: 'CNAME' },
+                ]} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_type: String(Array.isArray(v) ? v[0] : v) }))} />)}
             </div>
-            {formState.failover_check_method === 'http' && dialogField(t('domains.servicemonitor.failover_checkPath'),
-              <Input
-                value={formState.failover_check_path}
-                onChange={(value: any) => updateField('failover_check_path', String(value))}
-                placeholder="/"
-              />
-            )}
+            <div className="dialog-form-grid">
+              {dialogField('TTL',
+                <Input type="number" value={String(formState.record_ttl || 600)} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_ttl: Number(v) || 600 }))} />)}
+              {dialogField('线路',
+                <Input value={formState.record_line || 'default'} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_line: String(v) }))} />)}
+            </div>
             <div className="dialog-switch-row">
-              <div>
-                <strong>{t('domains.servicemonitor.failover_autoSwitchBack')}</strong>
+              <div><strong>代理状态</strong></div>
+              <Switch value={formState.proxy_enabled || false} onChange={(c: any) => setFormState((s: any) => ({ ...s, proxy_enabled: Boolean(c) }))} />
+            </div>
+            <div className="dialog-form-grid">
+              {dialogField('需要修改DNS的域名',
+                <Select value={formState.failover_domain_id || ''} options={availableDomains.map((d: any) => ({ label: `${d.name} (${d.account_name})`, value: d.id }))}
+                  onChange={(v: any) => setFormState((s: any) => ({ ...s, failover_domain_id: Number(Array.isArray(v) ? v[0] : v) }))} />)}
+            </div>
+            {formState.failover_domain_id && (
+              <div className="dialog-form-grid">
+                {dialogField('主机记录自动提取',
+                  <Input value={formState.record_name || ''} disabled placeholder="从上方自动提取" />)}
               </div>
-              <Switch value={formState.failover_auto_switch_back} onChange={(checked: any) => updateField('failover_auto_switch_back', Boolean(checked))} />
+            )}
+            {dialogField('主解析值',
+              <Input value={formState.primary_value || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, primary_value: String(v) }))} placeholder="主IP/域名" />)}
+            {dialogField('备用解析值（一行一个）',
+              <Input value={formState.backup_values || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, backup_values: String(v) }))} placeholder="192.168.1.1\n10.0.0.1" multiline />)}
+            <div className="dialog-switch-row">
+              <div><strong>自动切回主解析</strong></div>
+              <Switch value={formState.auto_switch_back !== false} onChange={(c: any) => setFormState((s: any) => ({ ...s, auto_switch_back: Boolean(c) }))} />
             </div>
           </>
         );
-      default:
-        return null;
     }
   };
 
-  const renderForm = (mode: 'add' | 'edit') => (
-    <Form
-      layout="vertical"
-      colon={false}
-      requiredMark={false}
-      className="page-shell dialog-form servicemonitor-dialog"
-      onSubmit={({ e }: any) => {
-        e?.preventDefault();
-        if (mode === 'add') handleAdd();
-        else handleEdit();
-      }}
-    >
-      {dialogField(t('domains.servicemonitor.name'),
-        <Input
-          value={formState.name}
-          onChange={(value: any) => updateField('name', String(value))}
-        />
-      )}
-      {dialogField(t('domains.servicemonitor.type'),
-        <Select
-          value={formState.monitor_type}
-          options={[
-            { label: t('domains.servicemonitor.type_ssl_certificate'), value: 'ssl_certificate' },
-            { label: t('domains.servicemonitor.type_endpoint'), value: 'endpoint' },
-            { label: t('domains.servicemonitor.type_dns_failover'), value: 'dns_failover' },
-          ]}
-          onChange={(value: any) => updateField('monitor_type', String(Array.isArray(value) ? value[0] : value) as 'ssl_certificate' | 'endpoint' | 'dns_failover')}
-        />
-      )}
-      {dialogField(t('domains.servicemonitor.target'),
-        <Input
-          value={formState.target}
-          onChange={(value: any) => updateField('target', String(value))}
-        />
-      )}
+  const renderForm = (mode: 'add' | 'edit') => {
+    const type = mode === 'add' ? addType : (selectedMonitor?.monitor_type || 'ssl_certificate');
+    return (
+      <div className="page-shell dialog-form servicemonitor-dialog">
+        {dialogField('名称',
+          <Input value={formState.name || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, name: String(v) }))} />)}
+        {renderTypeForm(type, mode === 'add')}
 
-      <div className="dialog-section-header">
-        <strong>{t('domains.servicemonitor.configSection')}</strong>
-      </div>
-      {renderConfigFields()}
+        {dialogField('检查间隔（秒）',
+          <Input type="number" value={String(formState.check_interval || 300)} onChange={(v: any) => setFormState((s: any) => ({ ...s, check_interval: Number(v) || 300 }))} />)}
 
-      {dialogField(t('domains.servicemonitor.checkInterval'),
-        <Input
-          type="number"
-          value={String(formState.check_interval)}
-          onChange={(value: any) => updateField('check_interval', Number(value) || 300)}
-        />
-      )}
-
-      <div className="dialog-switch-row">
-        <div>
-          <strong>{t('domains.servicemonitor.notifyOnFailure')}</strong>
+        <div className="dialog-switch-row">
+          <div><strong>失败通知</strong></div>
+          <Switch value={formState.notify_on_failure !== false} onChange={(c: any) => setFormState((s: any) => ({ ...s, notify_on_failure: Boolean(c) }))} />
         </div>
-        <Switch value={formState.notify_on_failure} onChange={(checked: any) => updateField('notify_on_failure', Boolean(checked))} />
-      </div>
-      <div className="dialog-switch-row">
-        <div>
-          <strong>{t('domains.servicemonitor.notifyOnRecovery')}</strong>
+        <div className="dialog-switch-row">
+          <div><strong>恢复通知</strong></div>
+          <Switch value={formState.notify_on_recovery !== false} onChange={(c: any) => setFormState((s: any) => ({ ...s, notify_on_recovery: Boolean(c) }))} />
         </div>
-        <Switch value={formState.notify_on_recovery} onChange={(checked: any) => updateField('notify_on_recovery', Boolean(checked))} />
-      </div>
 
-      <Space className="record-form__actions dialog-form-actions">
-        <Button type="submit" theme="primary" loading={createMutation.isPending || updateMutation.isPending}>
-          {t('common.save')}
-        </Button>
-      </Space>
-    </Form>
-  );
+        <Space style={{ marginTop: 16 }}>
+          <Button theme="primary" onClick={mode === 'add' ? handleAdd : handleEdit} loading={createMutation.isPending || updateMutation.isPending}>
+            {t('common.save')}
+          </Button>
+        </Space>
+      </div>
+    );
+  };
+
+  const renderBindForm = () => {
+    if (!bindEndpoint) return null;
+    const domainHint = bindEndpoint.target;
+    return (
+      <div className="page-shell dialog-form servicemonitor-dialog">
+        <p style={{ marginBottom: 12, color: '#666' }}>为 <strong>{bindEndpoint.name}</strong> 绑定 DNS 故障转移</p>
+        <div className="dialog-form-grid">
+          {dialogField('主机记录',
+            <Input value={formState.record_name || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_name: String(v) }))}
+              placeholder={`如: www (${domainHint} → www.${domainHint})`} />)}
+          {dialogField('记录类型',
+            <Select value={formState.record_type || 'A'} options={[
+              { label: 'A', value: 'A' }, { label: 'AAAA', value: 'AAAA' }, { label: 'CNAME', value: 'CNAME' },
+            ]} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_type: String(Array.isArray(v) ? v[0] : v) }))} />)}
+        </div>
+        <div className="dialog-form-grid">
+          {dialogField('TTL',
+            <Input type="number" value={String(formState.record_ttl || 600)} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_ttl: Number(v) || 600 }))} />)}
+          {dialogField('线路',
+            <Input value={formState.record_line || 'default'} onChange={(v: any) => setFormState((s: any) => ({ ...s, record_line: String(v) }))} />)}
+        </div>
+        <div className="dialog-form-grid">
+          {dialogField('需要修改DNS的域名',
+            <Select value={formState.failover_domain_id || ''} options={availableDomains.map((d: any) => ({ label: `${d.name} (${d.account_name})`, value: d.id }))}
+              onChange={(v: any) => setFormState((s: any) => ({ ...s, failover_domain_id: Number(Array.isArray(v) ? v[0] : v) }))} />)}
+        </div>
+        {dialogField('主解析值',
+          <Input value={formState.primary_value || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, primary_value: String(v) }))} placeholder="主IP/域名" />)}
+        {dialogField('备用解析值（一行一个）',
+          <Input value={formState.backup_values || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, backup_values: String(v) }))} placeholder="192.168.1.1\n10.0.0.1" multiline />)}
+        <div className="dialog-switch-row">
+          <div><strong>代理状态</strong></div>
+          <Switch value={formState.proxy_enabled || false} onChange={(c: any) => setFormState((s: any) => ({ ...s, proxy_enabled: Boolean(c) }))} />
+        </div>
+        <div className="dialog-switch-row">
+          <div><strong>自动切回主解析</strong></div>
+          <Switch value={formState.auto_switch_back !== false} onChange={(c: any) => setFormState((s: any) => ({ ...s, auto_switch_back: Boolean(c) }))} />
+        </div>
+        <Space style={{ marginTop: 16 }}>
+          <Button theme="primary" onClick={handleBind} loading={bindMutation.isPending}>绑定故障转移</Button>
+        </Space>
+      </div>
+    );
+  };
 
   return (
     <div className="page-shell">
       <section className="page-heading">
         <div>
-          <h2>{t('domains.servicemonitor.title')}</h2>
-          <p>{t('domains.servicemonitor.subtitle')}</p>
+          <h2>服务监测</h2>
+          <p>SSL 证书 / 站点访问 / DNS 故障转移</p>
         </div>
-        <Button theme="primary" icon={<AddIcon />} onClick={openAddModal}>
-          {t('domains.servicemonitor.addMonitor')}
-        </Button>
       </section>
 
-      <Card bordered={false} shadow={false} className="page-card servicemonitor-card">
-        <div className="records-toolbar servicemonitor-card__toolbar">
-          <Input
-            clearable
-            type="search"
-            name="servicemonitor-search"
-            autocomplete="off"
-            value={searchKeyword}
-            prefixIcon={<SearchIcon />}
-            placeholder={t('common.search')}
-            onChange={(value: any) => {
-              setSearchKeyword(String(value));
-              setPage(1);
-            }}
-          />
-        </div>
-        <Table
-          columns={columns}
-          data={paginatedMonitors}
-          loading={isLoading}
-          rowKey={(row) => row.id}
-          emptyText={t('domains.servicemonitor.noMonitors')}
-        />
-        <div className="records-pagination">
-          <Pagination
-            size="small"
-            current={page}
-            pageSize={pageSize}
-            total={filteredMonitors.length}
-            totalContent={false}
-            showPageSize={false}
-            showJumper={false}
-            onCurrentChange={(current: number) => setPage(current)}
-          />
-        </div>
-      </Card>
+      <Tabs value={activeTab} onChange={(v: any) => setActiveTab(String(v))}>
+        <Tabs.TabPanel value="ssl" label="SSL 证书监测">
+          <SSLTab monitors={monitors} isLoading={isLoading}
+            onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
+            onCheck={(m) => checkMutation.mutate(m.id)}
+            onAdd={() => openAddModal('ssl_certificate')} />
+        </Tabs.TabPanel>
+        <Tabs.TabPanel value="endpoint" label="站点访问监测">
+          <EndpointTab monitors={monitors} failoverMap={failoverMap} isLoading={isLoading}
+            onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
+            onCheck={(m) => checkMutation.mutate(m.id)}
+            onAdd={() => openAddModal('endpoint')}
+            onBindFailover={(m) => { setBindEndpoint(m); resetForm(); setIsBindModalOpen(true); }} />
+        </Tabs.TabPanel>
+        <Tabs.TabPanel value="failover" label="DNS 故障转移">
+          <FailoverTab monitors={monitors} isLoading={isLoading}
+            onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
+            onCheck={(m) => checkMutation.mutate(m.id)} />
+        </Tabs.TabPanel>
+      </Tabs>
 
+      {/* Add Modal */}
       {isAddModalOpen && (
-        <Modal title={t('domains.servicemonitor.addMonitor')} onClose={closeAddModal} size="lg">
+        <Modal title={`新建 ${addType === 'ssl_certificate' ? 'SSL证书监测' : addType === 'endpoint' ? '站点访问监测' : 'DNS故障转移'}`}
+          onClose={closeAddModal} size="lg">
           {renderForm('add')}
         </Modal>
       )}
 
+      {/* Edit Modal */}
       {isEditModalOpen && selectedMonitor && (
-        <Modal title={t('domains.servicemonitor.editMonitor')} onClose={closeEditModal} size="lg">
+        <Modal title="编辑监测" onClose={closeEditModal} size="lg">
           {renderForm('edit')}
         </Modal>
       )}
 
+      {/* Bind Failover Modal */}
+      {isBindModalOpen && bindEndpoint && (
+        <Modal title="绑定 DNS 故障转移" onClose={() => { setIsBindModalOpen(false); setBindEndpoint(null); }} size="lg">
+          {renderBindForm()}
+        </Modal>
+      )}
+
+      {/* Delete Confirm */}
       {deleteMonitor && (
         <ConfirmDialog
-          message={t('nsMonitor.deleteConfirm', { domain: deleteMonitor.name })}
-          onConfirm={() => {
-            deleteMutation.mutate(deleteMonitor.id);
-          }}
+          message={`确定删除监测 "${deleteMonitor.name}"？`}
+          onConfirm={() => deleteMutation.mutate(deleteMonitor.id)}
           onCancel={() => setDeleteMonitor(null)}
           isLoading={deleteMutation.isPending}
         />
       )}
     </div>
   );
+}
+
+// ---- Utility functions ----
+
+function dialogField(label: string, control: ReactNode, tips?: ReactNode) {
+  return (
+    <div className="settings-control-field">
+      <span>{label}</span>
+      {control}
+      {tips && <small className="settings-control-field__tip">{tips}</small>}
+    </div>
+  );
+}
+
+function buildConfigFromMonitor(m: ServiceMonitorMonitor): Record<string, any> {
+  const cfg = m.config || {};
+  switch (m.monitor_type) {
+    case 'ssl_certificate':
+      return {
+        ssl_port: cfg.port || 443,
+        warn_days_before: cfg.warn_days_before || 30,
+      };
+    case 'endpoint':
+      return {
+        endpoint_protocol: cfg.protocol || 'https',
+        endpoint_port: cfg.port || 443,
+        endpoint_path: cfg.path || '/',
+        follow_redirects: cfg.followRedirects !== false,
+      };
+    case 'dns_failover':
+      return {
+        record_type: cfg.recordType || 'A',
+        record_name: cfg.recordName || '',
+        record_ttl: cfg.ttl || 600,
+        record_line: cfg.line || 'default',
+        proxy_enabled: cfg.proxyEnabled || false,
+        primary_value: cfg.primaryValue || '',
+        backup_values: Array.isArray(cfg.backupValues) ? cfg.backupValues.join('\n') : '',
+        auto_switch_back: cfg.autoSwitchBack !== false,
+        failover_domain_id: m.domain_id,
+      };
+    default:
+      return {};
+  }
+}
+
+function buildPayloadForType(formState: Record<string, any>, type: MonitorType): any {
+  const payload: any = {
+    name: formState.name,
+    monitor_type: type,
+    target: formState.target,
+    check_interval: formState.check_interval || 300,
+    notify_on_failure: formState.notify_on_failure !== false,
+    notify_on_recovery: formState.notify_on_recovery !== false,
+  };
+
+  if (formState.domain_id) payload.domain_id = formState.domain_id;
+  if (formState.parent_id) payload.parent_id = formState.parent_id;
+
+  switch (type) {
+    case 'ssl_certificate':
+      payload.config = {
+        port: Number(formState.ssl_port) || 443,
+        warn_days_before: Number(formState.warn_days_before) || 30,
+      };
+      break;
+    case 'endpoint':
+      payload.config = {
+        protocol: formState.endpoint_protocol || 'https',
+        port: Number(formState.endpoint_port) || 443,
+        path: formState.endpoint_path || '/',
+        followRedirects: formState.follow_redirects !== false,
+      };
+      break;
+    case 'dns_failover':
+      if (formState.failover_domain_id) payload.domain_id = formState.failover_domain_id;
+      payload.config = {
+        recordType: formState.record_type || 'A',
+        recordName: formState.record_name || '',
+        ttl: Number(formState.record_ttl) || 600,
+        line: formState.record_line || 'default',
+        proxyEnabled: formState.proxy_enabled || false,
+        primaryValue: formState.primary_value || '',
+        backupValues: (formState.backup_values || '').split('\n').map((s: string) => s.trim()).filter(Boolean),
+        autoSwitchBack: formState.auto_switch_back !== false,
+      };
+      break;
+  }
+
+  return payload;
 }

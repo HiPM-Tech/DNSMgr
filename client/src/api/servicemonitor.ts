@@ -9,5 +9,6 @@ export const serviceMonitorApi = {
   delete: (id: number) => api.delete<ApiResponse<any>>(`/servicemonitor/${id}`),
   check: (id: number) => api.post<ApiResponse<any>>(`/servicemonitor/${id}/check`),
   getAvailableDomains: () => api.get<ApiResponse<any[]>>('/servicemonitor/available-domains'),
+  getChildren: (parentId: number) => api.get<ApiResponse<any[]>>(`/servicemonitor/children/${parentId}`),
   getStats: () => api.get<ApiResponse<any>>('/servicemonitor/stats'),
 };

@@ -8,6 +8,7 @@ import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import {
   getMonitors,
   getMonitor,
+  getMonitorsByParentId,
   createMonitor,
   updateMonitor,
   deleteMonitor,
@@ -21,6 +22,30 @@ const router = Router();
 // ============================================================================
 // 工具函数
 // ============================================================================
+
+/** Convert internal camelCase monitor to API snake_case response */
+function toApiMonitor(monitor: any): any {
+  if (!monitor) return monitor;
+  const result: any = {
+    id: monitor.id,
+    name: monitor.name,
+    monitor_type: monitor.type,
+    target: monitor.target,
+    check_interval: monitor.checkInterval,
+    notify_on_failure: monitor.notifyOnFailure,
+    notify_on_recovery: monitor.notifyOnRecovery,
+    domain_id: monitor.domainId,
+    parent_id: monitor.parentId,
+    config: monitor.config,
+    status: monitor.status?.status || 'unknown',
+    last_check_at: monitor.status?.lastCheckAt || null,
+    response_time: monitor.status?.lastResponseTime || null,
+    result_data: monitor.status?.resultData || null,
+    created_at: monitor.createdAt,
+    updated_at: monitor.updatedAt,
+  };
+  return result;
+}
 
 async function getDomainAccess(domainId: number, userId: number, role: number): Promise<{ canRead: boolean; canWrite: boolean }> {
   const domain = await DomainOperations.getById(domainId) as any;
@@ -71,7 +96,7 @@ router.get('/stats', authMiddleware, asyncHandler(async (req: Request, res: Resp
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   const monitors = await getMonitors(userId);
-  sendSuccess(res, monitors);
+  sendSuccess(res, monitors.map(toApiMonitor));
 }));
 
 /**
@@ -80,6 +105,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 router.get('/available-domains', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
+  const { DnsAccountOperations } = await import('../db/bal/business-adapter');
   const domains = await DomainOperations.getAllForSuperAdminWithPagination({
     keyword: '',
     domainStatus: 'all',
@@ -87,13 +113,30 @@ router.get('/available-domains', authMiddleware, asyncHandler(async (req: Reques
     pageSize: 1000,
   });
 
-  // 过滤用户有权限的域名
-  const accessible = (domains.list as any[]).filter((d: any) => {
-    if (isSuper(role) || d.created_by === userId) return true;
-    return false;
-  });
+  // 过滤用户有权限的域名，同时校验账号和域名状态
+  const accessible: any[] = [];
+  for (const d of (domains.list as any[])) {
+    if (!isSuper(role) && d.created_by !== userId) continue;
+    const account = await DnsAccountOperations.getById(d.account_id) as any;
+    if (!account || account.enabled === 0 || account.enabled === false) continue;
+    if ((d.enabled === 0 || d.enabled === false) && (d.status !== 'active')) continue;
+    accessible.push({ id: d.id, name: d.name, account_type: account.type, account_name: account.name });
+  }
 
-  sendSuccess(res, accessible.map((d: any) => ({ id: d.id, name: d.name })));
+  sendSuccess(res, accessible);
+}));
+
+/**
+ * GET /api/servicemonitor/children/:parentId - 获取绑定到指定父级的监控 (failover → endpoint)
+ */
+router.get('/children/:parentId', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const parentId = parseInteger(req.params.parentId, { min: 1 }) ?? 0;
+  const userId = req.user!.userId;
+  const children = await getMonitorsByParentId(parentId);
+
+  // Only return children belonging to the user
+  const filtered = children.filter(c => c.userId === userId || isSuper(normalizeRole(req.user!.role)));
+  sendSuccess(res, filtered.map(toApiMonitor));
 }));
 
 /**
@@ -101,7 +144,20 @@ router.get('/available-domains', authMiddleware, asyncHandler(async (req: Reques
  */
 router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
-  const { name, type, target, domainId, config, checkInterval, checkTimeout, enabled, notifyOnFailure, notifyOnRecovery } = req.body;
+  const body = req.body;
+
+  // Normalize field names (frontend sends snake_case, internal uses camelCase)
+  const name = body.name;
+  const type = body.type || body.monitor_type;
+  const target = body.target;
+  const domainId = body.domainId ?? body.domain_id;
+  const parentId = body.parentId ?? body.parent_id;
+  const config = body.config;
+  const checkInterval = body.checkInterval ?? body.check_interval;
+  const checkTimeout = body.checkTimeout ?? body.check_timeout;
+  const enabled = body.enabled;
+  const notifyOnFailure = body.notifyOnFailure ?? body.notify_on_failure;
+  const notifyOnRecovery = body.notifyOnRecovery ?? body.notify_on_recovery;
 
   if (!name || !type || !target) {
     sendError(res, 'name, type and target are required', 400);
@@ -127,6 +183,7 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     type,
     target,
     domainId,
+    parentId,
     config: config || {},
     checkInterval,
     checkTimeout,
@@ -156,7 +213,7 @@ router.get('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
     return;
   }
 
-  sendSuccess(res, monitor);
+  sendSuccess(res, toApiMonitor(monitor));
 }));
 
 /**
@@ -176,10 +233,21 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
     return;
   }
 
-  const { name, type, target, domainId, config, checkInterval, checkTimeout, enabled, notifyOnFailure, notifyOnRecovery } = req.body;
+  const body = req.body;
+  const name = body.name;
+  const type = body.type || body.monitor_type;
+  const target = body.target;
+  const domainId = body.domainId ?? body.domain_id;
+  const parentId = body.parentId ?? body.parent_id;
+  const config = body.config;
+  const checkInterval = body.checkInterval ?? body.check_interval;
+  const checkTimeout = body.checkTimeout ?? body.check_timeout;
+  const enabled = body.enabled;
+  const notifyOnFailure = body.notifyOnFailure ?? body.notify_on_failure;
+  const notifyOnRecovery = body.notifyOnRecovery ?? body.notify_on_recovery;
 
   await updateMonitor(monitorId, {
-    name, type, target, domainId,
+    name, type, target, domainId, parentId,
     config, checkInterval, checkTimeout, enabled, notifyOnFailure, notifyOnRecovery,
   });
 

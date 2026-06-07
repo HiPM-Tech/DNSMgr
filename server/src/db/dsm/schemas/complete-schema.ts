@@ -416,6 +416,7 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'enabled', type: 'integer', defaultValue: true },
         { name: 'notify_on_failure', type: 'integer', defaultValue: true },
         { name: 'notify_on_recovery', type: 'integer', defaultValue: true },
+        { name: 'parent_id', type: 'integer', nullable: true }, // FK: endpoint monitor bind for failover
         { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
         { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
       ],
@@ -423,11 +424,13 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'idx_servicemonitor_user_id', columns: ['user_id'] },
         { name: 'idx_servicemonitor_type', columns: ['type'] },
         { name: 'idx_servicemonitor_enabled', columns: ['enabled'] },
-        { name: 'idx_servicemonitor_domain_id', columns: ['domain_id'] }
+        { name: 'idx_servicemonitor_domain_id', columns: ['domain_id'] },
+        { name: 'idx_servicemonitor_parent_id', columns: ['parent_id'] }
       ],
       foreignKeys: [
         { column: 'user_id', refTable: 'users', refColumn: 'id', onDelete: 'CASCADE' },
-        { column: 'domain_id', refTable: 'domains', refColumn: 'id', onDelete: 'SET NULL' }
+        { column: 'domain_id', refTable: 'domains', refColumn: 'id', onDelete: 'SET NULL' },
+        { column: 'parent_id', refTable: 'servicemonitor_monitors', refColumn: 'id', onDelete: 'SET NULL' }
       ]
     },
     {

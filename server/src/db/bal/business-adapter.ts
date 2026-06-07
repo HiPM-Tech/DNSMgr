@@ -2971,6 +2971,15 @@ export const ServiceMonitorOperations = {
     );
   },
 
+  /** 根据父级ID获取监控 (endpoint-failover binding) */
+  async getByParentId(parentId: number): Promise<QueryResult[]> {
+    return queryInternal(
+      'SELECT * FROM servicemonitor_monitors WHERE parent_id = ?',
+      [parentId],
+      { operation: 'ServiceMonitor.getByParentId', table: 'servicemonitor_monitors' }
+    );
+  },
+
   /** 创建监控 */
   async create(data: Record<string, unknown>): Promise<number> {
     const fields = Object.keys(data);
