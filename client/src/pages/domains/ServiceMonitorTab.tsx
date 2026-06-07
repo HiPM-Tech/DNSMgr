@@ -1,7 +1,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Input, Pagination, Select, Space, Switch, Tag, Tabs } from 'tdesign-react';
-import { AddIcon, DeleteIcon, SearchIcon, EditIcon, CheckCircleIcon, ErrorCircleIcon, TimeIcon, LinkIcon, UnlinkIcon } from 'tdesign-icons-react';
+import { Button, Card, Input, Pagination, Select, Space, Switch, Tag, Tabs, Textarea } from 'tdesign-react';
+import { AddIcon, DeleteIcon, SearchIcon, EditIcon, CheckCircleIcon, ErrorCircleIcon, TimeIcon, LinkIcon } from 'tdesign-icons-react';
 import { serviceMonitorApi } from '../../api';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
@@ -208,7 +208,6 @@ function FailoverTab({ monitors, isLoading, onEdit, onDelete, onCheck }: {
   onDelete: (m: ServiceMonitorMonitor) => void;
   onCheck: (m: ServiceMonitorMonitor) => void;
 }) {
-  const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const ps = 20;
@@ -442,7 +441,7 @@ export function ServiceMonitorTab() {
 
   // ---- Render add/edit form ----
 
-  const renderTypeForm = (type: MonitorType, forAdd: boolean) => {
+  const renderTypeForm = (type: MonitorType, _forAdd: boolean) => {
     switch (type) {
       case 'ssl_certificate':
         return (
@@ -515,7 +514,7 @@ export function ServiceMonitorTab() {
             {dialogField('主解析值',
               <Input value={formState.primary_value || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, primary_value: String(v) }))} placeholder="主IP/域名" />)}
             {dialogField('备用解析值（一行一个）',
-              <Input value={formState.backup_values || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, backup_values: String(v) }))} placeholder="192.168.1.1\n10.0.0.1" multiline />)}
+              <Textarea value={formState.backup_values || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, backup_values: String(v) }))} placeholder={"192.168.1.1\n10.0.0.1"} />)}
             <div className="dialog-switch-row">
               <div><strong>自动切回主解析</strong></div>
               <Switch value={formState.auto_switch_back !== false} onChange={(c: any) => setFormState((s: any) => ({ ...s, auto_switch_back: Boolean(c) }))} />
@@ -583,7 +582,7 @@ export function ServiceMonitorTab() {
         {dialogField('主解析值',
           <Input value={formState.primary_value || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, primary_value: String(v) }))} placeholder="主IP/域名" />)}
         {dialogField('备用解析值（一行一个）',
-          <Input value={formState.backup_values || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, backup_values: String(v) }))} placeholder="192.168.1.1\n10.0.0.1" multiline />)}
+          <Textarea value={formState.backup_values || ''} onChange={(v: any) => setFormState((s: any) => ({ ...s, backup_values: String(v) }))} placeholder={"192.168.1.1\n10.0.0.1"} />)}
         <div className="dialog-switch-row">
           <div><strong>代理状态</strong></div>
           <Switch value={formState.proxy_enabled || false} onChange={(c: any) => setFormState((s: any) => ({ ...s, proxy_enabled: Boolean(c) }))} />
