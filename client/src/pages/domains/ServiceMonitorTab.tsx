@@ -300,7 +300,7 @@ export function ServiceMonitorTab() {
       error: 'danger',
       unknown: 'default',
     };
-    const icons: Record<string, JSX.Element> = {
+    const icons: Record<string, React.ReactElement> = {
       ok: <CheckCircleIcon />,
       warning: <TimeIcon />,
       error: <ErrorCircleIcon />,
