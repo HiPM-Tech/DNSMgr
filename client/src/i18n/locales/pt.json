@@ -850,7 +850,6 @@
             "tabs": {
                 "list": "Lista de Domínios",
                 "listSubtitle": "Gerenciamento unificado de registros de resolução DNS de vários provedores DNS",
-                "failover": "Failover",
                 "servicemonitor": "ServiceMonitor",
                 "nsMonitor": "Monitor NS",
                 "renewal": "Renovação de Domínio"

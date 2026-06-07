@@ -355,8 +355,7 @@
             "tabs": {
                 "list": "域名列表",
                 "listSubtitle": "杂鱼专用：统一管理各 DNS 服务商的域名的解析记录喵~",
-                "failover": "故障转移",
-                "servicemonitor": "服务卫士",
+                "servicemonitor": "服务监控",
                 "nsMonitor": "NS 监测",
                 "renewal": "域名续期"
             },

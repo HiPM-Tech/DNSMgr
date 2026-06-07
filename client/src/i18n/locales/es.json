@@ -540,7 +540,6 @@
             "tabs": {
                 "list": "Lista de dominios",
                 "listSubtitle": "Gestión unificada de registros de resolución DNS de varios proveedores DNS",
-                "failover": "Conmutación por error",
                 "servicemonitor": "ServiceMonitor",
                 "nsMonitor": "Monitoreo NS",
                 "renewal": "Renovación de dominio"

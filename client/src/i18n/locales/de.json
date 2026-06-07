@@ -834,7 +834,6 @@
             "tabs": {
                 "list": "Domain-Liste",
                 "listSubtitle": "Einheitliche Verwaltung der DNS-Auflösungsdatensätze verschiedener DNS-Anbieter",
-                "failover": "Failover",
                 "servicemonitor": "ServiceMonitor",
                 "nsMonitor": "NS-Monitor",
                 "renewal": "Domain-Erneuerung"

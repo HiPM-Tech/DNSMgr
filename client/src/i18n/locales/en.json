@@ -784,7 +784,6 @@
             "tabs": {
                 "list": "Domain List",
                 "listSubtitle": "Unified management of DNS resolution records from various DNS providers",
-                "failover": "Failover",
                 "servicemonitor": "ServiceMonitor",
                 "nsMonitor": "NS Monitor",
                 "renewal": "Domain Renewal"

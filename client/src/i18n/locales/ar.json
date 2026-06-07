@@ -824,7 +824,6 @@
             "tabs": {
                 "list": "قائمة النطاقات",
                 "listSubtitle": "الإدارة الموحدة لسجلات حل DNS من مختلف موفري DNS",
-                "failover": "الفانلوفر",
                 "servicemonitor": "ServiceMonitor",
                 "nsMonitor": "مراقبة NS",
                 "renewal": "تجديد النطاق"

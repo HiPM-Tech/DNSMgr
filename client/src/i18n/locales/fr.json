@@ -841,7 +841,6 @@
             "tabs": {
                 "list": "Liste des domaines",
                 "listSubtitle": "Gestion unifiée des enregistrements de résolution DNS de divers fournisseurs DNS",
-                "failover": "Basculement",
                 "servicemonitor": "ServiceMonitor",
                 "nsMonitor": "Surveillance NS",
                 "renewal": "Renouvellement de domaine"

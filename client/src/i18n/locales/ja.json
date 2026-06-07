@@ -561,7 +561,6 @@
             "tabs": {
                 "list": "ドメインリスト",
                 "listSubtitle": "各種DNSプロバイダーのドメイン解決レコードを統合管理",
-                "failover": "フェイルオーバー",
                 "servicemonitor": "ServiceMonitor",
                 "nsMonitor": "NS監視",
                 "renewal": "ドメイン更新"
