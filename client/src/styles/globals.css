@@ -219,7 +219,6 @@ html.dark input:-webkit-autofill:focus {
 
 .page-card {
   border-radius: 6px;
-  overflow: hidden;
 }
 
 .t-card {
@@ -258,7 +257,6 @@ html.dark input:-webkit-autofill:focus {
 }
 
 .t-table__content {
-  overflow: hidden;
   border-radius: inherit;
 }
 
