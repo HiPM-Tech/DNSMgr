@@ -65,6 +65,7 @@
             "redirecting": "Перенаправление...",
             "total": "Всего",
             "items": "элементов",
+            "paginationTotal": "Всего {total} элементов",
             "page": "страница",
             "perPage": "на странице",
             "pleaseSelect": "Пожалуйста, выберите",

@@ -54,8 +54,8 @@ export class RenewableDomainQueryBuilder {
   /**
    * 过滤启用的账号
    */
-  whereAccountEnabled(): this {
-    this.wheres.push('da.enabled = 1');
+  whereAccountEnabled(enabledValue: string = '1'): this {
+    this.wheres.push(`da.enabled = ${enabledValue}`);
     return this;
   }
 
@@ -127,10 +127,10 @@ export class RenewableDomainQueryBuilder {
   /**
    * Level 3: 主列表 - 所有续期域名（过滤禁用账号）
    */
-  static all(): RenewableDomainQueryBuilder {
+  static all(enabledValue: string = '1'): RenewableDomainQueryBuilder {
     return new RenewableDomainQueryBuilder()
       .joinAccounts()
-      .whereAccountEnabled();
+      .whereAccountEnabled(enabledValue);
   }
 
   /**

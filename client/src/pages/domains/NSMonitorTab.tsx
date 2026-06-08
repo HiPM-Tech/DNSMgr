@@ -487,6 +487,7 @@ export function NSMonitorTab() {
             pageSize={pageSize}
             pageSizeOptions={[10, 20, 50, 100]}
             total={total}
+            totalContent={<span className="records-pagination__total">{t('common.paginationTotal', { total })}</span>}
             onCurrentChange={(c: number) => setPage(c)}
             onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }}
           />

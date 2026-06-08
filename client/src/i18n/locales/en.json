@@ -69,6 +69,7 @@
             "redirecting": "Redirecting...",
             "total": "Total",
             "items": "items",
+            "paginationTotal": "Total {total} items",
             "page": "page",
             "perPage": "per page",
             "pleaseSelect": "Please select",

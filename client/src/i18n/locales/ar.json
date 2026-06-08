@@ -64,6 +64,7 @@
             "redirecting": "جاري التحويل...",
             "total": "الإجمالي",
             "items": "عناصر",
+            "paginationTotal": "إجمالي {total} عنصر",
             "page": "صفحة",
             "perPage": "لكل صفحة",
             "pleaseSelect": "الرجاء الاختيار",

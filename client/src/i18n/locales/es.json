@@ -127,6 +127,7 @@
             "clear": "Limpiar",
             "total": "Total",
             "items": "elementos",
+            "paginationTotal": "Total {total} elementos",
             "page": "página",
             "perPage": "por página",
             "pleaseSelect": "Por favor seleccione",

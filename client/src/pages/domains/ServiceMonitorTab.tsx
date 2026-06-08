@@ -142,6 +142,7 @@ function SSLTab({ onEdit, onDelete, onCheck, onAdd }: {
       <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_ssl')} />
       <div className="records-pagination">
         <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={total}
+          totalContent={<span className="records-pagination__total">{t('common.paginationTotal', { total })}</span>}
           onCurrentChange={(c: number) => setPage(c)} onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }} />
       </div>
     </Card>
@@ -220,6 +221,7 @@ function EndpointTab({ onEdit, onDelete, onCheck, onAdd, onBindFailover }: {
       <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_endpoint')} />
       <div className="records-pagination">
         <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={total}
+          totalContent={<span className="records-pagination__total">{t('common.paginationTotal', { total })}</span>}
           onCurrentChange={(c: number) => setPage(c)} onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }} />
       </div>
     </Card>
@@ -289,6 +291,7 @@ function FailoverTab({ onEdit, onDelete, onCheck }: {
       <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_failover')} />
       <div className="records-pagination">
         <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={total}
+          totalContent={<span className="records-pagination__total">{t('common.paginationTotal', { total })}</span>}
           onCurrentChange={(c: number) => setPage(c)} onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }} />
       </div>
     </Card>

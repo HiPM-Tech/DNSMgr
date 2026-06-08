@@ -64,6 +64,7 @@
             "redirecting": "Weiterleiten...",
             "total": "Gesamt",
             "items": "Elemente",
+            "paginationTotal": "Insgesamt {total} Elemente",
             "page": "Seite",
             "perPage": "pro Seite",
             "pleaseSelect": "Bitte auswählen",

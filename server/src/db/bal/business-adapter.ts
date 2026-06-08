@@ -3644,7 +3644,9 @@ export const RenewableDomainOperations = {
 
   /** 获取所有续期域名（包括启用和禁用，但过滤掉已禁用账号的域名*/
   async getAll(): Promise<any[]> {
-    const builder = RenewableDomainQueryBuilder.all();
+    const dbType = getDbType();
+    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
+    const builder = RenewableDomainQueryBuilder.all(enabledValue);
     const { sql, params } = builder.build();
 
     return await queryInternal(sql, params, { operation: 'RenewableDomain.getAll', table: 'renewable_domains' });

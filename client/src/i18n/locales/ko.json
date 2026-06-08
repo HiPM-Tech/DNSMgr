@@ -64,6 +64,7 @@
             "redirecting": "리다이렉트 중...",
             "total": "총",
             "items": "항목",
+            "paginationTotal": "총 {total}개",
             "page": "페이지",
             "perPage": "페이지당",
             "pleaseSelect": "선택하세요",

@@ -138,6 +138,7 @@
             "yes": "はい",
             "total": "合計",
             "items": "件",
+            "paginationTotal": "合計 {total} 件",
             "page": "ページ",
             "perPage": "件/ページ",
             "pleaseSelect": "選択してください",

@@ -1030,7 +1030,8 @@ html.dark input:-webkit-autofill:focus {
 }
 
 .records-toolbar.ns-monitor-card__toolbar {
-  grid-template-columns: minmax(260px, 380px);
+  display: flex;
+  gap: 8px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--td-component-stroke);
 }
@@ -1043,6 +1044,12 @@ html.dark input:-webkit-autofill:focus {
 .ns-monitor-card .t-table {
   border: 0;
   border-radius: 0;
+}
+
+.ns-monitor-card .records-pagination {
+  margin-top: 0;
+  padding: 14px 20px;
+  border-top: 0;
 }
 
 .servicemonitor-card .t-card__body {
@@ -2678,7 +2685,6 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
   }
 
   .records-toolbar.ns-monitor-card__toolbar {
-    grid-template-columns: minmax(0, 1fr);
     padding: 12px;
   }
 
