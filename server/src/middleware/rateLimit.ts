@@ -81,6 +81,25 @@ export function createLimiter(
 }
 
 /**
+ * RDAP 公开查询速率限制
+ * - 未认证（公开 IP）：2 请求/秒
+ * - 已认证（携带 Cookie 或 API Token）：不限速
+ */
+export const rdapLimiter = rateLimit({
+  windowMs: 1000,
+  max: 2,
+  message: 'Too many RDAP queries, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req: Request) => {
+    // 已认证用户/应用跳过限速
+    const hasSessionCookie = !!(req as any).cookies?.token;
+    const hasBearerToken = req.headers.authorization?.startsWith('Bearer ');
+    return hasSessionCookie || !!hasBearerToken;
+  },
+});
+
+/**
  * 基于用户 ID 的速率限制器
  * 用于已认证的用户
  */

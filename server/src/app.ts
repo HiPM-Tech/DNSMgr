@@ -51,6 +51,7 @@ import mcpOAuthRouter from './routes/mcp-oauth';
 import mcpAuditRouter from './routes/mcp-audit';
 import mcpProtocolRouter from './routes/mcp-protocol';
 import servicemonitorRouter from './routes/servicemonitor';
+import { rdapLimiter } from './middleware/rateLimit';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
 
@@ -279,7 +280,7 @@ app.use('/api/domains/email-templates', emailTemplatesRouter); // Use separate r
 app.use('/api/domains', domainsRouter);
 app.use('/api/providers', providersRouter);
 app.use('/api/domains/:domainId/records', recordsRouter);
-app.use('/api/rdap', rdapRouter);
+app.use('/api/rdap', rdapLimiter, rdapRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/security', securityRouter);
