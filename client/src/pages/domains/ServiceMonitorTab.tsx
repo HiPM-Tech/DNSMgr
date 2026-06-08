@@ -71,7 +71,7 @@ function SSLTab({ onEdit, onDelete, onCheck, onAdd }: {
   const [pageSize, setPageSize] = useState(20);
 
   const { data: sslData, isLoading } = useQuery({
-    queryKey: ['servicemonitor-ssl', page, pageSize, search],
+    queryKey: ['servicemonitor', 'ssl', page, pageSize, search],
     queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'ssl_certificate' }).then(r => r.data.data || { list: [], total: 0 }),
     placeholderData: { list: [], total: 0 } as any,
   });
@@ -179,7 +179,7 @@ function EndpointTab({ onEdit, onDelete, onCheck, onAdd, onBindFailover }: {
   const [pageSize, setPageSize] = useState(20);
 
   const { data: endpointData, isLoading } = useQuery({
-    queryKey: ['servicemonitor-endpoint', page, pageSize, search],
+    queryKey: ['servicemonitor', 'endpoint', page, pageSize, search],
     queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'endpoint' }).then(r => r.data.data || { list: [], total: 0 }),
     placeholderData: { list: [], total: 0 } as any,
   });
@@ -256,7 +256,7 @@ function FailoverTab({ onEdit, onDelete, onCheck }: {
   const [pageSize, setPageSize] = useState(20);
 
   const { data: failoverData, isLoading } = useQuery({
-    queryKey: ['servicemonitor-failover', page, pageSize, search],
+    queryKey: ['servicemonitor', 'failover', page, pageSize, search],
     queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'dns_failover' }).then(r => r.data.data || { list: [], total: 0 }),
   });
   const monitors = failoverData?.list || [];

@@ -3,6 +3,7 @@ import { getAllEnabled, runCheckAndUpdate, ServiceMonitorMonitor } from './servi
 import { taskManager } from './taskManager';
 import { connect } from '../db/dal/connection';
 import { createLogger } from '../lib/logger';
+import { wsService } from './websocket';
 
 const log = createLogger('Job').sub('ServiceMonitor');
 export function startServiceMonitorJob() {
@@ -40,6 +41,7 @@ export function startServiceMonitorJob() {
             }
 
             await runCheckAndUpdate(monitor);
+            try { wsService.broadcast({ type: 'servicemonitor_checked', data: { id: monitor.id, userId: monitor.userId } }); } catch { }
           }
         );
       });
