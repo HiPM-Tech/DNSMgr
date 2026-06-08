@@ -79,10 +79,12 @@ export class DnsnekoAdapter implements DnsAdapter {
     };
 
     const res = await authenticatedRequest(url, this.config, options);
-    const data = (await res.json()) as DnsnekoApiResponse<T>;
+    const text = await res.text();
+    let data: DnsnekoApiResponse<T>;
+    try { data = JSON.parse(text); } catch { data = { code: res.status, data: undefined as T }; }
 
-    if (!res.ok || data.code !== 200) {
-      this.error = data.message || `Request failed: ${res.status}`;
+    if (!res.ok) {
+      this.error = data.message || `HTTP ${res.status}`;
       throw new Error(this.error);
     }
 
@@ -95,8 +97,8 @@ export class DnsnekoAdapter implements DnsAdapter {
 
   async check(): Promise<boolean> {
     try {
-      const data = await this.request<{ domains: DnsnekoDomain[]; pages: number }>('GET', '/domains', { page: 1, size: 1 });
-      return data.code === 200;
+      await this.request<{ domains: DnsnekoDomain[]; pages: number }>('GET', '/domains', { page: 1, size: 1 });
+      return true;
     } catch {
       return false;
     }
@@ -192,7 +194,7 @@ export class DnsnekoAdapter implements DnsAdapter {
         name: normalizeRrName(name),
         type,
         value,
-        line: line || 'default',
+        line: this.normalizeLine(line),
         ttl,
         remark,
       };
@@ -200,8 +202,23 @@ export class DnsnekoAdapter implements DnsAdapter {
       if (type === 'MX' || type === 'SRV') body.priority = mx;
       if (weight !== undefined) body.weight = weight;
 
-      const data = await this.request<{ id: number }>('POST', `/records/${domainId}`, body);
-      return data.data ? String(data.data.id) : null;
+      const data = await this.request<Dict>('POST', `/records/${domainId}`, body);
+
+      if (data.data) {
+        const id = data.data.id ?? data.data.record_id ?? data.data.Id;
+        if (id) return String(id);
+      }
+      const topId = (data as Dict).id ?? (data as Dict).record_id;
+      if (topId) return String(topId);
+
+      const rawName = normalizeRrName(name);
+      const scan = await this.request<{ records: DnsnekoRecord[] }>('GET', '/records', { domainId, page: 1, size: 100 });
+      const match = scan.data?.records?.find((r) =>
+        normalizeRrName(r.name) === rawName && r.type === type && r.value === value
+      );
+      if (match) return String(match.id);
+
+      return null;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return null;
@@ -227,7 +244,7 @@ export class DnsnekoAdapter implements DnsAdapter {
         name: normalizeRrName(name),
         type,
         value,
-        line: line || 'default',
+        line: this.normalizeLine(line),
         ttl,
         remark,
       };
@@ -235,8 +252,8 @@ export class DnsnekoAdapter implements DnsAdapter {
       if (type === 'MX' || type === 'SRV') body.priority = mx;
       if (weight !== undefined) body.weight = weight;
 
-      const data = await this.request<unknown>('PUT', `/records/${domainId}/${recordId}`, body);
-      return data.code === 200;
+      await this.request<unknown>('PUT', `/records/${domainId}/${recordId}`, body);
+      return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return false;
@@ -248,8 +265,8 @@ export class DnsnekoAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return false;
 
-      const data = await this.request<unknown>('DELETE', `/records/${domainId}/${recordId}`);
-      return data.code === 200;
+      await this.request<unknown>('DELETE', `/records/${domainId}/${recordId}`);
+      return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return false;
@@ -258,10 +275,11 @@ export class DnsnekoAdapter implements DnsAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
-      const data = await this.request<unknown>('POST', `/records/${recordId}/status`, { status });
-      return data.code === 200;
+      await this.request<unknown>('POST', `/records/${recordId}/status`, { status });
+      return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
+      log.error('setDomainRecordStatus failed', { recordId, status, error: this.error });
       return false;
     }
   }
@@ -283,6 +301,14 @@ export class DnsnekoAdapter implements DnsAdapter {
   async addDomain(domain: string): Promise<boolean> {
     this.error = 'Dnsneko does not support domain registration via API';
     return false;
+  }
+
+  private normalizeLine(line?: string): string {
+    const lineMap: Record<string, string> = {
+      '0': 'default',
+      '1': 'default',
+    };
+    return lineMap[line || ''] || line || 'default';
   }
 
   private mapRecord(r: DnsnekoRecord): DnsRecord {
