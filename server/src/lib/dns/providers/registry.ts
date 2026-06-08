@@ -22,6 +22,7 @@ import {
   CaihongDnsAdapter,
   Vps8Adapter,
   GcoreAdapter,
+  DnsnekoAdapter,
 } from './index';
 
 export interface ProviderCapabilities {
@@ -280,6 +281,16 @@ const providerDefinitions: ProviderDefinition[] = [
       { key: 'apiKey', label: 'API Key', type: 'password', required: true },
     ],
     adapterFactory: (config) => new GcoreAdapter(config as any),
+  },
+  {
+    type: 'dnsneko',
+    name: 'DNSNeko',
+    capabilities: { remark: true, status: true, redirect: false, log: false, weight: false, line: true, cnameFlattening: false },
+    configFields: [
+      { key: 'username', label: '用户名', type: 'text', required: true },
+      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    ],
+    adapterFactory: (config) => new DnsnekoAdapter(config),
   },
 ];
 

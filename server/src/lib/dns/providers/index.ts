@@ -34,3 +34,4 @@ export { HiDNSAdapter } from './hidns';
 export { CaihongDnsAdapter } from './caihongdns';
 export { Vps8Adapter } from './vps8';
 export { GcoreAdapter } from './gcore';
+export { DnsnekoAdapter } from './dnsneko';
