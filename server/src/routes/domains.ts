@@ -390,30 +390,34 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
   log.info('Fetching renewable domains', { userId: req.user?.userId });
 
   try {
-    // Query from renewable_domains table (include both enabled and disabled)
+    const page = Math.max(1, parseInteger(req.query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInteger(req.query.pageSize) || 20));
+    const keyword = req.query.keyword as string | undefined;
+
+    // Query from renewable_domains table with pagination
     const startTime = Date.now();
-    log.debug('Calling RenewableDomainOperations.getAll()');
-    const renewableDomains = await RenewableDomainOperations.getAll();
+    log.debug('Calling RenewableDomainOperations.getAllWithPagination()');
+    const { list: renewableDomains, total } = await RenewableDomainOperations.getAllWithPagination(page, pageSize, keyword);
     const queryDuration = Date.now() - startTime;
 
     log.info('Fetched renewable domains from database', {
       count: renewableDomains.length,
+      total,
       duration: `${queryDuration}ms`
     });
 
-    // Enrich with account information
+    // Enrich with account information (account_name already included in query)
     const enrichStartTime = Date.now();
     const tokenPayload = (req as any).tokenPayload;
     const enrichedDomains = await Promise.all(
       renewableDomains.map(async (domain: any) => {
-        const account = await DnsAccountOperations.getById(domain.account_id);
         const domainName = tokenPayload ? domain.full_domain : getDisplayDomain(domain.full_domain, true);
         return {
           id: domain.id,
           name: domainName,
           full_domain: domainName,
           account_id: domain.account_id,
-          account_name: account?.name || 'Unknown',
+          account_name: domain.account_name || 'Unknown',
           provider_type: domain.provider_type,
           expires_at: domain.expires_at,
           third_id: domain.third_id,
@@ -431,11 +435,11 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
     });
 
     log.info('Successfully fetched renewable domains', {
-      total: enrichedDomains.length,
+      total,
       totalDuration: `${Date.now() - startTime}ms`
     });
 
-    sendSuccess(res, enrichedDomains);
+    sendSuccess(res, { list: enrichedDomains, total, page, pageSize });
   } catch (error) {
     log.error('Failed to fetch renewable domains', {
       error: error instanceof Error ? error.message : String(error),

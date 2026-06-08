@@ -2959,6 +2959,40 @@ export const ServiceMonitorOperations = {
     );
   },
 
+  /** 分页获取用户监控列表（可按类型过滤） */
+  async getByUserWithPagination(userId: number, page: number, pageSize: number, type?: string): Promise<{ list: QueryResult[]; total: number }> {
+    const offset = (page - 1) * pageSize;
+
+    let countSql = 'SELECT COUNT(*) as count FROM servicemonitor_monitors WHERE user_id = ?';
+    const countParams: any[] = [userId];
+    if (type) {
+      countSql += ' AND type = ?';
+      countParams.push(type);
+    }
+    const countResult = await getInternal<{ count: number }>(
+      countSql,
+      countParams,
+      { operation: 'ServiceMonitor.getByUserWithPagination.count', table: 'servicemonitor_monitors' }
+    );
+    const total = countResult?.count || 0;
+
+    let listSql = 'SELECT * FROM servicemonitor_monitors WHERE user_id = ?';
+    const listParams: any[] = [userId];
+    if (type) {
+      listSql += ' AND type = ?';
+      listParams.push(type);
+    }
+    listSql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    listParams.push(pageSize, offset);
+
+    const list = await queryInternal(
+      listSql,
+      listParams,
+      { operation: 'ServiceMonitor.getByUserWithPagination', table: 'servicemonitor_monitors' }
+    );
+    return { list, total };
+  },
+
   /** 根据ID获取监控 */
   async getById(id: number): Promise<QueryResult | undefined> {
     return getInternal(
@@ -3614,6 +3648,48 @@ export const RenewableDomainOperations = {
     const { sql, params } = builder.build();
 
     return await queryInternal(sql, params, { operation: 'RenewableDomain.getAll', table: 'renewable_domains' });
+  },
+
+  /** 分页获取续期域名（包括启用和禁用，但过滤掉已禁用账号的域名，支持关键字搜索） */
+  async getAllWithPagination(page: number, pageSize: number, keyword?: string): Promise<{ list: any[]; total: number }> {
+    const offset = (page - 1) * pageSize;
+    const dbType = getDbType();
+    const keywordParam = keyword ? `%${keyword}%` : '';
+
+    let countSql = `SELECT COUNT(*) as count FROM renewable_domains rd
+      INNER JOIN dns_accounts da ON rd.account_id = da.id
+      WHERE ${dbType === 'postgresql' ? 'da.enabled = TRUE' : 'da.enabled = 1'}`;
+    const countParams: any[] = [];
+
+    if (keyword) {
+      countSql += ' AND (rd.full_domain LIKE ? OR rd.domain_name LIKE ?)';
+      countParams.push(keywordParam, keywordParam);
+    }
+
+    const countResult = await getInternal<{ count: number }>(countSql, countParams, {
+      operation: 'RenewableDomain.getAllWithPagination.count', table: 'renewable_domains'
+    });
+    const total = countResult?.count || 0;
+
+    let listSql = `SELECT rd.*, da.name as account_name, da.type as provider_type
+      FROM renewable_domains rd
+      INNER JOIN dns_accounts da ON rd.account_id = da.id
+      WHERE ${dbType === 'postgresql' ? 'da.enabled = TRUE' : 'da.enabled = 1'}`;
+    const listParams: any[] = [];
+
+    if (keyword) {
+      listSql += ' AND (rd.full_domain LIKE ? OR rd.domain_name LIKE ?)';
+      listParams.push(keywordParam, keywordParam);
+    }
+
+    listSql += ' ORDER BY rd.full_domain LIMIT ? OFFSET ?';
+    listParams.push(pageSize, offset);
+
+    const list = await queryInternal(listSql, listParams, {
+      operation: 'RenewableDomain.getAllWithPagination', table: 'renewable_domains'
+    });
+
+    return { list, total };
   },
 
   /** 获取所有启用的续期域名（过滤掉已禁用账号的域名*/

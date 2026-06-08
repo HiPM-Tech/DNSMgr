@@ -9,6 +9,7 @@ import { wsService } from '../service/websocket';
 import {
   getMonitors,
   getMonitor,
+  getMonitorsWithPagination,
   getMonitorsByParentId,
   createMonitor,
   updateMonitor,
@@ -92,12 +93,16 @@ router.get('/stats', authMiddleware, asyncHandler(async (req: Request, res: Resp
 }));
 
 /**
- * GET /api/servicemonitor - 列出用户监控
+ * GET /api/servicemonitor - 列出用户监控（分页，可按类型过滤）
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
-  const monitors = await getMonitors(userId);
-  sendSuccess(res, monitors.map(toApiMonitor));
+  const page = Math.max(1, parseInteger(req.query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInteger(req.query.pageSize) || 20));
+  const type = req.query.type as string | undefined;
+
+  const { monitors, total } = await getMonitorsWithPagination(userId, page, pageSize, type);
+  sendSuccess(res, { list: monitors.map(toApiMonitor), total, page, pageSize });
 }));
 
 /**

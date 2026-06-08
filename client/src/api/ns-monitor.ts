@@ -5,7 +5,8 @@ import type { NSMonitorConfig } from './types';
 // ─── NS Monitor API ───────────────────────────────────────────────────────────
 
 export const nsMonitorApi = {
-  list: () => api.get<ApiResponse<NSMonitorConfig[]>>('/ns-monitor'),
+  list: (params?: { page?: number; pageSize?: number }) =>
+    api.get<ApiResponse<{ list: NSMonitorConfig[]; total: number; page: number; pageSize: number }>>('/ns-monitor', { params }),
   get: (id: number) => api.get<ApiResponse<NSMonitorConfig & { alerts: any[] }>>(`/ns-monitor/${id}`),
   getByDomain: (domainId: number) => api.get<ApiResponse<NSMonitorConfig | null>>(`/ns-monitor/domain/${domainId}`),
   getAvailableDomains: () => api.get<ApiResponse<Array<{ id: number; name: string; account_id: number }>>>('/ns-monitor/available-domains'),

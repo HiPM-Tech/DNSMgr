@@ -132,6 +132,22 @@ export async function getMonitors(userId: number): Promise<(ServiceMonitorMonito
   return monitors;
 }
 
+export async function getMonitorsWithPagination(userId: number, page: number, pageSize: number, type?: string): Promise<{ monitors: (ServiceMonitorMonitor & { status?: ServiceMonitorStatus })[]; total: number }> {
+  const { list: rows, total } = await ServiceMonitorOperations.getByUserWithPagination(userId, page, pageSize, type) as any;
+  const monitors: (ServiceMonitorMonitor & { status?: ServiceMonitorStatus })[] = [];
+
+  for (const row of rows) {
+    const monitor = rowToMonitor(row);
+    const statusRow = await ServiceMonitorOperations.getStatus(monitor.id) as any;
+    if (statusRow) {
+      monitor.status = rowToStatus(statusRow);
+    }
+    monitors.push(monitor);
+  }
+
+  return { monitors, total };
+}
+
 export async function getMonitor(id: number): Promise<(ServiceMonitorMonitor & { status?: ServiceMonitorStatus }) | null> {
   const row = await ServiceMonitorOperations.getById(id) as any;
   if (!row) return null;

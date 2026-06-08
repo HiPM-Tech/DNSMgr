@@ -86,13 +86,15 @@ export function NSMonitorTab() {
     pollingInterval: 60000,
   });
 
-  const { data: configs = [], isLoading } = useQuery({
-    queryKey: ['ns-monitor'],
-    queryFn: () => nsMonitorApi.list().then((r) => r.data.data || []),
+  const { data: configData, isLoading } = useQuery({
+    queryKey: ['ns-monitor', page, pageSize],
+    queryFn: () => nsMonitorApi.list({ page, pageSize }).then((r) => r.data.data || { list: [], total: 0 }),
     retry: 1,
     retryDelay: 1000,
     staleTime: 30000,
   });
+  const configs = configData?.list || [];
+  const total = configData?.total || 0;
 
   const { data: userPrefs } = useQuery({
     queryKey: ['ns-monitor-user-prefs'],
@@ -195,9 +197,6 @@ export function NSMonitorTab() {
       toast.error(t('nsMonitor.resolveNsFailed'));
     },
   });
-
-  const filteredConfigs = configs?.filter((config: NSMonitorConfig) => config.domain_name?.toLowerCase().includes(searchKeyword.toLowerCase())) || [];
-  const pagedConfigs = filteredConfigs.slice((page - 1) * pageSize, page * pageSize);
 
   const parseNSField = (value: string | string[] | number | undefined): string[] => {
     if (value === undefined || value === null || value === '') return [];
@@ -477,7 +476,7 @@ export function NSMonitorTab() {
         </div>
         <Table
           columns={columns}
-          data={pagedConfigs}
+          data={configs}
           loading={isLoading}
           rowKey={(row) => row.id}
           emptyText={t('nsMonitor.noConfigs')}
@@ -487,7 +486,7 @@ export function NSMonitorTab() {
             current={page}
             pageSize={pageSize}
             pageSizeOptions={[10, 20, 50, 100]}
-            total={filteredConfigs.length}
+            total={total}
             onCurrentChange={(c: number) => setPage(c)}
             onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }}
           />

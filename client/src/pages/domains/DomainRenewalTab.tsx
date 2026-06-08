@@ -114,14 +114,16 @@ export function DomainRenewalTab() {
 
   const isAdmin = user?.role === 2 || user?.role === 3;
 
-  const { data: renewableDomains = [], isLoading } = useQuery({
-    queryKey: ['renewable-domains'],
+  const { data: renewableData, isLoading } = useQuery({
+    queryKey: ['renewable-domains', page, pageSize, searchKeyword],
     enabled: isAdmin,
     queryFn: async () => {
-      const res = await domainRenewalApi.getRenewableDomains();
-      return res.data.data || [];
+      const res = await domainRenewalApi.getRenewableDomains({ page, pageSize, keyword: searchKeyword || undefined });
+      return res.data.data || { list: [], total: 0 };
     },
   });
+  const renewableDomains = renewableData?.list || [];
+  const total = renewableData?.total || 0;
 
   const renewMutation = useMutation({
     mutationFn: ({ domainId, subdomainId }: { domainId: number; subdomainId: number }) => domainRenewalApi.renew(domainId, subdomainId),
@@ -306,10 +308,6 @@ export function DomainRenewalTab() {
     );
   }
 
-  const filteredDomains = renewableDomains.filter((domain: any) =>
-    (domain.full_domain || domain.domain_name)?.toLowerCase().includes(searchKeyword.toLowerCase()));
-  const pagedDomains = filteredDomains.slice((page - 1) * pageSize, page * pageSize);
-
   const activeCount = renewableDomains.filter((domain: any) => {
     const daysLeft = getDaysLeft(domain.expires_at);
     return daysLeft !== null && daysLeft > 30;
@@ -388,7 +386,7 @@ export function DomainRenewalTab() {
         </div>
         <Table
           columns={columns}
-          data={pagedDomains}
+          data={renewableDomains}
           loading={isLoading}
           rowKey={(row) => row.id}
           emptyText={t('domainRenewal.noDomains')}
@@ -398,7 +396,7 @@ export function DomainRenewalTab() {
             current={page}
             pageSize={pageSize}
             pageSizeOptions={[10, 20, 50, 100]}
-            total={filteredDomains.length}
+            total={total}
             onCurrentChange={(c: number) => setPage(c)}
             onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }}
           />

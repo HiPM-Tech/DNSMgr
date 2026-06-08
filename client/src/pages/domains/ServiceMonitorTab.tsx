@@ -59,9 +59,7 @@ function dialogField(label: string, control: ReactNode, tips?: ReactNode) {
 
 // ---- SSL Tab ----
 
-function SSLTab({ monitors, isLoading, onEdit, onDelete, onCheck, onAdd }: {
-  monitors: ServiceMonitorMonitor[];
-  isLoading: boolean;
+function SSLTab({ onEdit, onDelete, onCheck, onAdd }: {
   onEdit: (m: ServiceMonitorMonitor) => void;
   onDelete: (m: ServiceMonitorMonitor) => void;
   onCheck: (m: ServiceMonitorMonitor) => void;
@@ -72,10 +70,13 @@ function SSLTab({ monitors, isLoading, onEdit, onDelete, onCheck, onAdd }: {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  const filtered = monitors.filter(m => m.monitor_type === 'ssl_certificate').filter(m =>
-    m.name.toLowerCase().includes(search.toLowerCase()) || m.target.toLowerCase().includes(search.toLowerCase())
-  );
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const { data: sslData, isLoading } = useQuery({
+    queryKey: ['servicemonitor-ssl', page, pageSize, search],
+    queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'ssl_certificate' }).then(r => r.data.data || { list: [], total: 0 }),
+    placeholderData: { list: [], total: 0 } as any,
+  });
+  const monitors = sslData?.list || [];
+  const total = sslData?.total || 0;
 
   const columns = [
     { key: 'name', label: t('domains.servicemonitor.name'), render: (r: ServiceMonitorMonitor) => <span className="page-strong">{r.name}</span> },
@@ -138,9 +139,9 @@ function SSLTab({ monitors, isLoading, onEdit, onDelete, onCheck, onAdd }: {
           onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
         <Button theme="primary" icon={<AddIcon />} onClick={onAdd}>{t('domains.servicemonitor.addMonitor')}</Button>
       </div>
-      <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_ssl')} />
+      <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_ssl')} />
       <div className="records-pagination">
-        <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={filtered.length}
+        <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={total}
           onCurrentChange={(c: number) => setPage(c)} onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }} />
       </div>
     </Card>
@@ -149,10 +150,7 @@ function SSLTab({ monitors, isLoading, onEdit, onDelete, onCheck, onAdd }: {
 
 // ---- Endpoint Tab ----
 
-function EndpointTab({ monitors, failoverMap, isLoading, onEdit, onDelete, onCheck, onAdd, onBindFailover }: {
-  monitors: ServiceMonitorMonitor[];
-  failoverMap: Record<number, ServiceMonitorMonitor[]>;
-  isLoading: boolean;
+function EndpointTab({ onEdit, onDelete, onCheck, onAdd, onBindFailover }: {
   onEdit: (m: ServiceMonitorMonitor) => void;
   onDelete: (m: ServiceMonitorMonitor) => void;
   onCheck: (m: ServiceMonitorMonitor) => void;
@@ -164,10 +162,13 @@ function EndpointTab({ monitors, failoverMap, isLoading, onEdit, onDelete, onChe
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  const filtered = monitors.filter(m => m.monitor_type === 'endpoint').filter(m =>
-    m.name.toLowerCase().includes(search.toLowerCase()) || m.target.toLowerCase().includes(search.toLowerCase())
-  );
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const { data: endpointData, isLoading } = useQuery({
+    queryKey: ['servicemonitor-endpoint', page, pageSize, search],
+    queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'endpoint' }).then(r => r.data.data || { list: [], total: 0 }),
+    placeholderData: { list: [], total: 0 } as any,
+  });
+  const monitors = endpointData?.list || [];
+  const total = endpointData?.total || 0;
 
   const columns = [
     { key: 'name', label: t('domains.servicemonitor.name'), render: (r: ServiceMonitorMonitor) => <span className="page-strong">{r.name}</span> },
@@ -191,13 +192,9 @@ function EndpointTab({ monitors, failoverMap, isLoading, onEdit, onDelete, onChe
     },
     {
       key: 'failover_bind', label: t('domains.servicemonitor.failover_primary'),
-      render: (r: ServiceMonitorMonitor) => {
-        const children = failoverMap[r.id] || [];
-        if (children.length > 0) {
-          return <Tag theme="danger" variant="light" icon={<LinkIcon />}>{t('domains.servicemonitor.endpoint_bound')}</Tag>;
-        }
-        return <Button variant="text" size="small" icon={<LinkIcon />} onClick={() => onBindFailover(r)}>{t('domains.servicemonitor.endpoint_bindFailover')}</Button>;
-      },
+      render: (r: ServiceMonitorMonitor) => (
+        <Button variant="text" size="small" icon={<LinkIcon />} onClick={() => onBindFailover(r)}>{t('domains.servicemonitor.endpoint_bindFailover')}</Button>
+      ),
     },
     { key: 'response_time', label: t('domains.servicemonitor.responseTime'), render: (r: ServiceMonitorMonitor) => <span className="page-muted">{r.response_time != null ? `${r.response_time}ms` : '-'}</span> },
     { key: 'last_check_at', label: t('domains.servicemonitor.lastCheck'), render: (r: ServiceMonitorMonitor) => <span className="page-muted">{r.last_check_at ? new Date(r.last_check_at).toLocaleString() : '-'}</span> },
@@ -220,9 +217,9 @@ function EndpointTab({ monitors, failoverMap, isLoading, onEdit, onDelete, onChe
           onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
         <Button theme="primary" icon={<AddIcon />} onClick={onAdd}>{t('domains.servicemonitor.addMonitor')}</Button>
       </div>
-      <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_endpoint')} />
+      <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_endpoint')} />
       <div className="records-pagination">
-        <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={filtered.length}
+        <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={total}
           onCurrentChange={(c: number) => setPage(c)} onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }} />
       </div>
     </Card>
@@ -231,9 +228,7 @@ function EndpointTab({ monitors, failoverMap, isLoading, onEdit, onDelete, onChe
 
 // ---- Failover Tab ----
 
-function FailoverTab({ monitors, isLoading, onEdit, onDelete, onCheck }: {
-  monitors: ServiceMonitorMonitor[];
-  isLoading: boolean;
+function FailoverTab({ onEdit, onDelete, onCheck }: {
   onEdit: (m: ServiceMonitorMonitor) => void;
   onDelete: (m: ServiceMonitorMonitor) => void;
   onCheck: (m: ServiceMonitorMonitor) => void;
@@ -243,10 +238,13 @@ function FailoverTab({ monitors, isLoading, onEdit, onDelete, onCheck }: {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  const filtered = monitors.filter(m => m.monitor_type === 'dns_failover').filter(m =>
-    m.name.toLowerCase().includes(search.toLowerCase()) || m.target.toLowerCase().includes(search.toLowerCase())
-  );
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const { data: failoverData, isLoading } = useQuery({
+    queryKey: ['servicemonitor-failover', page, pageSize, search],
+    queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'dns_failover' }).then(r => r.data.data || { list: [], total: 0 }),
+    placeholderData: { list: [], total: 0 } as any,
+  });
+  const monitors = failoverData?.list || [];
+  const total = failoverData?.total || 0;
 
   const columns = [
     { key: 'name', label: t('domains.servicemonitor.name'), render: (r: ServiceMonitorMonitor) => <span className="page-strong">{r.name}</span> },
@@ -289,9 +287,9 @@ function FailoverTab({ monitors, isLoading, onEdit, onDelete, onCheck }: {
         <Input clearable type="search" value={search} prefixIcon={<SearchIcon />} placeholder={t('common.search')}
           onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
       </div>
-      <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_failover')} />
+      <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_failover')} />
       <div className="records-pagination">
-        <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={filtered.length}
+        <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={total}
           onCurrentChange={(c: number) => setPage(c)} onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }} />
       </div>
     </Card>
@@ -321,29 +319,6 @@ export function ServiceMonitorTab() {
     websocketEventTypes: ['servicemonitor_created', 'servicemonitor_updated', 'servicemonitor_deleted', 'servicemonitor_checked'],
     pollingInterval: 60000,
   });
-
-  const { data: monitors = [], isLoading } = useQuery({
-    queryKey: ['servicemonitor'],
-    queryFn: () => serviceMonitorApi.list().then((r) => r.data.data || []),
-    retry: 1, staleTime: 30000,
-  });
-
-  const endpointMonitors = monitors.filter((m: ServiceMonitorMonitor) => m.monitor_type === 'endpoint');
-  const [failoverMap, setFailoverMap] = useState<Record<number, ServiceMonitorMonitor[]>>({});
-
-  useEffect(() => {
-    async function loadChildren() {
-      const map: Record<number, ServiceMonitorMonitor[]> = {};
-      for (const ep of endpointMonitors) {
-        try {
-          const res = await serviceMonitorApi.getChildren(ep.id);
-          map[ep.id] = res.data.data || [];
-        } catch { map[ep.id] = []; }
-      }
-      setFailoverMap(map);
-    }
-    if (endpointMonitors.length > 0) loadChildren();
-  }, [monitors]);
 
   const [lines, setLines] = useState<any[]>([]);
 
@@ -636,20 +611,20 @@ export function ServiceMonitorTab() {
 
       <Tabs value={activeTab} onChange={(v: any) => setActiveTab(String(v))}>
         <Tabs.TabPanel value="ssl" label={t('domains.servicemonitor.tab_ssl')}>
-          <SSLTab monitors={monitors} isLoading={isLoading}
+          <SSLTab
             onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
             onCheck={(m) => checkMutation.mutate(m.id)}
             onAdd={() => openAddModal('ssl_certificate')} />
         </Tabs.TabPanel>
         <Tabs.TabPanel value="endpoint" label={t('domains.servicemonitor.tab_endpoint')}>
-          <EndpointTab monitors={monitors} failoverMap={failoverMap} isLoading={isLoading}
+          <EndpointTab
             onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
             onCheck={(m) => checkMutation.mutate(m.id)}
             onAdd={() => openAddModal('endpoint')}
             onBindFailover={(m) => { setBindEndpoint(m); resetForm(); setIsBindModalOpen(true); }} />
         </Tabs.TabPanel>
         <Tabs.TabPanel value="failover" label={t('domains.servicemonitor.tab_failover')}>
-            <FailoverTab monitors={monitors} isLoading={isLoading}
+            <FailoverTab
               onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
               onCheck={(m) => checkMutation.mutate(m.id)} />
           </Tabs.TabPanel>
