@@ -3966,21 +3966,36 @@ export const NSMonitorOperations = {
     );
   },
 
-  /** 分页获取用户所有的域名监测配置 */
-  async getUserMonitorsWithPagination(userId: number, page: number, pageSize: number): Promise<{ list: QueryResult[]; total: number }> {
+  /** 分页获取用户所有的域名监测配置（支持关键字搜索） */
+  async getUserMonitorsWithPagination(userId: number, page: number, pageSize: number, keyword?: string): Promise<{ list: QueryResult[]; total: number }> {
     const offset = (page - 1) * pageSize;
+    const keywordParam = keyword ? `%${keyword}%` : '';
+
+    let countSql = 'SELECT COUNT(*) as count FROM ns_monitor_domains WHERE user_id = ?';
+    const countParams: any[] = [userId];
+    if (keyword) {
+      countSql += ' AND domain_name LIKE ?';
+      countParams.push(keywordParam);
+    }
     const countResult = await getInternal<{ count: number }>(
-      'SELECT COUNT(*) as count FROM ns_monitor_domains WHERE user_id = ?',
-      [userId],
+      countSql,
+      countParams,
       { operation: 'NSMonitor.getUserMonitorsWithPagination.count', table: 'ns_monitor_domains' }
     );
     const total = countResult?.count || 0;
+
+    let listSql = 'SELECT * FROM ns_monitor_domains WHERE user_id = ?';
+    const listParams: any[] = [userId];
+    if (keyword) {
+      listSql += ' AND domain_name LIKE ?';
+      listParams.push(keywordParam);
+    }
+    listSql += ' ORDER BY domain_name LIMIT ? OFFSET ?';
+    listParams.push(pageSize, offset);
+
     const list = await queryInternal(
-      `SELECT * FROM ns_monitor_domains
-       WHERE user_id = ?
-       ORDER BY domain_name
-       LIMIT ? OFFSET ?`,
-      [userId, pageSize, offset],
+      listSql,
+      listParams,
       { operation: 'NSMonitor.getUserMonitorsWithPagination', table: 'ns_monitor_domains' }
     );
     return { list, total };

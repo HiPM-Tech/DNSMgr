@@ -982,6 +982,49 @@ html.dark input:-webkit-autofill:focus {
   padding: 14px 20px;
 }
 
+.domain-renewal-card .t-card__body {
+  padding: 0;
+}
+
+.records-toolbar.domain-renewal-card__toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.domain-renewal-card .t-table {
+  border: 0;
+  border-radius: 0;
+}
+
+.domain-renewal-card .records-pagination {
+  margin-top: 0;
+  padding: 14px 20px;
+}
+
+.records-card .t-card__body {
+  padding: 0;
+}
+
+.records-toolbar.records-card__toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(160px, 220px);
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.records-card .t-table {
+  border: 0;
+  border-radius: 0;
+}
+
+.records-card .records-pagination {
+  margin-top: 0;
+  padding: 14px 20px;
+}
+
 .ns-monitor-card .t-card__body {
   padding: 0;
 }
@@ -1021,6 +1064,22 @@ html.dark input:-webkit-autofill:focus {
 .servicemonitor-card .records-pagination {
   margin-top: 0;
   padding: 14px 20px;
+}
+
+.servicemonitor-tabs-wrapper {
+  margin-bottom: 16px;
+  padding: 4px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+body.app-has-background .servicemonitor-tabs-wrapper {
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--app-glass-border);
+  background: var(--app-glass-bg-soft);
+  backdrop-filter: saturate(140%) blur(14px);
+  border-radius: 8px;
 }
 
 .failover-card .t-card__body {

@@ -219,8 +219,9 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   const userId = req.user!.userId;
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+  const keyword = req.query.keyword as string | undefined;
 
-  const { list, total } = await NSMonitorOperations.getUserMonitorsWithPagination(userId, page, pageSize);
+  const { list, total } = await NSMonitorOperations.getUserMonitorsWithPagination(userId, page, pageSize, keyword);
 
   res.json({
     success: true,

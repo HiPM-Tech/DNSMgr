@@ -87,8 +87,8 @@ export function NSMonitorTab() {
   });
 
   const { data: configData, isLoading } = useQuery({
-    queryKey: ['ns-monitor', page, pageSize],
-    queryFn: () => nsMonitorApi.list({ page, pageSize }).then((r) => r.data.data || { list: [], total: 0 }),
+    queryKey: ['ns-monitor', page, pageSize, searchKeyword],
+    queryFn: () => nsMonitorApi.list({ page, pageSize, keyword: searchKeyword || undefined }).then((r) => r.data.data || { list: [], total: 0 }),
     retry: 1,
     retryDelay: 1000,
     staleTime: 30000,

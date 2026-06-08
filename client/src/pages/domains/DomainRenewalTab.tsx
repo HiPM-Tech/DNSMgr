@@ -77,7 +77,6 @@ export function DomainRenewalTab() {
     },
     onSuccess: ({ successCount, total }) => {
       queryClient.invalidateQueries({ queryKey: ['renewable-domains'] });
-      queryClient.refetchQueries({ queryKey: ['renewable-domains'] });
       setIsAddModalOpen(false);
       setSelectedAccountId(null);
       setSelectedDomainIds(new Set());
@@ -372,8 +371,8 @@ export function DomainRenewalTab() {
         ))}
       </div>
 
-      <Card bordered={false} shadow={false} className="page-card">
-        <div className="records-toolbar">
+      <Card bordered={false} shadow={false} className="page-card domain-renewal-card">
+        <div className="records-toolbar domain-renewal-card__toolbar">
           <Input
             clearable
             type="search"

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Input, Pagination, Select, Space, Switch, Tabs, Tag } from 'tdesign-react';
@@ -272,8 +272,8 @@ export function Records() {
 
       {activeTab === 'records' && (
         <>
-          <Card bordered={false} shadow={false}>
-            <div className="records-toolbar">
+          <Card bordered={false} shadow={false} className="page-card records-card">
+            <div className="records-toolbar records-card__toolbar">
               <Input
                 clearable
                 type="search"
@@ -299,9 +299,6 @@ export function Records() {
                 }}
               />
             </div>
-          </Card>
-
-          <Card bordered={false} shadow={false} className="page-card">
             <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} />
             <div className="records-pagination">
               <Pagination

@@ -241,7 +241,6 @@ function FailoverTab({ onEdit, onDelete, onCheck }: {
   const { data: failoverData, isLoading } = useQuery({
     queryKey: ['servicemonitor-failover', page, pageSize, search],
     queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'dns_failover' }).then(r => r.data.data || { list: [], total: 0 }),
-    placeholderData: { list: [], total: 0 } as any,
   });
   const monitors = failoverData?.list || [];
   const total = failoverData?.total || 0;
@@ -609,26 +608,28 @@ export function ServiceMonitorTab() {
         </div>
       </section>
 
-      <Tabs value={activeTab} onChange={(v: any) => setActiveTab(String(v))}>
-        <Tabs.TabPanel value="ssl" label={t('domains.servicemonitor.tab_ssl')}>
-          <SSLTab
-            onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
-            onCheck={(m) => checkMutation.mutate(m.id)}
-            onAdd={() => openAddModal('ssl_certificate')} />
-        </Tabs.TabPanel>
-        <Tabs.TabPanel value="endpoint" label={t('domains.servicemonitor.tab_endpoint')}>
-          <EndpointTab
-            onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
-            onCheck={(m) => checkMutation.mutate(m.id)}
-            onAdd={() => openAddModal('endpoint')}
-            onBindFailover={(m) => { setBindEndpoint(m); resetForm(); setIsBindModalOpen(true); }} />
-        </Tabs.TabPanel>
-        <Tabs.TabPanel value="failover" label={t('domains.servicemonitor.tab_failover')}>
+      <div className="servicemonitor-tabs-wrapper">
+        <Tabs value={activeTab} onChange={(v: any) => setActiveTab(String(v))}>
+          <Tabs.TabPanel value="ssl" label={t('domains.servicemonitor.tab_ssl')}>
+            <SSLTab
+              onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
+              onCheck={(m) => checkMutation.mutate(m.id)}
+              onAdd={() => openAddModal('ssl_certificate')} />
+          </Tabs.TabPanel>
+          <Tabs.TabPanel value="endpoint" label={t('domains.servicemonitor.tab_endpoint')}>
+            <EndpointTab
+              onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
+              onCheck={(m) => checkMutation.mutate(m.id)}
+              onAdd={() => openAddModal('endpoint')}
+              onBindFailover={(m) => { setBindEndpoint(m); resetForm(); setIsBindModalOpen(true); }} />
+          </Tabs.TabPanel>
+          <Tabs.TabPanel value="failover" label={t('domains.servicemonitor.tab_failover')}>
             <FailoverTab
               onEdit={openEdit} onDelete={(m) => setDeleteMonitor(m)}
               onCheck={(m) => checkMutation.mutate(m.id)} />
           </Tabs.TabPanel>
-      </Tabs>
+        </Tabs>
+      </div>
 
       {isAddModalOpen && (
         <Modal title={`${t('domains.servicemonitor.addMonitor')} - ${addType === 'ssl_certificate' ? t('domains.servicemonitor.tab_ssl') : addType === 'endpoint' ? t('domains.servicemonitor.tab_endpoint') : t('domains.servicemonitor.tab_failover')}`}
