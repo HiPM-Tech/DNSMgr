@@ -86,7 +86,7 @@ function SSLTab({ onEdit, onDelete, onCheck, onAdd }: {
     },
     { key: 'target', label: t('domains.servicemonitor.target'), render: (r: ServiceMonitorMonitor) => <span className="record-mono">{r.target}</span> },
     {
-      key: 'ssl_info', label: t('domains.servicemonitor.ssl_encryption'),
+      key: 'ssl_info', label: t('domains.servicemonitor.ssl_encryption'), ellipsis: false,
       render: (r: ServiceMonitorMonitor) => {
         const rd = r.result_data;
         if (!rd) return <span className="page-muted">-</span>;

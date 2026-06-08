@@ -10,6 +10,7 @@ interface Column<T> {
   className?: string;
   width?: number | string;
   minWidth?: number | string;
+  ellipsis?: boolean;
 }
 
 interface TableProps<T> {
@@ -38,7 +39,7 @@ export function Table<T extends object>({ columns, data, loading, emptyText, row
     className: col.className,
     width: col.width,
     minWidth: col.minWidth,
-    ellipsis: true,
+    ellipsis: col.ellipsis ?? true,
     cell: ({ row }) => {
       const originalRow = row as T;
       if (col.render) return col.render(originalRow);
