@@ -86,24 +86,39 @@ function SSLTab({ onEdit, onDelete, onCheck, onAdd }: {
     },
     { key: 'target', label: t('domains.servicemonitor.target'), render: (r: ServiceMonitorMonitor) => <span className="record-mono">{r.target}</span> },
     {
-      key: 'ssl_info', label: t('domains.servicemonitor.ssl_encryption'), ellipsis: false,
+      key: 'encryption_type', label: t('domains.servicemonitor.ssl_encryption'),
       render: (r: ServiceMonitorMonitor) => {
         const rd = r.result_data;
-        if (!rd) return <span className="page-muted">-</span>;
+        if (!rd?.encryptionType) return <span className="page-muted">-</span>;
+        return <Tag theme="primary" variant="light" size="small">{rd.encryptionType}</Tag>;
+      },
+    },
+    {
+      key: 'issuer', label: t('domains.servicemonitor.ssl_issuer'),
+      render: (r: ServiceMonitorMonitor) => {
+        const rd = r.result_data;
+        return <span className="page-muted">{rd?.issuer || '-'}</span>;
+      },
+    },
+    {
+      key: 'validation_level', label: t('domains.servicemonitor.ssl_validationLevel'),
+      render: (r: ServiceMonitorMonitor) => {
+        const rd = r.result_data;
+        if (!rd?.validationLevel) return <span className="page-muted">-</span>;
+        return <Tag theme="warning" variant="light" size="small">{rd.validationLevel}</Tag>;
+      },
+    },
+    {
+      key: 'san_domains', label: t('domains.servicemonitor.ssl_san'),
+      render: (r: ServiceMonitorMonitor) => {
+        const rd = r.result_data;
+        if (!rd?.sanDomains || !Array.isArray(rd.sanDomains) || rd.sanDomains.length === 0) return <span className="page-muted">-</span>;
+        const domains = rd.sanDomains as string[];
         return (
-          <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-            <div>
-              <Tag theme="primary" variant="light" size="small">{rd.encryptionType || '-'}</Tag>
-              <Tag theme="warning" variant="light" size="small" style={{ marginLeft: 4 }}>{rd.validationLevel || '-'}</Tag>
-            </div>
-            <div style={{ color: '#666' }}>{t('domains.servicemonitor.ssl_issuer')}: {rd.issuer || '-'}</div>
-            {rd.sanDomains && Array.isArray(rd.sanDomains) && rd.sanDomains.length > 1 && (
-              <div style={{ color: '#999', fontSize: 11 }}>
-                {t('domains.servicemonitor.ssl_san')}: {(rd.sanDomains as string[]).slice(0, 3).join(', ')}
-                {rd.sanDomains.length > 3 ? ` +${rd.sanDomains.length - 3}` : ''}
-              </div>
-            )}
-          </div>
+          <span style={{ fontSize: 12, color: 'var(--td-text-color-secondary)' }}>
+            {domains.slice(0, 3).join(', ')}
+            {domains.length > 3 ? <span style={{ color: 'var(--td-text-color-placeholder)' }}> +{domains.length - 3}</span> : ''}
+          </span>
         );
       },
     },
