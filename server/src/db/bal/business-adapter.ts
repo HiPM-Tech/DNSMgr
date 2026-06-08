@@ -3644,8 +3644,7 @@ export const RenewableDomainOperations = {
 
   /** 获取所有续期域名（包括启用和禁用，但过滤掉已禁用账号的域名*/
   async getAll(): Promise<any[]> {
-    const dbType = getDbType();
-    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
+    const enabledValue = '1';
     const builder = RenewableDomainQueryBuilder.all(enabledValue);
     const { sql, params } = builder.build();
 
@@ -3655,12 +3654,11 @@ export const RenewableDomainOperations = {
   /** 分页获取续期域名（包括启用和禁用，但过滤掉已禁用账号的域名，支持关键字搜索） */
   async getAllWithPagination(page: number, pageSize: number, keyword?: string): Promise<{ list: any[]; total: number }> {
     const offset = (page - 1) * pageSize;
-    const dbType = getDbType();
     const keywordParam = keyword ? `%${keyword}%` : '';
 
     let countSql = `SELECT COUNT(*) as count FROM renewable_domains rd
       INNER JOIN dns_accounts da ON rd.account_id = da.id
-      WHERE ${dbType === 'postgresql' ? 'da.enabled = TRUE' : 'da.enabled = 1'}`;
+      WHERE da.enabled = 1`;
     const countParams: any[] = [];
 
     if (keyword) {
@@ -3676,7 +3674,7 @@ export const RenewableDomainOperations = {
     let listSql = `SELECT rd.*, da.name as account_name, da.type as provider_type
       FROM renewable_domains rd
       INNER JOIN dns_accounts da ON rd.account_id = da.id
-      WHERE ${dbType === 'postgresql' ? 'da.enabled = TRUE' : 'da.enabled = 1'}`;
+      WHERE da.enabled = 1`;
     const listParams: any[] = [];
 
     if (keyword) {
@@ -3696,8 +3694,7 @@ export const RenewableDomainOperations = {
 
   /** 获取所有启用的续期域名（过滤掉已禁用账号的域名*/
   async getAllEnabled(): Promise<any[]> {
-    const dbType = getDbType();
-    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
+    const enabledValue = '1';
 
     const builder = RenewableDomainQueryBuilder.allEnabled(enabledValue);
     const { sql, params } = builder.build();
