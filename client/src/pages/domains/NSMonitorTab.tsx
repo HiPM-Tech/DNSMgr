@@ -60,6 +60,8 @@ export function NSMonitorTab() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [deleteConfig, setDeleteConfig] = useState<NSMonitorConfig | null>(null);
   const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null);
   // Edit form state is now managed by useFormSync
@@ -195,6 +197,7 @@ export function NSMonitorTab() {
   });
 
   const filteredConfigs = configs?.filter((config: NSMonitorConfig) => config.domain_name?.toLowerCase().includes(searchKeyword.toLowerCase())) || [];
+  const pagedConfigs = filteredConfigs.slice((page - 1) * pageSize, page * pageSize);
 
   const parseNSField = (value: string | string[] | number | undefined): string[] => {
     if (value === undefined || value === null || value === '') return [];
@@ -469,16 +472,26 @@ export function NSMonitorTab() {
             value={searchKeyword}
             prefixIcon={<SearchIcon />}
             placeholder={t('nsMonitor.searchPlaceholder')}
-            onChange={(value: any) => setSearchKeyword(String(value))}
+            onChange={(value: any) => { setSearchKeyword(String(value)); setPage(1); }}
           />
         </div>
         <Table
           columns={columns}
-          data={filteredConfigs}
+          data={pagedConfigs}
           loading={isLoading}
           rowKey={(row) => row.id}
           emptyText={t('nsMonitor.noConfigs')}
         />
+        <div className="records-pagination">
+          <Pagination
+            current={page}
+            pageSize={pageSize}
+            pageSizeOptions={[10, 20, 50, 100]}
+            total={filteredConfigs.length}
+            onCurrentChange={(c: number) => setPage(c)}
+            onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }}
+          />
+        </div>
       </Card>
 
       {isEditModalOpen && selectedConfig && (

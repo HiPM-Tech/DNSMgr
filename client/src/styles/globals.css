@@ -1002,6 +1002,27 @@ html.dark input:-webkit-autofill:focus {
   border-radius: 0;
 }
 
+.servicemonitor-card .t-card__body {
+  padding: 0;
+}
+
+.records-toolbar.servicemonitor-card__toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.servicemonitor-card .t-table {
+  border: 0;
+  border-radius: 0;
+}
+
+.servicemonitor-card .records-pagination {
+  margin-top: 0;
+  padding: 14px 20px;
+}
+
 .failover-card .t-card__body {
   padding: 0;
 }

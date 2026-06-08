@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Checkbox, Empty, Loading, Select, Space, Tag } from 'tdesign-react';
-import { AddIcon, CalendarIcon, CheckCircleIcon, DeleteIcon, ErrorCircleIcon, RefreshIcon, TimeIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
+import { Alert, Button, Card, Checkbox, Empty, Input, Loading, Pagination, Select, Space, Tag } from 'tdesign-react';
+import { AddIcon, CalendarIcon, CheckCircleIcon, DeleteIcon, ErrorCircleIcon, RefreshIcon, SearchIcon, TimeIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
 import { domainRenewalApi, accountsApi, api } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
@@ -33,6 +33,9 @@ export function DomainRenewalTab() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [selectedDomainIds, setSelectedDomainIds] = useState<Set<string>>(new Set());
   const [deleteDomain, setDeleteDomain] = useState<any | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['dns-accounts'],
@@ -303,6 +306,10 @@ export function DomainRenewalTab() {
     );
   }
 
+  const filteredDomains = renewableDomains.filter((domain: any) =>
+    (domain.full_domain || domain.domain_name)?.toLowerCase().includes(searchKeyword.toLowerCase()));
+  const pagedDomains = filteredDomains.slice((page - 1) * pageSize, page * pageSize);
+
   const activeCount = renewableDomains.filter((domain: any) => {
     const daysLeft = getDaysLeft(domain.expires_at);
     return daysLeft !== null && daysLeft > 30;
@@ -368,13 +375,34 @@ export function DomainRenewalTab() {
       </div>
 
       <Card bordered={false} shadow={false} className="page-card">
+        <div className="records-toolbar">
+          <Input
+            clearable
+            type="search"
+            value={searchKeyword}
+            prefixIcon={<SearchIcon />}
+            placeholder={t('common.search')}
+            onChange={(value: any) => { setSearchKeyword(String(value)); setPage(1); }}
+            style={{ width: 240 }}
+          />
+        </div>
         <Table
           columns={columns}
-          data={renewableDomains}
+          data={pagedDomains}
           loading={isLoading}
           rowKey={(row) => row.id}
           emptyText={t('domainRenewal.noDomains')}
         />
+        <div className="records-pagination">
+          <Pagination
+            current={page}
+            pageSize={pageSize}
+            pageSizeOptions={[10, 20, 50, 100]}
+            total={filteredDomains.length}
+            onCurrentChange={(c: number) => setPage(c)}
+            onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }}
+          />
+        </div>
       </Card>
 
       <Alert

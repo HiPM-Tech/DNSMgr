@@ -70,12 +70,12 @@ function SSLTab({ monitors, isLoading, onEdit, onDelete, onCheck, onAdd }: {
   const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const ps = 20;
+  const [pageSize, setPageSize] = useState(20);
 
   const filtered = monitors.filter(m => m.monitor_type === 'ssl_certificate').filter(m =>
     m.name.toLowerCase().includes(search.toLowerCase()) || m.target.toLowerCase().includes(search.toLowerCase())
   );
-  const paged = filtered.slice((page - 1) * ps, page * ps);
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const columns = [
     { key: 'name', label: t('domains.servicemonitor.name'), render: (r: ServiceMonitorMonitor) => <span className="page-strong">{r.name}</span> },
@@ -132,20 +132,18 @@ function SSLTab({ monitors, isLoading, onEdit, onDelete, onCheck, onAdd }: {
   ];
 
   return (
-    <div>
-      <div className="records-toolbar" style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+    <Card bordered={false} shadow={false} className="page-card servicemonitor-card">
+      <div className="records-toolbar servicemonitor-card__toolbar">
         <Input clearable type="search" value={search} prefixIcon={<SearchIcon />} placeholder={t('common.search')}
           onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
         <Button theme="primary" icon={<AddIcon />} onClick={onAdd}>{t('domains.servicemonitor.addMonitor')}</Button>
       </div>
-      <Card bordered={false} shadow={false}>
-        <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_ssl')} />
-        <div className="records-pagination">
-          <Pagination size="small" current={page} pageSize={ps} total={filtered.length} totalContent={false}
-            showPageSize={false} showJumper={false} onCurrentChange={(c: number) => setPage(c)} />
-        </div>
-      </Card>
-    </div>
+      <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_ssl')} />
+      <div className="records-pagination">
+        <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={filtered.length}
+          onCurrentChange={(c: number) => setPage(c)} onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }} />
+      </div>
+    </Card>
   );
 }
 
@@ -164,12 +162,12 @@ function EndpointTab({ monitors, failoverMap, isLoading, onEdit, onDelete, onChe
   const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const ps = 20;
+  const [pageSize, setPageSize] = useState(20);
 
   const filtered = monitors.filter(m => m.monitor_type === 'endpoint').filter(m =>
     m.name.toLowerCase().includes(search.toLowerCase()) || m.target.toLowerCase().includes(search.toLowerCase())
   );
-  const paged = filtered.slice((page - 1) * ps, page * ps);
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const columns = [
     { key: 'name', label: t('domains.servicemonitor.name'), render: (r: ServiceMonitorMonitor) => <span className="page-strong">{r.name}</span> },
@@ -216,20 +214,18 @@ function EndpointTab({ monitors, failoverMap, isLoading, onEdit, onDelete, onChe
   ];
 
   return (
-    <div>
-      <div className="records-toolbar" style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+    <Card bordered={false} shadow={false} className="page-card servicemonitor-card">
+      <div className="records-toolbar servicemonitor-card__toolbar">
         <Input clearable type="search" value={search} prefixIcon={<SearchIcon />} placeholder={t('common.search')}
           onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
         <Button theme="primary" icon={<AddIcon />} onClick={onAdd}>{t('domains.servicemonitor.addMonitor')}</Button>
       </div>
-      <Card bordered={false} shadow={false}>
-        <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_endpoint')} />
-        <div className="records-pagination">
-          <Pagination size="small" current={page} pageSize={ps} total={filtered.length} totalContent={false}
-            showPageSize={false} showJumper={false} onCurrentChange={(c: number) => setPage(c)} />
-        </div>
-      </Card>
-    </div>
+      <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_endpoint')} />
+      <div className="records-pagination">
+        <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={filtered.length}
+          onCurrentChange={(c: number) => setPage(c)} onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }} />
+      </div>
+    </Card>
   );
 }
 
@@ -245,12 +241,12 @@ function FailoverTab({ monitors, isLoading, onEdit, onDelete, onCheck }: {
   const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const ps = 20;
+  const [pageSize, setPageSize] = useState(20);
 
   const filtered = monitors.filter(m => m.monitor_type === 'dns_failover').filter(m =>
     m.name.toLowerCase().includes(search.toLowerCase()) || m.target.toLowerCase().includes(search.toLowerCase())
   );
-  const paged = filtered.slice((page - 1) * ps, page * ps);
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const columns = [
     { key: 'name', label: t('domains.servicemonitor.name'), render: (r: ServiceMonitorMonitor) => <span className="page-strong">{r.name}</span> },
@@ -288,19 +284,17 @@ function FailoverTab({ monitors, isLoading, onEdit, onDelete, onCheck }: {
   ];
 
   return (
-    <div>
-      <div className="records-toolbar" style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+    <Card bordered={false} shadow={false} className="page-card servicemonitor-card">
+      <div className="records-toolbar servicemonitor-card__toolbar">
         <Input clearable type="search" value={search} prefixIcon={<SearchIcon />} placeholder={t('common.search')}
           onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
       </div>
-      <Card bordered={false} shadow={false}>
-        <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_failover')} />
-        <div className="records-pagination">
-          <Pagination size="small" current={page} pageSize={ps} total={filtered.length} totalContent={false}
-            showPageSize={false} showJumper={false} onCurrentChange={(c: number) => setPage(c)} />
-        </div>
-      </Card>
-    </div>
+      <Table columns={columns} data={paged} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_failover')} />
+      <div className="records-pagination">
+        <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={filtered.length}
+          onCurrentChange={(c: number) => setPage(c)} onPageSizeChange={(s: number) => { setPageSize(s); setPage(1); }} />
+      </div>
+    </Card>
   );
 }
 

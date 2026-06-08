@@ -56,6 +56,16 @@ export class GcoreAdapter implements DnsAdapter {
     this.config = config;
   }
 
+  /** Gcore API 使用完整主机名，需要将子域名转为完整主机名 */
+  private toFullName(name: string): string {
+    const zoneName = this.zoneName;
+    if (!zoneName) return name;
+    if (name === '@' || name === '' || name === zoneName) return zoneName;
+    // 如果已经是完整主机名（以 zoneName 结尾），直接返回
+    if (name === zoneName || name.endsWith(`.${zoneName}`)) return name;
+    return `${name}.${zoneName}`;
+  }
+
   private async request<T>(method: string, path: string, body?: unknown): Promise<GcoreApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
     log.sub('API').tag('REQUEST').debug('Provider request', { method: method, url: url, params: body });
@@ -164,7 +174,9 @@ export class GcoreAdapter implements DnsAdapter {
         const lowerSubdomain = subdomain.toLowerCase();
         rrsets = rrsets.filter((rrset: any) => {
           const recordName = rrset.name.toLowerCase();
-          return recordName === lowerSubdomain || recordName.endsWith(`.${lowerSubdomain}`);
+          // rrset.name 是完整主机名，subdomain 是子域名（如 www），需要转换比较
+          const subName = recordName === zoneName ? '@' : recordName.replace(`.${zoneName}`, '');
+          return subName === lowerSubdomain || subName.endsWith(`.${lowerSubdomain}`);
         });
       }
 
@@ -225,7 +237,7 @@ export class GcoreAdapter implements DnsAdapter {
       records.push({
         RecordId: `${zoneName}:${rrset.name}:${rrset.type}`,
         Domain: zoneName,
-        Name: rrset.name,
+        Name: rrset.name === zoneName ? '@' : rrset.name.replace(`.${zoneName}`, ''),
         Type: rrset.type.toUpperCase(),
         Value: value,
         Line: '0',
@@ -300,9 +312,10 @@ export class GcoreAdapter implements DnsAdapter {
         ttl,
       };
 
-      await this.request<GcoreRRSet>('POST', `/zones/${zoneName}/${name}/${type.toUpperCase()}`, body);
+      const fullName = this.toFullName(name);
+      await this.request<GcoreRRSet>('POST', `/zones/${zoneName}/${fullName}/${type.toUpperCase()}`, body);
 
-      return `${zoneName}:${name}:${type.toUpperCase()}`;
+      return `${zoneName}:${fullName}:${type.toUpperCase()}`;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       return null;
@@ -347,7 +360,8 @@ export class GcoreAdapter implements DnsAdapter {
         ttl,
       };
 
-      await this.request<GcoreRRSet>('PUT', `/zones/${zoneName}/${name}/${type.toUpperCase()}`, body);
+      const fullName = this.toFullName(name);
+      await this.request<GcoreRRSet>('PUT', `/zones/${zoneName}/${fullName}/${type.toUpperCase()}`, body);
 
       return true;
     } catch (e) {

@@ -3890,6 +3890,26 @@ export const NSMonitorOperations = {
     );
   },
 
+  /** 分页获取用户所有的域名监测配置 */
+  async getUserMonitorsWithPagination(userId: number, page: number, pageSize: number): Promise<{ list: QueryResult[]; total: number }> {
+    const offset = (page - 1) * pageSize;
+    const countResult = await getInternal<{ count: number }>(
+      'SELECT COUNT(*) as count FROM ns_monitor_domains WHERE user_id = ?',
+      [userId],
+      { operation: 'NSMonitor.getUserMonitorsWithPagination.count', table: 'ns_monitor_domains' }
+    );
+    const total = countResult?.count || 0;
+    const list = await queryInternal(
+      `SELECT * FROM ns_monitor_domains
+       WHERE user_id = ?
+       ORDER BY domain_name
+       LIMIT ? OFFSET ?`,
+      [userId, pageSize, offset],
+      { operation: 'NSMonitor.getUserMonitorsWithPagination', table: 'ns_monitor_domains' }
+    );
+    return { list, total };
+  },
+
   /** 获取所有启用的域名监测（用于定时任务，Level 2 - 仅检NS 监控自身状态） */
   async getAllEnabled(): Promise<QueryResult[]> {
     const enabledValue = '1';
