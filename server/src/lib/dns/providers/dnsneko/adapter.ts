@@ -208,7 +208,7 @@ export class DnsnekoAdapter implements DnsAdapter {
         const id = data.data.id ?? data.data.record_id ?? data.data.Id;
         if (id) return String(id);
       }
-      const topId = (data as Dict).id ?? (data as Dict).record_id;
+      const topId = (data as unknown as Dict).id ?? (data as unknown as Dict).record_id;
       if (topId) return String(topId);
 
       const rawName = normalizeRrName(name);
