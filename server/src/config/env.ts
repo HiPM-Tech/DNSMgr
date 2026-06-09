@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createLogger } from '../lib/logger';
+import { resolveDefaultDbPath } from '../db/dal/config';
 
 const log = createLogger('Config').sub('Env');
 // Get the current working directory (where the server is running)
@@ -150,7 +151,7 @@ export function getDbConfig(): {
   return {
     type: dbType,
     sqlite: {
-      path: process.env.DB_PATH || './data/hidns.db',
+      path: process.env.DB_PATH || resolveDefaultDbPath(),
     },
     mysql: {
       host: process.env.DB_HOST || 'localhost',

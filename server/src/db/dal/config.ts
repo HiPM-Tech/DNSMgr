@@ -4,6 +4,8 @@
  */
 
 import type { DatabaseType } from './types';
+import path from 'path';
+import os from 'os';
 
 /** MySQL 配置 */
 export interface MySQLConfig {
@@ -89,6 +91,63 @@ const DEFAULT_CONFIG = {
 };
 
 /**
+ * 检测是否为 SEA 二进制运行环境
+ * 支持 Node.js Single Executable Applications 和 pkg 打包环境
+ */
+function isBinaryEnvironment(): boolean {
+  // pkg 打包检测
+  if (!!(process as any).pkg) return true;
+  // Node.js SEA 检测（Node.js 20.12+）
+  try {
+    const sea = require('node:sea');
+    return typeof sea.isSea === 'function' && sea.isSea();
+  } catch {
+    // node:sea 不可用，继续其他检测
+  }
+  // 按可执行文件名检测
+  const exe = path.basename(process.execPath).toLowerCase();
+  return exe === 'hidns.exe' || exe === 'hidns';
+}
+
+/**
+ * 解析默认 SQLite 数据库路径
+ * 
+ * 优先级：
+ * 1. process.env.DB_PATH（最高优先级，用户显式指定）
+ * 2. process.env.HIDNS_DATA_DIR（用户指定数据目录）
+ * 3. 二进制运行环境（SEA/pkg）：使用平台标准应用数据目录
+ *    - Windows: %APPDATA%/HiDNS/data/hidns.db
+ *    - macOS:   ~/Library/Application Support/HiDNS/data/hidns.db
+ *    - Linux:   ~/.config/hidns/data/hidns.db
+ * 4. 开发环境：{cwd}/data/hidns.db（向后兼容）
+ */
+export function resolveDefaultDbPath(): string {
+  // 优先级 1：用户显式指定
+  if (process.env.DB_PATH) return process.env.DB_PATH;
+
+  // 优先级 2：用户指定数据目录
+  if (process.env.HIDNS_DATA_DIR) {
+    return path.join(process.env.HIDNS_DATA_DIR, 'data', 'hidns.db');
+  }
+
+  // 优先级 3：二进制环境
+  if (isBinaryEnvironment()) {
+    if (process.platform === 'win32') {
+      return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'HiDNS', 'data', 'hidns.db');
+    }
+    if (process.platform === 'darwin') {
+      return path.join(os.homedir(), 'Library', 'Application Support', 'HiDNS', 'data', 'hidns.db');
+    }
+    // Linux
+    const xdgData = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
+    return path.join(xdgData, 'hidns', 'data', 'hidns.db');
+  }
+
+  // 优先级 4：开发环境
+  return path.resolve(process.cwd(), 'data', 'hidns.db');
+}
+
+/**
  * 从环境变量获取数据库配置
  */
 export function getDatabaseConfig(): DatabaseConfig {
@@ -137,7 +196,7 @@ export function getDatabaseConfig(): DatabaseConfig {
       return {
         type: 'sqlite',
         sqlite: {
-          path: process.env.DB_PATH || './data/hidns.db',
+          path: resolveDefaultDbPath(),
           mode: DEFAULT_CONFIG.sqlite.mode,
           busyTimeout: DEFAULT_CONFIG.sqlite.busyTimeout,
           enableWAL: process.env.DB_SQLITE_WAL !== 'false',

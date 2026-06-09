@@ -380,7 +380,7 @@ app.get('/api/logs', authMiddleware, adminOnly, async (req: Request, res: Respon
 });
 
 // Serve static files from client build directory
-// Support both development and packaged executable
+// Support both development and packaged executable (SEA binary)
 const possiblePaths = [
   // Packaged: assets are in APP_ROOT/client/dist
   path.join(APP_ROOT, 'client/dist'),
@@ -405,25 +405,61 @@ for (const p of possiblePaths) {
   }
 }
 
+/** 嵌入式客户端文件索引（SEA 二进制场景） */
+interface EmbeddedFile { content: Buffer; mimeType: string; }
+let embeddedClient: Record<string, EmbeddedFile> | null = null;
+
 if (clientBuildPath) {
   app.use(express.static(clientBuildPath));
-
-  // Serve index.html for all non-API routes (SPA support)
-  app.get('*', (req: Request, res: Response) => {
-    // Don't interfere with API routes
-    if (req.path.startsWith('/api/')) {
-      return res.status(404).json({ code: 404, msg: 'API endpoint not found' });
+} else {
+  // 尝试从嵌入式模块加载（SEA 二进制打包时生成）
+  try {
+    embeddedClient = require('./embedded-client');
+    if (embeddedClient) {
+      console.log('✅ Serving embedded client files');
     }
+  } catch {
+    // 嵌入式客户端不可用
+  }
+
+  if (!embeddedClient) {
+    console.warn('⚠️ Client build directory not found. API-only mode.');
+  }
+}
+
+// SPA fallback — 处理所有非 API 路由
+app.get('*', (req: Request, res: Response) => {
+  // Don't interfere with API routes
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ code: 404, msg: 'API endpoint not found' });
+  }
+
+  // 策略 1: 文件系统路径
+  if (clientBuildPath) {
     const indexPath = path.join(clientBuildPath, 'index.html');
     if (require('fs').existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).send('index.html not found');
+      return res.sendFile(indexPath);
     }
-  });
-} else {
-  console.warn('⚠️ Client build directory not found. API-only mode.');
-}
+  }
+
+  // 策略 2: 嵌入式客户端（SEA 二进制）
+  if (embeddedClient) {
+    const indexFile = embeddedClient['/index.html'];
+    if (indexFile) {
+      return res.type('html').send(indexFile.content);
+    }
+  }
+
+  // 静态资源直接从嵌入式客户端响应
+  if (embeddedClient) {
+    const staticFile = embeddedClient[req.path];
+    if (staticFile) {
+      return res.type(staticFile.mimeType).send(staticFile.content);
+    }
+  }
+
+  res.status(404).send('index.html not found');
+});
 
 // Global error handler (must be last)
 app.use(errorHandler);

@@ -6,6 +6,7 @@ import { saveEnvConfig } from '../config/env';
 import { createConnection, isDbInitialized, hasUsers } from '../db/connection';
 import { connect } from '../db/dal/connection';
 import type { DatabaseConfig } from '../db/dal/config';
+import { resolveDefaultDbPath } from '../db/dal/config';
 import { UserOperations, SystemOperations, SecretOperations } from '../db/bal/business-adapter';
 import { createLogger } from '../lib/logger';
 
@@ -30,7 +31,7 @@ function buildDbConfig(
   };
 
   if (type === 'sqlite') {
-    let dbPath = sqlite?.path || './data/dnsmgr.db';
+    let dbPath = sqlite?.path || resolveDefaultDbPath();
     dbPath = dbPath.replace(/\\/g, '/');
     dbConfig.sqlite = {
       path: dbPath,
@@ -83,7 +84,7 @@ function saveDatabaseConfig(
   };
 
   if (type === 'sqlite') {
-    let dbPath = sqlite?.path || './data/dnsmgr.db';
+    let dbPath = sqlite?.path || resolveDefaultDbPath();
     dbPath = dbPath.replace(/\\/g, '/');
     envConfig.DB_PATH = dbPath;
   } else if (type === 'mysql' && mysqlConfig) {
@@ -263,7 +264,7 @@ router.post('/database', async (req: Request, res: Response) => {
     log.info('Testing database connection', { type, sqlitePath: sqlite?.path });
     const testResult = await SystemOperations.testConnection({
       type,
-      sqlite: sqlite || { path: './data/dnsmgr.db' },
+      sqlite: sqlite || { path: resolveDefaultDbPath() },
       mysql: mysqlConfig,
       postgresql: pgConfig,
     });

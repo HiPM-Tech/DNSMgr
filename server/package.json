@@ -5,25 +5,6 @@
   "license": "GPL-3.0",
   "main": "dist/app.js",
   "bin": "dist/app.js",
-  "pkg": {
-    "scripts": [
-      "dist/**/*.js",
-      "node_modules/bcryptjs/**/*.js",
-      "node_modules/mysql2/**/*.js"
-    ],
-    "assets": [
-      "../client/dist/**/*"
-    ],
-    "targets": [
-      "node18-win-x64",
-      "node18-linux-x64",
-      "node18-macos-x64"
-    ],
-    "outputPath": "dist/pkg",
-    "externals": [
-      "better-sqlite3"
-    ]
-  },
   "scripts": {
     "dev": "ts-node --files src/app.ts",
     "mcp": "ts-node --files src/mcp/start.ts",
@@ -43,10 +24,13 @@
     "db:migrate:ns-monitor": "node scripts/migrate-ns-monitor-fields.js",
     "cli": "ts-node src/cli.ts",
     "cli:help": "ts-node src/cli.ts --help",
-    "pkg:win": "pkg . --targets node18-win-x64 --output dist/pkg/DNSMgr-Server-win.exe",
-    "pkg:linux": "pkg . --targets node18-linux-x64 --output dist/pkg/DNSMgr-Server-linux",
-    "pkg:macos": "pkg . --targets node18-macos-x64 --output dist/pkg/DNSMgr-Server-macos",
-    "pkg:all": "npm run pkg:win && npm run pkg:linux && npm run pkg:macos"
+    "embed:client": "node scripts/embed-client.mjs",
+    "sea:build": "node scripts/build-sea.mjs",
+    "sea:win": "node scripts/build-sea.mjs win",
+    "sea:linux": "node scripts/build-sea.mjs linux",
+    "sea:macos": "node scripts/build-sea.mjs macos",
+    "sea:macos-x64": "node scripts/build-sea.mjs macos-x64",
+    "sea:all": "node scripts/build-sea.mjs all"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -86,6 +70,8 @@
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.6",
     "@types/ws": "^8.18.1",
+    "esbuild": "^0.25.0",
+    "postject": "^1.0.0-alpha.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
     "vitest": "^4.1.5"

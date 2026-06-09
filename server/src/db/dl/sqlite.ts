@@ -45,12 +45,19 @@ export class SQLiteDriver extends BaseDriver {
       log.info('Opening database', { path: config.path, cwd: process.cwd() });
 
       // 在 EXE 环境中，需要手动指定 better-sqlite3 的绑定文件路径
-      // pkg 打包后，process.pkg 会被设置
+      // pkg / SEA 打包后，需要从二进制同目录加载原生绑定
       const isPkgEnvironment = !!(process as any).pkg;
+      const isSeaEnvironment = (() => {
+        try {
+          const sea = require('node:sea');
+          return typeof sea.isSea === 'function' && sea.isSea();
+        } catch { return false; }
+      })();
+      const isBundledEnvironment = isPkgEnvironment || isSeaEnvironment;
       let bindingPath: string | null = null;
 
-      if (isPkgEnvironment) {
-        log.info('Detected PKG environment, setting up native bindings path');
+      if (isBundledEnvironment) {
+        log.info('Detected bundled environment', { pkg: isPkgEnvironment, sea: isSeaEnvironment });
         // 尝试从 EXE 所在目录的 node_modules 加载绑定文件
         const exeDir = path.dirname(process.execPath);
         const possiblePaths = [
@@ -107,14 +114,16 @@ export class SQLiteDriver extends BaseDriver {
           error: importError,
           cwd: process.cwd(),
           execPath: process.execPath,
+          isBundled: isBundledEnvironment,
           isPkg: isPkgEnvironment,
+          isSea: isSeaEnvironment,
           bindingPath,
           nodeModulesPath: path.join(process.cwd(), 'node_modules', 'better-sqlite3')
         });
         throw new Error(
           `Failed to load better-sqlite3 module. ` +
-          `This may be due to missing native bindings in EXE environment. ` +
-          `Please ensure node_modules/better-sqlite3/build/Release/better_sqlite3.node exists next to the EXE. ` +
+          `This may be due to missing native bindings in bundled environment. ` +
+          `Please ensure node_modules/better-sqlite3/build/Release/better_sqlite3.node exists next to the executable. ` +
           `Error: ${importError instanceof Error ? importError.message : 'Unknown error'}`
         );
       }
