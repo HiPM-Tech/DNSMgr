@@ -500,6 +500,24 @@ export async function checkFailover(
   const domainName = monitor.target;
   const failoverDomainId = monitor.domainId;
 
+  // Step 0: Skip if domain or account is disabled
+  if (failoverDomainId) {
+    try {
+      const domainInfo = await DomainOperations.getById(failoverDomainId) as any;
+      if (domainInfo) {
+        if (domainInfo.enabled === 0 || domainInfo.enabled === false) {
+          return { status: 'warning', responseTime: null, error: `Domain ${domainInfo.name} is disabled, failover skipped`, resultData: null };
+        }
+        const accountInfo = await DnsAccountOperations.getById(domainInfo.account_id) as any;
+        if (accountInfo && (accountInfo.enabled === 0 || accountInfo.enabled === false)) {
+          return { status: 'warning', responseTime: null, error: `Account ${accountInfo.name} is disabled, failover skipped`, resultData: null };
+        }
+      }
+    } catch (e) {
+      log.warn('Failed to check domain/account status during failover, continuing', { error: e, monitorId: monitor.id });
+    }
+  }
+
   // Step 1: DNS resolve primary value
   const resolved = await resolveDomainWithFallback(config.primaryValue);
   if ('error' in resolved) {
