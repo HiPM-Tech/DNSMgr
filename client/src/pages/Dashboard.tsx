@@ -538,7 +538,7 @@ export function Dashboard() {
               <Empty description={t('dashboard.noRecentActivity')} />
             ) : (
               <List split size="large" className="dashboard-activity-list">
-                {logs.map((log) => (
+                {logs.slice(0, 15).map((log) => (
                   <ActivityLogItem key={log.id} log={log} t={t} />
                 ))}
               </List>
