@@ -171,6 +171,51 @@ export class DomainQueryBuilder {
 
   }
 
+  /**
+
+   * 智能域名匹配（专为外部 API Token 设计）
+   *
+   * 当外部应用（如 DDNS-Go）传入完整域名（如 `home.server.example.com`）时，
+   * 自动提取所有可能的子域名后缀进行精确匹配，优先返回最具体的匹配结果。
+   *
+   * 示例：`domain_match=1.2.3.4.5.com` 会匹配数据库中 `4.5.com`、`5.com` 等，
+   * 并按域名长度降序排列（`4.5.com` 优先于 `5.com`）。
+   *
+   * 与 `whereKeyword` 不同：
+   * - `keyword` 使用 `LIKE` 模糊搜索（`%keyword%`）
+   * - `domain_match` 使用 `IN` 精确匹配，提取后缀
+   */
+  whereDomainMatch(domainMatch: string): this {
+
+    const normalizedMatch = normalizeDomain(domainMatch);
+
+    const parts = normalizedMatch.split('.');
+
+    // Generate all possible suffixes (minimum 2 parts, e.g. "example.com" not "com")
+    const suffixes: string[] = [];
+
+    for (let i = parts.length - 2; i >= 0; i--) {
+
+      const suffix = parts.slice(i).join('.');
+
+      suffixes.push(suffix);
+
+    }
+
+    if (suffixes.length > 0) {
+
+      const placeholders = suffixes.map(() => '?').join(',');
+
+      this.wheres.push(`d.name IN (${placeholders})`);
+
+      this.params.push(...suffixes);
+
+    }
+
+    return this;
+
+  }
+
 
 
   /**
@@ -360,65 +405,57 @@ export class DomainQueryBuilder {
 
    */
 
-  static forTokenAuth(domainIds: number[], options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
+  static forTokenAuth(domainIds: number[], options?: { accountId?: number; keyword?: string; domainMatch?: string }): DomainQueryBuilder {
 
     const builder = new DomainQueryBuilder()
-
       .joinAccounts()
-
       .whereAccountEnabled()
-
       .whereDomainIds(domainIds);
 
-    
-
     if (options?.accountId) {
-
       builder.whereAccountId(options.accountId);
-
     }
 
     if (options?.keyword) {
-
       builder.whereKeyword(options.keyword);
-
     }
 
-    
+    if (options?.domainMatch) {
+      builder.whereDomainMatch(options.domainMatch);
+      // Order by longest match first (most specific domain)
+      if (!options?.keyword) {
+        builder.orderByColumn("LENGTH(d.name)", "DESC");
+      }
+    }
 
     return builder;
 
   }
 
-
-
   /**
-
    * Level 3: 超级管理员查
    */
-
-  static forSuperAdmin(options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
+  static forSuperAdmin(options?: { accountId?: number; keyword?: string; domainMatch?: string }): DomainQueryBuilder {
 
     const builder = new DomainQueryBuilder()
-
       .joinAccounts()
-
       .whereAccountEnabled();  // 恢复：过滤掉禁用账号的域
-    
 
     if (options?.accountId) {
-
       builder.whereAccountId(options.accountId);
-
     }
 
     if (options?.keyword) {
-
       builder.whereKeyword(options.keyword);
-
     }
 
-    
+    if (options?.domainMatch) {
+      builder.whereDomainMatch(options.domainMatch);
+      // Order by longest match first when domain_match is used standalone
+      if (!options?.keyword) {
+        builder.orderByColumn("LENGTH(d.name)", "DESC");
+      }
+    }
 
     return builder;
 
@@ -450,39 +487,33 @@ export class DomainQueryBuilder {
    * Level 3: 可访问域- 超级管理
    */
 
-  static accessibleForSuperAdmin(options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
+  static accessibleForSuperAdmin(options?: { accountId?: number; keyword?: string; domainMatch?: string }): DomainQueryBuilder {
 
     const builder = DomainQueryBuilder.withAccountFilter();
 
-    
-
     if (options?.accountId) {
-
       builder.whereAccountId(options.accountId);
-
     }
 
     if (options?.keyword) {
-
       builder.whereKeyword(options.keyword);
-
     }
 
-    
+    if (options?.domainMatch) {
+      builder.whereDomainMatch(options.domainMatch);
+      if (!options?.keyword) {
+        builder.orderByColumn("LENGTH(d.name)", "DESC");
+      }
+    }
 
     return builder;
 
   }
 
-
-
   /**
-
    * Level 3: 可访问域- 普通用户（带团队和权限检查）
-
    */
-
-  static accessibleForUser(userId: number, teamIds: number[], options?: { accountId?: number; keyword?: string }): DomainQueryBuilder {
+  static accessibleForUser(userId: number, teamIds: number[], options?: { accountId?: number; keyword?: string; domainMatch?: string }): DomainQueryBuilder {
 
     const builder = new DomainQueryBuilder();
 
@@ -519,18 +550,19 @@ export class DomainQueryBuilder {
     // Add optional filters
 
     if (options?.accountId) {
-
       builder.whereAccountId(options.accountId);
-
     }
 
     if (options?.keyword) {
-
       builder.whereKeyword(options.keyword);
-
     }
 
-    
+    if (options?.domainMatch) {
+      builder.whereDomainMatch(options.domainMatch);
+      if (!options?.keyword) {
+        builder.orderByColumn("LENGTH(d.name)", "DESC");
+      }
+    }
 
     return builder;
 

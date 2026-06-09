@@ -159,9 +159,10 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword, domain_type, page, pageSize, format, include_disabled, domain_status, pinned_domains } = req.query as {
+  const { account_id, keyword, domain_match, domain_type, page, pageSize, format, include_disabled, domain_status, pinned_domains } = req.query as {
     account_id?: string;
     keyword?: string;
+    domain_match?: string;
     domain_type?: string;
     page?: string;
     pageSize?: string;
@@ -221,6 +222,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       domains = await DomainOperations.getByIds(tokenAllowedDomains, {
         accountId: account_id ? parseInteger(account_id) : undefined,
         keyword,
+        domainMatch: domain_match,
       }) as unknown as Domain[];
     } else {
       // 允许所有域名的 Token：根据角色选择查询方式
@@ -229,6 +231,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
         const result = await DomainOperations.getAllForSuperAdminWithPagination({
           accountId: account_id ? parseInteger(account_id) : undefined,
           keyword,
+          domainMatch: domain_match,
           domainStatus: parsedDomainStatus,
           domainType: parsedDomainType,
           pinnedDomainIds,  // ← 传递置顶域名 ID 列表
@@ -245,6 +248,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
           teamIds,
           accountId: account_id ? parseInteger(account_id) : undefined,
           keyword,
+          domainMatch: domain_match,
           domainStatus: parsedDomainStatus,
           domainType: parsedDomainType,
           pinnedDomainIds,  // ← 传递置顶域名 ID 列表

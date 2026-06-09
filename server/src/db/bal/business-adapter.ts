@@ -675,7 +675,7 @@ export const DomainOperations = {
   },
 
   /** 根据ID列表获取域名（用于Token认证优化*/
-  async getByIds(ids: number[], options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
+  async getByIds(ids: number[], options?: { accountId?: number; keyword?: string; domainMatch?: string }): Promise<QueryResult[]> {
     if (ids.length === 0) return [];
 
     const builder = DomainQueryBuilder.forTokenAuth(ids, options);
@@ -685,7 +685,7 @@ export const DomainOperations = {
   },
 
   /** 获取所有域名（用于超级管理员Token认证*/
-  async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string }): Promise<QueryResult[]> {
+  async getAllForSuperAdmin(options?: { accountId?: number; keyword?: string; domainMatch?: string }): Promise<QueryResult[]> {
     const builder = DomainQueryBuilder.forSuperAdmin(options);
     const { sql, params } = builder.build();
 
@@ -696,6 +696,7 @@ export const DomainOperations = {
   async getAllForSuperAdminWithPagination(options: {
     accountId?: number;
     keyword?: string;
+    domainMatch?: string;
     domainStatus?: 'enabled' | 'disabled' | 'all';
     domainType?: 'apex' | 'subdomain';
     pinnedDomainIds?: number[];  // 新增：置顶域ID 列表
@@ -705,6 +706,7 @@ export const DomainOperations = {
     const {
       accountId,
       keyword,
+      domainMatch,
       domainStatus = 'all',
       domainType,
       pinnedDomainIds = [],
@@ -713,7 +715,7 @@ export const DomainOperations = {
     } = options;
 
     // 构建查询
-    let builder = DomainQueryBuilder.forSuperAdmin({ accountId, keyword });
+    let builder = DomainQueryBuilder.forSuperAdmin({ accountId, keyword, domainMatch });
 
     // 添加 enabled 过滤
     if (domainStatus === 'enabled') {
@@ -749,6 +751,11 @@ export const DomainOperations = {
       }
     } else {
       orderByClause = 'd.id ASC';
+    }
+
+    // 当使用 domain_match 时，按域名长度降序排列（最具体匹配优先）
+    if (domainMatch && orderByClause) {
+      orderByClause = orderByClause.replace('d.id ASC', 'LENGTH(d.name) DESC, d.id ASC');
     }
 
     // 查询总数
@@ -908,6 +915,7 @@ export const DomainOperations = {
     teamIds: number[];
     accountId?: number;
     keyword?: string;
+    domainMatch?: string;
     domainStatus?: 'enabled' | 'disabled' | 'all';
     domainType?: 'apex' | 'subdomain';
     pinnedDomainIds?: number[];  // 新增：置顶域ID 列表
@@ -919,6 +927,7 @@ export const DomainOperations = {
       teamIds,
       accountId,
       keyword,
+      domainMatch,
       domainStatus = 'all',
       domainType,
       pinnedDomainIds = [],
@@ -927,7 +936,7 @@ export const DomainOperations = {
     } = params;
 
     // 构建查询
-    let builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword });
+    let builder = DomainQueryBuilder.accessibleForUser(userId, teamIds, { accountId, keyword, domainMatch });
 
     // 添加 enabled 过滤
     if (domainStatus === 'enabled') {
@@ -963,6 +972,11 @@ export const DomainOperations = {
       }
     } else {
       orderByClause = 'd.id ASC';
+    }
+
+    // 当使用 domain_match 时，按域名长度降序排列（最具体匹配优先）
+    if (domainMatch && orderByClause) {
+      orderByClause = orderByClause.replace('d.id ASC', 'LENGTH(d.name) DESC, d.id ASC');
     }
 
     // 查询总数
