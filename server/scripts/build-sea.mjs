@@ -57,6 +57,14 @@ const TARGETS = {
       `https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-x64.tar.gz`,
     ],
   },
+  'linux-arm64': {
+    nodePlatform: 'linux',
+    nodeArch: 'arm64',
+    binaryName: `HiDNS-${version}-linux-arm64`,
+    seaNodeBinary: [
+      `https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-arm64.tar.gz`,
+    ],
+  },
   macos: {
     nodePlatform: 'darwin',
     nodeArch: 'arm64',
@@ -315,7 +323,7 @@ if (targetArg === 'all') {
   // 自动检测当前平台
   const platformMap = {
     win32: process.arch === 'arm64' ? 'win-arm64' : 'win',
-    linux: 'linux',
+    linux: process.arch === 'arm64' ? 'linux-arm64' : 'linux',
     darwin: 'macos',
   };
   const detected = platformMap[process.platform];

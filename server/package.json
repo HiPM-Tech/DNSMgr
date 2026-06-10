@@ -29,6 +29,7 @@
     "sea:win": "node scripts/build-sea.mjs win",
     "sea:win-arm64": "node scripts/build-sea.mjs win-arm64",
     "sea:linux": "node scripts/build-sea.mjs linux",
+    "sea:linux-arm64": "node scripts/build-sea.mjs linux-arm64",
     "sea:macos": "node scripts/build-sea.mjs macos",
     "sea:macos-x64": "node scripts/build-sea.mjs macos-x64",
     "sea:all": "node scripts/build-sea.mjs all"
