@@ -54,7 +54,7 @@ const TARGETS = {
     nodeArch: 'x64',
     binaryName: `HiDNS-${version}-linux-x64`,
     seaNodeBinary: [
-      `https://nodejs.org/dist/v20.18.3/linux-x64/node`,
+      `https://nodejs.org/dist/v24.16.0/linux-x64/node`,
     ],
   },
   macos: {
@@ -62,7 +62,7 @@ const TARGETS = {
     nodeArch: 'arm64',
     binaryName: `HiDNS-${version}-macos-arm64`,
     seaNodeBinary: [
-      `https://nodejs.org/dist/v20.18.3/darwin-arm64/node`,
+      `https://nodejs.org/dist/v24.16.0/darwin-arm64/node`,
     ],
   },
   'macos-x64': {
@@ -70,7 +70,7 @@ const TARGETS = {
     nodeArch: 'x64',
     binaryName: `HiDNS-${version}-macos-x64`,
     seaNodeBinary: [
-      `https://nodejs.org/dist/v20.18.3/darwin-x64/node`,
+      `https://nodejs.org/dist/v24.16.0/darwin-x64/node`,
     ],
   },
 };
@@ -88,23 +88,39 @@ function run(cmd, label) {
  */
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    console.log(`   ⬇️  Downloading: ${url}`);
-    https.get(url, (response) => {
-      if (response.statusCode !== 200) {
-        reject(new Error(`Download failed with status ${response.statusCode}`));
+    const followRedirect = (currentUrl, redirectCount = 0) => {
+      if (redirectCount > 5) {
+        reject(new Error('Too many redirects'));
         return;
       }
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close();
-        console.log(`   ✅ Downloaded: ${dest}`);
-        resolve();
+      const file = fs.createWriteStream(dest);
+      console.log(`   ⬇️  Downloading: ${currentUrl}`);
+      https.get(currentUrl, (response) => {
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          // 跟随重定向
+          file.close();
+          fs.unlink(dest, () => {});
+          const redirectUrl = new URL(response.headers.location, currentUrl).href;
+          console.log(`   🔄 Redirecting to: ${redirectUrl}`);
+          followRedirect(redirectUrl, redirectCount + 1);
+          return;
+        }
+        if (response.statusCode !== 200) {
+          reject(new Error(`Download failed with status ${response.statusCode}`));
+          return;
+        }
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          console.log(`   ✅ Downloaded: ${dest}`);
+          resolve();
+        });
+      }).on('error', (err) => {
+        fs.unlink(dest, () => {});
+        reject(err);
       });
-    }).on('error', (err) => {
-      fs.unlink(dest, () => {});
-      reject(err);
-    });
+    };
+    followRedirect(url);
   });
 }
 
