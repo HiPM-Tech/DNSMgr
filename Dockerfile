@@ -1,5 +1,5 @@
 # Multi-stage build for DNSMgr (Frontend + Backend in one image)
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Accept CI build flag
 ARG CI_BUILD=false
@@ -32,7 +32,7 @@ RUN pnpm --filter dnsmgr-client build
 RUN pnpm --filter dnsmgr-server build
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:24-alpine AS production
 
 # Accept CI build flag from builder
 ARG CI_BUILD=false

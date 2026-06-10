@@ -118,7 +118,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -136,10 +136,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path "release-dist"
 
           # Download Node.js 20
-          $nodeUrl = "https://nodejs.org/dist/v20.11.0/node-v20.11.0-win-x64.zip"
+          $nodeUrl = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-x64.zip"
           Invoke-WebRequest -Uri $nodeUrl -OutFile "node.zip"
           Expand-Archive -Path "node.zip" -DestinationPath "release-dist" -Force
-          Rename-Item -Path "release-dist/node-v20.11.0-win-x64" -NewName "nodejs" -Force
+          Rename-Item -Path "release-dist/node-v24.16.0-win-x64" -NewName "nodejs" -Force
 
           # Copy files
           New-Item -ItemType Directory -Force -Path "release-dist/server"
@@ -196,7 +196,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -214,10 +214,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path "release-dist"
 
           # Download Node.js 20 ARM64
-          $nodeUrl = "https://nodejs.org/dist/v20.11.0/node-v20.11.0-win-arm64.zip"
+          $nodeUrl = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-arm64.zip"
           Invoke-WebRequest -Uri $nodeUrl -OutFile "node.zip"
           Expand-Archive -Path "node.zip" -DestinationPath "release-dist" -Force
-          Rename-Item -Path "release-dist/node-v20.11.0-win-arm64" -NewName "nodejs" -Force
+          Rename-Item -Path "release-dist/node-v24.16.0-win-arm64" -NewName "nodejs" -Force
 
           # Copy files
           New-Item -ItemType Directory -Force -Path "release-dist/server"
@@ -274,7 +274,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -291,10 +291,10 @@ jobs:
           mkdir -p release-dist
 
           # Download Node.js 20 x64
-          NODE_URL="https://nodejs.org/dist/v20.11.0/node-v20.11.0-linux-x64.tar.xz"
+          NODE_URL="https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-x64.tar.xz"
           curl -L $NODE_URL -o node.tar.xz
           tar -xf node.tar.xz -C release-dist
-          mv release-dist/node-v20.11.0-linux-x64 release-dist/nodejs
+          mv release-dist/node-v24.16.0-linux-x64 release-dist/nodejs
 
           # Copy files
           mkdir -p release-dist/server
@@ -344,7 +344,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -361,10 +361,10 @@ jobs:
           mkdir -p release-dist
 
           # Download Node.js 20 ARM64
-          NODE_URL="https://nodejs.org/dist/v20.11.0/node-v20.11.0-linux-arm64.tar.xz"
+          NODE_URL="https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-arm64.tar.xz"
           curl -L $NODE_URL -o node.tar.xz
           tar -xf node.tar.xz -C release-dist
-          mv release-dist/node-v20.11.0-linux-arm64 release-dist/nodejs
+          mv release-dist/node-v24.16.0-linux-arm64 release-dist/nodejs
 
           # Copy files
           mkdir -p release-dist/server
@@ -414,7 +414,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -431,10 +431,10 @@ jobs:
           mkdir -p release-dist
 
           # Download Node.js 20 x64 for macOS
-          NODE_URL="https://nodejs.org/dist/v20.11.0/node-v20.11.0-darwin-x64.tar.xz"
+          NODE_URL="https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-x64.tar.xz"
           curl -L $NODE_URL -o node.tar.xz
           tar -xf node.tar.xz -C release-dist
-          mv release-dist/node-v20.11.0-darwin-x64 release-dist/nodejs
+          mv release-dist/node-v24.16.0-darwin-x64 release-dist/nodejs
 
           # Copy files
           mkdir -p release-dist/server
@@ -484,7 +484,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -501,10 +501,10 @@ jobs:
           mkdir -p release-dist
 
           # Download Node.js 20 ARM64 for macOS
-          NODE_URL="https://nodejs.org/dist/v20.11.0/node-v20.11.0-darwin-arm64.tar.xz"
+          NODE_URL="https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-arm64.tar.xz"
           curl -L $NODE_URL -o node.tar.xz
           tar -xf node.tar.xz -C release-dist
-          mv release-dist/node-v20.11.0-darwin-arm64 release-dist/nodejs
+          mv release-dist/node-v24.16.0-darwin-arm64 release-dist/nodejs
 
           # Copy files
           mkdir -p release-dist/server
@@ -552,7 +552,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Build server
@@ -587,7 +587,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Build server
@@ -621,7 +621,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Build server
@@ -655,7 +655,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Build server

@@ -4,6 +4,9 @@
   "private": true,
   "description": "DNS Aggregation Management Platform",
   "license": "GPL-3.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "dev": "concurrently \"pnpm --filter dnsmgr-server dev\" \"pnpm --filter dnsmgr-client dev\"",
     "build": "pnpm --filter dnsmgr-server build && pnpm --filter client build",
