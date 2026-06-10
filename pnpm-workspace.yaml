@@ -1,6 +1,6 @@
 packages:
   - 'server'
   - 'client'
-onlyBuiltDependencies:
-  - '@scarf/scarf'
-  - esbuild
+allowBuilds:
+  '@scarf/scarf': true
+  esbuild: true
