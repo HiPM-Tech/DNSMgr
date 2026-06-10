@@ -4,14 +4,31 @@ import { loadEnv } from './config/env';
 loadEnv();
 
 // 解析 SEA 二进制 CLI 参数
-// 支持: -l <log_level> -p <port> -i install|uninstall
+// 支持: -l <log_level> -p <port> -i install|uninstall -u on|off
 (function parseSeaArgs() {
   const args = process.argv.slice(2);
+
+  // 先扫描 -u 参数（默认 on），确保 -i 也能获取
+  let autoUpdate = 'on';
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '-u' && i + 1 < args.length) {
+      const val = args[i + 1];
+      if (val === 'on' || val === 'off') {
+        autoUpdate = val;
+      }
+      break;
+    }
+  }
+  process.env.HIDNS_AUTO_UPDATE = autoUpdate === 'on' ? 'true' : 'false';
+
   for (let i = 0; i < args.length; i++) {
     if ((args[i] === '-p' || args[i] === '--port') && i + 1 < args.length) {
       process.env.PORT = args[++i];
     } else if ((args[i] === '-l' || args[i] === '--log-level') && i + 1 < args.length) {
       process.env.HIDNS_LOG_LEVEL = args[++i];
+    } else if (args[i] === '-u' && i + 1 < args.length) {
+      // 已在前置扫描中处理，跳过值
+      i++;
     } else if (args[i] === '-i' && i + 1 < args.length) {
       const action = args[++i];
       if (action === 'install' || action === 'uninstall') {
@@ -19,7 +36,7 @@ loadEnv();
         const binPath = process.execPath;
         const platform = process.platform;
 
-        // 从全部参数中收集 -l 和 -p，确保服务启动时带上
+        // 从全部参数中收集 -l、-p、-u，确保服务启动时带上
         const serviceArgs: string[] = [];
         const allArgs = process.argv.slice(2);
         for (let j = 0; j < allArgs.length; j++) {
@@ -28,7 +45,13 @@ loadEnv();
             serviceArgs.push(a, allArgs[++j]);
           } else if ((a === '-l' || a === '--log-level') && j + 1 < allArgs.length) {
             serviceArgs.push(a, allArgs[++j]);
+          } else if (a === '-u' && j + 1 < allArgs.length) {
+            serviceArgs.push(a, allArgs[++j]);
           }
+        }
+        // 未指定 -u 时默认追加 -u on
+        if (!serviceArgs.includes('-u')) {
+          serviceArgs.push('-u', 'on');
         }
         const argsStr = serviceArgs.length > 0 ? ' ' + serviceArgs.join(' ') : '';
 
@@ -215,6 +238,7 @@ import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { startRecordCountCacheRefresh } from './service/recordCountCache';
 import { startDomainSyncJob } from './service/domainSyncJob';
 import { startMcpOAuthCleanupJob } from './service/mcpOAuthCleanupJob';
+import { checkForUpdate, downloadUpdate } from './service/autoUpdater';
 
 // 读取 package.json 获取版本信息
 import { readFileSync } from 'fs';
@@ -767,6 +791,9 @@ async function initializeApp() {
     // 启动 MCP OAuth 临时客户端定期清理任务（每 5 分钟）
     startMcpOAuthCleanupJob();
 
+    // 启动自动更新检测（仅 SEA 二进制模式且 HIDNS_AUTO_UPDATE=true）
+    startAutoUpdateCheck();
+
     // Graceful shutdown
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM', initCheckInterval, oauthStateCleanupInterval));
     process.on('SIGINT', () => gracefulShutdown('SIGINT', initCheckInterval, oauthStateCleanupInterval));
@@ -819,11 +846,67 @@ async function initializeApp() {
       }
     }, 5000);
 
+    // 启动自动更新检测（仅 SEA 二进制模式且 HIDNS_AUTO_UPDATE=true）
+    startAutoUpdateCheck();
+
     // Graceful shutdown - use the unified gracefulShutdown function
     // Note: oauthStateCleanupInterval is not started in this branch, so pass undefined
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM', initCheckInterval));
     process.on('SIGINT', () => gracefulShutdown('SIGINT', initCheckInterval));
   }
+}
+
+/**
+ * 启动自动更新检测（SEA 二进制 + HIDNS_AUTO_UPDATE=true 时生效）
+ * - 启动时立即检测一次
+ * - 之后每 6 小时检测一次
+ */
+function startAutoUpdateCheck(): void {
+  if (process.env.HIDNS_AUTO_UPDATE !== 'true') return;
+
+  // 判断是否 SEA 二进制（process.execPath 不是 node 本身）
+  const isSea = !process.execPath.endsWith('node') && !process.execPath.endsWith('node.exe');
+  if (!isSea) {
+    log.info('Auto-update skipped: not running as SEA binary');
+    return;
+  }
+
+  log.info('Auto-update enabled, checking for updates...');
+
+  async function doCheck(): Promise<void> {
+    try {
+      const result = await checkForUpdate();
+      if (result.hasUpdate && result.downloadUrl) {
+        log.info(`Update available: ${result.currentVersion} → ${result.latestVersion}`);
+        console.log(`\n📦 Update available: ${result.currentVersion} → ${result.latestVersion}`);
+        console.log(`   Release: ${result.releaseName || result.latestVersion}`);
+        console.log(`   Downloading...`);
+
+        const scriptPath = await downloadUpdate(result.downloadUrl);
+
+        console.log(`✅ Update downloaded. Restarting in 3 seconds...\n`);
+
+        // Spawn restart script and exit
+        const { spawn } = require('child_process');
+        if (process.platform === 'win32') {
+          spawn('cmd.exe', ['/c', scriptPath], { detached: true, stdio: 'ignore' }).unref();
+        } else {
+          spawn('/bin/sh', [scriptPath], { detached: true, stdio: 'ignore' }).unref();
+        }
+
+        // Give the script a moment to start, then exit
+        setTimeout(() => process.exit(0), 500);
+      } else if (result.error) {
+        log.debug(`Update check failed: ${result.error}`);
+      }
+    } catch (err: any) {
+      log.error('Auto-update check error', { error: err.message });
+    }
+  }
+
+  // 立即执行一次，之后每 6 小时检查
+  doCheck();
+  setInterval(doCheck, 6 * 60 * 60 * 1000);
 }
 
 // Start the application
