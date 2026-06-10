@@ -24,6 +24,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { rcedit } from 'rcedit';
+import https from 'https';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -80,6 +81,31 @@ const TARGETS = {
 function run(cmd, label) {
   console.log(`\n🏗️  ${label || cmd}`);
   execSync(cmd, { cwd: root, stdio: 'inherit' });
+}
+
+/**
+ * 下载文件
+ */
+function downloadFile(url, dest) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    console.log(`   ⬇️  Downloading: ${url}`);
+    https.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Download failed with status ${response.statusCode}`));
+        return;
+      }
+      response.pipe(file);
+      file.on('finish', () => {
+        file.close();
+        console.log(`   ✅ Downloaded: ${dest}`);
+        resolve();
+      });
+    }).on('error', (err) => {
+      fs.unlink(dest, () => {});
+      reject(err);
+    });
+  });
 }
 
 /**
@@ -144,16 +170,30 @@ async function buildForPlatform(targetName) {
   // Step 4: 生成 SEA blob
   run('node --experimental-sea-config sea-config.json', 'Generating SEA blob');
 
-  // Step 5: 复制 Node.js 运行时（优先使用本地版本）
-  const nodeBinary = getNodeBinary();
-  console.log(`\n📦 Copying Node.js runtime: ${nodeBinary}`);
-  fs.copyFileSync(
-    path.join(process.execPath),  // 当前 Node.js 运行时
-    outputBinary
-  );
+  // Step 5: 获取目标架构的 Node.js 运行时
+  // - 如果目标架构与当前架构相同，直接复制本地 Node.js
+  // - 如果不同（跨架构构建），从 seaNodeBinary 下载目标架构的 Node.js
+  const isCrossArch = process.arch !== target.nodeArch || process.platform !== target.nodePlatform;
+  let nodeBinaryPath;
+  if (isCrossArch && target.seaNodeBinary?.length > 0) {
+    // 跨架构构建：下载目标架构的 Node.js 运行时
+    const downloadUrl = target.seaNodeBinary[0];
+    const ext = target.nodePlatform === 'win32' ? '.exe' : '';
+    const downloadedBinary = path.join(buildDir, `node${ext}`);
+    await downloadFile(downloadUrl, downloadedBinary);
+    nodeBinaryPath = downloadedBinary;
+    console.log(`   🔄 Cross-arch build: ${process.arch} → ${target.nodeArch}`);
+  } else {
+    // 同架构构建：使用本地 Node.js
+    nodeBinaryPath = process.execPath;
+    console.log(`\n📦 Using local Node.js runtime: ${nodeBinaryPath}`);
+  }
+
+  // 复制 Node.js 运行时到输出二进制
+  fs.copyFileSync(nodeBinaryPath, outputBinary);
 
   // 权限设置 (POSIX)
-  if (process.platform !== 'win32') {
+  if (target.nodePlatform !== 'win32') {
     fs.chmodSync(outputBinary, 0o755);
   }
 

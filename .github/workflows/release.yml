@@ -642,7 +642,7 @@ jobs:
   build-sea-windows-arm:
     name: Build Windows ARM64 SEA Binary
     if: inputs.build_sea == true
-    runs-on: windows-arm64-latest
+    runs-on: windows-latest
     needs: prepare
     steps:
       - name: Checkout repository
