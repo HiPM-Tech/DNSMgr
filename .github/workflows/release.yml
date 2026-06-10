@@ -51,7 +51,7 @@ on:
       build_sea:
         description: 'Build SEA binaries (self-contained executables)?'
         required: false
-        default: false
+        default: true
         type: boolean
       draft:
         description: 'Create as draft release?'
