@@ -12,6 +12,7 @@
  *
  * 用法:
  *   node scripts/build-sea.mjs win        # Windows x64
+ *   node scripts/build-sea.mjs win-arm64  # Windows ARM64
  *   node scripts/build-sea.mjs linux      # Linux x64
  *   node scripts/build-sea.mjs macos      # macOS x64 (arm64)
  *   node scripts/build-sea.mjs macos-x64  # macOS x64 (intel)
@@ -35,8 +36,16 @@ const TARGETS = {
     nodePlatform: 'win32',
     nodeArch: 'x64',
     binaryName: `HiDNS-${version}-win-x64.exe`,
-    seaNodeBinary: [ // Node.js 20 LTS SEA 二进制下载 URL
-      `https://nodejs.org/dist/v20.18.3/win-x64/node.exe`,
+    seaNodeBinary: [ // Node.js 24 LTS SEA 二进制下载 URL
+      `https://nodejs.org/dist/v24.16.0/win-x64/node.exe`,
+    ],
+  },
+  'win-arm64': {
+    nodePlatform: 'win32',
+    nodeArch: 'arm64',
+    binaryName: `HiDNS-${version}-win-arm64.exe`,
+    seaNodeBinary: [
+      `https://nodejs.org/dist/v24.16.0/win-arm64/node.exe`,
     ],
   },
   linux: {
@@ -150,7 +159,7 @@ async function buildForPlatform(targetName) {
 
   // Step 5b: Windows 平台 — 在注入 SEA blob 前设置应用信息（产品名、版权、图标）
   // 必须在 postject 注入之前执行，因为 rcedit 无法处理 SEA 注入后的 PE 格式
-  if (targetName === 'win') {
+  if (targetName === 'win' || targetName === 'win-arm64') {
     console.log(`\n🎨 Setting Windows executable resources...`);
     try {
       const clientPublic = path.resolve(root, '..', 'client', 'public');
@@ -225,7 +234,7 @@ if (targetArg === 'all') {
 } else {
   // 自动检测当前平台
   const platformMap = {
-    win32: 'win',
+    win32: process.arch === 'arm64' ? 'win-arm64' : 'win',
     linux: 'linux',
     darwin: 'macos',
   };

@@ -639,6 +639,41 @@ jobs:
           path: server/dist/sea/HiDNS-*-macos-arm*
           retention-days: 7
 
+  build-sea-windows-arm:
+    name: Build Windows ARM64 SEA Binary
+    if: inputs.build_sea == true
+    runs-on: windows-arm64-latest
+    needs: prepare
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Build server
+        run: pnpm --filter dnsmgr-server build
+      - name: Build client
+        run: pnpm --filter dnsmgr-client build
+      - name: Build SEA binary (ARM64)
+        shell: pwsh
+        run: |
+          cd server
+          pnpm sea:win-arm64
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sea-windows-arm64
+          path: server/dist/sea/HiDNS-*.exe
+          retention-days: 7
+
   build-sea-macos-x64:
     name: Build macOS Intel SEA Binary
     if: inputs.build_sea == true
@@ -874,8 +909,8 @@ jobs:
   # ============================================================================
   create-release:
     name: Create GitHub Release
-    needs: [prepare, build-windows, build-windows-arm, build-linux-x64, build-linux-arm64, build-macos-intel, build-macos-arm, build-sea-windows, build-sea-linux-x64, build-sea-macos-arm, build-sea-macos-x64, merge-docker]
-    if: always() && (needs.build-windows.result == 'success' || needs.build-windows-arm.result == 'success' || needs.build-linux-x64.result == 'success' || needs.build-linux-arm64.result == 'success' || needs.build-macos-intel.result == 'success' || needs.build-macos-arm.result == 'success' || needs.build-sea-windows.result == 'success' || needs.build-sea-linux-x64.result == 'success' || needs.build-sea-macos-arm.result == 'success' || needs.build-sea-macos-x64.result == 'success' || needs.merge-docker.result == 'success')
+    needs: [prepare, build-windows, build-windows-arm, build-linux-x64, build-linux-arm64, build-macos-intel, build-macos-arm, build-sea-windows, build-sea-windows-arm, build-sea-linux-x64, build-sea-macos-arm, build-sea-macos-x64, merge-docker]
+    if: always() && (needs.build-windows.result == 'success' || needs.build-windows-arm.result == 'success' || needs.build-linux-x64.result == 'success' || needs.build-linux-arm64.result == 'success' || needs.build-macos-intel.result == 'success' || needs.build-macos-arm.result == 'success' || needs.build-sea-windows.result == 'success' || needs.build-sea-windows-arm.result == 'success' || needs.build-sea-linux-x64.result == 'success' || needs.build-sea-macos-arm.result == 'success' || needs.build-sea-macos-x64.result == 'success' || needs.merge-docker.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -932,6 +967,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: sea-windows-x64
+          path: ./artifacts
+
+      - name: Download SEA Windows ARM64 artifact
+        if: needs.build-sea-windows-arm.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: sea-windows-arm64
           path: ./artifacts
 
       - name: Download SEA Linux x64 artifact

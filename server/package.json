@@ -27,6 +27,7 @@
     "embed:client": "node scripts/embed-client.mjs",
     "sea:build": "node scripts/build-sea.mjs",
     "sea:win": "node scripts/build-sea.mjs win",
+    "sea:win-arm64": "node scripts/build-sea.mjs win-arm64",
     "sea:linux": "node scripts/build-sea.mjs linux",
     "sea:macos": "node scripts/build-sea.mjs macos",
     "sea:macos-x64": "node scripts/build-sea.mjs macos-x64",
