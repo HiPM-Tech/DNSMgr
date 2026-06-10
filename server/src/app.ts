@@ -4,7 +4,7 @@ import { loadEnv } from './config/env';
 loadEnv();
 
 // 解析 SEA 二进制 CLI 参数
-// 支持: -l <log_level> -p <port>
+// 支持: -l <log_level> -p <port> -i install|uninstall
 (function parseSeaArgs() {
   const args = process.argv.slice(2);
   for (let i = 0; i < args.length; i++) {
@@ -12,6 +12,146 @@ loadEnv();
       process.env.PORT = args[++i];
     } else if ((args[i] === '-l' || args[i] === '--log-level') && i + 1 < args.length) {
       process.env.HIDNS_LOG_LEVEL = args[++i];
+    } else if (args[i] === '-i' && i + 1 < args.length) {
+      const action = args[++i];
+      if (action === 'install' || action === 'uninstall') {
+        const { execSync } = require('child_process');
+        const binPath = process.execPath;
+        const platform = process.platform;
+
+        // 从全部参数中收集 -l 和 -p，确保服务启动时带上
+        const serviceArgs: string[] = [];
+        const allArgs = process.argv.slice(2);
+        for (let j = 0; j < allArgs.length; j++) {
+          const a = allArgs[j];
+          if ((a === '-p' || a === '--port') && j + 1 < allArgs.length) {
+            serviceArgs.push(a, allArgs[++j]);
+          } else if ((a === '-l' || a === '--log-level') && j + 1 < allArgs.length) {
+            serviceArgs.push(a, allArgs[++j]);
+          }
+        }
+        const argsStr = serviceArgs.length > 0 ? ' ' + serviceArgs.join(' ') : '';
+
+        if (action === 'install') {
+          if (platform === 'win32') {
+            console.log('📦 Installing HiDNS Windows Service...');
+            try {
+              const quotedBinPath = `"${binPath}${argsStr}"`;
+              execSync(`sc create "HiDNS" binPath= ${quotedBinPath} displayName= "HiDNS Manager" start= auto`, { stdio: 'inherit' });
+              execSync(`sc description "HiDNS" "DNS Aggregation Management Platform"`, { stdio: 'inherit' });
+              execSync(`sc failure "HiDNS" reset= 86400 actions= restart/5000/restart/10000/restart/30000`, { stdio: 'inherit' });
+              console.log('🚀 Starting HiDNS service...');
+              execSync(`sc start "HiDNS"`, { stdio: 'inherit' });
+              console.log('✅ HiDNS service installed and started successfully.');
+              console.log(`ℹ️  Binary: ${binPath}${argsStr}`);
+            } catch (err: any) {
+              console.error('❌ Failed to install service:', err.message);
+            }
+          } else if (platform === 'linux') {
+            console.log('📦 Installing HiDNS Linux Systemd Service...');
+            try {
+              const unit = `[Unit]
+Description=HiDNS Manager
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${binPath}${argsStr}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+`;
+              execSync(`cat > /etc/systemd/system/hidns.service << 'SERVICEEOF'\n${unit}\nSERVICEEOF`, { stdio: 'inherit' });
+              execSync('systemctl daemon-reload', { stdio: 'inherit' });
+              execSync('systemctl enable hidns', { stdio: 'inherit' });
+              console.log('🚀 Starting HiDNS service...');
+              execSync('systemctl start hidns', { stdio: 'inherit' });
+              console.log('✅ HiDNS service installed and started successfully.');
+              console.log(`ℹ️  Binary: ${binPath}${argsStr}`);
+            } catch (err: any) {
+              console.error('❌ Failed to install service:', err.message);
+            }
+          } else if (platform === 'darwin') {
+            console.log('📦 Installing HiDNS macOS Launchd Service...');
+            try {
+              const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hipm-tech.hidns</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${binPath}</string>${serviceArgs.map(a => `\n    <string>${a}</string>`).join('')}
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/hidns.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/hidns.err</string>
+</dict>
+</plist>
+`;
+              const plistPath = process.env.HOME + '/Library/LaunchAgents/com.hipm-tech.hidns.plist';
+              execSync(`mkdir -p "${process.env.HOME}/Library/LaunchAgents"`, { stdio: 'inherit' });
+              // 写入 plist 文件（避免 heredoc 转义问题，用 node 写文件）
+              execSync(`node -e "require('fs').writeFileSync('${plistPath}', ${JSON.stringify(plist)})"`, { stdio: 'inherit' });
+              execSync(`launchctl load "${plistPath}"`, { stdio: 'inherit' });
+              console.log('🚀 Starting HiDNS service...');
+              execSync('launchctl start com.hipm-tech.hidns', { stdio: 'inherit' });
+              console.log('✅ HiDNS service installed and started successfully.');
+              console.log(`ℹ️  Binary: ${binPath}${argsStr}`);
+            } catch (err: any) {
+              console.error('❌ Failed to install service:', err.message);
+            }
+          } else {
+            console.error(`❌ Unsupported platform: ${platform}`);
+          }
+        } else {
+          if (platform === 'win32') {
+            console.log('📦 Uninstalling HiDNS Windows Service...');
+            try { execSync(`sc stop "HiDNS"`, { stdio: 'inherit' }); } catch { /* 服务可能未运行 */ }
+            try {
+              execSync(`sc delete "HiDNS"`, { stdio: 'inherit' });
+              console.log('✅ HiDNS service uninstalled successfully.');
+            } catch (err: any) {
+              console.error('❌ Failed to uninstall service:', err.message);
+            }
+          } else if (platform === 'linux') {
+            console.log('📦 Uninstalling HiDNS Linux Systemd Service...');
+            try {
+              execSync('systemctl stop hidns', { stdio: 'inherit' });
+              execSync('systemctl disable hidns', { stdio: 'inherit' });
+              execSync('rm -f /etc/systemd/system/hidns.service', { stdio: 'inherit' });
+              execSync('systemctl daemon-reload', { stdio: 'inherit' });
+              console.log('✅ HiDNS service uninstalled successfully.');
+            } catch (err: any) {
+              console.error('❌ Failed to uninstall service:', err.message);
+            }
+          } else if (platform === 'darwin') {
+            console.log('📦 Uninstalling HiDNS macOS Launchd Service...');
+            try {
+              execSync('launchctl stop com.hipm-tech.hidns', { stdio: 'inherit' });
+            } catch { /* 可能未运行 */ }
+            try {
+              const plistPath = process.env.HOME + '/Library/LaunchAgents/com.hipm-tech.hidns.plist';
+              execSync(`launchctl unload "${plistPath}"`, { stdio: 'inherit' });
+              execSync(`rm -f "${plistPath}"`, { stdio: 'inherit' });
+              console.log('✅ HiDNS service uninstalled successfully.');
+            } catch (err: any) {
+              console.error('❌ Failed to uninstall service:', err.message);
+            }
+          } else {
+            console.error(`❌ Unsupported platform: ${platform}`);
+          }
+        }
+        process.exit(0);
+      }
     }
   }
 })();
