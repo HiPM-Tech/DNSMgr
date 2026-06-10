@@ -54,7 +54,7 @@ const TARGETS = {
     nodeArch: 'x64',
     binaryName: `HiDNS-${version}-linux-x64`,
     seaNodeBinary: [
-      `https://nodejs.org/dist/v24.16.0/linux-x64/node`,
+      `https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-x64.tar.gz`,
     ],
   },
   macos: {
@@ -62,7 +62,7 @@ const TARGETS = {
     nodeArch: 'arm64',
     binaryName: `HiDNS-${version}-macos-arm64`,
     seaNodeBinary: [
-      `https://nodejs.org/dist/v24.16.0/darwin-arm64/node`,
+      `https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-arm64.tar.gz`,
     ],
   },
   'macos-x64': {
@@ -70,7 +70,7 @@ const TARGETS = {
     nodeArch: 'x64',
     binaryName: `HiDNS-${version}-macos-x64`,
     seaNodeBinary: [
-      `https://nodejs.org/dist/v24.16.0/darwin-x64/node`,
+      `https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-x64.tar.gz`,
     ],
   },
 };
@@ -194,8 +194,16 @@ async function buildForPlatform(targetName) {
   if (isCrossArch && target.seaNodeBinary?.length > 0) {
     // 跨架构构建：下载目标架构的 Node.js 运行时
     const downloadUrl = target.seaNodeBinary[0];
-    const ext = target.nodePlatform === 'win32' ? '.exe' : '';
-    const downloadedBinary = path.join(buildDir, `node${ext}`);
+    // 从 URL 推断下载文件扩展名：.tar.gz → 目录名, .exe → .exe, 否则无扩展名
+    let downloadedBinary;
+    if (downloadUrl.endsWith('.tar.gz')) {
+      downloadedBinary = path.join(buildDir, 'node.tar.gz');
+    } else if (downloadUrl.endsWith('.tar.xz')) {
+      downloadedBinary = path.join(buildDir, 'node.tar.xz');
+    } else {
+      const ext = target.nodePlatform === 'win32' ? '.exe' : '';
+      downloadedBinary = path.join(buildDir, `node${ext}`);
+    }
     await downloadFile(downloadUrl, downloadedBinary);
     nodeBinaryPath = downloadedBinary;
     console.log(`   🔄 Cross-arch build: ${process.arch} → ${target.nodeArch}`);
@@ -206,7 +214,23 @@ async function buildForPlatform(targetName) {
   }
 
   // 复制 Node.js 运行时到输出二进制
-  fs.copyFileSync(nodeBinaryPath, outputBinary);
+  let finalBinaryPath = nodeBinaryPath;
+
+  // 对于 tarball（macOS/Linux），解压后提取 bin/node
+  if (nodeBinaryPath.endsWith('.tar.gz') || nodeBinaryPath.endsWith('.tar.xz')) {
+    console.log(`   📦 Extracting tarball: ${nodeBinaryPath}`);
+    const extractDir = path.join(buildDir, 'node-extracted');
+    if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true });
+    fs.mkdirSync(extractDir, { recursive: true });
+    execSync(`tar xzf "${nodeBinaryPath}" -C "${extractDir}"`, { stdio: 'inherit' });
+    const dirs = fs.readdirSync(extractDir);
+    const nodeDir = dirs.find(d => d.startsWith('node-v'));
+    if (!nodeDir) throw new Error('Could not find node directory in extracted tarball');
+    finalBinaryPath = path.join(extractDir, nodeDir, 'bin', 'node');
+    console.log(`   ✅ Extracted: ${finalBinaryPath}`);
+  }
+
+  fs.copyFileSync(finalBinaryPath, outputBinary);
 
   // 权限设置 (POSIX)
   if (target.nodePlatform !== 'win32') {
