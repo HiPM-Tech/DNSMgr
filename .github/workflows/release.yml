@@ -166,7 +166,7 @@ jobs:
           $batContent = $batLines -join "`r`n"
           [System.IO.File]::WriteAllText("release-dist/Start-HiDNS.bat", $batContent, [System.Text.Encoding]::ASCII)
 
-          Compress-Archive -Path "release-dist/*" -DestinationPath "HiDNS-Windows-v$VERSION.zip" -Force
+          Compress-Archive -Path "release-dist/*" -DestinationPath "HiDNS-Windows-v$VERSION-Package.zip" -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -244,7 +244,7 @@ jobs:
           $batContent = $batLines -join "`r`n"
           [System.IO.File]::WriteAllText("release-dist/Start-HiDNS.bat", $batContent, [System.Text.Encoding]::ASCII)
 
-          Compress-Archive -Path "release-dist/*" -DestinationPath "HiDNS-Windows-ARM64-v$VERSION.zip" -Force
+          Compress-Archive -Path "release-dist/*" -DestinationPath "HiDNS-Windows-ARM64-v$VERSION-Package.zip" -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -314,7 +314,7 @@ jobs:
           chmod +x release-dist/Start-HiDNS.sh
 
           # Create tar.gz package
-          tar -czf "HiDNS-Linux-x64-v$VERSION.tar.gz" -C release-dist .
+          tar -czf "HiDNS-Linux-x64-v$VERSION-Package.tar.gz" -C release-dist .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -384,7 +384,7 @@ jobs:
           chmod +x release-dist/Start-HiDNS.sh
 
           # Create tar.gz package
-          tar -czf "HiDNS-Linux-ARM64-v$VERSION.tar.gz" -C release-dist .
+          tar -czf "HiDNS-Linux-ARM64-v$VERSION-Package.tar.gz" -C release-dist .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -454,7 +454,7 @@ jobs:
           chmod +x release-dist/Start-HiDNS.sh
 
           # Create tar.gz package
-          tar -czf "HiDNS-macOS-Intel-v$VERSION.tar.gz" -C release-dist .
+          tar -czf "HiDNS-macOS-Intel-v$VERSION-Package.tar.gz" -C release-dist .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -524,7 +524,7 @@ jobs:
           chmod +x release-dist/Start-HiDNS.sh
 
           # Create tar.gz package
-          tar -czf "HiDNS-macOS-ARM-v$VERSION.tar.gz" -C release-dist .
+          tar -czf "HiDNS-macOS-ARM-v$VERSION-Package.tar.gz" -C release-dist .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -1018,6 +1018,9 @@ jobs:
           files: |
             ./artifacts/*.zip
             ./artifacts/*.tar.gz
+            ./artifacts/HiDNS-*.exe
+            ./artifacts/HiDNS-*-linux-x64
+            ./artifacts/HiDNS-*-macos-*
           body: ${{ steps.changelog.outputs.content }}
           generate_release_notes: true
         env:
