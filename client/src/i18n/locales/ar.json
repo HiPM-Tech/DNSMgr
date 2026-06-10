@@ -417,6 +417,8 @@
             "subtitle": "معلومات النظام والنسخة",
             "systemVersion": "نسخة النظام",
             "frontendVersion": "نسخة الواجهة الأمامية",
+            "latestVersion": "أحدث إصدار",
+            "latestVersionSubtitle": "تحقق من أحدث إصدار على GitHub",
             "databaseType": "نوع قاعدة البيانات",
             "databaseVersion": "نسخة قاعدة البيانات",
             "driverVersion": "نسخة驱动程序",

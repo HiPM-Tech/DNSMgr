@@ -24,6 +24,8 @@
             "subtitle": "システム情報とバージョン",
             "systemVersion": "システムバージョン",
             "frontendVersion": "フロントエンドバージョン",
+            "latestVersion": "最新バージョン",
+            "latestVersionSubtitle": "GitHub で最新リリースを確認",
             "timezone": "タイムゾーン",
             "title": "概要",
             "opensource": "オープンソース引用",

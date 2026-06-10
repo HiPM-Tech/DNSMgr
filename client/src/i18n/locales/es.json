@@ -35,6 +35,8 @@
             "subtitle": "Información del sistema y versión",
             "systemVersion": "Versión del sistema",
             "frontendVersion": "Versión del frontend",
+            "latestVersion": "Última versión",
+            "latestVersionSubtitle": "Ver la última versión en GitHub",
             "timezone": "Zona horaria",
             "title": "Acerca de"
         },

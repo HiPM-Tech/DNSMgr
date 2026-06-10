@@ -34,6 +34,8 @@
             "subtitle": "系统信息和版本",
             "systemVersion": "系统版本",
             "frontendVersion": "前端版本",
+            "latestVersion": "最新版本",
+            "latestVersionSubtitle": "查看 GitHub 最新发布喵~",
             "timezone": "系统时区",
             "title": "关于",
             "noContributors": "暂无贡献者数据呢，杂鱼～"

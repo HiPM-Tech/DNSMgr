@@ -432,6 +432,8 @@
             "subtitle": "Информация о системе и версия",
             "systemVersion": "Версия системы",
             "frontendVersion": "Версия фронтенда",
+            "latestVersion": "Последняя версия",
+            "latestVersionSubtitle": "Проверить последний релиз на GitHub",
             "databaseType": "Тип базы данных",
             "databaseVersion": "Версия базы данных",
             "driverVersion": "Версия драйвера",

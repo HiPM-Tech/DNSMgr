@@ -432,6 +432,8 @@
             "subtitle": "Informations système et version",
             "systemVersion": "Version système",
             "frontendVersion": "Version frontend",
+            "latestVersion": "Dernière version",
+            "latestVersionSubtitle": "Voir la dernière version sur GitHub",
             "databaseType": "Type de base de données",
             "databaseVersion": "Version de la base de données",
             "driverVersion": "Version du pilote",

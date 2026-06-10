@@ -429,6 +429,8 @@
             "subtitle": "시스템 정보 및 버전",
             "systemVersion": "시스템 버전",
             "frontendVersion": "프론트엔드 버전",
+            "latestVersion": "최신 버전",
+            "latestVersionSubtitle": "GitHub에서 최신 릴리스 확인",
             "databaseType": "데이터베이스 유형",
             "databaseVersion": "데이터베이스 버전",
             "driverVersion": "드라이버 버전",

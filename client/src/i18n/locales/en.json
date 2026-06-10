@@ -433,6 +433,8 @@
             "subtitle": "System information and version",
             "systemVersion": "System Version",
             "frontendVersion": "Frontend Version",
+            "latestVersion": "Latest Version",
+            "latestVersionSubtitle": "Check the latest release on GitHub",
             "databaseType": "Database Type",
             "databaseVersion": "Database Version",
             "driverVersion": "Driver Version",

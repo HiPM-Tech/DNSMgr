@@ -425,6 +425,8 @@
             "subtitle": "Systeminformationen und Version",
             "systemVersion": "Systemversion",
             "frontendVersion": "Frontend-Version",
+            "latestVersion": "Neueste Version",
+            "latestVersionSubtitle": "Neueste Version auf GitHub ansehen",
             "databaseType": "Datenbanktyp",
             "databaseVersion": "Datenbankversion",
             "driverVersion": "Treiberversion",

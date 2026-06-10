@@ -79,6 +79,16 @@ export function About() {
     staleTime: 1000 * 60 * 60 * 24,
   });
 
+  const { data: latestRelease } = useQuery({
+    queryKey: ['github-latest-release'],
+    queryFn: async () => {
+      const res = await fetch('https://api.github.com/repos/HiPM-Tech/HiDNS/releases/latest');
+      if (!res.ok) throw new Error('Failed to fetch latest release');
+      return await res.json() as { tag_name: string; html_url: string; published_at: string; name: string };
+    },
+    staleTime: 1000 * 60 * 60,
+  });
+
   const infoItems = [
     { icon: <ModuleIcon />, label: t('about.systemVersion'), value: systemInfo?.version || '1.0.0 Open' },
     { icon: <ModuleIcon />, label: t('about.frontendVersion'), value: frontendVersion },
@@ -148,6 +158,34 @@ export function About() {
             </div>
           ))}
         </div>
+      </Card>
+
+      <Card
+        bordered={false}
+        shadow={false}
+        title={<Space align="center"><LogoGithubIcon />{t('about.latestVersion')}</Space>}
+        subtitle={t('about.latestVersionSubtitle')}
+      >
+        {latestRelease ? (
+          <a href={latestRelease.html_url} target="_blank" rel="noopener noreferrer" className="about-link">
+            <LogoGithubIcon />
+            <span className="page-list-item__main">
+              <strong>{latestRelease.tag_name}</strong>
+              <span>{latestRelease.name}</span>
+            </span>
+            <Tag variant="light">{new Date(latestRelease.published_at).toLocaleDateString(locale)}</Tag>
+            <JumpIcon />
+          </a>
+        ) : (
+          <a href={`${repoUrl}/releases`} target="_blank" rel="noopener noreferrer" className="about-link">
+            <LogoGithubIcon />
+            <span className="page-list-item__main">
+              <strong>{t('about.latestVersion')}</strong>
+              <span>{t('about.latestVersionSubtitle')}</span>
+            </span>
+            <JumpIcon />
+          </a>
+        )}
       </Card>
 
       <Card
