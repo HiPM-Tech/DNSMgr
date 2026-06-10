@@ -1049,6 +1049,12 @@ jobs:
           echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Generate checksums
+        run: |
+          cd ./artifacts
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -1061,11 +1067,9 @@ jobs:
             ./artifacts/*.tar.gz
             ./artifacts/HiDNS-*.exe
             ./artifacts/HiDNS-*-linux-x64
+            ./artifacts/HiDNS-*-linux-arm64
             ./artifacts/HiDNS-*-macos-*
-          body: ${{ steps.changelog.outputs.content }}
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            ./artifacts/checksums.txt
 
   # ============================================================================
   # 阶段 6: 发送 Telegram 通知
