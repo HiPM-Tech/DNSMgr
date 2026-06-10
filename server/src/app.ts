@@ -3,6 +3,19 @@
 import { loadEnv } from './config/env';
 loadEnv();
 
+// 解析 SEA 二进制 CLI 参数
+// 支持: -l <log_level> -p <port>
+(function parseSeaArgs() {
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    if ((args[i] === '-p' || args[i] === '--port') && i + 1 < args.length) {
+      process.env.PORT = args[++i];
+    } else if ((args[i] === '-l' || args[i] === '--log-level') && i + 1 < args.length) {
+      process.env.HIDNS_LOG_LEVEL = args[++i];
+    }
+  }
+})();
+
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
