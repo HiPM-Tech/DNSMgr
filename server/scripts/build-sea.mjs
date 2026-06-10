@@ -22,6 +22,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { rcedit } from 'rcedit';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -83,7 +84,7 @@ function getNodeBinary() {
 /**
  * 构建单个平台
  */
-function buildForPlatform(targetName) {
+async function buildForPlatform(targetName) {
   const target = TARGETS[targetName];
   if (!target) {
     console.error(`❌ Unknown target: ${targetName}`);
@@ -112,22 +113,21 @@ function buildForPlatform(targetName) {
   run('node scripts/embed-client.mjs', 'Embedding client build');
 
   // Step 3: esbuild 打包为单一 CJS
-  // 使用 --packages=external 自动将 npm 包标记为 external
-  // （避免手动维护原生模块列表）
   //
-  // 注意：better-sqlite3 等原生模块不能被打包进 JS bundle，
-  // 运行时从二进制同目录的 node_modules 加载。
-  // 嵌入式客户端（dist/embedded-client.js）会被 esbuild 自动追踪并打包。
+  // 策略：
+  // - 所有纯 JS 依赖 → 打包进 bundle.cjs（SEA 场景无需 node_modules）
+  // - node:sqlite 是内置模块，无需 external
+  // - 嵌入式客户端（dist/embedded-client.js）会被 esbuild 自动追踪打包
+
   const bundleCmd = [
     `npx esbuild dist/app.js`,
     `--bundle`,
     `--platform=node`,
-    `--target=node20`,
+    `--target=node24`,
     `--outfile=dist/bundle.cjs`,
     `--format=cjs`,
     `--legal-comments=none`,
-    `--packages=external`,
-    `--define:process.env.NODE_ENV="production"`,
+    `--define:process.env.NODE_ENV="\\"production\\""`,
   ].join(' ');
 
   run(bundleCmd, 'Bundling with esbuild');
@@ -146,6 +146,38 @@ function buildForPlatform(targetName) {
   // 权限设置 (POSIX)
   if (process.platform !== 'win32') {
     fs.chmodSync(outputBinary, 0o755);
+  }
+
+  // Step 5b: Windows 平台 — 在注入 SEA blob 前设置应用信息（产品名、版权、图标）
+  // 必须在 postject 注入之前执行，因为 rcedit 无法处理 SEA 注入后的 PE 格式
+  if (targetName === 'win') {
+    console.log(`\n🎨 Setting Windows executable resources...`);
+    try {
+      const clientPublic = path.resolve(root, '..', 'client', 'public');
+      const iconPath = path.join(clientPublic, 'favicon.ico');
+      const { rcedit } = await import('rcedit');
+      await rcedit(outputBinary, {
+        'version-string': {
+          'ProductName': 'HiDNS',
+          'CompanyName': 'HiPM-Tech',
+          'LegalCopyright': `© ${new Date().getFullYear()} https://github.com/HiPM-Tech. All Rights Reserved.`,
+          'FileDescription': 'HiDNS - DNS Management System',
+          'ProductVersion': version,
+          'FileVersion': version,
+          'OriginalFilename': target.binaryName,
+          'InternalName': 'HiDNS',
+        },
+        'file-version': version,
+        'product-version': version,
+        icon: fs.existsSync(iconPath) ? iconPath : undefined,
+        'requested-execution-level': 'asInvoker',
+      });
+      console.log(`   ✅ ProductName: HiDNS`);
+      console.log(`   ✅ Copyright: © ${new Date().getFullYear()} https://github.com/HiPM-Tech`);
+      console.log(`   ✅ Icon: ${fs.existsSync(iconPath) ? iconPath : 'skipped (not found)'}`);
+    } catch (err) {
+      console.warn(`   ⚠️  Failed to set resources:`, err.message);
+    }
   }
 
   // Step 6: postject 注入 blob
@@ -184,14 +216,12 @@ if (targetArg === 'all') {
     console.log(`\n========================================`);
     console.log(`  Target: ${key}`);
     console.log(`========================================`);
-    try {
-      buildForPlatform(key);
-    } catch (e) {
+    buildForPlatform(key).catch(e => {
       console.error(`❌ Failed to build ${key}:`, e.message);
-    }
+    });
   }
 } else if (TARGETS[targetArg]) {
-  buildForPlatform(targetArg);
+  buildForPlatform(targetArg).catch(e => { console.error('Build failed:', e.message); process.exit(1); });
 } else {
   // 自动检测当前平台
   const platformMap = {
@@ -201,7 +231,7 @@ if (targetArg === 'all') {
   };
   const detected = platformMap[process.platform];
   if (detected && TARGETS[detected]) {
-    buildForPlatform(detected);
+    buildForPlatform(detected).catch(e => { console.error('Build failed:', e.message); process.exit(1); });
   } else {
     console.log('Available targets:');
     for (const key of Object.keys(TARGETS)) {

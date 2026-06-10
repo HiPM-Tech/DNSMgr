@@ -1,5 +1,6 @@
 /**
- * SQLite 数据库驱动
+ * SQLite 数据库驱动 (node:sqlite)
+ * 使用 Node.js 24+ 内置的 node:sqlite 模块替代 better-sqlite3
  */
 
 import type { Transaction, ColumnType } from '../dal/types';
@@ -8,9 +9,14 @@ import { BaseDriver } from './base';
 import { registerDriver } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
+import { DatabaseSync } from 'node:sqlite';
 import { createLogger } from '../../lib/logger';
 
 const log = createLogger('DL').sub('Sqlite');
+
+/** SQLite run 方法返回类型 */
+type RunResult = { changes: number };
+
 /** SQLite 配置 */
 export interface SQLiteDriverConfig {
   path: string;
@@ -28,7 +34,7 @@ function serializeParams(params: unknown[]): unknown[] {
 /** SQLite 驱动实现 */
 export class SQLiteDriver extends BaseDriver {
   readonly type = 'sqlite' as const;
-  private db: any; // Database.Database
+  private db: DatabaseSync | null = null;
   private connectionConfig: SQLiteDriverConfig;
 
   constructor(config: SQLiteDriverConfig, driverConfig?: DriverConfig) {
@@ -42,104 +48,22 @@ export class SQLiteDriver extends BaseDriver {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      log.info('Opening database', { path: config.path, cwd: process.cwd() });
+      log.info('Opening database', { path: config.path });
 
-      // 在 EXE 环境中，需要手动指定 better-sqlite3 的绑定文件路径
-      // pkg / SEA 打包后，需要从二进制同目录加载原生绑定
-      const isPkgEnvironment = !!(process as any).pkg;
-      const isSeaEnvironment = (() => {
-        try {
-          const sea = require('node:sea');
-          return typeof sea.isSea === 'function' && sea.isSea();
-        } catch { return false; }
-      })();
-      const isBundledEnvironment = isPkgEnvironment || isSeaEnvironment;
-      let bindingPath: string | null = null;
-
-      if (isBundledEnvironment) {
-        log.info('Detected bundled environment', { pkg: isPkgEnvironment, sea: isSeaEnvironment });
-        // 尝试从 EXE 所在目录的 node_modules 加载绑定文件
-        const exeDir = path.dirname(process.execPath);
-        const possiblePaths = [
-          path.join(exeDir, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
-          path.join(exeDir, 'node_modules', 'better-sqlite3', 'build', 'better_sqlite3.node'),
-          path.join(exeDir, '..', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
-          path.join(exeDir, '..', 'node_modules', 'better-sqlite3', 'build', 'better_sqlite3.node'),
-        ];
-
-        for (const tryPath of possiblePaths) {
-          log.debug('Checking binding path', { path: tryPath, exists: fs.existsSync(tryPath) });
-          if (fs.existsSync(tryPath)) {
-            bindingPath = tryPath;
-            break;
-          }
-        }
-
-        if (bindingPath) {
-          log.info('Found native binding', { path: bindingPath });
-        } else {
-          log.warn('Native binding not found in expected locations', { possiblePaths });
-        }
-      }
-
-      // 动态导入 better-sqlite3，以便在 EXE 环境中更好地处理错误
-      let Database: any;
-      try {
-        if (bindingPath) {
-          // 在 PKG 环境中，我们需要手动加载绑定文件
-          // 通过修改 require.cache 来注入正确的绑定路径
-          const bindingModulePath = 'better-sqlite3/build/Release/better_sqlite3.node';
-          const resolvedPath = require.resolve(bindingModulePath);
-          log.info('Pre-loading native binding', { bindingPath, resolvedPath });
-
-          // 清除旧的缓存并加载新的绑定
-          delete require.cache[resolvedPath];
-          const nativeBinding = require(bindingPath);
-          require.cache[resolvedPath] = {
-            id: resolvedPath,
-            filename: resolvedPath,
-            loaded: true,
-            exports: nativeBinding,
-            children: [],
-            paths: [],
-            parent: null,
-            isPreloading: false,
-            require: require,
-          } as any;
-        }
-
-        Database = require('better-sqlite3');
-      } catch (importError) {
-        log.error('Failed to import better-sqlite3 module', {
-          error: importError,
-          cwd: process.cwd(),
-          execPath: process.execPath,
-          isBundled: isBundledEnvironment,
-          isPkg: isPkgEnvironment,
-          isSea: isSeaEnvironment,
-          bindingPath,
-          nodeModulesPath: path.join(process.cwd(), 'node_modules', 'better-sqlite3')
-        });
-        throw new Error(
-          `Failed to load better-sqlite3 module. ` +
-          `This may be due to missing native bindings in bundled environment. ` +
-          `Please ensure node_modules/better-sqlite3/build/Release/better_sqlite3.node exists next to the executable. ` +
-          `Error: ${importError instanceof Error ? importError.message : 'Unknown error'}`
-        );
-      }
-
-      this.db = new Database(config.path);
+      // 使用 node:sqlite 内置模块 (Node.js 24+)
+      // DatabaseSync 是同步接口，无需外部依赖，完美支持 SEA 打包
+      this.db = new DatabaseSync(config.path);
       log.info('Database opened successfully');
 
-      // 配置 SQLite
+      // 配置 SQLite (使用 exec 执行 PRAGMA，node:sqlite 的 DatabaseSync 没有独立的 pragma 方法)
       if (config.enableWAL !== false) {
-        this.db.pragma('journal_mode = WAL');
+        this.db.exec('PRAGMA journal_mode = WAL');
       }
       if (config.foreignKeys !== false) {
-        this.db.pragma('foreign_keys = ON');
+        this.db.exec('PRAGMA foreign_keys = ON');
       }
       if (config.busyTimeout) {
-        this.db.pragma(`busy_timeout = ${config.busyTimeout}`);
+        this.db.exec(`PRAGMA busy_timeout = ${config.busyTimeout}`);
       }
     } catch (error) {
       log.error('Failed to open database', { path: config.path, error });
@@ -148,18 +72,14 @@ export class SQLiteDriver extends BaseDriver {
   }
 
   get isConnected(): boolean {
-    try {
-      return this.db && this.db.open;
-    } catch {
-      return false;
-    }
+    return this.db !== null;
   }
 
   async query<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
     return this.executeWithSlowQueryCheck('SQLite.query', sql, params, async () => {
       this._stats.queries++;
       try {
-        const stmt = this.db.prepare(sql);
+        const stmt = this.db!.prepare(sql);
         const sqlUpper = sql.trim().toLowerCase();
         if (sqlUpper.startsWith('select') || sqlUpper.startsWith('pragma') || sqlUpper.startsWith('explain')) {
           return stmt.all(...serializeParams(params || [])) as T[];
@@ -178,7 +98,7 @@ export class SQLiteDriver extends BaseDriver {
     return this.executeWithSlowQueryCheck('SQLite.get', sql, params, async () => {
       this._stats.queries++;
       try {
-        const stmt = this.db.prepare(sql);
+        const stmt = this.db!.prepare(sql);
         return stmt.get(...serializeParams(params || [])) as T | undefined;
       } catch (error) {
         this._stats.errors++;
@@ -192,7 +112,7 @@ export class SQLiteDriver extends BaseDriver {
     return this.executeWithSlowQueryCheck('SQLite.execute', sql, params, async () => {
       this._stats.queries++;
       try {
-        const stmt = this.db.prepare(sql);
+        const stmt = this.db!.prepare(sql);
         stmt.run(...serializeParams(params || []));
       } catch (error) {
         this._stats.errors++;
@@ -203,23 +123,23 @@ export class SQLiteDriver extends BaseDriver {
   }
 
   async insert(sql: string, params?: unknown[]): Promise<number> {
-    const stmt = this.db.prepare(sql);
+    const stmt = this.db!.prepare(sql);
     const result = stmt.run(...serializeParams(params || []));
     return Number(result.lastInsertRowid);
   }
 
-  async run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
-    const stmt = this.db.prepare(sql);
+  async run(sql: string, params?: unknown[]): Promise<RunResult> {
+    const stmt = this.db!.prepare(sql);
     const result = stmt.run(...serializeParams(params || []));
     return { changes: result.changes };
   }
 
   async beginTransaction(): Promise<Transaction> {
-    this.db.exec('BEGIN TRANSACTION');
+    this.db!.exec('BEGIN TRANSACTION');
 
     return {
       query: async <T = unknown>(sql: string, params?: unknown[]): Promise<T[]> => {
-        const stmt = this.db.prepare(sql);
+        const stmt = this.db!.prepare(sql);
         if (sql.trim().toLowerCase().startsWith('select')) {
           return stmt.all(...serializeParams(params || [])) as T[];
         }
@@ -227,27 +147,27 @@ export class SQLiteDriver extends BaseDriver {
         return [];
       },
       get: async <T = unknown>(sql: string, params?: unknown[]): Promise<T | undefined> => {
-        const stmt = this.db.prepare(sql);
+        const stmt = this.db!.prepare(sql);
         return stmt.get(...serializeParams(params || [])) as T | undefined;
       },
       execute: async (sql: string, params?: unknown[]): Promise<void> => {
-        const stmt = this.db.prepare(sql);
+        const stmt = this.db!.prepare(sql);
         stmt.run(...serializeParams(params || []));
       },
       insert: async (sql: string, params?: unknown[]): Promise<number> => {
-        const stmt = this.db.prepare(sql);
+        const stmt = this.db!.prepare(sql);
         const result = stmt.run(...serializeParams(params || []));
         return Number(result.lastInsertRowid);
       },
-      run: async (sql: string, params?: unknown[]): Promise<{ changes: number }> => {
-        const stmt = this.db.prepare(sql);
+      run: async (sql: string, params?: unknown[]): Promise<RunResult> => {
+        const stmt = this.db!.prepare(sql);
         const result = stmt.run(...serializeParams(params || []));
         return { changes: result.changes };
       },
     };
   }
 
-  raw(): any {
+  raw(): DatabaseSync | null {
     return this.db;
   }
 
@@ -255,6 +175,7 @@ export class SQLiteDriver extends BaseDriver {
     log.info('Closing database', { stats: this._stats });
     if (this.db) {
       this.db.close();
+      this.db = null;
     }
   }
 

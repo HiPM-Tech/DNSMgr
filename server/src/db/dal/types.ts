@@ -5,7 +5,7 @@
 
 import type { Pool as MySQLPool } from 'mysql2/promise';
 import type { Pool as PostgreSQLPool } from 'pg';
-import type Database from 'better-sqlite3';
+import type { DatabaseSync } from 'node:sqlite';
 
 /** 支持的数据库类型 */
 export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql';
@@ -20,7 +20,7 @@ export type OrderDirection = 'asc' | 'desc';
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
 /** 原始数据库连接类型 */
-export type RawConnection = MySQLPool | PostgreSQLPool | Database.Database;
+export type RawConnection = MySQLPool | PostgreSQLPool | DatabaseSync;
 
 /** 事务接口 */
 export interface Transaction {

@@ -428,17 +428,54 @@ if (clientBuildPath) {
 }
 
 // SPA fallback — 处理所有非 API 路由
+// 注意：express.static 已在前面注册，正常情况下静态资源会被它拦截。
+// 此回退仅处理 express.static 未能匹配的情况（如嵌入式客户端场景）。
 app.get('*', (req: Request, res: Response) => {
   // Don't interfere with API routes
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ code: 404, msg: 'API endpoint not found' });
   }
 
+  // 检查路径是否包含文件扩展名（静态资源请求）
+  const hasExtension = /\.[a-zA-Z0-9]+$/.test(req.path);
+
+  if (hasExtension) {
+    // 静态资源请求 — 优先从文件系统查找，其次嵌入式客户端
+    if (clientBuildPath) {
+      // 尝试用 express.static 的内部逻辑查找文件
+      // 直接构造文件系统路径并检查
+      const filePath = path.join(clientBuildPath, req.path.replace(/^\//, ''));
+      try {
+        if (require('fs').existsSync(filePath)) {
+          return res.sendFile(filePath);
+        }
+      } catch {
+        // 文件不存在，继续
+      }
+    }
+
+    // 从嵌入式客户端响应对应静态资源
+    if (embeddedClient) {
+      const staticFile = embeddedClient[req.path];
+      if (staticFile) {
+        return res.type(staticFile.mimeType).send(staticFile.content);
+      }
+    }
+
+    // 找不到资源
+    return res.status(404).send('File not found');
+  }
+
+  // 无扩展名 → SPA 导航请求，返回 index.html
   // 策略 1: 文件系统路径
   if (clientBuildPath) {
     const indexPath = path.join(clientBuildPath, 'index.html');
-    if (require('fs').existsSync(indexPath)) {
-      return res.sendFile(indexPath);
+    try {
+      if (require('fs').existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+      }
+    } catch {
+      // 文件不存在，继续
     }
   }
 
@@ -447,14 +484,6 @@ app.get('*', (req: Request, res: Response) => {
     const indexFile = embeddedClient['/index.html'];
     if (indexFile) {
       return res.type('html').send(indexFile.content);
-    }
-  }
-
-  // 静态资源直接从嵌入式客户端响应
-  if (embeddedClient) {
-    const staticFile = embeddedClient[req.path];
-    if (staticFile) {
-      return res.type(staticFile.mimeType).send(staticFile.content);
     }
   }
 

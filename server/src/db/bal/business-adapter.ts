@@ -2026,7 +2026,7 @@ export const SystemOperations = {
       // Get SQLite version
       const result = await conn.get('SELECT sqlite_version() as version');
       dbInfo.version = (result as { version: string })?.version || 'unknown';
-      dbInfo.driverVersion = require('better-sqlite3/package.json').version;
+      dbInfo.driverVersion = 'node:sqlite (built-in)';
     } else if (conn.type === 'mysql') {
       // Get MySQL version
       const result = await conn.get('SELECT VERSION() as version');
@@ -2050,7 +2050,7 @@ export const SystemOperations = {
    * 注意：此方法使用直接连接进行初始化测试，不是标准业务查询
    */
   async testSqliteConnection(sqlitePath: string): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
-    const Database = require('better-sqlite3');
+    const { DatabaseSync } = require('node:sqlite');
     const fs = require('fs');
     const path = require('path');
 
@@ -2069,7 +2069,7 @@ export const SystemOperations = {
 
     let testDb;
     try {
-      testDb = new Database(normalizedPath);
+      testDb = new DatabaseSync(normalizedPath);
     } catch (err) {
       log.error('Failed to open SQLite database', { path: normalizedPath, error: err });
       throw err;

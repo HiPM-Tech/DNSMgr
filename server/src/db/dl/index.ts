@@ -113,10 +113,15 @@ export class DriverManager {
     }
 
     this.driverPromise = this.createDriverInternal(config);
-    this.driver = await this.driverPromise;
-    this.driverPromise = null;
-
-    return this.driver;
+    try {
+      this.driver = await this.driverPromise;
+      this.driverPromise = null;
+      return this.driver;
+    } catch (error) {
+      // 重置 driverPromise，允许后续调用重新尝试
+      this.driverPromise = null;
+      throw error;
+    }
   }
 
   private async createDriverInternal(config?: DriverFactoryConfig): Promise<DatabaseDriver> {
