@@ -1,5 +1,95 @@
 # 更新日志
 
+## [2.0.2] - 2026-06-10
+
+### ⚠️ 重大变更
+
+**Node.js 最低版本要求提升至 24.x**：因底层数据库驱动迁移至内置 `node:sqlite` 模块，需 Node.js 24+ 运行环境。
+
+### 🚀 主要更新
+
+#### SEA（Single Executable Applications）二进制打包支持 ⭐
+- **node:sqlite 模块迁移**：将底层数据库驱动从 `better-sqlite3` 替换为 Node.js 24+ 内置的 `node:sqlite` 模块
+  - 彻底解决 SEA 打包中原生模块的加载兼容性问题
+  - 消除对预编译 `.node` 文件的依赖，简化构建流程
+  - 同步驱动性能无损失，保持现有数据库操作行为一致
+- **跨平台 SEA 构建**：支持将前后端打包为单一可执行二进制文件
+  - **Windows**：x64 + ARM64 双架构支持
+  - **Linux**：x64 + ARM64 双架构支持
+  - **macOS**：x64 + ARM64（Universal Binary）双架构支持
+- **嵌入式静态资源**：前端构建产物内嵌至后端代码，二进制独立运行无需外部静态文件
+- **CLI 参数支持**：SEA 二进制支持 `-p/--port` 和 `-l/--log-level` 参数传递
+  - 示例：`./HiDNS-Windows-x64-v2.0.2.exe -l info -p 3001`
+- **数据库路径适配**：SEA 环境下自动使用平台标准应用数据目录（`%APPDATA%/HiDNS` 等）
+- **构建脚本增强**：`build-sea.mjs` 支持跨架构下载、tarball 解压和重定向跟随
+
+#### CI/CD 工作流全面升级 ⭐
+- **CI 强制 Node.js 24+**：所有工作流程统一使用 Node.js 24.x
+- **Release 工作流重构**：
+  - 新增 SEA 二进制并行构建步骤（Windows/Linux/macOS 共 6 个 job）
+  - 优化 String 类型目录变量传递，避免 JSON 解析错误
+  - ARM64 构建改用原生 ARM runner（Windows ARM64 + Linux ARM64），移除 QEMU 模拟
+  - 缩短 Windows ARM64 超时限制（360 → 120 分钟）
+  - 为各平台发布包添加 `-Package` 后缀，与 SEA 二进制命名区分
+  - 新增 `checksums.txt` 校验和文件，包含所有构建产物的 SHA256 哈希
+- **Nightly Docker Build 优化**：改用 ARM runner 避免 QEMU 模拟兼容性问题
+- **清理冗余文件**：删除 e2e 和 client 目录下无用的 `package-lock.json`
+
+#### 服务监控增强
+- **检查结果推送**：新增服务监控检查结果的 WebSocket 实时推送
+- **检查接口超时延长**：延长检查接口超时时间，适配慢速场景
+- **queryKey 统一**：统一 React Query 的 queryKey，确保数据正确刷新
+- **启用状态校验**：在切换检查中增加域名和账号启用状态校验，防止误操作
+- **智能域名匹配**：外部 API 调用新增智能域名匹配逻辑
+
+#### 前端优化
+- **仪表盘限制**：仪表盘最近操作展示数量限制为最多 15 条，避免列表过长
+- **体验优化**：操作类型分布统计不受限制，保留完整 24h 数据视图
+
+### 🐛 Bug 修复
+
+- **SEA 构建**：修复跨架构构建时 Node.js 二进制下载失败（404）和重定向问题
+- **pnpm v11 兼容性**：修复构建脚本审批配置从 `package.json` 迁移至 `pnpm-workspace.yaml` 的兼容性问题
+- **发布包命名**：修复 Linux ARM64 传统包与 SEA 产物命名冲突（均添加 `-Package` 后缀区分）
+- **服务监控**：修复切换检查中未校验域名和账号启用状态的问题
+
+### 📝 技术细节
+
+#### 修改文件统计
+- **后端核心**：
+  - `scripts/build-sea.mjs` - SEA 跨架构构建脚本（**新建/重写**）
+  - `scripts/embed-client.mjs` - 前端资源内嵌工具（**新建**）
+  - `sea-config.json` - SEA 配置文件（**新建**）
+  - `app.ts` - CLI 参数解析 + 静态资源内嵌加载 + MIME 类型修复
+  - `db/dl/sqlite.ts` - node:sqlite 驱动迁移
+  - `db/dal/config.ts` - 数据库路径适配（SEA 环境）
+- **CI/CD**：
+  - `.github/workflows/release.yml` - 全面重写，新增 SEA 构建和校验和上传
+  - `pnpm-workspace.yaml` - pnpm v11 构建配置迁移
+- **前端**：
+  - `pages/dash/Dashboard.tsx` - 仪表盘活动日志限制
+  - `api/providers.ts` - 智能域名匹配 API
+
+#### 构建架构
+| 平台 | 架构 | SEA | 传统包 | 校验和 |
+|------|------|-----|--------|--------|
+| Windows | x64 | ✅ | ✅ | ✅ |
+| Windows | ARM64 | ✅ | ✅ | ✅ |
+| Linux | x64 | ✅ | ✅ | ✅ |
+| Linux | ARM64 | ✅ | ✅ | ✅ |
+| macOS | ARM64 | ✅ | ✅ | ✅ |
+| macOS | x64 | ✅ | ✅ | ✅ |
+
+### 🔧 兼容性
+- ⚠️ **Node.js 24+ 必需**：`node:sqlite` 模块是 Node.js 24 内置模块，无法降级
+- ⚠️ **pnpm v11+ 必需**：pnpm workspace 配置格式已更新
+- ✅ 数据库文件自动适配（开发/SEA/pkg 不同环境）
+- ✅ 前端构建产物嵌入 SEA 二进制，无需额外部署
+- ✅ 传统 Docker/源码部署方式不受影响
+- ✅ `better-sqlite3` 依赖已移除，`package.json` 和 `node_modules` 无需包含该包
+
+---
+
 ## [2.0.1] - 2026-06-08
 
 ### 🚀 主要更新
