@@ -1,5 +1,62 @@
 # 更新日志
 
+## [2.0.3] - 2026-06-12
+
+### 🚀 主要更新
+
+#### WHOIS 服务架构重构 ⭐
+- **全新适配器+工厂模式架构**：替换旧的调度器体系，实现 WHOIS/RDAP/HTTP-API 三种标准查询适配器
+  - WHOIS 协议适配器（端口 43 文本查询）
+  - RDAP 协议适配器（HTTP RESTful JSON）
+  - HTTP API 适配器（支持自定义字段映射，如 DnsNeko、whoiscx）
+- **统一提供商注册表**：`registry.ts` 集中管理顶域/子域/第三方提供商定义，支持多协议并行查询
+- **分层并行竞速策略**：顶域 RDAP→WHOIS→HTTP-API→第三方 与 子域 DNS→RDAP→WHOIS→第三方 的智能查询链路
+- **DNS 提供商 WHOIS 自动注册**：通过 `whoisSchedulers` 数组自动汇集调度器，新增提供商无需改动 WHOIS 模块
+- **查询模式过滤**：新增 `mode` 参数，支持指定上游查询模式（rdap/whois/http），可多选，默认全部
+- **平级查询控制**：新增 `noUplevel` 提供商配置，限制 DnsNeko 等限定后缀提供商的平级查询范围
+- **状态规范化**：HTTP API 适配器支持状态字段数组转字符串
+- **第三方提供商扩展**：新增 whoiscx HTTP API 第三方 WHOIS 提供商
+- **创建时间提取**：`WhoisResult` 新增 `creationDate` 字段，DnsNeko 等 HTTP-API 提供商支持注册时间解析
+- **缓存策略调整**：内存缓存 TTL 从 6 小时调整为 1 小时（数据库缓存保持 3 小时）
+
+#### SEA 二进制服务管理 ⭐
+- **服务安装/卸载支持**：`-i install/-i uninstall` 参数支持 Windows/Linux/macOS 三平台服务部署
+  - install 自动携带 `-l info -p 3001` 启动参数
+  - Windows 注册为系统服务，Linux 创建 systemd 单元，macOS 使用 launchd plist
+- **SEA 自动更新**：`-u on/off` 参数控制自动更新开关
+  - 启动时检查 GitHub Releases 新版本，之后每小时检查一次
+  - 检测到新版本后自动下载并替换二进制文件后重启服务
+  - 支持 Windows/Linux/macOS 全平台
+
+#### 前端增强
+- **关于页最新版展示**：新增 GitHub 最新发布版本卡片，支持点击跳转官方发布页
+- **多语言补全**：补充关于页最新版块相关的国际化词条
+
+### 📝 技术细节
+
+#### 修改文件统计
+- **WHOIS 模块重构**（核心）：
+  - `service/whois/types.ts` - 新增 `WhoisResult.creationDate`、`WhoisProviderDefinition.noUplevel`
+  - `service/whois/registry.ts` - 新增查询模式过滤、whoiscx 第三方提供商、DnsNeko registerTimeKey
+  - `service/whois/lookup.ts` - 分层并行竞速策略重构、查询模式过滤、缓存 TTL 调整
+  - `service/whois/methods/http-api.adapter.ts` - 创建时间提取、状态规范化
+  - `service/whois/methods/dns-provider.registry.ts` - DNS 提供商自动注册
+  - `routes/rdap.ts` - 新增 `mode` 查询参数文档与支持
+- **SEA 功能**：
+  - `scripts/service-manager.ts` - 跨平台服务管理（**新建**）
+  - `scripts/auto-updater.ts` - 自动更新服务（**新建**）
+  - `scripts/build-sea.mjs` - 更新支持 `-u` 参数打包
+  - `app.ts` - CLI 参数解析扩展
+- **前端**：
+  - `pages/about/About.tsx` - 最新版 GitHub Release 卡片
+
+### 🔧 兼容性
+- ✅ WHOIS 模块完全向后兼容，旧配置和数据不受影响
+- ✅ SEA 二进制新增 `-i`/`-u` 参数，不影响现有 CLI 用法
+- ✅ 公开 RDAP 路由新增 `mode` 参数，默认行为不变
+
+---
+
 ## [2.0.2] - 2026-06-10
 
 ### ⚠️ 重大变更
