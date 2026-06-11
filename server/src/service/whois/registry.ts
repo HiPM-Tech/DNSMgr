@@ -93,13 +93,25 @@ export const SUBDOMAIN_PROVIDERS: WhoisProviderDefinition[] = [
   {
     name: 'dnsneko', suffixes: ['zh.kg', 'os.kg', 'tw.kg'], method: 'http-api',
     server: 'https://www.dnsneko.com/api/public/whois/query?domain={domain}',
-    subdomainOnly: true,
+    subdomainOnly: true, noUplevel: true,
     mapping: { dataPath: 'data', domainKey: 'domain', expiryKey: 'expireTime', nameServersKey: 'nameServers', statusKey: 'status' },
   },
 ];
 
 export const THIRD_PARTY_PROVIDERS: WhoisProviderDefinition[] = [
   { name: 'rdap-box', suffixes: [], method: 'rdap', server: 'https://rdap-box.vercel.app/' },
+  {
+    name: 'whoiscx', suffixes: [], method: 'http-api',
+    server: 'https://api.whoiscx.com/whois/?domain={domain}&raw=1',
+    mapping: {
+      dataPath: 'data.info',
+      domainKey: 'domain',
+      expiryKey: 'expiration_time',
+      nameServersKey: 'name_server',
+      statusKey: 'domain_status',
+      registrarKey: 'registrar_name',
+    },
+  },
 ];
 
 // ========== 辅助函数 ==========

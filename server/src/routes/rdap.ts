@@ -29,29 +29,31 @@ const router = Router();
  * 2. 顶域WHOIS 并行查询（所有匹配的WHOIS提供商竞速）
  * 3. 子域RDAP 并行查询（如果适用）
  * 4. 子域WHOIS 并行查询（如果适用）
- * 5. 子域RDAP 并行平级查询（试图查询其它子域提供商）
- * 6. 子域WHOIS 并行平级查询（试图查询其它子域提供商）
- * 7. 第三方RDAP 并行查询
- * 8. 第三方WHOIS 并行查询
+ * 5. 第三方RDAP / HTTP-API 并行查询
+ * 6. 第三方WHOIS 并行查询
  *
  * 注意：此函数不会查询 DNS 提供商，因为：
  * - DNS 提供商查询需要数据库握手（获取账号配置）
  * - 公开 RDAP 接口无需鉴权，无法传递账号信息
  * - DNS 提供商查询仅在内部定时任务中执行（checker.ts）
  *
+ * 支持通过 modes 参数指定上游查询模式，如 ['rdap', 'whois', 'http']，默认全部。
+ *
+ * @param modes - 上游查询模式数组，可选 'rdap'/'whois'/'http'，默认全部
  * @returns { type: 'RDAP' | 'WHOIS', raw: string, ... } 或 null
  */
-async function queryRdapWithLayers(domain: string): Promise<any | null> {
+async function queryRdapWithLayers(domain: string, modes?: string[]): Promise<any | null> {
   const rootDomain = getRootDomain(domain);
   const isSubdomain = domain !== rootDomain;
 
-  log.info(`Layered RDAP query for ${domain} (isSubdomain: ${isSubdomain})`);
+  log.info(`Layered RDAP query for ${domain} (isSubdomain: ${isSubdomain}, modes: ${modes?.join(',') || 'all'})`);
 
   // 使用完整的分层查询服务
   const result = await whoisService.query(domain, {
     preferSubdomain: true,
     useCache: false,        // 公开 RDAP 不使用缓存，确保实时性
     skipUplevel: true,      // 禁用平级查询，避免查询其他提供商
+    modes,                  // 上游查询模式过滤
   });
 
   if (!result) {
@@ -197,8 +199,13 @@ function convertToRdapFormat(domain: string, whoisResult: any): any {
  *
  * 查询域名的 RDAP 信息
  *
+ * 查询参数：
+ *   mode - 指定上游查询模式，多个用逗号分隔（rdap/whois/http），默认全部
+ *
  * 示例:
  *   GET /api/rdap/domain/example.com
+ *   GET /api/rdap/domain/example.com?mode=rdap,whois
+ *   GET /api/rdap/domain/example.com?mode=http
  *   GET /api/rdap/domain/hins.io.ht
  */
 router.get(
@@ -220,11 +227,18 @@ router.get(
       return;
     }
 
+    // 解析 mode 查询参数（逗号分隔，过滤非法值）
+    const rawModes = req.query.mode as string | undefined;
+    let modes = rawModes
+      ? rawModes.split(',').map(m => m.trim().toLowerCase()).filter(m => ['rdap', 'whois', 'http'].includes(m))
+      : undefined;
+    if (modes?.length === 0) modes = undefined;
+
     try {
-      log.info(`Public RDAP query for domain: ${domain}`);
+      log.info(`Public RDAP query for domain: ${domain}${modes ? ` (mode: ${modes.join(',')})` : ''}`);
 
       // 使用完整的分层 RDAP 查询
-      const queryResult = await queryRdapWithLayers(domain);
+      const queryResult = await queryRdapWithLayers(domain, modes);
 
       if (!queryResult || !queryResult.expiryDate) {
         res.status(404).json({
@@ -295,10 +309,15 @@ router.get(
             'It queries WHOIS/RDAP servers in real-time.',
             '',
             'Available endpoints:',
-            '  GET /api/rdap/domain/{domain} - Query domain information',
+            '  GET /api/rdap/domain/{domain}  - Query domain information',
             '',
-            'Example:',
+            'Query parameters:',
+            '  mode  - Upstream query mode(s), comma separated (rdap/whois/http). Default: all',
+            '',
+            'Examples:',
             '  GET /api/rdap/domain/example.com',
+            '  GET /api/rdap/domain/example.com?mode=rdap,whois',
+            '  GET /api/rdap/domain/example.com?mode=http',
           ],
         },
       ],

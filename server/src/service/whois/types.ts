@@ -54,6 +54,8 @@ export interface WhoisProviderDefinition {
   method: WhoisMethodType;
   server: string;
   subdomainOnly?: boolean;
+  /** 禁止参与平级查询（queryAll），适用于限定后缀的提供商如 DnsNeko */
+  noUplevel?: boolean;
   urlTemplate?: string;
   mapping?: Record<string, any>;
 }

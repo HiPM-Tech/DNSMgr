@@ -22,6 +22,20 @@ export interface QueryOptions {
   useCache?: boolean;
   skipParentFallback?: boolean;
   skipUplevel?: boolean;
+  /** 指定上游查询模式，多个用数组，默认全部。可选：rdap / whois / http */
+  modes?: string[];
+}
+
+/** 查询模式名称到内部 method 的映射 */
+const MODE_METHOD_MAP: Record<string, string> = {
+  rdap: 'rdap',
+  whois: 'whois',
+  http: 'http-api',
+};
+
+function isModeAllowed(method: string, modes?: string[]): boolean {
+  if (!modes || modes.length === 0) return true;
+  return modes.some(m => MODE_METHOD_MAP[m] === method);
 }
 
 interface CacheEntry {
@@ -34,7 +48,7 @@ export class WhoisLookup {
   private cacheTtl = 6 * 60 * 60 * 1000;
 
   async query(domain: string, options: QueryOptions = {}): Promise<WhoisResult | null> {
-    const { preferSubdomain = true, timeout = 30000, skipParentFallback = false, skipUplevel = false } = options;
+    const { preferSubdomain = true, timeout = 30000, skipParentFallback = false, skipUplevel = false, modes } = options;
 
     const cached = this.getCached(domain);
     if (cached) return cached;
@@ -42,15 +56,15 @@ export class WhoisLookup {
     const rootDomain = getRootDomain(domain);
     const isSub = domain !== rootDomain;
 
-    // 顶域：走 RDAP → WHOIS → DNS → 第三方
-    if (!isSub) return this.queryApexOnly(domain, timeout);
-    if (skipParentFallback) return this.querySubdomainOnly(domain, timeout, skipUplevel);
+    // 顶域：走 RDAP → WHOIS → DNS → HTTP API → 第三方
+    if (!isSub) return this.queryApexOnly(domain, timeout, modes);
+    if (skipParentFallback) return this.querySubdomainOnly(domain, timeout, skipUplevel, modes);
 
     // 子域：DNS Provider 优先
     const dnsResult = await this.queryDnsProvider(domain);
     if (dnsResult?.expiryDate) {
       // 填充顶域到期时间
-      const apexResult = await this.queryApexCombined(rootDomain, timeout);
+      const apexResult = await this.queryApexCombined(rootDomain, timeout, modes);
       if (apexResult?.expiryDate) {
         dnsResult.apexExpiryDate = apexResult.expiryDate;
         dnsResult.apexRegistrar = apexResult.registrar;
@@ -61,8 +75,8 @@ export class WhoisLookup {
 
     // DNS 无结果，走标准协议并行
     const [apexResult, subResult] = await Promise.all([
-      this.queryApexCombined(rootDomain, timeout),
-      preferSubdomain ? this.querySubdomainCombined(domain, timeout, skipUplevel) : Promise.resolve(null),
+      this.queryApexCombined(rootDomain, timeout, modes),
+      preferSubdomain ? this.querySubdomainCombined(domain, timeout, skipUplevel, modes) : Promise.resolve(null),
     ]);
 
     if (subResult?.expiryDate) {
@@ -85,8 +99,8 @@ export class WhoisLookup {
     }
 
     const [rootR, subR] = await Promise.all([
-      this.queryThirdParty(rootDomain, timeout),
-      domain !== rootDomain ? this.queryThirdParty(domain, timeout) : Promise.resolve(null),
+      this.queryThirdParty(rootDomain, timeout, modes),
+      domain !== rootDomain ? this.queryThirdParty(domain, timeout, modes) : Promise.resolve(null),
     ]);
 
     if (subR?.expiryDate) {
@@ -147,78 +161,79 @@ export class WhoisLookup {
   // ========== 内部查询 ==========
 
   /** 顶域：RDAP → WHOIS → DNS Provider → HTTP API → 第三方 */
-  private async queryApexOnly(domain: string, timeout: number): Promise<WhoisResult | null> {
-    let r = await this.queryRegistry(domain, APEX_PROVIDERS, 'rdap', timeout) ||
-             await this.queryRegistry(domain, APEX_PROVIDERS, 'whois', timeout);
+  private async queryApexOnly(domain: string, timeout: number, modes?: string[]): Promise<WhoisResult | null> {
+    let r = await this.queryRegistry(domain, APEX_PROVIDERS, 'rdap', timeout, modes) ||
+             await this.queryRegistry(domain, APEX_PROVIDERS, 'whois', timeout, modes);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
     r = await this.queryDnsProvider(domain);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
-    r = await this.queryRegistry(domain, APEX_PROVIDERS, 'http-api', timeout);
+    r = await this.queryRegistry(domain, APEX_PROVIDERS, 'http-api', timeout, modes);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
-    r = await this.queryThirdParty(domain, timeout);
+    r = await this.queryThirdParty(domain, timeout, modes);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
     return null;
   }
 
   /** 顶域（填充用）：RDAP → WHOIS → DNS Provider → HTTP API */
-  private async queryApexCombined(domain: string, timeout: number): Promise<WhoisResult | null> {
-    let r = await this.queryRegistry(domain, APEX_PROVIDERS, 'rdap', timeout) ||
-             await this.queryRegistry(domain, APEX_PROVIDERS, 'whois', timeout);
+  private async queryApexCombined(domain: string, timeout: number, modes?: string[]): Promise<WhoisResult | null> {
+    let r = await this.queryRegistry(domain, APEX_PROVIDERS, 'rdap', timeout, modes) ||
+             await this.queryRegistry(domain, APEX_PROVIDERS, 'whois', timeout, modes);
     if (r?.expiryDate) return r;
     r = await this.queryDnsProvider(domain);
     if (r?.expiryDate) return r;
-    return this.queryRegistry(domain, APEX_PROVIDERS, 'http-api', timeout);
+    return this.queryRegistry(domain, APEX_PROVIDERS, 'http-api', timeout, modes);
   }
 
   /** 纯子域查询（skipParentFallback）：DNS → RDAP → WHOIS → HTTP-API → 第三方 */
-  private async querySubdomainOnly(domain: string, timeout: number, skipUplevel = false): Promise<WhoisResult | null> {
+  private async querySubdomainOnly(domain: string, timeout: number, skipUplevel = false, modes?: string[]): Promise<WhoisResult | null> {
     let r = await this.queryDnsProvider(domain);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
 
-    r = await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'rdap', timeout) ||
-        await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'whois', timeout) ||
-        await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'http-api', timeout);
+    r = await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'rdap', timeout, modes) ||
+        await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'whois', timeout, modes) ||
+        await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'http-api', timeout, modes);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
 
     if (!skipUplevel) {
-      r = await this.queryAll(SUBDOMAIN_PROVIDERS, 'rdap', timeout) ||
-          await this.queryAll(SUBDOMAIN_PROVIDERS, 'whois', timeout) ||
-          await this.queryAll(SUBDOMAIN_PROVIDERS, 'http-api', timeout);
+      r = await this.queryAll(SUBDOMAIN_PROVIDERS, 'rdap', timeout, modes) ||
+          await this.queryAll(SUBDOMAIN_PROVIDERS, 'whois', timeout, modes) ||
+          await this.queryAll(SUBDOMAIN_PROVIDERS, 'http-api', timeout, modes);
       if (r?.expiryDate) { this.setCached(domain, r); return r; }
     }
 
-    r = await this.queryThirdParty(domain, timeout);
+    r = await this.queryThirdParty(domain, timeout, modes);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
     return null;
   }
 
   /** 子域并行查询（不含 DNS — 已在 query() 中优先处理） */
-  private async querySubdomainCombined(domain: string, timeout: number, skipUplevel = false): Promise<WhoisResult | null> {
+  private async querySubdomainCombined(domain: string, timeout: number, skipUplevel = false, modes?: string[]): Promise<WhoisResult | null> {
     const promises = [
-      this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'rdap', timeout),
-      this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'whois', timeout),
-      this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'http-api', timeout),
+      this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'rdap', timeout, modes),
+      this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'whois', timeout, modes),
+      this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'http-api', timeout, modes),
     ];
     if (!skipUplevel) {
       promises.push(
-        this.queryAll(SUBDOMAIN_PROVIDERS, 'rdap', timeout),
-        this.queryAll(SUBDOMAIN_PROVIDERS, 'whois', timeout),
-        this.queryAll(SUBDOMAIN_PROVIDERS, 'http-api', timeout),
+        this.queryAll(SUBDOMAIN_PROVIDERS, 'rdap', timeout, modes),
+        this.queryAll(SUBDOMAIN_PROVIDERS, 'whois', timeout, modes),
+        this.queryAll(SUBDOMAIN_PROVIDERS, 'http-api', timeout, modes),
       );
     }
     const results = await Promise.all(promises);
     return results.find(r => r?.expiryDate) || null;
   }
 
-  private async queryThirdParty(domain: string, _timeout: number): Promise<WhoisResult | null> {
-    return this.queryRegistry(domain, THIRD_PARTY_PROVIDERS, 'rdap') ||
-           this.queryRegistry(domain, THIRD_PARTY_PROVIDERS, 'whois');
+  private async queryThirdParty(domain: string, _timeout: number, modes?: string[]): Promise<WhoisResult | null> {
+    return this.queryRegistry(domain, THIRD_PARTY_PROVIDERS, 'rdap', _timeout, modes) ||
+           this.queryRegistry(domain, THIRD_PARTY_PROVIDERS, 'whois', _timeout, modes);
   }
 
   /** 从列表中找匹配的提供商（按 suffix），按 method 筛选，并行查询 */
   private async queryRegistry(
-    domain: string, list: WhoisProviderDefinition[], method: string, _timeout?: number,
+    domain: string, list: WhoisProviderDefinition[], method: string, _timeout?: number, modes?: string[],
   ): Promise<WhoisResult | null> {
+    if (!isModeAllowed(method, modes)) return null;
     let providers = filterByMethod(findProviders(list, domain), method as any);
     if (providers.length === 0) return null;
 
@@ -232,9 +247,10 @@ export class WhoisLookup {
     return results.find(r => r?.expiryDate) || null;
   }
 
-  /** 无视 suffix 匹配，使用所有提供商（平级查询） */
-  private async queryAll(list: WhoisProviderDefinition[], method: string, _timeout?: number): Promise<WhoisResult | null> {
-    const providers = filterByMethod(list, method as any);
+  /** 无视 suffix 匹配，使用所有非 noUplevel 提供商（平级查询） */
+  private async queryAll(list: WhoisProviderDefinition[], method: string, _timeout?: number, modes?: string[]): Promise<WhoisResult | null> {
+    if (!isModeAllowed(method, modes)) return null;
+    const providers = filterByMethod(list, method as any).filter(p => !p.noUplevel);
     if (providers.length === 0) return null;
     const results = await Promise.all(providers.map(p => querySingle('', p)));
     return results.find(r => r?.expiryDate) || null;

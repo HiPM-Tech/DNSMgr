@@ -52,13 +52,20 @@ export function createHttpApiAdapter(mapping: HttpApiMapping): WhoisAdapter {
           registrar: config.registrarKey ? (data[config.registrarKey] ?? null) : null,
           nameServers,
           raw: JSON.stringify(rawData),
-          status: config.statusKey ? (data[config.statusKey] ?? null) : null,
+          status: config.statusKey ? normalizeStatus(data[config.statusKey]) : null,
         };
       } catch {
         return null;
       }
     },
   };
+}
+
+/** 规范化状态值：数组转逗号分隔字符串 */
+function normalizeStatus(value: unknown): string | null {
+  if (value == null) return null;
+  if (Array.isArray(value)) return (value as string[]).join(', ');
+  return String(value);
 }
 
 function httpRequest(url: string): Promise<any> {
