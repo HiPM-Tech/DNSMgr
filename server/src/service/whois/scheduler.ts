@@ -14,16 +14,10 @@ const log = createLogger('WhoisService').sub('Scheduler');
  * 在应用启动时注册所有支持 WHOIS 的 DNS 提供商调度器
  */
 export function initWhoisSchedulers(): void {
-  const { dnsProviderAdapter } = require('./providers/adapter');
-  // 注册 DNSHE WHOIS 适配器
-  dnsProviderAdapter.register(dnsheWhoisScheduler);
+  const { initDnsProviderAdapters } = require('./methods/dns-provider.registry');
+  initDnsProviderAdapters();
 
-  // 未来可以在这里注册其他提供商的适配器
-  // dnsProviderAdapter.register(alicloudWhoisAdapter);
-  // dnsProviderAdapter.register(cloudflareWhoisAdapter);
-
-  const registeredTypes = dnsProviderAdapter.getRegisteredTypes();
-  log.info(`Registered WHOIS adapters for: ${registeredTypes.join(', ')}`);
+  log.info('Registered WHOIS adapters');
 }
 
 /**

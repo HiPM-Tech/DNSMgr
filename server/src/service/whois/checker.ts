@@ -7,7 +7,12 @@
 import { WhoisOperations, DnsAccountOperations } from '../../db/bal/business-adapter';
 import { Domain, DnsAccount } from '../../types';
 import { createLogger } from '../../lib/logger';
-import { queryWhois, getRootDomain, getCachedWhois, setCachedWhois, extractStatus, dnsProviderAdapter, WhoisResult } from './index';
+import { queryWhois } from './lookup';
+import { getRootDomain } from './domain-utils';
+import { getCachedWhois, setCachedWhois } from './cache';
+import { extractStatus } from './data-parser';
+import { dnsProviderWhoisRegistry } from './methods/dns-provider.registry';
+import { WhoisResult } from './types';
 import { areDomainsEqual } from '../../utils/dns';
 
 const log = createLogger('WhoisService').sub('Checker');
@@ -63,10 +68,10 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
 
     log.info(`Querying provider ${account.type} for domain ${domainName}`);
 
-    // 检查是否有注册的 WHOIS 适配器
-    const scheduler = dnsProviderAdapter.getAdapter(account.type);
-    if (!scheduler) {
-      log.debug(`No WHOIS adapter registered for provider ${account.type}`);
+    // 使用统一的 DNS 提供商 WHOIS 注册表
+    const source = dnsProviderWhoisRegistry.getSource(account.type);
+    if (!source) {
+      log.debug(`No DNS WHOIS source registered for provider ${account.type}`);
       return null;
     }
 
@@ -76,17 +81,14 @@ async function getExpiryFromProvider(domainName: string): Promise<Date | null> {
       : account.config;
 
     log.info(`Calling ${account.type.toUpperCase()} WHOIS for ${domainName}`);
-    const whoisResult = await scheduler.queryWhois(config, domainName);
+    const whoisResult = await source.query(domainName, config);
 
-    if (whoisResult?.success && whoisResult.expiration_date) {
-      const expiryDate = new Date(whoisResult.expiration_date);
-      if (!isNaN(expiryDate.getTime())) {
-        log.info(`${account.type.toUpperCase()} returned expiry for ${domainName}: ${expiryDate.toISOString()}`);
-        return expiryDate;
-      }
+    if (whoisResult?.expiryDate) {
+      log.info(`${account.type.toUpperCase()} returned expiry for ${domainName}: ${whoisResult.expiryDate.toISOString()}`);
+      return whoisResult.expiryDate;
     }
 
-    log.debug(`${account.type.toUpperCase()} query failed or no expiration_date for ${domainName}`);
+    log.debug(`${account.type.toUpperCase()} query failed or no expiry for ${domainName}`);
     return null;
   } catch (error) {
     log.error(`Failed to get expiry from provider for ${domainName}:`, {
