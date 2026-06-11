@@ -30,6 +30,7 @@ export interface DnsWhoisSource {
 export interface WhoisResult {
   domain: string;
   expiryDate: Date | null;
+  creationDate?: Date | null;
   registrar: string | null;
   nameServers: string[];
   raw: string;

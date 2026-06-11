@@ -45,7 +45,7 @@ interface CacheEntry {
 
 export class WhoisLookup {
   private cache = new Map<string, CacheEntry>();
-  private cacheTtl = 6 * 60 * 60 * 1000;
+  private cacheTtl = 60 * 60 * 1000; // 1 小时
 
   async query(domain: string, options: QueryOptions = {}): Promise<WhoisResult | null> {
     const { preferSubdomain = true, timeout = 30000, skipParentFallback = false, skipUplevel = false, modes } = options;

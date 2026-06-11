@@ -94,7 +94,7 @@ export const SUBDOMAIN_PROVIDERS: WhoisProviderDefinition[] = [
     name: 'dnsneko', suffixes: ['zh.kg', 'os.kg', 'tw.kg'], method: 'http-api',
     server: 'https://www.dnsneko.com/api/public/whois/query?domain={domain}',
     subdomainOnly: true, noUplevel: true,
-    mapping: { dataPath: 'data', domainKey: 'domain', expiryKey: 'expireTime', nameServersKey: 'nameServers', statusKey: 'status' },
+    mapping: { dataPath: 'data', domainKey: 'domain', expiryKey: 'expireTime', registerTimeKey: 'registerTime', nameServersKey: 'nameServers', statusKey: 'status' },
   },
 ];
 

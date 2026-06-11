@@ -40,6 +40,9 @@ export function createHttpApiAdapter(mapping: HttpApiMapping): WhoisAdapter {
         const expiryDate = data[config.expiryKey] ? parseDate(data[config.expiryKey]) : null;
         if (!expiryDate) return null;
 
+        const creationDate = config.registerTimeKey && data[config.registerTimeKey]
+          ? parseDate(data[config.registerTimeKey]) : undefined;
+
         let nameServers: string[] = [];
         const nsKey = config.nameServersKey;
         if (nsKey && Array.isArray(data[nsKey])) {
@@ -49,6 +52,7 @@ export function createHttpApiAdapter(mapping: HttpApiMapping): WhoisAdapter {
         return {
           domain: String(data[config.domainKey] || domain),
           expiryDate,
+          creationDate: creationDate ?? null,
           registrar: config.registrarKey ? (data[config.registrarKey] ?? null) : null,
           nameServers,
           raw: JSON.stringify(rawData),
