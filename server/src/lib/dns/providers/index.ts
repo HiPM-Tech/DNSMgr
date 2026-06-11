@@ -3,7 +3,7 @@ export { AliyunAdapter } from './aliyun';
 export { DnspodAdapter } from './dnspod';
 export { TencenteoAdapter } from './tencenteo';
 export { DnsheAdapter } from './dnshe';
-export { 
+export {
   buildAuthHeaders as dnsheBuildAuthHeaders,
   authenticatedRequest as dnsheAuthenticatedRequest,
   validateCredentials as dnsheValidateCredentials,
@@ -35,3 +35,17 @@ export { CaihongDnsAdapter } from './caihongdns';
 export { Vps8Adapter } from './vps8';
 export { GcoreAdapter } from './gcore';
 export { DnsnekoAdapter } from './dnsneko';
+
+// ========== WHOIS 调度器自动汇集 ==========
+// 约定：每个支持 WHOIS 的 DNS 提供商模块导出 whoisScheduler，
+// 在此加入 whoisSchedulers 数组即可实现 WHOIS 模块自动注册。
+// WHOIS 模块通过 importWhoisSchedulers() 统一导入，无需逐个感知。
+
+import { dnsheWhoisScheduler } from './dnshe';
+
+/** 所有 DNS 提供商的 WHOIS 调度器列表 */
+export const whoisSchedulers = [
+  dnsheWhoisScheduler,
+  // 新增 WHOIS 支持时在此追加，例如：
+  // whoisScheduler as gcoreWhoisScheduler from './gcore',
+];

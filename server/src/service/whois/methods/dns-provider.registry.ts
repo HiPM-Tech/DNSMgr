@@ -116,8 +116,12 @@ export function initDnsProviderWhoisSources(): void {
 
 /** @deprecated 使用 initDnsProviderWhoisSources */
 export function initDnsProviderAdapters(): void {
-  const { dnsheWhoisScheduler } = require('../../../lib/dns/providers');
-  dnsProviderAdapter.register(dnsheWhoisScheduler);
+  const { whoisSchedulers } = require('../../../lib/dns/providers');
+  for (const scheduler of whoisSchedulers) {
+    if (!dnsProviderAdapter.hasAdapter(scheduler.type)) {
+      dnsProviderAdapter.register(scheduler);
+    }
+  }
   dnsProviderWhoisRegistry.importFromAdapter();
-  log.info(`Initialized adapters for: ${dnsProviderAdapter.getRegisteredTypes().join(', ')}`);
+  log.info(`Initialized adapters for: ${dnsProviderAdapter.getRegisteredTypes().join(', ') || 'none'}`);
 }

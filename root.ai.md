@@ -187,20 +187,20 @@
     - 主模块名：`WhoisService`
     - 子模块（`.sub()`）：表示查询层级或功能模块
       - `Index` - WHOIS 服务主入口
+      - `Lookup` - 查询编排引擎（WhoisLookup），负责分层并行竞速调度
       - `Apex` - 顶域查询
       - `Subdomain` - 子域查询
       - `ThirdParty` - 第三方查询
       - `Uplevel` - 平级查询
-      - `Provider` - 具体查询提供商（WHOIS/RDAP）
+      - `Provider` - 具体查询提供商（WHOIS/RDAP/HTTP-API）
+      - `DnsProvider` - DNS 提供商 WHOIS 查询（需账号授权）
       - `DnsProviderAdapter` - DNS 提供商 WHOIS 适配器注册管理
       - `Scheduler` - WHOIS 同步调度器
       - `RdapServerList` - RDAP 服务器列表管理
       - `Checker` - WHOIS 检查器
       - `Cache` - WHOIS 缓存
       - `Notifier` - WHOIS 通知器
-      - `ApexProviders` - 顶域提供商管理
-      - `SubdomainProviders` - 子域提供商管理
-      - `ThirdPartyProviders` - 第三方提供商管理
+      - `Registry` - 适配器工厂和提供商配置管理
     - 标签（`.tag()`）：表示查询策略/路径结果/查询方式，用于区分并行竞速中的不同分支，格式为大写关键词
       - `SUCCESS` - 查询成功获取到结果
       - `FAILED` - 查询失败
@@ -208,16 +208,19 @@
       - `PARALLEL` - 并行查询开始
       - `TIMEOUT` - 查询超时
       - `CACHE_HIT` - 命中缓存
+      - `CACHE_MISS` - 缓存未命中
       - `SKIP_PARENT` - 跳过了父域查询
       - `SKIP_UPLEVEL` - 跳过了平级查询
       - `APEX_ONLY` - 仅执行顶域查询
       - `SUBDOMAIN_ONLY` - 仅执行子域查询
-      - `APEX_COMBINED` - 顶域 RDAP+WHOIS 组合竞速
-      - `SUBDOMAIN_COMBINED` - 子域 RDAP+WHOIS 组合竞速
+      - `APEX_COMBINED` - 顶域多方式组合竞速
+      - `SUBDOMAIN_COMBINED` - 子域多方式组合竞速
       - `RDAP` - 当前使用 RDAP 方式查询
       - `WHOIS` - 当前使用 WHOIS 方式查询
-      - `APEX` - 顶域查询方式标签（常与 RDAP/WHOIS 组合使用）
-      - `SUBDOMAIN` - 子域查询方式标签（常与 RDAP/WHOIS 组合使用）
+      - `HTTP_API` - 当前使用 HTTP API 方式查询
+      - `DNS_PROVIDER` - 当前使用 DNS 提供商 API 查询
+      - `APEX` - 顶域查询方式标签（常与 RDAP/WHOIS/HTTP_API 组合使用）
+      - `SUBDOMAIN` - 子域查询方式标签（常与 RDAP/WHOIS/HTTP_API 组合使用）
       - `THIRDPARTY` - 第三方查询方式标签（常与 RDAP/WHOIS 组合使用）
       - `UPLEVEL` - 平级查询方式标签（常与 RDAP/WHOIS 组合使用）
       - `PROVIDER` - 提供商查询标签
@@ -234,6 +237,14 @@
       whoisLog.sub('Subdomain').tag('PARALLEL').info(`Starting parallel queries for ${domain}`);
       // 输出: 2026-06-07T12:00:00.000Z  INFO [WhoisService] [Subdomain] [querySubdomain] [L55] ["PARALLEL"] Starting parallel queries for example.com
 
+      // HTTP API 查询（如 DnsNeko）
+      whoisLog.sub('Provider').tag('HTTP_API').tag('SUCCESS').info(`Query won in ${elapsed}ms`);
+      // 输出: 2026-06-07T12:00:00.000Z  INFO [WhoisService] [Provider] [querySingle] [L72] ["HTTP_API"] ["SUCCESS"] Query won in 1234ms
+
+      // DNS 提供商 WHOIS 查询
+      whoisLog.sub('DnsProvider').tag('DNS_PROVIDER').tag('SUCCESS').info(`DNS provider query succeeded for ${domain}`);
+      // 输出: 2026-06-07T12:00:00.000Z  INFO [WhoisService] [DnsProvider] [queryDnsProvider] [L88] ["DNS_PROVIDER"] ["SUCCESS"] DNS provider query succeeded for example.com
+
       // 降级使用顶域结果
       whoisLog.sub('Apex').tag('FALLBACK').info(`Using apex domain expiry for ${domain}`);
       // 输出: 2026-06-07T12:00:00.000Z  INFO [WhoisService] [Apex] [queryApex] [L68] ["FALLBACK"] Using apex domain expiry for example.com
@@ -245,6 +256,10 @@
       // 竞速查询（raceQueries）
       whoisLog.sub('Subdomain').tag('RDAP').tag('SUCCESS').info(`Query ${index + 1} won in ${elapsed}ms`);
       // 输出: 2026-06-07T12:00:00.000Z  INFO [WhoisService] [Subdomain] [raceQueries] [L95] ["RDAP"] ["SUCCESS"] Query 2 won in 1234ms
+
+      // DNS 提供商注册管理
+      whoisLog.sub('DnsProviderAdapter').tag('SUCCESS').info(`Registered adapter for type: ${type}`);
+      // 输出: 2026-06-07T12:00:00.000Z  INFO [WhoisService] [DnsProviderAdapter] [register] [L30] ["SUCCESS"] Registered adapter for type: dnshe
       ```
     - 迁移说明：原 Whois 日志中硬编码在消息中的标签（如 `[SUCCESS]`、`[APEX-ONLY]`）应迁移为 `.tag('SUCCESS')`、`.tag('APEX_ONLY')`，消息正文不再包含标签前缀。
 
@@ -391,14 +406,29 @@
      - `dns-provider-service.ts`：DNS 提供商服务。
      - `mcp-permission.ts`：MCP 权限验证服务。
 5. WHOIS 服务子模块
-    - 查询提供者：`whois/providers/base.ts`、`whois/providers/rdap-method.ts`、`whois/providers/whois-method.ts`、`whois/providers/adapter.ts`。
-    - 域名解析器：`whois/resolvers/apex-providers.ts`、`whois/resolvers/subdomain-providers.ts`、`whois/resolvers/third-party-providers.ts`。
-    - 域名工具：`whois/domain-utils.ts`。
-    - RDAP 服务器列表：`whois/rdap-server-list.ts`。
-    - 数据解析器：`whois/data-parser.ts`。
-    - 缓存管理：`whois/cache.ts`。
-    - 检查器：`whois/checker.ts`。
-    - 通知器：`whois/notifier.ts`。
+    - WHOIS 模块采用适配器模式 + 工厂模式 + 分层并行竞速策略，统一管理多种查询方式。
+    - **核心架构文件**：
+      - `whois/index.ts`：统一出口，重新导出所有公共 API
+      - `whois/types.ts`：核心类型定义（WhoisAdapter、WhoisResult、DnsWhoisSource、WhoisScheduler）
+      - `whois/registry.ts`：适配器工厂（adapterRegistry） + 提供商定义（APEX_PROVIDERS/SUBDOMAIN_PROVIDERS/THIRD_PARTY_PROVIDERS）
+      - `whois/lookup.ts`：查询编排引擎（WhoisLookup），实现分层并行竞速策略
+      - `whois/data-parser.ts`：统一数据解析，从 WHOIS/RDAP/HTTP-API 原始数据中提取到期时间等
+      - `whois/cache.ts`：数据库缓存管理（TTL 3h）
+      - `whois/checker.ts`：域名 WHOIS 检查器，集成缓存和通知触发
+      - `whois/scheduler.ts`：定时同步任务，定期批量同步所有域名的 WHOIS 信息
+      - `whois/notifier.ts`：过期通知（邮件等）
+      - `whois/rdap-server-list.ts`：IANA RDAP 服务器列表管理（定期更新）
+      - `whois/domain-utils.ts`：域名工具函数（getRootDomain 等）
+    - **查询适配器（methods/）**：
+      - `whois/methods/whois.adapter.ts`：WHOIS 协议适配器（端口 43 文本查询）
+      - `whois/methods/rdap.adapter.ts`：RDAP 协议适配器（HTTP RESTful JSON）
+      - `whois/methods/http-api.adapter.ts`：HTTP API 适配器（支持自定义字段映射，如 DnsNeko）
+      - `whois/methods/dns-provider.registry.ts`：DNS 提供商 WHOIS 源注册表（DnsProviderWhoisRegistry），需账号授权
+    - **查询优先级**：
+      - 顶域：内存缓存 → 数据库缓存 → RDAP → WHOIS → DNS Provider → HTTP API → 第三方
+      - 子域：内存缓存 → 数据库缓存 → DNS Provider → RDAP → WHOIS → HTTP API → 第三方
+      - 公开 RDAP 路由（无需鉴权）跳过 DNS Provider（无账号上下文），分层：RDAP → WHOIS → HTTP API → 第三方
+    - **适配器动态注册**：DNS 提供商通过 `lib/dns/providers/index.ts` 的 `whoisSchedulers` 数组自动汇集，WHOIS 模块启动时遍历注册，新增提供商只需在数组追加，无需改动 WHOIS 模块。
 
 ### DNS 解析器
 1. 解析器架构（`server/src/lib/dns/resolver/`）

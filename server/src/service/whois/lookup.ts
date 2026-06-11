@@ -11,6 +11,7 @@ import { WhoisResult, WhoisProviderDefinition, WhoisAdapter } from './types';
 import { getAdapter, APEX_PROVIDERS, SUBDOMAIN_PROVIDERS, THIRD_PARTY_PROVIDERS, findProviders, filterByMethod } from './registry';
 import { findRdapServer } from './rdap-server-list';
 import { getRootDomain } from './domain-utils';
+import { dnsProviderWhoisRegistry } from './methods/dns-provider.registry';
 import { createLogger } from '../../lib/logger';
 
 const log = createLogger('WhoisService').sub('Lookup');
@@ -41,9 +42,24 @@ export class WhoisLookup {
     const rootDomain = getRootDomain(domain);
     const isSub = domain !== rootDomain;
 
+    // 顶域：走 RDAP → WHOIS → DNS → 第三方
     if (!isSub) return this.queryApexOnly(domain, timeout);
     if (skipParentFallback) return this.querySubdomainOnly(domain, timeout, skipUplevel);
 
+    // 子域：DNS Provider 优先
+    const dnsResult = await this.queryDnsProvider(domain);
+    if (dnsResult?.expiryDate) {
+      // 填充顶域到期时间
+      const apexResult = await this.queryApexCombined(rootDomain, timeout);
+      if (apexResult?.expiryDate) {
+        dnsResult.apexExpiryDate = apexResult.expiryDate;
+        dnsResult.apexRegistrar = apexResult.registrar;
+      }
+      this.setCached(domain, dnsResult);
+      return dnsResult;
+    }
+
+    // DNS 无结果，走标准协议并行
     const [apexResult, subResult] = await Promise.all([
       this.queryApexCombined(rootDomain, timeout),
       preferSubdomain ? this.querySubdomainCombined(domain, timeout, skipUplevel) : Promise.resolve(null),
@@ -96,26 +112,72 @@ export class WhoisLookup {
     else this.cache.clear();
   }
 
+  // ========== DNS 提供商查询 ==========
+
+  /** 查询 DNS 提供商 WHOIS 数据源（需要账号授权配置） */
+  private async queryDnsProvider(domain: string): Promise<WhoisResult | null> {
+    try {
+      const { DomainOperations, DnsAccountOperations } = await import('../../db/bal/business-adapter');
+      const domainObj = await DomainOperations.getByName(domain) as any;
+      if (!domainObj?.account_id) return null;
+
+      const account = await DnsAccountOperations.getById(domainObj.account_id) as any;
+      if (!account?.enabled) return null;
+
+      const source = dnsProviderWhoisRegistry.getSource(account.type as string);
+      if (!source) return null;
+
+      const config = typeof account.config === 'string'
+        ? JSON.parse(account.config)
+        : account.config;
+
+      const result = await source.query(domain, config);
+      if (result?.expiryDate) {
+        log.info(`[DNS Provider] ${account.type} returned expiry for ${domain}: ${result.expiryDate.toISOString()}`);
+      }
+      return result;
+    } catch (error) {
+      log.debug(`[DNS Provider] query failed for ${domain}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
   // ========== 内部查询 ==========
 
+  /** 顶域：RDAP → WHOIS → DNS Provider → HTTP API → 第三方 */
   private async queryApexOnly(domain: string, timeout: number): Promise<WhoisResult | null> {
     let r = await this.queryRegistry(domain, APEX_PROVIDERS, 'rdap', timeout) ||
              await this.queryRegistry(domain, APEX_PROVIDERS, 'whois', timeout);
+    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+    r = await this.queryDnsProvider(domain);
+    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+    r = await this.queryRegistry(domain, APEX_PROVIDERS, 'http-api', timeout);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
     r = await this.queryThirdParty(domain, timeout);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
     return null;
   }
 
+  /** 顶域（填充用）：RDAP → WHOIS → DNS Provider → HTTP API */
   private async queryApexCombined(domain: string, timeout: number): Promise<WhoisResult | null> {
-    return this.queryRegistry(domain, APEX_PROVIDERS, 'rdap', timeout) ||
-           this.queryRegistry(domain, APEX_PROVIDERS, 'whois', timeout);
+    let r = await this.queryRegistry(domain, APEX_PROVIDERS, 'rdap', timeout) ||
+             await this.queryRegistry(domain, APEX_PROVIDERS, 'whois', timeout);
+    if (r?.expiryDate) return r;
+    r = await this.queryDnsProvider(domain);
+    if (r?.expiryDate) return r;
+    return this.queryRegistry(domain, APEX_PROVIDERS, 'http-api', timeout);
   }
 
+  /** 纯子域查询（skipParentFallback）：DNS → RDAP → WHOIS → HTTP-API → 第三方 */
   private async querySubdomainOnly(domain: string, timeout: number, skipUplevel = false): Promise<WhoisResult | null> {
-    let r = await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'rdap', timeout) ||
-             await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'whois', timeout) ||
-             await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'http-api', timeout);
+    let r = await this.queryDnsProvider(domain);
+    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+
+    r = await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'rdap', timeout) ||
+        await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'whois', timeout) ||
+        await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'http-api', timeout);
     if (r?.expiryDate) { this.setCached(domain, r); return r; }
 
     if (!skipUplevel) {
@@ -130,6 +192,7 @@ export class WhoisLookup {
     return null;
   }
 
+  /** 子域并行查询（不含 DNS — 已在 query() 中优先处理） */
   private async querySubdomainCombined(domain: string, timeout: number, skipUplevel = false): Promise<WhoisResult | null> {
     const promises = [
       this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'rdap', timeout),
