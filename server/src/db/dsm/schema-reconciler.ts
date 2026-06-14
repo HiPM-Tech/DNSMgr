@@ -985,9 +985,44 @@ export class SchemaReconciler {
 
       await this.conn.execute(`CREATE TABLE ${this.escapeIdentifier(tempName)} (${newColDefs}${fkClause})`);
 
+      const selectExprs = keepCols.map(c => {
+        const colName = this.escapeIdentifier(c.name);
+        if (!c.nullable) {
+          let defaultVal: string;
+          if (c.defaultValue !== undefined) {
+            defaultVal = this.formatDefaultValue(c.defaultValue, c.type, 'sqlite');
+          } else {
+            switch (c.type) {
+              case 'number':
+              case 'integer':
+              case 'id':
+                defaultVal = '0';
+                break;
+              case 'boolean':
+                defaultVal = '0';
+                break;
+              case 'string':
+              case 'text':
+                defaultVal = "''";
+                break;
+              case 'datetime':
+                defaultVal = "'1970-01-01 00:00:00'";
+                break;
+              case 'json':
+                defaultVal = "'{}'";
+                break;
+              default:
+                defaultVal = "''";
+            }
+          }
+          return `IFNULL(${colName}, ${defaultVal})`;
+        }
+        return colName;
+      });
+
       await this.conn.execute(
         `INSERT INTO ${this.escapeIdentifier(tempName)} (${keepColNames.join(', ')})
-         SELECT ${keepColNames.join(', ')} FROM ${this.escapeIdentifier(tableName)}`
+         SELECT ${selectExprs.join(', ')} FROM ${this.escapeIdentifier(tableName)}`
       );
 
       await this.conn.execute(`DROP TABLE ${this.escapeIdentifier(tableName)}`);

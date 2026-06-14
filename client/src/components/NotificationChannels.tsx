@@ -74,6 +74,7 @@ export function NotificationChannels() {
 
   useEffect(() => {
     if (!channelsData) return;
+    if (editingId && editFormDirty) return;
     const normalizedChannels = channelsData.map((channel: NotificationChannel) => normalizeChannel(channel));
     setChannels(normalizedChannels);
 
