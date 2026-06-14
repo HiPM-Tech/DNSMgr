@@ -14,10 +14,12 @@
     "@simplewebauthn/browser": "^13.3.0",
     "@tanstack/react-query": "^5.80.7",
     "axios": "^1.9.0",
+    "i18next": "^24.2.3",
     "lucide-react": "^0.511.0",
     "punycode.js": "^2.3.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-i18next": "^15.7.4",
     "react-router-dom": "^7.2.0",
     "tdesign-icons-react": "^0.6.4",
     "tdesign-react": "^1.16.9"
