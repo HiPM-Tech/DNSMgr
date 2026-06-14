@@ -16,10 +16,11 @@ import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 
 function ProviderBadge({ type }: { type: string }) {
+  const { t } = useI18n();
   return (
     <span className="provider-badge">
       <ProviderIcon type={type} size={16} />
-      <span className="provider-badge__text">{type}</span>
+      <span className="provider-badge__text">{t(`provider.${type}`)}</span>
     </span>
   );
 }

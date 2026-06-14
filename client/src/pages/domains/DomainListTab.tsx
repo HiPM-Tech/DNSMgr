@@ -770,7 +770,7 @@ const toggleEnabledMutation = useMutation({
             <Form.FormItem label={t('domains.dnsAccount')}>
               <span className="page-strong">
                 {accountMap[editingDomain.account_id]
-                  ? `${accountMap[editingDomain.account_id].name} (${accountMap[editingDomain.account_id].type})`
+                  ? `${accountMap[editingDomain.account_id].name} (${t(`provider.${accountMap[editingDomain.account_id].type}`)})`
                   : `#${editingDomain.account_id}`}
               </span>
             </Form.FormItem>

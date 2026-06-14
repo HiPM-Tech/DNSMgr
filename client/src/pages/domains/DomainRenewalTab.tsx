@@ -427,7 +427,7 @@ export function DomainRenewalTab() {
                 placeholder={t('domainRenewal.selectProvider')}
                 options={accounts
                   .filter((account: any) => account.type === 'dnshe')
-                  .map((account: any) => ({ label: `${account.name} (${account.type})`, value: account.id }))}
+                  .map((account: any) => ({ label: `${account.name} (${t(`provider.${account.type}`)})`, value: account.id }))}
                 onChange={(value) => {
                   const id = Number(selectValue(value));
                   if (id) setSelectedAccountId(id);
