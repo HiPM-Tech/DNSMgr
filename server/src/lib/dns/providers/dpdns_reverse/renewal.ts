@@ -193,7 +193,7 @@ async function getDomainInfo(
 // ============================================================================
 
 /**
- * 将 dpdns 的 YYYYMMDD 格式日期解析为 ISO 8601 字符串
+ * 将 dpdns 的 YYYYMMDD 格式日期解析为 MySQL/SQLite 兼容的日期字符串
  */
 export function parseDpdnsDate(dateStr: string): string {
   if (!dateStr || dateStr.length !== 8) return '';
@@ -201,7 +201,7 @@ export function parseDpdnsDate(dateStr: string): string {
     const year = dateStr.substring(0, 4);
     const month = dateStr.substring(4, 6);
     const day = dateStr.substring(6, 8);
-    return `${year}-${month}-${day}T23:59:59.000Z`;
+    return `${year}-${month}-${day} 23:59:59`;
   } catch {
     return '';
   }
