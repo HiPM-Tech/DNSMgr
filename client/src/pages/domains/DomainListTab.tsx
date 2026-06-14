@@ -127,7 +127,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
       <Form.FormItem label={t('domains.dnsAccount')}>
         <Select
           value={accountId}
-          options={accounts.map((account) => ({ label: `${account.name} (${account.type})`, value: account.id }))}
+          options={accounts.map((account) => ({ label: `${account.name} (${t(`provider.${account.type}`)})`, value: account.id }))}
           onChange={(value) => {
             setAccountId(Number(selectValue(value)));
             setSelectedProviders([]);
@@ -278,8 +278,8 @@ export function DomainListTab() {
   const sortedDomains = domains;
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ['accounts'],
-    queryFn: () => accountsApi.list().then((r) => r.data.data ?? []),
+    queryKey: ['accounts', 'dns'],
+    queryFn: () => accountsApi.list({ purpose: 'dns' }).then((r) => r.data.data ?? []),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -564,7 +564,7 @@ const toggleEnabledMutation = useMutation({
       render: (row: Domain) => {
         const account = accountMap[row.account_id];
         if (!account) return <span className="page-muted">#{row.account_id}</span>;
-        return <Space size="small"><span className="page-strong">{account.name}</span><Tag theme="primary" variant="light">{account.type}</Tag></Space>;
+        return <Space size="small"><span className="page-strong">{account.name}</span><Tag theme="primary" variant="light">{t(`provider.${account.type}`)}</Tag></Space>;
       },
     },
     { key: 'record_count', label: t('domains.records'), render: (row: Domain) => <Tag variant="light">{row.record_count ?? 0}</Tag> },
@@ -679,7 +679,7 @@ const toggleEnabledMutation = useMutation({
                     ...accounts
                       .filter((account) => account.enabled !== false)  // ← 只显示启用的账号（true 或 undefined 都视为启用）
                       .map((account) => ({ 
-                        label: `${account.name} (${account.type})`,  // ← 显示账号名称和类型
+                        label: `${account.name} (${t(`provider.${account.type}`)})`,  // ← 显示账号名称和类型
                         value: String(account.id) 
                       }))
                   ]}

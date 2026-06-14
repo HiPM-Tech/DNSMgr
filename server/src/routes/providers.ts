@@ -167,8 +167,8 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
       }
 
       // TODO: Add other providers here when they support renewal
-      case 'dpdns': {
-        // Fetch free domains from each dpdns account
+      case 'dpdns_reverse': {
+        // Fetch free domains from each dpdns_reverse account
         for (const account of providerAccounts) {
           try {
             const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;

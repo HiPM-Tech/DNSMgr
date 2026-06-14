@@ -67,6 +67,16 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     accounts = await DnsAccountOperations.getAccessibleByUserId(userId, teamIds) as unknown as DnsAccount[];
   }
 
+  // Apply capability filter if purpose query param is specified
+  const purpose = req.query.purpose as string | undefined;
+  if (purpose === 'dns' || purpose === 'renewal') {
+    accounts = accounts.filter((a) => {
+      const provider = getProvider(normalizeProviderType(a.type));
+      if (!provider) return false;
+      return purpose === 'dns' ? provider.capabilities.dns : provider.capabilities.renewal;
+    });
+  }
+
   // Check if showDnsProviderSecrets is enabled
   let showSecrets = false;
   try {

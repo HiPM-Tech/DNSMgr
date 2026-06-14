@@ -5,7 +5,7 @@ import type { DnsAccount, Provider, Tunnel, TunnelConfig } from './types';
 // ─── DNS Accounts API ─────────────────────────────────────────────────────────
 
 export const accountsApi = {
-  list: () => api.get<ApiResponse<DnsAccount[]>>('/accounts'),
+  list: (params?: { purpose?: string }) => api.get<ApiResponse<DnsAccount[]>>('/accounts', { params }),
   providers: () => api.get<ApiResponse<Provider[]>>('/accounts/providers'),
   get: (id: number) => api.get<ApiResponse<DnsAccount>>(`/accounts/${id}`),
   create: (data: { type: string; name: string; config: Record<string, string | boolean>; remark?: string; team_id?: number }) =>

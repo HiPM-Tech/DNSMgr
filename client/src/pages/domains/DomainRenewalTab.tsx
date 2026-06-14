@@ -38,8 +38,8 @@ export function DomainRenewalTab() {
   const [pageSize, setPageSize] = useState(20);
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ['dns-accounts'],
-    queryFn: () => accountsApi.list().then((r) => r.data.data || []),
+    queryKey: ['accounts', 'renewal'],
+    queryFn: () => accountsApi.list({ purpose: 'renewal' }).then((r) => r.data.data || []),
     enabled: isAddModalOpen,
   });
 
@@ -207,7 +207,7 @@ export function DomainRenewalTab() {
       label: t('accounts.provider'),
       render: (row: any) => (
         <Tag theme="primary" variant="light">
-          {row.account_name || 'DNSHE'} ({row.provider_type})
+          {row.account_name} ({t(`provider.${row.provider_type}`)})
         </Tag>
       ),
     },
@@ -426,7 +426,6 @@ export function DomainRenewalTab() {
                 value=""
                 placeholder={t('domainRenewal.selectProvider')}
                 options={accounts
-                  .filter((account: any) => account.type === 'dnshe')
                   .map((account: any) => ({ label: `${account.name} (${t(`provider.${account.type}`)})`, value: account.id }))}
                 onChange={(value) => {
                   const id = Number(selectValue(value));

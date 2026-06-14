@@ -23,6 +23,8 @@ export interface Provider {
     weight: boolean;
     line: boolean;
     cnameFlattening: boolean;
+    dns: boolean;
+    renewal: boolean;
   };
   features?: string[];
   isStub?: boolean;

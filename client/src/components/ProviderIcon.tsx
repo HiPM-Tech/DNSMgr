@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useI18n } from '../contexts/I18nContext';
 import type { Provider } from '../api';
 
 interface ProviderIconProps {
@@ -39,7 +39,7 @@ export function ProviderIcon({ type, name, size = 20, className = '' }: Provider
 }
 
 export function ProviderSelectLabel({ provider }: { provider: Pick<Provider, 'type' | 'name'> }) {
-  const { t } = useTranslation();
+  const { t } = useI18n();
   const displayName = t(provider.name);
   return (
     <span className="provider-select-option" title={`${displayName} (${provider.type})`}>
