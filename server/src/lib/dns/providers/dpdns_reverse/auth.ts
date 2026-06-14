@@ -1,0 +1,66 @@
+/**
+ * ⚠️ DigitalPlat Domains (dpdns) 认证模块 — 逆向实现
+ *
+ * 认证方式：remember_token Cookie（从浏览器 DevTools 抓取）
+ * 这是通过逆向 web 控制台 API 实现的非官方适配器。
+ *
+ * ⚠️ 注意：未来将添加 dodns 提供商（官方 API key 实现），
+ *    dpdns 与 dodns 是两个独立的提供商注册项。
+ *
+ * 用户需要从以下地址登录后，从 DevTools > Application > Cookies
+ * 中复制 remember_token 值（格式：USER_ID|TOKEN_HASH）
+ */
+
+import { fetchWithFallback } from '../internal';
+
+export interface DpdnsAuthConfig {
+  /** remember_token 完整值，格式为 "USER_ID|TOKEN_HASH" */
+  rememberToken: string;
+  useProxy?: boolean;
+}
+
+/**
+ * 构建包含 remember_token 的 Cookie 请求
+ */
+export function authenticatedRequest(
+  url: string,
+  config: DpdnsAuthConfig,
+  options: RequestInit = {}
+): Promise<Response> {
+  const cookieValue = `remember_token=${config.rememberToken}`;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  return fetchWithFallback(
+    url,
+    {
+      ...options,
+      headers: {
+        ...headers,
+        Cookie: cookieValue,
+      },
+    },
+    config.useProxy ?? false,
+    'DPDNS'
+  );
+}
+
+/**
+ * 验证 remember_token 是否有效（dpdns 逆向实现）
+ */
+export async function validateCredentials(config: DpdnsAuthConfig): Promise<boolean> {
+  try {
+    const url = 'https://dash.domain.digitalplat.org/_panel_api/api/auth/me';
+    const response = await authenticatedRequest(url, config, { method: 'GET' });
+
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    return data.ok === true && !!data.user;
+  } catch {
+    return false;
+  }
+}

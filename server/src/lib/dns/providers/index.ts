@@ -9,8 +9,6 @@ export {
   validateCredentials as dnsheValidateCredentials,
   renewSubdomain as dnsheRenewSubdomain,
   getWhois as dnsheGetWhois,
-  DnsheRenewalScheduler,
-  dnsheRenewalScheduler,
   DnsheWhoisScheduler,
   dnsheWhoisScheduler,
   type DnsheAuthConfig,
@@ -35,6 +33,20 @@ export { CaihongDnsAdapter } from './caihongdns';
 export { Vps8Adapter } from './vps8';
 export { GcoreAdapter } from './gcore';
 export { DnsnekoAdapter } from './dnsneko';
+
+// ========== 续期调度器导出 ==========
+export { DnsheRenewalScheduler, dnsheRenewalScheduler } from './dnshe';
+export { DpdnsReverseRenewalScheduler, dpdnsReverseRenewalScheduler, DpdnsReverseAdapter } from './dpdns_reverse';
+
+// 本地导入以构建调度器数组
+import { dnsheRenewalScheduler as _dnsheScheduler } from './dnshe';
+import { dpdnsReverseRenewalScheduler as _dpdnsReverseScheduler } from './dpdns_reverse';
+
+/** 所有续期调度器列表 — 由 renewalInit.ts 扫描 capabilities.renewal 自动注册 */
+export const renewalSchedulers = [
+  _dnsheScheduler,
+  _dpdnsReverseScheduler,
+];
 
 // ========== WHOIS 调度器自动汇集 ==========
 // 约定：每个支持 WHOIS 的 DNS 提供商模块导出 whoisScheduler，

@@ -103,13 +103,13 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
 
     return (
       <div key={field.key} className="account-form__field">
-        {dialogField(`${field.label}${required ? ' *' : ''}`,
+        {dialogField(`${t(field.label)}${required ? ' *' : ''}`,
           field.type === 'select' && field.options ? (
             <Select
               value={String(value)}
               options={[
                 { label: t('common.pleaseSelect'), value: '' },
-                ...field.options.map((option) => ({ label: option.label, value: option.value })),
+                ...field.options.map((option) => ({ label: t(option.label), value: option.value })),
               ]}
               onChange={(nextValue: any) => {
                 const newConfig = { ...config, [field.key]: selectToString(nextValue) };
@@ -125,7 +125,7 @@ function AccountForm({ providers, initial, onSubmit, isLoading }: AccountFormPro
                 const newConfig = { ...config, [field.key]: String(nextValue) };
                 setConfig(newConfig);
               }}
-              placeholder={t('accounts.fieldPlaceholder', { label: field.label })}
+              placeholder={t('accounts.fieldPlaceholder', { label: t(field.label) })}
             />
           )
         )}

@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Provider } from '../api';
 
 interface ProviderIconProps {
@@ -38,10 +39,12 @@ export function ProviderIcon({ type, name, size = 20, className = '' }: Provider
 }
 
 export function ProviderSelectLabel({ provider }: { provider: Pick<Provider, 'type' | 'name'> }) {
+  const { t } = useTranslation();
+  const displayName = t(provider.name);
   return (
-    <span className="provider-select-option" title={`${provider.name} (${provider.type})`}>
-      <ProviderIcon type={provider.type} name={provider.name} />
-      <span className="provider-select-option__name">{provider.name}</span>
+    <span className="provider-select-option" title={`${displayName} (${provider.type})`}>
+      <ProviderIcon type={provider.type} name={displayName} />
+      <span className="provider-select-option__name">{displayName}</span>
     </span>
   );
 }

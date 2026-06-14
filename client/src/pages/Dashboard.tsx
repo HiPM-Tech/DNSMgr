@@ -484,7 +484,7 @@ export function Dashboard() {
                 {providerRows.map((provider) => (
                   <div className="dashboard-provider" key={provider.name}>
                     <div className="dashboard-provider__head">
-                      <Tag theme="default" variant="light">{provider.name}</Tag>
+                      <Tag theme="default" variant="light">{t(provider.name)}</Tag>
                       <span>{provider.count}</span>
                     </div>
                     <Progress

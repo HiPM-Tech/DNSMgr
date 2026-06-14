@@ -7,6 +7,7 @@ import { createLogger } from '../lib/logger';
 const log = createLogger('HTTP').sub('Route').sub('Providers');
 import { DnsAccountOperations, RenewableDomainOperations } from '../db/bal/business-adapter';
 import { listSubdomains as dnsheListSubdomains } from '../lib/dns/providers/dnshe/renewal';
+import { listFreeDomains as dpdnsListFreeDomains } from '../lib/dns/providers/dpdns_reverse/renewal';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -166,6 +167,43 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
       }
 
       // TODO: Add other providers here when they support renewal
+      case 'dpdns': {
+        // Fetch free domains from each dpdns account
+        for (const account of providerAccounts) {
+          try {
+            const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
+
+            const domains = await dpdnsListFreeDomains({
+              rememberToken: config.rememberToken || config.remember_token,
+              useProxy: !!config.useProxy,
+            });
+
+            if (domains.length > 0) {
+              const domainsWithAccount = domains
+                .filter((d: any) => !existingThirdIds.has(d.domain))  // Exclude already added
+                .map((d: any) => ({
+                  ...d,
+                  account_id: account.id,
+                  account_name: account.name,
+                  name: d.domain,          // Use full domain as name
+                  id: d.domain,            // Use domain string as ID
+                  third_id: d.domain,      // Use domain string as third_id
+                  full_domain: d.domain,
+                  expires_at: d.expiry_date, // YYYYMMDD format
+                }));
+
+              allDomains.push(...domainsWithAccount);
+            }
+          } catch (error) {
+            log.error(`Failed to fetch domains from ${type} account`, {
+              accountId: account.id,
+              accountName: account.name,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+        break;
+      }
       // case 'other_provider': {
       //   // Call other provider's listRenewableDomains function
       //   break;

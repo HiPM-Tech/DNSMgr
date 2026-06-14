@@ -1,12 +1,12 @@
 /**
  * Domain Renewal Job Service
- * 域名续期定时任务服务 - 每天 UTC 0:00 自动续期 DNSHE 域名
+ * 域名续期定时任务服务 - 每天 UTC 0:00 自动续期
+ * 支持所有注册了续期调度器的 DNS 提供商
  */
 
 import { DnsAccountOperations, RenewableDomainOperations } from '../db/bal/business-adapter';
 import { renewalRegistry } from './renewalScheduler';
 import { taskManager } from './taskManager';
-import { logAuditOperation } from './audit';
 import { createLogger } from '../lib/logger';
 
 const log = createLogger('Job').sub('DomainRenewal');
@@ -14,25 +14,29 @@ let renewalInterval: NodeJS.Timeout | null = null;
 
 /**
  * 执行域名自动续期
+ * 遍历所有 DNS 账号，对已注册续期调度器的提供商执行续期
  */
 export async function executeDomainRenewal(): Promise<void> {
   try {
     log.info('Starting automatic domain renewal');
 
-    // 获取所有 DNSHE 账号
+    // 获取所有 DNS 账号
     const accounts = await DnsAccountOperations.getAll() as any[];
-    const dnsheAccounts = accounts.filter((acc: any) => acc.type === 'dnshe');
 
-    if (dnsheAccounts.length === 0) {
-      log.info('No DNSHE accounts found, skipping renewal');
+    // 按提供商类型分组，只保留有续期调度器的
+    const schedulableTypes = renewalRegistry.getRegisteredTypes();
+    const targetAccounts = accounts.filter((acc: any) => schedulableTypes.includes(acc.type));
+
+    if (targetAccounts.length === 0) {
+      log.info('No accounts with renewal schedulers found, skipping');
       return;
     }
 
     let renewedCount = 0;
     let failedCount = 0;
 
-    // 遍历每个 DNSHE 账号
-    for (const account of dnsheAccounts) {
+    // 遍历每个有续期调度器的账号
+    for (const account of targetAccounts) {
       try {
         const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
 
@@ -49,11 +53,7 @@ export async function executeDomainRenewal(): Promise<void> {
         }
 
         // 通过调度器获取可续期的域名列表
-        const renewableDomains = await scheduler.listRenewableDomains({
-          apiKey: config.apiKey,
-          apiSecret: config.apiSecret,
-          useProxy: !!config.useProxy,
-        });
+        const renewableDomains = await scheduler.listRenewableDomains(config);
 
         log.info('Fetched renewable domains via scheduler', {
           accountId: account.id,
@@ -62,55 +62,57 @@ export async function executeDomainRenewal(): Promise<void> {
           count: renewableDomains.length,
         });
 
-        // 注意：DNSHE listSubdomains API 不返回 expires_at
-        // 所以我们对所有子域名尝试续期，让 API 自己判断是否需要续期
-        const domainsToRenew = renewableDomains;
-
         // 对每个需要续期的域名执行续期
-        for (const domain of domainsToRenew) {
+        for (const domain of renewableDomains) {
           try {
-            const domainId = domain.id;
-            if (!domainId) {
+            const providerDomainId = domain.id;
+            if (!providerDomainId) {
               log.warn('Domain has no id, skipping', {
                 domainName: domain.name || domain.full_domain,
               });
               continue;
             }
 
-            // Check if domain is enabled in database
-            const dbDomain = await RenewableDomainOperations.getById(Number(domainId));
-            if (!dbDomain) {
-              log.warn('Domain not found in database, skipping', {
-                domainId,
-                domainName: domain.name || domain.full_domain,
+            // 从 renewable_domains 表查找该域名的本地记录
+            // 先按 third_id 匹配（provider 侧的 ID），再按 full_domain 匹配
+            let localDomains = await RenewableDomainOperations.getByAccountId(account.id);
+            let localDomain = localDomains.find(
+              (d: any) => String(d.third_id) === String(providerDomainId)
+            );
+
+            // 如果没找到，回退到按 full_domain 匹配
+            if (!localDomain && domain.full_domain) {
+              localDomain = localDomains.find(
+                (d: any) => d.full_domain === domain.full_domain
+              );
+            }
+
+            if (!localDomain) {
+              log.warn('Domain not found in renewable_domains table, skipping', {
+                providerDomainId,
+                fullDomain: domain.full_domain,
+                accountId: account.id,
               });
               continue;
             }
 
-            if (!dbDomain.enabled) {
+            // 检查续期是否已启用
+            if (!localDomain.enabled) {
               log.info('Skipping disabled domain', {
-                domainId,
-                domainName: dbDomain.full_domain,
-                enabled: dbDomain.enabled,
+                domainId: localDomain.id,
+                domainName: localDomain.full_domain,
+                enabled: localDomain.enabled,
               });
               continue;
             }
 
             log.info('Attempting domain renewal via scheduler', {
-              domainName: domain.name || domain.full_domain,
-              domainId,
-              // Note: expires_at is not available from listSubdomains API
-              // The renewSubdomain API will handle expiry check server-side
+              domainName: domain.full_domain || domain.name,
+              providerDomainId,
+              localDomainId: localDomain.id,
             });
 
-            const result = await scheduler.renewDomain(
-              {
-                apiKey: config.apiKey,
-                apiSecret: config.apiSecret,
-                useProxy: !!config.useProxy,
-              },
-              domainId
-            );
+            const result = await scheduler.renewDomain(config, providerDomainId);
 
             if (result) {
               renewedCount++;
@@ -121,17 +123,17 @@ export async function executeDomainRenewal(): Promise<void> {
                 remainingDays: result.remaining_days,
               });
 
-              // ✅ 1. 更新 renewable_domains 表中的 expires_at（续期的职责）
+              // 更新 renewable_domains 表中的 expires_at
               if (result.new_expires_at) {
                 try {
-                  await RenewableDomainOperations.updateExpiresAt(Number(domainId), result.new_expires_at);
+                  await RenewableDomainOperations.updateExpiresAt(localDomain.id, result.new_expires_at);
                   log.debug('Updated expires_at in renewable_domains', {
-                    domainId,
+                    localDomainId: localDomain.id,
                     newExpiresAt: result.new_expires_at,
                   });
                 } catch (updateError) {
                   log.error('Failed to update expires_at in renewable_domains', {
-                    domainId,
+                    localDomainId: localDomain.id,
                     error: updateError instanceof Error ? updateError.message : String(updateError),
                   });
                 }
@@ -139,14 +141,14 @@ export async function executeDomainRenewal(): Promise<void> {
             } else {
               failedCount++;
               log.error('Domain renewal failed', {
-                domainName: domain.name || domain.full_domain,
-                domainId,
+                domainName: domain.full_domain || domain.name,
+                providerDomainId,
               });
             }
           } catch (error) {
             failedCount++;
             log.error('Domain renewal error', {
-              domainName: domain.name || domain.full_domain,
+              domainName: domain.full_domain || domain.name,
               error: error instanceof Error ? error.message : String(error),
             });
           }
@@ -163,7 +165,7 @@ export async function executeDomainRenewal(): Promise<void> {
     log.info('Automatic domain renewal completed', {
       renewedCount,
       failedCount,
-      totalAccounts: dnsheAccounts.length,
+      totalAccounts: targetAccounts.length,
     });
   } catch (error) {
     log.error('Automatic domain renewal failed', {
