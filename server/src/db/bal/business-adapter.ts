@@ -2996,8 +2996,7 @@ export const ServiceMonitorOperations = {
       listSql += ' AND type = ?';
       listParams.push(type);
     }
-    listSql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    listParams.push(pageSize, offset);
+    listSql += ` ORDER BY created_at DESC LIMIT ${Math.floor(pageSize)} OFFSET ${Math.floor(offset)}`;
 
     const list = await queryInternal(
       listSql,
@@ -3696,8 +3695,7 @@ export const RenewableDomainOperations = {
       listParams.push(keywordParam, keywordParam);
     }
 
-    listSql += ' ORDER BY rd.full_domain LIMIT ? OFFSET ?';
-    listParams.push(pageSize, offset);
+    listSql += ` ORDER BY rd.full_domain LIMIT ${Math.floor(pageSize)} OFFSET ${Math.floor(offset)}`;
 
     const list = await queryInternal(listSql, listParams, {
       operation: 'RenewableDomain.getAllWithPagination', table: 'renewable_domains'
@@ -4003,8 +4001,7 @@ export const NSMonitorOperations = {
       listSql += ' AND domain_name LIKE ?';
       listParams.push(keywordParam);
     }
-    listSql += ' ORDER BY domain_name LIMIT ? OFFSET ?';
-    listParams.push(pageSize, offset);
+    listSql += ` ORDER BY domain_name LIMIT ${Math.floor(pageSize)} OFFSET ${Math.floor(offset)}`;
 
     const list = await queryInternal(
       listSql,

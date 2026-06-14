@@ -7,7 +7,7 @@ import { createLogger } from '../lib/logger';
 const log = createLogger('HTTP').sub('Route').sub('Providers');
 import { DnsAccountOperations, RenewableDomainOperations } from '../db/bal/business-adapter';
 import { listSubdomains as dnsheListSubdomains } from '../lib/dns/providers/dnshe/renewal';
-import { listFreeDomains as dpdnsListFreeDomains } from '../lib/dns/providers/dpdns_reverse/renewal';
+import { listFreeDomains as dpdnsListFreeDomains, parseDpdnsDate } from '../lib/dns/providers/dpdns_reverse/renewal';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -189,7 +189,7 @@ router.get('/:type/renewable-domains', authMiddleware, asyncHandler(async (req: 
                   id: d.domain,            // Use domain string as ID
                   third_id: d.domain,      // Use domain string as third_id
                   full_domain: d.domain,
-                  expires_at: d.expiry_date, // YYYYMMDD format
+                  expires_at: parseDpdnsDate(d.expiry_date),
                 }));
 
               allDomains.push(...domainsWithAccount);
