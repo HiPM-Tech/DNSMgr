@@ -1121,6 +1121,7 @@ jobs:
         with:
           tag_name: v${{ needs.prepare.outputs.version }}
           name: HiDNS v${{ needs.prepare.outputs.version }}
+          body: ${{ needs.create-release.outputs.changelog_content }}
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
           files: |
