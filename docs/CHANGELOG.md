@@ -1,5 +1,16 @@
 # 更新日志
 
+## [2.0.5] - 2026-06-15
+
+### 🐛 Bug 修复
+- **dpdns_reverse 域名每日被禁用**: `getDomainList()` 未实现导致 `domainSyncJob` 将 dpdns_reverse 账号下所有域名/续期域名视为不存在而禁用
+  - `getDomainList()` 由空列表改为调用 dpdns API 获取真实域名列表
+  - 拆分 `fetchAllDomains()` 内部方法，`listFreeDomains()` 和 `listAllDomains()` 均复用该统一 API 调用
+
+### 🔧 优化
+- 完善 GitHub Release 工作流（CHANGELOG 路径修复、PR/Commits 自动汇总）
+- 补充版本发布流程和提交信息格式文档
+
 ## [2.0.4] - 2026-06-15
 
 ### 🚀 新功能
