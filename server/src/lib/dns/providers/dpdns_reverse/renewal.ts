@@ -65,10 +65,9 @@ interface DpdnsRenewResponse {
 // ============================================================================
 
 /**
- * 获取所有 free 域名列表
- * 自动过滤 slot_type === 'free' 且 can_manual_renew === true 的域名
+ * 获取所有域名（内部方法，不含配额过滤）
  */
-export async function listFreeDomains(
+async function fetchAllDomains(
   config: DpdnsAuthConfig
 ): Promise<DpdnsDomain[]> {
   try {
@@ -91,23 +90,47 @@ export async function listFreeDomains(
       return [];
     }
 
-    // 仅保留 free 配额且可手动续期的域名
-    const freeDomains = data.domains.filter(
-      (d) => d.slot_type === 'free' && d.can_manual_renew
-    );
-
-    log.sub('API').tag('SUCCESS').debug('Fetched free domains', {
-      total: data.domains.length,
-      freeCount: freeDomains.length,
-    });
-
-    return freeDomains;
+    return data.domains;
   } catch (error) {
     log.sub('API').tag('ERROR').error('Failed to list domains', {
       error: error instanceof Error ? error.message : String(error),
     });
     return [];
   }
+}
+
+/**
+ * 返回所有域名（不限配额类型）
+ */
+export async function listAllDomains(
+  config: DpdnsAuthConfig
+): Promise<DpdnsDomain[]> {
+  const domains = await fetchAllDomains(config);
+  log.sub('API').tag('SUCCESS').debug('Fetched all domains', {
+    total: domains.length,
+  });
+  return domains;
+}
+
+/**
+ * 获取所有 free 域名列表
+ * 自动过滤 slot_type === 'free' 且 can_manual_renew === true 的域名
+ */
+export async function listFreeDomains(
+  config: DpdnsAuthConfig
+): Promise<DpdnsDomain[]> {
+  const domains = await fetchAllDomains(config);
+
+  const freeDomains = domains.filter(
+    (d) => d.slot_type === 'free' && d.can_manual_renew
+  );
+
+  log.sub('API').tag('SUCCESS').debug('Fetched free domains', {
+    total: domains.length,
+    freeCount: freeDomains.length,
+  });
+
+  return freeDomains;
 }
 
 /**

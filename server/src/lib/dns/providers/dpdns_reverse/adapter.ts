@@ -6,6 +6,7 @@ import {
   PageResult,
 } from '../internal';
 import { validateCredentials } from './auth';
+import { listAllDomains } from './renewal';
 
 const log = createLogger('DNS').sub('Provider').sub('DPDNS');
 
@@ -41,8 +42,19 @@ export class DpdnsReverseAdapter extends BaseAdapter {
   }
 
   async getDomainList(keyword?: string, page?: number, pageSize?: number): Promise<PageResult<DomainInfo>> {
-    log.debug('getDomainList called (not implemented)');
-    return { total: 0, list: [] };
+    try {
+      const domains = await listAllDomains({ rememberToken: this.rememberToken });
+      const list = domains.map((d) => ({
+        Domain: d.domain,
+        ThirdId: d.domain,
+        ExpiresAt: d.expiry_date,
+      }));
+      log.info(`Fetched ${list.length} domains from dpdns API`);
+      return { total: list.length, list };
+    } catch (e: any) {
+      log.error('Failed to fetch domain list', { error: e.message });
+      return { total: 0, list: [] };
+    }
   }
 
   async getDomainRecords(
