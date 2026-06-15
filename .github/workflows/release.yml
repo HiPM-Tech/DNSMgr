@@ -1047,8 +1047,8 @@ jobs:
           SECTIONS=""
 
           # 1. 从 CHANGELOG.md 提取当前版本日志
-          if [ -f "CHANGELOG.md" ]; then
-            CHANGELOG_CONTENT=$(awk "/^## \\[$VERSION\\]/ {flag=1; next} /^## \\[/ {flag=0} flag" CHANGELOG.md)
+          if [ -f "docs/CHANGELOG.md" ]; then
+            CHANGELOG_CONTENT=$(awk "/^## \\[$VERSION\\]/ {flag=1; next} /^## \\[/ {flag=0} flag" docs/CHANGELOG.md)
             if [ -n "$CHANGELOG_CONTENT" ]; then
               SECTIONS="${SECTIONS}${CHANGELOG_CONTENT}"$'\n'
             fi

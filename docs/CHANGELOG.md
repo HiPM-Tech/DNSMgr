@@ -1,5 +1,27 @@
 # 更新日志
 
+## [2.0.4] - 2026-06-15
+
+### 🚀 新功能
+- **dpdns_reverse 提供商**: 新增 DigitalPlat Domains 逆向实现，支持 free 域名列表拉取、续期及定时调度
+- **账号按用途过滤**: GET /api/accounts?purpose=dns|renewal 后端过滤，前端域名列表/续费页使用
+- **i18n 国际化**: 新增多语言支持（中/英/日/韩/法/德/西/葡/俄/阿），替换 useTranslation 为 useI18n
+- **服务商名称本地化**: Accounts 页面、域名列表编辑页、域名续费页使用 t('provider.xxx') 国际化 key
+
+### 🐛 Bug 修复
+- **MySQL LIMIT/OFFSET**: 修复 prepared statement 不支持 LIMIT/OFFSET 参数绑定，改为内联整数
+- **MySQL 日期格式**: parseDpdnsDate 输出 ISO 8601 格式导致 DATETIME 列写入失败，改为 YYYY-MM-DD HH:mm:ss
+- **DSM schema 重建 NOT NULL 冲突**: rebuildTableForSQLite 在 INSERT...SELECT 时对 NOT NULL 列使用 IFNULL 兜底默认值
+- **通知渠道无法添加**: NotificationChannels useEffect 用 API 数据覆盖本地未保存的新 channel，新增编辑中跳过逻辑
+- **dpdns_reverse 认证**: 添加完整 Chrome 131 浏览器请求头绕过风控拦截
+- **Dashboard 提供商分布**: 修复 provider 名称 i18n key 错误
+
+### 🔧 优化
+- dpdns_reverse 认证头优化
+- 分页参数类型安全处理
+- schema-reconciler 字段迁移兼容性提升
+- Provider 注册表添加 dns/renewal 能力标识
+
 ## [2.0.3] - 2026-06-12
 
 ### 🚀 主要更新
