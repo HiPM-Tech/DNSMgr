@@ -944,4 +944,63 @@ func updateDDNS(apiToken, baseURL, domain, subDomain, ip string) error {
     - 安全策略管理（密码长度、会话超时、登录尝试限制）。
     - 登录限制（IP/设备信任）。
 
+## 版本发布流程
+
+### 版本号规范
+- 遵循语义化版本（SemVer）：`主版本.次版本.修订号`
+- 主版本：不兼容的 API 修改
+- 次版本：向下兼容的功能新增
+- 修订号：向下兼容的问题修正
+
+### 发布步骤
+1. **确认所有更改已提交**：`git status` 确保工作区干净
+2. **更新 CHANGELOG.md**：在 `docs/CHANGELOG.md` 追加当前版本条目，包含新功能、Bug 修复、优化三个分类
+3. **更新版本号**：修改根目录、`server/`、`client/` 三个 `package.json` 的 `version` 字段
+4. **提交版本发布**：`git add -A` → `git commit -m "chore: release version X.Y.Z"`（提交信息体包含完整 changelog）
+5. **打 Tag**：`git tag vX.Y.Z`
+6. **推送到远程**：`git push && git push --tags`
+7. **触发 Release Workflow**：在 GitHub Actions 中手动触发 `release.yml`，传入版本号
+8. **验证 Release**：确认 Release 页面显示正确的 changelog 内容、PR 列表、Top 10 Commit
+
+## 提交信息格式
+
+### 第一行：主题（简短描述）
+- 格式：`<type>(<scope>): <简短描述>`
+- `type`：`feat`（新功能）、`fix`（修复）、`refactor`（重构）、`docs`（文档）、`style`（样式）、`chore`（构建/工具）、`perf`（性能）、`test`（测试）
+- `scope`（可选）：影响范围，如 `dpdns_reverse`、`components`、`server`、`client`
+- 简短描述：50 字以内，中文或英文，首字母小写（英文），不加句号
+- 示例：`fix(dpdns_reverse): 修正日期解析格式为MySQL兼容格式`
+
+### 第二行起：详细描述
+每条描述占一行，用缩进分段，格式如下：
+
+```
+详细描述：
+  部分关键变更：[变更1], [变更2], ...
+  修复问题：[问题1], [问题2], ...
+  新增功能：[功能1], [功能2], ...
+  部分关键实现：[实现1], [实现2], ...
+  优化：[优化1], [优化2], ...
+```
+
+### 完整示例
+
+```
+feat: add domain renewal and dns account filtering, optimize provider display
+
+详细描述：
+  部分关键变更：[添加provider capabilities的dns和renewal字段], [按purpose筛选账号接口], [替换i18n钩子为自定义上下文], [更新dpdns反向代理路由和认证头], [域名列表和续费页优化账号展示]
+  修复问题：[修复provider类型未本地化显示的问题], [修正dpdns路由名称不匹配的问题]
+  新增功能：[按用途筛选DNS账号接口], [续费专用账号筛选功能], [反向代理dpdns提供商支持]
+  优化：[更新认证请求头绕过风控], [优化查询key缓存区分不同场景的账号列表]
+```
+
+```
+fix(dpdns_reverse): 修正日期解析格式为MySQL兼容格式
+
+详细描述：
+  部分关键变更：[将parseDpdnsDate的日期输出格式从ISO 8601改为MySQL/SQLite兼容格式]
+  修复问题：[MySQL DATETIME列无法写入ISO 8601格式的日期字符串]
+```
+
 ## 待办
