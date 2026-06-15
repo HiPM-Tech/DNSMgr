@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware, requireDomainPermission, requireTokenDomainPermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
-import { dnsheRenewSubdomain, dnsheGetWhois } from '../lib/dns/providers';
+import { dnsheGetWhois } from '../lib/dns/providers';
 import { renewalRegistry } from '../service/renewalScheduler';
 import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
@@ -14,6 +14,7 @@ import { syncDomainWhois } from '../service/whois';
 import { getRootDomain, queryWhois } from '../service/whois';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/dns';
+
 
 const log = createLogger('HTTP').sub('Route').sub('Domains');
 const router = Router();
@@ -1086,25 +1087,18 @@ router.post('/:id/whois', authMiddleware, requireTokenDomainPermission(), asyncH
 }));
 
 /**
- * Renew a DNSHE subdomain
+ * Renew a domain — generic route using RenewalScheduler registry
  */
 router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const renewableDomainId = parseInteger(req.params.id);
-  const { subdomain_id } = req.body;
 
-  log.info('Renewal request received', {
-    renewableDomainId,
-    subdomainId: subdomain_id,
-    userId: req.user?.userId
-  });
+  log.info('Renewal request received', { renewableDomainId, userId: req.user?.userId });
 
-  if (!renewableDomainId || !subdomain_id) {
-    log.error('Missing required parameters', { renewableDomainId, subdomain_id });
-    sendError(res, 'Missing domain ID or subdomain ID');
+  if (!renewableDomainId) {
+    sendError(res, 'Missing domain ID');
     return;
   }
 
-  // Only allow admins and super admins
   const role = normalizeRole(req.user?.role);
   if (role < 2) {
     log.warn('Unauthorized renewal attempt', { userId: req.user?.userId, role });
@@ -1112,114 +1106,52 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
     return;
   }
 
-  // Get the renewable domain from renewable_domains table
   const renewableDomain = await RenewableDomainOperations.getById(renewableDomainId);
   if (!renewableDomain) {
-    log.error('Renewable domain not found', { renewableDomainId });
     sendError(res, 'Renewable domain not found');
     return;
   }
 
-  // Check if domain is enabled
   if (!renewableDomain.enabled) {
-    log.warn('Cannot renew disabled domain', {
-      renewableDomainId,
-      full_domain: renewableDomain.full_domain,
-      enabled: renewableDomain.enabled
-    });
     sendError(res, 'Cannot renew disabled domain. Please enable it first.');
     return;
   }
 
-  log.info('Renewable domain retrieved', {
-    id: renewableDomain.id,
-    full_domain: renewableDomain.full_domain,
-    account_id: renewableDomain.account_id,
-    provider_type: renewableDomain.provider_type,
-    third_id: renewableDomain.third_id
-  });
-
-  // Get the account
   const account = await DnsAccountOperations.getById(renewableDomain.account_id) as DnsAccount | undefined;
   if (!account) {
-    log.error('Account not found', { accountId: renewableDomain.account_id });
     sendError(res, 'Account not found');
     return;
   }
 
-  log.info('Account retrieved for renewal', {
-    accountId: account.id,
-    accountName: account.name,
-    type: account.type
-  });
+  log.info('Renewal — account', { accountId: account.id, type: account.type, domain: renewableDomain.full_domain });
 
-  // Only support DNSHE provider
-  if (account.type !== 'dnshe') {
-    log.warn('Unsupported provider for renewal', { type: account.type });
-    sendError(res, 'Renewal only supported for DNSHE provider');
+  const scheduler = renewalRegistry.getScheduler(account.type);
+  if (!scheduler) {
+    log.warn('No renewal scheduler for provider type', { type: account.type });
+    sendError(res, 'Renewal not supported for this provider');
     return;
   }
 
+  const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
+  const domainId = renewableDomain.third_id || renewableDomain.id;
+
   try {
-    const config = typeof account.config === 'string' ? JSON.parse(account.config) : account.config;
-
-    log.info('Calling DNSHE renewal API', {
-      subdomainId: Number(subdomain_id),
-      useProxy: !!config.useProxy,
-      apiKeyPrefix: config.apiKey?.substring(0, 8) + '...'
-    });
-
-    const result = await dnsheRenewSubdomain(
-      {
-        apiKey: config.apiKey,
-        apiSecret: config.apiSecret,
-        useProxy: !!config.useProxy,
-      },
-      Number(subdomain_id)
-    );
-
-    log.info('DNSHE renewal API response', { success: !!result, result });
+    const result = await scheduler.renewDomain(config, domainId);
 
     if (!result) {
-      log.error('DNSHE renewal returned null result');
       sendError(res, 'Renewal failed');
       return;
     }
 
-    // Update expires_at in renewable_domains table
+    // Update expires_at
     if (result.new_expires_at) {
       await RenewableDomainOperations.updateExpiresAt(renewableDomainId, result.new_expires_at);
-      log.info('Updated expires_at in renewable_domains', {
-        renewableDomainId,
-        newExpiresAt: result.new_expires_at
-      });
     }
 
-    // Log audit operation
-    await logAuditOperation(
-      req.user!.userId,
-      'renew_domain',
-      renewableDomain.full_domain,
-      {
-        subdomain_id: result.subdomain_id,
-        subdomain: result.subdomain,
-        previous_expires_at: result.previous_expires_at,
-        new_expires_at: result.new_expires_at,
-        remaining_days: result.remaining_days,
-      },
-      req
-    );
+    // Log audit
+    await logAuditOperation(req.user!.userId, 'renew_domain', renewableDomain.full_domain, result, req);
 
-    log.info('Domain renewed successfully', {
-      renewableDomainId,
-      subdomainId: result.subdomain_id,
-      fullDomain: renewableDomain.full_domain,
-      previousExpiresAt: result.previous_expires_at,
-      newExpiresAt: result.new_expires_at,
-      remainingDays: result.remaining_days
-    });
-
-    // 推送 WebSocket 消息
+    // WebSocket
     try {
       wsService.broadcast({
         type: 'domain_renewed',
@@ -1227,7 +1159,6 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
           renewableDomainId,
           fullDomain: renewableDomain.full_domain,
           newExpiresAt: result.new_expires_at,
-          remainingDays: result.remaining_days,
         },
       });
     } catch (error) {
@@ -1236,10 +1167,7 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
 
     sendSuccess(res, result, 'Domain renewed successfully');
   } catch (error) {
-    log.error('Renewal failed with exception', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
+    log.error('Renewal failed', { error: error instanceof Error ? error.message : String(error) });
     sendError(res, error instanceof Error ? error.message : 'Renewal failed');
   }
 }));

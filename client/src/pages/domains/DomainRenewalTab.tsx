@@ -125,7 +125,7 @@ export function DomainRenewalTab() {
   const total = renewableData?.total || 0;
 
   const renewMutation = useMutation({
-    mutationFn: ({ domainId, subdomainId }: { domainId: number; subdomainId: number }) => domainRenewalApi.renew(domainId, subdomainId),
+    mutationFn: (domainId: number) => domainRenewalApi.renew(domainId),
     onSuccess: (res) => {
       if (res.data.code === 0) {
         toast.success(t('domainRenewal.renewSuccess'));
@@ -251,8 +251,7 @@ export function DomainRenewalTab() {
       key: 'actions',
       label: t('common.actions'),
       render: (row: any) => {
-        const subdomainId = row.third_id || row.id;
-        const isRenewing = renewing === Number(subdomainId);
+        const isRenewing = renewing === row.id;
 
         return (
           <Space size="small">
@@ -261,11 +260,11 @@ export function DomainRenewalTab() {
               variant="text"
               icon={<RefreshIcon />}
               loading={isRenewing}
-              disabled={!subdomainId || !row.enabled}
+              disabled={!row.id || !row.enabled}
               onClick={() => {
-                if (subdomainId) {
-                  setRenewing(Number(subdomainId));
-                  renewMutation.mutate({ domainId: row.id, subdomainId: Number(subdomainId) });
+                if (row.id) {
+                  setRenewing(row.id);
+                  renewMutation.mutate(row.id);
                 }
               }}
             >

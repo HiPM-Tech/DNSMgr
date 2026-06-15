@@ -1110,6 +1110,9 @@ jobs:
           echo "$SECTIONS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+          # 写入临时文件供 body_path 使用
+          echo "$SECTIONS" > /tmp/release_body.md
+
       - name: Generate checksums
         run: |
           cd ./artifacts
@@ -1121,7 +1124,7 @@ jobs:
         with:
           tag_name: v${{ needs.prepare.outputs.version }}
           name: HiDNS v${{ needs.prepare.outputs.version }}
-          body: ${{ needs.create-release.outputs.changelog_content }}
+          body_path: /tmp/release_body.md
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
           files: |
