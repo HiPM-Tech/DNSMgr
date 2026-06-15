@@ -945,11 +945,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read
     outputs:
       changelog_content: ${{ steps.changelog.outputs.content }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Download Windows x64 artifact
         if: needs.build-windows.result == 'success'
@@ -1035,18 +1039,75 @@ jobs:
           name: sea-macos-x64
           path: ./artifacts
 
-      - name: Read CHANGELOG
+      - name: Generate release notes
         id: changelog
         run: |
+          set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
-          # 提取当前版本的 changelog（从 ## [版本号] 到下一个 ## [ 或文件结束）
-          CHANGELOG_CONTENT=$(awk "/^## \\[$VERSION\\]/ {flag=1; next} /^## \\[/ {flag=0} flag" docs/CHANGELOG.md)
-          if [ -z "$CHANGELOG_CONTENT" ]; then
-            CHANGELOG_CONTENT="详见 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/docs/CHANGELOG.md)"
+          SECTIONS=""
+
+          # 1. 从 CHANGELOG.md 提取当前版本日志
+          if [ -f "CHANGELOG.md" ]; then
+            CHANGELOG_CONTENT=$(awk "/^## \\[$VERSION\\]/ {flag=1; next} /^## \\[/ {flag=0} flag" CHANGELOG.md)
+            if [ -n "$CHANGELOG_CONTENT" ]; then
+              SECTIONS="${SECTIONS}${CHANGELOG_CONTENT}"$'\n'
+            fi
           fi
-          # 将多行内容写入 GitHub Actions 输出
+
+          # 2. 上个标签之后的合并 PR 列表
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          if [ -n "$PREV_TAG" ]; then
+            SINCE=$(git log -1 --format=%aI "$PREV_TAG" 2>/dev/null || true)
+            if [ -n "$SINCE" ]; then
+              PR_JSON=$(gh pr list --state merged --limit 30 --json number,title,author,mergedAt --jq \
+                '.[] | select(.mergedAt > "'"$SINCE"'") | "- PR #\(.number): \(.title) (@\(.author.login))"' 2>/dev/null || true)
+              if [ -n "$PR_JSON" ]; then
+                SECTIONS="${SECTIONS}"$'\n### 📦 合并的 Pull Request\n\n'"${PR_JSON}"$'\n'
+              fi
+            fi
+          fi
+
+          # 3. 变更量最大的 10 个 commit
+          if [ -n "$PREV_TAG" ]; then
+            TOP_COMMITS=$(git log "$PREV_TAG"..HEAD --format="%H %s" --shortstat 2>/dev/null | \
+              perl -e '
+                my @commits;
+                my ($hash, $msg, $total);
+                while (<STDIN>) {
+                  chomp;
+                  if (/^([0-9a-f]{40}) (.+)/) {
+                    if (defined $hash) {
+                      push @commits, [$total, $hash, $msg];
+                    }
+                    ($hash, $msg) = ($1, $2);
+                    $total = 0;
+                  } elsif (/(\d+) insertions?\(\+\)/ || /(\d+) deletions?\(-\)/) {
+                    $total += $1 if $1;
+                  }
+                }
+                if (defined $hash) {
+                  push @commits, [$total, $hash, $msg];
+                }
+                @commits = sort { $b->[0] <=> $a->[0] } @commits;
+                my $i = 0;
+                for my $c (@commits) {
+                  last if $i++ >= 10;
+                  my $short = substr($c->[1], 0, 8);
+                  my $msg = substr($c->[2], 0, 80);
+                  printf("- [`%s`] %s (+%d lines)\n", $short, $msg, $c->[0]);
+                }
+              ' 2>/dev/null || true)
+            if [ -n "$TOP_COMMITS" ]; then
+              SECTIONS="${SECTIONS}"$'\n### 🔝 最大变更 Commit（Top 10）\n\n'"${TOP_COMMITS}"$'\n'
+            fi
+          fi
+
+          if [ -z "$SECTIONS" ]; then
+            SECTIONS="详见 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)"
+          fi
+
           echo "content<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "$SECTIONS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Generate checksums
