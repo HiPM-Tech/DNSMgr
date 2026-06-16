@@ -1,5 +1,23 @@
 # 更新日志
 
+## [2.0.6] - 2026-06-16
+
+### 🚀 新功能
+- **域名续期高级筛选**: 续期页面新增账号选择器、启用/禁用状态筛选、可折叠筛选面板
+- **到期时间自动同步**: `domainSyncJob` 定时同步各提供商返回的 `ExpiresAt` 到本地 `renewable_domains.expires_at` 字段
+- **后端续期状态统计**: `GET /api/domains/renewable-domains` 返回 `active`/`expiring`/`expired` 计数（过期阈值 60 天）
+
+### 🔧 优化
+- **续期路由泛化**: `POST /api/domains/:id/renew` 通过 `renewalRegistry` 调度，新增续期提供商无需修改路由
+- **上游错误透传**: 续期失败时上游 API 原始错误信息直接返回给客户端，不再吞并为 "Renewal failed"
+- **提交移除子域名参数**: 续期接口不再需要 body 参数，后端从数据库推导
+- **DNS 服务商能力定义重构**: 统一能力定义结构，提高可扩展性
+- **过期阈值调整**: 续期过期提醒阈值从 30 天调整为 60 天
+
+### 🐛 Bug 修复
+- **Docker 构建失败**: `DomainRenewalTab.tsx` 中 `ReactNode` 未使用 `type` 导入，导致 `verbatimModuleSyntax` 下 tsc 报错
+- **CNAME 冲突校验路径错误**: `RecordForm` 中 capabilities 引用路径修复
+
 ## [2.0.5] - 2026-06-15
 
 ### 🐛 Bug 修复
