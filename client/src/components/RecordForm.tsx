@@ -248,12 +248,12 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     else if (currentType === 'CNAME') {
       const hasConflict = existingRecords.some((r) => r.name === nameVal && r.id !== initial?.id);
       const isRoot = nameVal === '@';
-      if ((isRoot || hasConflict) && !provider?.capabilities?.cnameFlattening) {
+      if ((isRoot || hasConflict) && !provider?.capabilities?.dns?.cnameFlattening) {
         nextErrors.name = t('records.cnameConflict');
       }
     } else {
       const hasCname = existingRecords.some((r) => r.name === nameVal && r.id !== initial?.id && r.type === 'CNAME');
-      if (hasCname && !provider?.capabilities?.cnameFlattening) {
+      if (hasCname && !provider?.capabilities?.dns?.cnameFlattening) {
         nextErrors.name = t('records.cnameConflict');
       }
     }
