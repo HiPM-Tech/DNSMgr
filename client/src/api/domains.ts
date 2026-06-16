@@ -43,8 +43,8 @@ export const domainRenewalApi = {
     api.post<ApiResponse<RenewalInfo>>(`/domains/${domainId}/renew`),
   getWhois: (domain: string) =>
     api.get<ApiResponse<WhoisInfo>>(`/domains/whois`, { params: { domain } }),
-  getRenewableDomains: (params?: { page?: number; pageSize?: number; keyword?: string }) =>
-    api.get<ApiResponse<{ list: any[]; total: number; page: number; pageSize: number }>>('/domains/renewable-domains', { params }),
+  getRenewableDomains: (params?: { page?: number; pageSize?: number; keyword?: string; account_id?: number; status?: string }) =>
+    api.get<ApiResponse<{ list: any[]; total: number; page: number; pageSize: number; active: number; expiring: number; expired: number }>>('/domains/renewable-domains', { params }),
   addRenewableDomain: (data: {
     account_id: number;
     provider_type: string;

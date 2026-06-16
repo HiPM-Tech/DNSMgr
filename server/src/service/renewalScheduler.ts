@@ -26,7 +26,7 @@ export interface RenewalScheduler {
    * @param domainId 域名 ID
    * @returns 续期结果
    */
-  renewDomain(config: any, domainId: number | string): Promise<RenewalResult | null>;
+  renewDomain(config: any, domainId: number | string): Promise<RenewalResult>;
 }
 
 /**

@@ -51,30 +51,16 @@ export class DpdnsReverseRenewalScheduler implements RenewalScheduler {
    * @param config   认证配置
    * @param domainId 域名完整名称（如 example.dpdns.org）
    */
-  async renewDomain(config: DpdnsAuthConfig, domainId: number | string): Promise<RenewalResult | null> {
+  async renewDomain(config: DpdnsAuthConfig, domainId: number | string): Promise<RenewalResult> {
     const domainName = String(domainId);
-    try {
-      const result = await renewFreeDomain(config, domainName, 1);
-
-      if (!result) {
-        log.error('Renewal failed', { domain: domainName });
-        return null;
-      }
-
-      return {
-        success: true,
-        domain_id: domainName,
-        domain_name: domainName,
-        new_expires_at: result.newExpiryDate,
-        message: 'Domain renewed via dpdns free renewal',
-      };
-    } catch (error) {
-      log.error('Error renewing domain', {
-        domain: domainName,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    }
+    const result = await renewFreeDomain(config, domainName, 1);
+    return {
+      success: true,
+      domain_id: domainName,
+      domain_name: domainName,
+      new_expires_at: result.newExpiryDate,
+      message: 'Domain renewed via dpdns free renewal',
+    };
   }
 }
 

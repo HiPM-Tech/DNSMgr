@@ -146,49 +146,39 @@ export async function renewFreeDomain(
   config: DpdnsAuthConfig,
   domainName: string,
   years: number = 1
-): Promise<{ newExpiryDate: string } | null> {
-  try {
-    const url = `${BASE_URL}/api/domains/${encodeURIComponent(domainName)}/renew`;
-    log.sub('API').tag('REQUEST').debug('Renewing domain', { domain: domainName, years });
+): Promise<{ newExpiryDate: string }> {
+  const url = `${BASE_URL}/api/domains/${encodeURIComponent(domainName)}/renew`;
+  log.sub('API').tag('REQUEST').debug('Renewing domain', { domain: domainName, years });
 
-    const response = await authenticatedRequest(url, config, {
-      method: 'POST',
-      body: JSON.stringify({
-        renewal_type: 'free',
-        years,
-      }),
-    });
+  const response = await authenticatedRequest(url, config, {
+    method: 'POST',
+    body: JSON.stringify({
+      renewal_type: 'free',
+      years,
+    }),
+  });
 
-    const data: DpdnsRenewResponse = await response.json();
+  const data: DpdnsRenewResponse = await response.json();
 
-    if (!response.ok || !data.ok) {
-      log.sub('API').tag('ERROR').error('Renewal failed', {
-        domain: domainName,
-        error: data.error || data.message || `HTTP ${response.status}`,
-      });
-      return null;
-    }
-
-    // 续期成功后，重新查询域名信息以获取新的到期日
-    const updatedDomain = await getDomainInfo(config, domainName);
-    if (updatedDomain) {
-      const newExpiry = parseDpdnsDate(updatedDomain.expiry_date);
-      log.sub('API').tag('SUCCESS').info('Domain renewed successfully', {
-        domain: domainName,
-        newExpiryDate: newExpiry,
-      });
-      return { newExpiryDate: newExpiry };
-    }
-
-    // 如果无法获取新到期日，至少返回成功
-    return { newExpiryDate: '' };
-  } catch (error) {
-    log.sub('API').tag('ERROR').error('Failed to renew domain', {
-      domain: domainName,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
+  if (!response.ok || !data.ok) {
+    const errMsg = data.error || data.message || `HTTP ${response.status}`;
+    log.sub('API').tag('ERROR').error('Renewal failed', { domain: domainName, error: errMsg });
+    throw new Error(errMsg);
   }
+
+  // 续期成功后，重新查询域名信息以获取新的到期日
+  const updatedDomain = await getDomainInfo(config, domainName);
+  if (updatedDomain) {
+    const newExpiry = parseDpdnsDate(updatedDomain.expiry_date);
+    log.sub('API').tag('SUCCESS').info('Domain renewed successfully', {
+      domain: domainName,
+      newExpiryDate: newExpiry,
+    });
+    return { newExpiryDate: newExpiry };
+  }
+
+  // 如果无法获取新到期日，至少返回成功
+  return { newExpiryDate: '' };
 }
 
 /**

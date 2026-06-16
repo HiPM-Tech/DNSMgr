@@ -3664,40 +3664,62 @@ export const RenewableDomainOperations = {
     return await queryInternal(sql, params, { operation: 'RenewableDomain.getAll', table: 'renewable_domains' });
   },
 
-  /** 分页获取续期域名（包括启用和禁用，但过滤掉已禁用账号的域名，支持关键字搜索） */
-  async getAllWithPagination(page: number, pageSize: number, keyword?: string): Promise<{ list: any[]; total: number }> {
+  /** 分页获取续期域名（支持高级筛选） */
+  async getAllWithPagination(options: {
+    page: number;
+    pageSize: number;
+    keyword?: string;
+    accountId?: number;
+    status?: 'enabled' | 'disabled' | 'all';
+  }): Promise<{ list: any[]; total: number }> {
+    const { page, pageSize, keyword, accountId, status } = options;
     const offset = (page - 1) * pageSize;
     const keywordParam = keyword ? `%${keyword}%` : '';
 
-    let countSql = `SELECT COUNT(*) as count FROM renewable_domains rd
-      INNER JOIN dns_accounts da ON rd.account_id = da.id
-      WHERE da.enabled = 1`;
-    const countParams: any[] = [];
-
+    // Count query
+    const countBuilder = new RenewableDomainQueryBuilder()
+      .joinAccounts()
+      .whereAccountEnabled();
     if (keyword) {
-      countSql += ' AND (rd.full_domain LIKE ? OR rd.domain_name LIKE ?)';
-      countParams.push(keywordParam, keywordParam);
+      countBuilder.where('(rd.full_domain LIKE ? OR rd.domain_name LIKE ?)', keywordParam, keywordParam);
     }
-
-    const countResult = await getInternal<{ count: number }>(countSql, countParams, {
-      operation: 'RenewableDomain.getAllWithPagination.count', table: 'renewable_domains'
-    });
+    if (accountId) {
+      countBuilder.whereAccountId(accountId);
+    }
+    if (status === 'enabled') {
+      countBuilder.whereRenewableEnabled();
+    } else if (status === 'disabled') {
+      countBuilder.where('rd.enabled = 0');
+    }
+    const countQuery = countBuilder.build();
+    const countResult = await getInternal<{ count: number }>(
+      `SELECT COUNT(*) as count FROM (${countQuery.sql}) sub`,
+      countQuery.params,
+      { operation: 'RenewableDomain.getAllWithPagination.count', table: 'renewable_domains' }
+    );
     const total = countResult?.count || 0;
 
-    let listSql = `SELECT rd.*, da.name as account_name, da.type as provider_type
-      FROM renewable_domains rd
-      INNER JOIN dns_accounts da ON rd.account_id = da.id
-      WHERE da.enabled = 1`;
-    const listParams: any[] = [];
-
+    // List query
+    const listBuilder = new RenewableDomainQueryBuilder()
+      .select('rd.*, da.name as account_name, da.type as provider_type')
+      .joinAccounts()
+      .whereAccountEnabled();
     if (keyword) {
-      listSql += ' AND (rd.full_domain LIKE ? OR rd.domain_name LIKE ?)';
-      listParams.push(keywordParam, keywordParam);
+      listBuilder.where('(rd.full_domain LIKE ? OR rd.domain_name LIKE ?)', keywordParam, keywordParam);
     }
+    if (accountId) {
+      listBuilder.whereAccountId(accountId);
+    }
+    if (status === 'enabled') {
+      listBuilder.whereRenewableEnabled();
+    } else if (status === 'disabled') {
+      listBuilder.where('rd.enabled = 0');
+    }
+    listBuilder.orderByColumn('rd.full_domain', 'ASC');
+    const listQuery = listBuilder.build();
+    const listSql = `${listQuery.sql} LIMIT ${Math.floor(pageSize)} OFFSET ${Math.floor(offset)}`;
 
-    listSql += ` ORDER BY rd.full_domain LIMIT ${Math.floor(pageSize)} OFFSET ${Math.floor(offset)}`;
-
-    const list = await queryInternal(listSql, listParams, {
+    const list = await queryInternal(listSql, listQuery.params, {
       operation: 'RenewableDomain.getAllWithPagination', table: 'renewable_domains'
     });
 
@@ -3842,6 +3864,40 @@ export const RenewableDomainOperations = {
       { operation: 'RenewableDomain.exists', table: 'renewable_domains' }
     );
     return (result as any)?.count > 0;
+  },
+
+  /** 获取各类状态的域名计数（活跃/即将到期/已过期） */
+  async getStatusCounts(): Promise<{ active: number; expiring: number; expired: number }> {
+    const dbType = getDbType();
+    let nowSql: string;
+    let addDaysSql: string;
+    if (dbType === 'sqlite') {
+      nowSql = "datetime('now')";
+      addDaysSql = "datetime('now', '+60 days')";
+    } else if (dbType === 'postgresql') {
+      nowSql = 'NOW()';
+      addDaysSql = "NOW() + INTERVAL '60 days'";
+    } else {
+      nowSql = 'NOW()';
+      addDaysSql = 'DATE_ADD(NOW(), INTERVAL 60 DAY)';
+    }
+
+    const sql = `SELECT
+      SUM(CASE WHEN rd.expires_at IS NULL OR rd.expires_at > ${addDaysSql} THEN 1 ELSE 0 END) as active,
+      SUM(CASE WHEN rd.expires_at IS NOT NULL AND rd.expires_at <= ${addDaysSql} AND rd.expires_at >= ${nowSql} THEN 1 ELSE 0 END) as expiring,
+      SUM(CASE WHEN rd.expires_at IS NOT NULL AND rd.expires_at < ${nowSql} THEN 1 ELSE 0 END) as expired
+    FROM renewable_domains rd
+    INNER JOIN dns_accounts da ON rd.account_id = da.id
+    WHERE da.enabled = 1`;
+
+    const result = await getInternal<{ active: number; expiring: number; expired: number }>(sql, [], {
+      operation: 'RenewableDomain.getStatusCounts', table: 'renewable_domains'
+    });
+    return {
+      active: result?.active || 0,
+      expiring: result?.expiring || 0,
+      expired: result?.expired || 0,
+    };
   },
 };
 

@@ -6,7 +6,7 @@ import {
   PageResult,
 } from '../internal';
 import { validateCredentials } from './auth';
-import { listAllDomains } from './renewal';
+import { listAllDomains, parseDpdnsDate } from './renewal';
 
 const log = createLogger('DNS').sub('Provider').sub('DPDNS');
 
@@ -47,7 +47,7 @@ export class DpdnsReverseAdapter extends BaseAdapter {
       const list = domains.map((d) => ({
         Domain: d.domain,
         ThirdId: d.domain,
-        ExpiresAt: d.expiry_date,
+        ExpiresAt: parseDpdnsDate(d.expiry_date),
       }));
       log.info(`Fetched ${list.length} domains from dpdns API`);
       return { total: list.length, list };

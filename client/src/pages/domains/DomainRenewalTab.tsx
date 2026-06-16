@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Checkbox, Empty, Input, Loading, Pagination, Select, Space, Tag } from 'tdesign-react';
 import { AddIcon, CalendarIcon, CheckCircleIcon, DeleteIcon, ErrorCircleIcon, RefreshIcon, SearchIcon, TimeIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
@@ -11,6 +11,13 @@ import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatDomainName } from '../../utils/domain';
+
+const ControlField = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+    <label style={{ fontSize: '12px', color: 'var(--td-text-color-placeholder)' }}>{label}</label>
+    {children}
+  </div>
+);
 
 function selectValue(value: unknown) {
   return String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
@@ -34,13 +41,16 @@ export function DomainRenewalTab() {
   const [selectedDomainIds, setSelectedDomainIds] = useState<Set<string>>(new Set());
   const [deleteDomain, setDeleteDomain] = useState<any | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [accountFilter, setAccountFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts', 'renewal'],
     queryFn: () => accountsApi.list({ purpose: 'renewal' }).then((r) => r.data.data || []),
-    enabled: isAddModalOpen,
+    enabled: isAddModalOpen || showAdvancedFilter,
   });
 
   const { data: availableDomains = [], isLoading: isLoadingAvailableDomains } = useQuery({
@@ -114,15 +124,23 @@ export function DomainRenewalTab() {
   const isAdmin = user?.role === 2 || user?.role === 3;
 
   const { data: renewableData, isLoading } = useQuery({
-    queryKey: ['renewable-domains', page, pageSize, searchKeyword],
+    queryKey: ['renewable-domains', accountFilter, statusFilter, page, pageSize, searchKeyword],
     enabled: isAdmin,
     queryFn: async () => {
-      const res = await domainRenewalApi.getRenewableDomains({ page, pageSize, keyword: searchKeyword || undefined });
-      return res.data.data || { list: [], total: 0 };
+      const res = await domainRenewalApi.getRenewableDomains({
+        page, pageSize,
+        keyword: searchKeyword || undefined,
+        account_id: accountFilter ? Number(accountFilter) : undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+      });
+      return res.data.data || { list: [], total: 0, active: 0, expiring: 0, expired: 0 };
     },
   });
   const renewableDomains = renewableData?.list || [];
   const total = renewableData?.total || 0;
+  const activeCount = renewableData?.active ?? 0;
+  const expiringCount = renewableData?.expiring ?? 0;
+  const expiredCount = renewableData?.expired ?? 0;
 
   const renewMutation = useMutation({
     mutationFn: (domainId: number) => domainRenewalApi.renew(domainId),
@@ -159,10 +177,10 @@ export function DomainRenewalTab() {
     if (daysLeft < 0) {
       return { label: t('domains.expired'), theme: 'danger' as const, daysLeft };
     }
-    if (daysLeft <= 7) {
+    if (daysLeft <= 30) {
       return { label: t('domainRenewal.expiringSoon'), theme: 'danger' as const, daysLeft };
     }
-    if (daysLeft <= 30) {
+    if (daysLeft <= 60) {
       return { label: t('domainRenewal.expiringMonth'), theme: 'warning' as const, daysLeft };
     }
     return { label: t('domainRenewal.active'), theme: 'success' as const, daysLeft };
@@ -306,18 +324,6 @@ export function DomainRenewalTab() {
     );
   }
 
-  const activeCount = renewableDomains.filter((domain: any) => {
-    const daysLeft = getDaysLeft(domain.expires_at);
-    return daysLeft !== null && daysLeft > 30;
-  }).length;
-  const expiringCount = renewableDomains.filter((domain: any) => {
-    const daysLeft = getDaysLeft(domain.expires_at);
-    return daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
-  }).length;
-  const expiredCount = renewableDomains.filter((domain: any) => {
-    const daysLeft = getDaysLeft(domain.expires_at);
-    return daysLeft !== null && daysLeft < 0;
-  }).length;
   const renewalMetrics = [
     {
       key: 'success',
@@ -372,16 +378,56 @@ export function DomainRenewalTab() {
 
       <Card bordered={false} shadow={false} className="page-card domain-renewal-card">
         <div className="records-toolbar domain-renewal-card__toolbar">
-          <Input
-            clearable
-            type="search"
-            value={searchKeyword}
-            prefixIcon={<SearchIcon />}
-            placeholder={t('common.search')}
-            onChange={(value: any) => { setSearchKeyword(String(value)); setPage(1); }}
-            style={{ width: 240 }}
-          />
+          <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
+            <Input
+              clearable
+              type="search"
+              value={searchKeyword}
+              prefixIcon={<SearchIcon />}
+              placeholder={t('common.search')}
+              onChange={(value: any) => { setSearchKeyword(String(value)); setPage(1); }}
+              style={{ flex: 1, maxWidth: 400 }}
+            />
+            <Button variant="outline" onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}>
+              {showAdvancedFilter ? t('common.collapse') : t('common.expand')} {t('domains.advancedFilter')}
+            </Button>
+          </div>
         </div>
+
+        {showAdvancedFilter && (
+          <div className="advanced-filter-panel" style={{ padding: '0 16px 16px', borderBottom: '1px solid var(--td-component-stroke)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              <ControlField label={t('domains.dnsAccount')}>
+                <Select
+                  value={accountFilter}
+                  options={[
+                    { label: t('domains.allAccounts'), value: '' },
+                    ...accounts
+                      .filter((account: any) => account.enabled !== false)
+                      .map((account: any) => ({
+                        label: `${account.name} (${t(`provider.${account.type}`)})`,
+                        value: String(account.id),
+                      })),
+                  ]}
+                  onChange={(value: any) => { setAccountFilter(selectValue(value)); setPage(1); }}
+                  style={{ width: '100%' }}
+                />
+              </ControlField>
+              <ControlField label={t('domains.localStatus')}>
+                <Select
+                  value={statusFilter}
+                  options={[
+                    { label: t('domains.allStatus'), value: 'all' },
+                    { label: t('common.enabled'), value: 'enabled' },
+                    { label: t('common.disabled'), value: 'disabled' },
+                  ]}
+                  onChange={(value: any) => { setStatusFilter(selectValue(value)); setPage(1); }}
+                  style={{ width: '100%' }}
+                />
+              </ControlField>
+            </div>
+          </div>
+        )}
         <Table
           columns={columns}
           data={renewableDomains}

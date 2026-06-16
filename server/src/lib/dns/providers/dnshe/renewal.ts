@@ -78,84 +78,64 @@ export async function listSubdomains(
 export async function renewSubdomain(
   config: DnsheAuthConfig,
   subdomainId: number
-): Promise<DnsheRenewalResult | null> {
-  try {
-    const baseUrl = 'https://api005.dnshe.com/index.php';
-    const url = `${baseUrl}?m=domain_hub&endpoint=subdomains&action=renew`;
+): Promise<DnsheRenewalResult> {
+  const baseUrl = 'https://api005.dnshe.com/index.php';
+  const url = `${baseUrl}?m=domain_hub&endpoint=subdomains&action=renew`;
 
-    log.sub('API').tag('REQUEST').debug('Provider request', { method: 'POST', url: 'subdomains/renew', params: {
-      subdomain_id: subdomainId,
-      apiKeyPrefix: config.apiKey?.substring(0, 8) + '...',
-      useProxy: config.useProxy
-    } });
+  log.sub('API').tag('REQUEST').debug('Provider request', { method: 'POST', url: 'subdomains/renew', params: {
+    subdomain_id: subdomainId,
+    apiKeyPrefix: config.apiKey?.substring(0, 8) + '...',
+    useProxy: config.useProxy
+  } });
 
-    const startTime = Date.now();
-    const response = await authenticatedRequest(url, config, {
-      method: 'POST',
-      body: JSON.stringify({ subdomain_id: subdomainId }),
-    });
-    const duration = Date.now() - startTime;
+  const startTime = Date.now();
+  const response = await authenticatedRequest(url, config, {
+    method: 'POST',
+    body: JSON.stringify({ subdomain_id: subdomainId }),
+  });
+  const duration = Date.now() - startTime;
 
-    log.info('Renewal API response time', { duration: `${duration}ms`, status: response.status });
+  log.info('Renewal API response time', { duration: `${duration}ms`, status: response.status });
 
-    if (!response.ok) {
-      const text = await response.text();
-
-      // Try to parse as JSON for better error details
-      let errorDetail = text;
-      try {
-        const errorJson = JSON.parse(text);
-        errorDetail = JSON.stringify(errorJson, null, 2);
-      } catch (e) {
-        // Keep original text if not JSON
-      }
-
-      log.sub('API').tag('ERROR').error('Provider error', {
-        status: response.status,
-        error: `Renewal request failed: ${errorDetail}`,
-        duration: `${duration}ms`,
-        subdomainId,
-        responseBody: text
-      });
-      return null;
-    }
-
-    const data = await response.json();
-    log.sub('API').tag('RESPONSE').debug('Provider response', { status: response.status, success: data.success, data: {
-      subdomain_id: subdomainId,
-      success: data.success,
-      message: data.message || data.error,
-      previous_expires_at: data.previous_expires_at,
-      new_expires_at: data.new_expires_at,
-      remaining_days: data.remaining_days,
-      charged_amount: data.charged_amount
-    } });
-
-    if (!data.success) {
-      log.sub('API').tag('ERROR').error('Provider error', {
-        message: data.message || data.error,
-        subdomain_id: subdomainId
-      });
-      return null;
-    }
-
-    log.info('Renewal successful', {
-      subdomain_id: data.subdomain_id,
-      subdomain: data.subdomain,
-      previousExpiresAt: data.previous_expires_at,
-      newExpiresAt: data.new_expires_at,
-      remainingDays: data.remaining_days,
-      chargedAmount: data.charged_amount,
-      neverExpires: data.never_expires
-    });
-
-    return data as DnsheRenewalResult;
-  } catch (error) {
+  if (!response.ok) {
+    const text = await response.text();
+    const errMsg = `Renewal request failed: ${text}`;
     log.sub('API').tag('ERROR').error('Provider error', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      subdomainId
+      status: response.status,
+      error: errMsg,
+      duration: `${duration}ms`,
+      subdomainId,
+      responseBody: text
     });
-    return null;
+    throw new Error(errMsg);
   }
+
+  const data = await response.json();
+  log.sub('API').tag('RESPONSE').debug('Provider response', { status: response.status, success: data.success, data: {
+    subdomain_id: subdomainId,
+    success: data.success,
+    message: data.message || data.error,
+    previous_expires_at: data.previous_expires_at,
+    new_expires_at: data.new_expires_at,
+    remaining_days: data.remaining_days,
+    charged_amount: data.charged_amount
+  } });
+
+  if (!data.success) {
+    const errMsg = data.message || data.error || 'Renewal failed';
+    log.sub('API').tag('ERROR').error('Provider error', { message: errMsg, subdomain_id: subdomainId });
+    throw new Error(errMsg);
+  }
+
+  log.info('Renewal successful', {
+    subdomain_id: data.subdomain_id,
+    subdomain: data.subdomain,
+    previousExpiresAt: data.previous_expires_at,
+    newExpiresAt: data.new_expires_at,
+    remainingDays: data.remaining_days,
+    chargedAmount: data.charged_amount,
+    neverExpires: data.never_expires
+  });
+
+  return data as DnsheRenewalResult;
 }

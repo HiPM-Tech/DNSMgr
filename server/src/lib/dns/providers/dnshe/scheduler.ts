@@ -43,31 +43,17 @@ export class DnsheRenewalScheduler implements RenewalScheduler {
   /**
    * 续期指定域名
    */
-  async renewDomain(config: DnsheAuthConfig, domainId: number | string): Promise<RenewalResult | null> {
-    try {
-      const result = await renewSubdomain(config, Number(domainId));
-
-      if (!result) {
-        log.error('Renewal failed', { domainId });
-        return null;
-      }
-
-      return {
-        success: true,
-        domain_id: result.subdomain_id,
-        domain_name: result.subdomain,
-        previous_expires_at: result.previous_expires_at,
-        new_expires_at: result.new_expires_at,
-        remaining_days: result.remaining_days,
-        message: result.message,
-      };
-    } catch (error) {
-      log.error('Error renewing domain', {
-        domainId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    }
+  async renewDomain(config: DnsheAuthConfig, domainId: number | string): Promise<RenewalResult> {
+    const result = await renewSubdomain(config, Number(domainId));
+    return {
+      success: true,
+      domain_id: result.subdomain_id,
+      domain_name: result.subdomain,
+      previous_expires_at: result.previous_expires_at,
+      new_expires_at: result.new_expires_at,
+      remaining_days: result.remaining_days,
+      message: result.message,
+    };
   }
 }
 

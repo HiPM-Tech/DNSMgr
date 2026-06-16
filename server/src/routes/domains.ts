@@ -398,11 +398,16 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
     const page = Math.max(1, parseInteger(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInteger(req.query.pageSize) || 20));
     const keyword = req.query.keyword as string | undefined;
+    const accountId = req.query.account_id ? parseInteger(req.query.account_id) : undefined;
+    const status = (req.query.status as string) || 'all';
+    const parsedStatus = (status === 'enabled' || status === 'disabled') ? status : undefined;
 
-    // Query from renewable_domains table with pagination
+    // Query from renewable_domains table with pagination & filtering
     const startTime = Date.now();
     log.debug('Calling RenewableDomainOperations.getAllWithPagination()');
-    const { list: renewableDomains, total } = await RenewableDomainOperations.getAllWithPagination(page, pageSize, keyword);
+    const { list: renewableDomains, total } = await RenewableDomainOperations.getAllWithPagination({
+      page, pageSize, keyword, accountId, status: parsedStatus,
+    });
     const queryDuration = Date.now() - startTime;
 
     log.info('Fetched renewable domains from database', {
@@ -444,7 +449,8 @@ router.get('/renewable-domains', authMiddleware, asyncHandler(async (req: Reques
       totalDuration: `${Date.now() - startTime}ms`
     });
 
-    sendSuccess(res, { list: enrichedDomains, total, page, pageSize });
+    const counts = await RenewableDomainOperations.getStatusCounts();
+    sendSuccess(res, { list: enrichedDomains, total, page, pageSize, ...counts });
   } catch (error) {
     log.error('Failed to fetch renewable domains', {
       error: error instanceof Error ? error.message : String(error),
@@ -1138,8 +1144,8 @@ router.post('/:id/renew', authMiddleware, asyncHandler(async (req: Request, res:
   try {
     const result = await scheduler.renewDomain(config, domainId);
 
-    if (!result) {
-      sendError(res, 'Renewal failed');
+    if (!result.success) {
+      sendError(res, result.message || 'Renewal failed');
       return;
     }
 

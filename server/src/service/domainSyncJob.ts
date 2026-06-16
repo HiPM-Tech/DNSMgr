@@ -17,7 +17,11 @@ let syncInterval: NodeJS.Timeout | null = null;
 /**
  * 同步检测续期域名
  */
-async function syncRenewableDomains(account: any, providerDomainSet: Set<string>): Promise<void> {
+async function syncRenewableDomains(
+  account: any,
+  providerDomainSet: Set<string>,
+  providerDomainExpiryMap: Map<string, string>,
+): Promise<void> {
   const accountId = account.id;
   const accountName = account.name;
 
@@ -32,6 +36,7 @@ async function syncRenewableDomains(account: any, providerDomainSet: Set<string>
     log.info(`Checking ${renewableDomains.length} renewable domains for account: ${accountName}`);
 
     let disabledCount = 0;
+    let updatedExpiryCount = 0;
     const disabledDomains: string[] = [];
 
     for (const renewableDomain of renewableDomains) {
@@ -46,18 +51,29 @@ async function syncRenewableDomains(account: any, providerDomainSet: Set<string>
         continue;
       }
 
-      // 如果域名不在提供商列表中，且当前状态是启用，则禁用
       const isEnabled = Boolean((renewableDomain as any).enabled);
-      if (!providerDomainSet.has(domainName) && isEnabled) {
+
+      if (providerDomainSet.has(domainName)) {
+        // 域名存在于提供商列表中 — 同步到期时间
+        const providerExpiry = providerDomainExpiryMap.get(domainName);
+        const localExpiry = (renewableDomain as any).expires_at;
+        if (providerExpiry && providerExpiry !== localExpiry) {
+          await RenewableDomainOperations.updateExpiresAt((renewableDomain as any).id, providerExpiry);
+          updatedExpiryCount++;
+          log.debug(`Updated expires_at for renewable domain: ${domainName}`, {
+            from: localExpiry,
+            to: providerExpiry,
+          });
+        }
+      } else if (isEnabled) {
+        // 域名不在提供商列表中，且当前状态是启用，则禁用
         log.warn(`Renewable domain not found in provider, disabling: ${domainName}`, {
           accountId,
           renewableDomainId: (renewableDomain as any).id,
         });
 
-        // 禁用续期域名
         await RenewableDomainOperations.toggleEnabled((renewableDomain as any).id, false);
 
-        // 记录审计日志（使用系统用户 ID 0）
         try {
           await logAuditOperation(
             0, // System user
@@ -69,7 +85,7 @@ async function syncRenewableDomains(account: any, providerDomainSet: Set<string>
               reason: 'Renewable domain not found in provider API',
               thirdId: (renewableDomain as any).third_id,
             },
-            undefined // No request object for scheduled tasks
+            undefined
           );
         } catch (auditError) {
           log.error('Failed to log audit operation for renewable domain', {
@@ -80,8 +96,7 @@ async function syncRenewableDomains(account: any, providerDomainSet: Set<string>
 
         disabledCount++;
         disabledDomains.push(domainName);
-      } else if (!providerDomainSet.has(domainName)) {
-        // 域名不在提供商列表中，但已经是禁用状态，跳过
+      } else {
         log.debug(`Renewable domain already disabled, skipping: ${domainName}`, {
           accountId,
           renewableDomainId: (renewableDomain as any).id,
@@ -89,6 +104,9 @@ async function syncRenewableDomains(account: any, providerDomainSet: Set<string>
       }
     }
 
+    if (updatedExpiryCount > 0) {
+      log.info(`Updated expires_at for ${updatedExpiryCount} renewable domains`, { accountId, accountName });
+    }
     if (disabledCount > 0) {
       log.info(`Disabled ${disabledCount} renewable domains`, {
         accountId,
@@ -124,7 +142,7 @@ async function syncAccountDomains(account: any): Promise<void> {
     const dnsAdapter = createAdapter(account.type, cfg);
 
     // 分页获取所有域名
-    const providerDomains: Array<{ Domain: string; ThirdId: string }> = [];
+    const providerDomains: Array<{ Domain: string; ThirdId: string; ExpiresAt?: string }> = [];
     let page = 1;
     const pageSize = 50;
     let hasMore = true;
@@ -144,6 +162,7 @@ async function syncAccountDomains(account: any): Promise<void> {
           providerDomains.push({
             Domain: domain.Domain || domain.domain || domain.name,
             ThirdId: domain.ThirdId || domain.third_id || domain.id,
+            ExpiresAt: domain.ExpiresAt || domain.expires_at || domain.expiry_date || undefined,
           });
         });
 
@@ -205,6 +224,14 @@ async function syncAccountDomains(account: any): Promise<void> {
     const providerDomainSet = new Set(
       providerDomains.map(d => normalizeDomain(d.Domain))
     );
+
+    // 创建提供商域名到期时间映射（用于同步续期域名到期时间）
+    const providerDomainExpiryMap = new Map<string, string>();
+    for (const d of providerDomains) {
+      if (d.ExpiresAt) {
+        providerDomainExpiryMap.set(normalizeDomain(d.Domain), d.ExpiresAt);
+      }
+    }
 
     // 检查数据库中的域名是否在提供商列表中
     let disabledCount = 0;
@@ -271,7 +298,7 @@ async function syncAccountDomains(account: any): Promise<void> {
     }
 
     // Sync renewable_domains table
-    await syncRenewableDomains(account, providerDomainSet);
+    await syncRenewableDomains(account, providerDomainSet, providerDomainExpiryMap);
   } catch (error) {
     log.error(`Failed to sync account domains`, {
       accountId,
