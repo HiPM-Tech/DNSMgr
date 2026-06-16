@@ -16,14 +16,16 @@ export interface Provider {
   name: string;
   configFields: ProviderField[];
   capabilities?: {
-    remark: boolean;
-    status: boolean;
-    redirect: boolean;
+    dns: {
+      remark: boolean;
+      status: boolean;
+      redirect: boolean;
+      weight: boolean;
+      line: boolean;
+      cnameFlattening: boolean;
+      recordTypes: string[];
+    } | null;
     log: boolean;
-    weight: boolean;
-    line: boolean;
-    cnameFlattening: boolean;
-    dns: boolean;
     renewal: boolean;
   };
   features?: string[];
