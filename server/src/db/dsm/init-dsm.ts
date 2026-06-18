@@ -67,6 +67,12 @@ export async function initializeDSM(dryRun = false): Promise<void> {
 
       await versionManager.recordDSMVersion(appVersion);
       log.info( `✅ DSM version ${appVersion} recorded.`);
+
+      // 强制 WAL checkpoint，确保所有更改写入主数据库文件
+      if (conn.checkpoint) {
+        await conn.checkpoint();
+        log.info( '✅ WAL checkpoint completed after init.');
+      }
     } else {
       log.warn( '⚠️ Dry run finished. No changes were made.');
     }

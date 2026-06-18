@@ -66,6 +66,12 @@ class DriverConnectionWrapper implements DatabaseConnection {
   async close(): Promise<void> {
     return this.driver.close();
   }
+
+  async checkpoint(): Promise<void> {
+    if (this.driver.checkpoint) {
+      await this.driver.checkpoint();
+    }
+  }
 }
 
 /** 连接管理器 */

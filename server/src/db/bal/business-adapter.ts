@@ -3638,8 +3638,35 @@ export const WhoisOperations = {
         { operation: 'Whois.setCachedWhois', table: 'whois_cache' }
       );
     }
+
+    // 只保留最近 100 条缓存，防止 whois_cache 表无限膨胀
+    await trimWhoisCache(dbType);
   },
 };
+
+/** 将 whois_cache 裁剪到最多 100 条 */
+async function trimWhoisCache(dbType: string): Promise<void> {
+  try {
+    const keepSql = `SELECT domain_name FROM whois_cache ORDER BY cached_at DESC LIMIT 100`;
+    if (dbType === 'mysql') {
+      await executeInternal(
+        `DELETE FROM whois_cache WHERE domain_name NOT IN (
+          SELECT domain_name FROM (${keepSql}) AS keep
+        )`,
+        [],
+        { operation: 'Whois.trimWhoisCache', table: 'whois_cache' }
+      );
+    } else {
+      await executeInternal(
+        `DELETE FROM whois_cache WHERE domain_name NOT IN (${keepSql})`,
+        [],
+        { operation: 'Whois.trimWhoisCache', table: 'whois_cache' }
+      );
+    }
+  } catch (e) {
+    // 裁剪失败不影响主流程，仅记录
+  }
+}
 
 // ============================================================================
 // Renewable Domain Operations - 续期域名操作

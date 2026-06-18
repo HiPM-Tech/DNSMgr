@@ -73,6 +73,9 @@ export interface DatabaseDriver {
   /** 关闭连接 */
   close(): Promise<void>;
 
+  /** 强制 checkpoint（SQLite WAL 模式用，其他驱动无操作） */
+  checkpoint?(): Promise<void>;
+
   // ==================== SQL 方言 ====================
   
   /** 转义标识符 */

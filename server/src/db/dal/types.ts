@@ -46,6 +46,7 @@ export interface DatabaseConnection {
 
   raw(): RawConnection;
   close(): Promise<void>;
+  checkpoint?(): Promise<void>;
 }
 
 /** 列类型定义 */

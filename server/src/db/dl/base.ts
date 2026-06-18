@@ -117,6 +117,11 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract raw(): unknown;
   abstract close(): Promise<void>;
 
+  /** 强制 checkpoint（默认无操作，SQLite WAL 模式会覆写） */
+  async checkpoint(): Promise<void> {
+    // 默认无操作
+  }
+
   // ==================== SQL 方言（必须由子类实现） ====================
 
   abstract escapeIdentifier(name: string): string;

@@ -38,20 +38,10 @@ function isModeAllowed(method: string, modes?: string[]): boolean {
   return modes.some(m => MODE_METHOD_MAP[m] === method);
 }
 
-interface CacheEntry {
-  result: WhoisResult;
-  timestamp: number;
-}
-
 export class WhoisLookup {
-  private cache = new Map<string, CacheEntry>();
-  private cacheTtl = 60 * 60 * 1000; // 1 小时
 
   async query(domain: string, options: QueryOptions = {}): Promise<WhoisResult | null> {
     const { preferSubdomain = true, timeout = 30000, skipParentFallback = false, skipUplevel = false, modes } = options;
-
-    const cached = this.getCached(domain);
-    if (cached) return cached;
 
     const rootDomain = getRootDomain(domain);
     const isSub = domain !== rootDomain;
@@ -69,7 +59,6 @@ export class WhoisLookup {
         dnsResult.apexExpiryDate = apexResult.expiryDate;
         dnsResult.apexRegistrar = apexResult.registrar;
       }
-      this.setCached(domain, dnsResult);
       return dnsResult;
     }
 
@@ -84,7 +73,6 @@ export class WhoisLookup {
         subResult.apexExpiryDate = apexResult.expiryDate;
         subResult.apexRegistrar = apexResult.registrar;
       }
-      this.setCached(domain, subResult);
       return subResult;
     }
 
@@ -94,7 +82,6 @@ export class WhoisLookup {
         nameServers: apexResult.nameServers, raw: apexResult.raw,
         apexExpiryDate: apexResult.expiryDate, apexRegistrar: apexResult.registrar,
       };
-      this.setCached(domain, result);
       return result;
     }
 
@@ -105,7 +92,6 @@ export class WhoisLookup {
 
     if (subR?.expiryDate) {
       if (rootR?.expiryDate) { subR.apexExpiryDate = rootR.expiryDate; subR.apexRegistrar = rootR.registrar; }
-      this.setCached(domain, subR);
       return subR;
     }
     if (rootR?.expiryDate) {
@@ -114,16 +100,10 @@ export class WhoisLookup {
         nameServers: rootR.nameServers, raw: rootR.raw,
         apexExpiryDate: rootR.expiryDate, apexRegistrar: rootR.registrar,
       };
-      this.setCached(domain, result);
       return result;
     }
 
     return null;
-  }
-
-  clearCache(domain?: string): void {
-    if (domain) this.cache.delete(domain);
-    else this.cache.clear();
   }
 
   // ========== DNS 提供商查询 ==========
@@ -164,13 +144,13 @@ export class WhoisLookup {
   private async queryApexOnly(domain: string, timeout: number, modes?: string[]): Promise<WhoisResult | null> {
     let r = await this.queryRegistry(domain, APEX_PROVIDERS, 'rdap', timeout, modes) ||
              await this.queryRegistry(domain, APEX_PROVIDERS, 'whois', timeout, modes);
-    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+    if (r?.expiryDate) return r;
     r = await this.queryDnsProvider(domain);
-    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+    if (r?.expiryDate) return r;
     r = await this.queryRegistry(domain, APEX_PROVIDERS, 'http-api', timeout, modes);
-    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+    if (r?.expiryDate) return r;
     r = await this.queryThirdParty(domain, timeout, modes);
-    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+    if (r?.expiryDate) return r;
     return null;
   }
 
@@ -187,22 +167,22 @@ export class WhoisLookup {
   /** 纯子域查询（skipParentFallback）：DNS → RDAP → WHOIS → HTTP-API → 第三方 */
   private async querySubdomainOnly(domain: string, timeout: number, skipUplevel = false, modes?: string[]): Promise<WhoisResult | null> {
     let r = await this.queryDnsProvider(domain);
-    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+    if (r?.expiryDate) return r;
 
     r = await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'rdap', timeout, modes) ||
         await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'whois', timeout, modes) ||
         await this.queryRegistry(domain, SUBDOMAIN_PROVIDERS, 'http-api', timeout, modes);
-    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+    if (r?.expiryDate) return r;
 
     if (!skipUplevel) {
       r = await this.queryAll(SUBDOMAIN_PROVIDERS, 'rdap', timeout, modes) ||
           await this.queryAll(SUBDOMAIN_PROVIDERS, 'whois', timeout, modes) ||
           await this.queryAll(SUBDOMAIN_PROVIDERS, 'http-api', timeout, modes);
-      if (r?.expiryDate) { this.setCached(domain, r); return r; }
+      if (r?.expiryDate) return r;
     }
 
     r = await this.queryThirdParty(domain, timeout, modes);
-    if (r?.expiryDate) { this.setCached(domain, r); return r; }
+    if (r?.expiryDate) return r;
     return null;
   }
 
@@ -256,17 +236,6 @@ export class WhoisLookup {
     return results.find(r => r?.expiryDate) || null;
   }
 
-  // ========== 缓存 ==========
-
-  private getCached(domain: string): WhoisResult | null {
-    const entry = this.cache.get(domain);
-    if (entry && Date.now() - entry.timestamp < this.cacheTtl) return entry.result;
-    return null;
-  }
-
-  private setCached(domain: string, result: WhoisResult): void {
-    this.cache.set(domain, { result, timestamp: Date.now() });
-  }
 }
 
 // ========== 独立函数 ==========

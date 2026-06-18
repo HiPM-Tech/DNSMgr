@@ -58,6 +58,7 @@ export class SQLiteDriver extends BaseDriver {
       // 配置 SQLite (使用 exec 执行 PRAGMA，node:sqlite 的 DatabaseSync 没有独立的 pragma 方法)
       if (config.enableWAL !== false) {
         this.db.exec('PRAGMA journal_mode = WAL');
+        this.db.exec('PRAGMA synchronous = NORMAL');
       }
       if (config.foreignKeys !== false) {
         this.db.exec('PRAGMA foreign_keys = ON');
@@ -171,9 +172,21 @@ export class SQLiteDriver extends BaseDriver {
     return this.db;
   }
 
+  /** 强制 WAL checkpoint，将 WAL 内容写入主数据库文件 */
+  async checkpoint(): Promise<void> {
+    if (this.db) {
+      this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    }
+  }
+
   async close(): Promise<void> {
     log.info('Closing database', { stats: this._stats });
     if (this.db) {
+      try {
+        await this.checkpoint();
+      } catch (e) {
+        log.warn('WAL checkpoint failed during close', { error: e });
+      }
       this.db.close();
       this.db = null;
     }
