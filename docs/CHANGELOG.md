@@ -1,5 +1,19 @@
 # 更新日志
 
+## [2.0.7] - 2026-06-19
+
+### 🚀 新功能
+- **MCP 禁用态页面**: 全局 MCP 关闭时 `/dash/mcp` 显示禁用提示而非加载管理 UI，支持 10 种语言
+
+### 🐛 Bug 修复
+- **Gcore 域名误禁用**: `request()` 静默吞掉所有 API 错误返回空对象，导致 `domainSyncJob` 认为账号下没有域名而禁用全部域名。改为请求失败时 `throw`，并增加 `getError()` 安全网双重防护
+- **SQLite 写入未持久化**: WAL 模式下缺少 `PRAGMA synchronous = NORMAL`，重启后数据丢失。新增关闭前 WAL checkpoint + init 完成后强制 checkpoint
+
+### 🔧 优化
+- **WHOIS 内存缓存移除**: `WhoisLookup.cache` 无上限 Map 移除，完全依赖 `whois_cache` 数据库缓存（3 小时 TTL），解决内存占用
+- **WHOIS 数据库缓存裁剪**: `whois_cache` 表最多保留 100 条，防止无限膨胀
+- **SQLite 写入性能**: `PRAGMA synchronous = NORMAL` 消除每次提交的 fsync 等待
+
 ## [2.0.6] - 2026-06-16
 
 ### 🚀 新功能
