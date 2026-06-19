@@ -112,32 +112,31 @@ export class GcoreAdapter implements DnsAdapter {
   }
 
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
-    try {
-      const offset = (page - 1) * pageSize;
-      const params = new URLSearchParams({
-        limit: String(pageSize),
-        offset: String(offset),
-      });
+    const offset = (page - 1) * pageSize;
+    const params = new URLSearchParams({
+      limit: String(pageSize),
+      offset: String(offset),
+    });
 
-      if (keyword) {
-        params.set('name', keyword);
-      }
-
-      const res = await this.request<any>('GET', `/zones?${params.toString()}`);
-
-      const zones: any[] = Array.isArray(res.zones) ? res.zones : [];
-      const list = zones.map((zone: any) => ({
-        Domain: zone.name,
-        ThirdId: String(zone.id),
-        RecordCount: 0,
-      }));
-
-      return { total: res.total_amount ?? list.length, list };
-    } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
-      log.error('getDomainList failed', this.error);
-      return { total: 0, list: [] };
+    if (keyword) {
+      params.set('name', keyword);
     }
+
+    this.error = '';
+    const res = await this.request<any>('GET', `/zones?${params.toString()}`);
+
+    if (this.error) {
+      throw new Error(`Gcore API error: ${this.error}`);
+    }
+
+    const zones: any[] = Array.isArray(res.zones) ? res.zones : [];
+    const list = zones.map((zone: any) => ({
+      Domain: zone.name,
+      ThirdId: String(zone.id),
+      RecordCount: 0,
+    }));
+
+    return { total: res.total_amount ?? list.length, list };
   }
 
   async getDomainRecords(

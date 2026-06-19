@@ -211,6 +211,17 @@ async function syncAccountDomains(account: any): Promise<void> {
       return;
     }
 
+    // 安全网：提供商返回 0 个域名但数据库有域名时，检查适配器错误状态
+    if (providerDomains.length === 0) {
+      const adapterError = dnsAdapter.getError?.();
+      if (adapterError) {
+        log.warn(`Provider returned empty domain list but adapter has error, skipping sync`, {
+          accountId, accountName, adapterError,
+        });
+        return;
+      }
+    }
+
     log.info(`Fetched ${providerDomains.length} domains from provider`, {
       accountId,
       accountName,
