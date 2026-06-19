@@ -20,8 +20,9 @@ export async function queryDNSUDP(
 ): Promise<DNSResponse | null> {
   return new Promise((resolve) => {
     const { host, port } = parseHostPort(serverAddress, 53);
+    const isIPv6 = host.includes(':');
 
-    const socket = dgram.createSocket('udp4');
+    const socket = dgram.createSocket(isIPv6 ? 'udp6' : 'udp4');
     const queryBuffer = encodeDNSQuery(domain, type);
 
     let timer: NodeJS.Timeout;
