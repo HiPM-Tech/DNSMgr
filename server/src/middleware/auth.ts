@@ -1,71 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 import { JwtPayload } from '../types';
 import { isAdmin, normalizeRole } from '../utils/roles';
-import { SecretOperations } from '../db/bal/business-adapter';
 import { verifyToken, hasServicePermission, hasDomainPermission } from '../service/token';
 import { TokenPayload } from '../types/token';
+import { getJwtSecret, signToken } from '../service/jwt';
 import { createLogger } from '../lib/logger';
 
 const log = createLogger('HTTP').sub('Middleware').sub('Auth');
-// JWT密钥配置 - 如果没有设置则随机生成
-const BASE_JWT_SECRET = (() => {
-  const secret = process.env.JWT_SECRET;
-
-  // 如果设置了环境变量，使用环境变量
-  if (secret) {
-    // 生产环境检查密钥强度
-    if (process.env.NODE_ENV === 'production' && secret.length < 32) {
-      log.error('JWT_SECRET must be at least 32 characters long in production!');
-      process.exit(1);
-    }
-    return secret;
-  }
-
-  // 如果没有设置，生成随机密钥（每次重启服务会变化，仅适合开发环境）
-    const generatedSecret = crypto.randomBytes(32).toString('hex');
-    log.warn('JWT_SECRET not set, using randomly generated secret.');
-    log.warn('For production, please set JWT_SECRET environment variable to ensure token persistence across restarts.');
-    return generatedSecret;
-})();
-
-const RUNTIME_SECRET_KEY = 'jwt_runtime';
-let runtimeSecretCache: string | null = null;
-
-async function getRuntimeSecret(): Promise<string> {
-  if (runtimeSecretCache) return runtimeSecretCache;
-
-  try {
-    // 使用业务适配器获取运行时密钥
-    const value = await SecretOperations.getRuntimeSecret(RUNTIME_SECRET_KEY);
-    if (value) {
-      runtimeSecretCache = value;
-      return value;
-    }
-  } catch {
-    // Table might not exist, will create below
-  }
-
-  // Fallback in case initSchema has not rotated secrets yet.
-  const generated = crypto.randomBytes(32).toString('hex');
-
-  try {
-    // 使用业务适配器创建表和插入密钥
-    await SecretOperations.ensureRuntimeSecretsTable();
-    await SecretOperations.setRuntimeSecret(RUNTIME_SECRET_KEY, generated);
-  } catch (e) {
-    log.error('Error creating runtime_secrets table', { error: e });
-  }
-
-  runtimeSecretCache = generated;
-  return generated;
-}
-
-async function getJwtSecret(): Promise<string> {
-  const runtimeSecret = await getRuntimeSecret();
-  return `${BASE_JWT_SECRET}:${runtimeSecret}`;
-}
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   // Try to get token from httpOnly cookie first, then fallback to Authorization header
@@ -256,7 +198,4 @@ export function requireTokenDomainPermission(paramName: string = 'id') {
   };
 }
 
-export async function signToken(payload: JwtPayload): Promise<string> {
-  const jwtSecret = await getJwtSecret();
-  return jwt.sign(payload, jwtSecret, { expiresIn: '7d' });
-}
+

@@ -11,35 +11,9 @@ import { createLogger } from '../lib/logger';
 import { getClientIP } from '../middleware/clientIP';
 import { JwtPayload } from '../types';
 import { TokenPayload } from '../types/token';
-import crypto from 'crypto';
+import { getJwtSecret } from './jwt';
 
 const log = createLogger('Websocket');
-// JWT密钥配置
-const BASE_JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
-const RUNTIME_SECRET_KEY = 'jwt_runtime';
-let runtimeSecretCache: string | null = null;
-
-async function getRuntimeSecret(): Promise<string> {
-  if (runtimeSecretCache) return runtimeSecretCache;
-
-  try {
-    const { SecretOperations } = await import('../db/bal/business-adapter');
-    const value = await SecretOperations.getRuntimeSecret(RUNTIME_SECRET_KEY);
-    if (value) {
-      runtimeSecretCache = value;
-      return value;
-    }
-  } catch {
-    // Table might not exist
-  }
-
-  return crypto.randomBytes(32).toString('hex');
-}
-
-async function getJwtSecret(): Promise<string> {
-  const runtimeSecret = await getRuntimeSecret();
-  return `${BASE_JWT_SECRET}:${runtimeSecret}`;
-}
 
 interface WSClient {
   ws: WebSocket;

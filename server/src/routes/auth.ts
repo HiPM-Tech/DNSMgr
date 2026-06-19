@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { authMiddleware, signToken } from '../middleware/auth';
+import { authMiddleware } from '../middleware/auth';
+import { signToken } from '../service/jwt';
 import { User } from '../types';
 import { checkLoginAllowed, recordFailedAttempt, clearLoginAttempts } from '../service/loginLimit';
 import { sendEmailVerificationCode, verifyEmailVerificationCode } from '../service/emailVerification';
