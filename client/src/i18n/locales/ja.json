@@ -1444,6 +1444,7 @@
             "enableMCP": "MCPを有効にする",
             "enabled": "有効",
             "disabled": "無効",
+            "disabledDesc": "MCPは現在無効です。システム設定 &gt; セキュリティ設定で有効にすると、APIキーとMCP構成を管理できます。",
             "lastUpdated": "最終更新日",
             "toolsOverview": "MCPツール概要",
             "toolsSummary": "合計: {available}/{total} ツール利用可能 ({percent}%)",

@@ -1413,6 +1413,7 @@
             "enableMCP": "Включить MCP",
             "enabled": "Включено",
             "disabled": "Отключено",
+            "disabledDesc": "MCP в настоящее время отключён. Включите его в Система &gt; Безопасность, чтобы управлять ключами API и конфигурацией MCP.",
             "lastUpdated": "Последнее обновление",
             "toolsOverview": "Обзор инструментов MCP",
             "toolsSummary": "Всего: {available}/{total} инструментов доступно ({percent}%)",

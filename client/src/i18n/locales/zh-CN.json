@@ -1414,6 +1414,7 @@
             "enableMCP": "启用 MCP",
             "enabled": "已启用",
             "disabled": "已禁用",
+            "disabledDesc": "MCP 当前已关闭，请在系统设置 &gt; 安全设置中启用后管理 API Keys 和 MCP 配置。",
             "lastUpdated": "最后更新时间",
             "toolsOverview": "MCP 工具概览",
             "toolsSummary": "总计：{available}/{total} 工具可用 ({percent}%)",

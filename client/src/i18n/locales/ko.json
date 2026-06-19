@@ -1416,6 +1416,7 @@
             "enableMCP": "MCP 활성화",
             "enabled": "활성화됨",
             "disabled": "비활성화됨",
+            "disabledDesc": "MCP가 현재 비활성화되어 있습니다. 시스템 설정 &gt; 보안 설정에서 활성화한 후 API 키 및 MCP 구성을 관리하세요.",
             "lastUpdated": "마지막 업데이트",
             "toolsOverview": "MCP 도구 개요",
             "toolsSummary": "총: {available}/{total} 도구 사용 가능 ({percent}%)",

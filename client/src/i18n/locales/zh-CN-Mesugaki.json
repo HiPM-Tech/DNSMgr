@@ -1414,6 +1414,7 @@
             "enableMCP": "启用 MCP 啦",
             "enabled": "已经开了哦",
             "disabled": "关着呢，杂鱼～",
+            "disabledDesc": "MCP 现在关着呢，杂鱼～去系统设置 &gt; 安全设置里打开才能管理 API Keys 和 MCP 配置啦，这都不会吗？❤",
             "lastUpdated": "最后更新，别搞忘了",
             "toolsOverview": "MCP 工具有啥？",
             "toolsSummary": "一共 {available}/{total} 个工具能用 ({percent}%)，杂鱼满意了吗❤",

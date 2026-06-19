@@ -1404,6 +1404,7 @@
             "enableMCP": "MCP aktivieren",
             "enabled": "Aktiviert",
             "disabled": "Deaktiviert",
+            "disabledDesc": "MCP ist derzeit deaktiviert. Aktivieren Sie es in Systemeinstellungen &gt; Sicherheit, um API-Schlüssel und die MCP-Konfiguration zu verwalten.",
             "lastUpdated": "Zuletzt aktualisiert",
             "toolsOverview": "MCP-Tool-Übersicht",
             "toolsSummary": "Gesamt: {available}/{total} Tools verfügbar ({percent}%)",

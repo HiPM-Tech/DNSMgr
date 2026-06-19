@@ -1414,6 +1414,7 @@
             "enableMCP": "Enable MCP",
             "enabled": "Enabled",
             "disabled": "Disabled",
+            "disabledDesc": "MCP is currently disabled. Enable it in the System &gt; Security settings to manage API Keys and MCP configuration.",
             "lastUpdated": "Last Updated",
             "toolsOverview": "MCP Tools Overview",
             "toolsSummary": "Total: {available}/{total} tools available ({percent}%)",

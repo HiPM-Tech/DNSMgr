@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Dialog, Divider, Input, Loading, Space, Table, Tag, Tabs, Tooltip } from 'tdesign-react';
-import { AddIcon, CopyIcon, DeleteIcon, EditIcon } from 'tdesign-icons-react';
+import { AddIcon, CopyIcon, DeleteIcon, EditIcon, InfoCircleIcon } from 'tdesign-icons-react';
 import { addToast } from '../hooks/useToast';
 import { mcpApi } from '../api';
 import { useI18n } from '../contexts/I18nContext';
@@ -111,6 +111,18 @@ export function McpManagement() {
   const { t, locale } = useI18n();
   const baseUrl = window.location.origin;
   const queryClient = useQueryClient();
+
+  // 检查全局 MCP 开关状态
+  const { data: mcpStatus } = useQuery({
+    queryKey: ['mcp-status'],
+    queryFn: async () => {
+      const res = await mcpApi.getStatus();
+      if (res.data.code === 0) return res.data.data;
+      return { enabled: false };
+    },
+    staleTime: 30_000,
+  });
+  const isMcpEnabled = mcpStatus?.enabled ?? false;
   const [activeTab, setActiveTab] = useState<'keys' | 'oauth'>('keys');
   const [showCreateKeyModal, setShowCreateKeyModal] = useState(false);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
@@ -439,6 +451,16 @@ export function McpManagement() {
   };
 
   // ─── Render ──────────────────────────────────────────────
+
+  if (!isMcpEnabled) {
+    return (
+      <div className="page-shell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, opacity: 0.6 }}>
+        <InfoCircleIcon size={48} />
+        <h3>{t('common.mcp')}</h3>
+        <p>{t('mcp.disabledDesc')}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page-shell">

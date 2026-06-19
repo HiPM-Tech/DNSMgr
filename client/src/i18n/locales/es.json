@@ -1419,6 +1419,7 @@
             "enableMCP": "Habilitar MCP",
             "enabled": "Habilitado",
             "disabled": "Deshabilitado",
+            "disabledDesc": "MCP está actualmente deshabilitado. Actívalo en Sistema &gt; Seguridad para administrar claves API y la configuración de MCP.",
             "lastUpdated": "Última actualización",
             "toolsOverview": "Resumen de herramientas MCP",
             "toolsSummary": "Total: {available}/{total} herramientas disponibles ({percent}%)",

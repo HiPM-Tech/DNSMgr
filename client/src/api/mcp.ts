@@ -73,6 +73,9 @@ export interface McpOAuthAccessToken {
 // ─── MCP API ───────────────────────────────────────────────────────────────
 
 export const mcpApi = {
+  // Status (public, no auth required)
+  getStatus: () => api.get<ApiResponse<{ enabled: boolean }>>('/mcp/status'),
+
   // Global Config
   getGlobalConfig: () => api.get<ApiResponse<McpGlobalConfig>>('/mcp/config'),
   updateGlobalConfig: (enabled: boolean) => 

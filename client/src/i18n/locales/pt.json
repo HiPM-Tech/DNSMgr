@@ -1413,6 +1413,7 @@
             "enableMCP": "Habilitar MCP",
             "enabled": "Habilitado",
             "disabled": "Desabilitado",
+            "disabledDesc": "O MCP está atualmente desabilitado. Ative-o em Sistema &gt; Segurança para gerenciar chaves de API e configuração do MCP.",
             "lastUpdated": "Última atualização",
             "toolsOverview": "Visão geral das ferramentas MCP",
             "toolsSummary": "Total: {available}/{total} ferramentas disponíveis ({percent}%)",

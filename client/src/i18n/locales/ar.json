@@ -1387,6 +1387,7 @@
             "enableMCP": "تمكين MCP",
             "enabled": "مفعّل",
             "disabled": "معطّل",
+            "disabledDesc": "MCP معطّل حاليًا. قم بتمكينه من النظام &gt; إعدادات الأمان لإدارة مفاتيح API وتكوين MCP.",
             "lastUpdated": "آخر تحديث",
             "toolsOverview": "نظرة عامة على أدوات MCP",
             "toolsSummary": "الإجمالي: {available}/{total} أدوات متاحة ({percent}%)",
