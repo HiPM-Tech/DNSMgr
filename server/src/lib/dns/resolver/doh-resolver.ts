@@ -266,6 +266,11 @@ export async function queryDoH(
     });
 
     if (!response.ok) {
+      // HTTP 4xx 时尝试 wire format 回退
+      if (response.status >= 400 && response.status < 500) {
+        log.debug(`DoH JSON format rejected (HTTP ${response.status}), trying wire format: ${domain}`);
+        return queryDoHWire(domain, type, dohUrl, timeout);
+      }
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 

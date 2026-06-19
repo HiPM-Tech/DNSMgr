@@ -2,7 +2,7 @@
  * DNS 解析器核心实现
  */
 
-import { DNSQueryType, DNSResponse, DNSQueryOptions, DNSResolverResult, DNSServerType } from './types';
+import { DNSQueryType, DNSResponse, DNSQueryOptions, DNSResolverResult, DNSServerType, parseHostPort } from './types';
 import { getEncryptedServers, getPlainServers } from './servers';
 import { queryDoH } from './doh-resolver';
 import { queryDoT as queryDoTImpl } from './dot-resolver';
@@ -194,8 +194,7 @@ export class DNSResolver {
 
       log.debug(`Using proxy for DoT query: ${domain}`);
 
-      const [host, portStr] = address.split(':');
-      const port = parseInt(portStr) || 853;
+      const { host, port } = parseHostPort(address, 853);
 
       // 构建代理配置
       const proxyCfg: import('./proxy-tunnel').ProxyConfig = {

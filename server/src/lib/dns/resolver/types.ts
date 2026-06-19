@@ -61,3 +61,22 @@ export interface DNSResolverResult {
   source: string;
   error?: string;
 }
+
+/**
+ * 解析 host:port 地址，兼容 IPv4、IPv6（中括号）、域名
+ */
+export function parseHostPort(address: string, defaultPort: number): { host: string; port: number } {
+  const ipv6Match = address.match(/^\[([^\]]+)\](?::(\d+))?$/);
+  if (ipv6Match) {
+    return { host: ipv6Match[1], port: ipv6Match[2] ? parseInt(ipv6Match[2], 10) : defaultPort };
+  }
+  const lastColon = address.lastIndexOf(':');
+  if (lastColon === -1) {
+    return { host: address, port: defaultPort };
+  }
+  const port = parseInt(address.slice(lastColon + 1), 10);
+  if (isNaN(port)) {
+    return { host: address, port: defaultPort };
+  }
+  return { host: address.slice(0, lastColon), port };
+}

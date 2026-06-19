@@ -3,7 +3,7 @@
  */
 
 import * as tls from 'tls';
-import { DNSQueryType, DNSResponse } from './types';
+import { DNSQueryType, DNSResponse, parseHostPort } from './types';
 import { encodeDNSQuery, decodeDNSResponse } from './doh-resolver';
 import { createLogger } from '../../logger';
 
@@ -18,8 +18,7 @@ export async function queryDoT(
   timeout: number = 5000
 ): Promise<DNSResponse | null> {
   return new Promise((resolve) => {
-    const [host, portStr] = serverAddress.split(':');
-    const port = parseInt(portStr) || 853;
+    const { host, port } = parseHostPort(serverAddress, 853);
 
     const queryBuffer = encodeDNSQuery(domain, type);
 

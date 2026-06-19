@@ -4,7 +4,7 @@
 
 import * as dgram from 'dgram';
 import * as net from 'net';
-import { DNSQueryType, DNSResponse, DNSServerType } from './types';
+import { DNSQueryType, DNSResponse, DNSServerType, parseHostPort } from './types';
 import { encodeDNSQuery, decodeDNSResponse } from './doh-resolver';
 import { createLogger } from '../../logger';
 
@@ -19,8 +19,7 @@ export async function queryDNSUDP(
   timeout: number = 3000
 ): Promise<DNSResponse | null> {
   return new Promise((resolve) => {
-    const [host, portStr] = serverAddress.split(':');
-    const port = parseInt(portStr) || 53;
+    const { host, port } = parseHostPort(serverAddress, 53);
 
     const socket = dgram.createSocket('udp4');
     const queryBuffer = encodeDNSQuery(domain, type);
@@ -85,9 +84,7 @@ export async function queryDNSTCP(
   timeout: number = 5000
 ): Promise<DNSResponse | null> {
   return new Promise((resolve) => {
-    const [host, portStr] = serverAddress.split(':');
-    const port = parseInt(portStr) || 53;
-
+    const { host, port } = parseHostPort(serverAddress, 53);
     const queryBuffer = encodeDNSQuery(domain, type);
 
     // TCP DNS 需要在数据前添加 2 字节的长度前缀
