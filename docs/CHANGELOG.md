@@ -1,5 +1,15 @@
 # 更新日志
 
+## [2.0.8] - 2026-06-20
+
+### 🐛 Bug 修复
+- **JWT 密钥多模块不一致导致 WebSocket 鉴权失败**: `auth.ts` 与 `websocket.ts` 各维护一套独立的 `BASE_JWT_SECRET` + `getRuntimeSecret`，若 `JWT_SECRET` 环境变量未设置则生成不同随机密钥，前端 WebSocket 连接被拒绝。统一抽离到 `server/src/service/jwt.ts`，两模块共享同一份密钥
+- **UDP 域名查询不支持 IPv6 DNS 服务器**: `dgram.createSocket('udp4')` 创建的 IPv4-only socket 发送到 IPv6 地址时报 `send EINVAL`。改为通过 `parseHostPort` 检测地址类型，IPv6 用 `udp6` socket、IPv4 用 `udp4` socket
+- **DoH 查询 HTTP 4xx 无回退**: Alidns 对特定域名拒绝 Google JSON API 格式（`?name=&type=`）返回 HTTP 400，导致 DNS 查询失败。改为收到 HTTP 4xx 时自动回退到 `queryDoHWire()`（RFC 8484 wire format）
+
+### 🔧 优化
+- **DNS Resolver IPv6 兼容**: `parseHostPort()` 统一替换 `split(':')`，覆盖 UDP/TCP/DoT 全部 DNS 解析路径
+
 ## [2.0.7] - 2026-06-19
 
 ### 🚀 新功能
