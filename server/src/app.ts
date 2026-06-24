@@ -325,7 +325,9 @@ app.use(helmet({
       formAction: ["'self'"],
     },
   },
+  crossOriginOpenerPolicy: false, // Disable on HTTP to avoid browser warnings
   crossOriginEmbedderPolicy: false, // Allow embedding resources
+  originAgentCluster: false, // Disable on HTTP to avoid browser warnings
 }));
 
 // Parse cookies (for httpOnly JWT cookie)
