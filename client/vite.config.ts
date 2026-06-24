@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
       name: 'remove-crossorigin',
       transformIndexHtml: {
         enforce: 'post',
-        transform(html) {
+        transform(html: string) {
           return html.replace(/\bcrossorigin\b\s*/g, '');
         },
       },
