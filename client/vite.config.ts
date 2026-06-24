@@ -15,11 +15,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), {
       name: 'remove-crossorigin',
-      transformIndexHtml: {
-        enforce: 'post',
-        transform(html: string) {
-          return html.replace(/\bcrossorigin\b\s*/g, '');
-        },
+      transformIndexHtml(html: string) {
+        return html.replace(/\bcrossorigin\b\s*/g, '');
       },
     }],
     define: {
