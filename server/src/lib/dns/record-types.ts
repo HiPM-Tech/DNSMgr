@@ -89,29 +89,62 @@ export const DNS_RECORD_DEFS: Record<RecordType, RecordTypeDef> = {
   // ── 安全 / DNSSEC ─────────────────────────
   SIG:      { type: 'SIG',    label: 'SIG',    valueType: 'text' },
   KEY:      { type: 'KEY',    label: 'KEY',    valueType: 'text' },
-  CERT:     { type: 'CERT',   label: 'CERT',   valueType: 'text' },
-  DS:       { type: 'DS',     label: 'DS',     valueType: 'text' },
-  SSHFP:    { type: 'SSHFP',  label: 'SSHFP',  valueType: 'text' },
-  IPSECKEY: { type: 'IPSECKEY',label:'IPSECKEY',valueType: 'text' },
+  CERT:     { type: 'CERT',   label: 'CERT',   valueType: 'text', extraFields: [
+    { key: 'certType',  label: 'CertType',  dataType: 'number', required: true, min: 0, max: 65535 },
+    { key: 'keyTag',    label: 'KeyTag',    dataType: 'number', required: true, min: 0, max: 65535 },
+    { key: 'algorithm', label: 'Algorithm', dataType: 'number', required: true, min: 0, max: 255 },
+  ]},
+  DS:       { type: 'DS',     label: 'DS',     valueType: 'text', extraFields: [
+    { key: 'keyTag',      label: 'KeyTag',    dataType: 'number', required: true, min: 0, max: 65535 },
+    { key: 'dsAlgorithm', label: 'Algorithm', dataType: 'number', required: true, min: 0, max: 255 },
+    { key: 'digestType',  label: 'DigestType',dataType: 'number', required: true, min: 0, max: 255 },
+  ]},
+  SSHFP:    { type: 'SSHFP',  label: 'SSHFP',  valueType: 'text', extraFields: [
+    { key: 'fpAlgorithm',     label: 'Algorithm',      dataType: 'number', required: true, min: 0, max: 255 },
+    { key: 'fingerprintType', label: 'FingerprintType',dataType: 'number', required: true, min: 0, max: 255 },
+  ]},
+  IPSECKEY: { type: 'IPSECKEY',label:'IPSECKEY',valueType: 'text', extraFields: [
+    { key: 'ipsecPriority',  label: 'Priority',   dataType: 'number', required: true, min: 0, max: 65535 },
+    { key: 'gatewayType',    label: 'GatewayType',dataType: 'number', required: true, min: 0, max: 3 },
+    { key: 'ipsecAlgorithm', label: 'Algorithm',  dataType: 'number', required: true, min: 0, max: 255 },
+  ]},
   RRSIG:    { type: 'RRSIG',  label: 'RRSIG',  valueType: 'text' },
   NSEC:     { type: 'NSEC',   label: 'NSEC',   valueType: 'text' },
-  DNSKEY:   { type: 'DNSKEY', label: 'DNSKEY', valueType: 'text' },
-  TLSA:     { type: 'TLSA',   label: 'TLSA',   valueType: 'text' },
+  DNSKEY:   { type: 'DNSKEY', label: 'DNSKEY', valueType: 'text', extraFields: [
+    { key: 'dnskeyFlags',    label: 'Flags',    dataType: 'number', required: true, min: 0, max: 65535 },
+    { key: 'protocol',       label: 'Protocol', dataType: 'number', required: true, min: 0, max: 255, defaultValue: 3 },
+    { key: 'dnskeyAlgorithm',label:'Algorithm', dataType: 'number', required: true, min: 0, max: 255 },
+  ]},
+  TLSA:     { type: 'TLSA',   label: 'TLSA',   valueType: 'text', extraFields: [
+    { key: 'usage',        label: 'Usage',        dataType: 'number', required: true, min: 0, max: 255 },
+    { key: 'selector',     label: 'Selector',     dataType: 'number', required: true, min: 0, max: 255 },
+    { key: 'matchingType', label: 'MatchingType', dataType: 'number', required: true, min: 0, max: 255 },
+  ]},
   OPENPGPKEY:{type:'OPENPGPKEY',label:'OPENPGPKEY',valueType:'text'},
   NSEC3:        { type: 'NSEC3',    label: 'NSEC3',    valueType: 'text' },
   NSEC3PARAM:   { type: 'NSEC3PARAM',label:'NSEC3PARAM',valueType:'text' },
   TALINK:       { type: 'TALINK',   label: 'TALINK',   valueType: 'text' },
   CDS:          { type: 'CDS',      label: 'CDS',      valueType: 'text' },
   CDNSKEY:      { type: 'CDNSKEY',  label: 'CDNSKEY',  valueType: 'text' },
-  SMIMEA:       { type: 'SMIMEA',   label: 'SMIMEA',   valueType: 'text' },
+  SMIMEA:       { type: 'SMIMEA',   label: 'SMIMEA',   valueType: 'text', extraFields: [
+    { key: 'usage',        label: 'Usage',        dataType: 'number', required: true, min: 0, max: 255 },
+    { key: 'selector',     label: 'Selector',     dataType: 'number', required: true, min: 0, max: 255 },
+    { key: 'matchingType', label: 'MatchingType', dataType: 'number', required: true, min: 0, max: 255 },
+  ]},
   TA:           { type: 'TA',       label: 'TA',       valueType: 'text' },
   TKEY:         { type: 'TKEY',     label: 'TKEY',     valueType: 'text' },
   TSIG:         { type: 'TSIG',     label: 'TSIG',     valueType: 'text' },
-  CAA:          { type: 'CAA',      label: 'CAA',      valueType: 'text' },
+  CAA:          { type: 'CAA',      label: 'CAA',      valueType: 'text', extraFields: [
+    { key: 'flags', label: 'Flags', dataType: 'number', required: true, min: 0, max: 255, defaultValue: 0 },
+  ]},
 
   // ── 现代服务绑定 ──────────────────────────
-  SVCB:  { type: 'SVCB', label: 'SVCB', valueType: 'text' },
-  HTTPS: { type: 'HTTPS',label: 'HTTPS',valueType: 'text' },
+  SVCB:  { type: 'SVCB', label: 'SVCB', valueType: 'text', extraFields: [
+    { key: 'priority', label: 'Priority', dataType: 'number', required: true, min: 0, max: 65535, defaultValue: 1 },
+  ]},
+  HTTPS: { type: 'HTTPS',label: 'HTTPS',valueType: 'text', extraFields: [
+    { key: 'priority', label: 'Priority', dataType: 'number', required: true, min: 0, max: 65535, defaultValue: 1 },
+  ]},
 
   // ── ILNP ──────────────────────────────────
   NID: { type: 'NID', label: 'NID', valueType: 'text' },
@@ -127,7 +160,10 @@ export const DNS_RECORD_DEFS: Record<RecordType, RecordTypeDef> = {
   EID:      { type: 'EID',     label: 'EID',     valueType: 'text' },
   NIMLOC:   { type: 'NIMLOC',  label: 'NIMLOC',  valueType: 'text' },
   ATMA:     { type: 'ATMA',    label: 'ATMA',    valueType: 'text' },
-  URI:      { type: 'URI',     label: 'URI',     valueType: 'text' },
+  URI:      { type: 'URI',     label: 'URI',     valueType: 'text', extraFields: [
+    { key: 'priority', label: 'Priority', dataType: 'number', required: true, min: 0, max: 65535, defaultValue: 10 },
+    { key: 'weight',   label: 'Weight',   dataType: 'number', required: true, min: 0, max: 65535, defaultValue: 1 },
+  ]},
   AVC:      { type: 'AVC',     label: 'AVC',     valueType: 'text' },
   DOA:      { type: 'DOA',     label: 'DOA',     valueType: 'text' },
   AMTRELAY: { type: 'AMTRELAY',label:'AMTRELAY', valueType: 'text' },
@@ -224,4 +260,4 @@ export const DOMAIN_VALUE_TYPES: ReadonlySet<RecordType> = new Set(
     .map(([type]) => type as RecordType),
 );
 
-export const PROXIABLE_RECORD_TYPES: ReadonlySet<RecordType> = new Set(['A', 'AAAA', 'CNAME', 'HTTPS']);
+export const PROXIABLE_RECORD_TYPES: ReadonlySet<RecordType> = new Set(['A', 'AAAA', 'CNAME']);

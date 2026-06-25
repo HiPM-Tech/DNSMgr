@@ -4,7 +4,7 @@ import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
-import type { RecordType } from '../types/record-types';
+import type { RecordType, RecordTypeDef } from '../types/record-types';
 import { DOMAIN_VALUE_TYPES, PROXIABLE_RECORD_TYPES, validateRecordValue, getRecordTypeDef } from '../types/record-types';
 import type { ExtraFieldDef } from '../types/record-types';
 import './RecordForm.css';
@@ -37,6 +37,37 @@ interface SrvFields {
   weight: number;
   port: string;
   target: string;
+}
+
+const PREFIX_SKIP_KEYS = new Set(['mx', 'value', 'port']);
+
+function getPrefixKeys(typeDef: RecordTypeDef | undefined): string[] {
+  if (!typeDef?.extraFields) return [];
+  return typeDef.extraFields.filter(f => !PREFIX_SKIP_KEYS.has(f.key)).map(f => f.key);
+}
+
+function composeValue(typeDef: RecordTypeDef | undefined, mainValue: string, mx: number, weight: number, extraValues: Record<string, string | number>): string {
+  const keys = getPrefixKeys(typeDef);
+  if (!keys.length) return mainValue;
+  const prefix = keys.map(k => {
+    if (k === 'priority' || k === 'mx') return mx;
+    if (k === 'weight') return weight;
+    return extraValues[k] ?? 0;
+  }).join(' ');
+  return `${prefix} ${mainValue}`.trim();
+}
+
+function parseInitialValue(initial: DnsRecord | undefined, typeDef: RecordTypeDef | undefined): { mainValue: string; extraValues: Record<string, string | number> } {
+  const result: Record<string, string | number> = {};
+  const keys = getPrefixKeys(typeDef);
+  if (!keys.length || !initial?.value) return { mainValue: initial?.value ?? '', extraValues: result };
+
+  const parts = initial.value.trim().split(/\s+/);
+  for (let i = 0; i < keys.length && i < parts.length; i++) {
+    const n = Number(parts[i]);
+    result[keys[i]] = Number.isFinite(n) ? n : parts[i];
+  }
+  return { mainValue: parts.slice(keys.length).join(' '), extraValues: result };
 }
 
 function isRecordHost(value: string): boolean {
@@ -102,15 +133,6 @@ function parseSrvValue(initial?: DnsRecord): SrvFields {
   };
 }
 
-function getFieldValue(fieldKey: string, mx: number, weight: number, srv: SrvFields, extraValues: Record<string, string | number>): string | number {
-  switch (fieldKey) {
-    case 'mx': case 'priority': return mx;
-    case 'weight': return weight;
-    case 'port': return srv.port;
-    default: return extraValues[fieldKey] ?? '';
-  }
-}
-
 export function RecordForm({ lines, recordTypes, provider, initial, existingRecords = [], onSubmit, isLoading }: RecordFormProps) {
   const toast = useToast();
   const { t } = useI18n();
@@ -145,7 +167,6 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     if (initial) {
       setName(initial.name ?? '@');
       setType(initial.type ?? 'A');
-      setValue(initial.value ?? '');
       setTtl(initial.ttl ?? 600);
       setMx(initial.mx ?? 10);
       setWeight(initial.weight ?? 10);
@@ -153,6 +174,9 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       setRemark(initial.remark ?? '');
       setSrv(parseSrvValue(initial));
       setErrors({});
+      const parsed = parseInitialValue(initial, getRecordTypeDef(initial.type));
+      setValue(parsed.mainValue);
+      setExtraValues(parsed.extraValues);
     }
   }, [formKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -161,6 +185,19 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       setLine(prev => prev === '0' ? defaultLine : prev);
     }
   }, [defaultLine, initial]);
+
+  // Initialize dynamic extra field defaults when type changes
+  useEffect(() => {
+    setExtraValues((prev) => {
+      const next = { ...prev };
+      for (const f of typeDef?.extraFields ?? []) {
+        if (!PREFIX_SKIP_KEYS.has(f.key) && !(f.key in next) && f.defaultValue !== undefined) {
+          next[f.key] = f.defaultValue;
+        }
+      }
+      return next;
+    });
+  }, [type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (k: string, v: unknown) => {
     switch (k) {
@@ -179,19 +216,6 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const currentType = type ?? 'A';
   const typeDef = getRecordTypeDef(currentType);
   const isSrv = currentType === 'SRV';
-
-  // Initialize dynamic extra field values when type changes
-  useEffect(() => {
-    setExtraValues((prev) => {
-      const next = { ...prev };
-      for (const f of typeDef?.extraFields ?? []) {
-        if (!(f.key in next) && f.defaultValue !== undefined) {
-          next[f.key] = f.defaultValue;
-        }
-      }
-      return next;
-    });
-  }, [currentType]); // eslint-disable-line react-hooks/exhaustive-deps
   
   const canSelectProxy = hasProxyMode
     ? (isCloudflare
@@ -215,7 +239,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const validate = () => {
     const nextErrors: typeof errors = {};
     const nameVal = (name ?? '').toString().trim();
-    const valueVal = isSrv ? normalizedSrvValue : (value ?? '').toString().trim();
+    const valueVal = (value ?? '').toString().trim();
     const ttlVal = Number(ttl ?? 0);
 
     if (!nameVal) nextErrors.name = t('records.hostRequired');
@@ -233,36 +257,16 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       }
     }
 
-    const valueErr = validateRecordValue(currentType, valueVal);
-    if (valueErr) nextErrors.value = valueErr;
-
     if (!Number.isFinite(ttlVal) || ttlVal < 1) nextErrors.ttl = t('records.invalidTtl');
 
-    // Data-driven extra field validation
-    if (typeDef?.extraFields) {
-      for (const f of typeDef.extraFields) {
-        if (f.key === 'value') continue;
-        const v = getFieldValue(f.key, mx, weight, srv, extraValues);
-        if (f.required && (v === '' || (typeof v === 'number' && !Number.isFinite(v)))) {
-          const errKey = f.key === 'priority' ? 'mx' : f.key;
-          (nextErrors as Record<string, string>)[errKey] = `${f.label} is required`;
-        } else if (f.dataType === 'number') {
-          const n = Number(v);
-          if (!Number.isFinite(n)) {
-            const errKey = f.key === 'priority' ? 'mx' : f.key;
-            (nextErrors as Record<string, string>)[errKey] = `${f.label} must be a number`;
-          } else if (f.min !== undefined && n < f.min) {
-            const errKey = f.key === 'priority' ? 'mx' : f.key;
-            (nextErrors as Record<string, string>)[errKey] = `${f.label} must be >= ${f.min}`;
-          } else if (f.max !== undefined && n > f.max) {
-            const errKey = f.key === 'priority' ? 'mx' : f.key;
-            (nextErrors as Record<string, string>)[errKey] = `${f.label} must be <= ${f.max}`;
-          }
-        }
-      }
+    if (currentType === 'MX' || currentType === 'SRV') {
+      const priority = Number(mx ?? 0);
+      if (!Number.isFinite(priority) || priority < 0) nextErrors.mx = t('records.invalidPriority');
     }
 
     if (currentType === 'SRV') {
+      const weightVal = Number(weight ?? 0);
+      if (!Number.isFinite(weightVal) || weightVal < 0) nextErrors.weight = t('records.invalidWeight');
       if (!srv.port.trim()) nextErrors.srvPort = t('records.invalidSrvPortRequired');
       else if (!/^\d+$/.test(srv.port.trim()) || Number(srv.port.trim()) < 1 || Number(srv.port.trim()) > 65535) {
         nextErrors.srvPort = t('records.invalidSrvPort');
@@ -273,6 +277,32 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         if (srvErr) nextErrors.srvTarget = srvErr;
       }
     }
+
+    // Validate prefix extra fields
+    const prefixKeys = getPrefixKeys(typeDef);
+    for (const k of prefixKeys) {
+      const f = typeDef?.extraFields?.find(ef => ef.key === k);
+      if (!f) continue;
+      let val: string | number;
+      if (k === 'priority' || k === 'mx') val = mx;
+      else if (k === 'weight') val = weight;
+      else val = extraValues[k] ?? '';
+      if (!val || (typeof val === 'number' && !Number.isFinite(val))) {
+        const errKey = k === 'priority' ? 'mx' : k;
+        (nextErrors as Record<string, string>)[errKey] = `${f.label} is required`;
+      }
+    }
+
+    // Validate main value
+    let submitValue: string;
+    if (isSrv) {
+      if (!srv.port.trim() || !srv.target.trim()) submitValue = '';
+      else submitValue = normalizedSrvValue;
+    } else {
+      submitValue = composeValue(typeDef, valueVal, mx, weight, extraValues);
+    }
+    const valueErr = submitValue ? validateRecordValue(currentType, submitValue) : 'Value is required';
+    if (valueErr) nextErrors.value = valueErr;
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -285,10 +315,11 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     }
 
     const lineValue = canSelectProxy ? line : undefined;
+    const valueVal = (value ?? '').toString().trim();
     const payload: Partial<DnsRecord> = {
       name: (name ?? '').toString().trim(),
       type,
-      value: isSrv ? normalizedSrvValue : (value ?? '').toString().trim(),
+      value: isSrv ? normalizedSrvValue : composeValue(typeDef, valueVal, mx, weight, extraValues),
       ttl: Number(ttl ?? 600),
       mx: (currentType === 'MX' || currentType === 'SRV') ? Number(mx ?? 0) : undefined,
       weight: currentType === 'SRV' ? Number(weight ?? 0) : undefined,
@@ -322,7 +353,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   function renderNumericField(f: ExtraFieldDef, val: string | number, onChange: (v: unknown) => void) {
     const errKey = f.key === 'priority' ? 'mx' : f.key;
     const labelKey = `records.${errKey}`;
-    const displayLabel = t(labelKey);
+    const translated = t(labelKey);
+    const displayLabel = translated.startsWith('records.') ? f.label : translated;
     return (
       <FormItem key={f.key} label={displayLabel} status={(errors as Record<string, string>)[errKey] ? 'error' : undefined} tips={(errors as Record<string, string>)[errKey]}>
         <Input
@@ -335,7 +367,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     );
   }
 
-  const extraFieldSections = (typeDef?.extraFields ?? []).filter(f => f.key !== 'value' && f.key !== 'port');
+  const extraFieldSections = (typeDef?.extraFields ?? []).filter(f => !PREFIX_SKIP_KEYS.has(f.key));
 
   return (
     <form
@@ -448,11 +480,14 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             status={errors.ttl ? 'error' : undefined}
           />
         </FormItem>
-        {extraFieldSections.map(f => renderNumericField(f, getFieldValue(f.key, mx, weight, srv, extraValues), (v: any) => {
-          if (f.key === 'mx' || f.key === 'priority') { setMx(Number(v)); return; }
-          if (f.key === 'weight') { setWeight(Number(v)); return; }
-          setExtraValues((prev) => ({ ...prev, [f.key]: Number(v) }));
-        }))}
+        {extraFieldSections.map(f => renderNumericField(f,
+          f.key === 'priority' || f.key === 'mx' ? mx : f.key === 'weight' ? weight : (extraValues[f.key] ?? f.defaultValue ?? ''),
+          (v: any) => {
+            if (f.key === 'mx' || f.key === 'priority') { setMx(Number(v)); return; }
+            if (f.key === 'weight') { setWeight(Number(v)); return; }
+            setExtraValues((prev) => ({ ...prev, [f.key]: Number(v) }));
+          },
+        ))}
         {canSelectProxy && (
           <FormItem
             label={hasProxyMode ? t('records.proxy') : t('common.line')}
