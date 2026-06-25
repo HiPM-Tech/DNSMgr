@@ -588,7 +588,18 @@ for (const p of possiblePaths) {
 interface EmbeddedFile { content: Buffer; mimeType: string; }
 let embeddedClient: Record<string, EmbeddedFile> | null = null;
 
+let indexPath = '';
+let serveIndexWithAbsoluteUrls: ((req: Request, res: Response) => void) | null = null;
 if (clientBuildPath) {
+  indexPath = path.join(clientBuildPath, 'index.html');
+  const indexHtml = require('fs').readFileSync(indexPath, 'utf-8');
+  serveIndexWithAbsoluteUrls = (req: Request, res: Response): void => {
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const html = indexHtml.replace(/\b(src|href)="\/((?:assets|favicon)[^"]*)"/g, `$1="${origin}/$2"`);
+    res.type('html').send(html);
+  };
+  app.get('/', serveIndexWithAbsoluteUrls);
+  app.get('/index.html', serveIndexWithAbsoluteUrls);
   app.use(express.static(clientBuildPath));
 } else {
   // 尝试从嵌入式模块加载（SEA 二进制打包时生成）
@@ -645,16 +656,9 @@ app.get('*', (req: Request, res: Response) => {
     return res.status(404).send('File not found');
   }
 
-  // 无扩展名 → SPA 导航请求，返回 index.html
-  if (clientBuildPath) {
-    const spaIndex = path.join(clientBuildPath, 'index.html');
-    try {
-      if (require('fs').existsSync(spaIndex)) {
-        return res.sendFile(spaIndex);
-      }
-    } catch {
-      // 文件不存在，继续
-    }
+  // 无扩展名 → SPA 导航请求，返回 index.html（带绝对路径资源引用）
+  if (serveIndexWithAbsoluteUrls) {
+    return serveIndexWithAbsoluteUrls(req, res);
   }
 
   // 策略 2: 嵌入式客户端（SEA 二进制）
