@@ -321,8 +321,10 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
 
   function renderNumericField(f: ExtraFieldDef, val: string | number, onChange: (v: unknown) => void) {
     const errKey = f.key === 'priority' ? 'mx' : f.key;
+    const labelKey = `records.${errKey}`;
+    const displayLabel = t(labelKey);
     return (
-      <FormItem key={f.key} label={f.label} status={(errors as Record<string, string>)[errKey] ? 'error' : undefined} tips={(errors as Record<string, string>)[errKey]}>
+      <FormItem key={f.key} label={displayLabel} status={(errors as Record<string, string>)[errKey] ? 'error' : undefined} tips={(errors as Record<string, string>)[errKey]}>
         <Input
           type="number"
           value={String(val)}
