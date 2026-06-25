@@ -1,5 +1,37 @@
 # 更新日志
 
+## [2.0.9] - 2026-06-25
+
+### 🚀 新功能
+- **RecordType 统一与结构化**: 前后端共享 `RecordType` 联合类型（78 种 IANA 有效类型），`DNS_RECORD_DEFS` 包含 `valueType`、`extraFields`（优先级/权重/端口/算法/标志等）、`validateRecordValue()`、`validateExtraField()`
+- **复合值组合**: 为 URI/HTTPS/SVCB/CAA/CERT/DS/SSHFP/IPSECKEY/DNSKEY/TLSA/SMIMEA 添加 `composeValue()`/`parseInitialValue()`，自动组装和解析前缀字段值
+- **数据驱动表单**: `RecordForm.tsx` 从 `DNS_RECORD_DEFS` 动态渲染额外字段，无需手写每种类型的控件
+- **新增记录类型**: 增加 TLSA、SMIMEA、IPSECKEY、DNSKEY、SSHFP、DS、CERT、URI 等 DNSSEC 和安全记录支持
+
+### 🔧 优化
+- **代理记录类型缩减**: `PROXIABLE_RECORD_TYPES` 仅保留 A/AAAA/CNAME，移除 HTTPS
+- **i18n 字段标签**: 额外字段标签使用 `t('records.<key>')` 国际化，回退到英文标签
+- **Vite base 路径**: `vite.config.ts` `base` 从 `'./'` 改为 `'/'`（绝对路径）
+- **类型安全**: `DnsRecord.type` 和 `Provider.capabilities.dns.recordTypes` 全部使用 `RecordType` 类型
+- **DOMAIN_VALUE_TYPES**: 改为从 `DNS_RECORD_DEFS` 动态计算
+- **后端验证重构**: 路由层调用 `validateRecordValue()` 替代内联验证
+
+### 🐛 Bug 修复
+- **HTTP 不安全请求升级**: 禁用 `upgradeInsecureRequests` CSP 头，兼容 HTTP 部署
+
+### 📝 技术细节
+- **文件变更**:
+  - `server/src/lib/dns/record-types.ts` - 统一记录类型定义与验证（**新建**）
+  - `client/src/types/record-types.ts` - 前端镜像（**新建**）
+  - `client/src/components/RecordForm.tsx` - 数据驱动表单重写
+  - `server/src/routes/records.ts` - 后端验证委托
+  - `client/src/api/types.ts` - 类型导入更新
+  - `client/src/pages/Records.tsx` - 导入调整
+  - `client/src/pages/MailSetupModal.tsx` - 类型兼容处理
+  - `server/src/lib/dns/providers/registry.ts` - 能力类型同步
+  - `client/vite.config.ts` - base 路径调整
+  - `client/package.json`, `server/package.json`, `package.json` - 版本 2.0.9
+
 ## [2.0.8] - 2026-06-20
 
 ### 🐛 Bug 修复
