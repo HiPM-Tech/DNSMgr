@@ -588,7 +588,29 @@ for (const p of possiblePaths) {
 interface EmbeddedFile { content: Buffer; mimeType: string; }
 let embeddedClient: Record<string, EmbeddedFile> | null = null;
 
+// Serve index.html with protocol-aware <base> tag
+function serveIndexHtml(req: Request, res: Response): void {
+  if (!indexPath) { res.status(404).send('index.html not found'); return; }
+  try {
+    let html = require('fs').readFileSync(indexPath, 'utf-8');
+    const baseUrl = `${req.protocol}://${req.get('host')}/`;
+    html = html.replace('<head>', `<head><base href="${baseUrl}">`);
+    res.type('html').send(html);
+  } catch {
+    res.sendFile(indexPath);
+  }
+}
+
+let indexPath = '';
 if (clientBuildPath) {
+  indexPath = path.join(clientBuildPath, 'index.html');
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === '/' || req.path === '/index.html') {
+      serveIndexHtml(req, res);
+      return;
+    }
+    next();
+  });
   app.use(express.static(clientBuildPath));
 } else {
   // 尝试从嵌入式模块加载（SEA 二进制打包时生成）
@@ -645,13 +667,11 @@ app.get('*', (req: Request, res: Response) => {
     return res.status(404).send('File not found');
   }
 
-  // 无扩展名 → SPA 导航请求，返回 index.html
-  // 策略 1: 文件系统路径
+  // 无扩展名 → SPA 导航请求，返回带 <base> 的 index.html
   if (clientBuildPath) {
-    const indexPath = path.join(clientBuildPath, 'index.html');
     try {
       if (require('fs').existsSync(indexPath)) {
-        return res.sendFile(indexPath);
+        return serveIndexHtml(req, res);
       }
     } catch {
       // 文件不存在，继续
@@ -662,7 +682,10 @@ app.get('*', (req: Request, res: Response) => {
   if (embeddedClient) {
     const indexFile = embeddedClient['/index.html'];
     if (indexFile) {
-      return res.type('html').send(indexFile.content);
+      let html = indexFile.content.toString('utf-8');
+      const baseUrl = `${req.protocol}://${req.get('host')}/`;
+      html = html.replace('<head>', `<head><base href="${baseUrl}">`);
+      return res.type('html').send(html);
     }
   }
 
