@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(frontendVersion),
     },
-    base: './',
+    base: '/',
     build: {
       outDir: 'dist',
       emptyOutDir: true,
