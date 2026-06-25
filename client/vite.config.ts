@@ -13,15 +13,11 @@ export default defineConfig(({ mode }) => {
   const frontendVersion = packageJson.version || '1.0.0 Open';
 
   return {
-    plugins: [react(), {
-      name: 'remove-crossorigin',
-      transformIndexHtml(html: string) {
-        return html.replace(/\bcrossorigin\b\s*/g, '');
-      },
-    }],
+    plugins: [react()],
     define: {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(frontendVersion),
     },
+    base: './',
     build: {
       outDir: 'dist',
       emptyOutDir: true,
