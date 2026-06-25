@@ -11,7 +11,8 @@ import { parseInteger, sendError, sendSuccess } from '../utils/http';
 import { DomainOperations, DnsAccountOperations } from '../db/bal/business-adapter';
 import { createLogger } from '../lib/logger';
 import { wsService } from '../service/websocket';
-import { normalizeDomain, isValidDomain, isValidHostname } from '../utils/dns';
+import { normalizeDomain, isValidDomain } from '../utils/dns';
+import { validateRecordValue, validateExtraField, getRecordTypeDef } from '../lib/dns/record-types';
 import { getAvailableTemplates, getEmailTemplate, generatePreview } from '../lib/dns/emailTemplate';
 
 const log = createLogger('HTTP').sub('Route').sub('Records');
@@ -42,42 +43,9 @@ function toApiRecord(r: AdapterRecord) {
   };
 }
 
-function isIPv4(value: string): boolean {
-  const parts = value.trim().split('.');
-  if (parts.length !== 4) return false;
-  return parts.every((part) => /^(0|[1-9]\d{0,2})$/.test(part) && Number(part) >= 0 && Number(part) <= 255);
-}
-
-function isIPv6(value: string): boolean {
-  const normalized = value.trim();
-  if (!normalized || !normalized.includes(':')) return false;
-  try {
-    return new URL(`http://[${normalized}]`).hostname === `[${normalized}]`;
-  } catch {
-    return false;
-  }
-}
-
-function isHostname(value: string): boolean {
-  // Use isValidHostname which supports IDN and underscore-prefixed labels
-  return isValidHostname(value);
-}
-
-function isValidRecordValue(type: string, value: string): boolean {
-  const t = type.trim().toUpperCase();
-  const v = value.trim();
-  switch (t) {
-    case 'A': return isIPv4(v);
-    case 'AAAA': return isIPv6(v);
-    case 'CNAME':
-    case 'NS':
-    case 'MX':
-    case 'SRV':
-    case 'CAA':
-    case 'PTR': return isHostname(v);
-    case 'TXT': return v.length > 0 && v.length <= 4096;
-    default: return v.length > 0;
-  }
+function isValidRecordValue(type: string, value: string): string | true {
+  const result = validateRecordValue(type, value);
+  return result === null ? true : result;
 }
 
 function getSubdomain(fullName: string, domainName: string): string {
@@ -254,9 +222,9 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
     sendError(res, 'Permission denied for subdomain');
     return;
   }
-  if (!isValidRecordValue(type, value)) {
-    sendError(res, `Invalid value for ${type} record`);
-    return;
+  {
+    const err = isValidRecordValue(type, value);
+    if (err !== true) { sendError(res, err); return; }
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
@@ -404,9 +372,9 @@ router.post('/batch', authMiddleware, requireTokenDomainPermission('domainId'), 
       sendError(res, `Permission denied for subdomain: ${r.name}`);
       return;
     }
-    if (!isValidRecordValue(r.type, r.value)) {
-      sendError(res, `Invalid value for ${r.type} record`);
-      return;
+    {
+      const err = isValidRecordValue(r.type, r.value);
+      if (err !== true) { sendError(res, err); return; }
     }
   }
 
@@ -473,9 +441,9 @@ router.put('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'
     sendError(res, 'Permission denied for subdomain');
     return;
   }
-  if (!isValidRecordValue(type, value)) {
-    sendError(res, `Invalid value for ${type} record`);
-    return;
+  {
+    const err = isValidRecordValue(type, value);
+    if (err !== true) { sendError(res, err); return; }
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);

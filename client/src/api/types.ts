@@ -1,5 +1,7 @@
 // ─── Shared Type Definitions ──────────────────────────────────────────────────
 
+import type { RecordType } from '../types/record-types';
+
 export interface User {
   id: number;
   username: string;
@@ -23,7 +25,7 @@ export interface Provider {
       weight: boolean;
       line: boolean;
       cnameFlattening: boolean;
-      recordTypes: string[];
+      recordTypes: RecordType[];
     } | null;
     log: boolean;
     renewal: boolean;
@@ -90,7 +92,7 @@ export interface ProviderDomainOption {
 export interface DnsRecord {
   id: string;
   name: string;
-  type: string;
+  type: RecordType;
   value: string;
   line?: string;
   cloudflare?: {

@@ -4,12 +4,10 @@ import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useI18n } from '../contexts/I18nContext';
+import type { RecordType } from '../types/record-types';
+import { DOMAIN_VALUE_TYPES, PROXIABLE_RECORD_TYPES, validateRecordValue, getRecordTypeDef } from '../types/record-types';
+import type { ExtraFieldDef } from '../types/record-types';
 import './RecordForm.css';
-
-export const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS', 'PTR'];
-export const CLOUDFLARE_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
-export const DOMAIN_VALUE_TYPES = new Set(['CNAME', 'MX', 'NS', 'PTR', 'HTTPS']);
-export const PROXIABLE_RECORD_TYPES = new Set(['A', 'AAAA', 'CNAME', 'HTTPS']);
 
 function FormItem({ label, status, tips, children }: { label?: ReactNode; status?: 'error' | 'warning' | 'success'; tips?: ReactNode; children: ReactNode }) {
   return (
@@ -26,7 +24,7 @@ function FormItem({ label, status, tips, children }: { label?: ReactNode; status
 export interface RecordFormProps {
   domainId: number;
   lines: DnsLine[];
-  recordTypes: string[];
+  recordTypes: RecordType[];
   provider?: Provider;
   initial?: DnsRecord;
   existingRecords?: DnsRecord[];
@@ -39,53 +37,6 @@ interface SrvFields {
   weight: number;
   port: string;
   target: string;
-}
-
-function isIPv4(value: string): boolean {
-  const parts = value.trim().split('.');
-  if (parts.length !== 4) return false;
-  return parts.every((part) => /^(0|[1-9]\d{0,2})$/.test(part) && Number(part) >= 0 && Number(part) <= 255);
-}
-
-function isIPv6(value: string): boolean {
-  const normalized = value.trim();
-  if (!normalized || !normalized.includes(':')) return false;
-  try {
-    return new URL(`http://[${normalized}]`).hostname === `[${normalized}]`;
-  } catch {
-    return false;
-  }
-}
-
-function isHostname(value: string): boolean {
-  const normalized = value.trim().replace(/\.$/, '');
-  if (!normalized || normalized.length > 253) return false;
-
-  try {
-    const url = new URL(`http://${normalized}`);
-    const hostname = url.hostname;
-    const labels = hostname.split('.');
-
-    for (const label of labels) {
-      if (label.length === 0 || label.length > 63) {
-        return false;
-      }
-
-      if (label.startsWith('xn--')) {
-        if (!/^xn--[a-z0-9-]+$/i.test(label)) {
-          return false;
-        }
-      } else {
-        if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)) {
-          return false;
-        }
-      }
-    }
-
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function isRecordHost(value: string): boolean {
@@ -151,6 +102,15 @@ function parseSrvValue(initial?: DnsRecord): SrvFields {
   };
 }
 
+function getFieldValue(fieldKey: string, mx: number, weight: number, srv: SrvFields, extraValues: Record<string, string | number>): string | number {
+  switch (fieldKey) {
+    case 'mx': case 'priority': return mx;
+    case 'weight': return weight;
+    case 'port': return srv.port;
+    default: return extraValues[fieldKey] ?? '';
+  }
+}
+
 export function RecordForm({ lines, recordTypes, provider, initial, existingRecords = [], onSubmit, isLoading }: RecordFormProps) {
   const toast = useToast();
   const { t } = useI18n();
@@ -178,6 +138,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const [line, setLine] = useState(initial?.line ?? defaultLine);
   const [remark, setRemark] = useState(initial?.remark ?? '');
   const [srv, setSrv] = useState<SrvFields>(() => parseSrvValue(initial));
+  const [extraValues, setExtraValues] = useState<Record<string, string | number>>({});
   const [errors, setErrors] = useState<Partial<Record<'name' | 'value' | 'ttl' | 'mx' | 'weight' | 'srvPort' | 'srvTarget', string>>>({});
 
   useEffect(() => {
@@ -204,7 +165,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const set = (k: string, v: unknown) => {
     switch (k) {
       case 'name': setName(v as string); break;
-      case 'type': setType(v as string); break;
+      case 'type': setType(v as RecordType); break;
       case 'value': setValue(v as string); break;
       case 'ttl': setTtl(v as number); break;
       case 'mx': setMx(v as number); break;
@@ -216,7 +177,21 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   };
 
   const currentType = type ?? 'A';
+  const typeDef = getRecordTypeDef(currentType);
   const isSrv = currentType === 'SRV';
+
+  // Initialize dynamic extra field values when type changes
+  useEffect(() => {
+    setExtraValues((prev) => {
+      const next = { ...prev };
+      for (const f of typeDef?.extraFields ?? []) {
+        if (!(f.key in next) && f.defaultValue !== undefined) {
+          next[f.key] = f.defaultValue;
+        }
+      }
+      return next;
+    });
+  }, [currentType]); // eslint-disable-line react-hooks/exhaustive-deps
   
   const canSelectProxy = hasProxyMode
     ? (isCloudflare
@@ -258,27 +233,45 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       }
     }
 
-    if (!valueVal) nextErrors.value = t('records.valueRequired');
-    else if (currentType === 'A' && !isIPv4(valueVal)) nextErrors.value = t('records.invalidA');
-    else if (currentType === 'AAAA' && !isIPv6(valueVal)) nextErrors.value = t('records.invalidAAAA');
-    else if (DOMAIN_VALUE_TYPES.has(currentType) && !isHostname(valueVal)) nextErrors.value = t('records.invalidHostname', { type: currentType });
+    const valueErr = validateRecordValue(currentType, valueVal);
+    if (valueErr) nextErrors.value = valueErr;
 
     if (!Number.isFinite(ttlVal) || ttlVal < 1) nextErrors.ttl = t('records.invalidTtl');
 
-    if (currentType === 'MX' || currentType === 'SRV') {
-      const priority = Number(mx ?? 0);
-      if (!Number.isFinite(priority) || priority < 0) nextErrors.mx = t('records.invalidPriority');
+    // Data-driven extra field validation
+    if (typeDef?.extraFields) {
+      for (const f of typeDef.extraFields) {
+        if (f.key === 'value') continue;
+        const v = getFieldValue(f.key, mx, weight, srv, extraValues);
+        if (f.required && (v === '' || (typeof v === 'number' && !Number.isFinite(v)))) {
+          const errKey = f.key === 'priority' ? 'mx' : f.key;
+          (nextErrors as Record<string, string>)[errKey] = `${f.label} is required`;
+        } else if (f.dataType === 'number') {
+          const n = Number(v);
+          if (!Number.isFinite(n)) {
+            const errKey = f.key === 'priority' ? 'mx' : f.key;
+            (nextErrors as Record<string, string>)[errKey] = `${f.label} must be a number`;
+          } else if (f.min !== undefined && n < f.min) {
+            const errKey = f.key === 'priority' ? 'mx' : f.key;
+            (nextErrors as Record<string, string>)[errKey] = `${f.label} must be >= ${f.min}`;
+          } else if (f.max !== undefined && n > f.max) {
+            const errKey = f.key === 'priority' ? 'mx' : f.key;
+            (nextErrors as Record<string, string>)[errKey] = `${f.label} must be <= ${f.max}`;
+          }
+        }
+      }
     }
 
     if (currentType === 'SRV') {
-      const weightVal = Number(weight ?? 0);
-      if (!Number.isFinite(weightVal) || weightVal < 0) nextErrors.weight = t('records.invalidWeight');
       if (!srv.port.trim()) nextErrors.srvPort = t('records.invalidSrvPortRequired');
       else if (!/^\d+$/.test(srv.port.trim()) || Number(srv.port.trim()) < 1 || Number(srv.port.trim()) > 65535) {
         nextErrors.srvPort = t('records.invalidSrvPort');
       }
       if (!srv.target.trim()) nextErrors.srvTarget = t('records.invalidSrvTargetRequired');
-      else if (!isHostname(srv.target.trim())) nextErrors.srvTarget = t('records.invalidSrvTarget');
+      else {
+        const srvErr = validateRecordValue('CNAME', srv.target.trim());
+        if (srvErr) nextErrors.srvTarget = srvErr;
+      }
     }
 
     setErrors(nextErrors);
@@ -297,7 +290,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       type,
       value: isSrv ? normalizedSrvValue : (value ?? '').toString().trim(),
       ttl: Number(ttl ?? 600),
-      mx: currentType === 'MX' || currentType === 'SRV' ? Number(mx ?? 0) : undefined,
+      mx: (currentType === 'MX' || currentType === 'SRV') ? Number(mx ?? 0) : undefined,
       weight: currentType === 'SRV' ? Number(weight ?? 0) : undefined,
       line: lineValue,
       cloudflare: (isCloudflare && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
@@ -318,15 +311,29 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     : hasMultiLine
       ? lines.map((line) => ({ label: line.name, value: String(line.id) }))
       : [{ label: t('records.defaultLine') || '默认', value: '0' }];
-  const currentTypeHelp = currentType === 'A'
-    ? t('records.aHelp')
-    : currentType === 'AAAA'
-      ? t('records.aaaaHelp')
-      : DOMAIN_VALUE_TYPES.has(currentType)
-        ? t('records.hostnameHelp', { type: currentType })
-        : currentType === 'TXT'
-          ? t('records.txtHelp')
-          : '';
+
+  const valuePlaceholder = typeDef?.valueType === 'ipv4' ? '192.168.1.1'
+    : typeDef?.valueType === 'ipv6' ? '2400:3200::1'
+    : typeDef?.valueType === 'hostname' ? 'example.com'
+    : t('records.valuePlaceholder');
+
+  const valueLabel = t('records.valueLabel');
+
+  function renderNumericField(f: ExtraFieldDef, val: string | number, onChange: (v: unknown) => void) {
+    const errKey = f.key === 'priority' ? 'mx' : f.key;
+    return (
+      <FormItem key={f.key} label={f.label} status={(errors as Record<string, string>)[errKey] ? 'error' : undefined} tips={(errors as Record<string, string>)[errKey]}>
+        <Input
+          type="number"
+          value={String(val)}
+          onChange={onChange}
+          status={(errors as Record<string, string>)[errKey] ? 'error' : undefined}
+        />
+      </FormItem>
+    );
+  }
+
+  const extraFieldSections = (typeDef?.extraFields ?? []).filter(f => f.key !== 'value' && f.key !== 'port');
 
   return (
     <form
@@ -375,22 +382,14 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         <div className="record-form__section">
           <Alert theme="info" message={t('records.srvHelp')} />
           <div className="record-form__grid record-form__grid--two">
-            <FormItem label={t('records.priority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
-              <Input
-                type="number"
-                value={String(mx ?? 10)}
-                onChange={(value: any) => set('mx', Number(value))}
-                status={errors.mx ? 'error' : undefined}
-              />
-            </FormItem>
-            <FormItem label={t('records.weight')} status={errors.weight ? 'error' : undefined} tips={errors.weight}>
-              <Input
-                type="number"
-                value={String(weight ?? 10)}
-                onChange={(value: any) => set('weight', Number(value))}
-                status={errors.weight ? 'error' : undefined}
-              />
-            </FormItem>
+            {renderNumericField(
+              { key: 'priority', label: t('records.priority'), dataType: 'number', required: true, min: 0, max: 65535, defaultValue: 10 },
+              mx, (v: any) => set('mx', Number(v)),
+            )}
+            {renderNumericField(
+              { key: 'weight', label: t('records.weight'), dataType: 'number', required: true, min: 0, max: 65535, defaultValue: 10 },
+              weight, (v: any) => set('weight', Number(v)),
+            )}
           </div>
           <div className="record-form__grid record-form__grid--two">
             <FormItem label={t('records.port')} status={errors.srvPort ? 'error' : undefined} tips={errors.srvPort}>
@@ -425,20 +424,20 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           </FormItem>
         </div>
       ) : (
-        <FormItem label={t('records.valueLabel')} status={errors.value ? 'error' : undefined} tips={errors.value}>
+        <FormItem label={valueLabel} status={errors.value ? 'error' : undefined} tips={errors.value}>
           <Input
             clearable
             name={initial ? `record-value-${initial.id}` : 'record-value-create'}
             autocomplete="off"
             value={String(value ?? '')}
             onChange={(value: any) => set('value', value)}
-            placeholder={currentType === 'A' ? '192.168.1.1' : currentType === 'AAAA' ? '2400:3200::1' : t('records.valuePlaceholder')}
+            placeholder={valuePlaceholder}
             status={errors.value ? 'error' : undefined}
           />
         </FormItem>
       )}
 
-      <div className={`record-form__grid ${currentType === 'MX' || currentType === 'SRV' || canSelectProxy ? 'record-form__grid--two' : ''}`}>
+      <div className={`record-form__grid ${extraFieldSections.length > 0 || canSelectProxy ? 'record-form__grid--two' : ''}`}>
         <FormItem label={t('common.ttl')} status={errors.ttl ? 'error' : undefined} tips={errors.ttl}>
           <Input
             type="number"
@@ -447,16 +446,11 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             status={errors.ttl ? 'error' : undefined}
           />
         </FormItem>
-        {currentType === 'MX' && (
-          <FormItem label={t('records.mxPriority')} status={errors.mx ? 'error' : undefined} tips={errors.mx}>
-            <Input
-              type="number"
-              value={String(mx ?? 10)}
-              onChange={(value: any) => set('mx', Number(value))}
-              status={errors.mx ? 'error' : undefined}
-            />
-          </FormItem>
-        )}
+        {extraFieldSections.map(f => renderNumericField(f, getFieldValue(f.key, mx, weight, srv, extraValues), (v: any) => {
+          if (f.key === 'mx' || f.key === 'priority') { setMx(Number(v)); return; }
+          if (f.key === 'weight') { setWeight(Number(v)); return; }
+          setExtraValues((prev) => ({ ...prev, [f.key]: Number(v) }));
+        }))}
         {canSelectProxy && (
           <FormItem
             label={hasProxyMode ? t('records.proxy') : t('common.line')}
@@ -480,7 +474,15 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         />
       </FormItem>
 
-      {currentTypeHelp && <Alert theme="info" message={currentTypeHelp} />}
+      {currentType === 'A' ? (
+        <Alert theme="info" message={t('records.aHelp')} />
+      ) : currentType === 'AAAA' ? (
+        <Alert theme="info" message={t('records.aaaaHelp')} />
+      ) : DOMAIN_VALUE_TYPES.has(currentType) ? (
+        <Alert theme="info" message={t('records.hostnameHelp', { type: currentType })} />
+      ) : currentType === 'TXT' ? (
+        <Alert theme="info" message={t('records.txtHelp')} />
+      ) : null}
 
       <Space className="record-form__actions" align="center">
         <Button type="submit" theme="primary" loading={isLoading}>

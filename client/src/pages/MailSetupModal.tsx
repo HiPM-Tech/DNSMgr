@@ -110,7 +110,7 @@ export function MailSetupModal({ domainId, domainName, onClose, existingRecords 
 
   const handleAdd = () => {
     if (!template) return;
-    batchMutation.mutate(resolvedRecords);
+    batchMutation.mutate(resolvedRecords as Partial<DnsRecord>[]);
   };
 
   const recordRows = resolvedRecords.map((record, index) => ({ ...record, index }));

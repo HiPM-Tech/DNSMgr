@@ -14,7 +14,9 @@ import { useI18n } from '../contexts/I18nContext';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { TunnelList } from '../components/TunnelList';
 import { MailSetupModal } from './MailSetupModal';
-import { RecordForm, COMMON_RECORD_TYPES, CLOUDFLARE_RECORD_TYPES } from '../components/RecordForm';
+import { RecordForm } from '../components/RecordForm';
+import { COMMON_RECORD_TYPES, CLOUDFLARE_RECORD_TYPES } from '../types/record-types';
+import type { RecordType } from '../types/record-types';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 
 function selectToString(value: SelectValue) {
@@ -85,7 +87,7 @@ export function Records() {
   }, [account?.type, editing?.type]);
 
   useEffect(() => {
-    if (typeFilter && !providerRecordTypes.includes(typeFilter)) {
+    if (typeFilter && !providerRecordTypes.includes(typeFilter as RecordType)) {
       setTypeFilter('');
     }
   }, [providerRecordTypes, typeFilter]);

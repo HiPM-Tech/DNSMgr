@@ -1,4 +1,6 @@
 import { DnsAdapter } from '../DnsInterface';
+import type { RecordType } from '../record-types';
+import { COMMON_RECORD_TYPES, CLOUDFLARE_RECORD_TYPES } from '../record-types';
 import * as Adapters from './index';
 
 export interface DnsCapabilities {
@@ -8,7 +10,7 @@ export interface DnsCapabilities {
   weight: boolean;
   line: boolean;
   cnameFlattening: boolean;
-  recordTypes: string[];
+  recordTypes: RecordType[];
 }
 
 export interface ProviderCapabilities {
@@ -41,9 +43,7 @@ export interface ProviderDefinition {
 
 export type ProviderInfo = Omit<ProviderDefinition, 'adapterFactory'>;
 
-// ─── 预设记录类型（可直接用于 recordTypes） ────────────────────
-const COMMON_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA', 'NS'];
-const CLOUDFLARE_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
+// ─── 预设记录类型（可直接用于 recordTypes） — 定义见 record-types.ts ────
 
 const providerDefinitions: ProviderDefinition[] = [
   {
