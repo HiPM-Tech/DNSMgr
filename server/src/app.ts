@@ -589,6 +589,11 @@ interface EmbeddedFile { content: Buffer; mimeType: string; }
 let embeddedClient: Record<string, EmbeddedFile> | null = null;
 
 if (clientBuildPath) {
+  // CORS for static assets (required when crossorigin is used on script/link)
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    next();
+  });
   app.use(express.static(clientBuildPath));
 } else {
   // 尝试从嵌入式模块加载（SEA 二进制打包时生成）
