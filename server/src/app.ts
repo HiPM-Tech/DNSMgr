@@ -323,6 +323,7 @@ app.use(helmet({
       frameAncestors: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
+      upgradeInsecureRequests: null,
     },
   },
   crossOriginOpenerPolicy: false, // Disable on HTTP to avoid browser warnings
