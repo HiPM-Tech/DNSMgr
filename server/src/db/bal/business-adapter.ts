@@ -794,10 +794,10 @@ export const DomainOperations = {
   },
 
   /** 创建域名 */
-  async create(data: { account_id: number; name: string; third_id?: string; record_count?: number; remark?: string }): Promise<number> {
+  async create(data: { account_id: number; name: string; third_id?: string; record_count?: number; remark?: string; adapter_data?: string | null }): Promise<number> {
     return insertInternal(
-      'INSERT INTO domains (account_id, name, third_id, record_count, remark) VALUES (?, ?, ?, ?, ?)',
-      [data.account_id, data.name, data.third_id ?? null, data.record_count ?? 0, data.remark ?? ''],
+      'INSERT INTO domains (account_id, name, third_id, record_count, remark, adapter_data) VALUES (?, ?, ?, ?, ?, ?)',
+      [data.account_id, data.name, data.third_id ?? null, data.record_count ?? 0, data.remark ?? '', data.adapter_data ?? null],
       { operation: 'Domain.create', table: 'domains' }
     );
   },
@@ -3792,13 +3792,14 @@ export const RenewableDomainOperations = {
     expires_at?: string;
     never_expires?: boolean;
     remark?: string;
+    adapter_data?: string | null;
   }): Promise<number> {
     const dbType = getDbType();
     const enabledValue = dbType === 'postgresql' ? true : 1;
     const neverExpiresValue = dbType === 'postgresql' ? (data.never_expires ? true : false) : (data.never_expires ? 1 : 0);
 
     const result = await insertInternal(
-      'INSERT INTO renewable_domains (account_id, provider_type, domain_name, third_id, full_domain, expires_at, never_expires, enabled, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO renewable_domains (account_id, provider_type, domain_name, third_id, full_domain, expires_at, never_expires, enabled, remark, adapter_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         data.account_id,
         data.provider_type,
@@ -3809,6 +3810,7 @@ export const RenewableDomainOperations = {
         neverExpiresValue,
         enabledValue,  // enabled (always enable new domains)
         data.remark || '',
+        data.adapter_data ?? null,
       ],
       { operation: 'RenewableDomain.add', table: 'renewable_domains' }
     );

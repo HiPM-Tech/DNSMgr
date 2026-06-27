@@ -23,6 +23,7 @@ export interface DomainInfo {
   ThirdId: string;
   RecordCount?: number;
   ExpiresAt?: string;  // 域名到期时间（ISO 8601 格式）
+  AdapterData?: any;   // 适配器自定义数据，同步时存入 adapter_data 列
 }
 
 export interface PageResult<T> {

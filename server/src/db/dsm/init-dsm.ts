@@ -2,7 +2,7 @@ import { SchemaReconciler } from './schema-reconciler';
 import { COMPLETE_SCHEMA } from './schemas/complete-schema';
 import { DataMigrationRunner, DataMigration } from './data-migration-runner';
 import { SchemaVersionManager } from './migration-manager';
-import { sqliteSchema } from './schemas/dialects/sqlite';
+import { sqliteSchema } from './schemas/generate-sql';
 import { getConnection } from '../dal/connection';
 import { createLogger } from '../../lib/logger';
 import * as fs from 'fs';

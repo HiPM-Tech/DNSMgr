@@ -16,6 +16,5 @@ export function calculateSchemaHash(schema: SchemaDefinition): string {
   return crypto.createHash('sha256').update(schemaString).digest('hex').substring(0, 16);
 }
 
-export * from './dialects/sqlite';
-export * from './dialects/mysql';
-export * from './dialects/postgresql';
+export { sqliteSchema, mysqlSchema, postgresqlSchema } from './generate-sql';
+export * from './types/schema';

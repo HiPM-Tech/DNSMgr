@@ -1,8 +1,6 @@
 import { getConnection } from './dal/connection';
 import type { DatabaseConnection, DatabaseType } from './dal/types';
-import { sqliteSchema } from './dsm/schemas/dialects/sqlite';
-import { mysqlSchema } from './dsm/schemas/dialects/mysql';
-import { postgresqlSchema } from './dsm/schemas/dialects/postgresql';
+import { sqliteSchema, mysqlSchema, postgresqlSchema } from './dsm/schemas/generate-sql';
 import { getDatabaseConfig } from './dal/config';
 import fs from 'fs';
 import path from 'path';

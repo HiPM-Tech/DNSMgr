@@ -1,7 +1,7 @@
 import { getConnection } from '../dal/connection';
 import { createLogger } from '../../lib/logger';
 import { SchemaVersionManager } from './migration-manager';
-import { sqliteSchema } from './schemas/dialects/sqlite';
+import { sqliteSchema } from './schemas/generate-sql';
 
 const log = createLogger('DSM').sub('DataMigrationRunner');
 export interface DataMigration {

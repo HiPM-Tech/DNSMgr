@@ -3,6 +3,7 @@ import { authMiddleware, requireDomainPermission, requireTokenDomainPermission }
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { dnsheGetWhois } from '../lib/dns/providers';
+import type { DomainInfo } from '../lib/dns/DnsInterface';
 import { renewalRegistry } from '../service/renewalScheduler';
 import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
@@ -656,7 +657,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
     const dnsAdapter = createAdapter(account.type, cfg);
 
     // 分页获取所有域名
-    const allDomains: Array<{ Domain: string; ThirdId: string; RecordCount?: number }> = [];
+    const allDomains: DomainInfo[] = [];
     let page = 1;
     const pageSize = 50;
     let hasMore = true;
@@ -687,6 +688,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
     let added = 0;
     for (const d of allDomains) {
       const normalizedName = normalizeDomain(d.Domain);
+      const adapterData = d.AdapterData !== undefined ? JSON.stringify(d.AdapterData) : undefined;
 
       // 记录 IDN 域名转换信息
       if (normalizedName !== d.Domain.toLowerCase()) {
@@ -704,6 +706,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
           name: normalizedName,
           third_id: d.ThirdId,
           record_count: d.RecordCount ?? 0,
+          adapter_data: adapterData ?? null,
         });
         added++;
         log.info(`Domain added during sync: ${normalizedName}`, {

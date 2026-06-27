@@ -6,33 +6,43 @@ const log = createProviderAdapterLogger('Dnsneko');
 interface DnsnekoConfig extends DnsnekoAuthConfig {
   domain?: string;
   domainId?: string;
+  zoneId?: string;
 }
 
 interface DnsnekoApiResponse<T> {
   code: number;
+  errorCode?: string | null;
   message?: string;
   data?: T;
 }
 
 interface DnsnekoDomain {
-  id: number;
+  id: string;
   domain: string;
+  domainType: string;
+  nsStatus?: number | null;
   status: number;
-  expireTime?: string;
-  recordCount?: number;
   expired?: boolean;
+  expireTime?: string;
+  recordCount?: string;
 }
 
 interface DnsnekoRecord {
-  id: number;
+  id: string;
+  domainId?: string | null;
   name: string;
   type: string;
+  recordSet?: boolean;
+  loadBalance?: string | null;
+  healthCheckEnabled?: boolean;
+  healthCheckPort?: number | null;
   value: string;
   line: string;
   ttl: number;
-  status: number;
+  priority?: number | null;
   remark?: string;
-  priority?: number;
+  status: number;
+  updateTime?: string | null;
 }
 
 export class DnsnekoAdapter implements DnsAdapter {
@@ -45,7 +55,8 @@ export class DnsnekoAdapter implements DnsAdapter {
       username: safeString(config.username || ''),
       apiKey: safeString(config.apiKey || ''),
       domain: safeString(config.domain),
-      domainId: safeString(config.zoneId),
+      domainId: safeString(config.domainId),
+      zoneId: safeString(config.zoneId),
       useProxy: !!config.useProxy,
     };
   }
@@ -54,20 +65,54 @@ export class DnsnekoAdapter implements DnsAdapter {
     return this.error;
   }
 
-  private async request<T>(method: string, path: string, params?: Dict): Promise<DnsnekoApiResponse<T>> {
+  /**
+   * Parse composite third_id format: "{domainType}:{domainId}"
+   * Backward compatible: plain numeric string defaults to internal.
+   */
+  private parseDomainRef(): { domainId: string; domainType: string } {
+    const ref = this.config.zoneId || this.config.domainId || '';
+    if (ref.includes(':')) {
+      const [domainType, domainId] = ref.split(':', 2);
+      return { domainId: domainId || '', domainType: domainType || 'internal' };
+    }
+    return { domainId: ref, domainType: 'internal' };
+  }
+
+  private async resolveDomainId(): Promise<string | null> {
+    const parsed = this.parseDomainRef();
+    if (parsed.domainId) return parsed.domainId;
+
+    const id = await resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Dnsneko');
+    if (!id) return null;
+
+    // resolveDomainIdHelper may have cached a composite third_id from getDomainList
+    return id.includes(':') ? id.split(':', 2)[1] : id;
+  }
+
+  private async request<T>(
+    method: string,
+    path: string,
+    params?: Dict,
+    queryParams?: Dict,
+  ): Promise<DnsnekoApiResponse<T>> {
     let url = `${this.baseUrl}${path}`;
     let body: string | undefined;
 
+    const allQueryParams: Dict = {};
     if (method === 'GET' && params) {
-      const query = new URLSearchParams();
-      for (const [key, value] of Object.entries(params)) {
-        if (value !== undefined && value !== null) {
-          query.set(key, String(value));
-        }
-      }
-      url += '?' + query.toString();
-    } else if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
+      Object.assign(allQueryParams, params);
+    } else if (params) {
       body = JSON.stringify(params);
+    }
+    if (queryParams) {
+      Object.assign(allQueryParams, queryParams);
+    }
+
+    const entries = Object.entries(allQueryParams).filter(([_, v]) => v !== undefined && v !== null);
+    if (entries.length > 0) {
+      const query = new URLSearchParams();
+      for (const [key, value] of entries) query.set(key, String(value));
+      url += '?' + query.toString();
     }
 
     log.sub('API').tag('REQUEST').debug('Provider request', { method, url });
@@ -91,13 +136,9 @@ export class DnsnekoAdapter implements DnsAdapter {
     return data;
   }
 
-  private async resolveDomainId(): Promise<string | null> {
-    return resolveDomainIdHelper(this.config, this.getDomainList.bind(this), 'Dnsneko');
-  }
-
   async check(): Promise<boolean> {
     try {
-      await this.request<{ domains: DnsnekoDomain[]; pages: number }>('GET', '/domains', { page: 1, size: 1 });
+      await this.request('GET', '/domains', { page: 1, size: 1, domainType: 'all' });
       return true;
     } catch {
       return false;
@@ -106,21 +147,20 @@ export class DnsnekoAdapter implements DnsAdapter {
 
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
     try {
-      const data = await this.request<{ domains: DnsnekoDomain[]; pages: number }>('GET', '/domains', { page, size: pageSize });
+      const params: Dict = { page, size: pageSize, domainType: 'all' };
+      if (keyword) params.keyword = keyword;
+
+      const data = await this.request<{ domains: DnsnekoDomain[]; total: string; pages: string }>('GET', '/domains', params);
       const domains = data.data?.domains || [];
-      let list = domains.map((item) => ({
+      const list = domains.map((item) => ({
         Domain: item.domain,
-        ThirdId: String(item.id),
-        RecordCount: item.recordCount,
+        ThirdId: `${item.domainType}:${item.id}`,
+        RecordCount: item.recordCount ? parseInt(item.recordCount) : undefined,
         ExpiresAt: item.expireTime,
+        AdapterData: item,
       }));
 
-      if (keyword) {
-        const lower = keyword.toLowerCase();
-        list = list.filter((d) => d.Domain.toLowerCase().includes(lower));
-      }
-
-      return { total: domains.length, list };
+      return { total: list.length, list };
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
       log.error('getDomainList failed', this.error);
@@ -142,11 +182,12 @@ export class DnsnekoAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return { total: 0, list: [] };
 
-      const params: Dict = { domainId, page, size: pageSize };
+      const parsed = this.parseDomainRef();
+      const params: Dict = { domainId, page, size: pageSize, domainType: parsed.domainType };
       if (type) params.type = type;
       if (keyword) params.keyword = keyword;
 
-      const data = await this.request<{ records: DnsnekoRecord[]; pages: number }>('GET', '/records', params);
+      const data = await this.request<{ records: DnsnekoRecord[]; domainId: string; domain: string; domainType: string }>('GET', '/records', params);
 
       let list = (data.data?.records || []).map((r) => this.mapRecord(r));
 
@@ -167,7 +208,8 @@ export class DnsnekoAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return null;
 
-      const data = await this.request<{ records: DnsnekoRecord[] }>('GET', '/records', { domainId, page: 1, size: 100 });
+      const parsed = this.parseDomainRef();
+      const data = await this.request<{ records: DnsnekoRecord[] }>('GET', '/records', { domainId, page: 1, size: 100, domainType: parsed.domainType });
       const record = data.data?.records?.find((r) => String(r.id) === recordId);
       return record ? this.mapRecord(record) : null;
     } catch (e) {
@@ -190,6 +232,7 @@ export class DnsnekoAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return null;
 
+      const parsed = this.parseDomainRef();
       const body: Dict = {
         name: normalizeRrName(name),
         type,
@@ -202,7 +245,7 @@ export class DnsnekoAdapter implements DnsAdapter {
       if (type === 'MX' || type === 'SRV') body.priority = mx;
       if (weight !== undefined) body.weight = weight;
 
-      const data = await this.request<Dict>('POST', `/records/${domainId}`, body);
+      const data = await this.request<Dict>('POST', `/records/${domainId}`, body, { domainType: parsed.domainType });
 
       if (data.data) {
         const id = data.data.id ?? data.data.record_id ?? data.data.Id;
@@ -212,7 +255,7 @@ export class DnsnekoAdapter implements DnsAdapter {
       if (topId) return String(topId);
 
       const rawName = normalizeRrName(name);
-      const scan = await this.request<{ records: DnsnekoRecord[] }>('GET', '/records', { domainId, page: 1, size: 100 });
+      const scan = await this.request<{ records: DnsnekoRecord[] }>('GET', '/records', { domainId, page: 1, size: 100, domainType: parsed.domainType });
       const match = scan.data?.records?.find((r) =>
         normalizeRrName(r.name) === rawName && r.type === type && r.value === value
       );
@@ -240,6 +283,7 @@ export class DnsnekoAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return false;
 
+      const parsed = this.parseDomainRef();
       const body: Dict = {
         name: normalizeRrName(name),
         type,
@@ -252,7 +296,7 @@ export class DnsnekoAdapter implements DnsAdapter {
       if (type === 'MX' || type === 'SRV') body.priority = mx;
       if (weight !== undefined) body.weight = weight;
 
-      await this.request<unknown>('PUT', `/records/${domainId}/${recordId}`, body);
+      await this.request<unknown>('PUT', `/records/${domainId}/${recordId}`, body, { domainType: parsed.domainType });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -265,7 +309,8 @@ export class DnsnekoAdapter implements DnsAdapter {
       const domainId = await this.resolveDomainId();
       if (!domainId) return false;
 
-      await this.request<unknown>('DELETE', `/records/${domainId}/${recordId}`);
+      const parsed = this.parseDomainRef();
+      await this.request<unknown>('DELETE', `/records/${domainId}/${recordId}`, undefined, { domainType: parsed.domainType });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -275,7 +320,8 @@ export class DnsnekoAdapter implements DnsAdapter {
 
   async setDomainRecordStatus(recordId: string, status: number): Promise<boolean> {
     try {
-      await this.request<unknown>('POST', `/records/${recordId}/status`, { status });
+      const parsed = this.parseDomainRef();
+      await this.request<unknown>('POST', `/records/${recordId}/status`, { status }, { domainType: parsed.domainType });
       return true;
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
