@@ -6,7 +6,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 
 // 数据库路径（根据实际环境调整）
-const dbPath = process.argv[2] || './data/dnsmgr.db';
+const dbPath = process.argv[2] || './data/hidns.db';
 const absolutePath = path.resolve(dbPath);
 
 console.log('🔍 诊断 SQLite 数据库结构\n');

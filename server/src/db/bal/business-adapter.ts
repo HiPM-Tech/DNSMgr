@@ -2198,7 +2198,7 @@ export const SystemOperations = {
     postgresql?: { host: string; port: number; user: string; password: string; database: string; ssl?: boolean }
   }): Promise<{ success: boolean; message: string; hasExistingData: boolean; hasUsers?: boolean }> {
     if (config.type === 'sqlite') {
-      return this.testSqliteConnection(config.sqlite?.path || './data/dnsmgr.db');
+      return this.testSqliteConnection(config.sqlite?.path || './data/hidns.db');
     } else if (config.type === 'mysql') {
       if (!config.mysql) throw new Error('MySQL configuration required');
       return this.testMysqlConnection(config.mysql);

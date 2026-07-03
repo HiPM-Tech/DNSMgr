@@ -111,8 +111,9 @@ const router = Router();
 
 type PublicInitDbConfig = {
   type: 'sqlite' | 'mysql' | 'postgresql';
-  mysql?: { ssl: boolean };
-  postgresql?: { ssl: boolean };
+  sqlite?: { path: string };
+  mysql?: { ssl: boolean; database: string };
+  postgresql?: { ssl: boolean; database: string };
 };
 
 function getPublicInitDbConfig(): PublicInitDbConfig {
@@ -122,10 +123,12 @@ function getPublicInitDbConfig(): PublicInitDbConfig {
 
   const result: PublicInitDbConfig = { type: dbType };
 
-  if (dbType === 'mysql') {
-    result.mysql = { ssl };
+  if (dbType === 'sqlite') {
+    result.sqlite = { path: resolveDefaultDbPath() };
+  } else if (dbType === 'mysql') {
+    result.mysql = { ssl, database: process.env.DB_NAME || 'HiDNS' };
   } else if (dbType === 'postgresql') {
-    result.postgresql = { ssl };
+    result.postgresql = { ssl, database: process.env.DB_NAME || 'HiDNS' };
   }
 
   return result;
@@ -198,7 +201,7 @@ router.post('/test-db', async (req: Request, res: Response) => {
 
   try {
     if (type === 'sqlite') {
-      const sqlitePath = sqlite?.path || './data/dnsmgr.db';
+      const sqlitePath = sqlite?.path || './data/hidns.db';
       log.info('Testing SQLite connection', { path: sqlitePath });
 
       const result = await SystemOperations.testSqliteConnection(sqlitePath);

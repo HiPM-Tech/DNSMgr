@@ -160,7 +160,7 @@ export function getDatabaseConfig(): DatabaseConfig {
         mysql: {
           host: process.env.DB_HOST || DEFAULT_CONFIG.mysql.host,
           port: parseInt(process.env.DB_PORT || String(DEFAULT_CONFIG.mysql.port), 10),
-          database: process.env.DB_NAME || 'dnsmgr',
+          database: process.env.DB_NAME || 'HiDNS',
           user: process.env.DB_USER || 'root',
           password: process.env.DB_PASSWORD || '',
           ssl: process.env.DB_SSL === 'true',
@@ -179,7 +179,7 @@ export function getDatabaseConfig(): DatabaseConfig {
         postgresql: {
           host: process.env.DB_HOST || DEFAULT_CONFIG.postgresql.host,
           port: parseInt(process.env.DB_PORT || String(DEFAULT_CONFIG.postgresql.port), 10),
-          database: process.env.DB_NAME || 'dnsmgr',
+          database: process.env.DB_NAME || 'HiDNS',
           user: process.env.DB_USER || 'postgres',
           password: process.env.DB_PASSWORD || '',
           ssl: process.env.DB_SSL === 'true',

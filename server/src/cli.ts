@@ -134,7 +134,7 @@ async function resetDBConfig(args: string[]) {
     envMap.set('DB_TYPE', dbType);
 
     if (dbType === 'sqlite') {
-      envMap.set('DB_PATH', params.path || './data/dnsmgr.db');
+      envMap.set('DB_PATH', params.path || './data/hidns.db');
       // Remove other DB configs
       envMap.delete('DB_HOST');
       envMap.delete('DB_PORT');

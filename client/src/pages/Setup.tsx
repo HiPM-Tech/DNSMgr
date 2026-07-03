@@ -35,9 +35,9 @@ const stepIndex: Record<Step, number> = {
 
 const DEFAULT_DB_CONFIG: DbConfig = {
   type: 'sqlite',
-  sqlite: { path: './data/dnsmgr.db' },
-  mysql: { host: 'localhost', port: 3306, database: 'dnsmgr', user: 'root', password: '', ssl: false },
-  postgresql: { host: 'localhost', port: 5432, database: 'dnsmgr', user: 'postgres', password: '', ssl: false },
+  sqlite: { path: './data/hidns.db' },
+  mysql: { host: 'localhost', port: 3306, database: 'HiDNS', user: 'root', password: '', ssl: false },
+  postgresql: { host: 'localhost', port: 5432, database: 'HiDNS', user: 'postgres', password: '', ssl: false },
 };
 
 const setupField = (label: string, control: ReactNode) => (
@@ -247,7 +247,7 @@ export function Setup() {
         t('setup.dbPath'),
           <Input
             value={dbConfig.sqlite.path}
-            placeholder="./data/dnsmgr.db"
+            placeholder="./hidns.db"
             onChange={(value) => resetDbTest({ ...dbConfig, sqlite: { path: String(value) } })}
           />
       );

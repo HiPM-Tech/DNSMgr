@@ -36,7 +36,7 @@ export class BackupManager {
 
     try {
       if (dbType === 'sqlite') {
-        const dbPath = process.env.DB_PATH || './data/dnsmgr.db';
+        const dbPath = process.env.DB_PATH || './data/hidns.db';
         if (!fs.existsSync(dbPath)) {
           log.warn('SQLite database file not found, skipping backup.');
           return '';
