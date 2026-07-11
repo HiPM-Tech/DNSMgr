@@ -330,14 +330,16 @@ export class DnsnekoAdapter implements DnsAdapter {
     }
   }
 
-  async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    return [
-      { id: 'default', name: '默认' },
-      { id: 'telecom', name: '电信' },
-      { id: 'unicom', name: '联通' },
-      { id: 'mobile', name: '移动' },
-      { id: 'overseas', name: '海外' },
-    ];
+  async getRecordLines(): Promise<Array<{ id: string; name?: string }>> {
+    try {
+      const res = await this.request<Array<{ value: string; label: string }>>('GET', '/geo-lines');
+      if (res.code === 200 && Array.isArray(res.data)) {
+        return res.data.map((l) => ({ id: l.value, name: l.label }));
+      }
+      return [{ id: 'default' }];
+    } catch {
+      return [{ id: 'default' }];
+    }
   }
 
   async getMinTTL(): Promise<number> {
