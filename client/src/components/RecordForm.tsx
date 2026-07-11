@@ -138,16 +138,15 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const { t } = useI18n();
   
   const isVPS8 = provider?.type === 'vps8';
-  const isCloudflare = provider?.type === 'cloudflare';
-  const isAliyunESA = provider?.type === 'aliyunesa';
-  const hasProxyMode = isCloudflare || isAliyunESA;
-  const hasMultiLine = lines.length > 1 && !hasProxyMode;
+  const providerType = provider?.type ?? '';
+  const proxiable = provider?.capabilities?.dns?.proxiable === true;
+  const hasMultiLine = lines.length > 1 && !proxiable;
   
   const defaultLine = useMemo(() => {
-    if (hasProxyMode) return '0';
+    if (proxiable) return '0';
     if (hasMultiLine && lines.length > 0) return String(lines[0]?.id ?? '0');
     return '0';
-  }, [hasProxyMode, hasMultiLine, lines]);
+  }, [proxiable, hasMultiLine, lines]);
 
   const formKey = initial?.id ?? 'create';
 
@@ -217,8 +216,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
   const typeDef = getRecordTypeDef(currentType);
   const isSrv = currentType === 'SRV';
   
-  const canSelectProxy = hasProxyMode
-    ? (isCloudflare
+  const canSelectProxy = proxiable
+    ? (providerType === 'cloudflare'
       ? (initial && initial.type === currentType && initial.cloudflare?.proxiable !== undefined
         ? Boolean(initial.cloudflare.proxiable)
         : initial && initial.type === currentType && initial.proxiable !== null && initial.proxiable !== undefined
@@ -324,8 +323,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       mx: (currentType === 'MX' || currentType === 'SRV') ? Number(mx ?? 0) : undefined,
       weight: currentType === 'SRV' ? Number(weight ?? 0) : undefined,
       line: lineValue,
-      cloudflare: (isCloudflare && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
-      aliyunesa: (isAliyunESA && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
+      cloudflare: (providerType === 'cloudflare' && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
+      aliyunesa: (providerType === 'aliyunesa' && canSelectProxy && lineValue !== undefined) ? { proxied: lineValue === '1' } : undefined,
       remark: (remark ?? '').toString() ?? '',
     };
 
@@ -334,13 +333,13 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
 
   const toSelectString = (value: SelectValue) => String(Array.isArray(value) ? value[0] ?? '' : value);
   const recordTypeOptions = recordTypes.map((type) => ({ label: type, value: type }));
-  const lineOptions = hasProxyMode
+  const lineOptions = proxiable
     ? [
       { label: t('records.dnsOnly'), value: '0' },
       { label: t('records.proxied'), value: '1' },
     ]
     : hasMultiLine
-      ? lines.map((line) => ({ label: line.name, value: String(line.id) }))
+      ? lines.map((line) => ({ label: line.name || line.id, value: String(line.id) }))
       : [{ label: t('records.defaultLine') || '默认', value: '0' }];
 
   const valuePlaceholder = typeDef?.valueType === 'ipv4' ? '192.168.1.1'
@@ -490,8 +489,8 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
         ))}
         {canSelectProxy && (
           <FormItem
-            label={hasProxyMode ? t('records.proxy') : t('common.line')}
-            tips={!hasProxyMode && !hasMultiLine ? t('records.singleLineHint') || '该提供商仅支持默认线路' : undefined}
+            label={proxiable ? t('records.proxy') : t('common.line')}
+            tips={!proxiable && !hasMultiLine ? t('records.singleLineHint') || '该提供商仅支持默认线路' : undefined}
           >
             <Select
               value={String(line ?? '0')}

@@ -4,6 +4,8 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
 import { dnsheGetWhois } from '../lib/dns/providers';
 import type { DomainInfo } from '../lib/dns/DnsInterface';
+import { providerDefinitionMap } from '../lib/dns/providers/registry';
+import { DNS_RECORD_DEFS } from '../lib/dns/record-types';
 import { renewalRegistry } from '../service/renewalScheduler';
 import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
@@ -1055,6 +1057,62 @@ router.get('/:id/lines', authMiddleware, asyncHandler(async (req: Request, res: 
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
   }
+}));
+
+/**
+ * @swagger
+ * /api/domains/{id}/record-types:
+ *   get:
+ *     summary: Get supported record types for domain
+ *     tags: [Domains]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Supported record types with metadata
+ */
+router.get('/:id/record-types', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInteger(req.params.id) ?? 0;
+  const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
+    sendError(res, 'Domain not found');
+    return;
+  }
+  const account = await DnsAccountOperations.getById(access.domain.account_id) as DnsAccount | undefined;
+  if (!account) {
+    sendError(res, 'Account not found');
+    return;
+  }
+
+  // For adapters that support dynamic record types (e.g. hidns-v2), query upstream
+  try {
+    const cfg = JSON.parse(account.config) as Record<string, string>;
+    const dnsAdapter = createAdapter(account.type, cfg, access.domain.name, access.domain.third_id);
+    if (typeof (dnsAdapter as any).getRecordTypes === 'function') {
+      const types = await (dnsAdapter as any).getRecordTypes();
+      if (Array.isArray(types) && types.length > 0) {
+        sendSuccess(res, types);
+        return;
+      }
+    }
+  } catch { /* fall through to registry */ }
+
+  const def = providerDefinitionMap.get(account.type);
+  if (!def || !def.capabilities?.dns) {
+    sendSuccess(res, []);
+    return;
+  }
+  const recordTypes = def.capabilities.dns.recordTypes;
+  const result = recordTypes.map((type) => ({
+    ...DNS_RECORD_DEFS[type],
+  })).filter(Boolean);
+  sendSuccess(res, result);
 }));
 
 /**

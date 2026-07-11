@@ -329,10 +329,7 @@ export class AliyunesaAdapter extends BaseAdapter {
   }
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    return [
-      { id: '0', name: '仅DNS' },
-      { id: '1', name: '已代理' },
-    ];
+    return [{ id: '0', name: '默认' }];
   }
 
   async getMinTTL(): Promise<number> {

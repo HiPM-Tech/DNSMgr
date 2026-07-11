@@ -354,6 +354,9 @@ router.post('/database', async (req: Request, res: Response) => {
     // Save configuration
     saveDatabaseConfig(type, sqlite, mysqlConfig, pgConfig);
 
+    // Clean up temp DB marker (used by app.ts for in-memory pre-init mode)
+    delete process.env._TEMP_DB;
+
     // Generate JWT secret if needed
     const currentJwtSecret = process.env.JWT_SECRET || '';
     if (!currentJwtSecret || currentJwtSecret === 'dnsmgr-secret-key') {

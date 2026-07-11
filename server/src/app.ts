@@ -3,6 +3,12 @@
 import { loadEnv } from './config/env';
 loadEnv();
 
+// 未配置数据库时使用临时内存数据库，避免在引导前生成实际的 SQLite 文件
+if (!process.env.DB_TYPE && !process.env.DB_PATH) {
+  process.env.DB_PATH = ':memory:';
+  process.env._TEMP_DB = '1';
+}
+
 // 解析 SEA 二进制 CLI 参数
 // 支持: -l <log_level> -p <port> -i install|uninstall -u on|off
 (function parseSeaArgs() {

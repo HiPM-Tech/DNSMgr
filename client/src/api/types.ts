@@ -23,7 +23,7 @@ export interface Provider {
       status: boolean;
       redirect: boolean;
       weight: boolean;
-      line: boolean;
+      proxiable: boolean;
       cnameFlattening: boolean;
       recordTypes: RecordType[];
     } | null;
@@ -113,7 +113,7 @@ export interface DnsRecord {
 
 export interface DnsLine {
   id: string;
-  name: string;
+  name?: string;
 }
 
 export interface Team {

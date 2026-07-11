@@ -112,7 +112,7 @@ export class DnsProviderService {
   /**
    * 获取可用线路列表
    */
-  static async getLines(domainId: number): Promise<Array<{ id: string; name: string }>> {
+  static async getLines(domainId: number): Promise<Array<{ id: string; name?: string }>> {
     const adapter = await this.getAdapter(domainId);
     return adapter.getRecordLines();
   }

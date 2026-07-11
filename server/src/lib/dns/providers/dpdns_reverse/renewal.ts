@@ -11,7 +11,7 @@
  */
 
 import { createProviderRenewalLogger } from '../internal';
-import { authenticatedRequest, DpdnsAuthConfig } from './auth';
+import { authenticatedRequest, ensureCsrfToken, DpdnsAuthConfig } from './auth';
 
 const log = createProviderRenewalLogger('DPDNS');
 
@@ -147,6 +147,9 @@ export async function renewFreeDomain(
   domainName: string,
   years: number = 1
 ): Promise<{ newExpiryDate: string }> {
+  // Ensure CSRF token is obtained before mutating request
+  await ensureCsrfToken(config);
+
   const url = `${BASE_URL}/api/domains/${encodeURIComponent(domainName)}/renew`;
   log.sub('API').tag('REQUEST').debug('Renewing domain', { domain: domainName, years });
 

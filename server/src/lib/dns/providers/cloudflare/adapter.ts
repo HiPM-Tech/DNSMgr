@@ -295,10 +295,7 @@ export class CloudflareAdapter implements DnsAdapter {
   }
 
   getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    return Promise.resolve([
-      { id: '0', name: '仅DNS' },
-      { id: '1', name: '已代理' },
-    ]);
+    return Promise.resolve([{ id: '0', name: '默认' }]);
   }
 
   getMinTTL(): Promise<number> {

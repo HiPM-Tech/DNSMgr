@@ -162,13 +162,9 @@ export function Records() {
     onError: () => toast.error(t('records.toggleFailed')),
   });
 
-  const lineMap = Object.fromEntries(lines.map((l) => [l.id, l.name]));
+  const lineMap = Object.fromEntries(lines.map((l) => [l.id, l.name || l.id]));
 
-  const isCloudflare = account?.type === 'cloudflare';
-  const isAliyunESA = account?.type === 'aliyunesa';
-  // Providers with proxy mode (similar to Cloudflare)
-  const hasProxyMode = isCloudflare || isAliyunESA;
-  
+  const hasProxyMode = currentProvider?.capabilities?.dns?.proxiable === true;
 
   const columns = [
     { key: 'name', label: t('common.host'), width: 220, render: (r: DnsRecord) => <span className="record-mono record-mono--strong" title={r.name}>{r.name}</span> },

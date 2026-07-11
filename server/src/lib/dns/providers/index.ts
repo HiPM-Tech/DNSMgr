@@ -29,6 +29,7 @@ export { PowerdnsAdapter } from './powerdns';
 export { QingcloudAdapter } from './qingcloud';
 export { SpaceshipAdapter } from './spaceship';
 export { HiDNSAdapter } from './hidns';
+export { HidnsV2Adapter } from './hidns-v2';
 export { CaihongDnsAdapter } from './caihongdns';
 export { Vps8Adapter } from './vps8';
 export { GcoreAdapter } from './gcore';

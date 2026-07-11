@@ -369,13 +369,8 @@ export class ExampleAdapter implements DnsAdapter {
    * 获取支持的线路列表
    */
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    // 返回默认线路，或者调用 API 获取提供商支持的线路
-    return [
-      { id: '0', name: '默认' },
-      { id: 'telecom', name: '电信' },
-      { id: 'unicom', name: '联通' },
-      { id: 'mobile', name: '移动' },
-    ];
+    // 返回此提供商支持的线路，ID 和名称由适配器决定
+    return [{ id: '0', name: '默认' }];
   }
 
   /**

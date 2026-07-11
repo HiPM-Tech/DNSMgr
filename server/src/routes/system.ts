@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { SystemOperations } from '../db/bal/business-adapter';
+import { SystemOperations, isDbConnected } from '../db/bal/business-adapter';
 
 const router = Router();
 
@@ -36,6 +36,56 @@ router.get('/info', async (req: Request, res: Response) => {
     res.status(500).json({
       code: 500,
       msg: error instanceof Error ? error.message : 'Failed to get system info',
+    });
+  }
+});
+
+// Get system version information (version, deploy mode, log level, node status)
+router.get('/version', async (_req: Request, res: Response) => {
+  try {
+    const serverVersion = require('../../package.json').version;
+
+    // Detect deployment mode
+    let deployMode: 'sea' | 'pkg' | 'dev';
+    if (!!(process as any).pkg) {
+      deployMode = 'pkg';
+    } else {
+      try {
+        const sea = require('node:sea');
+        deployMode = typeof sea.isSea === 'function' && sea.isSea() ? 'sea' : 'dev';
+      } catch {
+        const exe = require('path').basename(process.execPath).toLowerCase();
+        deployMode = exe === 'hidns.exe' || exe === 'hidns' ? 'sea' : 'dev';
+      }
+    }
+
+    // Log level
+    const logLevel = process.env.HIDNS_LOG_LEVEL || 'info';
+
+    // Node status
+    const uptime = process.uptime();
+    const startTime = new Date(Date.now() - uptime * 1000).toISOString();
+    const dbConnected = isDbConnected();
+
+    res.json({
+      code: 0,
+      data: {
+        version: serverVersion,
+        deployMode,
+        logLevel,
+        nodeStatus: {
+          status: 'running',
+          uptime,
+          startTime,
+          dbConnected,
+        },
+      },
+      msg: 'success',
+    });
+  } catch (error) {
+    res.status(500).json({
+      code: 500,
+      msg: error instanceof Error ? error.message : 'Failed to get system version info',
     });
   }
 });

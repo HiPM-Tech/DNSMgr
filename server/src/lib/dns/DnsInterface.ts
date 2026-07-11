@@ -69,7 +69,7 @@ export interface DnsAdapter {
   ): Promise<boolean>;
   deleteDomainRecord(recordId: string): Promise<boolean>;
   setDomainRecordStatus(recordId: string, status: number): Promise<boolean>;
-  getRecordLines(): Promise<Array<{ id: string; name: string }>>;
+  getRecordLines(): Promise<Array<{ id: string; name?: string }>>;
   getMinTTL(): Promise<number>;
   addDomain(domain: string): Promise<boolean>;
 }

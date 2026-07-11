@@ -572,7 +572,7 @@ export function ServiceMonitorTab() {
           { label: t('records.proxied') || 'Proxied', value: '1' },
         ]
       : lines.length > 1
-        ? lines.map((l: any) => ({ label: l.name, value: String(l.id) }))
+        ? lines.map((l: any) => ({ label: l.name || l.id, value: String(l.id) }))
         : [{ label: t('records.defaultLine') || '默认', value: 'default' }];
     return (
       <div className="page-shell dialog-form servicemonitor-dialog">
