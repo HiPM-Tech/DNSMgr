@@ -310,7 +310,7 @@ export function NSMonitorTab() {
     });
   };
 
-  const columns: { key: string; label: string; render?: (row: NSMonitorConfig) => ReactNode }[] = [
+  const columns: { key: string; label: string; render?: (row: NSMonitorConfig) => ReactNode; width?: number | string }[] = [
     {
       key: 'domain_name',
       label: t('nsMonitor.domainName'),
