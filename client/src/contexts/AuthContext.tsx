@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { authApi } from '../api';
 import type { User, WebAuthnResponse } from '../api';
@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse, encrypted?: boolean) => {
+  const login = useCallback(async (username: string, password: string, totpCode?: string, backupCode?: string, webauthnResponse?: WebAuthnResponse, encrypted?: boolean) => {
     const res = await authApi.login(username, password, totpCode, backupCode, webauthnResponse, encrypted);
     if (res.data.code === -2) {
       // 2FA required
@@ -45,9 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Token is set via httpOnly cookie by server
     const { user: u } = res.data.data;
     if (u) setUser(u);
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authApi.logout();
     } catch (error) {
@@ -55,14 +55,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
     }
-  };
+  }, []);
 
-  const updateUser = (nextUser: User) => {
+  const updateUser = useCallback((nextUser: User) => {
     setUser(nextUser);
-  };
+  }, []);
+
+  const isAdminFlag = useMemo(() => isAdmin(user?.role), [user]);
+
+  const value = useMemo<AuthContextType>(
+    () => ({ user, isLoading, login, logout, updateUser, isAdmin: isAdminFlag }),
+    [user, isLoading, login, logout, updateUser, isAdminFlag],
+  );
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser, isAdmin: isAdmin(user?.role) }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

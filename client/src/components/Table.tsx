@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Empty, Table as TTable } from 'tdesign-react';
 import type { PrimaryTableCol } from 'tdesign-react/es/table';
@@ -27,26 +28,30 @@ interface TableProps<T> {
 export function Table<T extends object>({ columns, data, loading, emptyText, rowKey, selectable, selectedRowKeys = [], onSelectChange }: TableProps<T>) {
   const { t } = useI18n();
   const resolvedEmptyText = emptyText ?? t('common.noData');
-  
-  const tableData = data.map((row) => ({
-    ...row,
-    __rowKey: rowKey(row),
-  }));
 
-  const tableColumns: PrimaryTableCol<T & { __rowKey: string | number }>[] = columns.map((col) => ({
-    colKey: col.key,
-    title: col.label,
-    className: col.className,
-    width: col.width,
-    minWidth: col.minWidth,
-    ellipsis: col.ellipsis ?? true,
-    cell: ({ row }) => {
-      const originalRow = row as T;
-      if (col.render) return col.render(originalRow);
-      const value = (originalRow as Record<string, unknown>)[col.key];
-      return value === null || value === undefined ? '' : String(value);
-    },
-  }));
+  // 缓存处理后的数据与列定义，避免每次渲染都重建数组与 cell 函数
+  const tableData = useMemo(
+    () => data.map((row) => ({ ...row, __rowKey: rowKey(row) })),
+    [data, rowKey],
+  );
+
+  const tableColumns = useMemo<PrimaryTableCol<T & { __rowKey: string | number }>[]>(() => {
+    const colDefs = columns.map((col) => ({
+      colKey: col.key,
+      title: col.label,
+      className: col.className,
+      width: col.width,
+      minWidth: col.minWidth,
+      ellipsis: col.ellipsis ?? true,
+      cell: ({ row }: { row: T }) => {
+        const originalRow = row as T;
+        if (col.render) return col.render(originalRow);
+        const value = (originalRow as Record<string, unknown>)[col.key];
+        return value === null || value === undefined ? '' : String(value);
+      },
+    }));
+    return colDefs;
+  }, [columns]);
 
   return (
     <TTable
@@ -58,13 +63,11 @@ export function Table<T extends object>({ columns, data, loading, emptyText, row
       size="medium"
       tableLayout="fixed"
       empty={<Empty description={resolvedEmptyText} />}
-      // ← 新增：复选框配置
       {...(selectable && {
         rowSelection: {
           type: 'multiple' as const,
           selectedRowKeys: selectedRowKeys || [],
           onChange: (keys: (string | number)[]) => {
-            console.log('[Table] Selection changed:', keys);
             onSelectChange?.(keys);
           },
           getCheckboxProps: () => ({ disabled: false }),

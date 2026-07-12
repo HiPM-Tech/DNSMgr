@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, useCallback, type ReactNode } from 'react';
 import { Alert, Button, Input, Select, Space } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
 import type { DnsRecord, DnsLine, Provider } from '../api';
@@ -198,7 +198,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     });
   }, [type]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const set = (k: string, v: unknown) => {
+  const set = useCallback((k: string, v: unknown) => {
     switch (k) {
       case 'name': setName(v as string); break;
       case 'type': setType(v as RecordType); break;
@@ -210,11 +210,25 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
       case 'remark': setRemark(v as string); break;
     }
     setErrors((current) => ({ ...current, [k as keyof typeof current]: undefined }));
-  };
+  }, []);
+
+  const toSelectString = useCallback((value: SelectValue) => String(Array.isArray(value) ? value[0] ?? '' : value), []);
 
   const currentType = type ?? 'A';
   const typeDef = getRecordTypeDef(currentType);
   const isSrv = currentType === 'SRV';
+
+  const handleTypeChange = useCallback((value: SelectValue) => {
+    const nextType = toSelectString(value);
+    set('type', nextType);
+    if (nextType !== 'SRV') {
+      setErrors((current) => ({ ...current, srvPort: undefined, srvTarget: undefined, weight: undefined }));
+    }
+  }, [toSelectString, set]);
+
+  const handleLineChange = useCallback((value: SelectValue) => {
+    set('line', toSelectString(value));
+  }, [set, toSelectString]);
   
   const canSelectProxy = proxiable
     ? (providerType === 'cloudflare'
@@ -331,16 +345,30 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     onSubmit(payload);
   };
 
-  const toSelectString = (value: SelectValue) => String(Array.isArray(value) ? value[0] ?? '' : value);
-  const recordTypeOptions = recordTypes.map((type) => ({ label: type, value: type }));
-  const lineOptions = proxiable
-    ? [
-      { label: t('records.dnsOnly'), value: '0' },
-      { label: t('records.proxied'), value: '1' },
-    ]
-    : hasMultiLine
-      ? lines.map((line) => ({ label: line.name || line.id, value: String(line.id) }))
-      : [{ label: t('records.defaultLine') || '默认', value: '0' }];
+  const recordTypeOptions = useMemo(
+    () => recordTypes.map((type) => ({ label: type, value: type })),
+    [recordTypes],
+  );
+
+  // lineOptions 必须缓存，否则每次按键都会让线路下拉重新渲染上千条
+  const lineOptions = useMemo(() => {
+    if (proxiable) {
+      return [
+        { label: t('records.dnsOnly'), value: '0' },
+        { label: t('records.proxied'), value: '1' },
+      ];
+    }
+    if (hasMultiLine) {
+      return lines.map((line) => ({ label: line.name || line.id, value: String(line.id) }));
+    }
+    return [{ label: t('records.defaultLine') || '默认', value: '0' }];
+  }, [proxiable, hasMultiLine, lines, t]);
+
+  // 线路数较多时启用虚拟滚动与搜索，避免下拉面板 DOM 过多导致卡顿
+  const lineNeedsVirtual = lineOptions.length > 50;
+  const lineScrollProps = lineNeedsVirtual
+    ? { scroll: { type: 'virtual' as const, threshold: 50, rowHeight: 32, bufferSize: 12 } }
+    : {};
 
   const valuePlaceholder = typeDef?.valueType === 'ipv4' ? '192.168.1.1'
     : typeDef?.valueType === 'ipv6' ? '2400:3200::1'
@@ -402,11 +430,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
           <Select
             value={String(type ?? 'A')}
             options={recordTypeOptions}
-            onChange={(value: any) => {
-              const nextType = toSelectString(value);
-              set('type', nextType);
-              if (nextType !== 'SRV') setErrors((current) => ({ ...current, srvPort: undefined, srvTarget: undefined, weight: undefined }));
-            }}
+            onChange={handleTypeChange}
           />
         </FormItem>
       </div>
@@ -495,7 +519,9 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Select
               value={String(line ?? '0')}
               options={lineOptions}
-              onChange={(value: any) => set('line', toSelectString(value))}
+              filterable={lineNeedsVirtual}
+              {...lineScrollProps}
+              onChange={handleLineChange}
             />
           </FormItem>
         )}
