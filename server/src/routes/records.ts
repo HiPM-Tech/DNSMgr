@@ -2,8 +2,10 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware, requireTokenDomainPermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
+import { getProviderDefinitions } from '../lib/dns/providers/registry';
 import { DnsAccount, Domain } from '../types';
 import { type DnsRecord as AdapterRecord } from '../lib/dns/DnsInterface';
+import type { RecordType } from '../lib/dns/record-types';
 import { getDomainAccess } from './domains';
 import { normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
@@ -46,6 +48,15 @@ function toApiRecord(r: AdapterRecord) {
 function isValidRecordValue(type: string, value: string): string | true {
   const result = validateRecordValue(type, value);
   return result === null ? true : result;
+}
+
+const DYNAMIC_RECORD_TYPES_PROVIDERS = new Set(['hidns-v2']);
+
+function isTypeSupportedByProvider(accountType: string, recordType: string): boolean {
+  if (DYNAMIC_RECORD_TYPES_PROVIDERS.has(accountType)) return true;
+  const def = getProviderDefinitions().find(p => p.type === accountType);
+  if (!def || !def.capabilities.dns) return true;
+  return def.capabilities.dns.recordTypes.includes(recordType as RecordType);
 }
 
 function getSubdomain(fullName: string, domainName: string): string {
@@ -226,6 +237,13 @@ router.post('/', authMiddleware, requireTokenDomainPermission('domainId'), async
     const err = isValidRecordValue(type, value);
     if (err !== true) { sendError(res, err); return; }
   }
+  {
+    const account = await DnsAccountOperations.getById(access.domain.account_id) as DnsAccount | undefined;
+    if (account && !isTypeSupportedByProvider(account.type, type)) {
+      sendError(res, `Record type "${type}" is not supported by provider "${account.type}"`);
+      return;
+    }
+  }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
     // 对于 Cloudflare/ESA，使用 cloudflare.proxied 或 aliyunesa.proxied 决定 line 值
@@ -378,6 +396,18 @@ router.post('/batch', authMiddleware, requireTokenDomainPermission('domainId'), 
     }
   }
 
+  {
+    const account = await DnsAccountOperations.getById(access.domain.account_id) as DnsAccount | undefined;
+    if (account) {
+      const unsupported = records.filter(r => !isTypeSupportedByProvider(account.type, r.type));
+      if (unsupported.length > 0) {
+        const types = [...new Set(unsupported.map(r => r.type))].join(', ');
+        sendError(res, `Record types not supported by provider "${account.type}": ${types}`);
+        return;
+      }
+    }
+  }
+
   const dnsAdapter = await getAdapterForDomain(access.domain);
   const addedIds: string[] = [];
   const errors: string[] = [];
@@ -444,6 +474,13 @@ router.put('/:recordId', authMiddleware, requireTokenDomainPermission('domainId'
   {
     const err = isValidRecordValue(type, value);
     if (err !== true) { sendError(res, err); return; }
+  }
+  {
+    const account = await DnsAccountOperations.getById(access.domain.account_id) as DnsAccount | undefined;
+    if (account && !isTypeSupportedByProvider(account.type, type)) {
+      sendError(res, `Record type "${type}" is not supported by provider "${account.type}"`);
+      return;
+    }
   }
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);

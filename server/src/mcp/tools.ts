@@ -11,6 +11,7 @@ import { McpOperations, DomainOperations, RenewableDomainOperations, ServiceMoni
 import { DnsProviderService } from '../service/dns-provider-service';
 import { checkWhoisForDomain } from '../service/whois/checker';
 import { resolveNsRecords, validateNsRecords } from '../lib/dns/ns-lookup';
+import { validateRecordValue } from '../lib/dns/record-types';
 import { AppError } from '../middleware/errorHandler';
 import { createLogger } from '../lib/logger';
 
@@ -1307,6 +1308,12 @@ export function registerTools(server: McpServer): void {
 
         await validateToolPermission(auth.userId, 'create_dns_record', 'write', auth.authType, auth.scope);
 
+        // 核验记录类型和值合法性
+        const err = validateRecordValue(type, content);
+        if (err) {
+          return { content: [{ type: 'text', text: `Validation failed: ${err}` }], isError: true };
+        }
+
         // 调用 DNS 提供商 API 创建记录（支持线路）
         const recordId = await DnsProviderService.createRecord(domainId, name, type, content, {
           line,
@@ -1380,6 +1387,14 @@ export function registerTools(server: McpServer): void {
             content: [{ type: 'text', text: `Record ${recordId} not found` }],
             isError: true,
           };
+        }
+
+        // 核验新的记录类型和值合法性
+        const finalType = type || currentRecord.Type;
+        const finalContent = content || currentRecord.Value;
+        const err = validateRecordValue(finalType, finalContent);
+        if (err) {
+          return { content: [{ type: 'text', text: `Validation failed: ${err}` }], isError: true };
         }
 
         // 调用 DNS 提供商 API 更新记录（支持线路）

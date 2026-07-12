@@ -184,7 +184,7 @@ export function getRecordTypeDef(type: string): RecordTypeDef | undefined {
 
 export function validateRecordValue(type: string, value: string): string | null {
   const def = getRecordTypeDef(type);
-  if (!def) return value.trim().length > 0 ? null : 'Value is required';
+  if (!def) return `Unknown record type: ${type}`;
 
   const v = value.trim();
   if (!v) return 'Value is required';
