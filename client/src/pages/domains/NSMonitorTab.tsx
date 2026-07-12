@@ -379,6 +379,7 @@ export function NSMonitorTab() {
     {
       key: 'enabled',
       label: t('nsMonitor.monitoring'),
+      width: 100,
       render: (row: NSMonitorConfig) => {
         const isEnabled = toBoolean(row.enabled);
         return (

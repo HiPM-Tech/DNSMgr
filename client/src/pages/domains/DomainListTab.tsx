@@ -468,12 +468,12 @@ const toggleEnabledMutation = useMutation({
         const isApex = isApexDomain(row.name);
         const displayName = formatDomainName(row.name);
         return (
-          <Space size="small">
+          <div className="domain-name-cell">
             <Button className="domain-name-button" variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)} title={displayName}>
               {displayName}
             </Button>
-            {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />}>{t('domains.subdomain')}</Tag>}
-          </Space>
+            {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />} className="domain-subdomain-tag">{t('domains.subdomain')}</Tag>}
+          </div>
         );
       },
     },

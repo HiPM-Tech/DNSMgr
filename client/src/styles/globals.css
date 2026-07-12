@@ -1984,8 +1984,17 @@ html.dark .settings-image-preview__mask {
 }
 
 /* Domain name column button text truncation */
+.domain-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 .domain-name-button {
-  max-width: 200px;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
   display: inline-block;
 }
 
@@ -1993,6 +2002,12 @@ html.dark .settings-image-preview__mask {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.domain-subdomain-tag {
+  flex: 0 0 auto;
 }
 
 .setup-choice strong {
