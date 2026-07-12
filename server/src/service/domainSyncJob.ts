@@ -131,6 +131,14 @@ async function syncAccountDomains(account: any): Promise<void> {
   const accountName = account.name;
 
   try {
+    //#region debug-point mem-leak-sync-account-entry
+    const mEntry = process.memoryUsage();
+    log.tag('MEM-LEAK-DEBUG').info('syncAccountDomains entry', {
+      accountId, accountName,
+      rssMB: +(mEntry.rss / 1024 / 1024).toFixed(1),
+      heapUsedMB: +(mEntry.heapUsed / 1024 / 1024).toFixed(1),
+    });
+    //#endregion
     log.info(`Starting domain sync for account: ${accountName} (ID: ${accountId})`);
 
     // 解析配置
@@ -227,8 +235,28 @@ async function syncAccountDomains(account: any): Promise<void> {
       accountName,
     });
 
+    //#region debug-point mem-leak-sync-provider-loaded
+    const mProvider = process.memoryUsage();
+    log.tag('MEM-LEAK-DEBUG').info('providerDomains loaded', {
+      accountId, accountName,
+      providerDomainsCount: providerDomains.length,
+      rssMB: +(mProvider.rss / 1024 / 1024).toFixed(1),
+      heapUsedMB: +(mProvider.heapUsed / 1024 / 1024).toFixed(1),
+    });
+    //#endregion
+
     // 获取数据库中该账户的所有域名
     const dbDomains = await DomainOperations.getByAccountId(accountId);
+
+    //#region debug-point mem-leak-sync-dbdomain-loaded
+    const mDb = process.memoryUsage();
+    log.tag('MEM-LEAK-DEBUG').info('dbDomains loaded', {
+      accountId, accountName,
+      dbDomainsCount: dbDomains.length,
+      rssMB: +(mDb.rss / 1024 / 1024).toFixed(1),
+      heapUsedMB: +(mDb.heapUsed / 1024 / 1024).toFixed(1),
+    });
+    //#endregion
 
     // 创建提供商域名集合（用于快速查找）
     // 使用 normalizeDomain 将域名标准化为 Punycode，支持 IDN 域名
@@ -310,6 +338,15 @@ async function syncAccountDomains(account: any): Promise<void> {
 
     // Sync renewable_domains table
     await syncRenewableDomains(account, providerDomainSet, providerDomainExpiryMap);
+
+    //#region debug-point mem-leak-sync-account-done
+    const mDone = process.memoryUsage();
+    log.tag('MEM-LEAK-DEBUG').info('syncAccountDomains done', {
+      accountId, accountName,
+      rssMB: +(mDone.rss / 1024 / 1024).toFixed(1),
+      heapUsedMB: +(mDone.heapUsed / 1024 / 1024).toFixed(1),
+    });
+    //#endregion
   } catch (error) {
     log.error(`Failed to sync account domains`, {
       accountId,
@@ -324,6 +361,14 @@ async function syncAccountDomains(account: any): Promise<void> {
  */
 export async function executeDomainSync(): Promise<void> {
   try {
+    //#region debug-point mem-leak-sync-entry
+    const m0 = process.memoryUsage();
+    log.tag('MEM-LEAK-DEBUG').info('executeDomainSync entry', {
+      rssMB: +(m0.rss / 1024 / 1024).toFixed(1),
+      heapUsedMB: +(m0.heapUsed / 1024 / 1024).toFixed(1),
+      heapTotalMB: +(m0.heapTotal / 1024 / 1024).toFixed(1),
+    });
+    //#endregion
     log.info('Starting domain synchronization detection');
 
     // 获取所有启用的 DNS 账户
@@ -335,6 +380,15 @@ export async function executeDomainSync(): Promise<void> {
       return;
     }
 
+    //#region debug-point mem-leak-sync-accounts
+    const m1 = process.memoryUsage();
+    log.tag('MEM-LEAK-DEBUG').info('DnsAccountOperations.getAll loaded', {
+      accountCount: accounts.length,
+      activeCount: activeAccounts.length,
+      rssMB: +(m1.rss / 1024 / 1024).toFixed(1),
+      heapUsedMB: +(m1.heapUsed / 1024 / 1024).toFixed(1),
+    });
+    //#endregion
     log.info(`Found ${activeAccounts.length} active accounts to sync`);
 
     // 使用任务管理器并发处理（最多同时3个账户）
@@ -357,6 +411,14 @@ export async function executeDomainSync(): Promise<void> {
     // 等待所有任务完成
     await Promise.all(tasks);
 
+    //#region debug-point mem-leak-sync-done
+    const mEnd = process.memoryUsage();
+    log.tag('MEM-LEAK-DEBUG').info('executeDomainSync done', {
+      rssMB: +(mEnd.rss / 1024 / 1024).toFixed(1),
+      heapUsedMB: +(mEnd.heapUsed / 1024 / 1024).toFixed(1),
+      heapTotalMB: +(mEnd.heapTotal / 1024 / 1024).toFixed(1),
+    });
+    //#endregion
     log.info('Domain synchronization completed');
   } catch (error) {
     log.error('Domain synchronization failed', {
