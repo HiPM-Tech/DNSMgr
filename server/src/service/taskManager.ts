@@ -105,18 +105,6 @@ class TaskManager {
         priority: options.priority || 'normal',
       });
 
-      //#region debug-point mem-leak-task-queue
-      if (this.taskQueue.length % 10 === 0 || this.taskQueue.length > 50) {
-        const m = process.memoryUsage();
-        log.tag('MEM-LEAK-DEBUG').info('TaskManager queue snapshot', {
-          queueLength: this.taskQueue.length,
-          runningCount: this.runningTasks.size,
-          rssMB: +(m.rss / 1024 / 1024).toFixed(1),
-          heapUsedMB: +(m.heapUsed / 1024 / 1024).toFixed(1),
-        });
-      }
-      //#endregion
-
       this.processQueue();
     });
   }

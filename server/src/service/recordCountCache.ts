@@ -34,14 +34,6 @@ async function refreshDomainRecordCount(domain: Domain, account: DnsAccount): Pr
  * 使用串行处理避免同时发起大量请求
  */
 export async function refreshAllDomainRecordCounts(): Promise<void> {
-  //#region debug-point mem-leak-record-cache-entry
-  const m0 = process.memoryUsage();
-  log.tag('MEM-LEAK-DEBUG').info('refreshAllDomainRecordCounts entry', {
-    rssMB: +(m0.rss / 1024 / 1024).toFixed(1),
-    heapUsedMB: +(m0.heapUsed / 1024 / 1024).toFixed(1),
-    heapTotalMB: +(m0.heapTotal / 1024 / 1024).toFixed(1),
-  });
-  //#endregion
   log.info('Starting record count cache refresh');
 
   try {
@@ -53,15 +45,6 @@ export async function refreshAllDomainRecordCounts(): Promise<void> {
       return;
     }
 
-    //#region debug-point mem-leak-record-cache-loaded
-    const m1 = process.memoryUsage();
-    log.tag('MEM-LEAK-DEBUG').info('DomainOperations.getAll loaded', {
-      domainCount: domains.length,
-      rssMB: +(m1.rss / 1024 / 1024).toFixed(1),
-      heapUsedMB: +(m1.heapUsed / 1024 / 1024).toFixed(1),
-      heapTotalMB: +(m1.heapTotal / 1024 / 1024).toFixed(1),
-    });
-    //#endregion
     log.info(`Found ${domains.length} domains to refresh`);
 
     // 按账号分组，减少重复获取账号信息
@@ -89,28 +72,10 @@ export async function refreshAllDomainRecordCounts(): Promise<void> {
 
       // 每处理 10 个域名后稍作延迟，避免请求过快
       if (successCount % 10 === 0) {
-        //#region debug-point mem-leak-record-cache-loop
-        const m = process.memoryUsage();
-        log.tag('MEM-LEAK-DEBUG').info('refreshAllDomainRecordCounts progress', {
-          progress: `${successCount}/${domains.length}`,
-          accountCacheSize: accountCache.size,
-          rssMB: +(m.rss / 1024 / 1024).toFixed(1),
-          heapUsedMB: +(m.heapUsed / 1024 / 1024).toFixed(1),
-        });
-        //#endregion
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
 
-    //#region debug-point mem-leak-record-cache-done
-    const mEnd = process.memoryUsage();
-    log.tag('MEM-LEAK-DEBUG').info('refreshAllDomainRecordCounts done', {
-      successCount, failCount,
-      rssMB: +(mEnd.rss / 1024 / 1024).toFixed(1),
-      heapUsedMB: +(mEnd.heapUsed / 1024 / 1024).toFixed(1),
-      heapTotalMB: +(mEnd.heapTotal / 1024 / 1024).toFixed(1),
-    });
-    //#endregion
     log.info(`Cache refresh completed: ${successCount} succeeded, ${failCount} failed`);
   } catch (error) {
     log.error('Failed to refresh record count cache', {

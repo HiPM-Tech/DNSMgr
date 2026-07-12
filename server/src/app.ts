@@ -741,16 +741,6 @@ async function initializeApp() {
       });
 
       // 初始化续期和 WHOIS 调度器
-      //#region debug-point mem-leak-startup
-      const memBefore = process.memoryUsage();
-      log.tag('MEM-LEAK-DEBUG').info('Startup schedulers begin', {
-        rssMB: +(memBefore.rss / 1024 / 1024).toFixed(1),
-        heapUsedMB: +(memBefore.heapUsed / 1024 / 1024).toFixed(1),
-        heapTotalMB: +(memBefore.heapTotal / 1024 / 1024).toFixed(1),
-        externalMB: +(memBefore.external / 1024 / 1024).toFixed(1),
-        arrayBuffersMB: +(memBefore.arrayBuffers / 1024 / 1024).toFixed(1),
-      });
-      //#endregion
       initRenewalSchedulers();
       initWhoisSchedulers();
 
@@ -760,20 +750,6 @@ async function initializeApp() {
       startDomainRenewalJob();
       startRecordCountCacheRefresh(30); // Refresh every 30 minutes
       startDomainSyncJob(0.5); // Sync every 30 minutes
-
-      //#region debug-point mem-leak-sampler
-      // 每 30 秒采样一次内存，用于观察启动后内存趋势
-      setInterval(() => {
-        const m = process.memoryUsage();
-        log.tag('MEM-LEAK-DEBUG').info('Memory sample', {
-          rssMB: +(m.rss / 1024 / 1024).toFixed(1),
-          heapUsedMB: +(m.heapUsed / 1024 / 1024).toFixed(1),
-          heapTotalMB: +(m.heapTotal / 1024 / 1024).toFixed(1),
-          externalMB: +(m.external / 1024 / 1024).toFixed(1),
-          arrayBuffersMB: +(m.arrayBuffers / 1024 / 1024).toFixed(1),
-        });
-      }, 30_000).unref();
-      //#endregion
     } else {
       log.info('System not initialized. Running in initialization mode.');
       log.info('Please access the setup wizard to configure the system.');
