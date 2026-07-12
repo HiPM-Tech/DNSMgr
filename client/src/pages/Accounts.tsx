@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
@@ -317,7 +317,7 @@ export function Accounts() {
     },
   });
 
-  const columns = [
+  const columns = useMemo(() => [
     { key: 'name', label: t('common.name'), render: (row: DnsAccount) => <span className="page-strong">{row.name}</span> },
     { key: 'type', label: t('accounts.provider'), render: (row: DnsAccount) => <ProviderBadge type={row.type} /> },
     { 
@@ -353,7 +353,7 @@ export function Accounts() {
         </Space>
       ),
     },
-  ];
+  ], [t, canManage, toggleEnabledMutation]);
 
   return (
     <div className="page-shell">
@@ -374,6 +374,7 @@ export function Accounts() {
           loading={isLoading}
           rowKey={(row) => row.id}
           emptyText={t('accounts.noAccounts')}
+          maxHeight={620}
         />
       </Card>
 

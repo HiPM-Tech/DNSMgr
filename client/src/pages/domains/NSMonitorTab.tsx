@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, Form, Input, Loading, Pagination, Radio, Space, Switch, Tag, Textarea } from 'tdesign-react';
 import {
@@ -93,7 +93,7 @@ export function NSMonitorTab() {
     retryDelay: 1000,
     staleTime: 30000,
   });
-  const configs = configData?.list || [];
+  const configs = useMemo(() => configData?.list || [], [configData]);
   const total = configData?.total || 0;
 
   const { data: userPrefs } = useQuery({
@@ -109,16 +109,18 @@ export function NSMonitorTab() {
   });
 
   // Filter domains: exclude domains that already have NS monitor (based on domain_name, not domain_id)
-  const monitoredDomainNames = new Set((configs || []).map((config: NSMonitorConfig) => config.domain_name));
-  const filteredDomains = (domainsData?.list ?? []).filter((domain) => (
-    domain.name.toLowerCase().includes(domainSearchKeyword.toLowerCase()) &&
-    !monitoredDomainNames.has(domain.name)
-  ));
+  const domains = useMemo(() => domainsData?.list ?? [], [domainsData]);
+  const allDomains = domains;
+  const filteredDomains = useMemo(() => {
+    const monitoredDomainNames = new Set((configs || []).map((config: NSMonitorConfig) => config.domain_name));
+    return (domainsData?.list ?? []).filter((domain) => (
+      domain.name.toLowerCase().includes(domainSearchKeyword.toLowerCase()) &&
+      !monitoredDomainNames.has(domain.name)
+    ));
+  }, [configs, domainsData, domainSearchKeyword]);
   const domainStartIndex = (domainPage - 1) * domainPageSize;
   const domainEndIndex = Math.min(domainStartIndex + domainPageSize, filteredDomains.length);
   const paginatedDomains = filteredDomains.slice(domainStartIndex, domainEndIndex);
-  const domains = domainsData?.list ?? [];
-  const allDomains = domainsData?.list ?? [];
 
   const updateMutation = useMutation({
     mutationFn: (data: { id: number; expected_ns: string; enabled: boolean }) => nsMonitorApi.update(data.id, data),
@@ -480,6 +482,7 @@ export function NSMonitorTab() {
           loading={isLoading}
           rowKey={(row) => row.id}
           emptyText={t('nsMonitor.noConfigs')}
+          maxHeight={620}
         />
         <div className="records-pagination">
           <Pagination

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Checkbox, Empty, Input, Loading, Pagination, Select, Space, Tag } from 'tdesign-react';
 import { AddIcon, CalendarIcon, CheckCircleIcon, DeleteIcon, ErrorCircleIcon, RefreshIcon, SearchIcon, TimeIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
@@ -136,7 +136,7 @@ export function DomainRenewalTab() {
       return res.data.data || { list: [], total: 0, active: 0, expiring: 0, expired: 0 };
     },
   });
-  const renewableDomains = renewableData?.list || [];
+  const renewableDomains = useMemo(() => renewableData?.list || [], [renewableData]);
   const total = renewableData?.total || 0;
   const activeCount = renewableData?.active ?? 0;
   const expiringCount = renewableData?.expiring ?? 0;
@@ -434,6 +434,7 @@ export function DomainRenewalTab() {
           loading={isLoading}
           rowKey={(row) => row.id}
           emptyText={t('domainRenewal.noDomains')}
+          maxHeight={620}
         />
         <div className="records-pagination">
           <Pagination

@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Input, Pagination, Select, Space, Switch, Tag, Tabs, Textarea } from 'tdesign-react';
 import { AddIcon, DeleteIcon, SearchIcon, EditIcon, CheckCircleIcon, ErrorCircleIcon, TimeIcon, LinkIcon } from 'tdesign-icons-react';
@@ -75,7 +75,7 @@ function SSLTab({ onEdit, onDelete, onCheck, onAdd }: {
     queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'ssl_certificate' }).then(r => r.data.data || { list: [], total: 0 }),
     placeholderData: { list: [], total: 0 } as any,
   });
-  const monitors = sslData?.list || [];
+  const monitors = useMemo(() => sslData?.list || [], [sslData]);
   const total = sslData?.total || 0;
 
   const columns = [
@@ -154,7 +154,7 @@ function SSLTab({ onEdit, onDelete, onCheck, onAdd }: {
           onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
         <Button theme="primary" icon={<AddIcon />} onClick={onAdd}>{t('domains.servicemonitor.addMonitor')}</Button>
       </div>
-      <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_ssl')} />
+      <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_ssl')} maxHeight={620} />
       <div className="records-pagination">
         <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={total}
           totalContent={<span className="records-pagination__total">{t('common.paginationTotal', { total })}</span>}
@@ -183,7 +183,7 @@ function EndpointTab({ onEdit, onDelete, onCheck, onAdd, onBindFailover }: {
     queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'endpoint' }).then(r => r.data.data || { list: [], total: 0 }),
     placeholderData: { list: [], total: 0 } as any,
   });
-  const monitors = endpointData?.list || [];
+  const monitors = useMemo(() => endpointData?.list || [], [endpointData]);
   const total = endpointData?.total || 0;
 
   const columns = [
@@ -233,7 +233,7 @@ function EndpointTab({ onEdit, onDelete, onCheck, onAdd, onBindFailover }: {
           onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
         <Button theme="primary" icon={<AddIcon />} onClick={onAdd}>{t('domains.servicemonitor.addMonitor')}</Button>
       </div>
-      <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_endpoint')} />
+      <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_endpoint')} maxHeight={620} />
       <div className="records-pagination">
         <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={total}
           totalContent={<span className="records-pagination__total">{t('common.paginationTotal', { total })}</span>}
@@ -259,7 +259,7 @@ function FailoverTab({ onEdit, onDelete, onCheck }: {
     queryKey: ['servicemonitor', 'failover', page, pageSize, search],
     queryFn: () => serviceMonitorApi.list({ page, pageSize, type: 'dns_failover' }).then(r => r.data.data || { list: [], total: 0 }),
   });
-  const monitors = failoverData?.list || [];
+  const monitors = useMemo(() => failoverData?.list || [], [failoverData]);
   const total = failoverData?.total || 0;
 
   const columns = [
@@ -303,7 +303,7 @@ function FailoverTab({ onEdit, onDelete, onCheck }: {
         <Input clearable type="search" value={search} prefixIcon={<SearchIcon />} placeholder={t('common.search')}
           onChange={(v: any) => { setSearch(String(v)); setPage(1); }} style={{ width: 240 }} />
       </div>
-      <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_failover')} />
+      <Table columns={columns} data={monitors} loading={isLoading} rowKey={(r) => r.id} emptyText={t('domains.servicemonitor.empty_failover')} maxHeight={620} />
       <div className="records-pagination">
         <Pagination current={page} pageSize={pageSize} pageSizeOptions={[10, 20, 50, 100]} total={total}
           totalContent={<span className="records-pagination__total">{t('common.paginationTotal', { total })}</span>}

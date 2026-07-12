@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Checkbox, Empty, Form, Input, Loading, Pagination, Radio, Select, Space, Tag } from 'tdesign-react';
 import {
@@ -247,7 +247,7 @@ export function DomainListTab() {
     queryFn: () => authApi.getPinnedDomains().then((r) => r.data.data?.pinnedDomains ?? []),
     staleTime: 5 * 60 * 1000,
   });
-  const pinnedDomains = pinnedDomainsData ?? [];
+  const pinnedDomains = useMemo(() => pinnedDomainsData ?? [], [pinnedDomainsData]);
 
   const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
     // ← 将 pinnedDomains 加入 queryKey，确保置顶列表变化时重新查询
@@ -271,7 +271,7 @@ export function DomainListTab() {
     staleTime: 30 * 1000,
   });
 
-  const domains = domainsData?.list ?? [];
+  const domains = useMemo(() => domainsData?.list ?? [], [domainsData]);
   const total = domainsData?.total ?? 0;
   
   // ← 后端已经按置顶排序，前端不需要再排序
@@ -284,18 +284,21 @@ export function DomainListTab() {
   });
 
   // 使用数据库中的WHOIS状态（由后端定时任务同步）
-  const apexDomains = domains.filter((d) => isApexDomain(d.name));
-  
+  const apexDomains = useMemo(() => domains.filter((d) => isApexDomain(d.name)), [domains]);
+
   // 构建WHOIS状态映射（直接从数据库读取）
-  const whoisMap: Record<string, WhoisInfo> = {};
-  for (const domain of apexDomains) {
-    if (domain.whois_status) {
-      whoisMap[domain.name] = {
-        domain: domain.name,
-        status: domain.whois_status,
-      };
+  const whoisMap = useMemo<Record<string, WhoisInfo>>(() => {
+    const map: Record<string, WhoisInfo> = {};
+    for (const domain of apexDomains) {
+      if (domain.whois_status) {
+        map[domain.name] = {
+          domain: domain.name,
+          status: domain.whois_status,
+        };
+      }
     }
-  }
+    return map;
+  }, [apexDomains]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, remark }: { id: number; remark: string }) => domainsApi.update(id, { remark }),
@@ -367,7 +370,6 @@ export function DomainListTab() {
   // 域名状态更新逻辑（乐观更新）
 const toggleEnabledMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: number }) => {
-      console.log('[DomainList] Toggling enabled status:', { id, enabled });
       return domainsApi.update(id, { enabled });
     },
     onMutate: async ({ id, enabled }) => {
@@ -387,7 +389,6 @@ const toggleEnabledMutation = useMutation({
       return { previousQueries };
     },
     onSuccess: (res) => {
-      console.log('[DomainList] Toggle success:', res.data);
       if (res.data.code !== 0) {
         toast.error(res.data.msg || t('domains.toggleStatusFailed'));
         return;
@@ -440,25 +441,25 @@ const toggleEnabledMutation = useMutation({
   //   },
   // });
 
-  const accountMap = Object.fromEntries(accounts.map((account) => [account.id, account]));
+  const accountMap = useMemo(() => Object.fromEntries(accounts.map((account) => [account.id, account])), [accounts]);
   const editingDomain = editing ? sortedDomains.find((domain) => domain.id === editing.id) ?? editing : null;
-  const getListedRemark = (domainId: number, fallback?: string | null) => {
+  const getListedRemark = useCallback((domainId: number, fallback?: string | null) => {
     const listedDomain = sortedDomains.find((item) => item.id === domainId);
     return listedDomain?.remark ?? fallback ?? '';
-  };
+  }, [sortedDomains]);
 
   useEffect(() => {
     if (!editingDomain || editRemarkDirty) return;
     setEditRemark(getListedRemark(editingDomain.id, editingDomain.remark));
   }, [editingDomain, sortedDomains, editRemarkDirty]);
 
-  const openEdit = (domain: Domain) => {
+  const openEdit = useCallback((domain: Domain) => {
     setEditRemarkDirty(false);
     setEditRemark(getListedRemark(domain.id, domain.remark));
     setEditing(domain);
-  };
+  }, [getListedRemark]);
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       key: 'name',
       label: t('domains.domainName'),
@@ -505,12 +506,7 @@ const toggleEnabledMutation = useMutation({
         if (whoisInfo?.status) {
           // 分割多个状态（用换行符分隔）
           const statuses = whoisInfo.status.split('\n').filter(Boolean);
-          
-          // 调试日志
-          if (statuses.length > 1) {
-            console.log('[DomainList] Multiple WHOIS statuses for', row.name, ':', statuses);
-          }
-          
+
           // 根据状态设置标签颜色
           const getStatusTheme = (status: string) => {
             const lowerStatus = status.toLowerCase();
@@ -601,7 +597,6 @@ const toggleEnabledMutation = useMutation({
               theme={isEnabled ? 'default' : 'success'}
               icon={<PoweroffIcon />}
               onClick={() => {
-                console.log('[DomainList] Button clicked:', { id: row.id, currentEnabled: isEnabled, canManage });
                 toggleEnabledMutation.mutate({ id: row.id, enabled: isEnabled ? 0 : 1 });
               }}
               disabled={!canManage}
@@ -621,7 +616,7 @@ const toggleEnabledMutation = useMutation({
         );
       },
     },
-  ];
+  ], [t, whoisMap, accountMap, pinnedDomains, navigate, canManage, toggleEnabledMutation, pinMutation, openEdit]);
 
   return (
     <div className="page-shell">
@@ -715,11 +710,12 @@ const toggleEnabledMutation = useMutation({
           </div>
         )}
                 <Table
-                  columns={columns} 
-                  data={sortedDomains} 
-                  loading={isLoading} 
-                  rowKey={(row) => row.id} 
+                  columns={columns}
+                  data={sortedDomains}
+                  loading={isLoading}
+                  rowKey={(row) => row.id}
                   emptyText={t('domains.noDomainsFound')}
+                  maxHeight={620}
                   // ← 批量操作已禁用：selectable, selectedRowKeys, onSelectChange
                 />
         <div className="records-pagination">

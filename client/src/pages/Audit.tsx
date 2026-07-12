@@ -193,6 +193,8 @@ export function Audit() {
               <Table
                 rowKey="id"
                 data={logs}
+                maxHeight={560}
+                scroll={{ type: 'virtual', threshold: 50, rowHeight: 48, bufferSize: 12 }}
                 columns={[
                   { colKey: 'id', title: 'ID', width: 80 },
                   { colKey: 'user_id', title: t('mcp.userId'), width: 100 },

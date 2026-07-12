@@ -172,11 +172,11 @@ export function Records() {
     onError: () => toast.error(t('records.toggleFailed')),
   });
 
-  const lineMap = Object.fromEntries(lines.map((l) => [l.id, l.name || l.id]));
+  const lineMap = useMemo(() => Object.fromEntries(lines.map((l) => [l.id, l.name || l.id])), [lines]);
 
   const hasProxyMode = currentProvider?.capabilities?.dns?.proxiable === true;
 
-  const columns = [
+  const columns = useMemo(() => [
     { key: 'name', label: t('common.host'), width: 220, render: (r: DnsRecord) => <span className="record-mono record-mono--strong" title={r.name}>{r.name}</span> },
     { key: 'type', label: t('common.type'), width: 80, render: (r: DnsRecord) => <Tag theme="primary" variant="light">{r.type}</Tag> },
     {
@@ -200,12 +200,12 @@ export function Records() {
         }
         // 其他提供商: 显示线路
         const effectiveLine = r.line;
-        
+
         // 当线路为 '0'、'default' 或空时，显示为"默认"
         if (!effectiveLine || effectiveLine === '0' || effectiveLine === 'default') {
           return <Tag theme="default" variant="light">{t('records.defaultLine') || '默认'}</Tag>;
         }
-        
+
         // 显示具体线路名称
         const lineName = lineMap[effectiveLine];
         return <Tag theme="primary" variant="light">{lineName ?? effectiveLine}</Tag>;
@@ -230,7 +230,6 @@ export function Records() {
             onChange={(checked) => statusMutation.mutate({ recordId: r.id, status: checked ? 1 : 0 })}
           />
           <Button shape="square" variant="text" icon={<EditIcon />} onClick={() => {
-            console.log('[Records] Edit clicked - record:', r);
             setEditingKey(prev => prev + 1); // ✅ 递增 key，强制重新挂载
             setEditing(r);
           }} />
@@ -238,7 +237,7 @@ export function Records() {
         </Space>
       ),
     },
-  ];
+  ], [t, hasProxyMode, lineMap, statusMutation]);
 
   return (
     <div className="page-shell">
@@ -307,7 +306,7 @@ export function Records() {
                 }}
               />
             </div>
-            <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} />
+            <Table columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyText={t('records.noRecords')} maxHeight={620} />
             <div className="records-pagination">
               <Pagination
                 current={page}
