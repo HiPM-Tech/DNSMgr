@@ -422,43 +422,43 @@ export class GcoreAdapter implements DnsAdapter {
   }
 
   async getRecordLines(): Promise<Array<{ id: string; name: string }>> {
-    try {
-      const res: any = await this.request('GET', '/locations');
-      const lines: Array<{ id: string; name: string }> = [{ id: '0', name: '默认' }];
-      const extract = (v: unknown): string => {
-        if (typeof v === 'string') return v;
-        if (v && typeof v === 'object') {
-          const obj = v as any;
-          if (obj.names) {
-            if (typeof obj.names === 'string') return obj.names;
-            return obj.names['zh-CN'] || obj.names.en || obj.names.zh || Object.values(obj.names).find((n: any) => typeof n === 'string') || String(obj.names);
-          }
-          const fallback = obj.name || obj.labelEn || obj;
-          if (typeof fallback === 'string') return fallback;
-          if (fallback && typeof fallback === 'object') return fallback.en || fallback.labelEn || fallback.zh || fallback.labelZh || String(fallback);
-          return String(fallback);
-        }
-        return String(v);
-      };
-      if (res.continents) {
-        for (const [id, name] of Object.entries(res.continents)) {
-          lines.push({ id: `continent:${id}`, name: `[洲] ${extract(name)}` });
-        }
-      }
-      if (res.countries) {
-        for (const [id, name] of Object.entries(res.countries)) {
-          lines.push({ id: `country:${id}`, name: `[国家] ${extract(name)}` });
-        }
-      }
-      if (res.regions) {
-        for (const [id, name] of Object.entries(res.regions)) {
-          lines.push({ id: `region:${id}`, name: `[地区] ${extract(name)}` });
-        }
-      }
-      return lines;
-    } catch {
-      return [{ id: '0', name: '默认' }];
-    }
+    // Gcore 仅使用默认线路，禁用动态线路注册
+    // 如需启用，取消注释下方代码
+    // try {
+    //   const res: any = await this.request('GET', '/locations');
+    //   const lines: Array<{ id: string; name: string }> = [{ id: '0', name: '默认' }];
+    //   const extract = (v: unknown): string => {
+    //     if (typeof v === 'string') return v;
+    //     if (v && typeof v === 'object') {
+    //       const obj = v as any;
+    //       if (obj.names) {
+    //         if (typeof obj.names === 'string') return obj.names;
+    //         return obj.names['zh-CN'] || obj.names.en || obj.names.zh || Object.values(obj.names).find((n: any) => typeof n === 'string') || String(obj.names);
+    //       }
+    //       const fallback = obj.name || obj.labelEn || obj;
+    //       if (typeof fallback === 'string') return fallback;
+    //       if (fallback && typeof fallback === 'object') return fallback.en || fallback.labelEn || fallback.zh || fallback.labelZh || String(fallback);
+    //       return String(fallback);
+    //     }
+    //     return String(v);
+    //   };
+    //   if (res.continents) {
+    //     for (const [id, name] of Object.entries(res.continents))
+    //       lines.push({ id: `continent:${id}`, name: `[洲] ${extract(name)}` });
+    //   }
+    //   if (res.countries) {
+    //     for (const [id, name] of Object.entries(res.countries))
+    //       lines.push({ id: `country:${id}`, name: `[国家] ${extract(name)}` });
+    //   }
+    //   if (res.regions) {
+    //     for (const [id, name] of Object.entries(res.regions))
+    //       lines.push({ id: `region:${id}`, name: `[地区] ${extract(name)}` });
+    //   }
+    //   return lines;
+    // } catch {
+    //   return [{ id: '0', name: '默认' }];
+    // }
+    return [{ id: '0', name: '默认' }];
   }
 
   async getMinTTL(): Promise<number> {
