@@ -88,7 +88,7 @@ export function Records() {
 
   const providerRecordTypes = useMemo(() => {
     const base = Array.isArray(recordTypeNames) && recordTypeNames.length > 0
-      ? [...recordTypeNames]
+      ? [...recordTypeNames as RecordType[]]
       : account?.type === 'cloudflare'
         ? [...CLOUDFLARE_RECORD_TYPES]
         : [...COMMON_RECORD_TYPES];
