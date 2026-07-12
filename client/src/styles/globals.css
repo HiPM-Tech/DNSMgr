@@ -470,7 +470,9 @@ html.dark input:-webkit-autofill:focus {
   .t-cascader__popup .t-popup__content,
   .t-dropdown__menu
 ) {
-  overflow: hidden;
+  /* overflow: hidden 会禁用滚轮滚动，改为 y 轴 auto 保留圆角同时支持滚轮 */
+  overflow-y: auto;
+  overflow-x: hidden;
   border-radius: var(--app-control-radius);
   background-clip: padding-box;
 }

@@ -364,11 +364,10 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
     return [{ label: t('records.defaultLine') || '默认', value: '0' }];
   }, [proxiable, hasMultiLine, lines, t]);
 
-  // 线路数较多时启用虚拟滚动与搜索，避免下拉面板 DOM 过多导致卡顿
-  const lineNeedsVirtual = lineOptions.length > 50;
-  const lineScrollProps = lineNeedsVirtual
-    ? { scroll: { type: 'virtual' as const, threshold: 50, rowHeight: 32, bufferSize: 12 } }
-    : {};
+  // 线路数较多时启用搜索过滤，避免下拉面板过长导致难以定位
+  // 注意：TDesign Select 的 scroll.type='virtual' 不响应滚轮（仅响应滚动条拖动），
+  // 会让用户感觉"无法滑动"，故这里不启用虚拟滚动，仅保留 filterable 让用户搜索过滤。
+  const lineNeedsFilter = lineOptions.length > 30;
 
   const valuePlaceholder = typeDef?.valueType === 'ipv4' ? '192.168.1.1'
     : typeDef?.valueType === 'ipv6' ? '2400:3200::1'
@@ -519,8 +518,7 @@ export function RecordForm({ lines, recordTypes, provider, initial, existingReco
             <Select
               value={String(line ?? '0')}
               options={lineOptions}
-              filterable={lineNeedsVirtual}
-              {...lineScrollProps}
+              filterable={lineNeedsFilter}
               onChange={handleLineChange}
             />
           </FormItem>
