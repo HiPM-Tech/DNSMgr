@@ -80,11 +80,21 @@ export function Records() {
     return providers.find(p => p.type === account.type);
   }, [account, providers]);
 
+  const { data: recordTypeNames = [] } = useQuery({
+    queryKey: ['domain-record-types', domainId],
+    queryFn: () => domainsApi.recordTypes(Number(domainId)).then((r) => r.data.data),
+    enabled: !!domainId,
+  });
+
   const providerRecordTypes = useMemo(() => {
-    const base = account?.type === 'cloudflare' ? [...CLOUDFLARE_RECORD_TYPES] : [...COMMON_RECORD_TYPES];
+    const base = Array.isArray(recordTypeNames) && recordTypeNames.length > 0
+      ? [...recordTypeNames]
+      : account?.type === 'cloudflare'
+        ? [...CLOUDFLARE_RECORD_TYPES]
+        : [...COMMON_RECORD_TYPES];
     if (editing?.type && !base.includes(editing.type)) base.push(editing.type);
     return base;
-  }, [account?.type, editing?.type]);
+  }, [recordTypeNames, account?.type, editing?.type]);
 
   useEffect(() => {
     if (typeFilter && !providerRecordTypes.includes(typeFilter as RecordType)) {

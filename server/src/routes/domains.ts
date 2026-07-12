@@ -5,7 +5,6 @@ import { createAdapter } from '../lib/dns/DnsHelper';
 import { dnsheGetWhois } from '../lib/dns/providers';
 import type { DomainInfo } from '../lib/dns/DnsInterface';
 import { providerDefinitionMap } from '../lib/dns/providers/registry';
-import { DNS_RECORD_DEFS } from '../lib/dns/record-types';
 import { renewalRegistry } from '../service/renewalScheduler';
 import { DnsAccount, Domain } from '../types';
 import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
@@ -1050,7 +1049,7 @@ router.get('/:id/lines', authMiddleware, asyncHandler(async (req: Request, res: 
     return;
   }
   try {
-    const cfg = JSON.parse(account.config) as Record<string, string>;
+    const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
     const dnsAdapter = createAdapter(account.type, cfg, access.domain.name, access.domain.third_id);
     const lines = await dnsAdapter.getRecordLines();
     sendSuccess(res, lines);
@@ -1092,12 +1091,14 @@ router.get('/:id/record-types', authMiddleware, asyncHandler(async (req: Request
 
   // For adapters that support dynamic record types (e.g. hidns-v2), query upstream
   try {
-    const cfg = JSON.parse(account.config) as Record<string, string>;
+    const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
     const dnsAdapter = createAdapter(account.type, cfg, access.domain.name, access.domain.third_id);
     if (typeof (dnsAdapter as any).getRecordTypes === 'function') {
       const types = await (dnsAdapter as any).getRecordTypes();
       if (Array.isArray(types) && types.length > 0) {
-        sendSuccess(res, types);
+        // Normalize to string array
+        const normalized = types.map((t: any) => (typeof t === 'string' ? t : t.type)).filter(Boolean);
+        sendSuccess(res, normalized);
         return;
       }
     }
@@ -1108,11 +1109,7 @@ router.get('/:id/record-types', authMiddleware, asyncHandler(async (req: Request
     sendSuccess(res, []);
     return;
   }
-  const recordTypes = def.capabilities.dns.recordTypes;
-  const result = recordTypes.map((type) => ({
-    ...DNS_RECORD_DEFS[type],
-  })).filter(Boolean);
-  sendSuccess(res, result);
+  sendSuccess(res, def.capabilities.dns.recordTypes || []);
 }));
 
 /**
