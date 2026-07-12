@@ -6,9 +6,10 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  closeOnOverlayClick?: boolean;
 }
 
-export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
+export function Modal({ title, onClose, children, size = 'md', closeOnOverlayClick = false }: ModalProps) {
   const widths = { sm: 420, md: 560, lg: 760 };
   const [visible, setVisible] = useState(true);
 
@@ -25,7 +26,7 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
       footer={false}
       width={widths[size]}
       dialogClassName="app-td-dialog"
-      closeOnOverlayClick
+      closeOnOverlayClick={closeOnOverlayClick}
       onCancel={requestClose}
       onClose={requestClose}
       onClosed={onClose}
