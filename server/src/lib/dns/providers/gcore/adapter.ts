@@ -207,8 +207,8 @@ export class GcoreAdapter implements DnsAdapter {
   private mapRRSetToRecords(rrset: GcoreRRSet, zoneName: string): DnsRecord[] {
     const records: DnsRecord[] = [];
 
-    for (const rr of rrset.resource_records) {
-      if (!rr.enabled && rr.enabled !== undefined) continue;
+    rrset.resource_records.forEach((rr, i) => {
+      if (!rr.enabled && rr.enabled !== undefined) return;
 
       const content = rr.content;
       let value = '';
@@ -234,7 +234,7 @@ export class GcoreAdapter implements DnsAdapter {
       }
 
       records.push({
-        RecordId: `${zoneName}:${rrset.name}:${rrset.type}`,
+        RecordId: `${zoneName}:${rrset.name}:${rrset.type}:${i}`,
         Domain: zoneName,
         Name: rrset.name === zoneName ? '@' : rrset.name.replace(`.${zoneName}`, ''),
         Type: rrset.type.toUpperCase(),
@@ -247,7 +247,7 @@ export class GcoreAdapter implements DnsAdapter {
         Remark: undefined,
         UpdateTime: rrset.updated_at,
       });
-    }
+    });
 
     return records;
   }
