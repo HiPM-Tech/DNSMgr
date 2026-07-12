@@ -425,19 +425,21 @@ export class GcoreAdapter implements DnsAdapter {
     try {
       const res: any = await this.request('GET', '/locations');
       const lines: Array<{ id: string; name: string }> = [{ id: '0', name: '默认' }];
+      const extract = (v: unknown): string =>
+        typeof v === 'string' ? v : v && typeof v === 'object' ? ((v as any).name || (v as any).labelEn || String(v)) : String(v);
       if (res.continents) {
         for (const [id, name] of Object.entries(res.continents)) {
-          lines.push({ id: `continent:${id}`, name: `[洲] ${name}` });
+          lines.push({ id: `continent:${id}`, name: `[洲] ${extract(name)}` });
         }
       }
       if (res.countries) {
         for (const [id, name] of Object.entries(res.countries)) {
-          lines.push({ id: `country:${id}`, name: `[国家] ${name}` });
+          lines.push({ id: `country:${id}`, name: `[国家] ${extract(name)}` });
         }
       }
       if (res.regions) {
         for (const [id, name] of Object.entries(res.regions)) {
-          lines.push({ id: `region:${id}`, name: `[地区] ${name}` });
+          lines.push({ id: `region:${id}`, name: `[地区] ${extract(name)}` });
         }
       }
       return lines;

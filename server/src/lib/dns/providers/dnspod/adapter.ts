@@ -277,13 +277,17 @@ export class DnspodAdapter extends TencentCloudAdapter {
     try {
       const data = await this.call<Dict>('DescribeRecordLineCategoryList', { Domain: this.domain });
       const lines: Array<{ id: string; name: string }> = [];
+      const seen = new Set<string>();
 
       const walk = (nodes: Dict[]) => {
         for (const node of nodes) {
           const name = safeString(node.LineName);
-          const lineId = safeString(node.LineId) || `N.${name}`;
+          const lineId = safeString(node.LineId);
           const useful = Boolean(node.Useful);
-          if (useful && lineId && name) lines.push({ id: lineId, name });
+          if (useful && lineId && name && !lineId.startsWith('N.') && !seen.has(lineId)) {
+            seen.add(lineId);
+            lines.push({ id: lineId, name });
+          }
           const sub = asArray<Dict>(node.SubGroup);
           if (sub.length > 0) walk(sub);
         }
@@ -303,15 +307,24 @@ export class DnspodAdapter extends TencentCloudAdapter {
 
     try {
       const data = await this.call<Dict>('DescribeRecordLineList', { Domain: this.domain, DomainGrade: '' });
-      const lines = asArray<Dict>(data.LineList).map((item) => ({
-        id: safeString(item.LineId),
-        name: safeString(item.Name),
-      }));
-      const groups = asArray<Dict>(data.LineGroupList).map((item) => ({
-        id: safeString(item.LineId),
-        name: safeString(item.Name),
-      }));
-      const merged = [...lines, ...groups].filter((x) => x.id && x.name);
+      const seen = new Set<string>();
+      const merged: Array<{ id: string; name: string }> = [];
+      for (const item of asArray<Dict>(data.LineList)) {
+        const id = safeString(item.LineId);
+        const name = safeString(item.Name);
+        if (id && name && !id.startsWith('N.') && !seen.has(id)) {
+          seen.add(id);
+          merged.push({ id, name });
+        }
+      }
+      for (const item of asArray<Dict>(data.LineGroupList)) {
+        const id = safeString(item.LineId);
+        const name = safeString(item.Name);
+        if (id && name && !id.startsWith('N.') && !seen.has(id)) {
+          seen.add(id);
+          merged.push({ id, name });
+        }
+      }
       if (merged.length > 0) {
         log.info('getRecordLines success (list)', { domain: this.domain, count: merged.length });
         return merged;
