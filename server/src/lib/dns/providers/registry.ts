@@ -1,6 +1,12 @@
 import { DnsAdapter } from '../DnsInterface';
 import type { RecordType } from '../record-types';
 import { COMMON_RECORD_TYPES, CLOUDFLARE_RECORD_TYPES } from '../record-types';
+
+const DNSNEKO_RECORD_TYPES: RecordType[] = [
+  ...COMMON_RECORD_TYPES,
+  'DNAME', 'AFSDB', 'NAPTR', 'CERT',
+  'OPENPGPKEY', 'DS', 'TLSA', 'SSHFP', 'RP', 'HINFO', 'LOC',
+];
 import * as Adapters from './index';
 
 export interface DnsCapabilities {
@@ -281,7 +287,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'dnsneko',
     name: 'provider.dnsneko',
-    capabilities: { dns: { remark: true, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: false, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
+    capabilities: { dns: { remark: true, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: false, recordTypes: DNSNEKO_RECORD_TYPES }, log: false, renewal: false },
     configFields: [
       { key: 'username', label: 'provider.config.username', type: 'text', required: true },
       { key: 'apiKey', label: 'provider.config.api_key', type: 'password', required: true },

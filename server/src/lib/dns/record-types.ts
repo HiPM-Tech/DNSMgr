@@ -175,6 +175,7 @@ export const DNS_RECORD_DEFS: Record<RecordType, RecordTypeDef> = {
   HHIT:     { type: 'HHIT',    label: 'HHIT',    valueType: 'text' },
   BRID:     { type: 'BRID',    label: 'BRID',    valueType: 'text' },
   NXNAME:   { type: 'NXNAME',  label: 'NXNAME',  valueType: 'text' },
+
 };
 
 export function getRecordTypeDef(type: string): RecordTypeDef | undefined {

@@ -332,11 +332,31 @@ export class DnsnekoAdapter implements DnsAdapter {
 
   async getRecordLines(): Promise<Array<{ id: string; name?: string }>> {
     try {
-      const res = await this.request<Array<{ value: string; label: string }>>('GET', '/geo-lines');
-      if (res.code === 200 && Array.isArray(res.data)) {
-        return res.data.map((l) => ({ id: l.value, name: l.label }));
+      const res = await this.request<{
+        defaultOption?: { value: string; labelZh: string; available?: boolean };
+        categories?: Array<{
+          options?: Array<{ value: string; labelZh: string; available?: boolean }>;
+        }>;
+      }>('GET', '/geo-lines');
+
+      if (res.code !== 200 || !res.data) return [{ id: 'default' }];
+
+      const lines: Array<{ id: string; name?: string }> = [];
+      if (res.data.defaultOption?.value && res.data.defaultOption.available !== false) {
+        lines.push({ id: res.data.defaultOption.value, name: res.data.defaultOption.labelZh });
       }
-      return [{ id: 'default' }];
+      if (Array.isArray(res.data.categories)) {
+        for (const cat of res.data.categories) {
+          if (Array.isArray(cat.options)) {
+            for (const opt of cat.options) {
+              if (opt.value && opt.available !== false) {
+                lines.push({ id: opt.value, name: opt.labelZh });
+              }
+            }
+          }
+        }
+      }
+      return lines.length > 0 ? lines : [{ id: 'default' }];
     } catch {
       return [{ id: 'default' }];
     }
