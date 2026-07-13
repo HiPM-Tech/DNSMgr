@@ -1046,6 +1046,26 @@ html.dark input:-webkit-autofill:focus {
   border-radius: 0;
 }
 
+/* 修复 NS 监测开关列被 overflow:hidden / flex 压缩成圆点的问题
+   TDesign 虚拟滚动模式下 cell 为 flex item，min-width:0 导致 Switch 被压缩 */
+.ns-monitor-card .ns-monitor-switch-cell,
+.ns-monitor-card td.ns-monitor-switch-cell,
+.ns-monitor-card .ns-monitor-switch-cell.t-table__cell,
+.ns-monitor-card .ns-monitor-switch-cell .t-table__cell {
+  overflow: visible !important;
+  text-overflow: unset !important;
+  white-space: normal !important;
+  min-width: 80px !important;
+}
+
+.ns-monitor-card .ns-monitor-switch-cell .t-switch,
+.ns-monitor-card .ns-monitor-switch-cell > .t-switch,
+.ns-monitor-card .ns-monitor-switch-cell.t-table__cell > .t-switch {
+  flex-shrink: 0 !important;
+  width: auto !important;
+  min-width: 44px !important;
+}
+
 .ns-monitor-card .records-pagination {
   margin-top: 0;
   padding: 14px 20px;

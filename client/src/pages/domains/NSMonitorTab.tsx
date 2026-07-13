@@ -310,7 +310,7 @@ export function NSMonitorTab() {
     });
   };
 
-  const columns: { key: string; label: string; render?: (row: NSMonitorConfig) => ReactNode; width?: number | string; ellipsis?: boolean }[] = [
+  const columns: { key: string; label: string; render?: (row: NSMonitorConfig) => ReactNode; width?: number | string; ellipsis?: boolean; className?: string }[] = [
     {
       key: 'domain_name',
       label: t('nsMonitor.domainName'),
@@ -381,15 +381,19 @@ export function NSMonitorTab() {
       label: t('nsMonitor.monitoring'),
       width: 100,
       ellipsis: false,
+      className: 'ns-monitor-switch-cell',
       render: (row: NSMonitorConfig) => {
         const isEnabled = toBoolean(row.enabled);
         return (
-          <Switch
-            value={isEnabled}
-            customValue={[true, false]}
-            loading={updateMutation.isPending}
-            onChange={() => handleToggleEnabled(row)}
-          />
+          <div style={{ display: 'inline-flex', alignItems: 'center', overflow: 'visible', flexShrink: 0, minWidth: 44 }}>
+            <Switch
+              value={isEnabled}
+              customValue={[true, false]}
+              loading={updateMutation.isPending}
+              onChange={() => handleToggleEnabled(row)}
+              style={{ flexShrink: 0, width: 'auto', minWidth: 44 }}
+            />
+          </div>
         );
       },
     },
