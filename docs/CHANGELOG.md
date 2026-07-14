@@ -1,5 +1,52 @@
 # 更新日志
 
+## [2.0.10] - 2026-07-14
+
+### 🚀 新功能
+- **HiDNS V2 提供商适配**: 新增 `hidns-v2` DNS 提供商，支持 Bearer 认证、动态线路获取、记录类型透传、域名同步
+- **DNS 记录类型 API**: 新增 `GET /api/domains/{id}/record-types` 接口，前端从后端动态获取支持的记录类型
+- **记录类型与服务端验证**: 新增 `isTypeSupportedByProvider()` 验证，POST/PUT/batch 三入口校验记录类型是否被提供商支持；动态类型提供商（HiDNS V2）跳过静态核验
+- **DnsNeko 适配器完善**: 扩展至 20 种记录类型（`DNSNEKO_RECORD_TYPES`），动态调用 `GET /geo-lines` 获取线路数据
+- **Modal 点击外部配置**: `Modal.tsx` 新增 `closeOnOverlayClick` 属性，默认 `false`，表单弹窗不再因点击背景关闭
+- **虚拟滚动支持**: `Table.tsx` 和页面组件增加虚拟滚动，优化大量数据渲染性能
+
+### 🔧 优化
+- **DSM Schema 自动生成**: 替换三个手写方言文件为 `generate-sql.ts` 统一生成，`complete-schema.ts` 为唯一数据库定义源
+- **前端打包与渲染性能**: 优化 Vite 配置和 React 渲染，提升页面加载速度
+- **线路选择器重构**: 替换虚拟滚动为搜索过滤，提升线路选择体验
+- **域名列表布局优化**: 优化单元格截断和布局效果
+- **数据库文件名统一**: 默认数据库名统一规范化
+
+### 🐛 Bug 修复
+- **Gcore 重复记录显示**: `mapRRSetToRecords()` RecordId 追加索引，同一 RRset 的多条记录不再冲突
+- **Gcore 动态线路禁用**: `getRecordLines()` 仅返回默认线路，保留原动态代码注释
+- **DNSPod 线路重复/过滤**: 移除 `N.` 前缀虚拟线路，重复 ID 自动去重
+- **DnsNeko 线路硬编码**: `getRecordLines()` 改为动态从 API 获取地理线路
+- **NS 监测开关样式**: 修复开关被压缩成圆点的问题
+- **Modal 表单意外关闭**: 点击外部不再自动关闭编辑/添加弹窗
+
+### 📝 技术细节
+- **文件变更**:
+  - `server/src/lib/dns/providers/hidns-v2/` - HiDNS V2 适配器全套（**新建**）
+  - `server/src/lib/dns/providers/dnsneko/adapter.ts` - 20 种类型 + 动态 geo-lines
+  - `server/src/lib/dns/providers/dnspod/adapter.ts` - 线路去重 + N. 前缀过滤
+  - `server/src/lib/dns/providers/gcore/adapter.ts` - 重复记录修复 + 动态线路禁用
+  - `server/src/lib/dns/providers/registry.ts` - DNSNEKO_RECORD_TYPES、hidns-v2 注册、proxiable 能力
+  - `server/src/lib/dns/DnsInterface.ts` - line name 可选
+  - `server/src/lib/dns/record-types.ts` - E-ALICS/ALICS 移除
+  - `server/src/routes/records.ts` - isTypeSupportedByProvider 提供商类型验证
+  - `server/src/routes/domains.ts` - record-types API、safe config 解析
+  - `server/src/mcp/tools.ts` - create/update 记录类型验证
+  - `server/src/db/dsm/schemas/` - 方言文件移除 + generate-sql.ts 统一生成
+  - `client/src/components/Modal.tsx` - closeOnOverlayClick 属性
+  - `client/src/pages/Records.tsx` - recordTypes API 集成
+  - `client/src/api/domains.ts` - recordTypes 方法
+  - `client/src/api/types.ts` - DNSLine.name 可选、proxiable
+  - `client/src/components/RecordForm.tsx` - 代理标志支持
+  - `client/src/components/Table.tsx` - 虚拟滚动
+  - `client/src/pages/domains/NSMonitorTab.tsx` - 列省略号 + 开关样式修复
+  - `client/package.json`, `server/package.json`, `package.json` - 版本 2.0.10
+
 ## [2.0.9] - 2026-06-25
 
 ### 🚀 新功能
