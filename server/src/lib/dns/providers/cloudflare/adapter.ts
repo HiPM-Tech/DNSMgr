@@ -5,6 +5,7 @@ const log = createProviderAdapterLogger('Cloudflare');
 interface CfZone {
   id: string;
   name: string;
+  status: string;
   meta?: { total_count?: number };
 }
 
@@ -149,19 +150,22 @@ export class CloudflareAdapter implements DnsAdapter {
   }
 
   async getDomainList(keyword?: string, page = 1, pageSize = 50): Promise<PageResult<DomainInfo>> {
-    let path = `/zones?page=${page}&per_page=${pageSize}`;
+    let path = `/zones?page=${page}&per_page=${pageSize}&status=active`;
     if (keyword) path += `&name=${encodeURIComponent(keyword)}`;
     log.debug(`getDomainList: page=${page}, pageSize=${pageSize}, keyword=${keyword || 'none'}`);
     const res = await this.request<CfZone[]>('GET', path);
     if (!res.success) {
+      this.error = 'Cloudflare API returned success=false';
       log.error('getDomainList failed', res.errors);
       return { total: 0, list: [] };
     }
+    this.error = '';
+    const activeZones = res.result.filter(z => z.status === 'active');
     const total = res.result_info?.total_count ?? res.result.length;
-    log.debug(`getDomainList success: total=${total}, returned=${res.result.length}`);
+    log.debug(`getDomainList success: total=${total}, active=${activeZones.length}, returned=${res.result.length}`);
     return {
       total,
-      list: res.result.map((z) => ({
+      list: activeZones.map((z) => ({
         Domain: z.name,
         ThirdId: z.id,
         RecordCount: undefined,

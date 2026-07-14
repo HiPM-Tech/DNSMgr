@@ -178,27 +178,16 @@ async function syncAccountDomains(account: any): Promise<void> {
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
 
-        // Check for timeout or 404 errors
-        if (errorMsg.includes('timeout') ||
-            errorMsg.includes('ETIMEDOUT') ||
-            errorMsg.includes('404') ||
-            errorMsg.includes('Not Found')) {
-          log.error(`API timeout or 404, skipping sync for this account`, {
-            accountId,
-            page,
-            error: errorMsg,
-          });
-          apiError = true;
-          hasMore = false;
-          break;
-        }
-
         log.error(`Failed to fetch domains page ${page}`, {
           accountId,
           page,
           error: errorMsg,
         });
+
+        // 任何分页错误都跳过同步，防止部分结果导致域名被误禁用
+        apiError = true;
         hasMore = false;
+        break;
       }
     }
 
@@ -211,12 +200,14 @@ async function syncAccountDomains(account: any): Promise<void> {
       return;
     }
 
-    // 安全网：提供商返回 0 个域名但数据库有域名时，检查适配器错误状态
+    // 安全网：提供商返回 0 个域名但数据库有域名时，跳过同步
     if (providerDomains.length === 0) {
       const adapterError = dnsAdapter.getError?.();
-      if (adapterError) {
-        log.warn(`Provider returned empty domain list but adapter has error, skipping sync`, {
+      const dbDomainCount = (await DomainOperations.getByAccountId(accountId)).length;
+      if (adapterError || dbDomainCount > 0) {
+        log.warn(`Provider returned empty domain list but DB has ${dbDomainCount} domains, skipping sync`, {
           accountId, accountName, adapterError,
+          dbDomainCount,
         });
         return;
       }
