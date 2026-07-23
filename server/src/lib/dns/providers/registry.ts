@@ -55,7 +55,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'aliyun',
     name: 'provider.aliyun',
-    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: false, recordTypes: COMMON_RECORD_TYPES }, log: true, renewal: false },
+    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: true, recordTypes: COMMON_RECORD_TYPES }, log: true, renewal: false },
     configFields: [
       { key: 'AccessKeyId', label: 'provider.config.access_key_id', type: 'text', required: true },
       { key: 'AccessKeySecret', label: 'provider.config.access_key_secret', type: 'password', required: true },
@@ -66,7 +66,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'dnspod',
     name: 'provider.dnspod',
-    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: false, recordTypes: COMMON_RECORD_TYPES }, log: true, renewal: false },
+    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: true, recordTypes: COMMON_RECORD_TYPES }, log: true, renewal: false },
     configFields: [
       { key: 'SecretId', label: 'provider.config.secret_id', type: 'text', required: true },
       { key: 'SecretKey', label: 'provider.config.secret_key', type: 'password', required: true },
@@ -76,7 +76,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'huawei',
     name: 'provider.huawei',
-    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: false, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
+    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: true, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
     configFields: [
       { key: 'AccessKeyId', label: 'provider.config.access_key_id', type: 'text', required: true },
       { key: 'SecretAccessKey', label: 'provider.config.secret_access_key', type: 'password', required: true },
@@ -176,7 +176,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'spaceship',
     name: 'provider.spaceship',
-    capabilities: { dns: { remark: false, status: false, redirect: false, weight: false, proxiable: false, cnameFlattening: false, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
+    capabilities: { dns: { remark: false, status: false, redirect: false, weight: false, proxiable: false, cnameFlattening: true, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
     configFields: [
       { key: 'apiKey', label: 'provider.config.api_key', type: 'text', required: true },
       { key: 'apiSecret', label: 'provider.config.api_secret', type: 'password', required: true },
@@ -197,7 +197,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'aliyunesa',
     name: 'provider.aliyunesa',
-    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: true, cnameFlattening: false, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
+    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: true, cnameFlattening: true, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
     configFields: [
       { key: 'AccessKeyId', label: 'provider.config.access_key_id', type: 'text', required: true },
       { key: 'AccessKeySecret', label: 'provider.config.access_key_secret', type: 'password', required: true },
