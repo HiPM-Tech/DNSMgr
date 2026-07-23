@@ -278,7 +278,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'gcore',
     name: 'provider.gcore',
-    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: false, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
+    capabilities: { dns: { remark: false, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: true, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
     configFields: [
       { key: 'apiKey', label: 'provider.config.api_key', type: 'password', required: true },
     ],
@@ -287,7 +287,7 @@ const providerDefinitions: ProviderDefinition[] = [
   {
     type: 'dnsneko',
     name: 'provider.dnsneko',
-    capabilities: { dns: { remark: true, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: false, recordTypes: DNSNEKO_RECORD_TYPES }, log: false, renewal: false },
+    capabilities: { dns: { remark: true, status: true, redirect: false, weight: false, proxiable: false, cnameFlattening: true, recordTypes: DNSNEKO_RECORD_TYPES }, log: false, renewal: false },
     configFields: [
       { key: 'username', label: 'provider.config.username', type: 'text', required: true },
       { key: 'apiKey', label: 'provider.config.api_key', type: 'password', required: true },
