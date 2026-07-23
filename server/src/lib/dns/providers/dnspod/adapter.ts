@@ -51,6 +51,21 @@ export class DnspodAdapter extends TencentCloudAdapter {
     return type;
   }
 
+  // DNSPod 系统 NS 记录域名后缀（含新旧套餐），这些是托管商的默认 NS 记录
+  // https://docs.dnspod.cn/dns/dns-plan-address/
+  private static readonly DNSPOD_NS_SUFFIXES = [
+    '.dnspod.net', '.dnspod.com',
+    '.dnsv2.com', '.dnsv3.com', '.dnsv4.com', '.dnsv5.com',
+    '.tencent-cloud.com',
+  ];
+
+  private isSystemNsRecord(item: Dict): boolean {
+    const type = safeString(item.Type);
+    const value = safeString(item.Value).toLowerCase();
+    if (type !== 'NS') return false;
+    return DnspodAdapter.DNSPOD_NS_SUFFIXES.some(suffix => value.endsWith(suffix));
+  }
+
   private mapRecord(item: Dict): DnsRecord {
     return {
       RecordId: String(item.RecordId ?? item.RecordID ?? item.Id ?? ''),
@@ -126,7 +141,8 @@ export class DnspodAdapter extends TencentCloudAdapter {
           RecordStatus: status === undefined ? undefined : [status === 1 ? 'ENABLE' : 'DISABLE'],
         };
         const data = await this.call<Dict>('DescribeRecordFilterList', payload);
-        const list = asArray<Dict>(data.RecordList).map((item) => this.mapRecord(item));
+        const rawFilter = asArray<Dict>(data.RecordList);
+        const list = rawFilter.filter(r => !this.isSystemNsRecord(r)).map((item) => this.mapRecord(item));
         const total = toNumber((data.RecordCountInfo as Dict | undefined)?.TotalCount, list.length);
         return { total, list };
       }
@@ -140,7 +156,8 @@ export class DnspodAdapter extends TencentCloudAdapter {
         Offset: offset,
         Limit: pageSize,
       });
-      const list = asArray<Dict>(data.RecordList).map((item) => this.mapRecord(item));
+      const rawList = asArray<Dict>(data.RecordList);
+      const list = rawList.filter(r => !this.isSystemNsRecord(r)).map((item) => this.mapRecord(item));
       const total = toNumber((data.RecordCountInfo as Dict | undefined)?.TotalCount, list.length);
       return { total, list };
     } catch (e) {

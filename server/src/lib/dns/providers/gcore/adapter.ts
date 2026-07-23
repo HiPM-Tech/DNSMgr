@@ -195,7 +195,12 @@ export class GcoreAdapter implements DnsAdapter {
         );
       }
 
-      const list = rrsets.flatMap((rrset) => this.mapRRSetToRecords(rrset, zoneName));
+      const rawList = rrsets.flatMap((rrset) => this.mapRRSetToRecords(rrset, zoneName));
+      const list = rawList.filter(r => {
+        if (r.Type !== 'NS') return true;
+        const v = r.Value.toLowerCase();
+        return !v.endsWith('.gcorelabs.net') && !v.endsWith('.gcore-dns.com') && !v.endsWith('.gcdn.services');
+      });
 
       return { total: res.total_amount ?? list.length, list };
     } catch (e) {
