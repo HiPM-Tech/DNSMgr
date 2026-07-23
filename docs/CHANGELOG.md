@@ -1,5 +1,21 @@
 # 更新日志
 
+## [2.0.12] - 2026-07-15
+
+### 🚀 新功能
+- **CNAME 展平支持确认**: 为 Cloudflare、DNSHE、Gcore、DnsNeko、DNSPod、Aliyun、AliyunESA、Huawei、Spaceship 启用 `cnameFlattening: true`
+
+### 🐛 Bug 修复
+- **DNSPod/Gcore 系统 NS 记录过滤**: 过滤托管商默认 NS 记录（`*.dnspod.net`、`*.dnsv2-5.com`、`*.gcorelabs.net`、`*.gcdn.services` 等），避免与 CNAME 冲突导致无法创建解析
+- **DNSPod NS 值末尾点号处理**: `.replace(/\.+$/, '')` 去除尾部点号再匹配，兼容 `f1g1ns2.dnspod.net.` 格式
+
+### 📝 技术细节
+- **文件变更**:
+  - `server/src/lib/dns/providers/dnspod/adapter.ts` - `isSystemNsRecord()` 过滤系统 NS，`DNSPOD_NS_SUFFIXES` 覆盖全套餐
+  - `server/src/lib/dns/providers/gcore/adapter.ts` - 过滤 `*.gcorelabs.net`、`*.gcore-dns.com`、`*.gcdn.services`
+  - `server/src/lib/dns/providers/registry.ts` - 9 家提供商 `cnameFlattening: true`
+  - `client/package.json`, `server/package.json`, `package.json` - 版本 2.0.12
+
 ## [2.0.11] - 2026-07-15
 
 ### 🐛 Bug 修复
