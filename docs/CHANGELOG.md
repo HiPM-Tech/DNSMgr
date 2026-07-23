@@ -1,5 +1,20 @@
 # 更新日志
 
+## [2.0.11] - 2026-07-15
+
+### 🐛 Bug 修复
+- **CF 域名被误禁用**: Cloudflare 适配器仅返回 `status=active` 的 zone，避免暂停/删除的 zone 被计入域名列表；同步任务增加空结果安全网，当提供商返回 0 域名但数据库仍有域名时跳过同步，防止全量清空 `enabled`
+- **同步任务分页错误处理**: 任何分页请求失败（429 限流、403 等）均跳过同步，不再使用可能不完整的部分结果
+
+### 🔧 优化
+- **Cloudflare 域名列表过滤**: API 请求添加 `&status=active` 参数，只同步活跃的域名
+
+### 📝 技术细节
+- **文件变更**:
+  - `server/src/lib/dns/providers/cloudflare/adapter.ts` - `&status=active` 过滤、`CfZone.status` 字段
+  - `server/src/service/domainSyncJob.ts` - 空结果安全网增强、所有分页错误跳同步
+  - `client/package.json`, `server/package.json`, `package.json` - 版本 2.0.11
+
 ## [2.0.10] - 2026-07-14
 
 ### 🚀 新功能
