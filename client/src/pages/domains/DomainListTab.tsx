@@ -536,6 +536,7 @@ const toggleEnabledMutation = useMutation({
         }
         const domain = row as Domain;
         const isChild = childParentMap.has(domain.id);
+        const isSubdomain = !isApexDomain(domain.name);
         const displayName = formatDomainName(domain.name);
         return (
           <div className="domain-name-cell" style={{ paddingLeft: isChild ? '28px' : '0' }}>
@@ -545,7 +546,7 @@ const toggleEnabledMutation = useMutation({
             <Button className="domain-name-button" variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${domain.id}/records`)} title={displayName}>
               {displayName}
             </Button>
-            {isChild && <Tag theme="warning" variant="light" size="small" style={{ marginLeft: '4px' }}>{t('domains.subdomain')}</Tag>}
+            {isSubdomain && <Tag theme="warning" variant="light" size="small" style={{ marginLeft: '4px' }}>{t('domains.subdomain')}</Tag>}
           </div>
         );
       },

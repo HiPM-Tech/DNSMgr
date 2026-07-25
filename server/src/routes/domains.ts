@@ -432,17 +432,20 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       blocks.push([d]);
     }
 
-    // Group-aware pagination: walk blocks, accumulate pages, ensure groups are never split
+    // Group-aware pagination: each block (a group or a standalone domain) counts as 1 display row
     const pageSizeActual = Math.max(1, parseInteger(pageSize) || 20);
     const pagedBlocks: any[][] = [];
     let currentBlockAcc: any[] = [];
+    let currentBlockCount = 0;
 
     for (const block of blocks) {
-      if (currentBlockAcc.length + block.length > pageSizeActual && currentBlockAcc.length > 0) {
+      if (currentBlockCount >= pageSizeActual && currentBlockAcc.length > 0) {
         pagedBlocks.push(currentBlockAcc);
         currentBlockAcc = [];
+        currentBlockCount = 0;
       }
       currentBlockAcc.push(...block);
+      currentBlockCount++;
     }
     if (currentBlockAcc.length > 0) pagedBlocks.push(currentBlockAcc);
 
