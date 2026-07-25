@@ -77,22 +77,6 @@ export interface DomainGroupResult<T extends DomainLike> {
   standalone: T[];
 }
 
-function findClosestParent<T extends DomainLike>(domainName: string, allDomains: Map<string, T>): T | null {
-  const name = domainName.toLowerCase();
-  const parts = name.split('.');
-  let closest: T | null = null;
-  let longestMatch = 0;
-  for (let i = 1; i < parts.length; i++) {
-    const suffix = parts.slice(i).join('.');
-    const domain = allDomains.get(suffix);
-    if (domain && suffix.length > longestMatch) {
-      closest = domain;
-      longestMatch = suffix.length;
-    }
-  }
-  return closest;
-}
-
 export function groupDomains<T extends DomainLike>(domains: T[], pinnedIds?: number[]): DomainGroupResult<T> {
   const pinnedSet = pinnedIds ? new Set(pinnedIds) : new Set<number>();
   // Build name → all domains with that name (handles duplicates across accounts)

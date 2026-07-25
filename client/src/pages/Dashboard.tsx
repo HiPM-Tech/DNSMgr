@@ -209,7 +209,10 @@ export function Dashboard() {
 
   const { data: accounts, isLoading: accountsLoading } = useQuery({
     queryKey: ['accounts'],
-    queryFn: () => accountsApi.list().then((r) => r.data.data ?? []),
+    queryFn: () => accountsApi.list().then((r) => {
+      const data = r.data.data;
+      return Array.isArray(data) ? data : (data?.list ?? []);
+    }),
   });
 
   const { data: domainsData, isLoading: domainsLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({

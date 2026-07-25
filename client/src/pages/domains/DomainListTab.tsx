@@ -9,7 +9,7 @@ import {
   DeleteIcon,
   EditIcon,
   JumpIcon,
-  LayersIcon,
+
   PinIcon,
   PoweroffIcon,
   RootListIcon,
@@ -355,7 +355,7 @@ export function DomainListTab() {
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts', 'dns'],
-    queryFn: () => accountsApi.list({ purpose: 'dns' }).then((r) => r.data.data ?? []),
+    queryFn: () => accountsApi.list({ purpose: 'dns' }).then((r) => { const d = r.data.data; return Array.isArray(d) ? d : (d?.list ?? []); }),
     staleTime: 5 * 60 * 1000,
   });
 

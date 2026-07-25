@@ -49,7 +49,7 @@ export function DomainRenewalTab() {
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts', 'renewal'],
-    queryFn: () => accountsApi.list({ purpose: 'renewal' }).then((r) => r.data.data || []),
+    queryFn: () => accountsApi.list({ purpose: 'renewal' }).then((r) => { const d = r.data.data; return Array.isArray(d) ? d : (d?.list ?? []); }),
     enabled: isAddModalOpen || showAdvancedFilter,
   });
 

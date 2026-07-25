@@ -13,10 +13,16 @@ export interface AccountListParams {
   pageSize?: number;
 }
 
-export type AccountListResponse = DnsAccount[] | { list: DnsAccount[]; total: number; page: number; pageSize: number; totalPages: number };
+export interface AccountPaginatedData {
+  list: DnsAccount[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
 
 export const accountsApi = {
-  list: (params?: AccountListParams) => api.get<ApiResponse<AccountListResponse>>('/accounts', { params }),
+  list: (params?: AccountListParams) => api.get<ApiResponse<DnsAccount[] | AccountPaginatedData>>('/accounts', { params }),
   providers: () => api.get<ApiResponse<Provider[]>>('/accounts/providers'),
   get: (id: number) => api.get<ApiResponse<DnsAccount>>(`/accounts/${id}`),
   create: (data: { type: string; name: string; config: Record<string, string | boolean>; remark?: string; team_id?: number }) =>
