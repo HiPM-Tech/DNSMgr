@@ -430,6 +430,8 @@
             "noAccountsDesc": "在添加域名之前，你需要先添加一个 DNS 账号。",
             "noDomainsFound": "暂无域名。",
             "alreadyAdded": "已添加",
+            "addedInOtherAccount": "其他账号已添加",
+            "parentDomainExists": "上级域名已添加",
             "noProviderDomains": "服务商下没有可用域名",
             "primaryIp": "主 IP",
             "providerDomainId": "服务商域名 ID",

@@ -734,6 +734,8 @@
             "batchDeleteSkipped": "{count} domains skipped due to insufficient permissions",
             "batchDeleteFailed": "Batch deletion failed",
             "alreadyAdded": "Already added",
+            "addedInOtherAccount": "Added in another account",
+            "parentDomainExists": "Parent domain exists",
             "noProviderDomains": "No domains found from provider",
             "remark": "Remark",
             "emptyRemark": "-",

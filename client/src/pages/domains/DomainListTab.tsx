@@ -191,12 +191,15 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
                   <Checkbox
                     checked={selectedProviders.includes(domain.third_id)}
                     onChange={(checked) => toggleProvider(domain.third_id, Boolean(checked))}
+                    disabled={domain.exists}
                   />
                   <span className="page-list-item__main">
                     <strong>{formatDomainName(domain.name)}</strong>
                     <span>{domain.third_id}</span>
                   </span>
                   {domain.exists && <Tag theme="warning" variant="light" size="small">{t('domains.alreadyAdded')}</Tag>}
+                  {domain.existsOther && <Tag theme="warning" variant="outline" size="small">{t('domains.addedInOtherAccount')}</Tag>}
+                  {domain.parentExists && <Tag theme="primary" variant="light" size="small">{t('domains.parentDomainExists')}</Tag>}
                 </label>
               ))}
             </div>

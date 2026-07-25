@@ -11,7 +11,7 @@ import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { createLogger } from '../lib/logger';
-import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations, SystemCacheOperations, GroupedDomainsCacheOperations } from '../db/bal/business-adapter';
+import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations, SystemCacheOperations, GroupedDomainsCacheOperations, WhoisOperations } from '../db/bal/business-adapter';
 import { syncDomainWhois } from '../service/whois';
 import { getRootDomain, queryWhois, groupDomains } from '../service/whois';
 import { wsService } from '../service/websocket';
@@ -950,15 +950,20 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
 
     log.info('Domains fetched', { total: allProviderDomains.length });
 
-    // 获取当前账号下已添加的域名列表
-    const existingDomains = await DomainOperations.getByAccountId(accountId) as Array<{ name: string }>;
-    const existingDomainNames = new Set(existingDomains.map((d) => normalizeDomain(d.name)));
+    // 获取所有已有域名（跨账号检测）
+    const allDomains = await WhoisOperations.getAllDomains() as Array<{ id: number; name: string; account_id: number }>;
+    const existingForAccount = allDomains.filter((d) => d.account_id === accountId);
+    const existingDomainNames = new Set(existingForAccount.map((d) => normalizeDomain(d.name)));
+    const allDomainNames = new Set(allDomains.map((d) => normalizeDomain(d.name)));
+    const allRootDomainNames = new Set(
+      allDomains.map((d) => normalizeDomain(getRootDomain(d.name))).filter(Boolean)
+    );
 
-    // 返回所有域名，标记 DB 已存在的域名
-    // 前端显示时已存在的域名将展示标记并禁用勾选
+    // 返回所有域名，标记存在状态
     const tokenPayload = (req as any).tokenPayload;
     const domains = allProviderDomains.map((d) => {
       const normalizedName = normalizeDomain(d.Domain);
+      const rootDomain = getRootDomain(normalizedName);
       // For Session auth, convert to Unicode; for Token auth, keep Punycode
       const displayName = tokenPayload ? normalizedName : getDisplayDomain(normalizedName, true);
       return {
@@ -966,6 +971,8 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
         third_id: d.ThirdId,
         record_count: d.RecordCount ?? 0,
         exists: existingDomainNames.has(normalizedName),
+        existsOther: !existingDomainNames.has(normalizedName) && allDomainNames.has(normalizedName),
+        parentExists: !!rootDomain && rootDomain !== normalizedName && allRootDomainNames.has(normalizeDomain(rootDomain)),
       };
     });
 

@@ -88,6 +88,8 @@ export interface ProviderDomainOption {
   third_id: string;
   record_count?: number;
   exists?: boolean;
+  existsOther?: boolean;
+  parentExists?: boolean;
 }
 
 export interface DnsRecord {
