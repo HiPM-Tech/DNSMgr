@@ -702,6 +702,7 @@
             "subdomains": "Subdomains",
             "subdomain": "Subdomain",
             "grouped": "Grouped",
+            "grouping": "Grouping",
             "allStatus": "All Status",
             "enabled": "Enabled",
             "disabled": "Disabled",

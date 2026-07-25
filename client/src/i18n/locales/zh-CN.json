@@ -443,6 +443,7 @@
             "subdomains": "子域",
             "subdomain": "子域",
             "grouped": "分组",
+            "grouping": "分组",
             "allStatus": "全部状态",
             "enabled": "启用",
             "disabled": "禁用",

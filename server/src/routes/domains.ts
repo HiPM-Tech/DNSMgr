@@ -456,7 +456,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
       return { ...item, name: getDisplayDomain(item.name, true) };
     });
 
-    sendSuccess(res, { list: displayList, total: standalone.length + groups.reduce((s, g) => s + g.children.length, 0), page: safePage, pageSize: pageSizeActual, totalPages: groupedTotalPages });
+    sendSuccess(res, { list: displayList, total: standalone.length + groups.length, page: safePage, pageSize: pageSizeActual, totalPages: groupedTotalPages });
     return;
   }
 

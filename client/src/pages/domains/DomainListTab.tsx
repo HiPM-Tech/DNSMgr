@@ -250,6 +250,7 @@ export function DomainListTab() {
   const [page, setPage] = useState(filterState.page);
   const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', filterState.pageSize);
   const [expandedParents, setExpandedParents] = useState<Set<number>>(new Set());
+  const [groupingEnabled, setGroupingEnabled] = useState(true);
 
   useEffect(() => {
     setFilterState({ keyword, accountFilter, domainTypeFilter, statusFilter, page, pageSize });
@@ -274,7 +275,7 @@ export function DomainListTab() {
 
   const { data: domainsData, isLoading } = useQuery<{ list: any[]; total: number; page: number; pageSize: number; totalPages: number }>({
     // ← 将 pinnedDomains 加入 queryKey，确保置顶列表变化时重新查询
-    queryKey: ['domains', accountFilter, keyword, domainTypeFilter, statusFilter, page, pageSize, pinnedDomains],
+    queryKey: ['domains', accountFilter, keyword, domainTypeFilter, statusFilter, page, pageSize, pinnedDomains, groupingEnabled],
     queryFn: async () => {
       // 使用后端分页和过滤
       const res = await domainsApi.list({
@@ -283,7 +284,7 @@ export function DomainListTab() {
         domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
         domain_status: statusFilter,  // 'enabled' | 'disabled' | 'all'
         pinned_domains: pinnedDomains.length > 0 ? pinnedDomains.join(',') : undefined,  // ← 传递置顶域名 ID 列表
-        grouped: 'true',
+        grouped: groupingEnabled ? 'true' : undefined,
         page,
         pageSize,
       });
@@ -544,6 +545,7 @@ const toggleEnabledMutation = useMutation({
             <Button className="domain-name-button" variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${domain.id}/records`)} title={displayName}>
               {displayName}
             </Button>
+            {isChild && <Tag theme="warning" variant="light" size="small" style={{ marginLeft: '4px' }}>{t('domains.subdomain')}</Tag>}
           </div>
         );
       },
@@ -734,6 +736,17 @@ const toggleEnabledMutation = useMutation({
                     { label: t('domains.disabled'), value: 'disabled' },
                   ]}
                   onChange={(value) => { setStatusFilter(selectValue(value) as 'all' | 'enabled' | 'disabled'); setPage(1); }}
+                  style={{ width: '100%' }}
+                />
+              </ControlField>
+              <ControlField label={t('domains.grouping')}>
+                <Select
+                  value={groupingEnabled ? 'enabled' : 'disabled'}
+                  options={[
+                    { label: t('common.enabled'), value: 'enabled' },
+                    { label: t('common.disabled'), value: 'disabled' },
+                  ]}
+                  onChange={(value) => { setGroupingEnabled(value === 'enabled'); setPage(1); }}
                   style={{ width: '100%' }}
                 />
               </ControlField>
