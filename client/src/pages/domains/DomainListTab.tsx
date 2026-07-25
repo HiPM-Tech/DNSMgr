@@ -307,6 +307,14 @@ export function DomainListTab() {
     }
     return map;
   }, [domainsData]);
+  const visibleDomains = useMemo(() => {
+    return displayDomains.filter((item) => {
+      if ('_type' in item) return true;
+      const parentId = childParentMap.get((item as Domain).id);
+      if (!parentId) return true;
+      return expandedParents.has(parentId);
+    });
+  }, [displayDomains, childParentMap, expandedParents]);
 
   const toggleExpand = useCallback((groupId: number) => {
     setExpandedParents((prev) => {
@@ -734,7 +742,7 @@ const toggleEnabledMutation = useMutation({
         )}
                 <Table
                   columns={columns}
-                  data={displayDomains}
+                  data={visibleDomains}
                   loading={isLoading}
                   rowKey={(row) => row.id}
                   emptyText={t('domains.noDomainsFound')}
