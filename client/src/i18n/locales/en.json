@@ -264,7 +264,8 @@
             "useProxyHint": "Access DNS provider API through system proxy",
             "searchPlaceholder": "Search accounts...",
             "allProviders": "All Providers",
-            "allStatus": "All Status"
+            "allStatus": "All Status",
+            "grouped": "Grouped"
         },
         "teams": {
             "title": "Teams",

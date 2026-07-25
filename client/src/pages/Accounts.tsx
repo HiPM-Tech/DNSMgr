@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Form, Input, Pagination, Select, Space, Switch } from 'tdesign-react';
+import { Button, Card, Form, Input, Pagination, Select, Space, Switch, Tag } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
-import { AddIcon, DeleteIcon, EditIcon, SearchIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
+import { AddIcon, ChevronDownIcon, ChevronRightIcon, DeleteIcon, EditIcon, SearchIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
 import { accountsApi } from '../api';
 import type { DnsAccount, Provider, ProviderField } from '../api';
 import { Table } from '../components/Table';
@@ -15,6 +15,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+
+interface GroupHeader {
+  _type: 'group_header';
+  id: number;
+  groupType: string;
+  childIds: number[];
+}
 
 function ProviderBadge({ type }: { type: string }) {
   const { t } = useI18n();
@@ -206,30 +213,63 @@ export function Accounts() {
     enabled: !isMutating, // Disable WebSocket events during mutation
   });
 
-  const { data: accountsData, isLoading } = useQuery({
-    queryKey: ['accounts', keyword, typeFilter, statusFilter, page, pageSize],
+  const { data: accounts = [], isLoading } = useQuery({
+    queryKey: ['accounts', keyword, typeFilter, statusFilter],
     queryFn: async () => {
       const res = await accountsApi.list({
         keyword: keyword || undefined,
         type: typeFilter || undefined,
         enabled: statusFilter !== 'all' ? statusFilter : undefined,
-        page,
-        pageSize,
       });
       const data = res.data.data;
-      if (Array.isArray(data)) {
-        return data;
-      }
-      return data ?? { list: [], total: 0, page, pageSize, totalPages: 1 };
+      return Array.isArray(data) ? data : (data?.list ?? []);
     },
     staleTime: 30 * 1000,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 
-  const accounts = useMemo(() => Array.isArray(accountsData) ? accountsData : accountsData?.list ?? [], [accountsData]);
-  const total = useMemo(() => Array.isArray(accountsData) ? accounts.length : accountsData?.total ?? 0, [accountsData, accounts.length]);
-  const totalPages = useMemo(() => Array.isArray(accountsData) ? 1 : accountsData?.totalPages ?? 1, [accountsData]);
+  // Group accounts by provider type
+  type DisplayItem = DnsAccount | GroupHeader;
+
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+
+  const toggleGroup = useCallback((type: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type); else next.add(type);
+      return next;
+    });
+  }, []);
+
+  const grouped = useMemo(() => {
+    const groupMap = new Map<string, DnsAccount[]>();
+    for (const acc of accounts) {
+      const t = acc.type;
+      if (!groupMap.has(t)) groupMap.set(t, []);
+      groupMap.get(t)!.push(acc);
+    }
+    return groupMap;
+  }, [accounts]);
+
+  const allDisplayItems = useMemo<DisplayItem[]>(() => {
+    const result: DisplayItem[] = [];
+    for (const [type, list] of grouped) {
+      result.push({ _type: 'group_header', id: -(type.charCodeAt(0) ?? 0), groupType: type, childIds: list.map(a => a.id) });
+      if (expanded.has(type)) {
+        result.push(...list);
+      }
+    }
+    return result;
+  }, [grouped, expanded]);
+
+  const totalFiltered = allDisplayItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = useMemo<DisplayItem[]>(() => {
+    const start = (safePage - 1) * pageSize;
+    return allDisplayItems.slice(start, start + pageSize);
+  }, [allDisplayItems, safePage, pageSize]);
 
   const { data: providers = [] } = useQuery({
     queryKey: ['providers'],
@@ -341,40 +381,80 @@ export function Accounts() {
   });
 
   const columns = useMemo(() => [
-    { key: 'name', label: t('common.name'), render: (row: DnsAccount) => <span className="page-strong">{row.name}</span> },
-    { key: 'type', label: t('accounts.provider'), render: (row: DnsAccount) => <ProviderBadge type={row.type} /> },
+    {
+      key: 'name',
+      label: t('common.name'),
+      render: (row: DisplayItem) => {
+        if ('_type' in row) {
+          const isExpanded = expanded.has(row.groupType);
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Button shape="square" variant="text" size="small"
+                icon={isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                onClick={() => toggleGroup(row.groupType)}
+                style={{ width: '24px', height: '24px' }}
+              />
+              <ProviderBadge type={row.groupType} />
+              <Tag theme="primary" variant="light" size="small">{t('accounts.grouped')}</Tag>
+            </div>
+          );
+        }
+        return <span className="page-strong">{(row as DnsAccount).name}</span>;
+      }
+    },
+    {
+      key: 'type',
+      label: t('accounts.provider'),
+      render: (row: DisplayItem) => {
+        if ('_type' in row) return null;
+        return <ProviderBadge type={(row as DnsAccount).type} />;
+      }
+    },
     { 
       key: 'enabled', 
       label: t('common.status'), 
-      render: (row: DnsAccount) => (
-        <span className={`page-status ${row.enabled !== false ? 'page-status--success' : 'page-status--default'}`}>
-          {row.enabled !== false ? t('common.enabled') : t('common.disabled')}
-        </span>
-      )
+      render: (row: DisplayItem) => {
+        if ('_type' in row) return null;
+        const d = row as DnsAccount;
+        return (
+          <span className={`page-status ${d.enabled !== false ? 'page-status--success' : 'page-status--default'}`}>
+            {d.enabled !== false ? t('common.enabled') : t('common.disabled')}
+          </span>
+        );
+      }
     },
-    { key: 'remark', label: t('common.remark'), render: (row: DnsAccount) => <span className="page-muted">{row.remark || '-'}</span> },
-    { key: 'created_at', label: t('common.created'), render: (row: DnsAccount) => <span className="page-muted">{new Date(row.created_at).toLocaleDateString()}</span> },
+    { key: 'remark', label: t('common.remark'), render: (row: DisplayItem) => {
+      if ('_type' in row) return null;
+      return <span className="page-muted">{(row as DnsAccount).remark || '-'}</span>;
+    }},
+    { key: 'created_at', label: t('common.created'), render: (row: DisplayItem) => {
+      if ('_type' in row) return null;
+      return <span className="page-muted">{new Date((row as DnsAccount).created_at).toLocaleDateString()}</span>;
+    }},
     {
       key: 'actions',
       label: t('common.actions'),
-      render: (row: DnsAccount) => (
-        <Space size="small">
-          <Button
-            shape="square"
-            variant="text"
-            theme={row.enabled !== false ? 'warning' : 'success'}
-            icon={row.enabled !== false ? <StopCircleIcon /> : <PlayCircleIcon />}
-            disabled={!canManage || toggleEnabledMutation.isPending}
-            onClick={() => {
-              // Toggle enabled state (handle both boolean and number from database)
-              const currentEnabled = !!row.enabled;
-              toggleEnabledMutation.mutate({ id: row.id, enabled: !currentEnabled });
-            }}
-          />
-          <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => setEditingId(row.id)} />
-          <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(row)} />
-        </Space>
-      ),
+      render: (row: DisplayItem) => {
+        if ('_type' in row) return null;
+        const d = row as DnsAccount;
+        return (
+          <Space size="small">
+            <Button
+              shape="square"
+              variant="text"
+              theme={d.enabled !== false ? 'warning' : 'success'}
+              icon={d.enabled !== false ? <StopCircleIcon /> : <PlayCircleIcon />}
+              disabled={!canManage || toggleEnabledMutation.isPending}
+              onClick={() => {
+                const currentEnabled = !!d.enabled;
+                toggleEnabledMutation.mutate({ id: d.id, enabled: !currentEnabled });
+              }}
+            />
+            <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => setEditingId(d.id)} />
+            <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(d)} />
+          </Space>
+        );
+      },
     },
   ], [t, canManage, toggleEnabledMutation]);
 
@@ -423,18 +503,18 @@ export function Accounts() {
         </div>
         <Table
           columns={columns}
-          data={accounts}
+          data={pageItems}
           loading={isLoading}
-          rowKey={(row) => row.id}
+          rowKey={(row: any) => row.id}
           emptyText={t('accounts.noAccounts')}
           maxHeight={620}
         />
         {totalPages > 1 && (
           <div className="records-pagination">
             <Pagination
-              current={page}
+              current={safePage}
               pageSize={pageSize}
-              total={total}
+              total={totalFiltered}
               pageSizeOptions={[10, 20, 50, 100]}
               onCurrentChange={(current) => setPage(current)}
               onPageSizeChange={(nextPageSize) => {

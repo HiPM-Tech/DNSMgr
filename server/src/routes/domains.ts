@@ -11,15 +11,65 @@ import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { createLogger } from '../lib/logger';
-import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations, SystemCacheOperations } from '../db/bal/business-adapter';
+import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations, SystemCacheOperations, GroupedDomainsCacheOperations } from '../db/bal/business-adapter';
 import { syncDomainWhois } from '../service/whois';
-import { getRootDomain, queryWhois } from '../service/whois';
+import { getRootDomain, queryWhois, groupDomains } from '../service/whois';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/dns';
 
 
 const log = createLogger('HTTP').sub('Route').sub('Domains');
 const router = Router();
+
+// ─── Grouped Domains / Accounts Cache ───────────────────────────────────────
+const CACHE_VERSION_KEY = 'grouped_cache_ver';
+const CACHE_TTL_MS = 720 * 60 * 60 * 1000; // 720 hours
+
+async function getCachedGroupedData(userId: number, cacheType: 'domain' | 'account'): Promise<{ data: any[]; ver: number } | null> {
+  const row = await GroupedDomainsCacheOperations.get(userId, cacheType);
+  if (!row) return null;
+  try {
+    const parsed = JSON.parse(row.cacheData);
+    return { data: parsed, ver: row.version };
+  } catch {
+    await GroupedDomainsCacheOperations.delete(userId, cacheType);
+    return null;
+  }
+}
+
+async function setCachedGroupedData(userId: number, cacheType: 'domain' | 'account', ver: number, data: any[]): Promise<void> {
+  const expiresAt = new Date(Date.now() + CACHE_TTL_MS);
+  await GroupedDomainsCacheOperations.set(userId, cacheType, ver, JSON.stringify(data), expiresAt);
+}
+
+async function getGroupedCacheVersion(): Promise<number> {
+  const raw = await SystemCacheOperations.get(CACHE_VERSION_KEY);
+  return raw ? parseInt(raw, 10) || 0 : 0;
+}
+
+async function bumpGroupedCacheVersion(): Promise<number> {
+  const ver = Date.now();
+  await SystemCacheOperations.set(CACHE_VERSION_KEY, String(ver));
+  return ver;
+}
+
+/** Incrementally update the cached data list for a given user */
+async function updateCachedDataList(userId: number, cacheType: 'domain' | 'account', change: { type: 'create' | 'update' | 'delete'; item: any }): Promise<void> {
+  const cached = await getCachedGroupedData(userId, cacheType);
+  if (!cached) return;
+
+  let { data } = cached;
+  if (change.type === 'delete') {
+    data = data.filter((d: any) => d.id !== change.item.id);
+  } else if (change.type === 'create') {
+    data = [...data, change.item];
+  } else if (change.type === 'update') {
+    data = data.map((d: any) => d.id === change.item.id ? change.item : d);
+  }
+
+  const ver = await bumpGroupedCacheVersion();
+  await setCachedGroupedData(userId, cacheType, ver, data);
+}
 
 async function getAccountForUser(accountId: number, userId: number, role: number): Promise<DnsAccount | null> {
   const account = await DnsAccountOperations.getById(accountId) as DnsAccount | undefined;
@@ -162,7 +212,7 @@ export async function getDomainAccess(domainId: number, userId: number, role: nu
  *         description: List of domains
  */
 router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  const { account_id, keyword, domain_match, domain_type, page, pageSize, format, include_disabled, domain_status, pinned_domains } = req.query as {
+  const { account_id, keyword, domain_match, domain_type, page, pageSize, format, include_disabled, domain_status, pinned_domains, grouped } = req.query as {
     account_id?: string;
     keyword?: string;
     domain_match?: string;
@@ -173,13 +223,14 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     include_disabled?: string; // 'true' to include disabled domains (legacy)
     domain_status?: 'enabled' | 'disabled' | 'all'; // new parameter for status filtering
     pinned_domains?: string; // comma-separated domain IDs for pinned sorting
+    grouped?: string; // 'true' to group domains before pagination
   };
   const userId = req.user!.userId;
   const role = normalizeRole(req.user!.role);
 
   // Pagination params
   const currentPage = Math.max(1, parseInteger(page) || 1);
-  const size = Math.min(100, Math.max(1, parseInteger(pageSize) || 20));
+  const size = grouped === 'true' ? 100000 : Math.min(100, Math.max(1, parseInteger(pageSize) || 20));
 
   // Parse domain_type with type safety
   const parsedDomainType: 'apex' | 'subdomain' | undefined =
@@ -315,6 +366,99 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
 
   // Record count is cached in database and refreshed asynchronously by background job
   // No need to query DNS provider API on every request
+
+  // When grouped=true: group all fetched domains, then paginate the display items by group blocks
+  if (grouped === 'true' && !tokenPayload && format !== 'array') {
+    // Try cache first (stores full unfiltered domain list)
+    const cacheVer = await getGroupedCacheVersion();
+    const cached = await getCachedGroupedData(userId, 'domain');
+    let allDomains: Domain[];
+
+    if (cached && cached.ver === cacheVer) {
+      allDomains = cached.data;
+    } else {
+      // Re-query without filters to get the full domain list for caching
+      if (isSuper(role)) {
+        allDomains = await DomainOperations.getAllForSuperAdmin() as unknown as Domain[];
+      } else if (tokenPayload) {
+        allDomains = domains; // Already fetched without pagination
+      } else {
+        const teamIds = await TeamOperations.getTeamIdsByUserId(userId);
+        allDomains = await DomainOperations.getAccessibleDomains({
+          userId, teamIds, isSuper: false,
+        }) as unknown as Domain[];
+      }
+      const ver = await bumpGroupedCacheVersion();
+      await setCachedGroupedData(userId, 'domain', ver, allDomains);
+    }
+
+    // Apply in-memory filters on the cached full list
+    if (parsedDomainStatus === 'enabled') {
+      allDomains = allDomains.filter((d: any) => d.enabled !== 0 && d.enabled !== false);
+    } else if (parsedDomainStatus === 'disabled') {
+      allDomains = allDomains.filter((d: any) => d.enabled === 0 || d.enabled === false);
+    }
+    if (parsedDomainType === 'apex') {
+      allDomains = allDomains.filter((d) => !d.name.includes('.') || d.name.split('.').length <= 2);
+    } else if (parsedDomainType === 'subdomain') {
+      allDomains = allDomains.filter((d) => d.name.includes('.') && d.name.split('.').length > 2);
+    }
+    if (keyword) {
+      const kw = keyword.toLowerCase();
+      allDomains = allDomains.filter((d) => d.name.toLowerCase().includes(kw));
+    }
+    if (account_id) {
+      const aid = parseInteger(account_id);
+      if (aid) allDomains = allDomains.filter((d) => d.account_id === aid);
+    }
+
+    const { groups, standalone } = groupDomains(allDomains, pinnedDomainIds);
+
+    // Build group blocks: each block is [group_header, ...children]
+    const blocks: any[][] = [];
+    for (const g of groups) {
+      const headerId = -(g.parent.id);
+      const childrenWithInfo = g.children.map((c: any) => ({
+        ...c,
+        _groupParentId: headerId,
+      }));
+      blocks.push([
+        { _type: 'group_header', id: headerId, groupName: g.parent.name, childIds: g.children.map((c: any) => c.id) },
+        ...childrenWithInfo,
+      ]);
+    }
+    // Standalone domains: each is its own block
+    for (const d of standalone) {
+      blocks.push([d]);
+    }
+
+    // Group-aware pagination: walk blocks, accumulate pages, ensure groups are never split
+    const pageSizeActual = Math.max(1, parseInteger(pageSize) || 20);
+    const pagedBlocks: any[][] = [];
+    let currentBlockAcc: any[] = [];
+
+    for (const block of blocks) {
+      if (currentBlockAcc.length + block.length > pageSizeActual && currentBlockAcc.length > 0) {
+        pagedBlocks.push(currentBlockAcc);
+        currentBlockAcc = [];
+      }
+      currentBlockAcc.push(...block);
+    }
+    if (currentBlockAcc.length > 0) pagedBlocks.push(currentBlockAcc);
+
+    const groupedTotalPages = pagedBlocks.length;
+    const safePage = Math.max(1, Math.min(currentPage, groupedTotalPages));
+    const pageItems = pagedBlocks[safePage - 1] ?? [];
+
+    // Convert Punycode to Unicode for display
+    const displayList = pageItems.map((item: any) => {
+      if (item._type === 'group_header') return item;
+      return { ...item, name: getDisplayDomain(item.name, true) };
+    });
+
+    sendSuccess(res, { list: displayList, total: standalone.length + groups.reduce((s, g) => s + g.children.length, 0), page: safePage, pageSize: pageSizeActual, totalPages: groupedTotalPages });
+    return;
+  }
 
   const totalPages = Math.ceil(total / size);
 
@@ -598,6 +742,18 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     return;
   }
 
+  // 缓存失效：增量更新缓存的域名列表
+  if (firstId) {
+    const newDomain = await DomainOperations.getById(firstId) as unknown as Domain | undefined;
+    if (newDomain) {
+      // Update both user cache and super admin cache
+      await updateCachedDataList(req.user!.userId, 'domain', { type: 'create', item: newDomain });
+      if (req.user!.userId !== 0) {
+        await updateCachedDataList(0, 'domain', { type: 'create', item: newDomain });
+      }
+    }
+  }
+
   for (const domainName of addedDomains) {
     await logAuditOperation(req.user!.userId, 'add_domain', domainName, { accountId: account_id }, req);
   }
@@ -726,6 +882,8 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
       }
     }
     await logAuditOperation(req.user!.userId, 'sync_domains', '', { accountId: account_id, total: allDomains.length, added }, req);
+    // 缓存失效：同步可能添加/更新多个域名
+    await bumpGroupedCacheVersion();
     sendSuccess(res, { total: allDomains.length, added });
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -898,7 +1056,15 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
   await logAuditOperation(req.user!.userId, 'update_domain', access.domain.name, { remark, is_hidden, enabled }, req);
 
   // 获取更新后的域名信息（包含到期时间）
-  const updatedDomain = await DomainOperations.getById(id);
+  const updatedDomain = await DomainOperations.getById(id) as unknown as Domain | undefined;
+
+  // 缓存失效：增量更新缓存的域名列表
+  if (updatedDomain) {
+    await updateCachedDataList(req.user!.userId, 'domain', { type: 'update', item: updatedDomain });
+    if (!isSuper(normalizeRole(req.user!.role))) {
+      await updateCachedDataList(0, 'domain', { type: 'update', item: updatedDomain });
+    }
+  }
 
   // 推送 WebSocket 消息
   try {
@@ -908,9 +1074,9 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
         domainId: id,
         name: access.domain.name,
         enabled: enabled !== undefined ? enabled : access.domain.enabled,
-        expiresAt: updatedDomain?.expires_at || null,
-        apexExpiresAt: updatedDomain?.apex_expires_at || null,
-        whoisStatus: updatedDomain?.whois_status || null,
+        expiresAt: (updatedDomain as any)?.expires_at || null,
+        apexExpiresAt: (updatedDomain as any)?.apex_expires_at || null,
+        whoisStatus: (updatedDomain as any)?.whois_status || null,
       },
     });
   } catch (error) {
@@ -949,7 +1115,14 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
     sendError(res, 'Permission denied');
     return;
   }
+  const deletedDomain = access.domain;
   await DomainOperations.delete(id);
+
+  // 缓存失效：增量更新缓存的域名列表
+  await updateCachedDataList(req.user!.userId, 'domain', { type: 'delete', item: deletedDomain as unknown as Domain });
+  if (!isSuper(normalizeRole(req.user!.role))) {
+    await updateCachedDataList(0, 'domain', { type: 'delete', item: deletedDomain as unknown as Domain });
+  }
 
   // Check if there are any other domains with the same name
   const domainName = access.domain.name as string;

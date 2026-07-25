@@ -106,7 +106,7 @@ export {
 } from './rdap-server-list';
 
 // 域名工具
-export { getRootDomain } from './domain-utils';
+export { getRootDomain, groupDomains, type DomainGroup, type DomainGroupResult } from './domain-utils';
 
 // 向后兼容（给 lib/dns/providers/dnshe/whoisScheduler.ts 等外部引用）
 export { dnsProviderAdapter, initDnsProviderAdapters } from './methods/dns-provider.registry';

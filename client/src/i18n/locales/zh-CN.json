@@ -64,7 +64,8 @@
             "useProxyHint": "通过系统代理访问 DNS 服务商 API",
             "searchPlaceholder": "搜索账号...",
             "allProviders": "所有服务商",
-            "allStatus": "所有状态"
+            "allStatus": "所有状态",
+            "grouped": "分组"
         },
         "audit": {
             "actionType": "操作类型",

@@ -12,10 +12,11 @@ export const domainsApi = {
     domain_status?: 'enabled' | 'disabled' | 'all';
     include_disabled?: string; // legacy parameter
     pinned_domains?: string; // comma-separated domain IDs for pinned sorting
+    grouped?: string; // 'true' to group domains on backend
     page?: number; 
     pageSize?: number 
   }) =>
-    api.get<ApiResponse<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>>('/domains', { 
+    api.get<ApiResponse<{ list: any[]; total: number; page: number; pageSize: number; totalPages: number }>>('/domains', { 
       params
     }),
   get: (id: number) => api.get<ApiResponse<Domain>>(`/domains/${id}`),

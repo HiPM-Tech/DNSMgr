@@ -588,6 +588,23 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
       ]
     },
     {
+      name: 'grouped_domains_cache',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'user_id', type: 'integer', nullable: false },
+        { name: 'cache_type', type: 'string', length: 50, nullable: false },
+        { name: 'version', type: 'integer', nullable: false },
+        { name: 'cache_data', type: 'text', nullable: false },
+        { name: 'expires_at', type: 'datetime', nullable: true },
+        { name: 'created_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ],
+      indexes: [
+        { name: 'idx_grouped_cache_user_type', columns: ['user_id', 'cache_type'], unique: true },
+        { name: 'idx_grouped_cache_expires', columns: ['expires_at'] },
+      ]
+    },
+    {
       name: 'renewable_domains',
       columns: [
         { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },

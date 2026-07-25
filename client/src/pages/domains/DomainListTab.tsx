@@ -31,7 +31,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { isApexDomain, groupDomains } from '../../utils/domain-utils';
+import { isApexDomain } from '../../utils/domain-utils';
 import { formatDomainName } from '../../utils/domain';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
@@ -272,7 +272,7 @@ export function DomainListTab() {
   });
   const pinnedDomains = useMemo(() => pinnedDomainsData ?? [], [pinnedDomainsData]);
 
-  const { data: domainsData, isLoading } = useQuery<{ list: Domain[]; total: number; page: number; pageSize: number; totalPages: number }>({
+  const { data: domainsData, isLoading } = useQuery<{ list: any[]; total: number; page: number; pageSize: number; totalPages: number }>({
     // ← 将 pinnedDomains 加入 queryKey，确保置顶列表变化时重新查询
     queryKey: ['domains', accountFilter, keyword, domainTypeFilter, statusFilter, page, pageSize, pinnedDomains],
     queryFn: async () => {
@@ -283,6 +283,7 @@ export function DomainListTab() {
         domain_type: domainTypeFilter !== 'all' ? domainTypeFilter : undefined,
         domain_status: statusFilter,  // 'enabled' | 'disabled' | 'all'
         pinned_domains: pinnedDomains.length > 0 ? pinnedDomains.join(',') : undefined,  // ← 传递置顶域名 ID 列表
+        grouped: 'true',
         page,
         pageSize,
       });
@@ -294,52 +295,18 @@ export function DomainListTab() {
     staleTime: 30 * 1000,
   });
 
-  const domains = useMemo(() => domainsData?.list ?? [], [domainsData]);
+  const displayDomains = useMemo(() => domainsData?.list ?? [], [domainsData]);
   const total = domainsData?.total ?? 0;
-  
-  // ← 后端已经按置顶排序，前端不需要再排序
-  const sortedDomains = domains;
-
-  const domainGroups = useMemo(() => groupDomains(sortedDomains, pinnedDomains), [sortedDomains, pinnedDomains]);
-
-  type DisplayItem = Domain | GroupHeader;
-
-  const groupHeaderIds = useMemo(() => {
-    const set = new Set<number>();
-    for (const group of domainGroups.groups) {
-      set.add(group.parent.id);
-    }
-    return set;
-  }, [domainGroups]);
-
+  const flatDomains = useMemo(() => (domainsData?.list ?? []).filter((d: any) => !('_type' in d)) as Domain[], [domainsData]);
   const childParentMap = useMemo(() => {
     const map = new Map<number, number>();
-    for (const group of domainGroups.groups) {
-      for (const child of group.children) {
-        map.set(child.id, group.parent.id);
+    for (const item of domainsData?.list ?? []) {
+      if ((item as any)._groupParentId != null) {
+        map.set((item as any).id, (item as any)._groupParentId);
       }
     }
     return map;
-  }, [domainGroups]);
-
-  const displayDomains = useMemo(() => {
-    const result: DisplayItem[] = [];
-    for (const group of domainGroups.groups) {
-      // Virtual group header
-      result.push({
-        _type: 'group_header' as const,
-        id: -(group.parent.id),
-        groupName: group.parent.name,
-        childIds: group.children.map(c => c.id),
-      });
-      // Group children (all domains under this group including the parent-name owner)
-      if (expandedParents.has(-(group.parent.id))) {
-        result.push(...group.children);
-      }
-    }
-    result.push(...domainGroups.standalone);
-    return result;
-  }, [domainGroups, expandedParents]);
+  }, [domainsData]);
 
   const toggleExpand = useCallback((groupId: number) => {
     setExpandedParents((prev) => {
@@ -360,7 +327,7 @@ export function DomainListTab() {
   });
 
   // 使用数据库中的WHOIS状态（由后端定时任务同步）
-  const apexDomains = useMemo(() => domains.filter((d) => isApexDomain(d.name)), [domains]);
+  const apexDomains = useMemo(() => flatDomains.filter((d) => isApexDomain(d.name)), [flatDomains]);
 
   // 构建WHOIS状态映射（直接从数据库读取）
   const whoisMap = useMemo<Record<string, WhoisInfo>>(() => {
@@ -518,16 +485,16 @@ const toggleEnabledMutation = useMutation({
   // });
 
   const accountMap = useMemo(() => Object.fromEntries(accounts.map((account) => [account.id, account])), [accounts]);
-  const editingDomain = editing ? sortedDomains.find((domain) => domain.id === editing.id) ?? editing : null;
+  const editingDomain = editing ? flatDomains.find((domain) => domain.id === editing.id) ?? editing : null;
   const getListedRemark = useCallback((domainId: number, fallback?: string | null) => {
-    const listedDomain = sortedDomains.find((item) => item.id === domainId);
+    const listedDomain = flatDomains.find((item) => item.id === domainId);
     return listedDomain?.remark ?? fallback ?? '';
-  }, [sortedDomains]);
+  }, [flatDomains]);
 
   useEffect(() => {
     if (!editingDomain || editRemarkDirty) return;
     setEditRemark(getListedRemark(editingDomain.id, editingDomain.remark));
-  }, [editingDomain, sortedDomains, editRemarkDirty]);
+  }, [editingDomain, flatDomains, editRemarkDirty]);
 
   const openEdit = useCallback((domain: Domain) => {
     setEditRemarkDirty(false);
@@ -672,7 +639,7 @@ const toggleEnabledMutation = useMutation({
         );
       },
     },
-  ], [t, whoisMap, accountMap, pinnedDomains, navigate, canManage, toggleEnabledMutation, pinMutation, openEdit, childParentMap, groupHeaderIds, expandedParents, toggleExpand]);
+  ], [t, whoisMap, accountMap, pinnedDomains, navigate, canManage, toggleEnabledMutation, pinMutation, openEdit, childParentMap, expandedParents, toggleExpand]);
 
   return (
     <div className="page-shell">

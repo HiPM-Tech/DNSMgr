@@ -4369,6 +4369,75 @@ export const SystemCacheOperations = {
   },
 };
 
+function formatDateForDBExpires(expiresAt: Date): string {
+  return formatDateForDB(expiresAt);
+}
+
+export const GroupedDomainsCacheOperations = {
+  async get(userId: number, cacheType: 'domain' | 'account'): Promise<{ version: number; cacheData: string } | null> {
+    const now = formatDateForDB(new Date());
+    const row = await getInternal<{ version: number; cache_data: string }>(
+      'SELECT version, cache_data FROM grouped_domains_cache WHERE user_id = ? AND cache_type = ? AND (expires_at IS NULL OR expires_at > ?)',
+      [userId, cacheType, now],
+      { operation: 'GroupedDomainsCache.get', table: 'grouped_domains_cache' }
+    );
+    if (!row) return null;
+    return { version: row.version, cacheData: row.cache_data };
+  },
+
+  async set(userId: number, cacheType: 'domain' | 'account', version: number, cacheData: string, expiresAt?: Date): Promise<void> {
+    const dbType = getDbType();
+    const now = formatDateForDB(new Date());
+    const expires = expiresAt ? formatDateForDB(expiresAt) : null;
+
+    if (dbType === 'postgresql') {
+      await executeInternal(
+        `INSERT INTO grouped_domains_cache (user_id, cache_type, version, cache_data, expires_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (user_id, cache_type) DO UPDATE SET
+         version = EXCLUDED.version, cache_data = EXCLUDED.cache_data, expires_at = EXCLUDED.expires_at, updated_at = EXCLUDED.updated_at`,
+        [userId, cacheType, version, cacheData, expires, now, now],
+        { operation: 'GroupedDomainsCache.set', table: 'grouped_domains_cache' }
+      );
+    } else if (dbType === 'mysql') {
+      await executeInternal(
+        `INSERT INTO grouped_domains_cache (user_id, cache_type, version, cache_data, expires_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+         version = VALUES(version), cache_data = VALUES(cache_data), expires_at = VALUES(expires_at), updated_at = VALUES(updated_at)`,
+        [userId, cacheType, version, cacheData, expires, now, now],
+        { operation: 'GroupedDomainsCache.set', table: 'grouped_domains_cache' }
+      );
+    } else {
+      await executeInternal(
+        `INSERT OR REPLACE INTO grouped_domains_cache (user_id, cache_type, version, cache_data, expires_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM grouped_domains_cache WHERE user_id = ? AND cache_type = ?), ?), ?)`,
+        [userId, cacheType, version, cacheData, expires, userId, cacheType, now, now],
+        { operation: 'GroupedDomainsCache.set', table: 'grouped_domains_cache' }
+      );
+    }
+  },
+
+  async delete(userId: number, cacheType: 'domain' | 'account'): Promise<void> {
+    await executeInternal(
+      'DELETE FROM grouped_domains_cache WHERE user_id = ? AND cache_type = ?',
+      [userId, cacheType],
+      { operation: 'GroupedDomainsCache.delete', table: 'grouped_domains_cache' }
+    );
+  },
+
+  /** 清理过期缓存 */
+  async cleanupExpired(): Promise<number> {
+    const now = formatDateForDB(new Date());
+    const result = await runInternal(
+      'DELETE FROM grouped_domains_cache WHERE expires_at IS NOT NULL AND expires_at <= ?',
+      [now],
+      { operation: 'GroupedDomainsCache.cleanupExpired', table: 'grouped_domains_cache' }
+    );
+    return result.changes || 0;
+  },
+};
+
 /**
  * Password Reset Operations
  * 密码重置验证码操作（持久化存储）
@@ -5223,6 +5292,7 @@ export default {
   NSMonitor: NSMonitorOperations,
   RdapCache: RdapCacheOperations,
   SystemCache: SystemCacheOperations,
+  GroupedDomainsCache: GroupedDomainsCacheOperations,
   RenewableDomain: RenewableDomainOperations,
   PasswordReset: PasswordResetOperations,
   Mcp: McpOperations,
