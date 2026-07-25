@@ -4,6 +4,7 @@ export type PrimitiveType =
   | 'text'
   | 'number'
   | 'integer'
+  | 'bigint'
   | 'boolean'
   | 'datetime'
   | 'json';
