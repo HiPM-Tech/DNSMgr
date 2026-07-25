@@ -77,6 +77,30 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     });
   }
 
+  // Apply keyword search
+  const keyword = (req.query.keyword as string || '').trim().toLowerCase();
+  if (keyword) {
+    accounts = accounts.filter((a) =>
+      a.name.toLowerCase().includes(keyword) ||
+      a.remark?.toLowerCase().includes(keyword) ||
+      a.type.toLowerCase().includes(keyword)
+    );
+  }
+
+  // Apply provider type filter
+  const typeFilter = req.query.type as string | undefined;
+  if (typeFilter) {
+    accounts = accounts.filter((a) => a.type === typeFilter);
+  }
+
+  // Apply enabled filter
+  const enabledFilter = req.query.enabled as string | undefined;
+  if (enabledFilter === 'enabled') {
+    accounts = accounts.filter((a) => Boolean(a.enabled));
+  } else if (enabledFilter === 'disabled') {
+    accounts = accounts.filter((a) => !Boolean(a.enabled));
+  }
+
   // Check if showDnsProviderSecrets is enabled
   let showSecrets = false;
   try {
@@ -103,7 +127,19 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     }
     return { ...a, type: normalizeProviderType(a.type), config: masked, enabled: Boolean(a.enabled) };
   });
-  sendSuccess(res, safe);
+
+  // Pagination (only when page param is provided)
+  const page = parseInt(req.query.page as string) || 0;
+  const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 100);
+  if (page > 0) {
+    const total = safe.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const start = (page - 1) * pageSize;
+    const list = safe.slice(start, start + pageSize);
+    sendSuccess(res, { list, total, page, pageSize, totalPages });
+  } else {
+    sendSuccess(res, safe);
+  }
 }));
 
 /**

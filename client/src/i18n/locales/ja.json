@@ -639,6 +639,7 @@
             "noAccounts": "DNS アカウントがありません",
             "noAccountsDesc": "ドメインを追加する前に、DNS アカウントを追加する必要があります。",
             "noDomainsFound": "ドメインが見つかりません。",
+            "alreadyAdded": "追加済み",
             "noProviderDomains": "プロバイダーからドメインが見つかりません",
             "primaryIp": "プライマリ IP",
             "providerDomainId": "プロバイダーのドメイン ID",

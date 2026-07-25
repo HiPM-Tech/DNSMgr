@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Form, Input, Select, Space, Switch } from 'tdesign-react';
+import { Button, Card, Form, Input, Pagination, Select, Space, Switch } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
-import { AddIcon, DeleteIcon, EditIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
+import { AddIcon, DeleteIcon, EditIcon, SearchIcon, StopCircleIcon, PlayCircleIcon } from 'tdesign-icons-react';
 import { accountsApi } from '../api';
 import type { DnsAccount, Provider, ProviderField } from '../api';
 import { Table } from '../components/Table';
@@ -14,6 +14,7 @@ import { useI18n } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/roles';
 import { useRealtimeData } from '../hooks/useRealtimeData';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 function ProviderBadge({ type }: { type: string }) {
   const { t } = useI18n();
@@ -191,6 +192,12 @@ export function Accounts() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isMutating, setIsMutating] = useState(false);
 
+  const [keyword, setKeyword] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useLocalStorage('accountsPageSize', 20);
+
   // Disable WebSocket auto-refresh during mutation to avoid race condition
   useRealtimeData({
     queryKey: ['accounts'],
@@ -199,14 +206,30 @@ export function Accounts() {
     enabled: !isMutating, // Disable WebSocket events during mutation
   });
 
-  const { data: accounts = [], isLoading } = useQuery({
-    queryKey: ['accounts'],
-    queryFn: () => accountsApi.list().then((r) => r.data.data ?? []),
-    // Use realtime config for account status (high consistency requirement)
-    staleTime: 0,
+  const { data: accountsData, isLoading } = useQuery({
+    queryKey: ['accounts', keyword, typeFilter, statusFilter, page, pageSize],
+    queryFn: async () => {
+      const res = await accountsApi.list({
+        keyword: keyword || undefined,
+        type: typeFilter || undefined,
+        enabled: statusFilter !== 'all' ? statusFilter : undefined,
+        page,
+        pageSize,
+      });
+      const data = res.data.data;
+      if (Array.isArray(data)) {
+        return data;
+      }
+      return data ?? { list: [], total: 0, page, pageSize, totalPages: 1 };
+    },
+    staleTime: 30 * 1000,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
+
+  const accounts = useMemo(() => Array.isArray(accountsData) ? accountsData : accountsData?.list ?? [], [accountsData]);
+  const total = useMemo(() => Array.isArray(accountsData) ? accounts.length : accountsData?.total ?? 0, [accountsData, accounts.length]);
+  const totalPages = useMemo(() => Array.isArray(accountsData) ? 1 : accountsData?.totalPages ?? 1, [accountsData]);
 
   const { data: providers = [] } = useQuery({
     queryKey: ['providers'],
@@ -368,6 +391,36 @@ export function Accounts() {
       </section>
 
       <Card bordered={false} shadow={false} className="page-card">
+        <div className="records-toolbar" style={{ padding: '16px 20px', borderBottom: '1px solid var(--td-component-stroke)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <Input
+            clearable
+            type="search"
+            value={keyword}
+            prefixIcon={<SearchIcon />}
+            placeholder={t('accounts.searchPlaceholder')}
+            onChange={(value) => { setKeyword(String(value)); setPage(1); }}
+            style={{ flex: 1, minWidth: '200px', maxWidth: '360px' }}
+          />
+          <Select
+            value={typeFilter}
+            options={[
+              { label: t('accounts.allProviders'), value: '' },
+              ...visibleProviders.map((p) => ({ label: t(`provider.${p.type}`), value: p.type })),
+            ]}
+            onChange={(value) => { setTypeFilter(String(value)); setPage(1); }}
+            style={{ width: '180px' }}
+          />
+          <Select
+            value={statusFilter}
+            options={[
+              { label: t('accounts.allStatus'), value: 'all' },
+              { label: t('common.enabled'), value: 'enabled' },
+              { label: t('common.disabled'), value: 'disabled' },
+            ]}
+            onChange={(value) => { setStatusFilter(value as 'all' | 'enabled' | 'disabled'); setPage(1); }}
+            style={{ width: '140px' }}
+          />
+        </div>
         <Table
           columns={columns}
           data={accounts}
@@ -376,6 +429,21 @@ export function Accounts() {
           emptyText={t('accounts.noAccounts')}
           maxHeight={620}
         />
+        {totalPages > 1 && (
+          <div className="records-pagination">
+            <Pagination
+              current={page}
+              pageSize={pageSize}
+              total={total}
+              pageSizeOptions={[10, 20, 50, 100]}
+              onCurrentChange={(current) => setPage(current)}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+            />
+          </div>
+        )}
       </Card>
 
       {showAdd && canManage && visibleProviders.length > 0 && (

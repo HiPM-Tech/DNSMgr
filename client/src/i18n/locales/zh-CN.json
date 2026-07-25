@@ -61,7 +61,10 @@
             "updateFailed": "更新账号失败",
             "updateSuccess": "账号更新成功",
             "useProxy": "使用代理",
-            "useProxyHint": "通过系统代理访问 DNS 服务商 API"
+            "useProxyHint": "通过系统代理访问 DNS 服务商 API",
+            "searchPlaceholder": "搜索账号...",
+            "allProviders": "所有服务商",
+            "allStatus": "所有状态"
         },
         "audit": {
             "actionType": "操作类型",
@@ -425,6 +428,7 @@
             "noAccounts": "暂无 DNS 账号",
             "noAccountsDesc": "在添加域名之前，你需要先添加一个 DNS 账号。",
             "noDomainsFound": "暂无域名。",
+            "alreadyAdded": "已添加",
             "noProviderDomains": "服务商下没有可用域名",
             "primaryIp": "主 IP",
             "providerDomainId": "服务商域名 ID",
@@ -437,6 +441,7 @@
             "apexDomains": "顶域",
             "subdomains": "子域",
             "subdomain": "子域",
+            "grouped": "分组",
             "allStatus": "全部状态",
             "enabled": "启用",
             "disabled": "禁用",

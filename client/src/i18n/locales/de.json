@@ -708,6 +708,7 @@
             "batchDeletePartialSuccess": "Löschung abgeschlossen: {deleted} erfolgreich, {failed} fehlgeschlagen",
             "batchDeleteSkipped": "{count} Domains aufgrund unzureichender Berechtigungen übersprungen",
             "batchDeleteFailed": "Massenlöschung fehlgeschlagen",
+            "alreadyAdded": "Bereits hinzugefügt",
             "noProviderDomains": "Keine Domains vom Anbieter gefunden",
             "remark": "Bemerkung",
             "emptyRemark": "-",

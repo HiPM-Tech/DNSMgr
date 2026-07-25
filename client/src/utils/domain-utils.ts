@@ -61,3 +61,97 @@ export function isApexDomain(name: string): boolean {
   const rootDomain = getRootDomain(normalized);
   return normalized === rootDomain;
 }
+
+interface DomainLike {
+  id: number;
+  name: string;
+}
+
+export interface DomainGroup<T extends DomainLike> {
+  parent: T;
+  children: T[];
+}
+
+export interface DomainGroupResult<T extends DomainLike> {
+  groups: DomainGroup<T>[];
+  standalone: T[];
+}
+
+function findClosestParent<T extends DomainLike>(domainName: string, allDomains: Map<string, T>): T | null {
+  const name = domainName.toLowerCase();
+  const parts = name.split('.');
+  let closest: T | null = null;
+  let longestMatch = 0;
+  for (let i = 1; i < parts.length; i++) {
+    const suffix = parts.slice(i).join('.');
+    const domain = allDomains.get(suffix);
+    if (domain && suffix.length > longestMatch) {
+      closest = domain;
+      longestMatch = suffix.length;
+    }
+  }
+  return closest;
+}
+
+export function groupDomains<T extends DomainLike>(domains: T[], pinnedIds?: number[]): DomainGroupResult<T> {
+  const pinnedSet = pinnedIds ? new Set(pinnedIds) : new Set<number>();
+  // Build name → all domains with that name (handles duplicates across accounts)
+  const domainsByName = new Map<string, T[]>();
+  for (const d of domains) {
+    const key = d.name.toLowerCase();
+    if (!domainsByName.has(key)) domainsByName.set(key, []);
+    domainsByName.get(key)!.push(d);
+  }
+
+  // Find which domain names act as parents (another domain ends with . + this name)
+  const parentNames = new Set<string>();
+  for (const d of domains) {
+    const name = d.name.toLowerCase();
+    const parts = name.split('.');
+    for (let i = 1; i < parts.length; i++) {
+      const suffix = parts.slice(i).join('.');
+      if (domainsByName.has(suffix) && suffix !== name) {
+        parentNames.add(suffix);
+      }
+    }
+  }
+
+  const groups: DomainGroup<T>[] = [];
+  const assignedIds = new Set<number>();
+
+  for (const parentName of parentNames) {
+    const allParents = domainsByName.get(parentName) ?? [];
+
+    // Virtual group: collect all children (including all parent-name domains)
+    const children: T[] = [];
+    const seen = new Set<number>();
+
+    // All domains with the parent name become self-children
+    for (const d of allParents) {
+      if (!seen.has(d.id)) { seen.add(d.id); children.push(d); }
+    }
+
+    // Domain-children: domains whose name ends with . + parentName
+    const suffix = '.' + parentName;
+    for (const d of domains) {
+      if (!seen.has(d.id) && d.name.toLowerCase().endsWith(suffix)) {
+        seen.add(d.id); children.push(d);
+      }
+    }
+
+    // Sort: pinned first
+    children.sort((a, b) => {
+      const aPinned = pinnedSet.has(a.id) ? 0 : 1;
+      const bPinned = pinnedSet.has(b.id) ? 0 : 1;
+      return aPinned - bPinned;
+    });
+
+    for (const c of children) assignedIds.add(c.id);
+    groups.push({ parent: children[0], children });
+  }
+
+  // Standalone: domains not assigned to any group
+  const standalone: T[] = domains.filter(d => !assignedIds.has(d.id));
+
+  return { groups, standalone };
+}

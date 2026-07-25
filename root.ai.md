@@ -631,6 +631,7 @@
       - 简单验证使用 HTML5 原生验证
       - 复杂验证使用 `utils/validators.ts` 中的验证函数
 4. **API 调用规范**
+    > **API 文档是第一权威**：所有 API 的端点、参数、返回值、鉴权方式以 `docs/api.md` 为准。新增或修改 API 时**必须同步更新 `docs/api.md`**，否则视为未完成。
     - **统一 API 封装**：
       ```typescript
       // ❌ 禁止：直接使用 fetch
@@ -731,6 +732,8 @@
 
 ### 外部应用集成 API
 
+> **API 文档是第一权威**：所有 API 端点、参数、返回值、鉴权方式以 `docs/api.md` 为准。新增或修改 API 后**必须同步更新 `docs/api.md`**，否则视为未完成。
+
 第三方工具（如 DDNS-Go、acme.sh 等）可通过 **API Token** 认证调用 HiDNS 的域名解析管理接口。
 
 #### 认证方式
@@ -762,143 +765,13 @@ http(s)://<HiDNS部署地址>/api
 - `code === 0`：请求成功
 - `code !== 0`：请求失败，`msg` 包含错误描述
 
-#### API 端点
-
-##### 1. 查询域名
-
-**查找指定域名**（推荐，使用 `keyword` 参数精确匹配）：
-
-```
-GET /api/domains?page=1&pageSize=1&keyword={domainName}
-```
-
-Token 认证时，域名列表返回**直接数组**格式（非 `{list, total}` 对象）：
-
-```json
-{
-  "code": 0,
-  "data": [
-    {
-      "id": 1,
-      "name": "example.com",
-      "account_id": 1,
-      "third_id": "ns1.dns.com",
-      "record_count": 10
-    }
-  ],
-  "msg": "success"
-}
-```
-
-**兜底查询**（当 keywo19rd 查找未命中时，全量分页遍历）：
-
-```
-GET /api/domains?page={page}&pageSize={pageSize}
-```
-
-参数说明：
-| 参数 | 类型 | 说明 |
-|---|---|---|
-| `page` | int | 页码，从 1 开始 |
-| `pageSize` | int | 每页数量，最大 100 |
-| `keyword` | string | 域名关键词模糊搜索 |
-| `domain_match` | string | 智能域名匹配（专为 API Token 设计）。传入完整域名（如 `home.server.example.com`），自动匹配数据库中 `server.example.com`、`example.com` 等后缀，优先返回最具体的域名。与 `keyword` 互斥，同时传入时 `keyword` 优先。 |
-
-> **`domain_match` 使用场景**：DDNS-Go 等外部工具在配置中通常填写完整 FQDN（如 `home.server.example.com`），但数据库中只管理了 `server.example.com`。使用 `domain_match` 即可自动找到最匹配的域名，无需人工调整配置。
-
-注意：使用 Token 认证时，域名列表直接返回数组而非分页对象；使用 Session 认证时返回 `{ list, total, page, pageSize, totalPages }` 格式。
-
-##### 2. 查询 DNS 记录
-
-```
-GET /api/domains/{domainId}/records?page={page}&pageSize={pageSize}&subdomain={host}&type={recordType}
-```
-
-参数说明：
-| 参数 | 类型 | 说明 |
-|---|---|---|
-| `domainId` | int | 域名 ID（路径参数） |
-| `page` | int | 页码 |
-| `pageSize` | int | 每页数量，最大 100 |
-| `subdomain` | string | 主机记录（如 `www`、`@`） |
-| `type` | string | 记录类型（`A`、`AAAA`、`CNAME` 等） |
-
-返回格式：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "total": 1,
-    "list": [
-      {
-        "id": "123",
-        "name": "www",
-        "type": "A",
-        "value": "1.2.3.4",
-        "line": "0",
-        "ttl": 600,
-        "mx": 0,
-        "status": 1,
-        "remark": null,
-        "updated_at": "2026-01-01T00:00:00.000Z"
-      }
-    ]
-  },
-  "msg": "success"
-}
-```
-
-##### 3. 创建 DNS 记录
-
-```
-POST /api/domains/{domainId}/records
-Content-Type: application/json
-
-{
-  "name": "www",
-  "type": "A",
-  "value": "1.2.3.4",
-  "line": "0",
-  "ttl": 600
-}
-```
-
-请求体说明：
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `name` | string | 是 | 主机记录（如 `www`、`@`） |
-| `type` | string | 是 | 记录类型（`A`、`AAAA`、`CNAME`、`MX`、`TXT` 等） |
-| `value` | string | 是 | 记录值 |
-| `line` | string | 否 | 线路，默认 `"0"`（默认线路） |
-| `ttl` | int | 否 | TTL，默认 600 |
-| `mx` | int | 否 | MX 优先级，仅 MX 记录时使用 |
-| `weight` | int | 否 | 权重 |
-| `remark` | string | 否 | 备注 |
-
-##### 4. 更新 DNS 记录
-
-```
-PUT /api/domains/{domainId}/records/{recordId}
-Content-Type: application/json
-
-{
-  "name": "www",
-  "type": "A",
-  "value": "1.2.3.5",
-  "line": "0",
-  "ttl": 600
-}
-```
-
-请求体字段同创建接口。
-
 #### 外部适配器注意事项
 
 1. **分页安全限制**：全量遍历域名/记录时，最多遍历 10 页（1000 条），避免过度请求
 2. **幂等操作**：创建记录前通过 `subdomain` + `type` 查询现有记录，存在则更新、不存在则创建
 3. **Token 权限**：API Token 需具有目标域名的读写权限，否则返回 403
 4. **IDN 域名**：查询时使用 Punycode（ASCII）编码的域名，返回数据中包含 `display_name` 字段为 Unicode 形式
+5. **API 文档同步**：新增、修改或废弃任意 API 端点后，**必须**同步编辑 `docs/api.md`，确保文档与实际行为一致
 
 #### 调用示例
 

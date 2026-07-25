@@ -715,6 +715,7 @@
             "batchDeletePartialSuccess": "Удаление завершено: {deleted} успешно, {failed} не удалось",
             "batchDeleteSkipped": "{count} доменов пропущено из-за недостаточных прав",
             "batchDeleteFailed": "Не удалось выполнить массовое удаление",
+            "alreadyAdded": "Уже добавлено",
             "noProviderDomains": "Домены от провайдера не найдены",
             "remark": "Примечание",
             "emptyRemark": "-",

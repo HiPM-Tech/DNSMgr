@@ -715,6 +715,7 @@
             "batchDeletePartialSuccess": "Suppression terminée : {deleted} réussis, {failed} échoués",
             "batchDeleteSkipped": "{count} domaines ignorés en raison de permissions insuffisantes",
             "batchDeleteFailed": "Échec de la suppression en masse",
+            "alreadyAdded": "Déjà ajouté",
             "noProviderDomains": "Aucun domaine trouvé chez le fournisseur",
             "remark": "Remarque",
             "emptyRemark": "-",

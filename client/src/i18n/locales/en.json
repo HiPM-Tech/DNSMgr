@@ -261,7 +261,10 @@
             "saveChanges": "Save Changes",
             "provider": "Provider",
             "useProxy": "Use Proxy",
-            "useProxyHint": "Access DNS provider API through system proxy"
+            "useProxyHint": "Access DNS provider API through system proxy",
+            "searchPlaceholder": "Search accounts...",
+            "allProviders": "All Providers",
+            "allStatus": "All Status"
         },
         "teams": {
             "title": "Teams",
@@ -697,6 +700,7 @@
             "apexDomains": "Apex Domains",
             "subdomains": "Subdomains",
             "subdomain": "Subdomain",
+            "grouped": "Grouped",
             "allStatus": "All Status",
             "enabled": "Enabled",
             "disabled": "Disabled",
@@ -727,6 +731,7 @@
             "batchDeletePartialSuccess": "Deletion completed: {deleted} succeeded, {failed} failed",
             "batchDeleteSkipped": "{count} domains skipped due to insufficient permissions",
             "batchDeleteFailed": "Batch deletion failed",
+            "alreadyAdded": "Already added",
             "noProviderDomains": "No domains found from provider",
             "remark": "Remark",
             "emptyRemark": "-",

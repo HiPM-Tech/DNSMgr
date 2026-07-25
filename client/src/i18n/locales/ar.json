@@ -689,6 +689,7 @@
             "batchDeletePartialSuccess": "اكتمل الحذف: نجح {deleted}، فشل {failed}",
             "batchDeleteSkipped": "تم تخطي {count} نطاقات بسبب عدم كفاية الأذونات",
             "batchDeleteFailed": "فشل الحذف الجماعي",
+            "alreadyAdded": "تمت الإضافة بالفعل",
             "noProviderDomains": "لم يتم العثور على نطاقات من المزود",
             "remark": "ملاحظة",
             "emptyRemark": "-",

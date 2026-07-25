@@ -718,6 +718,7 @@
             "batchDeletePartialSuccess": "삭제 완료: {deleted}개 성공, {failed}개 실패",
             "batchDeleteSkipped": "권한 부족으로 {count}개의 도메인 건너뜀",
             "batchDeleteFailed": "일괄 삭제 실패",
+            "alreadyAdded": "이미 추가됨",
             "noProviderDomains": "공급자에서 도메인을 찾을 수 없습니다",
             "remark": "비고",
             "emptyRemark": "-",

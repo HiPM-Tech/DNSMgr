@@ -4,8 +4,19 @@ import type { DnsAccount, Provider, Tunnel, TunnelConfig } from './types';
 
 // ─── DNS Accounts API ─────────────────────────────────────────────────────────
 
+export interface AccountListParams {
+  purpose?: string;
+  keyword?: string;
+  type?: string;
+  enabled?: 'enabled' | 'disabled' | 'all';
+  page?: number;
+  pageSize?: number;
+}
+
+export type AccountListResponse = DnsAccount[] | { list: DnsAccount[]; total: number; page: number; pageSize: number; totalPages: number };
+
 export const accountsApi = {
-  list: (params?: { purpose?: string }) => api.get<ApiResponse<DnsAccount[]>>('/accounts', { params }),
+  list: (params?: AccountListParams) => api.get<ApiResponse<AccountListResponse>>('/accounts', { params }),
   providers: () => api.get<ApiResponse<Provider[]>>('/accounts/providers'),
   get: (id: number) => api.get<ApiResponse<DnsAccount>>(`/accounts/${id}`),
   create: (data: { type: string; name: string; config: Record<string, string | boolean>; remark?: string; team_id?: number }) =>

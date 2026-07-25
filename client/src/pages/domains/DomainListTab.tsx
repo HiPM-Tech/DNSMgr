@@ -4,6 +4,8 @@ import { Button, Card, Checkbox, Empty, Form, Input, Loading, Pagination, Radio,
 import {
   ActivityIcon,
   AddIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
   DeleteIcon,
   EditIcon,
   JumpIcon,
@@ -13,6 +15,13 @@ import {
   RootListIcon,
   SearchIcon,
 } from 'tdesign-icons-react';
+
+interface GroupHeader {
+  _type: 'group_header';
+  id: number;
+  groupName: string;
+  childIds: number[];
+}
 import { useNavigate } from 'react-router-dom';
 import { domainsApi, accountsApi, authApi } from '../../api';
 import type { Domain, DnsAccount, ProviderDomainOption, WhoisInfo } from '../../api';
@@ -22,7 +31,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../hooks/useToast';
 import { useI18n } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { isApexDomain } from '../../utils/domain-utils';
+import { isApexDomain, groupDomains } from '../../utils/domain-utils';
 import { formatDomainName } from '../../utils/domain';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
@@ -159,13 +168,13 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
       ) : (
         <Card bordered title={t('domains.selectDomains')} actions={providerDomains.length > 0 && (
           <Space size="small">
-            <Button size="small" variant="outline" onClick={() => setSelectedProviders(providerDomains.map((domain) => domain.third_id))}>
+            <Button size="small" variant="outline" onClick={() => setSelectedProviders(providerDomains.filter((d) => !d.exists).map((domain) => domain.third_id))}>
               {t('common.selectAll')}
             </Button>
             <Button
               size="small"
               variant="outline"
-              onClick={() => setSelectedProviders(providerDomains.filter((domain) => !selectedProviders.includes(domain.third_id)).map((domain) => domain.third_id))}
+              onClick={() => setSelectedProviders(providerDomains.filter((domain) => !domain.exists && !selectedProviders.includes(domain.third_id)).map((domain) => domain.third_id))}
             >
               {t('common.invert')}
             </Button>
@@ -187,6 +196,7 @@ function AddDomainForm({ accounts, onClose }: AddDomainFormProps) {
                     <strong>{formatDomainName(domain.name)}</strong>
                     <span>{domain.third_id}</span>
                   </span>
+                  {domain.exists && <Tag theme="warning" variant="light" size="small">{t('domains.alreadyAdded')}</Tag>}
                 </label>
               ))}
             </div>
@@ -224,13 +234,26 @@ export function DomainListTab() {
   const [editRemark, setEditRemark] = useState('');
   const [editRemarkDirty, setEditRemarkDirty] = useState(false);
   const [deleting, setDeleting] = useState<Domain | null>(null);
-  const [accountFilter, setAccountFilter] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const [domainTypeFilter, setDomainTypeFilter] = useState<'all' | 'apex' | 'subdomain'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
+  const [filterState, setFilterState] = useLocalStorage('domainsFilterState', {
+    keyword: '',
+    accountFilter: '',
+    domainTypeFilter: 'all' as 'all' | 'apex' | 'subdomain',
+    statusFilter: 'all' as 'all' | 'enabled' | 'disabled',
+    page: 1,
+    pageSize: 20,
+  });
+  const [keyword, setKeyword] = useState(filterState.keyword);
+  const [accountFilter, setAccountFilter] = useState(filterState.accountFilter);
+  const [domainTypeFilter, setDomainTypeFilter] = useState<'all' | 'apex' | 'subdomain'>(filterState.domainTypeFilter);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>(filterState.statusFilter);
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', 20);
+  const [page, setPage] = useState(filterState.page);
+  const [pageSize, setPageSize] = useLocalStorage('domainsPageSize', filterState.pageSize);
+  const [expandedParents, setExpandedParents] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    setFilterState({ keyword, accountFilter, domainTypeFilter, statusFilter, page, pageSize });
+  }, [keyword, accountFilter, domainTypeFilter, statusFilter, page, pageSize]);
   
   // ← 批量操作功能已禁用
   // const [selectedRowKeys, setSelectedRowKeys] = useState<(string | number)[]>([]);
@@ -276,6 +299,59 @@ export function DomainListTab() {
   
   // ← 后端已经按置顶排序，前端不需要再排序
   const sortedDomains = domains;
+
+  const domainGroups = useMemo(() => groupDomains(sortedDomains, pinnedDomains), [sortedDomains, pinnedDomains]);
+
+  type DisplayItem = Domain | GroupHeader;
+
+  const groupHeaderIds = useMemo(() => {
+    const set = new Set<number>();
+    for (const group of domainGroups.groups) {
+      set.add(group.parent.id);
+    }
+    return set;
+  }, [domainGroups]);
+
+  const childParentMap = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const group of domainGroups.groups) {
+      for (const child of group.children) {
+        map.set(child.id, group.parent.id);
+      }
+    }
+    return map;
+  }, [domainGroups]);
+
+  const displayDomains = useMemo(() => {
+    const result: DisplayItem[] = [];
+    for (const group of domainGroups.groups) {
+      // Virtual group header
+      result.push({
+        _type: 'group_header' as const,
+        id: -(group.parent.id),
+        groupName: group.parent.name,
+        childIds: group.children.map(c => c.id),
+      });
+      // Group children (all domains under this group including the parent-name owner)
+      if (expandedParents.has(-(group.parent.id))) {
+        result.push(...group.children);
+      }
+    }
+    result.push(...domainGroups.standalone);
+    return result;
+  }, [domainGroups, expandedParents]);
+
+  const toggleExpand = useCallback((groupId: number) => {
+    setExpandedParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }, []);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts', 'dns'],
@@ -463,16 +539,36 @@ const toggleEnabledMutation = useMutation({
     {
       key: 'name',
       label: t('domains.domainName'),
-      width: 250,
-      render: (row: Domain) => {
-        const isApex = isApexDomain(row.name);
-        const displayName = formatDomainName(row.name);
+      width: 320,
+      render: (row: Domain | GroupHeader) => {
+        if ('_type' in row && row._type === 'group_header') {
+          const isExpanded = expandedParents.has(row.id);
+          return (
+            <div className="domain-name-cell" style={{ fontWeight: 600 }}>
+              <Button
+                shape="square"
+                variant="text"
+                size="small"
+                icon={isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                onClick={() => toggleExpand(row.id)}
+                style={{ width: '24px', height: '24px', marginRight: '4px' }}
+              />
+              <span className="page-strong">{formatDomainName(row.groupName)}</span>
+              <Tag theme="primary" variant="light" size="small" style={{ marginLeft: '8px' }}>{t('domains.grouped')}</Tag>
+            </div>
+          );
+        }
+        const domain = row as Domain;
+        const isChild = childParentMap.has(domain.id);
+        const displayName = formatDomainName(domain.name);
         return (
-          <div className="domain-name-cell">
-            <Button className="domain-name-button" variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)} title={displayName}>
+          <div className="domain-name-cell" style={{ paddingLeft: isChild ? '28px' : '0' }}>
+            {isChild && (
+              <span style={{ width: '28px', display: 'inline-flex', justifyContent: 'center', color: 'var(--td-text-color-placeholder)', flex: '0 0 auto' }}>└</span>
+            )}
+            <Button className="domain-name-button" variant="text" theme="primary" icon={<JumpIcon />} onClick={() => navigate(`/dash/domains/${domain.id}/records`)} title={displayName}>
               {displayName}
             </Button>
-            {!isApex && <Tag theme="warning" variant="light" icon={<LayersIcon />} className="domain-subdomain-tag">{t('domains.subdomain')}</Tag>}
           </div>
         );
       },
@@ -480,99 +576,69 @@ const toggleEnabledMutation = useMutation({
     {
       key: 'local_status',
       label: t('domains.localStatus'),
-      render: (row: Domain) => {
-        const isEnabled = row.enabled !== 0;
-        const localStatusText = isEnabled ? t('common.enabled') : t('common.disabled');
-        const localStatusTheme = isEnabled ? 'success' : 'default';
-        return (
-          <Tag theme={localStatusTheme} variant="light" size="small">
-            {localStatusText}
-          </Tag>
-        );
+      render: (row: Domain | GroupHeader) => {
+        if ('_type' in row) return null;
+        const d = row as Domain;
+        const isEnabled = d.enabled !== 0;
+        return <Tag theme={isEnabled ? 'success' : 'default'} variant="light" size="small">{isEnabled ? t('common.enabled') : t('common.disabled')}</Tag>;
       },
     },
     {
       key: 'whois_status',
       label: t('domains.domainStatus'),
-      render: (row: Domain) => {
-        const isApex = isApexDomain(row.name);
-        if (!isApex) {
-          return <span className="page-muted">-</span>;
-        }
-        
-        // WHOIS 状态
-        const whoisInfo = whoisMap[row.name];
-        
-        if (whoisInfo?.status) {
-          // 分割多个状态（用换行符分隔）
-          const statuses = whoisInfo.status.split('\n').filter(Boolean);
-
-          // 根据状态设置标签颜色
-          const getStatusTheme = (status: string) => {
-            const lowerStatus = status.toLowerCase();
-            if (lowerStatus === 'ok' || lowerStatus === 'active') return 'success';
-            if (lowerStatus.includes('hold') || lowerStatus.includes('prohibited')) return 'danger';
-            if (lowerStatus.includes('pending')) return 'warning';
-            return 'default';
-          };
-          
-          // 获取状态的翻译文本
-          const getStatusLabel = (status: string) => {
-            // 移除 URL 部分（如 https://icann.org/epp#clientTransferProhibited）
-            let cleanStatus = status.split(' ')[0].split('#').pop() || status;
-            
-            // 如果包含空格，转换为驼峰命名（如 "client transfer prohibited" -> "clientTransferProhibited"）
-            if (status.includes(' ')) {
-              cleanStatus = status
-                .toLowerCase()
-                .split(' ')
-                .map((word, index) => {
-                  if (index === 0) return word;
-                  return word.charAt(0).toUpperCase() + word.slice(1);
-                })
-                .join('');
-            }
-            
-            const camelCaseStatus = cleanStatus.charAt(0).toLowerCase() + cleanStatus.slice(1);
-            const translationKey = `domains.whoisStatus.${camelCaseStatus}`;
-            const translated = t(translationKey);
-            return translated === translationKey ? status : translated;
-          };
-          
-          // 渲染所有状态标签
-          return (
-            <Space direction="vertical" size="small">
-              {statuses.map((status, index) => (
-                <Tag key={index} theme={getStatusTheme(status)} variant="light" size="small">
-                  {getStatusLabel(status)}
-                </Tag>
-              ))}
-            </Space>
-          );
-        } else {
-          return <span className="page-muted">{t('domains.unknown')}</span>;
-        }
+      render: (row: Domain | GroupHeader) => {
+        if ('_type' in row) return null;
+        const d = row as Domain;
+        if (!isApexDomain(d.name)) return <span className="page-muted">-</span>;
+        const whoisInfo = whoisMap[d.name];
+        if (!whoisInfo?.status) return <span className="page-muted">{t('domains.unknown')}</span>;
+        const statuses = whoisInfo.status.split('\n').filter(Boolean);
+        const getStatusTheme = (status: string) => {
+          const lowerStatus = status.toLowerCase();
+          if (lowerStatus === 'ok' || lowerStatus === 'active') return 'success';
+          if (lowerStatus.includes('hold') || lowerStatus.includes('prohibited')) return 'danger';
+          if (lowerStatus.includes('pending')) return 'warning';
+          return 'default';
+        };
+        const getStatusLabel = (status: string) => {
+          let cleanStatus = status.split(' ')[0].split('#').pop() || status;
+          if (status.includes(' ')) {
+            cleanStatus = status.toLowerCase().split(' ').map((word, index) => index === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)).join('');
+          }
+          const camelCaseStatus = cleanStatus.charAt(0).toLowerCase() + cleanStatus.slice(1);
+          const translated = t(`domains.whoisStatus.${camelCaseStatus}`);
+          return translated === `domains.whoisStatus.${camelCaseStatus}` ? status : translated;
+        };
+        return (
+          <Space direction="vertical" size="small">
+            {statuses.map((status, index) => <Tag key={index} theme={getStatusTheme(status)} variant="light" size="small">{getStatusLabel(status)}</Tag>)}
+          </Space>
+        );
       },
     },
     {
       key: 'account_id',
       label: t('domains.account'),
-      render: (row: Domain) => {
-        const account = accountMap[row.account_id];
-        if (!account) return <span className="page-muted">#{row.account_id}</span>;
+      render: (row: Domain | GroupHeader) => {
+        if ('_type' in row) return null;
+        const d = row as Domain;
+        const account = accountMap[d.account_id];
+        if (!account) return <span className="page-muted">#{d.account_id}</span>;
         return <Space size="small"><span className="page-strong">{account.name}</span><Tag theme="primary" variant="light">{t(`provider.${account.type}`)}</Tag></Space>;
       },
     },
-    { key: 'record_count', label: t('domains.records'), render: (row: Domain) => <Tag variant="light">{row.record_count ?? 0}</Tag> },
+    { key: 'record_count', label: t('domains.records'), render: (row: Domain | GroupHeader) => '_type' in row ? null : <Tag variant="light">{(row as Domain).record_count ?? 0}</Tag> },
     {
       key: 'expires_at',
       label: t('domains.expires'),
-      render: (row: Domain) => {
-        if (!row.expires_at) return <span className="page-muted">{t('domains.unknown')}</span>;
-        const expiry = new Date(row.expires_at);
+      render: (row: Domain | GroupHeader) => {
+        if ('_type' in row) return null;
+        const d = row as Domain;
+        if (!d.expires_at) return <span className="page-muted">{t('domains.unknown')}</span>;
+        const expiry = new Date(d.expires_at);
         const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
         const theme = daysLeft < 0 ? 'danger' : daysLeft <= 30 ? 'warning' : daysLeft <= 90 ? 'primary' : 'success';
-        const apexExpiry = row.apex_expires_at ? new Date(row.apex_expires_at) : null;
+        const apexExpiry = d.apex_expires_at ? new Date(d.apex_expires_at) : null;
         return (
           <div className="domain-expiry">
             <Tag theme={theme as any} variant="light">{expiry.toLocaleDateString()}</Tag>
@@ -582,41 +648,31 @@ const toggleEnabledMutation = useMutation({
         );
       },
     },
-    { key: 'remark', label: t('domains.remark'), render: (row: Domain) => <span className="page-muted">{row.remark || t('domains.emptyRemark')}</span> },
+    { key: 'remark', label: t('domains.remark'), render: (row: Domain | GroupHeader) => '_type' in row ? null : <span className="page-muted">{(row as Domain).remark || t('domains.emptyRemark')}</span> },
     {
       key: 'actions',
       label: t('domains.actions'),
-      render: (row: Domain) => {
-        const isPinned = pinnedDomains.includes(row.id);
-        const isEnabled = row.enabled !== 0;
+      render: (row: Domain | GroupHeader) => {
+        if ('_type' in row) return null;
+        const d = row as Domain;
+        const isPinned = pinnedDomains.includes(d.id);
+        const isEnabled = d.enabled !== 0;
         return (
           <Space size="small">
-            <Button
-              shape="square"
-              variant="text"
-              theme={isEnabled ? 'default' : 'success'}
-              icon={<PoweroffIcon />}
-              onClick={() => {
-                toggleEnabledMutation.mutate({ id: row.id, enabled: isEnabled ? 0 : 1 });
-              }}
+            <Button shape="square" variant="text" theme={isEnabled ? 'default' : 'success'} icon={<PoweroffIcon />}
+              onClick={() => toggleEnabledMutation.mutate({ id: d.id, enabled: isEnabled ? 0 : 1 })}
               disabled={!canManage}
-              title={!canManage ? t('common.permissionDenied') : (isEnabled ? t('domains.disable') : t('domains.enable'))}
-            />
-            <Button
-              shape="square"
-              variant="text"
-              theme={isPinned ? 'warning' : 'default'}
-              icon={<PinIcon />}
-              onClick={() => pinMutation.mutate({ domainId: row.id, isPinned: !isPinned })}
-            />
-            <Button shape="square" variant="text" icon={<RootListIcon />} onClick={() => navigate(`/dash/domains/${row.id}/records`)} />
-            <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => openEdit(row)} />
-            <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(row)} />
+              title={!canManage ? t('common.permissionDenied') : (isEnabled ? t('domains.disable') : t('domains.enable'))} />
+            <Button shape="square" variant="text" theme={isPinned ? 'warning' : 'default'} icon={<PinIcon />}
+              onClick={() => pinMutation.mutate({ domainId: d.id, isPinned: !isPinned })} />
+            <Button shape="square" variant="text" icon={<RootListIcon />} onClick={() => navigate(`/dash/domains/${d.id}/records`)} />
+            <Button shape="square" variant="text" icon={<EditIcon />} disabled={!canManage} onClick={() => openEdit(d)} />
+            <Button shape="square" variant="text" theme="danger" icon={<DeleteIcon />} disabled={!canManage} onClick={() => setDeleting(d)} />
           </Space>
         );
       },
     },
-  ], [t, whoisMap, accountMap, pinnedDomains, navigate, canManage, toggleEnabledMutation, pinMutation, openEdit]);
+  ], [t, whoisMap, accountMap, pinnedDomains, navigate, canManage, toggleEnabledMutation, pinMutation, openEdit, childParentMap, groupHeaderIds, expandedParents, toggleExpand]);
 
   return (
     <div className="page-shell">
@@ -711,7 +767,7 @@ const toggleEnabledMutation = useMutation({
         )}
                 <Table
                   columns={columns}
-                  data={sortedDomains}
+                  data={displayDomains}
                   loading={isLoading}
                   rowKey={(row) => row.id}
                   emptyText={t('domains.noDomainsFound')}

@@ -11,7 +11,7 @@ import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { createLogger } from '../lib/logger';
-import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations } from '../db/bal/business-adapter';
+import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations, SystemCacheOperations } from '../db/bal/business-adapter';
 import { syncDomainWhois } from '../service/whois';
 import { getRootDomain, queryWhois } from '../service/whois';
 import { wsService } from '../service/websocket';
@@ -793,27 +793,22 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
     const existingDomains = await DomainOperations.getByAccountId(accountId) as Array<{ name: string }>;
     const existingDomainNames = new Set(existingDomains.map((d) => normalizeDomain(d.name)));
 
-    // 过滤掉已添加的域名（不限制数量，展示所有可同步的域名）
-    // 后端返回 Unicode 格式，前端显示时已经调用 formatDomainName
-    // 前端提交时后端会自动调用 normalizeDomainName 转换为 Punycode
+    // 返回所有域名，标记 DB 已存在的域名
+    // 前端显示时已存在的域名将展示标记并禁用勾选
     const tokenPayload = (req as any).tokenPayload;
-    const domains = allProviderDomains
-      .filter((d) => {
-        const normalizedName = normalizeDomain(d.Domain);
-        return !existingDomainNames.has(normalizedName); // 先过滤已添加的
-      })
-      .map((d) => {
-        const normalizedName = normalizeDomain(d.Domain);
-        // For Session auth, convert to Unicode; for Token auth, keep Punycode
-        const displayName = tokenPayload ? normalizedName : getDisplayDomain(normalizedName, true);
-        return {
-          name: displayName,
-          third_id: d.ThirdId,
-          record_count: d.RecordCount ?? 0,
-        };
-      });
+    const domains = allProviderDomains.map((d) => {
+      const normalizedName = normalizeDomain(d.Domain);
+      // For Session auth, convert to Unicode; for Token auth, keep Punycode
+      const displayName = tokenPayload ? normalizedName : getDisplayDomain(normalizedName, true);
+      return {
+        name: displayName,
+        third_id: d.ThirdId,
+        record_count: d.RecordCount ?? 0,
+        exists: existingDomainNames.has(normalizedName),
+      };
+    });
 
-    log.info('Filtered domains', { total: allProviderDomains.length, filtered: domains.length, existing: existingDomainNames.size });
+    log.info('Provider domains fetched', { total: allProviderDomains.length, existing: existingDomainNames.size });
     sendSuccess(res, domains);
   } catch (e) {
     log.error('Error fetching domains', e);
@@ -1036,6 +1031,12 @@ router.post('/batch-delete', authMiddleware, asyncHandler(async (req: Request, r
  *       200:
  *         description: Record lines
  */
+const LINES_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+function linesCacheKey(accountId: number): string {
+  return `lines:${accountId}`;
+}
+
 router.get('/:id/lines', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const id = parseInteger(req.params.id) ?? 0;
   const access = await getDomainAccess(id, req.user!.userId, normalizeRole(req.user!.role));
@@ -1043,15 +1044,33 @@ router.get('/:id/lines', authMiddleware, asyncHandler(async (req: Request, res: 
     sendError(res, 'Domain not found');
     return;
   }
-  const account = await DnsAccountOperations.getById(access.domain.account_id) as DnsAccount | undefined;
+  const accountId = access.domain.account_id;
+  const account = await DnsAccountOperations.getById(accountId) as DnsAccount | undefined;
   if (!account) {
     sendError(res, 'Account not found');
     return;
   }
+
+  // Check DB cache
+  const cached = await SystemCacheOperations.get(linesCacheKey(accountId));
+  if (cached) {
+    try {
+      sendSuccess(res, JSON.parse(cached));
+      return;
+    } catch {
+      // Stale entry, ignore and re-fetch
+    }
+  }
+
   try {
     const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
     const dnsAdapter = createAdapter(account.type, cfg, access.domain.name, access.domain.third_id);
     const lines = await dnsAdapter.getRecordLines();
+    await SystemCacheOperations.set(
+      linesCacheKey(accountId),
+      JSON.stringify(lines),
+      new Date(Date.now() + LINES_CACHE_TTL_MS)
+    );
     sendSuccess(res, lines);
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));

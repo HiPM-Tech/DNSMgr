@@ -545,6 +545,7 @@
             "noAccounts": "连个账号都没有，玩个屁呀",
             "noAccountsDesc": "想加域名？先去加个 DNS 账号啦，笨蛋！",
             "noDomainsFound": "暂无域名。",
+            "alreadyAdded": "已添加",
             "noProviderDomains": "服务商下没有可用域名",
             "primaryIp": "主 IP，最重要的那个",
             "providerDomainId": "服务商域名 ID",

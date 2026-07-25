@@ -715,6 +715,7 @@
             "batchDeletePartialSuccess": "Exclusão concluída: {deleted} bem-sucedidos, {failed} falharam",
             "batchDeleteSkipped": "{count} domínios ignorados devido a permissões insuficientes",
             "batchDeleteFailed": "Falha na exclusão em massa",
+            "alreadyAdded": "Já adicionado",
             "noProviderDomains": "Nenhum domínio encontrado no provedor",
             "remark": "Observação",
             "emptyRemark": "-",

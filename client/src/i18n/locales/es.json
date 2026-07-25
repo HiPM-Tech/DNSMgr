@@ -611,6 +611,7 @@
             "noAccounts": "No hay cuentas DNS",
             "noAccountsDesc": "Necesitas agregar una cuenta DNS antes de agregar dominios.",
             "noDomainsFound": "No se encontraron dominios.",
+            "alreadyAdded": "Ya agregado",
             "noProviderDomains": "No se encontraron dominios del proveedor",
             "primaryIp": "IP principal",
             "providerDomainId": "ID de dominio del proveedor",
