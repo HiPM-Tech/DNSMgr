@@ -243,6 +243,7 @@ import { startNsMonitorJob } from './service/nsMonitorJob';
 import { startDomainRenewalJob } from './service/domainRenewalJob';
 import { startRecordCountCacheRefresh } from './service/recordCountCache';
 import { startDomainSyncJob } from './service/domainSyncJob';
+import { startGroupedCacheRefreshJob } from './service/groupedCacheJob';
 import { startMcpOAuthCleanupJob } from './service/mcpOAuthCleanupJob';
 import { checkForUpdate, downloadUpdate } from './service/autoUpdater';
 
@@ -750,6 +751,7 @@ async function initializeApp() {
       startDomainRenewalJob();
       startRecordCountCacheRefresh(30); // Refresh every 30 minutes
       startDomainSyncJob(0.5); // Sync every 30 minutes
+      startGroupedCacheRefreshJob();
     } else {
       log.info('System not initialized. Running in initialization mode.');
       log.info('Please access the setup wizard to configure the system.');

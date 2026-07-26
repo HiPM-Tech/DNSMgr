@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { DnsAccountOperations, TeamOperations, SettingsOperations, SystemCacheOperations, GroupedDomainsCacheOperations } from '../db/bal/business-adapter';
+import { DnsAccountOperations, TeamOperations, SettingsOperations } from '../db/bal/business-adapter';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter, getProvider, getProviders, isStubProvider } from '../lib/dns/DnsHelper';
@@ -11,50 +11,9 @@ import { wsService } from '../service/websocket';
 import { logAuditOperation } from '../service/audit';
 import { createLogger } from '../lib/logger';
 
+
 const log = createLogger('HTTP').sub('Route').sub('Accounts');
 const router = Router();
-
-// ─── Account Cache ──────────────────────────────────────────────────────────
-const CACHE_VERSION_KEY = 'grouped_cache_ver';
-
-async function getCachedAccounts(userId: number): Promise<{ data: DnsAccount[]; ver: number } | null> {
-  const row = await GroupedDomainsCacheOperations.get(userId, 'account');
-  if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.cacheData);
-    return { data: parsed, ver: row.version };
-  } catch {
-    await GroupedDomainsCacheOperations.delete(userId, 'account');
-    return null;
-  }
-}
-
-async function setCachedAccounts(userId: number, ver: number, data: DnsAccount[]): Promise<void> {
-  const expiresAt = new Date(Date.now() + 720 * 60 * 60 * 1000);
-  await GroupedDomainsCacheOperations.set(userId, 'account', ver, JSON.stringify(data), expiresAt);
-}
-
-async function getCacheVersion(): Promise<number> {
-  const raw = await SystemCacheOperations.get(CACHE_VERSION_KEY);
-  return raw ? parseInt(raw, 10) || 0 : 0;
-}
-
-async function bumpCacheVersion(): Promise<number> {
-  const ver = Date.now();
-  await SystemCacheOperations.set(CACHE_VERSION_KEY, String(ver));
-  return ver;
-}
-
-async function updateCachedAcc(userId: number, change: { type: 'create' | 'update' | 'delete'; item: any }): Promise<void> {
-  const cached = await getCachedAccounts(userId);
-  if (!cached) return;
-  let { data } = cached;
-  if (change.type === 'delete') data = data.filter((d: any) => d.id !== change.item.id);
-  else if (change.type === 'create') data = [...data, change.item];
-  else if (change.type === 'update') data = data.map((d: any) => d.id === change.item.id ? change.item : d);
-  const ver = await bumpCacheVersion();
-  await setCachedAccounts(userId, ver, data);
-}
 
 async function canReadAccount(account: DnsAccount, userId: number, role: number): Promise<boolean> {
   if (isSuper(role)) return true;
@@ -102,23 +61,14 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   const userId = req.user!.userId;
   const role = req.user!.role;
 
-  // Try cache first
-  const cacheVer = await getCacheVersion();
-  const cached = await getCachedAccounts(userId);
   let accounts: DnsAccount[];
 
-  if (cached && cached.ver === cacheVer) {
-    accounts = cached.data;
+  if (isSuper(role)) {
+    accounts = await DnsAccountOperations.getAll() as unknown as DnsAccount[];
   } else {
-    if (isSuper(role)) {
-      accounts = await DnsAccountOperations.getAll() as unknown as DnsAccount[];
-    } else {
-      const teams = await TeamOperations.getByUserId(userId);
-      const teamIds = teams.map(r => r.id as number);
-      accounts = await DnsAccountOperations.getAccessibleByUserId(userId, teamIds) as unknown as DnsAccount[];
-    }
-    const ver = await bumpCacheVersion();
-    await setCachedAccounts(userId, ver, accounts);
+    const teams = await TeamOperations.getByUserId(userId);
+    const teamIds = teams.map(r => r.id as number);
+    accounts = await DnsAccountOperations.getAccessibleByUserId(userId, teamIds) as unknown as DnsAccount[];
   }
 
   // Apply capability filter if purpose query param is specified
@@ -282,13 +232,6 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
   const newAccount = await DnsAccountOperations.getById(id);
 
   // 增量更新缓存
-  if (newAccount) {
-    await updateCachedAcc(req.user!.userId, { type: 'create', item: newAccount });
-    if (req.user!.userId !== 0) {
-      await updateCachedAcc(0, { type: 'create', item: newAccount });
-    }
-  }
-
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -459,14 +402,6 @@ router.put('/:id', authMiddleware, asyncHandler(async (req: Request, res: Respon
   // 获取更新后的完整账户数据用于 WebSocket 推送
   const updatedAccount = await DnsAccountOperations.getById(id);
 
-  // 增量更新缓存
-  if (updatedAccount) {
-    await updateCachedAcc(req.user!.userId, { type: 'update', item: updatedAccount });
-    if (req.user!.userId !== 0) {
-      await updateCachedAcc(0, { type: 'update', item: updatedAccount });
-    }
-  }
-
   // 推送 WebSocket 消息
   try {
     wsService.broadcast({
@@ -509,12 +444,6 @@ router.delete('/:id', authMiddleware, asyncHandler(async (req: Request, res: Res
     return;
   }
   await DnsAccountOperations.delete(id);
-
-  // 增量更新缓存
-  await updateCachedAcc(req.user!.userId, { type: 'delete', item: account });
-  if (req.user!.userId !== 0) {
-    await updateCachedAcc(0, { type: 'delete', item: account });
-  }
 
   // 推送 WebSocket 消息
   try {
@@ -573,16 +502,8 @@ router.patch('/:id/toggle-enabled', authMiddleware, asyncHandler(async (req: Req
       userId: req.user?.userId
     });
 
-    // 增量更新缓存
-    const updatedAccount = await DnsAccountOperations.getById(id);
-    if (updatedAccount) {
-      await updateCachedAcc(req.user!.userId, { type: 'update', item: updatedAccount });
-      if (req.user!.userId !== 0) {
-        await updateCachedAcc(0, { type: 'update', item: updatedAccount });
-      }
-    }
-
     // Broadcast WebSocket event with full account data
+    const updatedAccount = await DnsAccountOperations.getById(id);
     try {
       wsService.broadcast({
         type: 'account_updated',

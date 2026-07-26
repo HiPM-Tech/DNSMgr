@@ -122,8 +122,8 @@ function isBinaryEnvironment(): boolean {
  * 4. 开发环境：{cwd}/data/hidns.db（向后兼容）
  */
 export function resolveDefaultDbPath(): string {
-  // 优先级 1：用户显式指定
-  if (process.env.DB_PATH) return process.env.DB_PATH;
+  // 优先级 1：用户显式指定（排除临时内存数据库）
+  if (process.env.DB_PATH && !process.env._TEMP_DB) return process.env.DB_PATH;
 
   // 优先级 2：用户指定数据目录
   if (process.env.HIDNS_DATA_DIR) {

@@ -11,65 +11,16 @@ import { ROLE_ADMIN, isSuper, normalizeRole } from '../utils/roles';
 import { logAuditOperation } from '../service/audit';
 import { parseInteger, sendError, sendSuccess, sendServerError } from '../utils/http';
 import { createLogger } from '../lib/logger';
-import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations, SystemCacheOperations, GroupedDomainsCacheOperations, WhoisOperations } from '../db/bal/business-adapter';
+import { DomainOperations, DnsAccountOperations, DomainPermissionOperations, TeamOperations, RenewableDomainOperations, UserPreferencesOperations, NSMonitorOperations, SystemCacheOperations, WhoisOperations } from '../db/bal/business-adapter';
 import { syncDomainWhois } from '../service/whois';
 import { getRootDomain, queryWhois, groupDomains } from '../service/whois';
+import { getCachedGroupedData, setCachedGroupedData, getCacheVersion, bumpCacheVersion, submitGroupedCacheUpdate } from '../service/groupedCacheJob';
 import { wsService } from '../service/websocket';
 import { normalizeDomain, isValidDomain, getDisplayDomain } from '../utils/dns';
 
 
 const log = createLogger('HTTP').sub('Route').sub('Domains');
 const router = Router();
-
-// ─── Grouped Domains / Accounts Cache ───────────────────────────────────────
-const CACHE_VERSION_KEY = 'grouped_cache_ver';
-const CACHE_TTL_MS = 720 * 60 * 60 * 1000; // 720 hours
-
-async function getCachedGroupedData(userId: number, cacheType: 'domain' | 'account'): Promise<{ data: any[]; ver: number } | null> {
-  const row = await GroupedDomainsCacheOperations.get(userId, cacheType);
-  if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.cacheData);
-    return { data: parsed, ver: row.version };
-  } catch {
-    await GroupedDomainsCacheOperations.delete(userId, cacheType);
-    return null;
-  }
-}
-
-async function setCachedGroupedData(userId: number, cacheType: 'domain' | 'account', ver: number, data: any[]): Promise<void> {
-  const expiresAt = new Date(Date.now() + CACHE_TTL_MS);
-  await GroupedDomainsCacheOperations.set(userId, cacheType, ver, JSON.stringify(data), expiresAt);
-}
-
-async function getGroupedCacheVersion(): Promise<number> {
-  const raw = await SystemCacheOperations.get(CACHE_VERSION_KEY);
-  return raw ? parseInt(raw, 10) || 0 : 0;
-}
-
-async function bumpGroupedCacheVersion(): Promise<number> {
-  const ver = Date.now();
-  await SystemCacheOperations.set(CACHE_VERSION_KEY, String(ver));
-  return ver;
-}
-
-/** Incrementally update the cached data list for a given user */
-async function updateCachedDataList(userId: number, cacheType: 'domain' | 'account', change: { type: 'create' | 'update' | 'delete'; item: any }): Promise<void> {
-  const cached = await getCachedGroupedData(userId, cacheType);
-  if (!cached) return;
-
-  let { data } = cached;
-  if (change.type === 'delete') {
-    data = data.filter((d: any) => d.id !== change.item.id);
-  } else if (change.type === 'create') {
-    data = [...data, change.item];
-  } else if (change.type === 'update') {
-    data = data.map((d: any) => d.id === change.item.id ? change.item : d);
-  }
-
-  const ver = await bumpGroupedCacheVersion();
-  await setCachedGroupedData(userId, cacheType, ver, data);
-}
 
 async function getAccountForUser(accountId: number, userId: number, role: number): Promise<DnsAccount | null> {
   const account = await DnsAccountOperations.getById(accountId) as DnsAccount | undefined;
@@ -370,7 +321,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
   // When grouped=true: group all fetched domains, then paginate the display items by group blocks
   if (grouped === 'true' && !tokenPayload && format !== 'array') {
     // Try cache first (stores full unfiltered domain list)
-    const cacheVer = await getGroupedCacheVersion();
+    const cacheVer = await getCacheVersion();
     const cached = await getCachedGroupedData(userId, 'domain');
     let allDomains: Domain[];
 
@@ -388,7 +339,7 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
           userId, teamIds, isSuper: false,
         }) as unknown as Domain[];
       }
-      const ver = await bumpGroupedCacheVersion();
+      const ver = await bumpCacheVersion();
       await setCachedGroupedData(userId, 'domain', ver, allDomains);
     }
 
@@ -413,6 +364,14 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response)
     }
 
     const { groups, standalone } = groupDomains(allDomains, pinnedDomainIds);
+
+    // Sort standalone: pinned domains first, then others
+    const pinnedSet = new Set(pinnedDomainIds);
+    standalone.sort((a, b) => {
+      const aPinned = pinnedSet.has(a.id) ? 0 : 1;
+      const bPinned = pinnedSet.has(b.id) ? 0 : 1;
+      return aPinned - bPinned;
+    });
 
     // Build group blocks: each block is [group_header, ...children]
     const blocks: any[][] = [];
@@ -750,9 +709,9 @@ router.post('/', authMiddleware, asyncHandler(async (req: Request, res: Response
     const newDomain = await DomainOperations.getById(firstId) as unknown as Domain | undefined;
     if (newDomain) {
       // Update both user cache and super admin cache
-      await updateCachedDataList(req.user!.userId, 'domain', { type: 'create', item: newDomain });
+      await submitGroupedCacheUpdate(req.user!.userId, 'domain', { type: 'create', item: newDomain });
       if (req.user!.userId !== 0) {
-        await updateCachedDataList(0, 'domain', { type: 'create', item: newDomain });
+        await submitGroupedCacheUpdate(0, 'domain', { type: 'create', item: newDomain });
       }
     }
   }
@@ -886,7 +845,7 @@ router.post('/sync', authMiddleware, asyncHandler(async (req: Request, res: Resp
     }
     await logAuditOperation(req.user!.userId, 'sync_domains', '', { accountId: account_id, total: allDomains.length, added }, req);
     // 缓存失效：同步可能添加/更新多个域名
-    await bumpGroupedCacheVersion();
+    await bumpCacheVersion();
     sendSuccess(res, { total: allDomains.length, added });
   } catch (e) {
     sendError(res, e instanceof Error ? e.message : String(e));
@@ -1069,9 +1028,9 @@ router.put('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandler(
 
   // 缓存失效：增量更新缓存的域名列表
   if (updatedDomain) {
-    await updateCachedDataList(req.user!.userId, 'domain', { type: 'update', item: updatedDomain });
+    await submitGroupedCacheUpdate(req.user!.userId, 'domain', { type: 'update', item: updatedDomain });
     if (!isSuper(normalizeRole(req.user!.role))) {
-      await updateCachedDataList(0, 'domain', { type: 'update', item: updatedDomain });
+      await submitGroupedCacheUpdate(0, 'domain', { type: 'update', item: updatedDomain });
     }
   }
 
@@ -1128,9 +1087,9 @@ router.delete('/:id', authMiddleware, requireTokenDomainPermission(), asyncHandl
   await DomainOperations.delete(id);
 
   // 缓存失效：增量更新缓存的域名列表
-  await updateCachedDataList(req.user!.userId, 'domain', { type: 'delete', item: deletedDomain as unknown as Domain });
+  await submitGroupedCacheUpdate(req.user!.userId, 'domain', { type: 'delete', item: deletedDomain as unknown as Domain });
   if (!isSuper(normalizeRole(req.user!.role))) {
-    await updateCachedDataList(0, 'domain', { type: 'delete', item: deletedDomain as unknown as Domain });
+    await submitGroupedCacheUpdate(0, 'domain', { type: 'delete', item: deletedDomain as unknown as Domain });
   }
 
   // Check if there are any other domains with the same name
