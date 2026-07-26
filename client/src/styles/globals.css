@@ -10,6 +10,7 @@
   --app-scaled-vw: calc(100vw / var(--app-ui-scale));
 
   /* Light mode (default) */
+  --td-theme-button-shadow-color: rgba(255, 255, 255, 0.6);
   --color-bg-primary: #ffffff;
   --color-bg-secondary: #f9fafb;
   --color-bg-tertiary: #f3f4f6;
@@ -37,6 +38,7 @@
 
 /* Dark mode is resolved by ThemeContext so manual light/dark can override the OS. */
 html.dark {
+  --td-theme-button-shadow-color: rgba(0, 0, 0, 0.6);
   --color-bg-primary: #111827;
   --color-bg-secondary: #1f2937;
   --color-bg-tertiary: #374151;
@@ -213,6 +215,10 @@ html.dark input:-webkit-autofill:focus {
   flex: 0 0 auto;
 }
 
+.t-button {
+  text-shadow: 0 1px 3px var(--td-theme-button-shadow-color, transparent);
+}
+
 .page-heading--compact {
   align-items: center;
 }
@@ -352,6 +358,7 @@ html.dark input:-webkit-autofill:focus {
 }
 
 .t-table .t-button {
+  text-shadow: var(--td-theme-button-shadow, none);
   max-width: 100%;
 }
 
