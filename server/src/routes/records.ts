@@ -50,7 +50,7 @@ function isValidRecordValue(type: string, value: string): string | true {
   return result === null ? true : result;
 }
 
-const DYNAMIC_RECORD_TYPES_PROVIDERS = new Set(['hidns-v2']);
+const DYNAMIC_RECORD_TYPES_PROVIDERS = new Set(['hidns_v2']);
 
 function isTypeSupportedByProvider(accountType: string, recordType: string): boolean {
   if (DYNAMIC_RECORD_TYPES_PROVIDERS.has(accountType)) return true;

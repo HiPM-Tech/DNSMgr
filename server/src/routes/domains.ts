@@ -1249,7 +1249,7 @@ router.get('/:id/record-types', authMiddleware, asyncHandler(async (req: Request
     return;
   }
 
-  // For adapters that support dynamic record types (e.g. hidns-v2), query upstream
+  // For adapters that support dynamic record types (e.g. hidns_v2), query upstream
   try {
     const cfg = typeof account.config === 'string' ? JSON.parse(account.config) as Record<string, string> : account.config as Record<string, string>;
     const dnsAdapter = createAdapter(account.type, cfg, access.domain.name, access.domain.third_id);

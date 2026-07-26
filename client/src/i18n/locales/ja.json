@@ -61,7 +61,11 @@
             "subtitle": "DNS プロバイダーの認証情報を管理する",
             "title": "DNS アカウント",
             "updateFailed": "アカウントの更新に失敗しました",
-            "updateSuccess": "アカウントを更新しました"
+            "updateSuccess": "アカウントを更新しました",
+            "searchPlaceholder": "アカウントを検索...",
+            "allProviders": "すべてのプロバイダー",
+            "allStatus": "すべてのステータス",
+            "grouped": "グループ化"
         },
         "common": {
             "about": "概要",
@@ -197,7 +201,8 @@
             "manual": "手動",
             "previous": "前へ",
             "next": "次へ",
-            "mcp": "MCP管理"
+            "mcp": "MCP管理",
+            "restore": "復元"
         },
         "mail": {
             "add": "レコードを追加",
@@ -791,7 +796,11 @@
                 "tab_ssl": "SSL証明書",
                 "tab_endpoint": "エンドポイント",
                 "tab_failover": "DNSフェイルオーバー"
-            }
+            },
+            "grouped": "グループ化",
+            "grouping": "グループ化",
+            "addedInOtherAccount": "別のアカウントで追加済み",
+            "parentDomainExists": "親ドメインが存在します"
         },
         "setup": {
             "adminCreateFailed": "管理者の作成に失敗しました",

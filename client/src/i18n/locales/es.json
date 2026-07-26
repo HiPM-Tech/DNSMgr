@@ -61,7 +61,11 @@
             "updateFailed": "Error al actualizar cuenta",
             "updateSuccess": "Cuenta actualizada exitosamente",
             "useProxy": "Usar proxy",
-            "useProxyHint": "Acceder a la API del proveedor DNS a través del proxy del sistema"
+            "useProxyHint": "Acceder a la API del proveedor DNS a través del proxy del sistema",
+            "searchPlaceholder": "Buscar cuentas...",
+            "allProviders": "Todos los proveedores",
+            "allStatus": "Todos los estados",
+            "grouped": "Agrupado"
         },
         "common": {
             "about": "Acerca de",
@@ -769,7 +773,11 @@
             "whoisUpdateFailed": "Error al actualizar WHOIS",
             "expiryAlert": "Alerta de vencimiento",
             "expiryAlertDesc": "Enviar notificación antes del vencimiento del dominio",
-            "daysBefore": "Días antes"
+            "daysBefore": "Días antes",
+            "grouped": "Agrupado",
+            "grouping": "Agrupación",
+            "addedInOtherAccount": "Añadido en otra cuenta",
+            "parentDomainExists": "El dominio principal existe"
         },
         "setup": {
             "adminCreateFailed": "Error al crear admin",

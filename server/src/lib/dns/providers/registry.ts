@@ -246,7 +246,7 @@ const providerDefinitions: ProviderDefinition[] = [
     adapterFactory: (config) => new Adapters.HiDNSAdapter(config),
   },
   {
-    type: 'hidns-v2',
+    type: 'hidns_v2',
     name: 'provider.hidns_v2',
     capabilities: { dns: { remark: true, status: true, redirect: false, weight: true, proxiable: false, cnameFlattening: false, recordTypes: COMMON_RECORD_TYPES }, log: false, renewal: false },
     configFields: [

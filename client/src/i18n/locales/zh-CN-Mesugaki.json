@@ -61,7 +61,11 @@
             "subtitle": "管理你的 DNS 服务商凭据，别搞丢啦",
             "title": "DNS 账号",
             "updateFailed": "更新失败，气死我啦",
-            "updateSuccess": "账号更新成功，不错哟"
+            "updateSuccess": "账号更新成功，不错哟",
+            "searchPlaceholder": "搜索账号...",
+            "allProviders": "所有提供商",
+            "allStatus": "所有状态",
+            "grouped": "分组"
         },
         "audit": {
             "actionType": "操作类型",
@@ -582,7 +586,11 @@
             "configureFailover": "配置故障转移啦，笨蛋",
             "expiryAlert": "到期提醒",
             "expiryAlertDesc": "在域名到期前发通知给你，不然过期了可别怪我",
-            "daysBefore": "提前天数"
+            "daysBefore": "提前天数",
+            "grouped": "分组",
+            "grouping": "分组",
+            "addedInOtherAccount": "已在其他账号中添加",
+            "parentDomainExists": "父域名已存在"
         },
         "login": {
             "failed": "像杂鱼酱这样一副恶心样的人，除了我，谁还会和你聊天呢？嗯~♡呵呵呵~",
@@ -1550,7 +1558,9 @@
             "consentError": "授权失败了哦desu~",
             "consentNotLoggedIn": "要先登录才能授权这个应用哦！",
             "consentSignIn": "登录",
-            "consentTypeMCP": "MCP 服务哦"
+            "consentTypeMCP": "MCP 服务哦",
+            "confirmRestore": "确认恢复",
+            "confirmRestoreBody": "确定要恢复此配置吗？这将覆盖当前设置。"
         },
         "provider": {
             "aliyun": "阿里云",

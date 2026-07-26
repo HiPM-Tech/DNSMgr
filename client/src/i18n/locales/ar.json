@@ -136,7 +136,8 @@
             "remove": "إزالة",
             "mcp": "إدارة MCP",
             "no": "لا",
-            "yes": "نعم"
+            "yes": "نعم",
+            "restore": "استعادة"
         },
         "nav": {
             "settings": "الإعدادات"
@@ -188,7 +189,20 @@
             "enterBackupCode": "أدخل رمز النسخ الاحتياطي",
             "useAuthCode": "استخدم رمز التحقق",
             "backupCode": "رمز النسخ الاحتياطي",
-            "authCode": "رمز التحقق"
+            "authCode": "رمز التحقق",
+            "accountHint": "قم بتسجيل الدخول لإدارة DNS الخاصة بك",
+            "consoleTitle": "تسجيل الدخول إلى لوحة التحكم",
+            "consoleSubtitle": "قم بتسجيل الدخول لإدارة DNS الخاصة بك",
+            "title": "تسجيل الدخول",
+            "logtoSignIn": "تسجيل الدخول عبر Logto",
+            "logtoUnavailable": "Logto غير متاح",
+            "oauthUnavailable": "تسجيل الدخول عبر OAuth غير متاح",
+            "twoFactorHint": "أدخل رمز المصادقة الثنائية",
+            "authCodeRequired": "رمز المصادقة مطلوب",
+            "backupCodeRequired": "رمز النسخ الاحتياطي مطلوب",
+            "rememberMe": "تذكرني",
+            "trustDevice": "الجهاز موثوق",
+            "trustDeviceDays": "أيام الثقة"
         },
         "dashboard": {
             "totalDomains": "إجمالي النطاقات",
@@ -222,7 +236,9 @@
             "resourceOverview": "نظرة عامة على الموارد",
             "resourceOverviewDesc": "تغطية وكثافة موارد DNS الحالية",
             "topDomains": "ترتيب سجلات النطاقات",
-            "topDomainsDesc": "النطاقات التي تحتوي على أكبر عدد من سجلات الحل"
+            "topDomainsDesc": "النطاقات التي تحتوي على أكبر عدد من سجلات الحل",
+            "title": "لوحة المعلومات",
+            "subtitle": "نظرة عامة على نطاقات DNS والحسابات الخاصة بك"
         },
         "accounts": {
             "title": "حسابات DNS",
@@ -245,7 +261,11 @@
             "saveChanges": "حفظ التغييرات",
             "provider": "المزود",
             "useProxy": "استخدام الوكيل",
-            "useProxyHint": "الوصول إلى API مزود DNS عبر وكيل النظام"
+            "useProxyHint": "الوصول إلى API مزود DNS عبر وكيل النظام",
+            "searchPlaceholder": "البحث عن الحسابات...",
+            "allProviders": "جميع المزودين",
+            "allStatus": "جميع الحالات",
+            "grouped": "مجمعة"
         },
         "teams": {
             "title": "الفرق",
@@ -437,7 +457,18 @@
                 "mysql": "MySQL",
                 "postgresql": "PostgreSQL",
                 "unknown": "غير معروف"
-            }
+            },
+            "opensource": "المصادر المفتوحة",
+            "opensourceSubtitle": "المكتبات مفتوحة المصدر المستخدمة في هذا المشروع",
+            "opensourceCategories": {
+                "framework": "إطار العمل",
+                "componentLibrary": "مكتبة المكونات",
+                "icons": "الأيقونات",
+                "buildTool": "أداة البناء",
+                "stateData": "البيانات والحالة",
+                "routing": "التوجيه"
+            },
+            "noContributors": "لا يوجد مساهمون"
         },
         "security": {
             "title": "إعدادات الأمان",
@@ -887,7 +918,11 @@
                 "servicemonitor": "مراقب الخدمة",
                 "nsMonitor": "مراقبة NS",
                 "renewal": "تجديد النطاق"
-            }
+            },
+            "grouped": "مجمعة",
+            "grouping": "تجميع",
+            "addedInOtherAccount": "تمت الإضافة في حساب آخر",
+            "parentDomainExists": "النطاق الأصلي موجود"
         },
         "tokens": {
             "title": "إدارة رموز API",

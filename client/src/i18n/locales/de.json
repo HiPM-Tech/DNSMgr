@@ -134,7 +134,10 @@
             "submit": "Absenden",
             "saved": "Gespeichert",
             "remove": "Entfernen",
-            "mcp": "MCP-Verwaltung"
+            "mcp": "MCP-Verwaltung",
+            "restore": "Wiederherstellen",
+            "yes": "Ja",
+            "no": "Nein"
         },
         "mail": {
             "title": "E-Mail-Einrichtung",
@@ -230,7 +233,9 @@
             "metricAccountsDesc": "Verbundene Anbieter",
             "metricRecordsDesc": "DNS-Einträge gesamt",
             "recordShare": "Eintragsanteil",
-            "eventsLogged": "{count} kürzliche Ereignisse"
+            "eventsLogged": "{count} kürzliche Ereignisse",
+            "title": "Dashboard",
+            "subtitle": "Übersicht über Ihre DNS-Domänen und -Konten"
         },
         "accounts": {
             "title": "DNS-Konten",
@@ -253,7 +258,11 @@
             "saveChanges": "Änderungen speichern",
             "provider": "Anbieter",
             "useProxy": "Proxy verwenden",
-            "useProxyHint": "Zugriff auf DNS-Anbieter-API über System-Proxy"
+            "useProxyHint": "Zugriff auf DNS-Anbieter-API über System-Proxy",
+            "searchPlaceholder": "Konten suchen...",
+            "allProviders": "Alle Anbieter",
+            "allStatus": "Alle Status",
+            "grouped": "Gruppiert"
         },
         "teams": {
             "title": "Teams",
@@ -906,7 +915,11 @@
             "whoisUpdateFailed": "WHOIS-Aktualisierung fehlgeschlagen",
             "expiryAlert": "Ablaufbenachrichtigung",
             "expiryAlertDesc": "Vor Ablauf der Domain eine Benachrichtigung senden",
-            "daysBefore": "Tage vorher"
+            "daysBefore": "Tage vorher",
+            "grouped": "Gruppiert",
+            "grouping": "Gruppierung",
+            "addedInOtherAccount": "In einem anderen Konto hinzugefügt",
+            "parentDomainExists": "Übergeordnete Domäne existiert"
         },
         "tokens": {
             "title": "API-Token-Verwaltung",
@@ -949,7 +962,9 @@
             "status": "Status",
             "actions": "Aktionen",
             "domainCount": "{count} Domains",
-            "allDomainsAllowed": "Alle Domains"
+            "allDomainsAllowed": "Alle Domains",
+            "tokenUpdated": "Token aktualisiert",
+            "editToken": "Token bearbeiten"
         },
         "nsMonitor": {
             "title": "NS-Überwachung",
@@ -1602,6 +1617,9 @@
                 "user_id": "Benutzer-ID",
                 "remember_token": "remember_token"
             }
+        },
+        "nav": {
+            "settings": "Einstellungen"
         }
     }
 }

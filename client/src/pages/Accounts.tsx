@@ -411,7 +411,7 @@ export function Accounts() {
             value={typeFilter}
             options={[
               { label: t('accounts.allProviders'), value: '' },
-              ...visibleProviders.map((p) => ({ label: t(`provider.${p.type}`), value: p.type })),
+              ...visibleProviders.map((p) => ({ label: t(p.name), value: p.type })),
             ]}
             onChange={(value) => { setTypeFilter(String(value)); setPage(1); }}
             style={{ width: '180px' }}

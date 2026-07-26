@@ -136,7 +136,8 @@
             "remove": "제거",
             "mcp": "MCP 관리",
             "no": "아니오",
-            "yes": "예"
+            "yes": "예",
+            "restore": "복원"
         },
         "mail": {
             "title": "이메일 설정",
@@ -257,7 +258,11 @@
             "saveChanges": "변경사항 저장",
             "provider": "공급자",
             "useProxy": "프록시 사용",
-            "useProxyHint": "시스템 프록시를 통해 DNS 공급자 API 접근"
+            "useProxyHint": "시스템 프록시를 통해 DNS 공급자 API 접근",
+            "searchPlaceholder": "계정 검색...",
+            "allProviders": "모든 제공업체",
+            "allStatus": "모든 상태",
+            "grouped": "그룹화"
         },
         "teams": {
             "title": "팀",
@@ -916,7 +921,11 @@
                 "servicemonitor": "서비스 모니터",
                 "nsMonitor": "NS 모니터링",
                 "renewal": "도메인 갱신"
-            }
+            },
+            "grouped": "그룹화",
+            "grouping": "그룹화",
+            "addedInOtherAccount": "다른 계정에 추가됨",
+            "parentDomainExists": "상위 도메인이 존재합니다"
         },
         "tokens": {
             "title": "API 토큰 관리",

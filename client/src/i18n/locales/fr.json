@@ -136,7 +136,8 @@
             "remove": "Supprimer",
             "mcp": "Gestion MCP",
             "no": "Non",
-            "yes": "Oui"
+            "yes": "Oui",
+            "restore": "Restaurer"
         },
         "nav": {
             "settings": "Paramètres"
@@ -260,7 +261,11 @@
             "saveChanges": "Enregistrer les modifications",
             "provider": "Fournisseur",
             "useProxy": "Utiliser le proxy",
-            "useProxyHint": "Accéder à l'API du fournisseur DNS via le proxy système"
+            "useProxyHint": "Accéder à l'API du fournisseur DNS via le proxy système",
+            "searchPlaceholder": "Rechercher des comptes...",
+            "allProviders": "Tous les fournisseurs",
+            "allStatus": "Tous les statuts",
+            "grouped": "Groupé"
         },
         "teams": {
             "title": "Équipes",
@@ -913,7 +918,11 @@
             "whoisUpdateFailed": "Échec de la mise à jour WHOIS",
             "expiryAlert": "Alerte d'expiration",
             "expiryAlertDesc": "Envoyer une notification avant l'expiration du domaine",
-            "daysBefore": "Jours avant"
+            "daysBefore": "Jours avant",
+            "grouped": "Groupé",
+            "grouping": "Regroupement",
+            "addedInOtherAccount": "Ajouté dans un autre compte",
+            "parentDomainExists": "Le domaine parent existe"
         },
         "tokens": {
             "title": "Gestion des jetons API",

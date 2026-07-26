@@ -237,7 +237,8 @@
             "resourceOverview": "Обзор ресурсов",
             "resourceOverviewDesc": "Покрытие и плотность текущих DNS-ресурсов",
             "topDomains": "Рейтинг доменов по записям",
-            "topDomainsDesc": "Домены с наибольшим количеством записей разрешения"
+            "topDomainsDesc": "Домены с наибольшим количеством записей разрешения",
+            "recentOperationsDesc": "Последние операции с доменами и учетными записями"
         },
         "accounts": {
             "title": "DNS-аккаунты",
@@ -260,7 +261,11 @@
             "saveChanges": "Сохранить изменения",
             "provider": "Провайдер",
             "useProxy": "Использовать прокси",
-            "useProxyHint": "Доступ к API провайдера DNS через системный прокси"
+            "useProxyHint": "Доступ к API провайдера DNS через системный прокси",
+            "searchPlaceholder": "Поиск учетных записей...",
+            "allProviders": "Все провайдеры",
+            "allStatus": "Все статусы",
+            "grouped": "Сгруппировано"
         },
         "teams": {
             "title": "Команды",
@@ -913,7 +918,11 @@
                 "servicemonitor": "Монитор служб",
                 "nsMonitor": "Мониторинг NS",
                 "renewal": "Продление домена"
-            }
+            },
+            "grouped": "Сгруппировано",
+            "grouping": "Группировка",
+            "addedInOtherAccount": "Добавлено в другой учётной записи",
+            "parentDomainExists": "Родительский домен существует"
         },
         "tokens": {
             "title": "Управление API-токенами",

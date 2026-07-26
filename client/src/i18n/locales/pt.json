@@ -136,7 +136,8 @@
             "remove": "Remover",
             "mcp": "Gerenciamento MCP",
             "no": "Não",
-            "yes": "Sim"
+            "yes": "Sim",
+            "restore": "Restaurar"
         },
         "nav": {
             "settings": "Configurações"
@@ -260,7 +261,11 @@
             "saveChanges": "Salvar Alterações",
             "provider": "Provedor",
             "useProxy": "Usar proxy",
-            "useProxyHint": "Acessar API do provedor DNS através do proxy do sistema"
+            "useProxyHint": "Acessar API do provedor DNS através do proxy do sistema",
+            "searchPlaceholder": "Pesquisar contas...",
+            "allProviders": "Todos os provedores",
+            "allStatus": "Todos os status",
+            "grouped": "Agrupado"
         },
         "teams": {
             "title": "Equipes",
@@ -913,7 +918,11 @@
                 "servicemonitor": "Monitor de Serviço",
                 "nsMonitor": "Monitor NS",
                 "renewal": "Renovação de Domínio"
-            }
+            },
+            "grouped": "Agrupado",
+            "grouping": "Agrupamento",
+            "addedInOtherAccount": "Adicionado em outra conta",
+            "parentDomainExists": "Domínio pai existe"
         },
         "tokens": {
             "title": "Gerenciamento de Tokens API",
