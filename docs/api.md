@@ -794,9 +794,49 @@ Content-Type: `application/rdap+json`
 
 ---
 
-## 22. MCP（Model Context Protocol）
+## 22. 资源监控
 
-### 22a. 配置与发现
+| 方法 | 路径 | 鉴权 | 说明 |
+|------|------|------|------|
+| GET | `/api/resource-monitor/current` | `authMiddleware` | 获取最新资源快照 |
+| GET | `/api/resource-monitor/history` | `authMiddleware` | 获取历史数据 `?page&pageSize&hours` |
+| POST | `/api/resource-monitor/prune` | `authMiddleware` + `adminOnly` | 手动清理 72 小时前的历史数据 |
+
+### 实时推送
+
+WebSocket 事件：`resource:snapshot`，每 10 秒推送一次当前资源快照。
+
+### 快照字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `cpu_percent` | `number \| null` | CPU 使用率（%） |
+| `memory_percent` | `number \| null` | 堆内存使用百分比 |
+| `memory_mb` | `number \| null` | 堆内存使用（MB） |
+| `disk_percent` | `number \| null` | 磁盘使用率（预留） |
+| `uptime_hours` | `number \| null` | 运行时长（小时） |
+| `task_queue_depth` | `number` | 任务队列深度 |
+| `db_queries_total` | `number` | 本周期数据库查询数 |
+| `db_errors_total` | `number` | 本周期数据库错误数 |
+| `http_probe_count` | `number` | HTTP 探针样本数 |
+| `http_avg_ms` | `number \| null` | HTTP 平均延迟 |
+| `http_p50_ms` | `number \| null` | HTTP P50 延迟 |
+| `http_p95_ms` | `number \| null` | HTTP P95 延迟 |
+| `http_p99_ms` | `number \| null` | HTTP P99 延迟 |
+| `dns_probe_count` | `number` | DNS 探针样本数 |
+| `dns_avg_ms` | `number \| null` | DNS 平均延迟 |
+| `dns_p50_ms` | `number \| null` | DNS P50 延迟 |
+| `dns_p95_ms` | `number \| null` | DNS P95 延迟 |
+| `dns_p99_ms` | `number \| null` | DNS P99 延迟 |
+| `sqlite_io_reads` | `number` | SQLite IO 读次数（其他数据库为 0） |
+| `sqlite_io_writes` | `number` | SQLite IO 写次数（其他数据库为 0） |
+| `recorded_at` | `string` | ISO 8601 记录时间 |
+
+---
+
+## 23. MCP（Model Context Protocol）
+
+### 23a. 配置与发现
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |------|------|------|------|
@@ -809,7 +849,7 @@ Content-Type: `application/rdap+json`
 | POST | `/api/mcp/config` | `authMiddleware` + `adminOnly` | 更新 MCP 配置 `{ enabled }` |
 | PUT | `/api/mcp/config` | `authMiddleware` + `adminOnly` | 同上 |
 
-### 22b. API Key
+### 23b. API Key
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |------|------|------|------|
@@ -846,7 +886,7 @@ Content-Type: `application/rdap+json`
 | GET | `/api/mcp/audit-logs/export` | `authMiddleware` | 导出审计日志 |
 | GET | `/api/mcp/audit-stats` | `authMiddleware` | 审计统计 |
 
-### 22e. 协议端点
+### 23e. 协议端点
 
 全部使用 `mcpEnabledCheck` 中间件。
 

@@ -10,6 +10,7 @@ import { queryPlainDNS as queryPlainDNSImpl } from './plain-resolver';
 import { createTLSViaProxy, parseProxyUrl } from './proxy-tunnel';
 import { createLogger } from '../../logger';
 import { getProxyConfig } from '../../proxy-http';
+import { pushDnsProbe } from '../../../service/resource/cache';
 
 const log = createLogger('DNS').sub('Resolver').sub('Resolver');
 export class DNSResolver {
@@ -25,6 +26,7 @@ export class DNSResolver {
     options: DNSQueryOptions = {}
   ): Promise<DNSResolverResult> {
     const { preferEncrypted = true, timeout = 5000, useProxy = true } = options;
+    const resolveStart = Date.now()
 
     log.debug(`Resolving ${domain} (type: ${type})`);
 
@@ -32,7 +34,7 @@ export class DNSResolver {
     if (preferEncrypted) {
       const encryptedResult = await this.queryEncrypted(domain, type, timeout, useProxy);
       if (encryptedResult.success) {
-        return encryptedResult;
+        pushDnsProbe(Date.now() - resolveStart); return encryptedResult
       }
       log.debug(`Encrypted DNS failed for ${domain}, falling back to plain DNS`);
     }
@@ -40,18 +42,19 @@ export class DNSResolver {
     // 2. 尝试明文 DNS 查询（UDP/TCP）
     const plainResult = await this.queryPlain(domain, type, timeout);
     if (plainResult.success) {
-      return plainResult;
+      pushDnsProbe(Date.now() - resolveStart); return plainResult
     }
     log.debug(`Plain DNS failed for ${domain}, falling back to system DNS`);
 
     // 3. 使用系统 DNS
     const systemResult = await this.querySystem(domain, type, timeout);
     if (systemResult.success) {
-      return systemResult;
+      pushDnsProbe(Date.now() - resolveStart); return systemResult
     }
 
     // 全部失败
     log.error(`All DNS queries failed for ${domain}`);
+    pushDnsProbe(Date.now() - resolveStart)
     return {
       success: false,
       responseTime: 0,

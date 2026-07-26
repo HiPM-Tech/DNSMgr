@@ -18,6 +18,7 @@ import { useI18n } from '../contexts/I18nContext';
 import { useRealtimeData } from '../hooks/useRealtimeData';
 import { getAuditActionLabel, getAuditActionVariant, getAuditSummary } from '../utils/auditLogs';
 import { formatDomainName } from '../utils/domain';
+import { ResourcePanel } from './ResourcePanel';
 import './Dashboard.css';
 
 type StatTone = 'domains' | 'records' | 'accounts' | 'users';
@@ -501,6 +502,12 @@ export function Dashboard() {
               </div>
             )}
           </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} className="dashboard-section-row">
+        <Col xs={12}>
+          <ResourcePanel />
         </Col>
       </Row>
 

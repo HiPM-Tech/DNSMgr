@@ -427,6 +427,21 @@ export function isDbConnected(): boolean {
   return db.isConnected;
 }
 
+/**
+ * 获取数据库驱动层统计信息
+ * @returns 查询数、错误数、IO 读/写次数（IO 仅在 SQLite 下有效）
+ */
+export function getDatabaseStats(): { queries: number; errors: number; reads: number; writes: number } {
+  try {
+    const conn = getConnection();
+    const stats = conn.getStats();
+    const io = conn.getIoStats();
+    return { queries: stats.queries, errors: stats.errors, reads: io.reads, writes: io.writes };
+  } catch {
+    return { queries: 0, errors: 0, reads: 0, writes: 0 };
+  }
+}
+
 // ============================================================================
 // 用户相关业务操作
 // ============================================================================

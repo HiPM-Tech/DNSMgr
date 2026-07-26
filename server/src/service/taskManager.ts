@@ -295,6 +295,15 @@ class TaskManager {
     return false;
   }
 
+  getStats(): { running: number; queued: number; completed: number; failed: number } {
+    let completed = 0, failed = 0
+    for (const task of this.runningTasks.values()) {
+      if (task.status === 'completed') completed++
+      if (task.status === 'failed') failed++
+    }
+    return { running: this.runningTasks.size, queued: this.taskQueue.length, completed, failed }
+  }
+
   /**
    * 清空队列
    */

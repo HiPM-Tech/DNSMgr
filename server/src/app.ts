@@ -233,6 +233,7 @@ import mcpOAuthRouter from './routes/mcp-oauth';
 import mcpAuditRouter from './routes/mcp-audit';
 import mcpProtocolRouter from './routes/mcp-protocol';
 import servicemonitorRouter from './routes/servicemonitor';
+import resourceMonitorRouter from './routes/resource-monitor';
 import { rdapLimiter } from './middleware/rateLimit';
 import { getAuditLogs } from './service/auditExport';
 import { getString, parseInteger, parsePagination, sendError, sendSuccess } from './utils/http';
@@ -245,6 +246,8 @@ import { startRecordCountCacheRefresh } from './service/recordCountCache';
 import { startDomainSyncJob } from './service/domainSyncJob';
 import { startGroupedCacheRefreshJob } from './service/groupedCacheJob';
 import { startMcpOAuthCleanupJob } from './service/mcpOAuthCleanupJob';
+import { startResourceMonitorJob } from './service/resource/job';
+import { startResourcePruneJob } from './service/resource/prune';
 import { checkForUpdate, downloadUpdate } from './service/autoUpdater';
 
 // 读取 package.json 获取版本信息
@@ -453,7 +456,7 @@ function initCheckMiddleware(req: Request, res: Response, next: NextFunction) {
 }
 
 // Apply initialization check middleware to protected paths
-const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings', '/api/tokens', '/api/mcp', '/api/servicemonitor'];
+const protectedPaths = ['/api/auth', '/api/users', '/api/teams', '/api/accounts', '/api/domains', '/api/logs', '/api/settings', '/api/tokens', '/api/mcp', '/api/servicemonitor', '/api/resource-monitor'];
 protectedPaths.forEach(path => {
   app.use(path, initCheckMiddleware);
 });
@@ -481,6 +484,7 @@ app.use('/api/tokens', tokensRouter);
 app.use('/api/ns-monitor', nsMonitorRouter);
 app.use('/api/network', networkRouter);
 app.use('/api/servicemonitor', servicemonitorRouter);
+app.use('/api/resource-monitor', resourceMonitorRouter);
 
 // MCP 路由 - 统一合并到父级路由器，避免重复注册 /api/mcp
 const mcpRouter = express.Router();
@@ -752,6 +756,8 @@ async function initializeApp() {
       startRecordCountCacheRefresh(30); // Refresh every 30 minutes
       startDomainSyncJob(0.5); // Sync every 30 minutes
       startGroupedCacheRefreshJob();
+      startResourceMonitorJob();
+      startResourcePruneJob();
     } else {
       log.info('System not initialized. Running in initialization mode.');
       log.info('Please access the setup wizard to configure the system.');
@@ -788,6 +794,8 @@ async function initializeApp() {
           startDomainRenewalJob();
           startRecordCountCacheRefresh(30); // Refresh every 30 minutes
           startDomainSyncJob(0.5); // Sync every 30 minutes
+          startResourceMonitorJob();
+          startResourcePruneJob();
         }
     }, 5000);
 
@@ -848,6 +856,8 @@ async function initializeApp() {
           startDomainRenewalJob();
           startRecordCountCacheRefresh(30); // Refresh every 30 minutes
           startDomainSyncJob(0.5); // Sync every 30 minutes
+          startResourceMonitorJob();
+          startResourcePruneJob();
           log.info('System initialized detected. Normal routes are now enabled.');
           log.info('You may need to refresh the page.');
         }

@@ -1618,8 +1618,17 @@
                 "remember_token": "remember_token"
             }
         },
-        "nav": {
-            "settings": "Einstellungen"
+        "resourceMonitor": {
+            "title": "System Resources",
+            "live": "Live",
+            "polling": "Polling",
+            "memory": "Memory",
+            "uptime": "Uptime",
+            "probeHttp": "HTTP Probes",
+            "probeDns": "DNS Probes",
+            "dbQueries": "DB Queries/min",
+            "queueDepth": "Queue Depth",
+            "latencyTitle": "Response Latency (p50 / p95 / p99)"
         }
     }
 }

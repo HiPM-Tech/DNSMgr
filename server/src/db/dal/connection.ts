@@ -72,6 +72,18 @@ class DriverConnectionWrapper implements DatabaseConnection {
       await this.driver.checkpoint();
     }
   }
+
+  getStats(): import('../dl/types').ConnectionStats {
+    return this.driver.stats;
+  }
+
+  getIoStats(): { reads: number; writes: number } {
+    const driver = this.driver as { ioReads?: number; ioWrites?: number };
+    return {
+      reads: typeof driver.ioReads === 'number' ? driver.ioReads : 0,
+      writes: typeof driver.ioWrites === 'number' ? driver.ioWrites : 0,
+    };
+  }
 }
 
 /** 连接管理器 */

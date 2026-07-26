@@ -36,6 +36,8 @@ export class SQLiteDriver extends BaseDriver {
   readonly type = 'sqlite' as const;
   private db: DatabaseSync | null = null;
   private connectionConfig: SQLiteDriverConfig;
+  ioReads = 0
+  ioWrites = 0
 
   constructor(config: SQLiteDriverConfig, driverConfig?: DriverConfig) {
     super(driverConfig);
@@ -83,8 +85,10 @@ export class SQLiteDriver extends BaseDriver {
         const stmt = this.db!.prepare(sql);
         const sqlUpper = sql.trim().toLowerCase();
         if (sqlUpper.startsWith('select') || sqlUpper.startsWith('pragma') || sqlUpper.startsWith('explain')) {
+          this.ioReads++
           return stmt.all(...serializeParams(params || [])) as T[];
         }
+        this.ioWrites++
         stmt.run(...serializeParams(params || []));
         return [];
       } catch (error) {
@@ -100,6 +104,7 @@ export class SQLiteDriver extends BaseDriver {
       this._stats.queries++;
       try {
         const stmt = this.db!.prepare(sql);
+        this.ioReads++
         return stmt.get(...serializeParams(params || [])) as T | undefined;
       } catch (error) {
         this._stats.errors++;
@@ -114,6 +119,12 @@ export class SQLiteDriver extends BaseDriver {
       this._stats.queries++;
       try {
         const stmt = this.db!.prepare(sql);
+        const sqlUpper = sql.trim().toLowerCase()
+        if (sqlUpper.startsWith('select') || sqlUpper.startsWith('pragma') || sqlUpper.startsWith('explain') || sqlUpper.startsWith('begin') || sqlUpper.startsWith('commit') || sqlUpper.startsWith('rollback')) {
+          this.ioReads++
+        } else {
+          this.ioWrites++
+        }
         stmt.run(...serializeParams(params || []));
       } catch (error) {
         this._stats.errors++;
@@ -124,12 +135,14 @@ export class SQLiteDriver extends BaseDriver {
   }
 
   async insert(sql: string, params?: unknown[]): Promise<number> {
+    this.ioWrites++
     const stmt = this.db!.prepare(sql);
     const result = stmt.run(...serializeParams(params || []));
     return Number(result.lastInsertRowid);
   }
 
   async run(sql: string, params?: unknown[]): Promise<RunResult> {
+    this.ioWrites++
     const stmt = this.db!.prepare(sql);
     const result = stmt.run(...serializeParams(params || []));
     return { changes: result.changes };

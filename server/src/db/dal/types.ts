@@ -47,6 +47,11 @@ export interface DatabaseConnection {
   raw(): RawConnection;
   close(): Promise<void>;
   checkpoint?(): Promise<void>;
+
+  /** 获取连接统计信息（查询数、错误数等） */
+  getStats(): import('../dl/types').ConnectionStats;
+  /** 获取 IO 统计信息（目前仅 SQLite 有效） */
+  getIoStats(): { reads: number; writes: number };
 }
 
 /** 列类型定义 */

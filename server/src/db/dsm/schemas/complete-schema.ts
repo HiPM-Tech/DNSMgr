@@ -802,6 +802,62 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'idx_mcp_refresh_tokens_token', columns: ['refresh_token'] },
         { name: 'idx_mcp_refresh_tokens_expires', columns: ['expires_at'] }
       ]
+    },
+    {
+      name: 'resource_metrics',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'cpu_percent', type: 'number', nullable: true },
+        { name: 'memory_percent', type: 'number', nullable: true },
+        { name: 'memory_mb', type: 'number', nullable: true },
+        { name: 'disk_percent', type: 'number', nullable: true },
+        { name: 'uptime_hours', type: 'number', nullable: true },
+        { name: 'task_queue_depth', type: 'integer', defaultValue: 0 },
+        { name: 'db_queries_total', type: 'integer', defaultValue: 0 },
+        { name: 'db_errors_total', type: 'integer', defaultValue: 0 },
+        { name: 'http_probe_count', type: 'integer', defaultValue: 0 },
+        { name: 'http_avg_ms', type: 'number', nullable: true },
+        { name: 'http_p50_ms', type: 'number', nullable: true },
+        { name: 'http_p95_ms', type: 'number', nullable: true },
+        { name: 'http_p99_ms', type: 'number', nullable: true },
+        { name: 'dns_probe_count', type: 'integer', defaultValue: 0 },
+        { name: 'dns_avg_ms', type: 'number', nullable: true },
+        { name: 'dns_p50_ms', type: 'number', nullable: true },
+        { name: 'dns_p95_ms', type: 'number', nullable: true },
+        { name: 'dns_p99_ms', type: 'number', nullable: true },
+        { name: 'sqlite_io_reads', type: 'integer', defaultValue: 0 },
+        { name: 'sqlite_io_writes', type: 'integer', defaultValue: 0 },
+        { name: 'recorded_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+      ]
+    },
+    {
+      name: 'resource_metric_history',
+      columns: [
+        { name: 'id', type: 'id', primaryKey: true, autoIncrement: true },
+        { name: 'recorded_at', type: 'datetime', nullable: false },
+        { name: 'cpu_percent', type: 'number', nullable: true },
+        { name: 'memory_percent', type: 'number', nullable: true },
+        { name: 'memory_mb', type: 'number', nullable: true },
+        { name: 'disk_percent', type: 'number', nullable: true },
+        { name: 'task_queue_depth', type: 'integer', defaultValue: 0 },
+        { name: 'db_queries_total', type: 'integer', defaultValue: 0 },
+        { name: 'db_errors_total', type: 'integer', defaultValue: 0 },
+        { name: 'http_probe_count', type: 'integer', defaultValue: 0 },
+        { name: 'http_avg_ms', type: 'number', nullable: true },
+        { name: 'http_p50_ms', type: 'number', nullable: true },
+        { name: 'http_p95_ms', type: 'number', nullable: true },
+        { name: 'http_p99_ms', type: 'number', nullable: true },
+        { name: 'dns_probe_count', type: 'integer', defaultValue: 0 },
+        { name: 'dns_avg_ms', type: 'number', nullable: true },
+        { name: 'dns_p50_ms', type: 'number', nullable: true },
+        { name: 'dns_p95_ms', type: 'number', nullable: true },
+        { name: 'dns_p99_ms', type: 'number', nullable: true },
+        { name: 'sqlite_io_reads', type: 'integer', defaultValue: 0 },
+        { name: 'sqlite_io_writes', type: 'integer', defaultValue: 0 },
+      ],
+      indexes: [
+        { name: 'idx_rmh_recorded_at', columns: ['recorded_at'] }
+      ]
     }
   ]
 };

@@ -8,6 +8,7 @@ import http from 'http';
 import { URL } from 'url';
 import { createLogger } from './logger';
 import { SettingsOperations } from '../db/bal/business-adapter';
+import { pushHttpProbe } from '../service/resource/cache';
 
 const log = createLogger('ProxyHttp');
 // Dynamic imports for proxy agents
@@ -105,6 +106,7 @@ export interface RequestOptions {
  * 使用代理进行 HTTPS 请求
  */
 export function httpsRequest(url: string, options: RequestOptions = {}, agent?: any): Promise<{ status: number; data: string; headers: Record<string, string> }> {
+  const startTime = Date.now();
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
     const requestOptions: https.RequestOptions = {
@@ -124,6 +126,7 @@ export function httpsRequest(url: string, options: RequestOptions = {}, agent?: 
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
+        pushHttpProbe(Date.now() - startTime);
         resolve({
           status: res.statusCode || 0,
           data,
@@ -132,8 +135,12 @@ export function httpsRequest(url: string, options: RequestOptions = {}, agent?: 
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      pushHttpProbe(Date.now() - startTime);
+      reject(err);
+    });
     req.on('timeout', () => {
+      pushHttpProbe(Date.now() - startTime);
       req.destroy();
       reject(new Error('Request timeout'));
     });
@@ -150,6 +157,7 @@ export function httpsRequest(url: string, options: RequestOptions = {}, agent?: 
  * 使用代理进行 HTTP 请求
  */
 export function httpRequest(url: string, options: RequestOptions = {}, agent?: any): Promise<{ status: number; data: string; headers: Record<string, string> }> {
+  const startTime = Date.now();
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
     const requestOptions: http.RequestOptions = {
@@ -169,6 +177,7 @@ export function httpRequest(url: string, options: RequestOptions = {}, agent?: a
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
+        pushHttpProbe(Date.now() - startTime);
         resolve({
           status: res.statusCode || 0,
           data,
@@ -177,8 +186,12 @@ export function httpRequest(url: string, options: RequestOptions = {}, agent?: a
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      pushHttpProbe(Date.now() - startTime);
+      reject(err);
+    });
     req.on('timeout', () => {
+      pushHttpProbe(Date.now() - startTime);
       req.destroy();
       reject(new Error('Request timeout'));
     });
