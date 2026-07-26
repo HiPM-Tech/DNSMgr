@@ -1,5 +1,53 @@
 # 更新日志
 
+## [2.1.0] - 2026-07-27
+
+### 🚀 新功能
+- **系统资源监控面板**: 全新资源监控系统，支持 CPU/内存/磁盘/运行时间/队列深度/数据库查询等系统指标实时监控
+- **DNS Zone 文件导出**: 支持将域名解析记录导出为标准 BIND Zone 文件格式，包含 ASCII 标识和 HiDNS 信息
+- **Zone 导出格式选择**: 弹窗让用户选择"相对主机名"（默认，使用 @ 和相对子域名）或"完整主机名（FQDN）"（所有记录为完整域名）
+- **DNS 加密/明文探针拆分**: 将 DNS 探测数据拆分为加密（DoH/DoT）和明文两个独立指标，分别记录 p50/p95/p99 延迟百分位
+- **探针百分位持久化**: p50/p95/p99 延迟百分位数据持久化到数据库，服务重启后不丢失
+- **HiDNS ASCII 标识**: 启动日志和 Zone 文件头部添加 HiDNS ASCII 艺术字标识
+
+### 🐛 Bug 修复
+- **DNSPod 导出失败**: 修复 DNSPod 分页导出时 `ResourceNotFound.NoDataOfRecord` 错误导致无限循环的问题
+- **DNSPod 记录获取修复**: 修复 DNSPod 适配器吞掉非预期错误导致前端无法感知的问题
+- **运行时间显示修复**: 修复运行时间小于 30 分钟时显示为 0 的问题，改为秒级精度实时显示
+- **P50/P95/P99 数据覆盖**: 修复数据库 NULL 值覆盖 RingBuffer 实时有效百分位数据的问题
+- **探针数据清空问题**: 修复 clearProbes() 每 60 秒清空 RingBuffer 导致前端 loading 直到新数据积累的问题
+
+### 🔧 优化
+- **资源监控架构重构**: 采用高频采集、低频写入、内存 RingBuffer、时序数据管理架构
+- **WebSocket 轮询保底**: 始终使用轮询获取资源监控数据（15 秒间隔），WebSocket 不稳定时自动保底
+- **运行时间显示优化**: 仅显示格式化字符串（Xd Xh Xm Xs / X天 X小时 X分钟 X秒），英文版/中文版自适应
+- **数据库初始化流程**: 优化启动顺序：connect() → initializeDSM() → checkpoint() → disconnect() → connect() → 启动业务服务
+- **DSM Schema 完善**: 为 `resource_metric_history` 表添加 `uptime_seconds` 等缺失列定义
+
+### 💄 样式
+- **页面标题字体阴影**: 暗夜模式黑色阴影、白昼模式白色阴影，确保自定义背景时标题可见
+- **按钮字体阴影**: 所有按钮添加自适应字体阴影，提升自定义背景下的可读性
+
+### 🌐 国际化
+- **全语言 i18n 对齐**: 补齐 11 种语言（en/zh-CN/ja/ar/de/es/fr/ko/pt/ru/zh-CN-Mesugaki）的 Zone 导出和资源监控相关翻译键
+
+### 📝 技术细节
+- **文件变更**:
+  - `server/src/service/resource/` - 资源监控服务全套（collector、cache、resolver、monitor、job）
+  - `server/src/db/bal/resource-metrics-operations.ts` - 资源指标 BAL 层
+  - `server/src/db/dsm/schemas/complete-schema.ts` - 资源监控相关表 schema
+  - `server/src/routes/resource-monitor.ts` - 资源监控路由
+  - `server/src/routes/records.ts` - Zone 导出功能
+  - `server/src/lib/dns/providers/dnspod/adapter.ts` - DNSPod 错误处理修复
+  - `server/app.ts` - HiDNS ASCII 标识、启动流程优化
+  - `client/src/pages/ResourcePanel.tsx` - 资源监控面板
+  - `client/src/pages/Records.tsx` - Zone 导出 UI
+  - `client/src/api/resource-monitor.ts` - 资源监控 API
+  - `client/src/api/records.ts` - Zone 导出 API
+  - `client/src/styles/globals.css` - 字体阴影、运行时间样式
+  - `client/src/i18n/locales/*.json` - 11 种语言文件更新
+  - `client/package.json`, `server/package.json`, `package.json` - 版本 2.1.0
+
 ## [2.0.12] - 2026-07-15
 
 ### 🚀 新功能
