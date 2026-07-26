@@ -828,6 +828,7 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'sqlite_io_reads', type: 'integer', defaultValue: 0 },
         { name: 'sqlite_io_writes', type: 'integer', defaultValue: 0 },
         { name: 'recorded_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
+        { name: 'updated_at', type: 'datetime', defaultValue: 'CURRENT_TIMESTAMP' },
       ]
     },
     {
