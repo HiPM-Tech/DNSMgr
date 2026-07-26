@@ -3410,8 +3410,8 @@ export const WebAuthnOperations = {
   /** 禁用 WebAuthn */
   async disable(userId: number): Promise<void> {
     return executeInternal(
-      'UPDATE user_2fa SET enabled = FALSE WHERE user_id = ? AND type = ?',
-      [userId, 'webauthn'],
+      'UPDATE user_2fa SET enabled = ? WHERE user_id = ? AND type = ?',
+      [0, userId, 'webauthn'],
       { operation: 'WebAuthn.disable', table: 'user_2fa' }
     );
   },
@@ -3788,8 +3788,7 @@ export const RenewableDomainOperations = {
 
   /** 根据提供商类型获取续期域名列表（过滤掉已禁用账号的域名） */
   async getByProviderType(providerType: string): Promise<any[]> {
-    const dbType = getDbType();
-    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
+    const enabledValue = '1';
 
     const builder = RenewableDomainQueryBuilder.byProviderType(providerType, enabledValue);
     const { sql, params } = builder.build();
@@ -4173,13 +4172,10 @@ export const NSMonitorOperations = {
   /** 创建域名监测配置 */
   async create(data: { user_id: number; domain_name: string; expected_ns?: string }): Promise<number> {
     const now = formatDateForDB(new Date());
-    // PostgreSQL requires explicit boolean cast for enabled field
-    const dbType = process.env.DB_TYPE || 'sqlite';
-    const enabledValue = dbType === 'postgresql' ? 'TRUE' : '1';
     return insertInternal(
       `INSERT INTO ns_monitor_domains (user_id, domain_name, expected_ns, current_ns, status, enabled, created_at, updated_at)
-       VALUES (?, ?, ?, '', 'ok', ${enabledValue}, ?, ?)`,
-      [data.user_id, data.domain_name, data.expected_ns || '', now, now],
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [data.user_id, data.domain_name, data.expected_ns || '', '', 'ok', 1, now, now],
       { operation: 'NSMonitor.create', table: 'ns_monitor_domains' }
     );
   },
