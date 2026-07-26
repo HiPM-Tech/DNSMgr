@@ -66,7 +66,6 @@ const defaultSnapshot: ResourceSnapshot = {
 export function ResourcePanel() {
   const { t } = useI18n()
   const [snapshot, setSnapshot] = useState<ResourceSnapshot>(defaultSnapshot)
-  const [connected, setConnected] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const onMessage = useCallback((msg: { type: string; data?: ResourceSnapshot }) => {
@@ -77,22 +76,17 @@ export function ResourcePanel() {
 
   const { isConnected } = useWebSocket({ onMessage })
 
+  // 始终使用轮询获取资源监控数据（WS 不稳定时保底）
   useEffect(() => {
-    setConnected(isConnected)
-  }, [isConnected])
-
-  useEffect(() => {
-    if (!connected) {
-      intervalRef.current = setInterval(async () => {
-        try {
-          const { resourceMonitorApi } = await import('../api')
-          const data = await resourceMonitorApi.current()
-          setSnapshot(data)
-        } catch { /* ignore */ }
-      }, 15000)
-    }
+    intervalRef.current = setInterval(async () => {
+      try {
+        const { resourceMonitorApi } = await import('../api')
+        const data = await resourceMonitorApi.current()
+        setSnapshot(data)
+      } catch { /* ignore */ }
+    }, 15000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [connected])
+  }, [])
 
   const httpColor = `var(--td-success-color)`
   const dnsColor = `var(--td-brand-color)`
@@ -104,8 +98,8 @@ export function ResourcePanel() {
       className="dashboard-panel"
       title={t('resourceMonitor.title')}
       subtitle={
-        <Tag theme={connected ? 'success' : 'default'} variant="light" size="small">
-          {connected ? t('resourceMonitor.live') : t('resourceMonitor.polling')}
+        <Tag theme={isConnected ? 'success' : 'default'} variant="light" size="small">
+          {isConnected ? t('resourceMonitor.live') : t('resourceMonitor.polling')}
         </Tag>
       }
     >
