@@ -181,93 +181,91 @@ export function ResourcePanel() {
           </Row>
 
           {/* Probe latency bars */}
-          {(snapshot.http_p50_ms != null || snapshot.dns_encrypted_p50_ms != null || snapshot.dns_plain_p50_ms != null) && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 12, color: 'var(--td-text-color-placeholder)', marginBottom: 8 }}>
-                {t('resourceMonitor.latencyTitle')}
-              </div>
-              <Row gutter={[16, 8]}>
-                <Col xs={6}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <ChartBubbleIcon style={{ color: httpColor }} />
-                    <span style={{ fontSize: 12 }}>HTTP</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 11, color: 'var(--td-text-color-placeholder)' }}>
-                    <Tooltip content={`p50: ${snapshot.http_p50_ms ?? '-'}ms`}>
-                      <span>50%</span>
-                    </Tooltip>
-                    <Tooltip content={`p95: ${snapshot.http_p95_ms ?? '-'}ms`}>
-                      <span>95%</span>
-                    </Tooltip>
-                    <Tooltip content={`p99: ${snapshot.http_p99_ms ?? '-'}ms`}>
-                      <span>99%</span>
-                    </Tooltip>
-                  </div>
-                  <Progress
-                    percentage={snapshot.http_p50_ms != null && snapshot.http_p95_ms != null
-                      ? Math.min(Math.round((snapshot.http_p50_ms / Math.max(snapshot.http_p95_ms, 1)) * 100), 100)
-                      : 0}
-                    label={snapshot.http_p50_ms != null ? `${snapshot.http_p50_ms.toFixed(0)}ms` : '-'}
-                    color={httpColor}
-                    trackColor="var(--td-bg-color-component)"
-                    size="small"
-                  />
-                </Col>
-                <Col xs={6}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <CloudIcon style={{ color: dnsColor }} />
-                    <span style={{ fontSize: 12 }}>{t('resourceMonitor.probeDnsEncrypted')}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 11, color: 'var(--td-text-color-placeholder)' }}>
-                    <Tooltip content={`p50: ${snapshot.dns_encrypted_p50_ms ?? '-'}ms`}>
-                      <span>50%</span>
-                    </Tooltip>
-                    <Tooltip content={`p95: ${snapshot.dns_encrypted_p95_ms ?? '-'}ms`}>
-                      <span>95%</span>
-                    </Tooltip>
-                    <Tooltip content={`p99: ${snapshot.dns_encrypted_p99_ms ?? '-'}ms`}>
-                      <span>99%</span>
-                    </Tooltip>
-                  </div>
-                  <Progress
-                    percentage={snapshot.dns_encrypted_p50_ms != null && snapshot.dns_encrypted_p95_ms != null
-                      ? Math.min(Math.round((snapshot.dns_encrypted_p50_ms / Math.max(snapshot.dns_encrypted_p95_ms, 1)) * 100), 100)
-                      : 0}
-                    label={snapshot.dns_encrypted_p50_ms != null ? `${snapshot.dns_encrypted_p50_ms.toFixed(0)}ms` : '-'}
-                    color={dnsColor}
-                    trackColor="var(--td-bg-color-component)"
-                    size="small"
-                  />
-                </Col>
-                <Col xs={6}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <CloudIcon style={{ color: dnsColor }} />
-                    <span style={{ fontSize: 12 }}>{t('resourceMonitor.probeDnsPlain')}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 11, color: 'var(--td-text-color-placeholder)' }}>
-                    <Tooltip content={`p50: ${snapshot.dns_plain_p50_ms ?? '-'}ms`}>
-                      <span>50%</span>
-                    </Tooltip>
-                    <Tooltip content={`p95: ${snapshot.dns_plain_p95_ms ?? '-'}ms`}>
-                      <span>95%</span>
-                    </Tooltip>
-                    <Tooltip content={`p99: ${snapshot.dns_plain_p99_ms ?? '-'}ms`}>
-                      <span>99%</span>
-                    </Tooltip>
-                  </div>
-                  <Progress
-                    percentage={snapshot.dns_plain_p50_ms != null && snapshot.dns_plain_p95_ms != null
-                      ? Math.min(Math.round((snapshot.dns_plain_p50_ms / Math.max(snapshot.dns_plain_p95_ms, 1)) * 100), 100)
-                      : 0}
-                    label={snapshot.dns_plain_p50_ms != null ? `${snapshot.dns_plain_p50_ms.toFixed(0)}ms` : '-'}
-                    color={dnsColor}
-                    trackColor="var(--td-bg-color-component)"
-                    size="small"
-                  />
-                </Col>
-              </Row>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--td-text-color-placeholder)', marginBottom: 8 }}>
+              {t('resourceMonitor.latencyTitle')}
             </div>
-          )}
+            <Row gutter={[16, 8]}>
+              <Col xs={6}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ChartBubbleIcon style={{ color: httpColor }} />
+                  <span style={{ fontSize: 12 }}>HTTP</span>
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 11, color: 'var(--td-text-color-placeholder)' }}>
+                  <Tooltip content={`p50: ${snapshot.http_p50_ms ?? '-'}ms`}>
+                    <span>50%</span>
+                  </Tooltip>
+                  <Tooltip content={`p95: ${snapshot.http_p95_ms ?? '-'}ms`}>
+                    <span>95%</span>
+                  </Tooltip>
+                  <Tooltip content={`p99: ${snapshot.http_p99_ms ?? '-'}ms`}>
+                    <span>99%</span>
+                  </Tooltip>
+                </div>
+                <Progress
+                  percentage={snapshot.http_p50_ms != null && snapshot.http_p95_ms != null
+                    ? Math.min(Math.round((snapshot.http_p50_ms / Math.max(snapshot.http_p95_ms, 1)) * 100), 100)
+                    : 0}
+                  label={snapshot.http_p50_ms != null ? `${snapshot.http_p50_ms.toFixed(0)}ms` : '-'}
+                  color={httpColor}
+                  trackColor="var(--td-bg-color-component)"
+                  size="small"
+                />
+              </Col>
+              <Col xs={6}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <CloudIcon style={{ color: dnsColor }} />
+                  <span style={{ fontSize: 12 }}>{t('resourceMonitor.probeDnsEncrypted')}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 11, color: 'var(--td-text-color-placeholder)' }}>
+                  <Tooltip content={`p50: ${snapshot.dns_encrypted_p50_ms ?? '-'}ms`}>
+                    <span>50%</span>
+                  </Tooltip>
+                  <Tooltip content={`p95: ${snapshot.dns_encrypted_p95_ms ?? '-'}ms`}>
+                    <span>95%</span>
+                  </Tooltip>
+                  <Tooltip content={`p99: ${snapshot.dns_encrypted_p99_ms ?? '-'}ms`}>
+                    <span>99%</span>
+                  </Tooltip>
+                </div>
+                <Progress
+                  percentage={snapshot.dns_encrypted_p50_ms != null && snapshot.dns_encrypted_p95_ms != null
+                    ? Math.min(Math.round((snapshot.dns_encrypted_p50_ms / Math.max(snapshot.dns_encrypted_p95_ms, 1)) * 100), 100)
+                    : 0}
+                  label={snapshot.dns_encrypted_p50_ms != null ? `${snapshot.dns_encrypted_p50_ms.toFixed(0)}ms` : '-'}
+                  color={dnsColor}
+                  trackColor="var(--td-bg-color-component)"
+                  size="small"
+                />
+              </Col>
+              <Col xs={6}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <CloudIcon style={{ color: dnsColor }} />
+                  <span style={{ fontSize: 12 }}>{t('resourceMonitor.probeDnsPlain')}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 11, color: 'var(--td-text-color-placeholder)' }}>
+                  <Tooltip content={`p50: ${snapshot.dns_plain_p50_ms ?? '-'}ms`}>
+                    <span>50%</span>
+                  </Tooltip>
+                  <Tooltip content={`p95: ${snapshot.dns_plain_p95_ms ?? '-'}ms`}>
+                    <span>95%</span>
+                  </Tooltip>
+                  <Tooltip content={`p99: ${snapshot.dns_plain_p99_ms ?? '-'}ms`}>
+                    <span>99%</span>
+                  </Tooltip>
+                </div>
+                <Progress
+                  percentage={snapshot.dns_plain_p50_ms != null && snapshot.dns_plain_p95_ms != null
+                    ? Math.min(Math.round((snapshot.dns_plain_p50_ms / Math.max(snapshot.dns_plain_p95_ms, 1)) * 100), 100)
+                    : 0}
+                  label={snapshot.dns_plain_p50_ms != null ? `${snapshot.dns_plain_p50_ms.toFixed(0)}ms` : '-'}
+                  color={dnsColor}
+                  trackColor="var(--td-bg-color-component)"
+                  size="small"
+                />
+              </Col>
+            </Row>
+          </div>
         </div>
       </div>
     </Card>
