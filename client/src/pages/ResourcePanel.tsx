@@ -15,6 +15,18 @@ function pctColor(pct: number | null): string {
   return 'var(--td-error-color)'
 }
 
+function formatUptime(hours: number | null): { value: number; suffix: string } {
+  if (hours === null || hours <= 0) return { value: 0, suffix: '' }
+  const totalSeconds = Math.round(hours * 3600)
+  const days = Math.floor(totalSeconds / 86400)
+  const remaining = totalSeconds % 86400
+  const h = Math.floor(remaining / 3600)
+  const m = Math.floor((remaining % 3600) / 60)
+  if (days > 0) return { value: days, suffix: `d ${h}h ${m}m` }
+  if (h > 0) return { value: h, suffix: `h ${m}m` }
+  return { value: m, suffix: 'm' }
+}
+
 const defaultSnapshot: ResourceSnapshot = {
   cpu_percent: null,
   memory_percent: null,
@@ -89,7 +101,16 @@ export function ResourcePanel() {
         <div className="dashboard-resource__meters">
           <Row gutter={[8, 8]}>
             {/* System stats */}
-            <Col xs={6} sm={4} xl={3}>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
+              <Statistic
+                title={t('resourceMonitor.cpu')}
+                value={snapshot.cpu_percent != null ? snapshot.cpu_percent : 0}
+                suffix="%"
+                loading={snapshot.cpu_percent == null}
+                color={pctColor(snapshot.cpu_percent)}
+              />
+            </Col>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
               <Statistic
                 title={t('resourceMonitor.memory')}
                 value={snapshot.memory_mb != null ? snapshot.memory_mb : 0}
@@ -98,15 +119,15 @@ export function ResourcePanel() {
                 color={pctColor(snapshot.memory_percent)}
               />
             </Col>
-            <Col xs={6} sm={4} xl={3}>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
               <Statistic
                 title={t('resourceMonitor.uptime')}
-                value={snapshot.uptime_hours != null ? snapshot.uptime_hours : 0}
-                suffix="h"
+                value={snapshot.uptime_hours != null ? formatUptime(snapshot.uptime_hours).value : 0}
+                suffix={snapshot.uptime_hours != null ? formatUptime(snapshot.uptime_hours).suffix : ''}
                 loading={snapshot.uptime_hours == null}
               />
             </Col>
-            <Col xs={6} sm={4} xl={3}>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
               <Statistic
                 title={t('resourceMonitor.probeHttp')}
                 value={snapshot.http_probe_count}
@@ -114,7 +135,7 @@ export function ResourcePanel() {
                 color={httpColor}
               />
             </Col>
-            <Col xs={6} sm={4} xl={3}>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
               <Statistic
                 title={t('resourceMonitor.probeDns')}
                 value={snapshot.dns_probe_count}
@@ -122,13 +143,13 @@ export function ResourcePanel() {
                 color={dnsColor}
               />
             </Col>
-            <Col xs={6} sm={4} xl={3}>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
               <Statistic
                 title={t('resourceMonitor.dbQueries')}
                 value={snapshot.db_queries_total}
               />
             </Col>
-            <Col xs={6} sm={4} xl={3}>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
               <Statistic
                 title={t('resourceMonitor.queueDepth')}
                 value={snapshot.task_queue_depth}

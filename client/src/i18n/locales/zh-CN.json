@@ -1622,16 +1622,17 @@
             }
         },
         "resourceMonitor": {
-            "title": "System Resources",
-            "live": "Live",
-            "polling": "Polling",
-            "memory": "Memory",
-            "uptime": "Uptime",
-            "probeHttp": "HTTP Probes",
-            "probeDns": "DNS Probes",
-            "dbQueries": "DB Queries/min",
-            "queueDepth": "Queue Depth",
-            "latencyTitle": "Response Latency (p50 / p95 / p99)"
+            "title": "系统资源",
+            "live": "实时",
+            "polling": "轮询",
+            "cpu": "CPU",
+            "memory": "内存",
+            "uptime": "运行时间",
+            "probeHttp": "HTTP 探针",
+            "probeDns": "DNS 探针",
+            "dbQueries": "数据库查询/分钟",
+            "queueDepth": "队列深度",
+            "latencyTitle": "响应延迟 (P50 / P95 / P99)"
         }
     }
 }

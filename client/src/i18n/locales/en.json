@@ -1625,13 +1625,14 @@
             "title": "System Resources",
             "live": "Live",
             "polling": "Polling",
+            "cpu": "CPU",
             "memory": "Memory",
             "uptime": "Uptime",
             "probeHttp": "HTTP Probes",
             "probeDns": "DNS Probes",
             "dbQueries": "DB Queries/min",
             "queueDepth": "Queue Depth",
-            "latencyTitle": "Response Latency (p50 / p95 / p99)"
+            "latencyTitle": "Response Latency (P50 / P95 / P99)"
         }
     }
 }

@@ -26,7 +26,7 @@ export interface ResourceSnapshot {
 
 export const resourceMonitorApi = {
   current(): Promise<ResourceSnapshot> {
-    return api.get('/resource-monitor/current').then(r => r.data)
+    return api.get('/resource-monitor/current').then(r => r.data.data)
   },
   history(params: { page?: number; pageSize?: number; hours?: number }) {
     return api.get('/resource-monitor/history', { params }).then(r => r.data)

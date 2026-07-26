@@ -24,7 +24,7 @@ function getCpuPercent(): number | null {
     if (timeDeltaMs <= 0) return null;
     // 微秒 -> 毫秒 CPU 时间 / 秒级 wall 时间 -> 百分比
     const percent = (cpuDeltaUs / 1000 / (timeDeltaMs / 1000) / 1000) * 100;
-    return Math.max(0, Number(percent.toFixed(2)));
+    return Math.max(0, Math.round(percent));
   } catch (err) {
     log.warn('Failed to calculate CPU usage', { error: err });
     return null;
