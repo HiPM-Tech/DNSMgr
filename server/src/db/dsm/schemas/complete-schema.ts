@@ -840,6 +840,7 @@ export const COMPLETE_SCHEMA: DatabaseSchema = {
         { name: 'memory_percent', type: 'number', nullable: true },
         { name: 'memory_mb', type: 'number', nullable: true },
         { name: 'disk_percent', type: 'number', nullable: true },
+        { name: 'uptime_hours', type: 'number', nullable: true },
         { name: 'task_queue_depth', type: 'integer', defaultValue: 0 },
         { name: 'db_queries_total', type: 'integer', defaultValue: 0 },
         { name: 'db_errors_total', type: 'integer', defaultValue: 0 },
