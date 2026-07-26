@@ -10,7 +10,7 @@ import { queryPlainDNS as queryPlainDNSImpl } from './plain-resolver';
 import { createTLSViaProxy, parseProxyUrl } from './proxy-tunnel';
 import { createLogger } from '../../logger';
 import { getProxyConfig } from '../../proxy-http';
-import { pushDnsProbe } from '../../../service/resource/cache';
+import { pushDnsProbe, pushDnsEncryptedProbe, pushDnsPlainProbe } from '../../../service/resource/cache';
 
 const log = createLogger('DNS').sub('Resolver').sub('Resolver');
 export class DNSResolver {
@@ -34,7 +34,7 @@ export class DNSResolver {
     if (preferEncrypted) {
       const encryptedResult = await this.queryEncrypted(domain, type, timeout, useProxy);
       if (encryptedResult.success) {
-        pushDnsProbe(Date.now() - resolveStart); return encryptedResult
+        pushDnsEncryptedProbe(Date.now() - resolveStart); return encryptedResult
       }
       log.debug(`Encrypted DNS failed for ${domain}, falling back to plain DNS`);
     }
@@ -42,7 +42,7 @@ export class DNSResolver {
     // 2. 尝试明文 DNS 查询（UDP/TCP）
     const plainResult = await this.queryPlain(domain, type, timeout);
     if (plainResult.success) {
-      pushDnsProbe(Date.now() - resolveStart); return plainResult
+      pushDnsPlainProbe(Date.now() - resolveStart); return plainResult
     }
     log.debug(`Plain DNS failed for ${domain}, falling back to system DNS`);
 

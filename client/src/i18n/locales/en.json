@@ -1630,6 +1630,8 @@
             "uptime": "Uptime",
             "probeHttp": "HTTP Probes",
             "probeDns": "DNS Probes",
+            "probeDnsEncrypted": "DNS Encrypted",
+            "probeDnsPlain": "DNS Plain",
             "dbQueries": "DB Queries/min",
             "queueDepth": "Queue Depth",
             "latencyTitle": "Response Latency (P50 / P95 / P99)"

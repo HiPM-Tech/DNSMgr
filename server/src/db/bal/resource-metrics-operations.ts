@@ -21,6 +21,16 @@ export interface ResourceSnapshot {
   dns_p50_ms: number | null;
   dns_p95_ms: number | null;
   dns_p99_ms: number | null;
+  dns_encrypted_probe_count: number;
+  dns_encrypted_avg_ms: number | null;
+  dns_encrypted_p50_ms: number | null;
+  dns_encrypted_p95_ms: number | null;
+  dns_encrypted_p99_ms: number | null;
+  dns_plain_probe_count: number;
+  dns_plain_avg_ms: number | null;
+  dns_plain_p50_ms: number | null;
+  dns_plain_p95_ms: number | null;
+  dns_plain_p99_ms: number | null;
   sqlite_io_reads: number;
   sqlite_io_writes: number;
   recorded_at: string;
@@ -47,6 +57,16 @@ const resourceMetricsColumns = [
   'dns_p50_ms',
   'dns_p95_ms',
   'dns_p99_ms',
+  'dns_encrypted_probe_count',
+  'dns_encrypted_avg_ms',
+  'dns_encrypted_p50_ms',
+  'dns_encrypted_p95_ms',
+  'dns_encrypted_p99_ms',
+  'dns_plain_probe_count',
+  'dns_plain_avg_ms',
+  'dns_plain_p50_ms',
+  'dns_plain_p95_ms',
+  'dns_plain_p99_ms',
   'sqlite_io_reads',
   'sqlite_io_writes',
 ];
@@ -70,6 +90,16 @@ const historyColumns = [
   'dns_p50_ms',
   'dns_p95_ms',
   'dns_p99_ms',
+  'dns_encrypted_probe_count',
+  'dns_encrypted_avg_ms',
+  'dns_encrypted_p50_ms',
+  'dns_encrypted_p95_ms',
+  'dns_encrypted_p99_ms',
+  'dns_plain_probe_count',
+  'dns_plain_avg_ms',
+  'dns_plain_p50_ms',
+  'dns_plain_p95_ms',
+  'dns_plain_p99_ms',
   'sqlite_io_reads',
   'sqlite_io_writes',
   'recorded_at',
@@ -96,6 +126,16 @@ function snapshotToMetricParams(snapshot: ResourceSnapshot): unknown[] {
     snapshot.dns_p50_ms,
     snapshot.dns_p95_ms,
     snapshot.dns_p99_ms,
+    snapshot.dns_encrypted_probe_count,
+    snapshot.dns_encrypted_avg_ms,
+    snapshot.dns_encrypted_p50_ms,
+    snapshot.dns_encrypted_p95_ms,
+    snapshot.dns_encrypted_p99_ms,
+    snapshot.dns_plain_probe_count,
+    snapshot.dns_plain_avg_ms,
+    snapshot.dns_plain_p50_ms,
+    snapshot.dns_plain_p95_ms,
+    snapshot.dns_plain_p99_ms,
     snapshot.sqlite_io_reads,
     snapshot.sqlite_io_writes,
   ];
@@ -121,6 +161,16 @@ function snapshotToHistoryParams(snapshot: ResourceSnapshot): unknown[] {
     snapshot.dns_p50_ms,
     snapshot.dns_p95_ms,
     snapshot.dns_p99_ms,
+    snapshot.dns_encrypted_probe_count,
+    snapshot.dns_encrypted_avg_ms,
+    snapshot.dns_encrypted_p50_ms,
+    snapshot.dns_encrypted_p95_ms,
+    snapshot.dns_encrypted_p99_ms,
+    snapshot.dns_plain_probe_count,
+    snapshot.dns_plain_avg_ms,
+    snapshot.dns_plain_p50_ms,
+    snapshot.dns_plain_p95_ms,
+    snapshot.dns_plain_p99_ms,
     snapshot.sqlite_io_reads,
     snapshot.sqlite_io_writes,
     formatDateForDB(new Date(snapshot.recorded_at)),

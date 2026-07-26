@@ -48,6 +48,16 @@ const defaultSnapshot: ResourceSnapshot = {
   dns_p50_ms: null,
   dns_p95_ms: null,
   dns_p99_ms: null,
+  dns_encrypted_probe_count: 0,
+  dns_encrypted_avg_ms: null,
+  dns_encrypted_p50_ms: null,
+  dns_encrypted_p95_ms: null,
+  dns_encrypted_p99_ms: null,
+  dns_plain_probe_count: 0,
+  dns_plain_avg_ms: null,
+  dns_plain_p50_ms: null,
+  dns_plain_p95_ms: null,
+  dns_plain_p99_ms: null,
   sqlite_io_reads: 0,
   sqlite_io_writes: 0,
   recorded_at: '',
@@ -147,6 +157,22 @@ export function ResourcePanel() {
             </Col>
             <Col xs={12} sm={6} md={4} lg={3} xl={2}>
               <Statistic
+                title={t('resourceMonitor.probeDnsEncrypted')}
+                value={snapshot.dns_encrypted_probe_count}
+                suffix={snapshot.dns_encrypted_avg_ms != null ? `${snapshot.dns_encrypted_avg_ms.toFixed(0)}ms` : ''}
+                color={dnsColor}
+              />
+            </Col>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
+              <Statistic
+                title={t('resourceMonitor.probeDnsPlain')}
+                value={snapshot.dns_plain_probe_count}
+                suffix={snapshot.dns_plain_avg_ms != null ? `${snapshot.dns_plain_avg_ms.toFixed(0)}ms` : ''}
+                color={dnsColor}
+              />
+            </Col>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
+              <Statistic
                 title={t('resourceMonitor.dbQueries')}
                 value={snapshot.db_queries_total}
               />
@@ -161,7 +187,7 @@ export function ResourcePanel() {
           </Row>
 
           {/* Probe latency bars */}
-          {(snapshot.http_p50_ms != null || snapshot.dns_p50_ms != null) && (
+          {(snapshot.http_p50_ms != null || snapshot.dns_encrypted_p50_ms != null || snapshot.dns_plain_p50_ms != null) && (
             <div style={{ marginTop: 12 }}>
               <div style={{ fontSize: 12, color: 'var(--td-text-color-placeholder)', marginBottom: 8 }}>
                 {t('resourceMonitor.latencyTitle')}
@@ -196,24 +222,50 @@ export function ResourcePanel() {
                 <Col xs={6}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <CloudIcon style={{ color: dnsColor }} />
-                    <span style={{ fontSize: 12 }}>DNS</span>
+                    <span style={{ fontSize: 12 }}>{t('resourceMonitor.probeDnsEncrypted')}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 11, color: 'var(--td-text-color-placeholder)' }}>
-                    <Tooltip content={`p50: ${snapshot.dns_p50_ms ?? '-'}ms`}>
+                    <Tooltip content={`p50: ${snapshot.dns_encrypted_p50_ms ?? '-'}ms`}>
                       <span>50%</span>
                     </Tooltip>
-                    <Tooltip content={`p95: ${snapshot.dns_p95_ms ?? '-'}ms`}>
+                    <Tooltip content={`p95: ${snapshot.dns_encrypted_p95_ms ?? '-'}ms`}>
                       <span>95%</span>
                     </Tooltip>
-                    <Tooltip content={`p99: ${snapshot.dns_p99_ms ?? '-'}ms`}>
+                    <Tooltip content={`p99: ${snapshot.dns_encrypted_p99_ms ?? '-'}ms`}>
                       <span>99%</span>
                     </Tooltip>
                   </div>
                   <Progress
-                    percentage={snapshot.dns_p50_ms != null && snapshot.dns_p95_ms != null
-                      ? Math.min(Math.round((snapshot.dns_p50_ms / Math.max(snapshot.dns_p95_ms, 1)) * 100), 100)
+                    percentage={snapshot.dns_encrypted_p50_ms != null && snapshot.dns_encrypted_p95_ms != null
+                      ? Math.min(Math.round((snapshot.dns_encrypted_p50_ms / Math.max(snapshot.dns_encrypted_p95_ms, 1)) * 100), 100)
                       : 0}
-                    label={snapshot.dns_p50_ms != null ? `${snapshot.dns_p50_ms.toFixed(0)}ms` : '-'}
+                    label={snapshot.dns_encrypted_p50_ms != null ? `${snapshot.dns_encrypted_p50_ms.toFixed(0)}ms` : '-'}
+                    color={dnsColor}
+                    trackColor="var(--td-bg-color-component)"
+                    size="small"
+                  />
+                </Col>
+                <Col xs={6}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <CloudIcon style={{ color: dnsColor }} />
+                    <span style={{ fontSize: 12 }}>{t('resourceMonitor.probeDnsPlain')}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 11, color: 'var(--td-text-color-placeholder)' }}>
+                    <Tooltip content={`p50: ${snapshot.dns_plain_p50_ms ?? '-'}ms`}>
+                      <span>50%</span>
+                    </Tooltip>
+                    <Tooltip content={`p95: ${snapshot.dns_plain_p95_ms ?? '-'}ms`}>
+                      <span>95%</span>
+                    </Tooltip>
+                    <Tooltip content={`p99: ${snapshot.dns_plain_p99_ms ?? '-'}ms`}>
+                      <span>99%</span>
+                    </Tooltip>
+                  </div>
+                  <Progress
+                    percentage={snapshot.dns_plain_p50_ms != null && snapshot.dns_plain_p95_ms != null
+                      ? Math.min(Math.round((snapshot.dns_plain_p50_ms / Math.max(snapshot.dns_plain_p95_ms, 1)) * 100), 100)
+                      : 0}
+                    label={snapshot.dns_plain_p50_ms != null ? `${snapshot.dns_plain_p50_ms.toFixed(0)}ms` : '-'}
                     color={dnsColor}
                     trackColor="var(--td-bg-color-component)"
                     size="small"

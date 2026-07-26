@@ -1630,6 +1630,8 @@
             "uptime": "运行时间",
             "probeHttp": "HTTP 探针",
             "probeDns": "DNS 探针",
+            "probeDnsEncrypted": "DNS 加密",
+            "probeDnsPlain": "DNS 明文",
             "dbQueries": "数据库查询/分钟",
             "queueDepth": "队列深度",
             "latencyTitle": "响应延迟 (P50 / P95 / P99)"

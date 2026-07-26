@@ -19,6 +19,16 @@ export interface ResourceSnapshot {
   dns_p50_ms: number | null
   dns_p95_ms: number | null
   dns_p99_ms: number | null
+  dns_encrypted_probe_count: number
+  dns_encrypted_avg_ms: number | null
+  dns_encrypted_p50_ms: number | null
+  dns_encrypted_p95_ms: number | null
+  dns_encrypted_p99_ms: number | null
+  dns_plain_probe_count: number
+  dns_plain_avg_ms: number | null
+  dns_plain_p50_ms: number | null
+  dns_plain_p95_ms: number | null
+  dns_plain_p99_ms: number | null
   sqlite_io_reads: number
   sqlite_io_writes: number
   recorded_at: string
