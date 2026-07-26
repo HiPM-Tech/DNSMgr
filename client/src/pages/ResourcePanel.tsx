@@ -22,9 +22,11 @@ function formatUptime(hours: number | null): { value: number; suffix: string } {
   const remaining = totalSeconds % 86400
   const h = Math.floor(remaining / 3600)
   const m = Math.floor((remaining % 3600) / 60)
-  if (days > 0) return { value: days, suffix: `d ${h}h ${m}m` }
-  if (h > 0) return { value: h, suffix: `h ${m}m` }
-  return { value: m, suffix: 'm' }
+  const s = remaining % 60
+  if (days > 0) return { value: days, suffix: `d ${h}h ${m}m ${s}s` }
+  if (h > 0) return { value: h, suffix: `h ${m}m ${s}s` }
+  if (m > 0) return { value: m, suffix: `m ${s}s` }
+  return { value: s, suffix: 's' }
 }
 
 const defaultSnapshot: ResourceSnapshot = {
@@ -97,8 +99,8 @@ export function ResourcePanel() {
         </Tag>
       }
     >
-      <div className="dashboard-resource">
-        <div className="dashboard-resource__meters">
+      <div className="resource-panel">
+        <div className="resource-panel__meters">
           <Row gutter={[8, 8]}>
             {/* System stats */}
             <Col xs={12} sm={6} md={4} lg={3} xl={2}>
@@ -153,6 +155,7 @@ export function ResourcePanel() {
               <Statistic
                 title={t('resourceMonitor.queueDepth')}
                 value={snapshot.task_queue_depth}
+                suffix="tasks"
               />
             </Col>
           </Row>

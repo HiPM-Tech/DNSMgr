@@ -2,8 +2,10 @@ import { createLogger } from '../../lib/logger';
 import { taskManager } from '../taskManager';
 import { buildSnapshot } from './cache';
 import { getDatabaseStats } from '../../db/bal/resource-metrics-operations';
+import os from 'os';
 
 const log = createLogger('RESOURCE').sub('Collector');
+const cpuCount = os.cpus().length;
 
 let lastCpuUsage: NodeJS.CpuUsage | null = null;
 let lastCpuTime = 0;
@@ -22,8 +24,8 @@ function getCpuPercent(): number | null {
     lastCpuUsage = current;
     lastCpuTime = now;
     if (timeDeltaMs <= 0) return null;
-    // 微秒 -> 毫秒 CPU 时间 / 秒级 wall 时间 -> 百分比
-    const percent = (cpuDeltaUs / 1000 / (timeDeltaMs / 1000) / 1000) * 100;
+    // 微秒 -> 毫秒 CPU 时间 / 秒级 wall 时间 -> 百分比，除以核心数得单核等效
+    const percent = (cpuDeltaUs / 1000 / (timeDeltaMs / 1000) / 1000) * 100 / cpuCount;
     return Math.max(0, Math.round(percent));
   } catch (err) {
     log.warn('Failed to calculate CPU usage', { error: err });
@@ -34,9 +36,9 @@ function getCpuPercent(): number | null {
 function getSysUsage(): { cpu: number | null; memPct: number | null; memMb: number | null; disk: number | null; uptime: number | null } {
   try {
     const usage = process.memoryUsage();
-    const totalMem = usage.heapTotal || 1;
-    const memMb = Math.round(usage.heapUsed / 1024 / 1024 * 100) / 100;
-    const memPct = Math.round((usage.heapUsed / totalMem) * 1000) / 10;
+    const totalMem = os.totalmem();
+    const memMb = Math.round(usage.rss / 1024 / 1024 * 100) / 100;
+    const memPct = totalMem > 0 ? Math.round((usage.rss / totalMem) * 1000) / 10 : null;
     return {
       cpu: getCpuPercent(),
       memPct,

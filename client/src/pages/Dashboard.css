@@ -300,6 +300,23 @@
   gap: 20px;
 }
 
+/* ResourcePanel - 资源监控面板，不使用 dashboard-resource 的 grid 布局 */
+.resource-panel {
+  width: 100%;
+}
+
+.resource-panel .resource-panel__meters {
+  width: 100%;
+}
+
+.resource-panel .resource-panel__meters .t-row {
+  margin: 0 -4px;
+}
+
+.resource-panel .t-statistic {
+  padding: 4px 0;
+}
+
 .dashboard-meter {
   min-width: 0;
 }
