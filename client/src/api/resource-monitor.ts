@@ -5,7 +5,7 @@ export interface ResourceSnapshot {
   memory_percent: number | null
   memory_mb: number | null
   disk_percent: number | null
-  uptime_hours: number | null
+  uptime_seconds: number | null
   task_queue_depth: number
   db_queries_total: number
   db_errors_total: number

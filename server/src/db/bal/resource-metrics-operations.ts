@@ -7,7 +7,7 @@ export interface ResourceSnapshot {
   memory_percent: number | null;
   memory_mb: number | null;
   disk_percent: number | null;
-  uptime_hours: number | null;
+  uptime_seconds: number | null;
   task_queue_depth: number;
   db_queries_total: number;
   db_errors_total: number;
@@ -43,7 +43,7 @@ const resourceMetricsColumns = [
   'memory_percent',
   'memory_mb',
   'disk_percent',
-  'uptime_hours',
+  'uptime_seconds',
   'task_queue_depth',
   'db_queries_total',
   'db_errors_total',
@@ -76,7 +76,7 @@ const historyColumns = [
   'memory_percent',
   'memory_mb',
   'disk_percent',
-  'uptime_hours',
+  'uptime_seconds',
   'task_queue_depth',
   'db_queries_total',
   'db_errors_total',
@@ -112,7 +112,7 @@ function snapshotToMetricParams(snapshot: ResourceSnapshot): unknown[] {
     snapshot.memory_percent,
     snapshot.memory_mb,
     snapshot.disk_percent,
-    snapshot.uptime_hours,
+    snapshot.uptime_seconds,
     snapshot.task_queue_depth,
     snapshot.db_queries_total,
     snapshot.db_errors_total,
@@ -147,7 +147,7 @@ function snapshotToHistoryParams(snapshot: ResourceSnapshot): unknown[] {
     snapshot.memory_percent,
     snapshot.memory_mb,
     snapshot.disk_percent,
-    snapshot.uptime_hours,
+    snapshot.uptime_seconds,
     snapshot.task_queue_depth,
     snapshot.db_queries_total,
     snapshot.db_errors_total,

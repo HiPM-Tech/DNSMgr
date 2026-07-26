@@ -44,7 +44,7 @@ function getSysUsage(): { cpu: number | null; memPct: number | null; memMb: numb
       memPct,
       memMb,
       disk: null,
-      uptime: process.uptime() ? process.uptime() / 3600 : null,
+      uptime: process.uptime() ? Math.round(process.uptime()) : null,
     };
   } catch (err) {
     log.warn('Failed to collect system usage', { error: err });
@@ -58,23 +58,22 @@ export async function collectSnapshot() {
   const db = getDatabaseStats();
   const snapshot = buildSnapshot(sys, tq, db.queries, db.errors, db.reads, db.writes);
 
-  // 从数据库读取最新历史百分位，覆盖 RingBuffer 实时计算值
+  // 从数据库读取最新历史百分位，逐字段覆盖 RingBuffer 实时计算值
+  // 仅当数据库有值时才覆盖，避免 NULL 覆盖 RingBuffer 实时数据
   try {
     const pct = await getLatestPctMetrics();
-    if (pct.recorded_at) {
-      snapshot.http_p50_ms = pct.http_p50_ms;
-      snapshot.http_p95_ms = pct.http_p95_ms;
-      snapshot.http_p99_ms = pct.http_p99_ms;
-      snapshot.dns_p50_ms = pct.dns_p50_ms;
-      snapshot.dns_p95_ms = pct.dns_p95_ms;
-      snapshot.dns_p99_ms = pct.dns_p99_ms;
-      snapshot.dns_encrypted_p50_ms = pct.dns_encrypted_p50_ms;
-      snapshot.dns_encrypted_p95_ms = pct.dns_encrypted_p95_ms;
-      snapshot.dns_encrypted_p99_ms = pct.dns_encrypted_p99_ms;
-      snapshot.dns_plain_p50_ms = pct.dns_plain_p50_ms;
-      snapshot.dns_plain_p95_ms = pct.dns_plain_p95_ms;
-      snapshot.dns_plain_p99_ms = pct.dns_plain_p99_ms;
-    }
+    if (pct.http_p50_ms != null) snapshot.http_p50_ms = pct.http_p50_ms;
+    if (pct.http_p95_ms != null) snapshot.http_p95_ms = pct.http_p95_ms;
+    if (pct.http_p99_ms != null) snapshot.http_p99_ms = pct.http_p99_ms;
+    if (pct.dns_p50_ms != null) snapshot.dns_p50_ms = pct.dns_p50_ms;
+    if (pct.dns_p95_ms != null) snapshot.dns_p95_ms = pct.dns_p95_ms;
+    if (pct.dns_p99_ms != null) snapshot.dns_p99_ms = pct.dns_p99_ms;
+    if (pct.dns_encrypted_p50_ms != null) snapshot.dns_encrypted_p50_ms = pct.dns_encrypted_p50_ms;
+    if (pct.dns_encrypted_p95_ms != null) snapshot.dns_encrypted_p95_ms = pct.dns_encrypted_p95_ms;
+    if (pct.dns_encrypted_p99_ms != null) snapshot.dns_encrypted_p99_ms = pct.dns_encrypted_p99_ms;
+    if (pct.dns_plain_p50_ms != null) snapshot.dns_plain_p50_ms = pct.dns_plain_p50_ms;
+    if (pct.dns_plain_p95_ms != null) snapshot.dns_plain_p95_ms = pct.dns_plain_p95_ms;
+    if (pct.dns_plain_p99_ms != null) snapshot.dns_plain_p99_ms = pct.dns_plain_p99_ms;
   } catch {
     // 数据库无历史数据时保留 RingBuffer 值
   }

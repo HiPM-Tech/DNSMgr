@@ -15,18 +15,24 @@ function pctColor(pct: number | null): string {
   return 'var(--td-error-color)'
 }
 
-function formatUptime(hours: number | null): { value: number; suffix: string } {
-  if (hours === null || hours <= 0) return { value: 0, suffix: '' }
-  const totalSeconds = Math.round(hours * 3600)
-  const days = Math.floor(totalSeconds / 86400)
-  const remaining = totalSeconds % 86400
+function formatUptime(seconds: number | null, language: string): string {
+  if (seconds === null || seconds <= 0) return '-'
+  const days = Math.floor(seconds / 86400)
+  const remaining = seconds % 86400
   const h = Math.floor(remaining / 3600)
   const m = Math.floor((remaining % 3600) / 60)
   const s = remaining % 60
-  if (days > 0) return { value: days, suffix: `d ${h}h ${m}m ${s}s` }
-  if (h > 0) return { value: h, suffix: `h ${m}m ${s}s` }
-  if (m > 0) return { value: m, suffix: `m ${s}s` }
-  return { value: s, suffix: 's' }
+  const isZh = language.startsWith('zh')
+  if (isZh) {
+    const parts: string[] = []
+    if (days > 0) parts.push(`${days}天`)
+    parts.push(`${h}小时 ${m}分钟 ${s}秒`)
+    return parts.join(' ')
+  }
+  const parts: string[] = []
+  if (days > 0) parts.push(`${days}d`)
+  parts.push(`${h}h ${m}m ${s}s`)
+  return parts.join(' ')
 }
 
 const defaultSnapshot: ResourceSnapshot = {
@@ -34,7 +40,7 @@ const defaultSnapshot: ResourceSnapshot = {
   memory_percent: null,
   memory_mb: null,
   disk_percent: null,
-  uptime_hours: null,
+  uptime_seconds: null,
   task_queue_depth: 0,
   db_queries_total: 0,
   db_errors_total: 0,
@@ -64,7 +70,7 @@ const defaultSnapshot: ResourceSnapshot = {
 }
 
 export function ResourcePanel() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [snapshot, setSnapshot] = useState<ResourceSnapshot>(defaultSnapshot)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -128,9 +134,9 @@ export function ResourcePanel() {
             <Col xs={12} sm={6} md={4} lg={3} xl={2}>
               <Statistic
                 title={t('resourceMonitor.uptime')}
-                value={snapshot.uptime_hours != null ? formatUptime(snapshot.uptime_hours).value : 0}
-                suffix={snapshot.uptime_hours != null ? formatUptime(snapshot.uptime_hours).suffix : ''}
-                loading={snapshot.uptime_hours == null}
+                value={snapshot.uptime_seconds != null ? snapshot.uptime_seconds : 0}
+                suffix={snapshot.uptime_seconds != null ? formatUptime(snapshot.uptime_seconds, locale) : ''}
+                loading={snapshot.uptime_seconds == null}
               />
             </Col>
             <Col xs={12} sm={6} md={4} lg={3} xl={2}>

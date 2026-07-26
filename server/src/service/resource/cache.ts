@@ -51,7 +51,7 @@ export interface ResourceSnapshot {
   memory_percent: number | null
   memory_mb: number | null
   disk_percent: number | null
-  uptime_hours: number | null
+  uptime_seconds: number | null
   task_queue_depth: number
   db_queries_total: number
   db_errors_total: number
@@ -152,7 +152,7 @@ export function buildSnapshot(
     memory_percent: sys.memPct != null ? Math.round(sys.memPct) : null,
     memory_mb: sys.memMb != null ? Math.round(sys.memMb) : null,
     disk_percent: sys.disk != null ? Math.round(sys.disk) : null,
-    uptime_hours: sys.uptime != null ? Math.round(sys.uptime) : null,
+    uptime_seconds: sys.uptime,
     task_queue_depth: taskQueueDepth,
     db_queries_total: Math.max(0, deltaQueries),
     db_errors_total: Math.max(0, deltaErrors),
