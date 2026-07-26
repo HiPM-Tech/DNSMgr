@@ -139,6 +139,9 @@
             "yes": "Ja",
             "no": "Nein"
         },
+        "nav": {
+            "settings": "Einstellungen"
+        },
         "mail": {
             "title": "E-Mail-Einrichtung",
             "selectProvider": "E-Mail-Anbieter auswählen",
@@ -1095,6 +1098,15 @@
             "tunnels": "Tunnel",
             "addRecord": "Eintrag hinzufügen",
             "refresh": "Aktualisieren",
+            "exportZone": "Zone exportieren",
+            "exportZoneSuccess": "Zone-Datei erfolgreich exportiert",
+            "exportZoneFailed": "Fehler beim Exportieren der Zone-Datei",
+            "exportZoneHint": "Hostname-Format für die Zone-Datei auswählen:",
+            "exportZoneRelative": "Relative Namen",
+            "exportZoneRelativeDesc": "@ für Root-Domain, relative Namen für Subdomains (z. B. www)",
+            "exportZoneFull": "Vollqualifiziert (FQDN)",
+            "exportZoneFullDesc": "Vollständige Domainnamen mit Punkt am Ende (z. B. www.example.com.)",
+            "exportZoneConfirm": "Exportieren",
             "editRecord": "Eintrag bearbeiten",
             "addRecordFor": "Eintrag hinzufügen - {name}",
             "noRecords": "Keine Einträge gefunden.",
@@ -1623,9 +1635,12 @@
             "live": "Live",
             "polling": "Polling",
             "memory": "Memory",
+            "cpu": "CPU",
             "uptime": "Uptime",
             "probeHttp": "HTTP Probes",
             "probeDns": "DNS Probes",
+            "probeDnsEncrypted": "DNS verschlüsselt",
+            "probeDnsPlain": "DNS unverschlüsselt",
             "dbQueries": "DB Queries/min",
             "queueDepth": "Queue Depth",
             "latencyTitle": "Response Latency (p50 / p95 / p99)"

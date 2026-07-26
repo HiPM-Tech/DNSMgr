@@ -976,7 +976,16 @@
             "batchHelp": "A、AAAA、CNAME、MX、TXT、SRV をサポート",
             "proxy": "プロキシ",
             "proxied": "プロキシ有効",
-            "dnsOnly": "DNSのみ"
+            "dnsOnly": "DNSのみ",
+            "exportZone": "Zone をエクスポート",
+            "exportZoneSuccess": "Zone ファイルのエクスポートに成功しました",
+            "exportZoneFailed": "Zone ファイルのエクスポートに失敗しました",
+            "exportZoneHint": "Zone ファイルのホスト名形式を選択：",
+            "exportZoneRelative": "相対ホスト名",
+            "exportZoneRelativeDesc": "ルートドメインは @、サブドメインは相対名を使用（例：www）",
+            "exportZoneFull": "完全修飾ホスト名 (FQDN)",
+            "exportZoneFullDesc": "すべてのレコードにドットで終わる完全なドメイン名を使用（例：www.example.com.）",
+            "exportZoneConfirm": "エクスポート"
         },
         "audit": {
             "title": "監査ログ",
@@ -1660,6 +1669,9 @@
             "uptime": "Uptime",
             "probeHttp": "HTTP Probes",
             "probeDns": "DNS Probes",
+            "cpu": "CPU",
+            "probeDnsEncrypted": "DNS 暗号化",
+            "probeDnsPlain": "DNS 平文",
             "dbQueries": "DB Queries/min",
             "queueDepth": "Queue Depth",
             "latencyTitle": "Response Latency (p50 / p95 / p99)"
