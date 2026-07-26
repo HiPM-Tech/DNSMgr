@@ -164,10 +164,13 @@ export class DnspodAdapter extends TencentCloudAdapter {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.error = msg;
+      // ResourceNotFound.NoDataOfRecord 表示"无更多记录"或"记录列表为空"
+      // 这是正常的业务状态，不是异常，返回空列表让调用方正常处理
       if (msg.includes('No records on the list') || msg.includes('记录列表为空')) {
         return { total: 0, list: [] };
       }
-      return { total: 0, list: [] };
+      // 其他错误（认证失败、网络超时、参数错误等）是真正的异常，必须向上抛
+      throw e;
     }
   }
 

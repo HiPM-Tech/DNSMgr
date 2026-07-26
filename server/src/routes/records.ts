@@ -190,15 +190,26 @@ router.get('/export/zone', authMiddleware, asyncHandler(async (req: Request, res
     const useFullName = nameFormat === 'full';
 
     // 分批获取全量解析记录，避免瞬时爆炸
-    const batchSize = 500;
+    const batchSize = 100;
     let page = 1;
     const allRecords: AdapterRecord[] = [];
     let total = 0;
 
     do {
-      const result = await dnsAdapter.getDomainRecords(page, batchSize);
-      if (page === 1) total = result.total;
-      allRecords.push(...result.list);
+      try {
+        const result = await dnsAdapter.getDomainRecords(page, batchSize);
+        if (page === 1) total = result.total;
+        // 当页无数据时，说明已获取完所有记录（DNSPod 等提供商在页数超出时返回 ResourceNotFound.NoDataOfRecord）
+        if (result.list.length === 0) break;
+        allRecords.push(...result.list);
+      } catch (err: unknown) {
+        // 部分提供商（如 DNSPod）在记录为空时返回 ResourceNotFound.NoDataOfRecord
+        // 直接视为空记录集
+        if (page === 1) {
+          break;
+        }
+        throw err;
+      }
       page++;
       // 保护：最多 100 批（50000 条记录）
       if (page > 100) break;
