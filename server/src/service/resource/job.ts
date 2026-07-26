@@ -16,9 +16,9 @@ export function startResourceMonitorJob(): void {
   if (collectInterval) return;
   log.info('Starting resource monitor job (collect every 10s, flush every 60s)');
 
-  collectInterval = setInterval(() => {
+  collectInterval = setInterval(async () => {
     try {
-      const snapshot = collectSnapshot();
+      const snapshot = await collectSnapshot();
       wsService.broadcast({ type: 'resource:snapshot', data: snapshot });
     } catch (err) {
       log.error('Resource collect error', { error: err });
@@ -36,7 +36,7 @@ export function startResourceMonitorJob(): void {
 }
 
 async function flushSnapshot(): Promise<void> {
-  const snapshot = collectSnapshot();
+  const snapshot = await collectSnapshot();
   try {
     await Promise.all([
       upsertResourceMetrics(snapshot),

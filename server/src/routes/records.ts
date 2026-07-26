@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { promises as dnsPromises } from 'dns';
 import { authMiddleware, requireTokenDomainPermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAdapter } from '../lib/dns/DnsHelper';
@@ -230,6 +231,17 @@ router.get('/export/zone', authMiddleware, asyncHandler(async (req: Request, res
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     const repoUrl = 'https://github.com/HiPM-Tech/HiDNS';
 
+    // 通过 DNS 查询获取真实 SOA 记录
+    let soaLine = `${dotDomain}  600     IN      SOA     ${dotDomain} admin.${dotDomain} ${Math.floor(now.getTime() / 1000)} 3600 180 1209600 180`;
+    try {
+      const soa = await dnsPromises.resolveSoa(domainName);
+      const hostmaster = soa.hostmaster.endsWith('.') ? soa.hostmaster : `${soa.hostmaster}.`;
+      const nsname = soa.nsname.endsWith('.') ? soa.nsname : `${soa.nsname}.`;
+      soaLine = `${dotDomain}  ${soa.minttl}     IN      SOA     ${nsname} ${hostmaster} ${soa.serial} ${soa.refresh} ${soa.retry} ${soa.expire} ${soa.minttl}`;
+    } catch {
+      // DNS 查询失败时使用合成 SOA
+    }
+
     // 生成 zone 文件头部
     const lines: string[] = [
       `; Domain: ${dotDomain}`,
@@ -262,7 +274,7 @@ router.get('/export/zone', authMiddleware, asyncHandler(async (req: Request, res
       `$ORIGIN ${dotDomain}`,
       ``,
       `; SOA record`,
-      `${dotDomain}  600     IN      SOA     ${dotDomain} admin.${dotDomain} ${Math.floor(now.getTime() / 1000)} 3600 180 1209600 180`,
+      soaLine,
       ``,
     ];
 

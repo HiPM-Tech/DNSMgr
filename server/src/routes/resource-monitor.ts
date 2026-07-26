@@ -11,7 +11,7 @@ const log = createLogger('HTTP').sub('Route').sub('ResourceMonitor');
 const router = Router();
 
 router.get('/current', authMiddleware, asyncHandler(async (_req: Request, res: Response) => {
-  const snapshot = collectSnapshot();
+  const snapshot = await collectSnapshot();
   sendSuccess(res, snapshot);
 }));
 

@@ -1,7 +1,7 @@
 import { createLogger } from '../../lib/logger';
 import { taskManager } from '../taskManager';
 import { buildSnapshot } from './cache';
-import { getDatabaseStats } from '../../db/bal/resource-metrics-operations';
+import { getDatabaseStats, getLatestPctMetrics } from '../../db/bal/resource-metrics-operations';
 import os from 'os';
 
 const log = createLogger('RESOURCE').sub('Collector');
@@ -52,9 +52,32 @@ function getSysUsage(): { cpu: number | null; memPct: number | null; memMb: numb
   }
 }
 
-export function collectSnapshot() {
+export async function collectSnapshot() {
   const sys = getSysUsage();
   const tq = taskManager.getQueuedCount();
   const db = getDatabaseStats();
-  return buildSnapshot(sys, tq, db.queries, db.errors, db.reads, db.writes);
+  const snapshot = buildSnapshot(sys, tq, db.queries, db.errors, db.reads, db.writes);
+
+  // 从数据库读取最新历史百分位，覆盖 RingBuffer 实时计算值
+  try {
+    const pct = await getLatestPctMetrics();
+    if (pct.recorded_at) {
+      snapshot.http_p50_ms = pct.http_p50_ms;
+      snapshot.http_p95_ms = pct.http_p95_ms;
+      snapshot.http_p99_ms = pct.http_p99_ms;
+      snapshot.dns_p50_ms = pct.dns_p50_ms;
+      snapshot.dns_p95_ms = pct.dns_p95_ms;
+      snapshot.dns_p99_ms = pct.dns_p99_ms;
+      snapshot.dns_encrypted_p50_ms = pct.dns_encrypted_p50_ms;
+      snapshot.dns_encrypted_p95_ms = pct.dns_encrypted_p95_ms;
+      snapshot.dns_encrypted_p99_ms = pct.dns_encrypted_p99_ms;
+      snapshot.dns_plain_p50_ms = pct.dns_plain_p50_ms;
+      snapshot.dns_plain_p95_ms = pct.dns_plain_p95_ms;
+      snapshot.dns_plain_p99_ms = pct.dns_plain_p99_ms;
+    }
+  } catch {
+    // 数据库无历史数据时保留 RingBuffer 值
+  }
+
+  return snapshot;
 }

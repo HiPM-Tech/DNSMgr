@@ -265,3 +265,64 @@ export async function pruneResourceHistory(olderThanHours = 72): Promise<number>
   );
   return result.changes;
 }
+
+export interface LatestPctMetrics {
+  http_p50_ms: number | null;
+  http_p95_ms: number | null;
+  http_p99_ms: number | null;
+  dns_p50_ms: number | null;
+  dns_p95_ms: number | null;
+  dns_p99_ms: number | null;
+  dns_encrypted_p50_ms: number | null;
+  dns_encrypted_p95_ms: number | null;
+  dns_encrypted_p99_ms: number | null;
+  dns_plain_p50_ms: number | null;
+  dns_plain_p95_ms: number | null;
+  dns_plain_p99_ms: number | null;
+  recorded_at: string | null;
+}
+
+/** 读取最新一条历史百分位数据（从 resource_metric_history） */
+export async function getLatestPctMetrics(): Promise<LatestPctMetrics> {
+  try {
+    const row = await get<Record<string, unknown>>(
+      `SELECT
+        http_p50_ms, http_p95_ms, http_p99_ms,
+        dns_p50_ms, dns_p95_ms, dns_p99_ms,
+        dns_encrypted_p50_ms, dns_encrypted_p95_ms, dns_encrypted_p99_ms,
+        dns_plain_p50_ms, dns_plain_p95_ms, dns_plain_p99_ms,
+        recorded_at
+      FROM resource_metric_history
+      ORDER BY recorded_at DESC
+      LIMIT 1`
+    );
+    if (!row) return emptyLatestPct();
+    return {
+      http_p50_ms: row.http_p50_ms != null ? Number(row.http_p50_ms) : null,
+      http_p95_ms: row.http_p95_ms != null ? Number(row.http_p95_ms) : null,
+      http_p99_ms: row.http_p99_ms != null ? Number(row.http_p99_ms) : null,
+      dns_p50_ms: row.dns_p50_ms != null ? Number(row.dns_p50_ms) : null,
+      dns_p95_ms: row.dns_p95_ms != null ? Number(row.dns_p95_ms) : null,
+      dns_p99_ms: row.dns_p99_ms != null ? Number(row.dns_p99_ms) : null,
+      dns_encrypted_p50_ms: row.dns_encrypted_p50_ms != null ? Number(row.dns_encrypted_p50_ms) : null,
+      dns_encrypted_p95_ms: row.dns_encrypted_p95_ms != null ? Number(row.dns_encrypted_p95_ms) : null,
+      dns_encrypted_p99_ms: row.dns_encrypted_p99_ms != null ? Number(row.dns_encrypted_p99_ms) : null,
+      dns_plain_p50_ms: row.dns_plain_p50_ms != null ? Number(row.dns_plain_p50_ms) : null,
+      dns_plain_p95_ms: row.dns_plain_p95_ms != null ? Number(row.dns_plain_p95_ms) : null,
+      dns_plain_p99_ms: row.dns_plain_p99_ms != null ? Number(row.dns_plain_p99_ms) : null,
+      recorded_at: row.recorded_at ? String(row.recorded_at) : null,
+    };
+  } catch {
+    return emptyLatestPct();
+  }
+}
+
+function emptyLatestPct(): LatestPctMetrics {
+  return {
+    http_p50_ms: null, http_p95_ms: null, http_p99_ms: null,
+    dns_p50_ms: null, dns_p95_ms: null, dns_p99_ms: null,
+    dns_encrypted_p50_ms: null, dns_encrypted_p95_ms: null, dns_encrypted_p99_ms: null,
+    dns_plain_p50_ms: null, dns_plain_p95_ms: null, dns_plain_p99_ms: null,
+    recorded_at: null,
+  };
+}
