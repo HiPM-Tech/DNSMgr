@@ -186,6 +186,8 @@ router.get('/export/zone', authMiddleware, asyncHandler(async (req: Request, res
   try {
     const dnsAdapter = await getAdapterForDomain(access.domain);
     const domainName = access.domain.name;
+    const nameFormat = String(req.query.nameFormat || 'relative');
+    const useFullName = nameFormat === 'full';
 
     // 分批获取全量解析记录，避免瞬时爆炸
     const batchSize = 500;
@@ -280,7 +282,9 @@ router.get('/export/zone', authMiddleware, asyncHandler(async (req: Request, res
 
     // 输出各类型记录
     const writeRecord = (r: AdapterRecord) => {
-      const name = r.Name === '@' ? dotDomain : r.Name;
+      const name = useFullName
+        ? (r.Name === '@' ? dotDomain : `${r.Name}.${dotDomain}`)
+        : r.Name; // @ 代表 $ORIGIN，其它保持相对名称
       const ttl = r.TTL ?? 600;
       const remark = r.Remark ? `; ${r.Remark}` : '';
 

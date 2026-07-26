@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Input, Pagination, Select, Space, Switch, Tabs, Tag } from 'tdesign-react';
+import { Button, Card, Input, Pagination, Radio, RadioGroup, Select, Space, Switch, Tabs, Tag } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
 import { AddIcon, ArrowLeftIcon, DeleteIcon, EditIcon, FileExportIcon, MailIcon, RefreshIcon, SearchIcon } from 'tdesign-icons-react';
 import { recordsApi, domainsApi, accountsApi } from '../api';
@@ -39,6 +39,8 @@ export function Records() {
 
   const [showAdd, setShowAdd] = useState(false);
   const [showMailSetup, setShowMailSetup] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportNameFormat, setExportNameFormat] = useState<'relative' | 'full'>('relative');
   const [editing, setEditing] = useState<DnsRecord | null>(null);
   const [editingKey, setEditingKey] = useState(0); // ✅ 用于强制重新挂载
   const [deleting, setDeleting] = useState<DnsRecord | null>(null);
@@ -173,8 +175,14 @@ export function Records() {
   });
 
   const handleExportZone = useCallback(async () => {
+    setExportNameFormat('relative');
+    setShowExportDialog(true);
+  }, []);
+
+  const handleExportDownload = useCallback(async () => {
+    setShowExportDialog(false);
     try {
-      const res = await recordsApi.exportZone(domainId);
+      const res = await recordsApi.exportZone(domainId, exportNameFormat);
       if (res.data.code !== 0) { toast.error(formatApiError(res.data.msg)); return; }
       const { content, filename } = res.data.data;
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -190,7 +198,7 @@ export function Records() {
     } catch (e) {
       toast.error(t('records.exportZoneFailed'));
     }
-  }, [domainId, toast, t]);
+  }, [domainId, exportNameFormat, toast, t]);
 
   const lineMap = useMemo(() => Object.fromEntries(lines.map((l) => [l.id, l.name || l.id])), [lines]);
 
@@ -368,6 +376,36 @@ export function Records() {
 
       {showMailSetup && (
         <MailSetupModal domainId={domainId} domainName={domain?.name ?? ''} onClose={() => setShowMailSetup(false)} existingRecords={records} />
+      )}
+
+      {showExportDialog && (
+        <Modal title={t('records.exportZone')} onClose={() => setShowExportDialog(false)} size="sm">
+          <div style={{ padding: '8px 0' }}>
+            <p style={{ margin: '0 0 16px', color: 'var(--td-text-color-secondary)', fontSize: 14, lineHeight: '22px' }}>
+              {t('records.exportZoneHint')}
+            </p>
+            <RadioGroup value={exportNameFormat} onChange={(v) => setExportNameFormat(v as 'relative' | 'full')}>
+              <Radio value="relative" style={{ display: 'block', marginBottom: 12 }}>
+                <span style={{ fontWeight: 600 }}>{t('records.exportZoneRelative')}</span>
+                <br />
+                <span style={{ fontSize: 12, color: 'var(--td-text-color-placeholder)' }}>{t('records.exportZoneRelativeDesc')}</span>
+              </Radio>
+              <Radio value="full" style={{ display: 'block' }}>
+                <span style={{ fontWeight: 600 }}>{t('records.exportZoneFull')}</span>
+                <br />
+                <span style={{ fontSize: 12, color: 'var(--td-text-color-placeholder)' }}>{t('records.exportZoneFullDesc')}</span>
+              </Radio>
+            </RadioGroup>
+            <div style={{ marginTop: 24, textAlign: 'right' }}>
+              <Button variant="outline" onClick={() => setShowExportDialog(false)} style={{ marginRight: 8 }}>
+                {t('common.cancel')}
+              </Button>
+              <Button theme="primary" onClick={handleExportDownload}>
+                {t('records.exportZoneConfirm')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {editing && (
