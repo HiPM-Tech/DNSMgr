@@ -200,7 +200,7 @@ import { createConnection, isDbInitialized, hasUsers, connect } from './db/conne
 import { initializeDSM } from './db/dsm/init-dsm';
 // import { initSchema } from './db/schema'; // Deprecated: Replaced by DSM
 // import { initSchema as initSchemaWithMigration } from './db/init'; // Deprecated: Replaced by DSM
-import { disconnect } from './db/dal/connection';
+import { disconnect, getConnection } from './db/dal/connection';
 import { authMiddleware, adminOnly } from './middleware/auth';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { requestLogger, requestIdMiddleware } from './middleware/requestLogger';
@@ -731,6 +731,19 @@ async function initializeApp() {
     // Run unified schema initialization and migration checks
     // Using new Declarative Schema Management (DSM)
     await initializeDSM();
+
+    // 强制写入磁盘，确保 schema 变更持久化
+    const conn = getConnection();
+    if (conn.checkpoint) {
+      await conn.checkpoint();
+      log.info('✅ WAL checkpoint completed after DSM reconciliation.');
+    }
+
+    // 重启数据库连接管理，确保连接池以最新 schema 状态运行
+    await disconnect();
+    log.info('🔄 Database connection closed, reconnecting...');
+    await connect();
+    log.info('✅ Database connection re-established.');
 
     // Check if system is initialized
     isInitialized = await checkInitialization();
