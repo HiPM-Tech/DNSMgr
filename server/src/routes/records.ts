@@ -167,6 +167,158 @@ router.get('/', authMiddleware, asyncHandler(async (req: Request, res: Response,
 
 /**
  * @swagger
+ * /api/domains/{domainId}/records/export/zone:
+ *   get:
+ *     summary: Export DNS records in BIND zone file format (batch fetching)
+ *     tags: [Records]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/export/zone', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
+  const domainId = parseInteger(req.params.domainId) ?? 0;
+  const access = await getDomainAccess(domainId, req.user!.userId, normalizeRole(req.user!.role));
+  if (!access.domain || !access.canRead) {
+    sendError(res, 'Domain not found');
+    return;
+  }
+
+  try {
+    const dnsAdapter = await getAdapterForDomain(access.domain);
+    const domainName = access.domain.name;
+
+    // 分批获取全量解析记录，避免瞬时爆炸
+    const batchSize = 500;
+    let page = 1;
+    const allRecords: AdapterRecord[] = [];
+    let total = 0;
+
+    do {
+      const result = await dnsAdapter.getDomainRecords(page, batchSize);
+      if (page === 1) total = result.total;
+      allRecords.push(...result.list);
+      page++;
+      // 保护：最多 100 批（50000 条记录）
+      if (page > 100) break;
+    } while (allRecords.length < total);
+
+    // 生成时间戳（Asia/Shanghai 时区）
+    const now = new Date();
+    const ts = Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(now).replace(/\//g, '-');
+
+    const dotDomain = domainName.endsWith('.') ? domainName : `${domainName}.`;
+
+    // 按类型分组（仅启用记录）
+    const enabled = allRecords.filter(r => r.Status === 1);
+    const typeOrder = ['A', 'AAAA', 'CAA', 'CNAME', 'MX', 'NS', 'SPF', 'SRV', 'TXT', 'HTTPS', 'SVCB', 'CERT', 'SSHFP', 'TLSA', 'NAPTR', 'LOC', 'SMIMEA', 'URI', 'DNAME'];
+    const grouped: Record<string, AdapterRecord[]> = {};
+    for (const r of enabled) {
+      const t = r.Type.toUpperCase();
+      if (!grouped[t]) grouped[t] = [];
+      grouped[t].push(r);
+    }
+
+    // 构建 HiDNS 地址
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const repoUrl = 'https://github.com/HiPM-Tech/HiDNS';
+
+    // 生成 zone 文件头部
+    const lines: string[] = [
+      `; Domain: ${dotDomain}`,
+      `; Exported at:${ts} (Asia/Shanghai)`,
+      `;`,
+      `;  ██╗  ██╗██╗██████╗ ███╗   ██╗███████╗`,
+      `;  ██║  ██║██║██╔══██╗████╗  ██║██╔════╝`,
+      `;  ███████║██║██║  ██║██╔██╗ ██║███████╗`,
+      `;  ██╔══██║██║██║  ██║██║╚██╗██║╚════██║`,
+      `;  ██║  ██║██║██████╔╝██║ ╚████║███████║`,
+      `;  ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═══╝╚══════╝`,
+      `;`,
+      `;  ${baseUrl}`,
+      `;  ${repoUrl}`,
+      `;`,
+      `; This file is intended for use for informational and archival`,
+      `; purposes ONLY and MUST be edited before used on a production`,
+      `; DNS server.`,
+      `;`,
+      `; For further information, please consult the BIND documentation`,
+      `; located on the following website:`,
+      `;     \`http://www.isc.org/\``,
+      `;`,
+      `; And RFC 1035:`,
+      `;    \`http://www.ietf.org/rfc/rfc1035.txt\``,
+      `;`,
+      `; Use at your own risk.`,
+      `;`,
+      ``,
+      `$ORIGIN ${dotDomain}`,
+      ``,
+      `; SOA record`,
+      `${dotDomain}  600     IN      SOA     ${dotDomain} admin.${dotDomain} ${Math.floor(now.getTime() / 1000)} 3600 180 1209600 180`,
+      ``,
+    ];
+
+    // 输出各类型记录
+    const writeRecord = (r: AdapterRecord) => {
+      const name = r.Name === '@' ? dotDomain : r.Name;
+      const ttl = r.TTL ?? 600;
+      const remark = r.Remark ? `; ${r.Remark}` : '';
+
+      if (r.Type.toUpperCase() === 'MX' && r.MX !== undefined) {
+        return `${name}\t${ttl}\tIN\t${r.Type}\t${r.MX}\t${r.Value}${remark}`;
+      }
+      if (r.Type.toUpperCase() === 'SRV') {
+        // SRV value format: priority weight port target
+        return `${name}\t${ttl}\tIN\t${r.Type}\t${r.Value}${remark}`;
+      }
+      if (r.Type.toUpperCase() === 'CAA') {
+        return `${name}\t${ttl}\tIN\t${r.Type}\t${r.Value}${remark}`;
+      }
+      return `${name}\t${ttl}\tIN\t${r.Type}\t${r.Value}${remark}`;
+    };
+
+    for (const type of typeOrder) {
+      const records = grouped[type];
+      if (!records || records.length === 0) continue;
+      lines.push(`; ${type} records`);
+      for (const r of records) {
+        lines.push(writeRecord(r));
+      }
+      lines.push('');
+    }
+
+    // 输出剩余未知类型的记录
+    const knownTypes = new Set(typeOrder);
+    const unknownTypes = Object.keys(grouped).filter(t => !knownTypes.has(t));
+    for (const type of unknownTypes) {
+      const records = grouped[type];
+      if (records.length === 0) continue;
+      lines.push(`; ${type} records`);
+      for (const r of records) {
+        lines.push(writeRecord(r));
+      }
+      lines.push('');
+    }
+
+    sendSuccess(res, {
+      content: lines.join('\n'),
+      filename: `${domainName}.zone`,
+    });
+  } catch (e) {
+    sendError(res, e instanceof Error ? e.message : String(e));
+  }
+}));
+
+/**
+ * @swagger
  * /api/domains/{domainId}/records/{recordId}:
  *   get:
  *     summary: Get a DNS record detail

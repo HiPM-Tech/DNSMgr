@@ -274,6 +274,13 @@ function printBanner(port: number): void {
   const banner = `
 ${CYAN}╔═══════════════════════════════════════════════════════════╗${RESET}
 ${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
+${CYAN}║${RESET}   ██╗  ██╗██╗██████╗ ███╗   ██╗███████╗              ${CYAN}║${RESET}
+${CYAN}║${RESET}   ██║  ██║██║██╔══██╗████╗  ██║██╔════╝              ${CYAN}║${RESET}
+${CYAN}║${RESET}   ███████║██║██║  ██║██╔██╗ ██║███████╗              ${CYAN}║${RESET}
+${CYAN}║${RESET}   ██╔══██║██║██║  ██║██║╚██╗██║╚════██║              ${CYAN}║${RESET}
+${CYAN}║${RESET}   ██║  ██║██║██████╔╝██║ ╚████║███████║              ${CYAN}║${RESET}
+${CYAN}║${RESET}   ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═══╝╚══════╝              ${CYAN}║${RESET}
+${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
 ${CYAN}║${RESET}   ${BOLD}${MAGENTA}HiDNS Manager${RESET}                                    ${CYAN}║${RESET}
 ${CYAN}║${RESET}                                                       ${CYAN}║${RESET}
 ${CYAN}║${RESET}   ${GRAY}Project:${RESET} HiDNS Manager                         ${CYAN}║${RESET}

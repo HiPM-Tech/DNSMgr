@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Input, Pagination, Select, Space, Switch, Tabs, Tag } from 'tdesign-react';
 import type { SelectValue } from 'tdesign-react/es/select';
-import { AddIcon, ArrowLeftIcon, DeleteIcon, EditIcon, MailIcon, RefreshIcon, SearchIcon } from 'tdesign-icons-react';
+import { AddIcon, ArrowLeftIcon, DeleteIcon, EditIcon, FileExportIcon, MailIcon, RefreshIcon, SearchIcon } from 'tdesign-icons-react';
 import { recordsApi, domainsApi, accountsApi } from '../api';
 import type { DnsRecord } from '../api';
 import { Table } from '../components/Table';
@@ -172,6 +172,26 @@ export function Records() {
     onError: () => toast.error(t('records.toggleFailed')),
   });
 
+  const handleExportZone = useCallback(async () => {
+    try {
+      const res = await recordsApi.exportZone(domainId);
+      if (res.data.code !== 0) { toast.error(formatApiError(res.data.msg)); return; }
+      const { content, filename } = res.data.data;
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(t('records.exportZoneSuccess'));
+    } catch (e) {
+      toast.error(t('records.exportZoneFailed'));
+    }
+  }, [domainId, toast, t]);
+
   const lineMap = useMemo(() => Object.fromEntries(lines.map((l) => [l.id, l.name || l.id])), [lines]);
 
   const hasProxyMode = currentProvider?.capabilities?.dns?.proxiable === true;
@@ -253,6 +273,9 @@ export function Records() {
           <Space>
             <Button variant="outline" icon={<RefreshIcon />} onClick={() => qc.invalidateQueries({ queryKey: ['records', domainId] })}>
               {t('records.refresh')}
+            </Button>
+            <Button variant="outline" icon={<FileExportIcon />} onClick={handleExportZone}>
+              {t('records.exportZone')}
             </Button>
             <Button theme="primary" icon={<AddIcon />} onClick={() => setShowAdd(true)}>
               {t('records.addRecord')}

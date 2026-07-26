@@ -32,6 +32,8 @@ export interface EmailTemplate {
 export const recordsApi = {
   list: (domainId: number, params?: RecordListParams) =>
     api.get<ApiResponse<{ total: number; list: DnsRecord[] }>>(`/domains/${domainId}/records`, { params }),
+  exportZone: (domainId: number) =>
+    api.get<ApiResponse<{ content: string; filename: string }>>(`/domains/${domainId}/records/export/zone`),
   create: (domainId: number, data: Partial<DnsRecord>) =>
     api.post<ApiResponse<{ id: string }>>(`/domains/${domainId}/records`, data),
   createBatch: (domainId: number, records: Partial<DnsRecord>[]) =>
