@@ -131,10 +131,10 @@ export function ResourcePanel() {
                 color={pctColor(snapshot.memory_percent)}
               />
             </Col>
-            <Col xs={12} sm={6} md={4} lg={3} xl={2}>
+            <Col xs={12} sm={6} md={4} lg={3} xl={2} className="uptime-statistic-col">
               <Statistic
                 title={t('resourceMonitor.uptime')}
-                value={snapshot.uptime_seconds != null ? snapshot.uptime_seconds : 0}
+                value={0}
                 suffix={snapshot.uptime_seconds != null ? formatUptime(snapshot.uptime_seconds, locale) : ''}
                 loading={snapshot.uptime_seconds == null}
               />

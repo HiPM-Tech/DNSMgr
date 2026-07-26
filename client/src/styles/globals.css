@@ -2660,6 +2660,11 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
   grid-column: 1 / -1;
 }
 
+/* 运行时间统计卡片 - 隐藏数值，只显示格式化字符串 */
+.uptime-statistic-col .t-statistic__value {
+  display: none;
+}
+
 .access-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
