@@ -955,24 +955,23 @@ router.get('/provider-list/:accountId', authMiddleware, asyncHandler(async (req:
     const existingForAccount = allDomains.filter((d) => d.account_id === accountId);
     const existingDomainNames = new Set(existingForAccount.map((d) => normalizeDomain(d.name)));
     const allDomainNames = new Set(allDomains.map((d) => normalizeDomain(d.name)));
-    const allRootDomainNames = new Set(
-      allDomains.map((d) => normalizeDomain(getRootDomain(d.name))).filter(Boolean)
-    );
 
     // 返回所有域名，标记存在状态
     const tokenPayload = (req as any).tokenPayload;
     const domains = allProviderDomains.map((d) => {
       const normalizedName = normalizeDomain(d.Domain);
-      const rootDomain = getRootDomain(normalizedName);
       // For Session auth, convert to Unicode; for Token auth, keep Punycode
       const displayName = tokenPayload ? normalizedName : getDisplayDomain(normalizedName, true);
+      // 检查上级域名是否存在：移除第一个标签后的剩余部分，如 a.a.com → a.com
+      const dotIdx = normalizedName.indexOf('.');
+      const parentDomain = dotIdx > 0 ? normalizedName.slice(dotIdx + 1) : '';
       return {
         name: displayName,
         third_id: d.ThirdId,
         record_count: d.RecordCount ?? 0,
         exists: existingDomainNames.has(normalizedName),
         existsOther: !existingDomainNames.has(normalizedName) && allDomainNames.has(normalizedName),
-        parentExists: !!rootDomain && rootDomain !== normalizedName && allRootDomainNames.has(normalizeDomain(rootDomain)),
+        parentExists: !!parentDomain && parentDomain !== normalizedName && allDomainNames.has(normalizeDomain(parentDomain)),
       };
     });
 
