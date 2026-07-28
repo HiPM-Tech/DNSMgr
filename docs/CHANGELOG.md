@@ -1,5 +1,20 @@
 # 更新日志
 
+## [2.1.1] - 2026-07-28
+
+### 🐛 Bug 修复
+- **运行时间显示 0 问题**: 修复 CSS 选择器类名不匹配（`t-statistic__value` → `t-statistic-content-value`），运行时间前不再显示多余的 0
+- **HTTP 探针无数据**: 修复 `fetchWithFallback` 直连 `fetch()` 路径未记录 HTTP 探针的问题，现在无论是否启用代理，所有 HTTP 请求都会记录延迟
+- **DNS 明文探针无数据**: 修复 `preferEncrypted` 模式下加密 DNS 成功后不记录明文探针的问题，现在加密查询成功后并行发起明文查询（fire-and-forget）并记录探针
+
+### 🔧 优化
+- **探针采集覆盖**: `fetchWithFallback` 所有分支（直连、代理、降级）均统一记录 HTTP 探针
+
+### 📝 文件变更
+- `client/src/styles/globals.css` - 修复 CSS 选择器类名
+- `server/src/lib/proxy-http.ts` - 直连路径添加 HTTP 探针记录
+- `server/src/lib/dns/resolver/resolver.ts` - 并行采集明文 DNS 探针
+
 ## [2.1.0] - 2026-07-27
 
 ### 🚀 新功能
