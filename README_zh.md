@@ -433,6 +433,19 @@ HiDNS 项目采用严格的 AI 代码审核机制，确保代码质量和项目�
 - **Telegram 群组**: https://t.me/HiDNSManager
 - **开源协议**: GPL-3.0
 
+## ☕ 赞助支持
+
+如果 HiDNS 对你有帮助，不妨请我喝杯咖啡！你的支持是项目持续维护的动力。
+
+<p align="center">
+  <img src="mm_reward_qrcode_1785249713101.png" width="200" alt="赞赏码" />
+  <img src="1785249805924.jpg" width="200" alt="收款码" />
+</p>
+
+<p align="center">
+  <i>赞赏码 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 收款码</i>
+</p>
+
 ---
 
 <p align="center">

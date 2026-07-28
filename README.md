@@ -435,6 +435,19 @@ HiDNS adopts a strict AI code review mechanism to ensure code quality and projec
 - **Telegram Group**: https://t.me/HiDNSManager
 - **License**: GPL-3.0
 
+## ☕ Sponsor
+
+If you find HiDNS helpful, consider buying me a coffee! Your support keeps the project alive and motivated.
+
+<p align="center">
+  <img src="mm_reward_qrcode_1785249713101.png" width="200" alt="Reward QR Code" />
+  <img src="1785249805924.jpg" width="200" alt="Donation QR Code" />
+</p>
+
+<p align="center">
+  <i>Reward Code &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Donation Code</i>
+</p>
+
 ---
 
 <p align="center">
