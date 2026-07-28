@@ -284,7 +284,9 @@ export async function fetchWithFallback(
 ): Promise<Response> {
   // 如果不需要代理，直接直连请求
   if (!useProxy) {
+    const startTime = Date.now();
     const res = await fetch(url, options);
+    pushHttpProbe(Date.now() - startTime);
     return res;
   }
 
@@ -292,7 +294,9 @@ export async function fetchWithFallback(
   const proxyConfig = await getProxyConfig();
   if (!proxyConfig || !proxyConfig.enabled) {
     log.info(`[${providerName}] Proxy not configured or disabled, using direct connection`);
+    const startTime = Date.now();
     const res = await fetch(url, options);
+    pushHttpProbe(Date.now() - startTime);
     return res;
   }
 
@@ -334,10 +338,12 @@ export async function fetchWithFallback(
     try {
       const res = await fetch(url, options);
       const directDuration = Date.now() - directStartTime;
+      pushHttpProbe(directDuration);
       log.info(`[${providerName}] Direct connection successful`, { duration: `${directDuration}ms` });
       return res;
     } catch (directError) {
       const directDuration = Date.now() - directStartTime;
+      pushHttpProbe(directDuration);
       log.error(`[${providerName}] Direct connection also failed after ${directDuration}ms`, {
         error: directError instanceof Error ? directError.message : String(directError)
       });

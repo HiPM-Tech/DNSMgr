@@ -34,7 +34,14 @@ export class DNSResolver {
     if (preferEncrypted) {
       const encryptedResult = await this.queryEncrypted(domain, type, timeout, useProxy);
       if (encryptedResult.success) {
-        pushDnsEncryptedProbe(Date.now() - resolveStart); return encryptedResult
+        pushDnsEncryptedProbe(Date.now() - resolveStart);
+        // 并行发起明文 DNS 探针记录（不阻塞主流程）
+        this.queryPlain(domain, type, timeout).then(plainResult => {
+          if (plainResult.success) {
+            pushDnsPlainProbe(Date.now() - resolveStart);
+          }
+        }).catch(() => {});
+        return encryptedResult;
       }
       log.debug(`Encrypted DNS failed for ${domain}, falling back to plain DNS`);
     }
