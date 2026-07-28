@@ -2661,7 +2661,7 @@ body.app-has-background .app-td-dialog .ns-monitor-domain-picker {
 }
 
 /* 运行时间统计卡片 - 隐藏数值，只显示格式化字符串 */
-.uptime-statistic-col .t-statistic__value {
+.uptime-statistic-col .t-statistic-content-value {
   display: none !important;
 }
 
