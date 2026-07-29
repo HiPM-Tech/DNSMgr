@@ -1,5 +1,19 @@
 # 更新日志
 
+## [2.1.2] - 2026-07-29
+
+### 🐛 Bug 修复
+- **NS记录过滤过宽**: Dnspod/Gcore 适配器全局过滤了所有 NS 记录，现改为只过滤 @（根域名）的托管商默认 NS 记录，保留子域名 DNS 委派 NS 记录
+- **PostgreSQL 布尔类型不兼容**: 修复 `ns_monitor_domains.enabled` 字段在 PostgreSQL 下因类型为 `integer` 却传入 `boolean` 导致写入失败的问题
+
+### 🧹 优化
+- **业务适配器 enabled 传参**: 统一所有 `enabledValue` 传参方式为 `'1'`，避免 DB 类型判断分支
+
+### 📝 文件变更
+- `server/src/lib/dns/providers/dnspod/adapter.ts` - 增加 `Name` 检查，只过滤根域名 NS
+- `server/src/lib/dns/providers/gcore/adapter.ts` - 增加 `Name` 检查，只过滤根域名 NS
+- `server/src/db/bal/business-adapter.ts` - 统一 enabled 传参为 `1`
+
 ## [2.1.1] - 2026-07-28
 
 ### 🐛 Bug 修复
