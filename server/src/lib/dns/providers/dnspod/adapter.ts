@@ -61,9 +61,12 @@ export class DnspodAdapter extends TencentCloudAdapter {
 
   private isSystemNsRecord(item: Dict): boolean {
     const type = safeString(item.Type);
+    const name = safeString(item.Name);
+    if (type !== 'NS') return false;
+    // 只过滤 @ 记录的 NS（托管商默认 NS），保留子域名 NS 记录（DNS 委派）
+    if (name && name !== '@') return false;
     // 去除末尾点号再匹配，因为 DNSPod 可能返回带或不带结尾点的 NS 值
     const value = safeString(item.Value).toLowerCase().replace(/\.+$/, '');
-    if (type !== 'NS') return false;
     return DnspodAdapter.DNSPOD_NS_SUFFIXES.some(suffix => value.endsWith(suffix));
   }
 

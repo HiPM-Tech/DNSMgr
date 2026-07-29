@@ -198,6 +198,8 @@ export class GcoreAdapter implements DnsAdapter {
       const rawList = rrsets.flatMap((rrset) => this.mapRRSetToRecords(rrset, zoneName));
       const list = rawList.filter(r => {
         if (r.Type !== 'NS') return true;
+        // 只过滤 @ 记录的 NS（托管商默认 NS），保留子域名 NS 记录（DNS 委派）
+        if (r.Name !== '@') return true;
         const v = r.Value.toLowerCase();
         return !v.endsWith('.gcorelabs.net') && !v.endsWith('.gcore-dns.com') && !v.endsWith('.gcdn.services');
       });
