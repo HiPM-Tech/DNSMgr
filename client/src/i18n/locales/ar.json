@@ -202,7 +202,19 @@
             "backupCodeRequired": "رمز النسخ الاحتياطي مطلوب",
             "rememberMe": "تذكرني",
             "trustDevice": "الجهاز موثوق",
-            "trustDeviceDays": "أيام الثقة"
+            "trustDeviceDays": "أيام الثقة",
+            "brandLine1": "سجّل الدخول لاستخدام",
+            "brandLine2Suffix": " لإدارة",
+            "brandLine3": "نطاقاتك",
+            "via": "عبر",
+            "toContinue": "للمتابعة",
+            "continue": "متابعة",
+            "usernameStepLine1": "أدخل اسم المستخدم",
+            "usernameStepLine2": "للمتابعة",
+            "passwordStepLine1": "أدخل",
+            "passwordStepLine2": "كلمة المرور",
+            "back": "رجوع",
+            "encryptionFailed": "فشل تشفير كلمة المرور، حاول مرة أخرى"
         },
         "dashboard": {
             "totalDomains": "إجمالي النطاقات",

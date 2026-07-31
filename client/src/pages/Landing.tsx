@@ -123,6 +123,7 @@ export function Landing() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const [headerScrolled, setHeaderScrolled] = useState(false);
+  const cardsRef = useRef<HTMLElement | null>(null);
 
   const scrollRevealText = useMemo(() =>
     'HiDNS 是一个现代化的 DNS 聚合管理平台，支持 22 家主流 DNS 服务商的统一管理。从域名解析到安全监控，从自动化运维到团队协作，为您提供全方位的 DNS 管理解决方案。',
@@ -138,7 +139,7 @@ export function Landing() {
   }, []);
 
   const scrollToCards = useCallback(() => {
-    document.getElementById('cards')?.scrollIntoView({ behavior: 'smooth' });
+    cardsRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
   return (
@@ -197,7 +198,7 @@ export function Landing() {
       <ScrollRevealText text={scrollRevealText} />
 
       {/* Cards Section */}
-      <main className="landing-cards" id="cards">
+      <main className="landing-cards" id="cards" ref={cardsRef}>
 
         {/* Card 1: DNS 聚合管理 — Hero Card */}
         <FadeInSection>

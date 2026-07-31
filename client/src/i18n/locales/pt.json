@@ -202,6 +202,18 @@
             "rememberMe": "Lembrar de mim",
             "trustDevice": "Confiar neste dispositivo",
             "trustDeviceDays": "Sem login por {days} dias",
+            "brandLine1": "Entre para",
+            "brandLine2Suffix": " e gerenciar",
+            "brandLine3": "seus domínios",
+            "via": "Via",
+            "toContinue": "para continuar",
+            "continue": "Continuar",
+            "usernameStepLine1": "Digite o nome de usuário",
+            "usernameStepLine2": "para continuar",
+            "passwordStepLine1": "Digite",
+            "passwordStepLine2": "sua senha",
+            "back": "Voltar",
+            "encryptionFailed": "Falha ao criptografar a senha, tente novamente",
             "twoFactorHint": "Continue para concluir a verificação"
         },
         "dashboard": {

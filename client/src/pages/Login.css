@@ -52,6 +52,43 @@ html.dark .lc-card {
   box-shadow: 0 4px 40px rgba(0, 0, 0, 0.32);
 }
 
+/* ─── Language switcher ──────────────────────────────────────────────────── */
+.lc-lang {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 20;
+}
+
+.lc-lang-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--lc-text-muted, #8a94a6);
+  cursor: pointer;
+  font-size: 18px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lc-lang-btn:hover {
+  background: var(--lc-surface-hover, rgba(0, 0, 0, 0.06));
+  color: var(--lc-text, #1f2329);
+}
+
+html.dark .lc-lang-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--lc-text, #f3f6fb);
+}
+
+.lc-lang__menu .t-dropdown__item--active {
+  color: #0482f8;
+}
+
 /* ─── Left branding panel ────────────────────────────────────────────────── */
 .lc-branding {
   position: absolute;
@@ -189,6 +226,7 @@ html.dark .lc-error {
   gap: 4px;
   margin-bottom: 21px;
   font-family: inherit;
+  color: var(--lc-text, #000);
 }
 
 /* ─── Input ──────────────────────────────────────────────────────────────── */
