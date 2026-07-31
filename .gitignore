@@ -1,6 +1,7 @@
 # Editor
 .idea
 .kiro
+opencode.json
 
 # Dependencies
 node_modules/

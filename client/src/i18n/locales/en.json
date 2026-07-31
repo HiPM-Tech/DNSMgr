@@ -202,7 +202,18 @@
             "backupCodeRequired": "Please enter backup code",
             "rememberMe": "Remember me",
             "trustDevice": "Trust this device",
-            "trustDeviceDays": "No login for {days} days"
+            "trustDeviceDays": "No login for {days} days",
+            "brandLine1": "Sign in to use",
+            "brandLine2Suffix": " HiDNS Manager",
+            "brandLine3": "your domains",
+            "via": "Via",
+            "toContinue": "to continue",
+            "continue": "Continue",
+            "usernameStepLine1": "Enter username",
+            "usernameStepLine2": "to continue",
+            "passwordStepLine1": "Enter",
+            "passwordStepLine2": "your password",
+            "back": "Back"
         },
         "dashboard": {
             "title": "Dashboard",

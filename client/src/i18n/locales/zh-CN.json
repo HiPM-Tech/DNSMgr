@@ -637,7 +637,18 @@
             "usernameOrEmail": "用户名/邮箱",
             "usernameOrEmailPlaceholder": "请输入用户名或邮箱",
             "usernamePlaceholder": "请输入用户名",
-            "verify2FA": "验证双因素认证"
+            "verify2FA": "验证双因素认证",
+            "brandLine1": "登录以继续使用",
+            "brandLine2Suffix": " 管理",
+            "brandLine3": "您的域名",
+            "via": "通过",
+            "toContinue": "以继续",
+            "continue": "继续",
+            "usernameStepLine1": "输入用户名",
+            "usernameStepLine2": "以继续",
+            "passwordStepLine1": "输入",
+            "passwordStepLine2": "您的密码",
+            "back": "返回"
         },
         "mail": {
             "add": "添加记录",
