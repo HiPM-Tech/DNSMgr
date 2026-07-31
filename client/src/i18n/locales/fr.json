@@ -206,6 +206,7 @@
             "passwordStepLine2": "votre mot de passe",
             "back": "Retour",
             "encryptionFailed": "Échec du chiffrement du mot de passe, veuillez réessayer",
+            "httpWarning": "Vous utilisez HTTP (pas HTTPS). Votre mot de passe sera envoyé en texte clair, ce qui n'est pas sécurisé. Continuer quand même ?",
             "authCodeRequired": "Veuillez entrer le code d'authentification",
             "backupCodeRequired": "Veuillez entrer le code de secours",
             "logtoUnavailable": "La connexion Logto n'est pas activée ou est incomplète",

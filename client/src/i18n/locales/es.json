@@ -885,6 +885,7 @@
             "passwordStepLine2": "tu contraseña",
             "back": "Atrás",
             "encryptionFailed": "Falló el cifrado de la contraseña, inténtalo de nuevo",
+            "httpWarning": "Estás usando HTTP (no HTTPS). Tu contraseña se enviará en texto plano, lo cual es inseguro. ¿Continuar de todos modos?",
             "authCodeRequired": "Por favor, ingresa el código de autenticación",
             "backupCodeRequired": "Por favor, ingresa el código de respaldo",
             "logtoUnavailable": "El inicio de sesión con Logto no está habilitado o está incompleto",

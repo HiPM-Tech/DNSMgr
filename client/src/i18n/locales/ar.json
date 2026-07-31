@@ -214,7 +214,8 @@
             "passwordStepLine1": "أدخل",
             "passwordStepLine2": "كلمة المرور",
             "back": "رجوع",
-            "encryptionFailed": "فشل تشفير كلمة المرور، حاول مرة أخرى"
+            "encryptionFailed": "فشل تشفير كلمة المرور، حاول مرة أخرى",
+            "httpWarning": "أنت تستخدم HTTP (وليس HTTPS). سيتم إرسال كلمة المرور كنص عادي، مما لا يساوي. هل تريد المتابعة؟"
         },
         "dashboard": {
             "totalDomains": "إجمالي النطاقات",

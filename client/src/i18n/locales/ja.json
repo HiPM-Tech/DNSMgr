@@ -915,6 +915,7 @@
             "passwordStepLine2": "パスワード",
             "back": "戻る",
             "encryptionFailed": "パスワードの暗号化に失敗しました。もう一度お試しください",
+            "httpWarning": "HTTP（非HTTPS）を使用しています。パスワードは平文で送信されます。続行しますか？",
             "authCodeRequired": "認証コードを入力してください",
             "backupCodeRequired": "バックアップコードを入力してください"
         },
