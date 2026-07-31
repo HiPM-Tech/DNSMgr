@@ -214,7 +214,8 @@
             "passwordStepLine1": "Enter",
             "passwordStepLine2": "your password",
             "back": "Back",
-            "encryptionFailed": "Password encryption failed, please try again"
+            "encryptionFailed": "Password encryption failed, please try again",
+            "httpWarning": "You are using HTTP (not HTTPS). Your password will be transmitted in plain text, which is insecure. Continue anyway?"
         },
         "dashboard": {
             "title": "Dashboard",

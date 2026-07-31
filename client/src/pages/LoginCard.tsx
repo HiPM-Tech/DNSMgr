@@ -34,6 +34,31 @@ function getUserFriendlyError(error: unknown, fallback: string) {
   return fallback;
 }
 
+/**
+ * Try RSA-encrypt the password.
+ * On HTTPS: encryption failure is fatal (password must not be sent in plaintext).
+ * On HTTP: encryption failure triggers a confirmation dialog; if the user
+ *          confirms, the plaintext password is returned so login can proceed
+ *          over plain HTTP (the server must still accept it).
+ */
+async function encryptWithFallback(
+  password: string,
+  httpWarning: string,
+  encryptionFailed: string,
+): Promise<{ encrypted: string; plaintext: boolean }> {
+  try {
+    const encrypted = await encryptPassword(password);
+    return { encrypted, plaintext: false };
+  } catch {
+    if (window.location.protocol === 'https:') {
+      throw new Error(encryptionFailed);
+    }
+    const confirmed = window.confirm(httpWarning);
+    if (!confirmed) throw new Error(encryptionFailed);
+    return { encrypted: password, plaintext: true };
+  }
+}
+
 /* ─── SVG icons ──────────────────────────────────────────────────────────── */
 function GlobePurple() {
   return (
@@ -441,7 +466,7 @@ export default function LoginCard() {
     setLoading(true);
     try {
       let passwordToSend: string;
-      try { passwordToSend = await encryptPassword(password); } catch { setError(t('login.encryptionFailed')); setLoading(false); return; }
+      try { passwordToSend = (await encryptWithFallback(password, t('login.httpWarning'), t('login.encryptionFailed'))).encrypted; } catch { setLoading(false); return; }
       await login(username, passwordToSend, undefined, undefined, undefined, true);
       toast.success(t('login.signIn', { defaultValue: '登录成功' }));
     } catch (err: any) {
@@ -465,7 +490,7 @@ export default function LoginCard() {
     setLoading(true);
     try {
       let passwordToSend: string;
-      try { passwordToSend = await encryptPassword(password); } catch { setError(t('login.encryptionFailed')); setLoading(false); return; }
+      try { passwordToSend = (await encryptWithFallback(password, t('login.httpWarning'), t('login.encryptionFailed'))).encrypted; } catch { setLoading(false); return; }
       await login(
         username, passwordToSend,
         !useBackupCode ? totpCode : undefined,
@@ -488,7 +513,7 @@ export default function LoginCard() {
       if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
       const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as any });
       let passwordToSend: string;
-      try { passwordToSend = await encryptPassword(password); } catch { setError(t('login.encryptionFailed')); setLoading(false); return; }
+      try { passwordToSend = (await encryptWithFallback(password, t('login.httpWarning'), t('login.encryptionFailed'))).encrypted; } catch { setLoading(false); return; }
       await login(username, passwordToSend, undefined, undefined, attResp as unknown as WebAuthnResponse, true);
       toast.success(t('login.signIn', { defaultValue: '登录成功' }));
     } catch (e: unknown) {
@@ -540,7 +565,7 @@ export default function LoginCard() {
     setResetLoading(true);
     try {
       let encrypted: string;
-      try { encrypted = await encryptPassword(resetNewPassword); } catch { toast.error(t('login.encryptionFailed')); setResetLoading(false); return; }
+      try { encrypted = (await encryptWithFallback(resetNewPassword, t('login.httpWarning'), t('login.encryptionFailed'))).encrypted; } catch { setResetLoading(false); return; }
       const res = await authApi.confirmPasswordReset(resetEmail.trim(), resetCode.trim(), encrypted, true);
       if (res.data.code !== 0) { toast.error(res.data.msg || t('login.resetConfirmFailed')); return; }
       toast.success(t('login.resetPasswordSuccess'));

@@ -206,6 +206,7 @@
             "passwordStepLine2": "Ihr Passwort",
             "back": "Zurück",
             "encryptionFailed": "Passwortverschlüsselung fehlgeschlagen, bitte erneut versuchen",
+            "httpWarning": "Sie verwenden HTTP (nicht HTTPS). Ihr Passwort wird im Klartext übertragen, was unsicher ist. Trotzdem fortfahren?",
             "authCodeRequired": "Bitte Bestätigungscode eingeben",
             "backupCodeRequired": "Bitte Backup-Code eingeben",
             "logtoUnavailable": "Logto-Anmeldung ist nicht aktiviert oder unvollständig",
