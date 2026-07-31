@@ -650,7 +650,10 @@
             "passwordStepLine2": "你的密码",
             "back": "返回",
             "encryptionFailed": "密码加密失败了，杂鱼再试一次，别气馁哦（假笑）",
-            "httpWarning": "你用的是 HTTP 哦，密码会以明文传送，笨蛋你知道这很危险吗？还是硬要继续？"
+            "httpWarning": "你用的是 HTTP 哦，密码会以明文传送，笨蛋你知道这很危险吗？还是硬要继续？",
+            "httpWarningTitle": "不安全的连接哦~",
+            "httpWarningConfirm": "继续啦",
+            "httpWarningCancel": "才不要"
         },
         "mail": {
             "add": "给我加记录！",

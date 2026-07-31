@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import svgPaths from '../utils/loginSvgPaths';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
@@ -11,6 +11,7 @@ import { Dropdown } from 'tdesign-react';
 import type { DropdownOption } from 'tdesign-react';
 import { CheckIcon, TranslateIcon } from 'tdesign-icons-react';
 import { localeOptions } from '../i18n';
+import { Modal } from '../components/Modal';
 import './Login.css';
 
 const SYS = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -43,7 +44,7 @@ function getUserFriendlyError(error: unknown, fallback: string) {
  */
 async function encryptWithFallback(
   password: string,
-  httpWarning: string,
+  confirmFn: () => Promise<boolean>,
   encryptionFailed: string,
 ): Promise<{ encrypted: string; plaintext: boolean }> {
   try {
@@ -53,7 +54,7 @@ async function encryptWithFallback(
     if (window.location.protocol === 'https:') {
       throw new Error(encryptionFailed);
     }
-    const confirmed = window.confirm(httpWarning);
+    const confirmed = await confirmFn();
     if (!confirmed) throw new Error(encryptionFailed);
     return { encrypted: password, plaintext: true };
   }
@@ -362,6 +363,8 @@ export default function LoginCard() {
   const usernameInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const totpInputRef = useRef<HTMLInputElement | null>(null);
+  const httpWarningResolveRef = useRef<((value: boolean) => void) | null>(null);
+  const [httpWarningOpen, setHttpWarningOpen] = useState(false);
 
   const EXIT_DUR = 480;
   const EASE_OUT = 'cubic-bezier(0.55,0,0.8,0.45)';
@@ -377,6 +380,19 @@ export default function LoginCard() {
       })
       .catch(() => {});
   }, []);
+
+  const showHttpWarningModal = useCallback(() => {
+    return new Promise<boolean>((resolve) => {
+      httpWarningResolveRef.current = resolve;
+      setHttpWarningOpen(true);
+    });
+  }, []);
+
+  const resolveHttpWarning = (confirmed: boolean) => {
+    httpWarningResolveRef.current?.(confirmed);
+    httpWarningResolveRef.current = null;
+    setHttpWarningOpen(false);
+  };
 
   const languageOptions = useMemo<DropdownOption[]>(() => localeOptions.map((option) => ({
     content: option.label,
@@ -476,7 +492,7 @@ export default function LoginCard() {
     setLoading(true);
     try {
       let passwordToSend: string;
-      try { passwordToSend = (await encryptWithFallback(password, t('login.httpWarning'), t('login.encryptionFailed'))).encrypted; } catch { setLoading(false); return; }
+      try { passwordToSend = (await encryptWithFallback(password, showHttpWarningModal, t('login.encryptionFailed'))).encrypted; } catch { setLoading(false); return; }
       await login(username, passwordToSend, undefined, undefined, undefined, true);
       toast.success(t('login.signIn', { defaultValue: '登录成功' }));
     } catch (err: any) {
@@ -500,7 +516,7 @@ export default function LoginCard() {
     setLoading(true);
     try {
       let passwordToSend: string;
-      try { passwordToSend = (await encryptWithFallback(password, t('login.httpWarning'), t('login.encryptionFailed'))).encrypted; } catch { setLoading(false); return; }
+      try { passwordToSend = (await encryptWithFallback(password, showHttpWarningModal, t('login.encryptionFailed'))).encrypted; } catch { setLoading(false); return; }
       await login(
         username, passwordToSend,
         !useBackupCode ? totpCode : undefined,
@@ -523,7 +539,7 @@ export default function LoginCard() {
       if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
       const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as any });
       let passwordToSend: string;
-      try { passwordToSend = (await encryptWithFallback(password, t('login.httpWarning'), t('login.encryptionFailed'))).encrypted; } catch { setLoading(false); return; }
+      try { passwordToSend = (await encryptWithFallback(password, showHttpWarningModal, t('login.encryptionFailed'))).encrypted; } catch { setLoading(false); return; }
       await login(username, passwordToSend, undefined, undefined, attResp as unknown as WebAuthnResponse, true);
       toast.success(t('login.signIn', { defaultValue: '登录成功' }));
     } catch (e: unknown) {
@@ -575,7 +591,7 @@ export default function LoginCard() {
     setResetLoading(true);
     try {
       let encrypted: string;
-      try { encrypted = (await encryptWithFallback(resetNewPassword, t('login.httpWarning'), t('login.encryptionFailed'))).encrypted; } catch { setResetLoading(false); return; }
+      try { encrypted = (await encryptWithFallback(resetNewPassword, showHttpWarningModal, t('login.encryptionFailed'))).encrypted; } catch { setResetLoading(false); return; }
       const res = await authApi.confirmPasswordReset(resetEmail.trim(), resetCode.trim(), encrypted, true);
       if (res.data.code !== 0) { toast.error(res.data.msg || t('login.resetConfirmFailed')); return; }
       toast.success(t('login.resetPasswordSuccess'));
@@ -653,6 +669,15 @@ export default function LoginCard() {
             </div>
           </div>
         </div>
+      )}
+      {httpWarningOpen && (
+        <Modal title={t('login.httpWarningTitle')} onClose={() => resolveHttpWarning(false)} size="sm">
+          <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.6 }}>{t('login.httpWarning')}</p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button type="button" className="lc-btn-outline" onClick={() => resolveHttpWarning(false)}>{t('login.httpWarningCancel')}</button>
+            <button type="button" className="lc-btn-primary" onClick={() => resolveHttpWarning(true)}>{t('login.httpWarningConfirm')}</button>
+          </div>
+        </Modal>
       )}
     </div>
   );

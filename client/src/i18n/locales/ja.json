@@ -916,6 +916,9 @@
             "back": "戻る",
             "encryptionFailed": "パスワードの暗号化に失敗しました。もう一度お試しください",
             "httpWarning": "HTTP（非HTTPS）を使用しています。パスワードは平文で送信されます。続行しますか？",
+            "httpWarningTitle": "安全でない接続",
+            "httpWarningConfirm": "続行",
+            "httpWarningCancel": "キャンセル",
             "authCodeRequired": "認証コードを入力してください",
             "backupCodeRequired": "バックアップコードを入力してください"
         },

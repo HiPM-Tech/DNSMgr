@@ -215,6 +215,9 @@
             "back": "Voltar",
             "encryptionFailed": "Falha ao criptografar a senha, tente novamente",
             "httpWarning": "Você está usando HTTP (não HTTPS). Sua senha será transmitida em texto plano, o que é inseguro. Continuar mesmo assim?",
+            "httpWarningTitle": "Conexão insegura",
+            "httpWarningConfirm": "Continuar",
+            "httpWarningCancel": "Cancelar",
             "twoFactorHint": "Continue para concluir a verificação"
         },
         "dashboard": {

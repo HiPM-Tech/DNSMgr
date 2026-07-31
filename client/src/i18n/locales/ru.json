@@ -215,6 +215,9 @@
             "back": "Назад",
             "encryptionFailed": "Не удалось зашифровать пароль, попробуйте ещё раз",
             "httpWarning": "Вы используете HTTP (не HTTPS). Пароль будет передан в открытом виде, что небезопасно. Продолжить?",
+            "httpWarningTitle": "Небезопасное соединение",
+            "httpWarningConfirm": "Продолжить",
+            "httpWarningCancel": "Отмена",
             "twoFactorHint": "Продолжите для завершения проверки"
         },
         "dashboard": {
