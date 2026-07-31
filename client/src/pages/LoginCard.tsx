@@ -72,16 +72,6 @@ function GlobePurple() {
   );
 }
 
-function GlobeBlue() {
-  return (
-    <div className="lc-icon-20">
-      <svg width="16.6667" height="16.6667" viewBox="0 0 16.6667 16.6667" fill="none">
-        <path d={svgPaths.p3f788380} fill="#336DFF" />
-      </svg>
-    </div>
-  );
-}
-
 function ArrowForward() {
   return (
     <div className="lc-icon-22">
@@ -188,6 +178,26 @@ function UsernamePanel({ username, setUsername, onContinue, loading, oauthEnable
           </>
         )}
       </button>
+      {oauthEnabled && (
+        <div className="lc-sso-row">
+          <SsoRow
+            icon={<GlobePurple />}
+            label={t('login.oauthSignIn', { defaultValue: '通过 OAuth 登录' })}
+            brand=""
+            onClick={() => onOauthLogin('custom')}
+            disabled={oauthLoading || loading}
+          />
+          {oauthProviders.some((p) => p.key === 'logto') && (
+            <SsoRow
+              icon={<GlobePurple />}
+              label={t('login.logtoSignIn', { defaultValue: '用 Logto 登录' })}
+              brand=""
+              onClick={() => onOauthLogin('logto')}
+              disabled={oauthLoading || loading}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
