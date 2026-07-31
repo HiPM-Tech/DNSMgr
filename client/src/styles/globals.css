@@ -10,7 +10,6 @@
   --app-scaled-vw: calc(100vw / var(--app-ui-scale));
 
   /* Light mode (default) */
-  --td-theme-button-shadow-color: rgba(255, 255, 255, 0.6);
   --color-bg-primary: #ffffff;
   --color-bg-secondary: #f9fafb;
   --color-bg-tertiary: #f3f4f6;
@@ -38,7 +37,6 @@
 
 /* Dark mode is resolved by ThemeContext so manual light/dark can override the OS. */
 html.dark {
-  --td-theme-button-shadow-color: rgba(0, 0, 0, 0.6);
   --color-bg-primary: #111827;
   --color-bg-secondary: #1f2937;
   --color-bg-tertiary: #374151;
@@ -215,10 +213,6 @@ html.dark input:-webkit-autofill:focus {
   flex: 0 0 auto;
 }
 
-.t-button {
-  text-shadow: 0 1px 3px var(--td-theme-button-shadow-color, transparent);
-}
-
 .page-heading--compact {
   align-items: center;
 }
@@ -358,7 +352,6 @@ html.dark input:-webkit-autofill:focus {
 }
 
 .t-table .t-button {
-  text-shadow: var(--td-theme-button-shadow, none);
   max-width: 100%;
 }
 
@@ -496,7 +489,6 @@ html.dark input:-webkit-autofill:focus {
   --app-popup-shift-y: -6px;
   --app-popup-exit-shift-x: 0;
   --app-popup-exit-shift-y: -3px;
-  backface-visibility: hidden;
   transform-origin: top center;
 }
 
@@ -505,9 +497,7 @@ html.dark input:-webkit-autofill:focus {
   --app-popup-frame-shift-y: -6px;
   --app-popup-frame-exit-shift-x: 0;
   --app-popup-frame-exit-shift-y: -3px;
-  backface-visibility: hidden;
   transform-origin: top center;
-  will-change: opacity, translate, scale;
 }
 
 .t-popup[data-popper-placement^='top'] > .t-popup__content {
@@ -570,7 +560,7 @@ html.dark input:-webkit-autofill:focus {
 .t-popup--animation-expand-enter-active {
   -webkit-clip-path: none !important;
   clip-path: none !important;
-  animation: appPopupFrameIn var(--app-popup-enter-duration) var(--app-popup-motion-ease-out) both !important;
+  animation: appPopupFrameIn var(--app-popup-enter-duration) var(--app-popup-motion-ease-out) backwards !important;
   transition: none !important;
 }
 
@@ -578,7 +568,7 @@ html.dark input:-webkit-autofill:focus {
 .t-popup--animation-expand-leave-active {
   -webkit-clip-path: none !important;
   clip-path: none !important;
-  animation: appPopupFrameOut var(--app-popup-exit-duration) var(--app-popup-motion-ease-in) both !important;
+  animation: appPopupFrameOut var(--app-popup-exit-duration) var(--app-popup-motion-ease-in) forwards !important;
   transition: none !important;
 }
 
@@ -595,7 +585,7 @@ html.dark input:-webkit-autofill:focus {
 
 .t-popup--animation-enter-active :where(.t-select-option, .t-dropdown__item),
 .t-popup--animation-expand-enter-active :where(.t-select-option, .t-dropdown__item) {
-  animation: appPopupItemIn 180ms var(--app-popup-motion-ease-out) both;
+  animation: appPopupItemIn 180ms var(--app-popup-motion-ease-out) backwards;
 }
 
 .t-popup--animation-enter-active :where(.t-select-option, .t-dropdown__item):nth-child(2),
@@ -652,14 +642,12 @@ html.dark input:-webkit-autofill:focus {
     opacity: 0;
     visibility: visible;
     translate: var(--app-popup-frame-shift-x) var(--app-popup-frame-shift-y);
-    scale: 1;
   }
 
   100% {
     opacity: 1;
     visibility: visible;
     translate: 0 0;
-    scale: 1;
   }
 }
 
@@ -668,26 +656,22 @@ html.dark input:-webkit-autofill:focus {
     opacity: 1;
     visibility: visible;
     translate: 0 0;
-    scale: 1;
   }
 
   100% {
     opacity: 0;
     visibility: hidden;
     translate: var(--app-popup-frame-exit-shift-x) var(--app-popup-frame-exit-shift-y);
-    scale: 1;
   }
 }
 
 @keyframes appPopupItemIn {
   0% {
     opacity: 0;
-    transform: translate3d(0, 0, 0);
   }
 
   100% {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 

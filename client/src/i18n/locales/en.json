@@ -204,7 +204,7 @@
             "trustDevice": "Trust this device",
             "trustDeviceDays": "No login for {days} days",
             "brandLine1": "Sign in to use",
-            "brandLine2Suffix": " HiDNS Manager",
+            "brandLine2Suffix": " to manage",
             "brandLine3": "your domains",
             "via": "Via",
             "toContinue": "to continue",
@@ -213,7 +213,8 @@
             "usernameStepLine2": "to continue",
             "passwordStepLine1": "Enter",
             "passwordStepLine2": "your password",
-            "back": "Back"
+            "back": "Back",
+            "encryptionFailed": "Password encryption failed, please try again"
         },
         "dashboard": {
             "title": "Dashboard",

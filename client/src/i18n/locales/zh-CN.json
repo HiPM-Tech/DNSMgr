@@ -648,7 +648,8 @@
             "usernameStepLine2": "以继续",
             "passwordStepLine1": "输入",
             "passwordStepLine2": "您的密码",
-            "back": "返回"
+            "back": "返回",
+            "encryptionFailed": "密码加密失败，请重试"
         },
         "mail": {
             "add": "添加记录",

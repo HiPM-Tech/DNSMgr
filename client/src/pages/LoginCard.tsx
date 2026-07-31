@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from 'react';
+import { useState, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import svgPaths from '../utils/loginSvgPaths';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
@@ -7,6 +7,10 @@ import type { WebAuthnResponse } from '../api';
 import { useToast } from '../hooks/useToast';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { encryptPassword } from '../utils/rsaEncrypt';
+import { Dropdown } from 'tdesign-react';
+import type { DropdownOption } from 'tdesign-react';
+import { CheckIcon, TranslateIcon } from 'tdesign-icons-react';
+import { localeOptions } from '../i18n';
 import './Login.css';
 
 const SYS = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -18,7 +22,16 @@ function getApiErrorMessage(error: unknown, fallback: string) {
     const message = response?.data?.msg ?? response?.data?.message;
     if (message) return message;
   }
-  return error instanceof Error ? error.message : fallback;
+  return fallback;
+}
+
+function getUserFriendlyError(error: unknown, fallback: string) {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: ApiErrorPayload } }).response;
+    const message = response?.data?.msg ?? response?.data?.message;
+    if (message && message.length < 200) return message;
+  }
+  return fallback;
 }
 
 /* ─── SVG icons ──────────────────────────────────────────────────────────── */
@@ -111,10 +124,11 @@ function SsoRow({ icon, label, brand, onClick, disabled }: {
 }
 
 /* ─── Step: Username ─────────────────────────────────────────────────────── */
-function UsernamePanel({ username, setUsername, onContinue, loading, oauthEnabled, oauthProviders, onOauthLogin, oauthLoading }: {
+function UsernamePanel({ username, setUsername, onContinue, loading, oauthEnabled, oauthProviders, onOauthLogin, oauthLoading, inputRef }: {
   username: string; setUsername: (v: string) => void; onContinue: () => void; loading: boolean;
   oauthEnabled: boolean; oauthProviders: Array<{ key: 'custom' | 'logto'; providerName: string }>;
   onOauthLogin: (provider?: 'custom' | 'logto') => void; oauthLoading: boolean;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const { t } = useI18n();
   return (
@@ -126,6 +140,7 @@ function UsernamePanel({ username, setUsername, onContinue, loading, oauthEnable
       <div className="lc-input-wrap">
         <input
           type="text"
+          ref={inputRef as React.RefObject<HTMLInputElement>}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && username.trim() && onContinue()}
@@ -153,9 +168,10 @@ function UsernamePanel({ username, setUsername, onContinue, loading, oauthEnable
 }
 
 /* ─── Step: Password ─────────────────────────────────────────────────────── */
-function PasswordPanel({ password, setPassword, onBack, onSubmit, loading, username, onForgotPassword, onPasskeyLogin, supported2FATypes }: {
+function PasswordPanel({ password, setPassword, onBack, onSubmit, loading, username, onForgotPassword, onPasskeyLogin, supported2FATypes, inputRef }: {
   password: string; setPassword: (v: string) => void; onBack: () => void; onSubmit: () => void; loading: boolean;
   username: string; onForgotPassword: () => void; onPasskeyLogin: () => void; supported2FATypes: string[];
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const { t } = useI18n();
   return (
@@ -173,6 +189,7 @@ function PasswordPanel({ password, setPassword, onBack, onSubmit, loading, usern
       <div className="lc-input-wrap">
         <input
           type="password"
+          ref={inputRef as React.RefObject<HTMLInputElement>}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && password.trim() && onSubmit()}
@@ -200,7 +217,7 @@ function PasswordPanel({ password, setPassword, onBack, onSubmit, loading, usern
         <span style={{ fontFamily: SYS, fontWeight: 500, fontSize: 14, color: 'var(--lc-text)' }}>？{t('login.forgotPassword')}</span>
       </button>
       {supported2FATypes.includes('webauthn') && (
-        <button type="button" className="lc-sso" onClick={onPasskeyLogin} disabled={loading}>
+        <button type="button" className="lc-sso" onClick={onPasskeyLogin} disabled={loading || !username.trim()}>
           <span style={{ fontFamily: SYS, fontWeight: 500, fontSize: 14, color: 'var(--lc-text)' }}>{t('passkeys.usePasskey')}</span>
         </button>
       )}
@@ -209,10 +226,11 @@ function PasswordPanel({ password, setPassword, onBack, onSubmit, loading, usern
 }
 
 /* ─── Step: 2FA ──────────────────────────────────────────────────────────── */
-function TwoFactorPanel({ onBack, totpCode, setTotpCode, onSubmit, loading, useBackupCode, setUseBackupCode, backupCode, setBackupCode, onPasskeyLogin, supported2FATypes }: {
+function TwoFactorPanel({ onBack, totpCode, setTotpCode, onSubmit, loading, useBackupCode, setUseBackupCode, backupCode, setBackupCode, onPasskeyLogin, supported2FATypes, username, inputRef }: {
   onBack: () => void; totpCode: string; setTotpCode: (v: string) => void; onSubmit: () => void; loading: boolean;
   useBackupCode: boolean; setUseBackupCode: (v: boolean) => void; backupCode: string; setBackupCode: (v: string) => void;
-  onPasskeyLogin: () => void; supported2FATypes: string[];
+  onPasskeyLogin: () => void; supported2FATypes: string[]; username: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const { t } = useI18n();
   return (
@@ -228,7 +246,7 @@ function TwoFactorPanel({ onBack, totpCode, setTotpCode, onSubmit, loading, useB
         <p>{t('login.twoFactorHint')}</p>
       </div>
       {supported2FATypes.includes('webauthn') && (
-        <button type="button" className="lc-sso" onClick={onPasskeyLogin} disabled={loading}>
+        <button type="button" className="lc-sso" onClick={onPasskeyLogin} disabled={loading || !username.trim()}>
           <span style={{ fontFamily: SYS, fontWeight: 500, fontSize: 14, color: 'var(--lc-text)' }}>{t('passkeys.usePasskey')}</span>
         </button>
       )}
@@ -239,6 +257,7 @@ function TwoFactorPanel({ onBack, totpCode, setTotpCode, onSubmit, loading, useB
         <div className="lc-input-wrap">
           <input
             type="text"
+            ref={inputRef as React.RefObject<HTMLInputElement>}
             value={totpCode}
             onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
             onKeyDown={(e) => e.key === 'Enter' && totpCode.trim() && onSubmit()}
@@ -252,6 +271,7 @@ function TwoFactorPanel({ onBack, totpCode, setTotpCode, onSubmit, loading, useB
         <div className="lc-input-wrap">
           <input
             type="text"
+            ref={inputRef as React.RefObject<HTMLInputElement>}
             value={backupCode}
             onChange={(e) => setBackupCode(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && backupCode.trim() && onSubmit()}
@@ -282,7 +302,7 @@ type ViewStep = 'username' | 'password' | '2fa';
 
 export default function LoginCard() {
   const { login } = useAuth();
-  const { t } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   const toast = useToast();
   const [viewStep, setViewStep] = useState<ViewStep>('username');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -304,6 +324,9 @@ export default function LoginCard() {
   const [oauthProviders, setOauthProviders] = useState<Array<{ key: 'custom' | 'logto'; providerName: string }>>([]);
   const [oauthLoading, setOauthLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const usernameInputRef = useRef<HTMLInputElement | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
+  const totpInputRef = useRef<HTMLInputElement | null>(null);
 
   const EXIT_DUR = 480;
   const EASE_OUT = 'cubic-bezier(0.55,0,0.8,0.45)';
@@ -319,6 +342,13 @@ export default function LoginCard() {
       })
       .catch(() => {});
   }, []);
+
+  const languageOptions = useMemo<DropdownOption[]>(() => localeOptions.map((option) => ({
+    content: option.label,
+    value: option.code,
+    active: option.code === locale,
+    prefixIcon: option.code === locale ? <CheckIcon /> : undefined,
+  })), [locale]);
 
   const goForward = () => {
     if (phase !== 'idle' || !username.trim()) return;
@@ -358,6 +388,16 @@ export default function LoginCard() {
   };
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  useEffect(() => {
+    if (phase !== 'idle') return;
+    const id = setTimeout(() => {
+      if (viewStep === 'username') usernameInputRef.current?.focus();
+      else if (viewStep === 'password') passwordInputRef.current?.focus();
+      else if (viewStep === '2fa') totpInputRef.current?.focus();
+    }, 60);
+    return () => clearTimeout(id);
+  }, [viewStep, phase]);
 
   const usernameTransform = (): React.CSSProperties => {
     if (viewStep === 'username' && phase === 'idle') {
@@ -401,7 +441,7 @@ export default function LoginCard() {
     setLoading(true);
     try {
       let passwordToSend: string;
-      try { passwordToSend = await encryptPassword(password); } catch { passwordToSend = password; }
+      try { passwordToSend = await encryptPassword(password); } catch { setError(t('login.encryptionFailed')); setLoading(false); return; }
       await login(username, passwordToSend, undefined, undefined, undefined, true);
       toast.success(t('login.signIn', { defaultValue: '登录成功' }));
     } catch (err: any) {
@@ -411,7 +451,7 @@ export default function LoginCard() {
         goTo2FA();
         setError('');
       } else {
-        setError(err.message || t('login.failed'));
+        setError(getUserFriendlyError(err, t('login.failed')));
       }
     } finally {
       setLoading(false);
@@ -425,7 +465,7 @@ export default function LoginCard() {
     setLoading(true);
     try {
       let passwordToSend: string;
-      try { passwordToSend = await encryptPassword(password); } catch { passwordToSend = password; }
+      try { passwordToSend = await encryptPassword(password); } catch { setError(t('login.encryptionFailed')); setLoading(false); return; }
       await login(
         username, passwordToSend,
         !useBackupCode ? totpCode : undefined,
@@ -434,7 +474,7 @@ export default function LoginCard() {
       );
       toast.success(t('login.signIn', { defaultValue: '登录成功' }));
     } catch (err: any) {
-      setError(err.message || t('login.failed'));
+      setError(getUserFriendlyError(err, t('login.failed')));
     } finally {
       setLoading(false);
     }
@@ -448,11 +488,11 @@ export default function LoginCard() {
       if (optsRes.data.code !== 0) throw new Error(optsRes.data.msg);
       const attResp = await startAuthentication({ optionsJSON: optsRes.data.data.options as any });
       let passwordToSend: string;
-      try { passwordToSend = await encryptPassword(password); } catch { passwordToSend = password; }
+      try { passwordToSend = await encryptPassword(password); } catch { setError(t('login.encryptionFailed')); setLoading(false); return; }
       await login(username, passwordToSend, undefined, undefined, attResp as unknown as WebAuthnResponse, true);
       toast.success(t('login.signIn', { defaultValue: '登录成功' }));
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : t('login.failed'));
+      setError(getUserFriendlyError(e, t('login.failed')));
     } finally {
       setLoading(false);
     }
@@ -487,7 +527,7 @@ export default function LoginCard() {
       if (res.data.code !== 0) { toast.error(res.data.msg || t('login.resetRequestFailed')); return; }
       toast.success(t('login.resetCodeSent'));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('login.resetRequestFailed'));
+      toast.error(getUserFriendlyError(e, t('login.resetRequestFailed')));
     } finally {
       setResetLoading(false);
     }
@@ -500,13 +540,13 @@ export default function LoginCard() {
     setResetLoading(true);
     try {
       let encrypted: string;
-      try { encrypted = await encryptPassword(resetNewPassword); } catch { encrypted = resetNewPassword; }
+      try { encrypted = await encryptPassword(resetNewPassword); } catch { toast.error(t('login.encryptionFailed')); setResetLoading(false); return; }
       const res = await authApi.confirmPasswordReset(resetEmail.trim(), resetCode.trim(), encrypted, true);
       if (res.data.code !== 0) { toast.error(res.data.msg || t('login.resetConfirmFailed')); return; }
       toast.success(t('login.resetPasswordSuccess'));
       setShowReset(false); setResetCode(''); setResetNewPassword('');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('login.resetConfirmFailed'));
+      toast.error(getUserFriendlyError(e, t('login.resetConfirmFailed')));
     } finally {
       setResetLoading(false);
     }
@@ -514,29 +554,45 @@ export default function LoginCard() {
 
   return (
     <div className="lc-card">
+      <div className="lc-lang">
+        <Dropdown
+          trigger="click"
+          placement="bottom-right"
+          options={languageOptions}
+          maxHeight={320}
+          minColumnWidth={168}
+          maxColumnWidth={220}
+          popupProps={{ overlayClassName: 'lc-lang__menu' }}
+          onClick={(option) => setLocale(String(option.value))}
+        >
+          <button type="button" className="lc-lang-btn" title={t('settings.language')} aria-label={t('settings.language')}>
+            <TranslateIcon />
+          </button>
+        </Dropdown>
+      </div>
       <BrandingPanel />
       <div className="lc-card__right">
         {error && <div className="lc-error">{error}</div>}
         <div className="lc-card__right-viewport">
-          <div className="lc-card__panel" style={{ pointerEvents: viewStep === 'username' && phase === 'idle' ? 'auto' : 'none', ...usernameTransform() }}>
+          <div className="lc-card__panel" aria-hidden={!(viewStep === 'username' && phase === 'idle')} style={{ pointerEvents: viewStep === 'username' && phase === 'idle' ? 'auto' : 'none', ...usernameTransform() }}>
             <UsernamePanel
               username={username} setUsername={setUsername} onContinue={goForward} loading={loading}
               oauthEnabled={oauthEnabled} oauthProviders={oauthProviders}
-              onOauthLogin={startOauthLogin} oauthLoading={oauthLoading}
+              onOauthLogin={startOauthLogin} oauthLoading={oauthLoading} inputRef={usernameInputRef}
             />
           </div>
-          <div className="lc-card__panel" style={{ pointerEvents: viewStep === 'password' && phase === 'idle' ? 'auto' : 'none', ...passwordTransform() }}>
+          <div className="lc-card__panel" aria-hidden={!(viewStep === 'password' && phase === 'idle')} style={{ pointerEvents: viewStep === 'password' && phase === 'idle' ? 'auto' : 'none', ...passwordTransform() }}>
             <PasswordPanel
               password={password} setPassword={setPassword} onBack={goBack} onSubmit={submitLogin} loading={loading}
               username={username} onForgotPassword={() => setShowReset(true)} onPasskeyLogin={handlePasskeyLogin}
-              supported2FATypes={supported2FATypes}
+              supported2FATypes={supported2FATypes} inputRef={passwordInputRef}
             />
           </div>
-          <div className="lc-card__panel" style={{ pointerEvents: viewStep === '2fa' && phase === 'idle' ? 'auto' : 'none', ...twoFactorTransform() }}>
+          <div className="lc-card__panel" aria-hidden={!(viewStep === '2fa' && phase === 'idle')} style={{ pointerEvents: viewStep === '2fa' && phase === 'idle' ? 'auto' : 'none', ...twoFactorTransform() }}>
             <TwoFactorPanel
               onBack={goBackFrom2FA} totpCode={totpCode} setTotpCode={setTotpCode} onSubmit={submit2FA} loading={loading}
               useBackupCode={useBackupCode} setUseBackupCode={setUseBackupCode} backupCode={backupCode} setBackupCode={setBackupCode}
-              onPasskeyLogin={handlePasskeyLogin} supported2FATypes={supported2FATypes}
+              onPasskeyLogin={handlePasskeyLogin} supported2FATypes={supported2FATypes} username={username} inputRef={totpInputRef}
             />
           </div>
         </div>
