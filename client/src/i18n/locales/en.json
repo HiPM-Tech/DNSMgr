@@ -215,7 +215,10 @@
             "passwordStepLine2": "your password",
             "back": "Back",
             "encryptionFailed": "Password encryption failed, please try again",
-            "httpWarning": "You are using HTTP (not HTTPS). Your password will be transmitted in plain text, which is insecure. Continue anyway?"
+            "httpWarning": "You are using HTTP (not HTTPS). Your password will be transmitted in plain text, which is insecure. Continue anyway?",
+            "httpWarningTitle": "Insecure Connection",
+            "httpWarningConfirm": "Continue",
+            "httpWarningCancel": "Cancel"
         },
         "dashboard": {
             "title": "Dashboard",

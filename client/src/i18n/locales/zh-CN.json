@@ -650,7 +650,10 @@
             "passwordStepLine2": "您的密码",
             "back": "返回",
             "encryptionFailed": "密码加密失败，请重试",
-            "httpWarning": "当前使用 HTTP 协议，密码将以明文传输，存在安全风险。是否继续？"
+            "httpWarning": "当前使用 HTTP 协议，密码将以明文传输，存在安全风险。是否继续？",
+            "httpWarningTitle": "不安全的连接",
+            "httpWarningConfirm": "继续",
+            "httpWarningCancel": "取消"
         },
         "mail": {
             "add": "添加记录",
