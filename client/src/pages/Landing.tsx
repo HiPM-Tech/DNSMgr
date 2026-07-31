@@ -1,437 +1,327 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Button } from 'tdesign-react';
-import { ArrowRightIcon, CloudIcon, InternetIcon, LockOnIcon, RocketIcon, UserIcon, ApiIcon, KeyIcon, ServerIcon, DataBaseIcon, AnalyticsIcon, NotificationIcon, SettingIcon, WifiIcon } from 'tdesign-icons-react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../contexts/I18nContext';
+import { ProviderIcon } from '../components/ProviderIcon';
 import './Landing.css';
 
-const TOTAL_SECTIONS = 4;
-const SWITCH_DURATION = 800;
+const RocketSvg = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z" />
+    <path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z" />
+    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+  </svg>
+);
 
-function createParticles(canvas: HTMLCanvasElement) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+const dnsProviders = [
+  { type: 'cloudflare', name: 'Cloudflare' },
+  { type: 'aliyun', name: 'Aliyun' },
+  { type: 'dnspod', name: 'DNSPod' },
+  { type: 'huawei', name: 'Huawei' },
+  { type: 'gcore', name: 'Gcore' },
+  { type: 'baidu', name: 'Baidu' },
+];
 
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+const multiProviders = [
+  { type: 'aliyunesa', name: 'Aliyun ESA' },
+  { type: 'jdcloud', name: 'JD Cloud' },
+  { type: 'west', name: 'West' },
+  { type: 'namesilo', name: 'NameSilo' },
+  { type: 'tencenteo', name: 'Tencent EO' },
+  { type: 'dnshe', name: 'DNSHE' },
+];
 
-  const particles: Array<{ x: number; y: number; size: number; speedX: number; speedY: number; opacity: number; pulse: number }> = [];
-  const count = Math.min(100, Math.floor((canvas.width * canvas.height) / 12000));
+function useScrollReveal() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
-  for (let i = 0; i < count; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      size: Math.random() * 2.5 + 0.5,
-      speedX: (Math.random() - 0.5) * 0.3,
-      speedY: (Math.random() - 0.5) * 0.3,
-      opacity: Math.random() * 0.5 + 0.15,
-      pulse: Math.random() * Math.PI * 2,
-    });
-  }
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
 
-  let animId = 0;
-  const animate = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    for (const p of particles) {
-      p.pulse += 0.02;
-      const pulseSize = p.size * (1 + Math.sin(p.pulse) * 0.3);
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, pulseSize, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(100, 210, 255, ${p.opacity})`;
-      ctx.fill();
-
-      const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, pulseSize * 3);
-      glow.addColorStop(0, `rgba(100, 210, 255, ${p.opacity * 0.3})`);
-      glow.addColorStop(1, 'rgba(100, 210, 255, 0)');
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, pulseSize * 3, 0, Math.PI * 2);
-      ctx.fillStyle = glow;
-      ctx.fill();
-
-      p.x += p.speedX;
-      p.y += p.speedY;
-
-      if (p.x < 0) p.x = canvas.width;
-      if (p.x > canvas.width) p.x = 0;
-      if (p.y < 0) p.y = canvas.height;
-      if (p.y > canvas.height) p.y = 0;
-    }
-
-    for (let i = 0; i < particles.length; i++) {
-      for (let j = i + 1; j < particles.length; j++) {
-        const dx = particles[i].x - particles[j].x;
-        const dy = particles[i].y - particles[j].y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 150) {
-          ctx.beginPath();
-          ctx.moveTo(particles[i].x, particles[i].y);
-          ctx.lineTo(particles[j].x, particles[j].y);
-          ctx.strokeStyle = `rgba(100, 210, 255, ${0.08 * (1 - dist / 150)})`;
-          ctx.lineWidth = 0.5;
-          ctx.stroke();
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
         }
-      }
-    }
+      },
+      { threshold: 0.15 }
+    );
 
-    animId = requestAnimationFrame(animate);
-  };
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
-  const resize = () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  };
-
-  window.addEventListener('resize', resize);
-  animate();
-
-  return () => {
-    cancelAnimationFrame(animId);
-    window.removeEventListener('resize', resize);
-  };
+  return { ref, visible };
 }
 
-const sections = [
-  {
-    key: 'hero',
-    gradient: 'radial-gradient(ellipse at 20% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 50%, rgba(139, 92, 246, 0.12) 0%, transparent 50%)',
-  },
-  {
-    key: 'pipeline',
-    gradient: 'radial-gradient(ellipse at 80% 20%, rgba(59, 130, 246, 0.12) 0%, transparent 50%), radial-gradient(ellipse at 20% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 50%)',
-  },
-  {
-    key: 'features',
-    gradient: 'radial-gradient(ellipse at 50% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 50% 100%, rgba(59, 130, 246, 0.1) 0%, transparent 50%)',
-  },
-  {
-    key: 'footer',
-    gradient: 'radial-gradient(ellipse at 30% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 50%)',
-  },
-];
+function FadeInSection({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const { ref, visible } = useScrollReveal();
+  return (
+    <div
+      ref={ref}
+      className={`landing-fade-in ${visible ? 'visible' : ''} ${delay ? `landing-fade-in-delay-${delay}` : ''} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
 
-const pipelineLayers = [
-  {
-    title: '接入层',
-    icon: <WifiIcon />,
-    items: [
-      { icon: <UserIcon />, label: 'Web UI', desc: 'React SPA' },
-      { icon: <ApiIcon />, label: 'REST API', desc: 'Express' },
-      { icon: <DataBaseIcon />, label: 'WebSocket', desc: '实时推送' },
-    ],
-  },
-  {
-    title: '安全层',
-    icon: <LockOnIcon />,
-    items: [
-      { icon: <KeyIcon />, label: 'JWT 认证', desc: 'Session 管理' },
-      { icon: <LockOnIcon />, label: 'API Token', desc: '自动化接入' },
-      { icon: <KeyIcon />, label: '2FA 验证', desc: 'TOTP/WebAuthn' },
-    ],
-  },
-  {
-    title: '核心引擎',
-    icon: <ServerIcon />,
-    items: [
-      { icon: <InternetIcon />, label: '域名管理', desc: '多平台聚合' },
-      { icon: <SettingIcon />, label: 'DNS 记录', desc: '全记录类型' },
-      { icon: <CloudIcon />, label: 'NS 监测', desc: '实时监控' },
-    ],
-  },
-  {
-    title: '适配层',
-    icon: <RocketIcon />,
-    items: [
-      { icon: <ServerIcon />, label: 'Gcore DNS', desc: 'API v2' },
-      { icon: <CloudIcon />, label: 'Cloudflare', desc: '边缘网络' },
-      { icon: <InternetIcon />, label: '更多接入', desc: 'AliDNS / DNSPod' },
-    ],
-  },
-  {
-    title: '运维保障',
-    icon: <AnalyticsIcon />,
-    items: [
-      { icon: <DataBaseIcon />, label: '审计日志', desc: '操作追溯' },
-      { icon: <NotificationIcon />, label: '告警通知', desc: '即时推送' },
-      { icon: <SettingIcon />, label: '自动容灾', desc: 'Failover' },
-    ],
-  },
-];
+function ScrollRevealText({ text }: { text: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const charsRef = useRef<HTMLSpanElement[]>([]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const rect = container.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const sectionStart = rect.top;
+      const sectionHeight = rect.height;
+
+      if (sectionStart > viewportHeight || sectionStart + sectionHeight < 0) return;
+
+      const progress = Math.max(0, Math.min(1, (viewportHeight - sectionStart) / (viewportHeight + sectionHeight)));
+      const charCount = charsRef.current.length;
+      const revealedCount = Math.floor(progress * charCount * 1.5);
+
+      charsRef.current.forEach((span, i) => {
+        if (span) {
+          span.classList.toggle('revealed', i < revealedCount);
+        }
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [text]);
+
+  const chars = useMemo(() => text.split(''), [text]);
+
+  return (
+    <div ref={containerRef} className="landing-scroll-section">
+      <div className="landing-scroll-sticky">
+        <div className="landing-scroll-text">
+          {chars.map((char, i) => (
+            <span
+              key={i}
+              ref={(el) => { charsRef.current[i] = el as HTMLSpanElement; }}
+            >
+              {char}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function Landing() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const [activeSection, setActiveSection] = useState(0);
-  const [headerVisible, setHeaderVisible] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const isScrolling = useRef(false);
-  const touchStartY = useRef(0);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sectionRefs = useRef<(HTMLElement | null)[]>([]);
+  const [headerScrolled, setHeaderScrolled] = useState(false);
 
-  const features = [
-    {
-      icon: <InternetIcon size="large" />,
-      title: t('landing.features.dnsManagement.title'),
-      description: t('landing.features.dnsManagement.description'),
-    },
-    {
-      icon: <CloudIcon size="large" />,
-      title: t('landing.features.nsMonitoring.title'),
-      description: t('landing.features.nsMonitoring.description'),
-    },
-    {
-      icon: <LockOnIcon size="large" />,
-      title: t('landing.features.security.title'),
-      description: t('landing.features.security.description'),
-    },
-    {
-      icon: <RocketIcon size="large" />,
-      title: t('landing.features.multiProvider.title'),
-      description: t('landing.features.multiProvider.description'),
-    },
-  ];
-
-  const scrollToSection = useCallback((index: number) => {
-    if (isScrolling.current) return;
-    const target = Math.max(0, Math.min(TOTAL_SECTIONS - 1, index));
-    if (target === activeSection) return;
-    isScrolling.current = true;
-    setActiveSection(target);
-    setHeaderVisible(target === 0);
-    if (wrapperRef.current) {
-      wrapperRef.current.style.transform = `translateY(-${target * 100}vh)`;
-    }
-    setTimeout(() => { isScrolling.current = false; }, SWITCH_DURATION);
-  }, [activeSection]);
-
-  const handleWheel = useCallback((e: WheelEvent) => {
-    if (isScrolling.current) return;
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 1 : -1;
-    scrollToSection(activeSection + delta);
-  }, [activeSection, scrollToSection]);
-
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (isScrolling.current) return;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-      e.preventDefault();
-      scrollToSection(activeSection + 1);
-    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-      e.preventDefault();
-      scrollToSection(activeSection - 1);
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      scrollToSection(0);
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      scrollToSection(TOTAL_SECTIONS - 1);
-    }
-  }, [activeSection, scrollToSection]);
+  const scrollRevealText = useMemo(() =>
+    'HiDNS 是一个现代化的 DNS 聚合管理平台，支持 22 家主流 DNS 服务商的统一管理。从域名解析到安全监控，从自动化运维到团队协作，为您提供全方位的 DNS 管理解决方案。',
+    []
+  );
 
   useEffect(() => {
-    if (!canvasRef.current) return;
-    const cleanup = createParticles(canvasRef.current);
-    return cleanup;
+    const handleScroll = () => {
+      setHeaderScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const onTouchStart = (e: TouchEvent) => { touchStartY.current = e.touches[0].clientY; };
-    const onTouchEnd = (e: TouchEvent) => {
-      const deltaY = touchStartY.current - e.changedTouches[0].clientY;
-      if (Math.abs(deltaY) > 40) {
-        scrollToSection(activeSection + (deltaY > 0 ? 1 : -1));
-      }
-    };
-
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    el.addEventListener('touchstart', onTouchStart, { passive: true });
-    el.addEventListener('touchend', onTouchEnd, { passive: true });
-
-    return () => {
-      el.removeEventListener('wheel', handleWheel);
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [activeSection, handleWheel, scrollToSection]);
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  const scrollToCards = useCallback(() => {
+    document.getElementById('cards')?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
   return (
-    <div className="landing" ref={containerRef}>
-      <canvas ref={canvasRef} className="landing-particles" />
-      <div className="landing-noise" />
-
-      <div className="landing-blobs">
-        <div className="landing-blob landing-blob-1" />
-        <div className="landing-blob landing-blob-2" />
-        <div className="landing-blob landing-blob-3" />
-      </div>
-
-      <div className="landing-grid" />
-
-      {sections.map((s, i) => (
-        <div
-          key={s.key}
-          className={`landing-section-bg${i === activeSection ? ' visible' : ''}`}
-          style={{ background: s.gradient }}
-        />
-      ))}
-
-      <header className={`landing-header${headerVisible ? '' : ' scrolled'}`}>
+    <div className="landing">
+      {/* Header */}
+      <header className={`landing-header ${headerScrolled ? 'scrolled' : ''}`}>
         <div className="landing-header-inner">
           <div className="landing-header-logo">
-            <RocketIcon />
+            <RocketSvg />
             <span>HiDNS</span>
           </div>
-          <Button theme="default" variant="outline" onClick={() => navigate('/login')}>
+          <button className="landing-btn landing-btn-primary" onClick={() => navigate('/login')}>
             {t('landing.header.console')}
-          </Button>
+          </button>
         </div>
       </header>
 
-      <div className="landing-nav">
-        {['首页', '流水线', '功能', '关于'].map((label, i) => (
-          <button
-            key={i}
-            className={`landing-nav-dot${i === activeSection ? ' active' : ''}`}
-            onClick={() => scrollToSection(i)}
-            aria-label={label}
-            title={label}
-          >
-            <span className="landing-nav-dot-inner" />
-          </button>
-        ))}
-      </div>
-
-      <div className="landing-wrapper" ref={wrapperRef} style={{ transform: 'translateY(0)' }}>
-        {/* Section 0: Hero */}
-        <section
-          className={`landing-section${activeSection === 0 ? ' section-active' : ''}`}
-          ref={(el) => { sectionRefs.current[0] = el; }}
-        >
-          <div className="landing-hero-content">
-            <div className="landing-badge">
-              <RocketIcon size="small" />
-              <span>DNS Manager Platform</span>
-            </div>
-            <h1 className="landing-title">
-              HiDNS
-              <span className="landing-title-sub">一站式 DNS 聚合管理平台</span>
-            </h1>
-            <p className="landing-desc">{t('landing.hero.description')}</p>
-            <div className="landing-hero-actions">
-              <Button theme="primary" size="large" onClick={() => navigate('/login')} suffix={<ArrowRightIcon />}>
-                {t('landing.actions.login')}
-              </Button>
-              <Button variant="outline" size="large" onClick={() => scrollToSection(1)}>
-                {t('landing.actions.learnMore')}
-              </Button>
-            </div>
+      {/* Hero */}
+      <section className="landing-hero">
+        <FadeInSection>
+          <div className="landing-badge">
+            <RocketSvg />
+            <span>DNS Manager Platform</span>
           </div>
-        </section>
+        </FadeInSection>
 
-        {/* Section 1: Pipeline - Core Component Workflow */}
-        <section
-          className={`landing-section${activeSection === 1 ? ' section-active' : ''}`}
-          ref={(el) => { sectionRefs.current[1] = el; }}
-        >
-          <h2 className="landing-section-title">核心工作流水线</h2>
-          <p className="landing-pipeline-subtitle">从用户接入到 DNS 解析分发，全链路覆盖</p>
-          <div className="landing-pipeline">
-            {pipelineLayers.map((layer, li) => (
-              <div key={li} className="landing-pipeline-layer" style={{ animationDelay: `${li * 0.15}s` }}>
-                <div className="landing-pipeline-layer-header">
-                  <span className="landing-pipeline-layer-icon">{layer.icon}</span>
-                  <span className="landing-pipeline-layer-title">{layer.title}</span>
-                </div>
-                <div className="landing-pipeline-items">
-                  {layer.items.map((item, ii) => (
-                    <div key={ii} className="landing-pipeline-item">
-                      <span className="landing-pipeline-item-icon">{item.icon}</span>
-                      <span className="landing-pipeline-item-label">{item.label}</span>
-                      <span className="landing-pipeline-item-desc">{item.desc}</span>
-                    </div>
-                  ))}
-                </div>
-                {li < pipelineLayers.length - 1 && (
-                  <div className="landing-pipeline-connector">
-                    <div className="landing-pipeline-arrow" />
+        <FadeInSection delay={1}>
+          <h1 className="landing-hero-title">
+            HiDNS
+          </h1>
+        </FadeInSection>
+
+        <FadeInSection delay={2}>
+          <p className="landing-hero-subtitle">{t('landing.hero.subtitle')}</p>
+        </FadeInSection>
+
+        <FadeInSection delay={3}>
+          <p className="landing-hero-desc">{t('landing.hero.description')}</p>
+        </FadeInSection>
+
+        <FadeInSection delay={4}>
+          <div className="landing-hero-actions">
+            <button className="landing-btn landing-btn-primary landing-btn-large" onClick={() => navigate('/login')}>
+              {t('landing.actions.login')}
+            </button>
+            <button className="landing-btn landing-btn-outline landing-btn-large" onClick={scrollToCards}>
+              {t('landing.actions.learnMore')}
+            </button>
+          </div>
+        </FadeInSection>
+
+        <div className="landing-hero-fade" />
+      </section>
+
+      {/* Scroll Reveal Text */}
+      <ScrollRevealText text={scrollRevealText} />
+
+      {/* Cards Section */}
+      <main className="landing-cards" id="cards">
+
+        {/* Card 1: DNS 聚合管理 — Hero Card */}
+        <FadeInSection>
+          <div className="landing-card landing-card-hero">
+            <div className="landing-card-hero-content">
+              <p className="landing-card-hero-label">DNS 聚合管理</p>
+              <h2 className="landing-card-hero-title">
+                {t('landing.features.dnsManagement.title')}
+              </h2>
+              <p className="landing-card-hero-desc">
+                {t('landing.features.dnsManagement.description')}
+              </p>
+            </div>
+            <div className="landing-card-hero-visual">
+              <div className="landing-card-hero-panel">
+                <div className="landing-card-hero-panel-inner">
+                  <div className="landing-card-hero-dns-grid">
+                    {dnsProviders.map((p) => (
+                      <div key={p.type} className="landing-card-hero-dns-item">
+                        <ProviderIcon type={p.type} name={p.name} size={20} />
+                        <span>{p.name}</span>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
-            ))}
+            </div>
           </div>
-        </section>
+        </FadeInSection>
 
-        {/* Section 2: Features */}
-        <section
-          className={`landing-section${activeSection === 2 ? ' section-active' : ''}`}
-          ref={(el) => { sectionRefs.current[2] = el; }}
-        >
-          <h2 className="landing-section-title">{t('landing.features.title')}</h2>
-          <div className="landing-features-grid">
-            {features.map((f, i) => (
-              <div key={i} className="landing-feature-card" style={{ animationDelay: `${i * 0.1}s` }}>
-                <div className="landing-feature-icon">{f.icon}</div>
-                <h3 className="landing-feature-name">{f.title}</h3>
-                <p className="landing-feature-desc">{f.description}</p>
+        {/* Row: 安全 (blue) | NS 监控 (bordered) */}
+        <div className="landing-cards-row">
+          <FadeInSection delay={1}>
+            <div className="landing-card landing-card-blue">
+              <p className="landing-card-accent-title">
+                {t('landing.features.security.title')}
+              </p>
+              <p className="landing-card-accent-desc">
+                {t('landing.features.security.description')}
+              </p>
+              <div className="landing-card-accent-badge">
+                <span className="landing-card-accent-badge-label">Security</span>
+                <span className="landing-card-accent-badge-value">2FA + JWT</span>
               </div>
-            ))}
-          </div>
-          <div className="landing-features-more">
-            <Button variant="outline" size="medium" onClick={() => navigate('/login')} suffix={<ArrowRightIcon />}>
-              开始使用
-            </Button>
-          </div>
-        </section>
-
-        {/* Section 3: Footer */}
-        <section
-          className={`landing-section${activeSection === 3 ? ' section-active' : ''}`}
-          ref={(el) => { sectionRefs.current[3] = el; }}
-        >
-          <div className="landing-footer-content">
-            <div className="landing-footer-logo">
-              <RocketIcon size="large" />
-              <span>HiDNS</span>
             </div>
-            <p className="landing-footer-desc">
-              开源 · 安全 · 高效 —— 现代化 DNS 管理平台
-            </p>
-            <div className="landing-footer-links">
-              <button className="landing-footer-link" onClick={() => navigate('/dash/about')}>
-                {t('landing.footer.about')}
-              </button>
-              <span className="landing-footer-link-dot">·</span>
-              <a className="landing-footer-link" href="https://github.com" target="_blank" rel="noopener noreferrer">
-                GitHub
-              </a>
-              <span className="landing-footer-link-dot">·</span>
-              <button className="landing-footer-link" onClick={() => navigate('/login')}>
-                管理控制台
-              </button>
-            </div>
-            <p className="landing-footer-copyright">{t('landing.footer.copyright')}</p>
-          </div>
-        </section>
-      </div>
+          </FadeInSection>
 
-      <div className={`landing-scroll-hint${activeSection < TOTAL_SECTIONS - 1 ? ' visible' : ''}`}>
-        <span className="landing-scroll-hint-text">滚动探索</span>
-        <div className="landing-scroll-mouse">
-          <div className="landing-scroll-wheel" />
+          <FadeInSection delay={2}>
+            <div className="landing-card landing-card-bordered">
+              <p className="landing-card-bordered-title">
+                {t('landing.features.nsMonitoring.title')}
+              </p>
+              <p className="landing-card-bordered-desc">
+                {t('landing.features.nsMonitoring.description')}
+              </p>
+              <div className="landing-card-bordered-icons">
+                <div className="landing-card-bordered-icon-circle">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                  </svg>
+                </div>
+                <div className="landing-card-bordered-icon-circle">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </FadeInSection>
         </div>
-      </div>
+
+        {/* Card 3: 多平台支持 — Full Width */}
+        <FadeInSection>
+          <div className="landing-card landing-card-multi">
+            <div className="landing-card-multi-content">
+              <p className="landing-card-multi-label">Multi-Provider</p>
+              <h2 className="landing-card-multi-title">
+                {t('landing.features.multiProvider.title')}
+              </h2>
+              <p className="landing-card-multi-desc">
+                {t('landing.features.multiProvider.description')}
+              </p>
+            </div>
+            <div className="landing-card-multi-visual">
+              <div className="landing-card-multi-grid">
+                {multiProviders.map((p) => (
+                  <div key={p.type} className="landing-card-multi-item">
+                    <ProviderIcon type={p.type} name={p.name} size={20} />
+                    <span className="landing-card-multi-name">{p.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </FadeInSection>
+
+        {/* CTA */}
+        <FadeInSection>
+          <div className="landing-card landing-card-cta">
+            <h2 className="landing-card-cta-title">{t('landing.cta.title')}</h2>
+            <p className="landing-card-cta-desc">{t('landing.cta.description')}</p>
+            <button className="landing-btn landing-btn-primary landing-btn-large" onClick={() => navigate('/login')}>
+              {t('landing.cta.button')}
+            </button>
+          </div>
+        </FadeInSection>
+
+      </main>
+
+      {/* Footer */}
+      <footer className="landing-footer">
+        <div className="landing-footer-links">
+          <button className="landing-footer-link" onClick={() => navigate('/dash/about')}>
+            {t('landing.footer.about')}
+          </button>
+          <a className="landing-footer-link" href="https://github.com" target="_blank" rel="noopener noreferrer">
+            GitHub
+          </a>
+          <button className="landing-footer-link" onClick={() => navigate('/login')}>
+            管理控制台
+          </button>
+        </div>
+        <p className="landing-footer-copyright">{t('landing.footer.copyright')}</p>
+      </footer>
     </div>
   );
 }
