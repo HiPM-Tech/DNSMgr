@@ -314,7 +314,7 @@ export function Landing() {
           <button className="landing-footer-link" onClick={() => navigate('/dash/about')}>
             {t('landing.footer.about')}
           </button>
-          <a className="landing-footer-link" href="https://github.com" target="_blank" rel="noopener noreferrer">
+          <a className="landing-footer-link" href="https://github.com/HiPM-Tech/HiDNS" target="_blank" rel="noopener noreferrer">
             GitHub
           </a>
           <button className="landing-footer-link" onClick={() => navigate('/login')}>

@@ -181,13 +181,15 @@ function UsernamePanel({ username, setUsername, onContinue, loading, oauthEnable
       </button>
       {oauthEnabled && (
         <div className="lc-sso-row">
-          <SsoRow
-            icon={<GlobePurple />}
-            label={t('login.oauthSignIn', { defaultValue: '通过 OAuth 登录' })}
-            brand=""
-            onClick={() => onOauthLogin('custom')}
-            disabled={oauthLoading || loading}
-          />
+          {oauthProviders.some((p) => p.key === 'custom') && (
+            <SsoRow
+              icon={<GlobePurple />}
+              label={t('login.oauthSignIn', { defaultValue: '通过 OAuth 登录' })}
+              brand=""
+              onClick={() => onOauthLogin('custom')}
+              disabled={oauthLoading || loading}
+            />
+          )}
           {oauthProviders.some((p) => p.key === 'logto') && (
             <SsoRow
               icon={<GlobePurple />}
